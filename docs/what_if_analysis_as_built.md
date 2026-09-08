@@ -89,12 +89,34 @@ naming what the domain does carry. Facilities and collateral are aggregated
 ### The nineteen-point scale, and three PDs that mean three things
 
 `backend/corporate/ratingscale.py` is the ONE definition. Nineteen ordered
-grades — `AAA, AA+, AA, AA-, A+, A, A-, BBB+, BBB, BBB-, BB+, BB, BB-, B+, B,
-B-, CCC, CC, D` — eighteen performing plus `D`, which is reached by the default
-EVENT and never by a PD band. Displayed as **20 rows** (grades + Total) and a
-**20 × 20** migration matrix. There is no fourteen-point scale underneath: the
-universe was regenerated, every grade is populated, and the through-the-cycle
-levels are nineteen distinct strictly-increasing numbers.
+PERFORMING grades — `AAA, AA+, AA, AA-, A+, A, A-, BBB+, BBB, BBB-, BB+, BB,
+BB-, B+, B, B-, CCC, CC, C`. The scale ends at **C**.
+
+**Default is not the twentieth grade of it.** `D` is a separate STATE at
+ordinal 20, reached by the default EVENT and never by a PD band. The reason is
+measurement rather than tidiness: if the weakest grade of the scale *were* `D`,
+the observed default rate of the weakest grade would be 100% by construction
+and the grade and the outcome would stop being separate facts. A borrower can
+carry a sixty per cent twelve-month PD and still be paying; that borrower is
+`C`.
+
+The rating profile shows **20 rows** — the nineteen grades, then `D`, then a
+Total — and the migration matrix is **20 × 20**: nineteen grades plus a Total
+row and column, with the borrowers that entered, left or stayed in default
+reported beside it rather than inside it, which is what lets every row sum to
+100% of the population that started performing on that grade.
+
+Every record carries `internal_rating` and `internal_rating_ordinal`, written
+from the same index so they agree by construction.
+`internal_rating_numeric` remains as the historical alias for the same number.
+
+The TTC master is a piecewise-linear curve in the LOG-ODDS of the annual
+default probability, anchored at BBB = 0.18% on published corporate default
+evidence, with the per-notch step widening down the scale. See
+`docs/corporate_rating_pd_calibration.md` for the evidence, the method and the
+limitations. There is no fourteen-point scale underneath: the universe was
+regenerated, every one of the nineteen grades is populated, and the
+through-the-cycle levels are nineteen distinct strictly-increasing numbers.
 
 Three PDs, each derived and each meaning something different:
 
@@ -207,11 +229,26 @@ is one implementation of the rule rather than two.
 **ECL, as built:**
 
 ```
-ECL = PD_applicable × LGD × EAD × 1.082
-PD_applicable = pd_12m (Stage 1) | pd_lifetime (Stages 2 and 3)
+ECL = PD_applicable × LGD × EAD × scenario weighting
+PD_applicable  = pd_12m (Stage 1) | pd_lifetime (Stage 2) | 100% (Stage 3)
 pd_lifetime    = mean-reverting hazard over 4.2y, anchored on the GRADE's TTC PD
 WEIGHTED_SCENARIO_FACTOR = 0.50×1.00 + 0.20×0.72 + 0.30×1.46 = 1.082
+scenario weighting = 1.082 on a performing exposure, 1.000 on a defaulted one
 ```
+
+**Stage 3 is measured at a PD of 100%** — not 99.9%, not the borrower's
+rating-linked PD. The default has already happened, so the probability that it
+happens is one; a measurement using 99.9% would assert a one-in-a-thousand
+chance that an observed event did not occur. `ratingscale.applicable_pd` is the
+one function that decides the basis, and the generator, the profile screens,
+the Delta Model, the attribution and the workbook all call it.
+
+**A PD of 100% is not an LGD of 100%.** A defaulted borrower with collateral
+still recovers, so the measurement is `1.00 × LGD × EAD` and the whole of the
+severity question stays with LGD. The scenario weighting is applied to the
+performing legs only: its multipliers scale a probability that has not
+resolved, and multiplying a certainty by 1.082 would assert a loss rate above
+the borrower's own LGD, which is an arithmetic error rather than a provision.
 
 No discounting. `eir_pct` exists on the credit book and feeds only RAROC.
 

@@ -163,7 +163,12 @@ def rating_distribution(period: str) -> dict[str, Any]:
     populated = [r for r in rows if r["borrowers"]]
     return {
         "period": period,
-        "grades": len(rows),
+        # The SCALE is nineteen performing grades. The table has a twentieth
+        # row because default is on the book and the total has to tie to it,
+        # and calling that twenty grades is exactly the confusion the scale
+        # was rewritten to end.
+        "grades": rs.PERFORMING_COUNT,
+        "rows_including_default": len(rows),
         "populated_grades": len(populated),
         "rows": rows,
         "total": {

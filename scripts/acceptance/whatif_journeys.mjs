@@ -729,9 +729,15 @@ async function main() {
         '[data-testid="whatif-analysis"]', 190_000);
       check("a follow-up is answered too", narrowed);
       if (narrowed) {
-        const after = page.locator('[data-testid="whatif-analysis"]').last();
-        const labels = await after.$$eval("[data-row]",
-          (nodes) => nodes.map((n) => n.getAttribute("data-row")));
+        // The LAST card, scoped through the card itself. `:last-of-type` in
+        // the selector picks the last element of its tag among its siblings,
+        // which is not the same thing and read the first table back.
+        const rows = page.locator('[data-testid="whatif-analysis"]').last()
+          .locator("[data-row]");
+        const labels = [];
+        for (let i = 0; i < (await rows.count()); i += 1) {
+          labels.push(await rows.nth(i).getAttribute("data-row"));
+        }
         check("and it narrowed rather than starting again",
           labels.includes("BBB-") && !labels.includes("AAA"),
           labels.join(" "));
@@ -812,9 +818,17 @@ async function main() {
         await appears(page, '[data-testid="whatif-composer"]', 60_000);
         await say(page, "Increase PD for Stage 1 BB rating by 10%");
 
-        const filters = await appears(page, '[data-testid="whatif-thread"]',
-          60_000);
-        check(`${method}: the thread accepted the instruction`, filters);
+        // The restatement of what was understood comes BEFORE any figure —
+        // "What I understood — Rating: BB; Stage: Stage 1" — so a population
+        // that narrowed and one that did not are distinguishable before an
+        // ECL number appears to distract from the difference. Waited for
+        // rather than counted immediately: the interpret round trip is a
+        // network call, and reading the DOM the instant after clicking Send
+        // measures the click.
+        const restated = await page.locator("text=/What I understood/")
+          .first().waitFor({ timeout: 190_000 }).then(() => true, () => false);
+        check(`${method}: the thread restated what it understood`, restated);
+
         const ran = await chooseMethodology(page, check, method);
         check(`${method}: the scenario calculated`, ran);
         if (!ran) continue;
@@ -822,6 +836,8 @@ async function main() {
         const said = await page.textContent('[data-testid="whatif-result"]');
         check(`${method}: the population is Stage 1 and BB`,
           /BB/.test(said) && /Stage 1/.test(said));
+        check(`${method}: and the result names it`,
+          (await page.locator('[data-testid="whatif-population"]').count()) > 0);
 
         const button = page.locator('[data-testid="whatif-download-detail"]');
         check(`${method}: the detailed workbook is offered`,

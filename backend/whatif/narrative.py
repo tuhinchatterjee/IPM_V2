@@ -522,6 +522,7 @@ def interpret_analysis(body: dict[str, Any]) -> dict[str, Any]:
             out.update({
                 "paragraphs": paragraphs,
                 "headline": headline or composed["headline"],
+                "findings": composed["findings"],
                 "next_questions": [str(q) for q in
                                    (outcome.data.get("next_questions") or [])][:5]
                 or composed["next_questions"],
@@ -564,6 +565,7 @@ def compose_analysis(body: dict[str, Any]) -> dict[str, Any]:
                          f"the largest by {str(order.get('label', 'ECL')).lower()}."
                          if rows else "Nothing matches that."),
             "paragraphs": [sentence],
+            "findings": [sentence],
             "next_questions": ["Show these by sector.",
                                "Which of these are Stage 2?"],
             "written_by": "composed from the table",
@@ -601,6 +603,10 @@ def compose_analysis(body: dict[str, Any]) -> dict[str, Any]:
     return {
         "headline": said[0],
         "paragraphs": [" ".join(said)],
+        # The claims the calculation itself makes, carried beside the written
+        # reading exactly as they are on a scenario result: a reader comparing
+        # the prose against them is the check this design invites.
+        "findings": said,
         "next_questions": [
             "Split this by Stage.",
             "Show the same table for the previous quarter.",

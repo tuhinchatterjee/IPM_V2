@@ -906,13 +906,23 @@ export function ResultInterpretation({
   // then move underneath it as the figures it was written from, so nothing a
   // reader could have checked before is taken away.
   const written = (interpretation.paragraphs ?? []).filter(Boolean);
+  // Every optional field is read through a default. A reading that carries no
+  // findings is a legitimate reading — a quick analysis of the book has a
+  // table to point at rather than a list of engine claims — and one absent
+  // field used to take the whole page down with it: `findings.length` on an
+  // undefined threw during render, and React unmounted the thread, the
+  // profile and the composer along with the card that caused it.
+  const findings = interpretation.findings ?? [];
+  const followUps = interpretation.next_questions ?? [];
   return (
     <div className="rounded-md border border-border bg-surface-sunken p-4">
       <div className="mb-2 flex items-center gap-2">
         <h4 className="text-[13px] font-semibold text-text-primary">What this means</h4>
-        <Badge variant={tone === "negative" ? "negative" : tone === "muted" ? "outline" : "accent"}>
-          {interpretation.materiality}
-        </Badge>
+        {interpretation.materiality ? (
+          <Badge variant={tone === "negative" ? "negative" : tone === "muted" ? "outline" : "accent"}>
+            {interpretation.materiality}
+          </Badge>
+        ) : null}
       </div>
       {written.length ? (
         <div className="space-y-2" data-testid="whatif-written-reading">
@@ -924,20 +934,20 @@ export function ResultInterpretation({
         </div>
       ) : (
         <ul className="space-y-1.5">
-          {interpretation.findings.map((finding, i) => (
+          {findings.map((finding, i) => (
             <li key={i} className="text-[12px] leading-relaxed text-text-secondary">
               {finding}
             </li>
           ))}
         </ul>
       )}
-      {written.length && interpretation.findings.length ? (
+      {written.length && findings.length ? (
         <details className="mt-3">
           <summary className="cursor-pointer text-[11px] text-text-muted">
             The figures this reading was written from
           </summary>
           <ul className="mt-2 space-y-1.5 border-l border-border pl-3">
-            {interpretation.findings.map((finding, i) => (
+            {findings.map((finding, i) => (
               <li key={i} className="text-[12px] leading-relaxed text-text-secondary">
                 {finding}
               </li>
@@ -945,9 +955,9 @@ export function ResultInterpretation({
           </ul>
         </details>
       ) : null}
-      {interpretation.next_questions.length ? (
+      {followUps.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {interpretation.next_questions.map((question) => (
+          {followUps.map((question) => (
             <Button
               key={question}
               variant="outline"

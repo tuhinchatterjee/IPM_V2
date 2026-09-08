@@ -4990,11 +4990,15 @@ export interface WhatIfRunResult {
 }
 
 export interface WhatIfInterpretation {
-  materiality: string;
-  direction: string;
+  /** Present on a reading of a RESULT. A reading of a quick analysis has no
+   *  materiality: nothing was shocked, so there is no movement to size. */
+  materiality?: string;
+  direction?: string;
   headline: string;
-  findings: string[];
-  next_questions: string[];
+  /** The engine's own claims, where the reading is about a computed result.
+   *  A quick analysis has a table to point at instead. */
+  findings?: string[];
+  next_questions?: string[];
   statement: string;
   /** The written reading. Present when a model wrote it from the evidence
    *  packet and every figure in the prose was found in that packet. Absent
