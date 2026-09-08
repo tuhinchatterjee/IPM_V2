@@ -10,7 +10,7 @@ check that could not run is `BLOCKED` rather than a pass.
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
 | Live Claude workflows | **BLOCKED** — no `ANTHROPIC_API_KEY` in this environment |
-| Browser and artifact UAT | **passed** — 57 browser checks, 62 artifact checks |
+| Browser and artifact UAT | **passed** — 63 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
@@ -50,7 +50,7 @@ PB-013, PB-015, PB-016, PB-017, PB-029, PB-030, PB-043.
 ## Browser acceptance
 
 `scripts/acceptance/playbook_browser_acceptance.py` — real Chromium, real front
-end, real backend, at 1366×768 and 1600×900. **57 passed, 0 failed.**
+end, real backend, at 1366×768 and 1600×900. **63 passed, 0 failed.**
 
 What it proved, rather than what it looked at:
 
@@ -65,6 +65,9 @@ What it proved, rather than what it looked at:
 - The picker lists 30 exported analyses; previewing one and coming back leaves
   the selection at "2 selected".
 - Escape closes the dialog; no console errors at either viewport.
+- A real .docx uploads through the composer, appears as a chip and can be
+  removed; with no provider configured Send is refused and the reason is on
+  screen, rather than a button that fails after it is pressed.
 - The API refuses an id that was never exported (404), a foreign workspace
   (404), a greeting as an export (422) and Project Planner as a module (422).
 - The monitoring Playbooks feature still answers 200.

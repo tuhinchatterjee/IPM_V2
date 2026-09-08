@@ -55,6 +55,21 @@ def _chromium_path() -> str | None:
     return None
 
 
+def _prior_report_bytes() -> bytes:
+    """A real Word file, built here so the upload journey needs no fixture."""
+    import io
+
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading("Committee report — prior period", level=1)
+    doc.add_paragraph("Weighted ECL was SAR 20.90 million at a coverage ratio "
+                      "of 2.09 per cent.")
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
 async def journey(page, viewport: str) -> None:
     console_errors: list[str] = []
     page.on("console", lambda m: console_errors.append(m.text)
@@ -201,6 +216,45 @@ async def journey(page, viewport: str) -> None:
     await page.wait_for_timeout(400)
     check(f"[{viewport}] Escape closes the picker",
           await page.locator('[role="dialog"]').count() == 0)
+
+    # -------------------------------------------- 4. uploading a real document
+    # Through the composer's own file input, so what is exercised is the control
+    # a user actually reaches rather than the endpoint behind it.
+    source = DOWNLOADS / "acceptance-prior-report.docx"
+    source.write_bytes(_prior_report_bytes())
+    await page.locator('button[aria-label="Add sources"]').click()
+    await page.wait_for_timeout(300)
+    async with page.expect_file_chooser() as chooser_info:
+        await page.locator('text="Upload from computer"').click()
+    chooser = await chooser_info.value
+    await chooser.set_files(str(source))
+    await page.wait_for_timeout(900)
+
+    body = await page.locator("body").inner_text()
+    check(f"[{viewport}] the uploaded file appears as an attachment chip",
+          "acceptance-prior-report.docx" in body)
+
+    # A send with an attachment but no configured provider must be refused
+    # honestly rather than offered and then failing.
+    send = page.locator('button:has-text("Send")').first
+    await page.locator("#playbook-composer").fill("Summarise this report.")
+    await page.wait_for_timeout(300)
+    disabled = await send.is_disabled()
+    note = await page.locator("text=/ANTHROPIC_API_KEY|provider/i").count()
+    check(f"[{viewport}] with no provider, Send is refused and the reason shown",
+          disabled and note > 0,
+          f"disabled={disabled}, reason shown={note > 0}")
+
+    remove = page.locator('button[aria-label^="Remove "]').first
+    if await remove.count():
+        await remove.click()
+        await page.wait_for_timeout(400)
+        after = await page.locator("body").inner_text()
+        check(f"[{viewport}] an attachment can be removed",
+              "acceptance-prior-report.docx" not in after)
+    else:
+        check(f"[{viewport}] an attachment can be removed", False,
+              "no remove control found")
 
     real_errors = [e for e in console_errors
                    if "favicon" not in e.lower() and "404" not in e]

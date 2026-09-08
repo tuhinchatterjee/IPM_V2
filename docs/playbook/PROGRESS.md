@@ -108,7 +108,7 @@ re-checked against the provider's current documentation.
 | `npm test` | 430 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
-| `scripts/acceptance/playbook_browser_acceptance.py` | 57 passed, 0 failed |
+| `scripts/acceptance/playbook_browser_acceptance.py` | 63 passed, 0 failed |
 | `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
 | `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
 
