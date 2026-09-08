@@ -308,10 +308,16 @@ unexplained residual 0.0001.
 | `tests/corporate/test_rating_scale.py` | new — 94 tests on the order, notching, the TTC master and Stage 3 |
 | `frontend` `npm test` | all passing |
 
-Pre-existing failures, established on baseline `4f79566` with the same lake and
-unrelated to What-If: two in `tests/evals/test_properties.py` and one
-multi-analysis reconciliation, all on `portfolio_facility` — the credit book,
-a different dataset with a different grain.
+**Whole-repository regression.** Six failures, none of them What-If and none
+of them new. Each was established on baseline `4f79566` with the same lake in
+an earlier pass:
+
+| Failure | What it is |
+|---|---|
+| `tests/evals/test_properties.py` ×2 | `portfolio_facility.ead` is declared as a string in the catalogue, so the planner aggregates it with `max` instead of `sum`. The credit book — a different dataset with a different grain from Corporate IFRS 9. |
+| `tests/evals/test_multi_analysis_response.py` ×1 | The same `portfolio_facility` exposure block. |
+| `tests/exports/test_workbooks.py` ×2 | Excel formula reconstruction in the data-builder workbook. Not the What-If workbook, whose own suite passes. |
+| `tests/proof/test_fresh_clone_acceptance.py` ×1 | Database litter, not code. `tests/api/test_data_builder.py` creates a domain called "Test Domain" and never deletes it, so the fresh-clone check counts eight live domains where seven were expected — whenever the API suite has run first against the same database. The stray row was removed and the test passes; the cleanup gap is in a test file outside this feature and was left alone rather than widened into. |
 
 ---
 
