@@ -2,7 +2,13 @@
 
 import * as React from "react";
 import { use } from "react";
-import { Download, FileSpreadsheet, FileText, Presentation } from "lucide-react";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  History,
+  Presentation,
+} from "lucide-react";
 
 import { AnalysisPicker } from "@/components/playbook/analysis-picker";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
@@ -72,6 +78,47 @@ export default function PlaybookThreadPage({
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [running, setRunning] = React.useState<{ key: string; jobId: number | null }>(
+    { key: "", jobId: null },
+  );
+  const [stopping, setStopping] = React.useState(false);
+
+  // The generation is synchronous, so the send request does not come back with
+  // a job id until the work is over. The key is minted here, before the send,
+  // and this looks up which job it became — which is what makes Stop a control
+  // that can act rather than a button that arrives too late to.
+  React.useEffect(() => {
+    if (!running.key || running.jobId !== null) return;
+    let live = true;
+    const find = async () => {
+      try {
+        const job = await api.playbookJobByKey(running.key);
+        if (live && !job.finished) setRunning((r) => ({ ...r, jobId: job.id }));
+      } catch {
+        // Not started yet, or already gone. Either way there is nothing to
+        // stop, and a failed lookup is not something to put on screen.
+      }
+    };
+    void find();
+    const timer = setInterval(find, 1500);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [running.key, running.jobId]);
+
+  const stop = async () => {
+    if (running.jobId === null) return;
+    setStopping(true);
+    try {
+      const result = await api.cancelPlaybookJob(running.jobId);
+      setError(result.message);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStopping(false);
+    }
+  };
 
   const { canGenerate, note } = composerState(caps.data ?? null);
   const data = workspace.data;
@@ -80,6 +127,8 @@ export default function PlaybookThreadPage({
     if (!data) return;
     setBusy(true);
     setError("");
+    const key = `ws${data.id}:turn${data.messages.length}`;
+    setRunning({ key, jobId: null });
     try {
       const sourceIds: number[] = [];
       for (const file of pendingFiles) {
@@ -95,7 +144,7 @@ export default function PlaybookThreadPage({
         base_version_id: report?.current_version_id ?? null,
         // Derived from the thread's own length, so pressing send twice or
         // refreshing mid-flight resolves to one job rather than two.
-        idempotency_key: `ws${data.id}:turn${data.messages.length}`,
+        idempotency_key: key,
       });
       setPrompt("");
       setAttachments([]);
@@ -106,6 +155,7 @@ export default function PlaybookThreadPage({
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setRunning({ key: "", jobId: null });
     }
   };
 
@@ -284,6 +334,22 @@ export default function PlaybookThreadPage({
               disabledNote={canGenerate ? "" : note}
               placeholder="Ask for a change, a check, or another format…"
             />
+            {busy && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-text-muted">
+                  Working. Nothing is saved until it finishes.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={stop}
+                  disabled={running.jobId === null || stopping}
+                  data-testid="playbook-stop"
+                >
+                  {stopping ? "Stopping…" : "Stop"}
+                </Button>
+              </div>
+            )}
             {error && <p className="mt-2 text-xs text-negative">{error}</p>}
           </div>
         </div>
@@ -348,7 +414,11 @@ export default function PlaybookThreadPage({
               </p>
             ) : (
               data.artifacts.map((artifact) => (
-                <ArtifactCard key={artifact.id} artifact={artifact} />
+                <ArtifactCard
+                  key={artifact.id}
+                  artifact={artifact}
+                  onRestored={() => setRefresh((n) => n + 1)}
+                />
               ))
             )}
           </section>
@@ -385,11 +455,32 @@ export default function PlaybookThreadPage({
 }
 
 /** Every version of one document, newest first, with its real files. */
-function ArtifactCard({ artifact }: { artifact: PbArtifact }) {
+function ArtifactCard({
+  artifact,
+  onRestored,
+}: {
+  artifact: PbArtifact;
+  onRestored: () => void;
+}) {
   const current = currentVersion(artifact);
   const [showAll, setShowAll] = React.useState(false);
+  const [restoring, setRestoring] = React.useState(0);
+  const [error, setError] = React.useState("");
   const versions = [...artifact.versions].reverse();
   const shown = showAll ? versions : versions.slice(0, 1);
+
+  const restore = async (version: number) => {
+    setRestoring(version);
+    setError("");
+    try {
+      await api.restorePlaybookVersion(artifact.id, version);
+      onRestored();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRestoring(0);
+    }
+  };
 
   return (
     <Card className="p-3">
@@ -431,10 +522,23 @@ function ArtifactCard({ artifact }: { artifact: PbArtifact }) {
                   </a>
                 );
               })}
+              {current?.id !== version.id && (
+                <button
+                  type="button"
+                  onClick={() => restore(version.version)}
+                  disabled={restoring !== 0}
+                  className="inline-flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 text-[11px] text-text-secondary hover:bg-surface-hover disabled:opacity-50"
+                  data-testid={`playbook-restore-${version.version}`}
+                >
+                  <History className="size-3" aria-hidden />
+                  {restoring === version.version ? "Restoring…" : "Restore"}
+                </button>
+              )}
             </div>
           </li>
         ))}
       </ul>
+      {error && <p className="mt-1 text-[11px] text-negative">{error}</p>}
       {versions.length > 1 && (
         <Button
           variant="ghost"

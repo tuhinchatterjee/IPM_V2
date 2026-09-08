@@ -3886,6 +3886,27 @@ export interface PbDecision {
   instruction: string;
 }
 
+export interface PbJob {
+  id: number;
+  workspace_id: number;
+  state: string;
+  cancelled: boolean;
+  /** Real steps only. There is no percentage because there is no basis for one. */
+  milestones: { state: string; detail: string }[];
+  model: string;
+  error: string;
+  finished: boolean;
+}
+
+export interface PbRestore {
+  artifact_id: number;
+  version_id: number;
+  version: number;
+  restored_from: number;
+  change_summary: string;
+  files: string[];
+}
+
 export interface PbCapabilities {
   formats: { format: string; mime: string; routes: string[];
     description: string }[];
@@ -4428,6 +4449,18 @@ export const api = {
     ),
   playbookWorkspace: (id: number) =>
     request<PbWorkspace>(`/playbook/workspaces/${id}`),
+  restorePlaybookVersion: (artifactId: number, version: number) =>
+    request<PbRestore>(
+      `/playbook/artifacts/${artifactId}/restore/${version}`,
+      { method: "POST" },
+    ),
+  playbookJobByKey: (key: string) =>
+    request<PbJob>(`/playbook/jobs/by-key/${encodeURIComponent(key)}`),
+  cancelPlaybookJob: (jobId: number) =>
+    request<PbJob & { message: string }>(
+      `/playbook/jobs/${jobId}/cancel`,
+      { method: "POST" },
+    ),
   playbookChangeSets: (id: number) =>
     request<{ change_sets: PbChangeSet[] }>(
       `/playbook/workspaces/${id}/change-sets`,

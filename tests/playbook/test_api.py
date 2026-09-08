@@ -354,3 +354,131 @@ class TestDecidingProposedChangesOverHTTP:
             f"/change-sets/{change_set_id}/decide",
             json={"approve": ["chg_c"]})
         assert response.status_code == 404
+
+
+class TestRestoringAndStoppingOverHTTP:
+    """PB-022 and PB-038 at the route boundary."""
+
+    @pytest.fixture
+    def artifact(self, workspace_id) -> dict:
+        """Three versions of a report, built directly.
+
+        Generating them would need a provider. What is under test is the
+        restore, not the way the versions arrived.
+        """
+        from backend.db.engine import get_session
+        from backend.playbook import repository as repo
+        from backend.playbook import store
+
+        with get_session() as session:
+            art = repo.create_artifact(session, workspace_id, kind="report",
+                                       title="Committee report")
+            ids = []
+            for n in range(1, 4):
+                version = repo.new_version(
+                    session, art,
+                    content={"title": "Committee report",
+                             "sections": [{"heading": f"Draft {n}",
+                                           "blocks": []}]},
+                    source_manifest={}, content_hash=f"hash{n}",
+                    change_summary=f"Draft {n}",
+                    base_version_id=art.current_version_id)
+                stored = store.put_artifact(
+                    workspace_id, art.id, version.version,
+                    f"committee-report-v{version.version}.docx",
+                    f"PK\x03\x04 draft {n}".encode())
+                repo.add_file(session, version, fmt="docx",
+                              bytes_path=stored.relative,
+                              mime="application/vnd.openxmlformats-officedocument"
+                                   ".wordprocessingml.document",
+                              filename=f"committee-report-v{version.version}.docx",
+                              size_bytes=stored.size_bytes,
+                              sha256=stored.sha256, renderer="local",
+                              validated=True)
+                ids.append(version.id)
+            session.commit()
+            return {"artifact_id": art.id, "version_ids": ids}
+
+    def test_restoring_an_earlier_version_moves_forward(self, client, artifact):
+        response = client.post(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}/restore/1")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["version"] == 4
+        assert body["restored_from"] == 1
+        assert body["files"] == ["docx"]
+
+    def test_the_restored_version_serves_the_original_bytes(
+            self, client, workspace_id, artifact):
+        client.post(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}/restore/1")
+        workspace = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}").json()
+        report = next(a for a in workspace["artifacts"]
+                      if a["id"] == artifact["artifact_id"])
+        latest = next(v for v in report["versions"] if v["version"] == 4)
+        download = client.get(
+            f"/api/v1/playbook/artifact-files/{latest['files'][0]['id']}/download")
+        assert download.status_code == 200
+        assert download.content == b"PK\x03\x04 draft 1"
+        assert "committee-report-v4.docx" in download.headers[
+            "content-disposition"]
+
+    def test_the_earlier_versions_are_still_there_afterwards(
+            self, client, workspace_id, artifact):
+        client.post(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}/restore/1")
+        workspace = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}").json()
+        report = next(a for a in workspace["artifacts"]
+                      if a["id"] == artifact["artifact_id"])
+        assert sorted(v["version"] for v in report["versions"]) == [1, 2, 3, 4]
+
+    def test_restoring_the_version_already_current_is_refused(
+            self, client, artifact):
+        response = client.post(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}/restore/3")
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "already_current"
+
+    def test_a_version_that_does_not_exist_is_a_404(self, client, artifact):
+        response = client.post(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}/restore/9")
+        assert response.status_code == 404
+
+    def test_a_generation_that_does_not_exist_has_no_status(self, client):
+        assert client.get("/api/v1/playbook/jobs/99999999").status_code == 404
+
+    def test_a_generation_that_does_not_exist_cannot_be_stopped(self, client):
+        assert client.post(
+            "/api/v1/playbook/jobs/99999999/cancel").status_code == 404
+
+    def test_a_client_can_find_the_generation_its_own_key_became(
+            self, client, workspace_id):
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookJob
+
+        with get_session() as session:
+            job = PlaybookJob(workspace_id=workspace_id, tenant="default",
+                              idempotency_key=f"ws{workspace_id}:turn0",
+                              state="drafting")
+            session.add(job)
+            session.commit()
+            job_id = job.id
+
+        found = client.get(
+            f"/api/v1/playbook/jobs/by-key/ws{workspace_id}:turn0")
+        assert found.status_code == 200, found.text
+        assert found.json()["id"] == job_id
+
+        stopped = client.post(f"/api/v1/playbook/jobs/{job_id}/cancel")
+        assert stopped.status_code == 200
+        assert stopped.json()["cancelled"] is True
+
+        assert client.get(f"/api/v1/playbook/jobs/{job_id}").json()[
+            "cancelled"] is True
+
+    def test_an_unknown_key_names_no_generation(self, client):
+        assert client.get(
+            "/api/v1/playbook/jobs/by-key/nothing-ran-under-this"
+        ).status_code == 404

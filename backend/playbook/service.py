@@ -33,6 +33,8 @@ import hashlib
 import logging
 from dataclasses import dataclass, field
 
+from sqlalchemy import select
+
 from backend.playbook import capabilities, grounding, ingest, prompts, provider, render, store, validate
 from backend.playbook import document as D
 from backend.playbook import evidence as ev
@@ -379,6 +381,13 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
                     export_revision_id=revision.id,
                     position=len(source_ids or []) + position)
 
+    # Committed BEFORE the work starts, for two reasons. A generation that
+    # fails still leaves a thread showing what was asked. And the stop button
+    # reads this row from another request, which cannot see an uncommitted one.
+    session.commit()
+    if is_cancelled is None:
+        is_cancelled = cancellation_watcher(job.id)
+
     ledger = ledger_for(session, scope, ws.id, source_ids=source_ids,
                         export_revision_ids=export_revision_ids,
                         calculations=calculations)
@@ -608,3 +617,170 @@ def approved_instruction(session, change_set_id: int) -> str:
         for item in rejected:
             lines.append(f"- {item.target_section}: {item.rationale}")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# Restoring an earlier version, and stopping a generation
+# --------------------------------------------------------------------------
+
+
+class AlreadyCurrent(RuntimeError):
+    """The version asked for is the one already on screen."""
+
+
+def restore_version(session, scope: repo.Scope, artifact_id: int,
+                    version_number: int) -> dict:
+    """Bring an earlier version back as the LATEST one, moving forward.
+
+    Nothing is rewound. History is immutable, so restoring v1 over v3 writes a
+    v4 whose content is v1's — v3 stays exactly where it was, and the change
+    summary says where v4 came from. A restore that deleted the versions after
+    it would destroy the record of what was tried, which is the thing version
+    history exists for.
+
+    The FILES are copied too, not regenerated. Regenerating them would produce
+    bytes nobody has read, from a renderer that may have changed since; copying
+    them means the download from v4 is byte-for-byte the file that was reviewed
+    as v1.
+    """
+    from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
+
+    artifact = session.get(PlaybookArtifact, artifact_id)
+    if artifact is None:
+        raise repo.NotFound(f"No artifact {artifact_id}.")
+    ws = repo.get_workspace(session, scope, artifact.workspace_id)
+
+    source = session.execute(
+        select(PlaybookArtifactVersion)
+        .where(PlaybookArtifactVersion.artifact_id == artifact.id,
+               PlaybookArtifactVersion.version == version_number)
+    ).scalar_one_or_none()
+    if source is None:
+        raise repo.NotFound(
+            f"This document has no version {version_number}.")
+    if source.id == artifact.current_version_id:
+        raise AlreadyCurrent(
+            f"Version {version_number} is already the latest version.")
+
+    files = repo.files(session, source.id)
+    summary = (f"Restored version {source.version}"
+               + (f" — {source.change_summary}" if source.change_summary else ""))
+    version = repo.new_version(
+        session, artifact,
+        content=dict(source.content),
+        source_manifest=dict(source.source_manifest),
+        content_hash=source.content_hash,
+        change_summary=summary,
+        origin="restore",
+        base_version_id=artifact.current_version_id,
+        created_by=scope.user_id,
+        validation=dict(source.validation or {}),
+    )
+
+    for file in files:
+        content = store.read(file.bytes_path)
+        filename = file.filename.replace(f"-v{source.version}.",
+                                         f"-v{version.version}.")
+        stored = store.put_artifact(ws.id, artifact.id, version.version,
+                                    filename, content)
+        repo.add_file(
+            session, version, fmt=file.format, bytes_path=stored.relative,
+            mime=file.mime, filename=filename, size_bytes=stored.size_bytes,
+            sha256=stored.sha256, renderer=file.renderer,
+            validated=file.validated)
+
+    repo.touch(session, ws, summary=summary)
+    session.flush()
+    return {"artifact_id": artifact.id, "version_id": version.id,
+            "version": version.version, "restored_from": source.version,
+            "change_summary": summary,
+            "files": [f.format for f in files]}
+
+
+def job_status(session, scope: repo.Scope, job_id: int) -> dict:
+    """What a generation is doing, in real milestones and no percentage.
+
+    There is no percentage here because there is no honest basis for one: the
+    model does not report progress, and a bar that moves on a timer is a lie
+    with an animation.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    job = session.get(PlaybookJob, job_id)
+    if job is None or job.tenant != scope.tenant:
+        raise repo.NotFound(f"No generation {job_id}.")
+    return {
+        "id": job.id, "workspace_id": job.workspace_id, "state": job.state,
+        "cancelled": job.cancelled, "milestones": list(job.milestones or []),
+        "model": job.model, "error": job.error,
+        "finished": job.finished_at is not None,
+    }
+
+
+def job_by_key(session, scope: repo.Scope, idempotency_key: str) -> dict:
+    """Find the generation a client already knows the key of.
+
+    The client mints the idempotency key before it sends, so this is how a
+    synchronous generation becomes stoppable: the browser asks which job its own
+    key resolved to and can then stop it. Without this the stop button would
+    have nothing to name until the work it wants to stop had already finished.
+    """
+    job = repo.jobs_by_key(session, idempotency_key)
+    if job is None or job.tenant != scope.tenant:
+        raise repo.NotFound("No generation is running under that key.")
+    return job_status(session, scope, job.id)
+
+
+def request_cancel(session, scope: repo.Scope, job_id: int) -> dict:
+    """Ask a running generation to stop.
+
+    Sets a flag rather than killing anything. The generating request reads it
+    between steps and raises, so it stops at a point where nothing is
+    half-written — a version is written last, so a cancelled run leaves the
+    previous version exactly as it was.
+
+    Cancelling a finished job is not an error; it says so and changes nothing.
+    A version that was already written is not withdrawn by a stop pressed after
+    it landed.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    job = session.get(PlaybookJob, job_id)
+    if job is None or job.tenant != scope.tenant:
+        raise repo.NotFound(f"No generation {job_id}.")
+    if job.finished_at is not None or job.state in {"ready", "failed",
+                                                    "cancelled"}:
+        return {"id": job.id, "state": job.state, "cancelled": job.cancelled,
+                "message": "That generation had already finished. "
+                           "Nothing was undone."}
+    job.cancelled = True
+    session.flush()
+    return {"id": job.id, "state": job.state, "cancelled": True,
+            "message": "Stopping. Nothing will be saved."}
+
+
+def cancellation_watcher(job_id: int):
+    """A callable that answers "has the user pressed stop?" from OUTSIDE.
+
+    It has to open its own session: the generating request holds a transaction
+    that cannot see a flag another request has since committed. Reading through
+    the generator's own session would return the value as it stood when the
+    generation began, which is exactly the moment the user had not yet pressed
+    anything.
+    """
+    from backend.db.engine import get_session
+    from backend.models.playbook import PlaybookJob
+
+    def cancelled() -> bool:
+        try:
+            with get_session() as session:
+                job = session.get(PlaybookJob, job_id)
+                return bool(job and job.cancelled)
+        except Exception:
+            # A watcher that cannot read the flag must not stop the work it is
+            # watching. The generation continues; the stop button is what is
+            # broken, and it says so by not working rather than by killing a
+            # run the user did not cancel.
+            return False
+
+    return cancelled

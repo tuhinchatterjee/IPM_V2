@@ -221,3 +221,108 @@ class TestForeignTenantIdsAreRefused:
         other = repo.Scope(tenant="someone-else")
         with pytest.raises(repo.NotFound):
             repo.get_workspace(db, other, workspace.id)
+
+
+class TestRestoringAnEarlierVersion:
+    """PB-022. Restore moves forward; it does not rewind."""
+
+    def _three_versions(self, db, scope, workspace, ledger, scripted_author):
+        outcomes = []
+        for n, body in enumerate(
+                ["A first draft with the movement stated.",
+                 "A second draft with the movement and the drivers.",
+                 "A third draft that overreached."], start=1):
+            # The section number stays 1 in all three drafts: the PDF prints a
+            # page number, and validation rightly refuses a figure in the file
+            # that is in no source. Numbering the sections 1, 2, 3 would make
+            # drafts two and three fail on the renderer's own page number.
+            scripted_author(f"# Report\n\n## 1. Summary\n\n{body}\n")
+            outcomes.append(service.author_document(
+                db, scope, workspace.id, instruction=f"Draft {n}.",
+                ledger=ledger, title="Report",
+                artifact_id=outcomes[-1].artifact_id if outcomes else None,
+                base_version_id=outcomes[-1].version_id if outcomes else None))
+        return outcomes
+
+    def test_restoring_v1_writes_a_v4_and_leaves_v3_alone(
+            self, db, scope, workspace, ledger, scripted_author):
+        first, _, third = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+
+        result = service.restore_version(db, scope, first.artifact_id, 1)
+
+        assert result["version"] == 4
+        assert result["restored_from"] == 1
+        from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
+        artifact = db.get(PlaybookArtifact, first.artifact_id)
+        assert artifact.current_version_id == result["version_id"]
+        v3 = db.get(PlaybookArtifactVersion, third.version_id)
+        assert v3.version == 3 and v3.content_hash == third.document.content_hash()
+
+    def test_the_restored_version_carries_the_original_content(
+            self, db, scope, workspace, ledger, scripted_author):
+        first, *_ = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+        result = service.restore_version(db, scope, first.artifact_id, 1)
+
+        from backend.models.playbook import PlaybookArtifactVersion
+        restored = db.get(PlaybookArtifactVersion, result["version_id"])
+        assert restored.content_hash == first.document.content_hash()
+        assert "a first draft" in str(restored.content).lower()
+
+    def test_the_files_are_the_same_bytes_not_a_re_render(
+            self, db, scope, workspace, ledger, scripted_author):
+        from backend.playbook import repository as repo_
+        from backend.playbook import store
+
+        first, *_ = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+        original = {f.format: store.read(f.bytes_path)
+                    for f in repo_.files(db, first.version_id)}
+
+        result = service.restore_version(db, scope, first.artifact_id, 1)
+        restored = {f.format: store.read(f.bytes_path)
+                    for f in repo_.files(db, result["version_id"])}
+
+        assert set(restored) == set(original)
+        for fmt, content in original.items():
+            assert restored[fmt] == content
+
+    def test_the_restored_files_are_named_for_the_new_version(
+            self, db, scope, workspace, ledger, scripted_author):
+        from backend.playbook import repository as repo_
+
+        first, *_ = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+        result = service.restore_version(db, scope, first.artifact_id, 1)
+        names = [f.filename for f in repo_.files(db, result["version_id"])]
+        assert all("-v4." in n for n in names), names
+
+    def test_the_change_summary_says_where_it_came_from(
+            self, db, scope, workspace, ledger, scripted_author):
+        first, *_ = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+        result = service.restore_version(db, scope, first.artifact_id, 1)
+        assert "Restored version 1" in result["change_summary"]
+
+    def test_restoring_the_current_version_is_refused_rather_than_duplicated(
+            self, db, scope, workspace, ledger, scripted_author):
+        first, *_ = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+        with pytest.raises(service.AlreadyCurrent):
+            service.restore_version(db, scope, first.artifact_id, 3)
+
+    def test_a_version_that_does_not_exist_is_refused(
+            self, db, scope, workspace, ledger, scripted_author):
+        first, *_ = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+        with pytest.raises(repo.NotFound):
+            service.restore_version(db, scope, first.artifact_id, 9)
+
+    def test_another_tenants_artifact_is_not_restorable(
+            self, db, scope, workspace, ledger, scripted_author):
+        first, *_ = self._three_versions(
+            db, scope, workspace, ledger, scripted_author)
+        other = repo.Scope(tenant="somebody-else", user_id=None)
+        with pytest.raises(repo.NotFound):
+            service.restore_version(db, other, first.artifact_id, 1)

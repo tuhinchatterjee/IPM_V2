@@ -162,3 +162,84 @@ class TestAttachmentsAreCheckedServerSide:
             service.send_message(db, scope, workspace.id, text="Write it.",
                                  export_revision_ids=[theirs.revision_id],
                                  calculations=ledger_calcs)
+
+
+class TestStoppingAGeneration:
+    """PB-038. A stop that leaves nothing half-written."""
+
+    def _job(self, db, scope, workspace, state="drafting"):
+        from backend.models.playbook import PlaybookJob
+
+        job = PlaybookJob(workspace_id=workspace.id, tenant=scope.tenant,
+                          idempotency_key=f"ws{workspace.id}:stop-test",
+                          state=state)
+        db.add(job)
+        db.flush()
+        return job
+
+    def test_a_running_generation_can_be_asked_to_stop(
+            self, db, scope, workspace):
+        job = self._job(db, scope, workspace)
+        result = service.request_cancel(db, scope, job.id)
+
+        assert result["cancelled"] is True
+        assert "Nothing will be saved" in result["message"]
+        assert job.cancelled is True
+
+    def test_stopping_something_that_finished_undoes_nothing(
+            self, db, scope, workspace):
+        from backend.playbook.service import _now
+
+        job = self._job(db, scope, workspace, state="ready")
+        job.finished_at = _now()
+        db.flush()
+
+        result = service.request_cancel(db, scope, job.id)
+        assert result["cancelled"] is False
+        assert result["state"] == "ready"
+        assert "already finished" in result["message"]
+
+    def test_another_tenants_generation_cannot_be_stopped(
+            self, db, scope, workspace):
+        job = self._job(db, scope, workspace)
+        other = repo.Scope(tenant="somebody-else", user_id=None)
+        with pytest.raises(repo.NotFound):
+            service.request_cancel(db, other, job.id)
+        assert job.cancelled is False
+
+    def test_the_status_reports_milestones_and_no_percentage(
+            self, db, scope, workspace):
+        job = self._job(db, scope, workspace)
+        job.milestones = [{"state": "reviewing_sources", "detail": "3 sources"},
+                          {"state": "drafting", "detail": ""}]
+        db.flush()
+
+        status = service.job_status(db, scope, job.id)
+        assert status["state"] == "drafting"
+        assert [m["state"] for m in status["milestones"]] == [
+            "reviewing_sources", "drafting"]
+        assert "percent" not in status and "progress" not in status
+
+    def test_a_cancelled_run_writes_no_version_and_keeps_the_last_good_one(
+            self, db, scope, workspace, ledger_calcs, scripted_author):
+        from backend.playbook import evidence as ev
+
+        ledger = ev.Ledger()
+        ev.add_calculations(ledger, ledger_calcs)
+
+        scripted_author("# Report\n\n## 1. Summary\n\nThe good version.\n")
+        good = service.author_document(
+            db, scope, workspace.id, instruction="Draft it.",
+            ledger=ledger, title="Report")
+
+        scripted_author("# Report\n\n## 1. Summary\n\nA revision.\n")
+        with pytest.raises(provider.Cancelled):
+            service.author_document(
+                db, scope, workspace.id, instruction="Revise it.",
+                ledger=ledger, title="Report", artifact_id=good.artifact_id,
+                base_version_id=good.version_id,
+                is_cancelled=lambda: True)
+
+        from backend.models.playbook import PlaybookArtifact
+        artifact = db.get(PlaybookArtifact, good.artifact_id)
+        assert artifact.current_version_id == good.version_id

@@ -10,7 +10,7 @@ check that could not run is `BLOCKED` rather than a pass.
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
 | Live Claude workflows | **BLOCKED** — no `ANTHROPIC_API_KEY` in this environment |
-| Browser and artifact UAT | **passed** — 73 browser checks, 62 artifact checks |
+| Browser and artifact UAT | **passed** — 80 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
@@ -56,7 +56,7 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 ## Browser acceptance
 
 `scripts/acceptance/playbook_browser_acceptance.py` — real Chromium, real front
-end, real backend, at 1366×768 and 1600×900. **73 passed, 0 failed.**
+end, real backend, at 1366×768 and 1600×900. **80 passed, 0 failed.**
 
 What it proved, rather than what it looked at:
 
@@ -74,6 +74,11 @@ What it proved, rather than what it looked at:
 - A real .docx uploads through the composer, appears as a chip and can be
   removed; with no provider configured Send is refused and the reason is on
   screen, rather than a button that fails after it is pressed.
+- An earlier version is restored from the files pane and the restore moves
+  forward: v1 comes back as v3, v2 is still there, the change summary says
+  where v3 came from, the downloaded file is byte-for-byte the file that was
+  reviewed as v1 under a v3 filename, and restoring the version already current
+  is refused.
 - A five-item proposal is decided in the interface: changes 1, 2 and 5 are
   approved and 3 and 4 held; ticking change 3 pulls in change 2, which it rests
   on, rather than accepting an approval that could not stand; the resulting

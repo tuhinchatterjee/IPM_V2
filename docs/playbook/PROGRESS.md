@@ -108,7 +108,7 @@ re-checked against the provider's current documentation.
 | `npm test` | 442 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
-| `scripts/acceptance/playbook_browser_acceptance.py` | 73 passed, 0 failed |
+| `scripts/acceptance/playbook_browser_acceptance.py` | 80 passed, 0 failed |
 | `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
 | `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
 
@@ -139,6 +139,28 @@ Three things it deliberately does:
   start a generation.
 - **It keeps a decided proposal on screen.** "Which of the five did we hold?" is
   a question asked long after the decision.
+
+## Restoring a version, and stopping a run
+
+Two controls the specification asks for that the first pass left at the service
+layer.
+
+**Restore moves forward.** Restoring v1 over v3 writes a v4 carrying v1's
+content and v1's exact bytes; v3 stays where it is. A restore that deleted the
+versions after it would destroy the record of what was tried, which is what
+version history is for. The files are copied rather than re-rendered, so the
+download from v4 is byte-for-byte the file that was reviewed as v1.
+
+**Stop sets a flag rather than killing anything.** The generating request reads
+it between steps, and because a version is written last, a stopped run leaves
+the previous version exactly as it was. The generation is synchronous, so the
+send request has no job id to offer until the work is over — the browser mints
+the idempotency key before it sends and asks `GET /playbook/jobs/by-key/{key}`
+which job that key became. That is what makes Stop a control that can act
+rather than a button that arrives too late to.
+
+Cancelling something that already finished changes nothing and says so. A
+version that landed is not withdrawn by a stop pressed after it landed.
 
 ## Next action
 

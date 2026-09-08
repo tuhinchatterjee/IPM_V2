@@ -604,3 +604,88 @@ def download_artifact(file_id: int,
         raise _not_found(exc) from exc
     except repo.StorageUnavailable as exc:
         raise _unavailable(exc) from exc
+
+
+@router.post("/artifacts/{artifact_id}/restore/{version_number}")
+def restore_artifact_version(artifact_id: int, version_number: int,
+                             principal: Principal = RequireAnalyst) -> dict:
+    """Bring an earlier version back as the latest one.
+
+    Forward-moving: restoring v1 over v3 writes a v4 carrying v1's content and
+    v1's exact bytes. Nothing is deleted, because the record of what was tried
+    is the reason version history exists.
+    """
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return service.restore_version(session, scope, artifact_id,
+                                           version_number)
+    except service.AlreadyCurrent as exc:
+        raise _refused(exc, "already_current") from exc
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except store.StorageError as exc:
+        # The version exists but its bytes do not. Refused rather than
+        # restored, because a version whose download 404s is worse than a
+        # restore that did not happen.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "files_missing", "message": str(exc)},
+        ) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+# --------------------------------------------------------------------------
+# Generations in flight
+# --------------------------------------------------------------------------
+
+
+@router.get("/jobs/by-key/{idempotency_key}")
+def job_by_key(idempotency_key: str,
+               principal: Principal = RequireAnalyst) -> dict:
+    """The generation a client's own key resolved to.
+
+    How a synchronous generation becomes stoppable: the browser mints the key
+    before it sends, so it can ask which job that key became and stop it while
+    the send is still in flight.
+    """
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return service.job_by_key(session, scope, idempotency_key)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/jobs/{job_id}")
+def job(job_id: int, principal: Principal = RequireAnalyst) -> dict:
+    """What a generation is doing. Real milestones, and no percentage."""
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return service.job_status(session, scope, job_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: int, principal: Principal = RequireAnalyst) -> dict:
+    """Ask a running generation to stop.
+
+    Sets a flag the generating request reads between steps. Because a version
+    is written last, stopping leaves the previous version exactly as it was.
+    Cancelling something that already finished changes nothing and says so.
+    """
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return service.request_cancel(session, scope, job_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc

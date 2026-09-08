@@ -396,6 +396,115 @@ async def change_set_journey(page) -> None:
         _drop_workspace(workspace_id)
 
 
+def _versioned_report() -> tuple[int, int]:
+    """A workspace with a two-version report and real files on both.
+
+    Its own workspace rather than a seeded one: restoring writes a third
+    version, and a browser run that quietly grows the demonstration is a run
+    that cannot be repeated.
+    """
+    from backend.db.engine import get_session
+    from backend.playbook import repository as repo
+    from backend.playbook import store
+
+    with get_session() as session:
+        ws = repo.create_workspace(
+            session, repo.Scope(tenant="default", user_id=None),
+            title="Acceptance — restoring a version",
+            document_family="ifrs9_committee_report")
+        artifact = repo.create_artifact(session, ws.id, kind="report",
+                                        title="Committee report")
+        for n, body in enumerate(
+                [b"PK\x03\x04 the version that was approved",
+                 b"PK\x03\x04 the version that went too far"], start=1):
+            version = repo.new_version(
+                session, artifact,
+                content={"title": "Committee report",
+                         "sections": [{"heading": f"Draft {n}", "blocks": []}]},
+                source_manifest={}, content_hash=f"acceptance-{n}",
+                change_summary=f"Draft {n}",
+                base_version_id=artifact.current_version_id)
+            stored = store.put_artifact(
+                ws.id, artifact.id, version.version,
+                f"committee-report-v{version.version}.docx", body)
+            repo.add_file(
+                session, version, fmt="docx", bytes_path=stored.relative,
+                mime="application/vnd.openxmlformats-officedocument"
+                     ".wordprocessingml.document",
+                filename=f"committee-report-v{version.version}.docx",
+                size_bytes=stored.size_bytes, sha256=stored.sha256,
+                renderer="local", validated=True)
+        session.commit()
+        return ws.id, artifact.id
+
+
+async def restore_journey(page) -> None:
+    """PB-022. An earlier version comes back by moving forward."""
+    await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
+    workspace_id, artifact_id = _versioned_report()
+    try:
+        await page.goto(f"{WEB}/playbook/{workspace_id}",
+                        wait_until="networkidle")
+        await page.wait_for_timeout(900)
+
+        # The version list starts collapsed to the current version, which is
+        # the right default and the wrong state for finding an older one.
+        show_all = page.locator('button:has-text("Show all")').first
+        check("older versions are reachable from the files pane",
+              await show_all.count() > 0)
+        await show_all.click()
+        await page.wait_for_timeout(300)
+
+        restore = page.locator('[data-testid="playbook-restore-1"]').first
+        check("an earlier version offers a restore, the current one does not",
+              await restore.count() == 1
+              and await page.locator(
+                  '[data-testid="playbook-restore-2"]').count() == 0)
+
+        before = await (await page.request.get(
+            f"{API}/api/v1/playbook/workspaces/{workspace_id}",
+            headers={"X-IPM-Role": "ADMIN"})).json()
+        report = next(a for a in before["artifacts"] if a["id"] == artifact_id)
+        v1_docx = next(f["id"] for v in report["versions"]
+                       if v["version"] == 1 for f in v["files"])
+
+        await restore.click()
+        await page.wait_for_timeout(1500)
+
+        after = await (await page.request.get(
+            f"{API}/api/v1/playbook/workspaces/{workspace_id}",
+            headers={"X-IPM-Role": "ADMIN"})).json()
+        restored = next(a for a in after["artifacts"] if a["id"] == artifact_id)
+        versions = sorted(v["version"] for v in restored["versions"])
+        check("restoring writes a new version rather than rewinding",
+              versions == [1, 2, 3], f"versions {versions}")
+        latest = next(v for v in restored["versions"] if v["version"] == 3)
+        check("the restored version says where it came from",
+              "Restored version 1" in latest["change_summary"],
+              latest["change_summary"][:80])
+
+        original = await page.request.get(
+            f"{API}/api/v1/playbook/artifact-files/{v1_docx}/download",
+            headers={"X-IPM-Role": "ADMIN"})
+        new_id = next(f["id"] for f in latest["files"] if f["format"] == "docx")
+        copy = await page.request.get(
+            f"{API}/api/v1/playbook/artifact-files/{new_id}/download",
+            headers={"X-IPM-Role": "ADMIN"})
+        check("the restored file is the same bytes, not a re-render",
+              await original.body() == await copy.body())
+        check("the restored file is named for its new version",
+              "-v3.docx" in copy.headers.get("content-disposition", ""),
+              copy.headers.get("content-disposition", ""))
+
+        already = await page.request.post(
+            f"{API}/api/v1/playbook/artifacts/{artifact_id}/restore/3",
+            headers={"X-IPM-Role": "ADMIN"})
+        check("restoring the version already current is refused",
+              already.status == 422, f"HTTP {already.status}")
+    finally:
+        _drop_workspace(workspace_id)
+
+
 async def api_boundary(page) -> None:
     """The backend half of PB-005 and PB-037, exercised over HTTP."""
     unexported = await page.request.get(
@@ -474,6 +583,8 @@ async def main() -> int:
 
             context = await browser.new_context()
             page = await context.new_page()
+            print("\n-- Restoring a version " + "-" * 37)
+            await restore_journey(page)
             print("\n-- Proposed changes " + "-" * 40)
             await change_set_journey(page)
             print("\n-- API boundary " + "-" * 44)
