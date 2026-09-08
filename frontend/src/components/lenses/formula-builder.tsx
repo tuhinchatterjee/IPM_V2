@@ -25,7 +25,6 @@ import {
   type FormulaPreview,
   type MetricCode,
 } from "@/lib/api";
-import { byUnit } from "@/lib/format";
 
 /**
  * Writing a metric by typing the formula for it. §4–§13.
@@ -720,7 +719,7 @@ function PreviewPanel({ preview }: { preview: FormulaPreview }) {
               {preview.numerator.period ? ` · ${preview.numerator.period}` : ""}
             </dt>
             <dd className="font-mono text-text-primary" data-testid="preview-numerator">
-              {formatNumber(preview.numerator.value, preview.numerator.unit)}
+              {formatNumber(preview.numerator.value)}
             </dd>
           </div>
         )}
@@ -736,7 +735,7 @@ function PreviewPanel({ preview }: { preview: FormulaPreview }) {
               className="font-mono text-text-primary"
               data-testid="preview-denominator"
             >
-              {formatNumber(preview.denominator.value, preview.denominator.unit)}
+              {formatNumber(preview.denominator.value)}
             </dd>
           </div>
         )}
@@ -803,18 +802,36 @@ function Pair({
 }
 
 /**
- * One side of the preview, written the way the rest of the product writes it.
+ * One side of the preview, at the precision the calculation was traced at.
  *
- * Through the display contract rather than around it. This card exists to be
- * checked against a tile and against the quarterly pack, and a side that read
- * 74,017.555 here and 74,017.56 on the tile would be the same number twice
- * with two answers — which is exactly the reading that makes somebody stop
- * trusting the screen.
+ * A deliberate mirror of `_fmt` in `backend/metrics/execution.py`, which is
+ * what writes the sentence directly underneath these two rows:
+ *
+ *     Current Quarter Exposure · Q2 2026     74,017.555
+ *     Previous Quarter Exposure · Q1 2026    74,352.67
+ *     (74,017.555 / 74,352.67) − 1 × 100 = −0.4507
+ *
+ * The two have to agree character for character or the card contradicts
+ * itself, and a person asked to approve arithmetic that does not tie is being
+ * asked to approve nothing.
+ *
+ * This is above the two-decimal display contract, and that is the point of
+ * this particular screen rather than an oversight — a tile reports a figure,
+ * this card shows the working. `scripts/check_decimals.py` carries the
+ * exemption, narrowed to this one function.
  */
-function formatNumber(
-  value: number | null | undefined,
-  unit?: string | null,
-): string {
-  if (value === null || value === undefined) return "—";
-  return byUnit(value, unit);
+function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  if (Math.abs(value) >= 1_000_000 || Math.abs(value - Math.round(value)) < 1e-9) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  }
+  return value
+    .toLocaleString("en-US", {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    })
+    .replace(/0+$/, "")
+    .replace(/\.$/, "");
 }

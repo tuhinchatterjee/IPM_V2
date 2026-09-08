@@ -74,8 +74,8 @@ the quarterly pack" — and click **Approve Code & Preview**.
 
 ```
 Current Quarter Exposure · Q2 2026     74,017.555
-Previous Quarter Exposure · Q1 2026    74,352.670
-(74,017.555 / 74,352.670) − 1 × 100 = −0.4507
+Previous Quarter Exposure · Q1 2026    74,352.67
+(74,017.555 / 74,352.67) − 1 × 100 = −0.4507
 ```
 
 Point at the two periods. The metric read two quarters, and it says which.
