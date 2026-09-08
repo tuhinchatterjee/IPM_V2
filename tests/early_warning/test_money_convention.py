@@ -220,3 +220,26 @@ def test_the_check_catches_a_hand_formatted_figure():
                  if re.search(r"SAR \{", line)]
     assert len(offenders) == 1, offenders
     assert "million" in offenders[0]
+
+# =====================================================================
+# The counts a reader is shown
+# =====================================================================
+
+
+def test_the_domain_description_states_the_real_classifier_count():
+    """What the product SAYS the model is has to be what the model is.
+
+    The navigation copy and the data-domain description both claimed 35
+    classifiers — the number of an earlier, wrong reading of the workbook,
+    and one the brief names as forbidden. The engine has 23. A description
+    that contradicts the engine is worse than none: a reader who checks it
+    against the methodology screen loses confidence in both.
+    """
+    from backend.early_warning import classifiers_v2 as clf
+    from backend.services import data_domains
+
+    found = [d for d in data_domains.DOMAINS if d.name == "Early Warning"]
+    assert found, "the Early Warning domain is not registered"
+    described = found[0].description
+    assert f"{len(clf.CLASSIFIER_DEFINITIONS)} classifiers" in described, described
+    assert "35 classifiers" not in described

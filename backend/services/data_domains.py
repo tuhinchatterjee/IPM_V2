@@ -194,7 +194,7 @@ DOMAINS: tuple[BusinessDomain, ...] = (
         description=(
             "The governed Early Warning V2 analytical domain: monthly "
             "point-in-time scores for the 123-signal workbook methodology "
-            "(35 classifiers, 67 dynamic triggers, the accelerator and "
+            "(23 classifiers, 67 dynamic triggers, the accelerator and "
             "network propagation), the classifier/trigger/accelerator/ "
             "network-derived T&A and final EWS scores, and the field-level "
             "lineage back to Ratings, IFRS 9, Facilities, Collateral, "

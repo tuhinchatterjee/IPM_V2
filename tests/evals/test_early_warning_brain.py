@@ -210,7 +210,11 @@ def test_every_group_the_brief_names_is_covered():
     from collections import Counter
 
     groups = Counter(c["group"] for c in CASES)
-    assert len(CASES) == 40, f"{len(CASES)} cases, expected 40"
+    # Forty from the brief, plus the cases the readiness run added: a
+    # partial obligor name, the full name that must beat it, an override
+    # that breaks the movement decomposition, and a grade scale the
+    # question assumed but the book does not use.
+    assert len(CASES) >= 40, f"{len(CASES)} cases, expected at least 40"
     assert set(groups) == {
         "portfolio", "segment", "rating", "borrower", "model", "network",
         "external", "diagnosis", "action", "report"}, sorted(groups)

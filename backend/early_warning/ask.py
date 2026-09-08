@@ -199,6 +199,19 @@ _SUPERLATIVE = re.compile(
     r"exposure|account)\b", re.I)
 
 
+#: Words that appear in dozens of obligor names and in ordinary sentences.
+#: On their own they name nobody: "what should I do about the group?" is not
+#: a question about Rawabi Group 2.
+_COMMON_NAME_WORDS = frozenset({
+    "group", "holding", "holdings", "trading", "partners", "ventures",
+    "industrial", "industries", "resources", "investment", "investments",
+    "logistics", "manufacturing", "contracting", "services", "company",
+    "co", "corp", "corporation", "limited", "ltd", "llc", "enterprises",
+    "international", "national", "united", "general", "development",
+    "projects", "systems", "solutions", "capital", "and", "the", "for",
+})
+
+
 def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower()).strip()
 
@@ -239,7 +252,64 @@ def resolve_borrower(question: str, period: str | None = None) -> str | None:
     if _SUPERLATIVE.search(question or ""):
         weakest = bm.sort_values("ews_score", ascending=False).iloc[0]
         return str(weakest["customer_id"])
-    return None
+
+    # And nobody types a borrower's full registered name. "Why is Rawabi
+    # flagged?" names an obligor, and answering it with a portfolio summary
+    # is answering a different question. One match resolves; several are an
+    # ambiguity for `candidates()` to put back to the reader rather than
+    # something to guess at.
+    found = candidates(question, period)
+    return found[0]["customer_id"] if len(found) == 1 else None
+
+
+def candidates(question: str, period: str | None = None) -> list[dict[str, Any]]:
+    """Every obligor the question could be naming, weakest first.
+
+    Matched on the longest run of leading name words that appears in the
+    question, so "Rawabi Group" picks out one obligor while "Rawabi" picks
+    out the eleven that share the name. Longest run wins outright: a reader
+    who typed more was being more specific, and falling back to the shorter
+    match would discard exactly the words they added to disambiguate.
+
+    Returned rather than resolved because eleven obligors is not a borrower.
+    Picking the weakest of them and answering as though it were the one
+    asked about is the kind of confident wrong answer that costs more than
+    a question.
+    """
+    bm = svc.borrower_month(period)
+    if bm.empty:
+        return []
+    asked = f" {_norm(question)} "
+    if not asked.strip():
+        return []
+
+    by_length: dict[int, list[dict[str, Any]]] = {}
+    for _, row in bm.iterrows():
+        words = _norm(str(row["customer_name"])).split()
+        if not words:
+            continue
+        # Longest leading run of the name that the question contains.
+        for take in range(len(words), 0, -1):
+            run = " ".join(words[:take])
+            # A single word has to be distinctive: "group" or "trading"
+            # appears in dozens of names and in ordinary sentences.
+            if take == 1 and run in _COMMON_NAME_WORDS:
+                continue
+            if f" {run} " in asked:
+                by_length.setdefault(take, []).append({
+                    "customer_id": str(row["customer_id"]),
+                    "customer_name": str(row["customer_name"]),
+                    "ews_score": round(float(row["ews_score"]), 1),
+                    "ews_band": str(row["ews_band"]),
+                    "exposure": round(float(row["exposure"]), 2),
+                    "matched": run,
+                })
+                break
+    if not by_length:
+        return []
+    found = by_length[max(by_length)]
+    found.sort(key=lambda r: r["ews_score"], reverse=True)
+    return found
 
 
 def resolve_level(question: str) -> str | None:
@@ -351,6 +421,14 @@ def answer(question: str, *, period: str | None = None,
         return Answer(pack, cp.compose(pack), "methodology")
 
     named = resolve_borrower(text, period)
+    # Several obligors sharing the name is a question back, not a guess —
+    # but only when the reader has not already opened one, in which case
+    # "it" plainly means the one on the screen.
+    if named is None and customer_id is None:
+        found = candidates(text, period)
+        if len(found) > 1:
+            return Answer(None, cp.ambiguous_borrower(found[0]["matched"], found),
+                          "ambiguous")
     customer_id = named or customer_id
     group_found = resolve_group(text, period) if named is None else None
 
@@ -368,6 +446,12 @@ def answer(question: str, *, period: str | None = None,
         if _ACTION.search(text):
             pack = ff.borrower(customer_id)
             return Answer(pack, cp.action(pack), "action")
+        # "Did it improve?" is a question about the movement of THIS
+        # obligor, and answering it with the obligor's current position
+        # lets a reader read the absence of a "no" as a "yes".
+        if _MOVEMENT.search(text):
+            pack = ff.borrower(customer_id)
+            return Answer(pack, cp.borrower_movement(pack), "borrower")
         layer_code = resolve_layer(text)
         if layer_code and not _MOVEMENT.search(text):
             pack = ff.layer(customer_id, layer_code)

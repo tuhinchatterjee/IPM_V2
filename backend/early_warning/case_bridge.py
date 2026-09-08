@@ -65,6 +65,38 @@ def draft_for(row: dict[str, Any]) -> agentic_cases.Draft:
     )
 
 
+#: What the escalation wrote on the case, which a later refresh must not
+#: destroy. These are not derived from the borrower-month row — they record
+#: which matrix version routed the case and to which cell — so a draft built
+#: from the row alone does not contain them and would replace them with
+#: nothing.
+ESCALATION_KEYS = ("escalation_version", "routing")
+
+
 def upsert_case(session, row: dict[str, Any]):
+    """Refresh the borrower's case from the current month's score.
+
+    The shared case machinery replaces `evidence` wholesale on every
+    refresh, which is right for the fields that describe the score: they are
+    recomputed and the newest reading wins. It is wrong for the escalation
+    record, which is history rather than a reading — and the readiness run
+    found that Inform, whose whole contract is that it changes nothing,
+    silently erased which matrix version had routed the case and where it
+    had been routed to. The audit trail was gone and nothing said so.
+
+    So the escalation's own keys are carried forward across the refresh.
+    """
+    from sqlalchemy import select
+
+    from backend.models.platform import RiskCase
+
     draft = draft_for(row)
+    existing = session.execute(
+        select(RiskCase).where(RiskCase.dedupe_key == draft.key)
+    ).scalar_one_or_none()
+    if existing is not None:
+        carried = {k: v for k, v in (existing.evidence or {}).items()
+                    if k in ESCALATION_KEYS}
+        if carried:
+            draft.evidence = {**draft.evidence, **carried}
     return agentic_cases.upsert(session, draft, actor_agent="early_warning_v2")

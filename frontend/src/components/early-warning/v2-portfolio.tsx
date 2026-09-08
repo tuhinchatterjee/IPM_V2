@@ -21,6 +21,7 @@ import { EarlyWarningChat } from "@/components/early-warning/ews-chat";
 import { PortfolioInsight } from "@/components/early-warning/portfolio-insight";
 import { LevelView } from "@/components/early-warning/level-view";
 import { TrendChart } from "@/components/analytics/charts";
+import * as sel from "@/components/early-warning/selection";
 
 /**
  * Early Warning V2 — the consolidated portfolio view.
@@ -60,29 +61,54 @@ function BandBadge({ band }: { band: string }) {
  * with `?facility=`. That is what lets Back, Forward and a shared link carry
  * a reader from the portfolio into a band, into a segment, into a borrower,
  * and back out again, with no bespoke history machinery of its own.
+ *
+ * Each selection is PUSHED, not replaced. Replacing writes the URL without
+ * creating a history entry, which makes a shared link work and Back a lie:
+ * the readiness run found that walking back from a band, a segment and a
+ * grade left the Early Warning page entirely on the first press, because
+ * three selections had left no trace to walk. A reader who drills four
+ * levels deep and wants the third one back presses Back, and it has to be
+ * there.
+ *
+ * And because the URL is pushed rather than navigated, React is not told
+ * when the browser walks it — so `popstate` reads the query string back
+ * into state. Without that the address bar and the screen disagree after
+ * every Back, which is worse than no history at all.
  */
 function useUrlSelection() {
   const query = useSearchParams();
-  const [state, setState] = React.useState(() => ({
+  const [state, setState] = React.useState<sel.Selection>(() => ({
     band: query.get("band"),
     segment: query.get("segment"),
     customer: query.get("customer"),
     level: query.get("level"),
   }));
 
+  React.useEffect(() => {
+    const walked = () => setState(sel.read(window.location.search));
+    window.addEventListener("popstate", walked);
+    return () => window.removeEventListener("popstate", walked);
+  }, []);
+
   const patch = React.useCallback(
-    (next: Partial<{ band: string | null; segment: string | null;
-                     customer: string | null; level: string | null }>) => {
-      setState((current) => {
-        const merged = { ...current, ...next };
-        const url = new URL(window.location.href);
-        (["band", "segment", "customer", "level"] as const).forEach((key) => {
-          if (merged[key]) url.searchParams.set(key, merged[key]!);
-          else url.searchParams.delete(key);
-        });
-        window.history.replaceState(window.history.state, "", url);
-        return merged;
-      });
+    (next: Partial<sel.Selection>) => {
+      // Read from the URL rather than from state. The URL is what Back and
+      // Forward move, so it is the one place that is always current — state
+      // mirrors it. That also keeps this callback stable, which matters
+      // because it is handed to the level view and both tables.
+      const current = sel.read(window.location.search);
+      const merged = sel.merge(current, next);
+      // A selection that changes nothing is not a step back to anywhere.
+      // Pushing it would make Back a no-op the first time it is pressed.
+      if (!sel.isAStep(current, merged)) return;
+      // Pushed OUTSIDE any state updater. React deliberately calls an
+      // updater twice to surface impure ones, and with the push inside it
+      // every selection wrote two identical history entries — so the first
+      // Back appeared to do nothing at all.
+      const url = new URL(window.location.href);
+      url.search = sel.write(merged);
+      window.history.pushState(window.history.state, "", url);
+      setState(merged);
     },
     [],
   );

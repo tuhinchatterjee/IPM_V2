@@ -764,6 +764,161 @@ def _methodology_aspect(aspect: str, f: dict[str, Any]) -> tuple[str, str]:
     return ("", "")
 
 
+def borrower_movement(pack: ff.FactPack) -> Composed:
+    """Did this obligor improve? Answered, in the first sentence.
+
+    Asked outright and given the obligor's current position instead, a
+    reader takes the absence of a "no" for a "yes" — and this is the single
+    question where that costs most, because a score can fall while the
+    condition behind it worsens. The anchor is where a condition change
+    shows; the notches adjust for what the two dimension scores cannot see
+    on their own. Reporting them separately is the whole reason the
+    distinction is computable at all, so the answer states which moved.
+    """
+    f = pack.figures
+    year = f.get("movement_12m") or {}
+    month = f.get("movement_1m") or {}
+    move = year if year.get("ews_change") is not None else month
+    if not move:
+        return borrower(pack)
+
+    change = float(move.get("ews_change") or 0.0)
+    anchor_move = float(move.get("anchor_change") or 0.0)
+    notch_points = float(move.get("notch_change_points") or 0.0)
+    name = f["customer_name"]
+    span = f"{move.get('from_period')} to {move.get('to_period')}"
+
+    if change > 0:
+        verdict = (f"No. {name}'s score has risen {change:+.1f} points from "
+                   f"{span}, to {_band_phrase(f['ews_score'], f['ews_band'])}.")
+    elif change < 0:
+        # The expensive case: a fall that is not an improvement.
+        verdict = (f"The score fell {abs(change):.1f} points from {span}, but "
+                   f"that is not the same as the obligor improving."
+                   if not move.get("condition_improved") else
+                   f"Yes. The score fell {abs(change):.1f} points from {span} "
+                   f"and the anchor fell with it, so the underlying condition "
+                   f"eased rather than the adjustment moving.")
+    else:
+        verdict = (f"No. {name}'s score is unchanged at "
+                   f"{_band_phrase(f['ews_score'], f['ews_band'])} across "
+                   f"{span}.")
+
+    paras: list[str] = []
+    # Where the movement actually came from.
+    if anchor_move or notch_points:
+        parts = []
+        if anchor_move:
+            parts.append(
+                f"the anchor moved {anchor_move:+.0f} points, which is the "
+                f"underlying condition")
+        if notch_points:
+            parts.append(
+                f"the notches moved {notch_points:+.0f} points, which is the "
+                f"adjustment for what the two dimension scores cannot see on "
+                f"their own")
+        # "Of that" apportions a movement. Where the score did not move, the
+        # components still did, and saying so is the more useful fact: it is
+        # the difference between nothing happening and two things cancelling.
+        paras.append(f"Of that, {_list_of(parts)}." if change else
+                     f"Underneath the unchanged score {_list_of(parts)}.")
+
+    # An override sets the band by rule, and when one is in force the anchor
+    # and the notches do not add up to the movement. Saying "the anchor moved
+    # +4 and the notches -16" about a +48 point rise, and stopping there,
+    # presents an incomplete decomposition as a complete one — which is worse
+    # than not decomposing it, because the reader has no reason to doubt it.
+    overrides = f.get("overrides_applied") or []
+    reconciles = abs((anchor_move + notch_points) - change) < 0.5
+    if not reconciles and overrides:
+        paras.append(
+            f"The anchor and the notches do not account for where the score "
+            f"ended up, and they are not meant to here: "
+            f"{_list_of(list(overrides))} "
+            f"{'is' if len(overrides) == 1 else 'are'} in force, so the final "
+            f"band is set by rule rather than by the roll-up. The rule is the "
+            f"thing to read, and it is the thing that has to stop applying "
+            f"before the score can come down.")
+    elif not reconciles:
+        paras.append(
+            "The anchor and the notches do not fully account for that "
+            "movement, so a cap or a band floor is also acting on the score. "
+            "Open the score composition to see which.")
+
+    if move.get("driven_by_notches") and not move.get("condition_improved") \
+            and reconciles:
+        direction = "down" if notch_points < 0 else "up"
+        paras.append(
+            f"The notches are doing more of the work than the condition is, "
+            f"and they are pulling the score {direction}. So the score "
+            f"{'understates' if notch_points < 0 else 'overstates'} the "
+            f"change in the obligor itself: the anchor moved "
+            f"{anchor_move:+.0f}, and that is the number to read as the "
+            f"condition. A band change driven by a notch is a reason to "
+            f"check the notch reason, not evidence that the credit turned.")
+    elif move.get("condition_improved"):
+        paras.append(
+            f"The anchor fell {abs(anchor_move):.0f} points, so this is a "
+            f"change in the obligor rather than in the adjustment applied to "
+            f"it. Confirm it holds for a second month before acting on it: "
+            f"one month of relief is not a trend.")
+
+    worst = (f.get("drivers") or [{}])[0]
+    if worst.get("code"):
+        paras.append(
+            f"The position it is at is still driven by {worst['code']} "
+            f"{worst['name']} at {worst['score']:.0f}.")
+    # Whether the position is live or standing decides what a reader does
+    # next as much as the direction of the movement does.
+    live = _live_or_structural_line(f)
+    if live:
+        paras.append(live)
+
+    return Composed(
+        direct=verdict, interpretation=_sentence(paras),
+        drivers=f.get("drivers") or [],
+        follow_ups=["Show me the notch detail.",
+                    "Show me the evidence behind that node.",
+                    "What action should I take?"],
+        caveats=pack.caveats)
+
+
+def ambiguous_borrower(matched: str, found: list[dict[str, Any]]) -> Composed:
+    """Eleven obligors share a name. That is a question, not an answer.
+
+    Picking the weakest of them and answering as though it were the one
+    asked about is a confident wrong answer, which costs more than asking.
+    So the candidates are named with their positions — enough for the
+    reader to choose without a second round trip — and the weakest is
+    pointed out, because that is the one they most likely meant and the one
+    that matters if they did not.
+    """
+    top = found[:6]
+    worst = found[0]
+    direct = (f"{len(found)} obligors carry the {matched.title()} name. "
+              f"The weakest is {worst['customer_name']} at "
+              f"{_band_phrase(worst['ews_score'], worst['ews_band'])} on "
+              f"{money(worst['exposure'])}. Which one did you mean?")
+    listed = _list_of([f"{r['customer_name']} at {r['ews_score']:.1f}"
+                       for r in top])
+    more = (f" and {len(found) - len(top)} more" if len(found) > len(top)
+            else "")
+    paras = [
+        f"They are separate obligors rather than one group exposure, so "
+        f"they are scored separately and none of their positions can be "
+        f"read off another's: {listed}{more}. If the name is a group and "
+        f"the exposures are related, that relationship belongs in the "
+        f"network layer, where it is scored as propagation across "
+        f"confidence-rated edges rather than assumed from a shared name.",
+    ]
+    return Composed(
+        direct=direct, interpretation=_sentence(paras),
+        drivers=[], follow_ups=[f"How is {r['customer_name']} doing?"
+                                for r in top[:4]],
+        caveats=["Naming an obligor in full, or opening it from the table, "
+                 "answers about that obligor rather than about the name."])
+
+
 def methodology(pack: ff.FactPack) -> Composed:
     """How the score is built, from the engine rather than from a page.
 

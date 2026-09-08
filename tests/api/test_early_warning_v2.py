@@ -218,6 +218,84 @@ def test_escalate_routes_through_the_matrix(client, domain_built, seeded_user):
         routing["escalated_to"][0]
 
 
+def test_inform_does_not_erase_the_escalation_record(client, domain_built,
+                                                     seeded_user):
+    """Inform says it changes nothing. It has to actually change nothing.
+
+    The readiness run escalated an obligor, then sent an FYI on the same
+    obligor, and the case came back with no escalation version and no
+    routing cell — because Inform refreshes the case, and the shared case
+    machinery replaces `evidence` wholesale on a refresh. That is right for
+    the fields describing the score, which are recomputed and where the
+    newest reading should win. It is wrong for the escalation record, which
+    is history: the one thing that says which matrix version routed this
+    case and to which cell was silently destroyed by the operation whose
+    entire contract is that it does not touch the case.
+    """
+    from backend.db.engine import get_session
+    from backend.models.platform import RiskCase
+
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][0]["customer_id"]
+
+    escalated = client.post(
+        f"/api/v1/early-warning/v2/borrower/{customer_id}/escalate",
+        headers=headers("ANALYST"), json={"recipient_user_ids": [seeded_user]})
+    assert escalated.status_code == 200
+    case_key = escalated.json()["case_key"]
+
+    def evidence() -> dict:
+        with get_session() as session:
+            found = session.query(RiskCase).filter(
+                RiskCase.case_key == case_key).first()
+            return dict((found.evidence if found else None) or {})
+
+    after_escalate = evidence()
+    assert after_escalate.get("escalation_version"), after_escalate
+    assert after_escalate.get("routing"), after_escalate
+
+    informed = client.post(
+        f"/api/v1/early-warning/v2/borrower/{customer_id}/inform",
+        headers=headers("ANALYST"),
+        json={"recipient_user_ids": [seeded_user], "message": "FYI"})
+    assert informed.status_code == 200
+
+    after_inform = evidence()
+    assert after_inform.get("escalation_version") == \
+        after_escalate["escalation_version"], (
+            "Inform erased which matrix version routed the case")
+    assert after_inform.get("routing") == after_escalate["routing"], (
+        "Inform erased the routing cell the case was escalated to")
+
+
+def test_escalating_twice_still_leaves_one_case(client, domain_built,
+                                                 seeded_user):
+    """Two escalations and an FYI on the same obligor are one case."""
+    from backend.db.engine import get_session
+    from backend.models.platform import RiskCase
+
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][0]["customer_id"]
+
+    for _ in range(2):
+        assert client.post(
+            f"/api/v1/early-warning/v2/borrower/{customer_id}/escalate",
+            headers=headers("ANALYST"),
+            json={"recipient_user_ids": [seeded_user]}).status_code == 200
+    assert client.post(
+        f"/api/v1/early-warning/v2/borrower/{customer_id}/inform",
+        headers=headers("ANALYST"),
+        json={"recipient_user_ids": [seeded_user], "message": "FYI"}
+    ).status_code == 200
+
+    with get_session() as session:
+        found = session.query(RiskCase).filter(
+            RiskCase.entity_id == customer_id).all()
+    assert len(found) == 1, [c.case_key for c in found]
+
+
 def test_escalate_stamps_the_decision_sla_as_a_due_date(client, domain_built,
                                                          seeded_user):
     """A control whose clock never starts is a report. The SLAs lived in the

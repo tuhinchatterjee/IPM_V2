@@ -199,7 +199,7 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/early-warning",
     label: "Early Warning",
     description:
-      "Four intelligence layers, 123 governed signals, 35 classifiers and 67 dynamic triggers, scored against the CreditProbe Early Warning Framework Version 2 workbook: portfolio, segment and borrower drill-down, escalation, and Word reports, all from one governed monthly domain.",
+      "Four intelligence layers, 123 governed signals of which 105 are scored, 23 classifiers and 67 dynamic triggers, scored against the CreditProbe Early Warning Framework Version 2 workbook: portfolio, segment and borrower drill-down, escalation, and Word reports, all from one governed monthly domain.",
     icon: Radar,
     status: "live",
     phase: "",
