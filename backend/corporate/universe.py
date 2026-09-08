@@ -801,6 +801,126 @@ def spine(entities: pd.DataFrame, state: dict[str, np.ndarray],
 # ------------------------------------------------------------------ ratings
 
 
+#: How far the model grade has to sit from the grade the bank is carrying
+#: before the committee moves it.
+#:
+#: A rating is not a re-binning of a score. Reading the grade straight off the
+#: quality every quarter moved the average name 1.31 notches a quarter and left
+#: only 26% of the book on the same grade it started on — nine-notch moves
+#: included. A real internal grade is REAFFIRMED unless the evidence has moved,
+#: which is what produces the 85-95% quarterly stability a rating system is
+#: judged on.
+#:
+#: Three notches, read off this book's own distribution rather than chosen to
+#: clear a target. The buffer meets the drift accumulated since the LAST
+#: REVIEW, not since last quarter, and the model grade's annual wander has a
+#: median of 2 notches and a 75th percentile of 3. Sitting the buffer at the
+#: median lets half of every year's ordinary drift through; sitting it at the
+#: 75th percentile means a name has done more than three years in four would.
+#:
+#: With the ordinary step at a single notch this no longer puts a floor under
+#: how far a grade is SEEN to travel, which is what made an earlier version of
+#: this produce nine two-notch moves for every one-notch move.
+RATING_REVIEW_BUFFER = 3
+
+#: How far a grade may travel in one quarter once the committee does act.
+#: Multi-notch downgrades are real and they belong in the book; what does not
+#: belong is a six-notch move as the routine consequence of discretising a
+#: continuous score.
+RATING_MAX_STEP = 2
+
+#: How far the committee moves ORDINARILY, having decided to act.
+#:
+#: One notch, and not because one notch is a nice number: a hysteresis band on
+#: its own puts a FLOOR under the observed move, because a grade that only
+#: moves once the evidence is `RATING_REVIEW_BUFFER` notches away can never be
+#: seen moving less than that. Setting the buffer at three and the cap at two
+#: produced a book where 9.2% of moves were exactly two notches and 0.05% were
+#: one — the opposite of every real migration matrix, in which single-notch
+#: moves are much the commonest.
+#:
+#: A committee acts the way this models it: it moves the name a notch and
+#: watches, and only takes it further when the drift is bad enough to have
+#: brought the review forward in the first place.
+RATING_ORDINARY_STEP = 1
+
+#: How often a performing name comes up for review, in quarters.
+#:
+#: The buffer alone was not enough — it took quarterly stability from 26% to
+#: 61%, because a candidate that wanders will cross a two-notch buffer often.
+#: The missing mechanism is the one every bank actually has: a name is
+#: REVIEWED on a cycle, not continuously. Annual review, borrowers spread
+#: across the four quarters, so roughly a quarter of the book is in front of
+#: the committee at any time.
+RATING_REVIEW_QUARTERS = 4
+
+#: The drift that brings a name forward for review out of cycle, and lets the
+#: committee move it further than a notch when it gets there.
+#:
+#: Five, because an exception has to be exceptional. The model grade's annual
+#: wander reaches four notches for 22.7% of the book and five for 13.2%: a
+#: threshold of four would bring nearly a quarter of every year's names
+#: forward, which is not an exception but a second review cycle. Five sits at
+#: the annual 90th percentile — a borrower doing worse in a year than nine in
+#: ten of its peers, which is what cannot wait for an anniversary.
+RATING_OUT_OF_CYCLE_NOTCHES = 5
+
+
+def _rating_with_inertia(candidate: np.ndarray, entity: np.ndarray,
+                         quarter: np.ndarray, default_flag: np.ndarray,
+                         entity_count: int,
+                         review_quarter: np.ndarray) -> np.ndarray:
+    """The grade the bank carries, given what the model says each quarter.
+
+    A scan forward through the quarters, holding each borrower's standing
+    grade. Three things have to be true at once before the grade moves, and
+    each of them is something a credit process actually does:
+
+      the name is IN FRONT OF the committee — its annual review falls in this
+      quarter, or it has drifted far enough to be brought forward;
+
+      the evidence has MOVED — the model grade sits at least
+      `RATING_REVIEW_BUFFER` notches from the grade being carried;
+
+      and then it travels at most `RATING_MAX_STEP` notches.
+
+    Default is subject to none of it. It is an event, it is immediate, and it
+    overrides the standing grade. A borrower that cures out of default
+    re-enters at the weakest performing grades and has to climb, which is both
+    what happens and what makes a cure visible in the migration matrix.
+    """
+    held = np.full(entity_count, -1, dtype=np.int64)
+    settled = np.empty(len(candidate), dtype=np.int64)
+    for step in range(int(quarter.max()) + 1 if len(quarter) else 0):
+        rows = quarter == step
+        if not rows.any():
+            continue
+        here = entity[rows]
+        want = candidate[rows].astype(np.int64)
+        standing = held[here]
+        # A borrower nobody has rated yet is rated where the model puts it.
+        opening = standing < 0
+        gap = want - np.where(opening, want, standing)
+
+        due = review_quarter[here] == (step % RATING_REVIEW_QUARTERS)
+        urgent = np.abs(gap) >= RATING_OUT_OF_CYCLE_NOTCHES
+        acts = (due | urgent) & (np.abs(gap) >= RATING_REVIEW_BUFFER)
+
+        # A notch, ordinarily; further only for the drift that brought the
+        # name forward out of cycle — and never past the candidate itself,
+        # because a committee does not overshoot the evidence.
+        allowed = np.where(urgent, RATING_MAX_STEP, RATING_ORDINARY_STEP)
+        travel = np.sign(gap) * np.minimum(np.abs(gap), allowed)
+
+        moved = np.where(opening, want,
+                         np.where(acts, standing + travel, standing))
+        moved = np.clip(moved, 0, DEFAULT_INDEX - 1)
+        moved = np.where(default_flag[rows], DEFAULT_INDEX, moved)
+        settled[rows] = moved
+        held[here] = moved
+    return settled
+
+
 def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
                   rng: np.random.Generator) -> pd.DataFrame:
     """The internal grade, its model, its override and its movement. B3.
@@ -812,7 +932,6 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     the module exists to answer, and a book with no overrides answers it
     vacuously.
     """
-    n = len(spine_df)
     index = spine_df["entity_index"].to_numpy()
     quarter = spine_df["quarter_index"].to_numpy()
     default_flag = spine_df["default_flag"].to_numpy()
@@ -829,12 +948,27 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # An override on roughly one name in fourteen, more often downwards: a
     # committee that overrides is usually adding a concern the model cannot
     # see rather than removing one it can.
-    draw = rng.random(n)
-    override = draw < 0.072
-    direction = np.where(rng.random(n) < 0.62, 1, -1)
-    grade_index = np.clip(model_grade + override * direction,
-                          0, DEFAULT_INDEX - 1)
-    grade_index = np.where(default_flag, DEFAULT_INDEX, grade_index)
+    #
+    # The override is drawn per ENTITY, not per row. A committee's disagreement
+    # with the model is a standing view of a borrower, not a coin tossed afresh
+    # every quarter, and a per-row draw would flip 7% of the book up and down a
+    # notch each quarter for no reason anybody could name.
+    entity_count = int(entities.shape[0])
+    override_entity = rng.random(entity_count) < 0.072
+    direction_entity = np.where(rng.random(entity_count) < 0.62, 1, -1)
+    override = override_entity[index]
+    direction = direction_entity[index]
+    candidate = np.clip(model_grade + override * direction,
+                        0, DEFAULT_INDEX - 1)
+
+    # The candidate is what the model and the committee SAY this quarter. The
+    # grade is what the bank is carrying, and those are not the same thing.
+    #
+    # Review dates are spread across the year so the committee's workload is
+    # level and no quarter is a book-wide re-rating.
+    review_quarter = rng.integers(0, RATING_REVIEW_QUARTERS, entity_count)
+    grade_index = _rating_with_inertia(
+        candidate, index, quarter, default_flag, entity_count, review_quarter)
 
     segment = entities["segment"].to_numpy()[index]
     model = np.where(
@@ -1350,6 +1484,54 @@ UNSECURED_LGD_MEAN = 0.68
 DEFAULTED_LGD_UPLIFT = 0.07
 
 
+#: How many consecutive clear quarters a Stage 2 borrower needs before it is
+#: allowed back into Stage 1.
+#:
+#: Every IFRS 9 book of any size operates a probation like this, and the
+#: reason is the one this generator ran into: a trigger evaluated afresh each
+#: quarter lets a borrower oscillate between Stages on a PD that moved by a
+#: hundredth, and the provision oscillates with it. Two quarters is the
+#: shortest probation that means anything.
+STAGE_2_PROBATION_QUARTERS = 2
+
+
+def _staged_with_probation(measured: np.ndarray,
+                           borrower: np.ndarray) -> np.ndarray:
+    """The stage a book carries, given the stage its triggers measure.
+
+    Deterioration is immediate — a borrower that trips a trigger is in Stage 2
+    (or 3) that quarter. Improvement is not: the borrower has to stay clear for
+    `STAGE_2_PROBATION_QUARTERS` consecutive quarters before it returns.
+
+    Expects the rows sorted by borrower and then by period, which is what the
+    caller does immediately before calling.
+    """
+    out = np.asarray(measured, dtype=np.int64).copy()
+    if not len(out):
+        return out
+    held = out[0]
+    clear = 0
+    current = borrower[0]
+    for i in range(len(out)):
+        if borrower[i] != current:
+            current = borrower[i]
+            held = out[i]
+            clear = 0
+            continue
+        want = out[i]
+        if want >= held:
+            # Worse, or the same. Nothing to serve.
+            held = want
+            clear = 0
+        else:
+            clear += 1
+            if clear >= STAGE_2_PROBATION_QUARTERS:
+                held = want
+                clear = 0
+        out[i] = held
+    return out
+
+
 def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
                 facilities: pd.DataFrame, delinquency: pd.DataFrame,
                 collateral: pd.DataFrame, ratings: pd.DataFrame,
@@ -1529,9 +1711,25 @@ def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
                           | frame["sicr_trigger_dpd"]
                           | frame["sicr_trigger_watchlist"])
 
-    frame["stage"] = np.where(
+    # The stage the triggers alone would give.
+    measured_stage = np.where(
         frame["default_flag"] | (frame["current_dpd"] >= DEFAULT_DPD_DAYS), 3,
         np.where(frame["sicr_flag"], 2, 1))
+
+    # And then the probation. A borrower whose SICR trigger stops firing does
+    # not return to Stage 1 the same quarter: it has to stay clear for
+    # STAGE_2_PROBATION_QUARTERS consecutive quarters first.
+    #
+    # This is not a smoothing device. It is the curing rule IFRS 9 books
+    # actually operate, and without it a third of Stage 2 exposure returned to
+    # Stage 1 every quarter — an average Stage 2 sojourn under three quarters,
+    # which is a staging rule measuring noise rather than credit.
+    frame["measured_stage"] = measured_stage
+    frame = frame.sort_values(
+        ["borrower_id", "period_end_date"]).reset_index(drop=True)
+    frame["stage"] = _staged_with_probation(
+        frame["measured_stage"].to_numpy(), frame["borrower_id"].to_numpy())
+    frame = frame.drop(columns=["measured_stage"])
     frame["prior_stage"] = (frame.groupby("borrower_id")["stage"]
                             .shift(1).fillna(frame["stage"]).astype(int))
     frame["stage_moved"] = frame["stage"] - frame["prior_stage"]

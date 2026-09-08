@@ -151,6 +151,22 @@ def _check_distribution(matrix: ft.Matrix, ranges: dict[str, Any]
     return out
 
 
+def _exposure_ratio(work: pd.DataFrame) -> pd.Series:
+    """How much more, or less, there is to lose after the scenario.
+
+    One where the scenario did not touch exposure, which is most scenarios, so
+    this changes nothing for a rating or a PD shock and is the whole answer for
+    an EAD one.
+    """
+    base = pd.to_numeric(work.get("ead"), errors="coerce").fillna(0.0)
+    after = (pd.to_numeric(work.get("ead_stressed"), errors="coerce")
+             .fillna(base) if "ead_stressed" in work.columns else base)
+    ratio = pd.Series(np.ones(len(work)), index=work.index)
+    live = base > 0
+    ratio[live] = (after[live] / base[live]).clip(lower=0.0)
+    return ratio
+
+
 def factors(work: pd.DataFrame, *, version: str = "",
             delta_factors: pd.Series | None = None) -> MLResult:
     """The ML shock factor per borrower.
@@ -182,6 +198,20 @@ def factors(work: pd.DataFrame, *, version: str = "",
     usable = base > FLOOR
     factor = pd.Series(np.ones(len(base)), index=base.index)
     factor[usable] = moved[usable] / base[usable]
+
+    # And then the exposure, which the rate ratio alone does not carry.
+    #
+    # The model's target is a RATE — expected loss over exposure — so a ratio
+    # of two predictions is a ratio of two rates, and
+    #
+    #     ECL = rate x EAD
+    #
+    # means the exposure leg has to be multiplied in separately. Leaving it out
+    # priced "raise EAD by 20%" at a twentieth of its effect: the shocked
+    # features moved `log_ead` a little, the predicted rate barely moved, and
+    # the twenty per cent more exposure to lose never reached the answer.
+    exposure = _exposure_ratio(work).reindex(factor.index).fillna(1.0)
+    factor = factor * exposure
 
     fell_back = int((~usable).sum())
     warnings: list[str] = []
