@@ -66,23 +66,28 @@ INVESTIGATOR = "investigator"
 ANALYST = "analyst"
 
 #: Cockpit Agentic V3's two model jobs, configured independently of the seven
-#: legacy roles above. The Cockpit's contract is a two-model one -- Sonnet
-#: preprocesses and summarises, Opus decides ownership, plans, authors every
-#: query and reviews - and binding it to `planner` or `analyst` would mean an
-#: administrator could not change one without changing the other.
-COCKPIT_SONNET = "cockpit_sonnet"
-COCKPIT_OPUS = "cockpit_opus"
+#: legacy roles above. The Cockpit's contract is a two-model one -- one model
+#: preprocesses and summarises, a stronger one decides ownership, plans,
+#: authors every query and reviews -- and binding those to `planner` or
+#: `analyst` would mean an administrator could not change one without changing
+#: the other.
+#:
+#: Named for the JOB, not for a model family, because a role called after a
+#: model reads as though it were pinned to one. Nothing here names a model and
+#: every id still comes from the environment.
+COCKPIT_PREPROCESS = "cockpit_preprocess"
+COCKPIT_REASONING = "cockpit_reasoning"
 
 ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER, INVESTIGATOR,
                           ANALYST, INTERPRETATION, CRITIC, TRANSLATION,
-                          COCKPIT_SONNET, COCKPIT_OPUS)
+                          COCKPIT_PREPROCESS, COCKPIT_REASONING)
 
 #: Roles the product calls today. TRANSLATION is declared but unused, and a
 #: report that counted it as unconfigured would be reporting a gap that is not
 #: one.
 ACTIVE_ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER,
                                  INVESTIGATOR, ANALYST, INTERPRETATION,
-                                 CRITIC, COCKPIT_SONNET, COCKPIT_OPUS)
+                                 CRITIC, COCKPIT_PREPROCESS, COCKPIT_REASONING)
 
 #: Which environment variable names each role's model, and how hard it should
 #: think. Effort is passed through only where the provider supports it.
@@ -96,8 +101,8 @@ _ENV: dict[str, tuple[str, str]] = {
     INVESTIGATOR: ("AI_INVESTIGATOR_MODEL", "AI_INVESTIGATOR_EFFORT"),
     ANALYST: ("AI_ANALYST_MODEL", "AI_ANALYST_EFFORT"),
     TRANSLATION: ("AI_TRANSLATION_MODEL", "AI_TRANSLATION_EFFORT"),
-    COCKPIT_SONNET: ("COCKPIT_SONNET_MODEL", "COCKPIT_SONNET_EFFORT"),
-    COCKPIT_OPUS: ("COCKPIT_OPUS_MODEL", "COCKPIT_OPUS_EFFORT"),
+    COCKPIT_PREPROCESS: ("AI_COCKPIT_PREPROCESS_MODEL", "AI_COCKPIT_PREPROCESS_EFFORT"),
+    COCKPIT_REASONING: ("AI_COCKPIT_REASONING_MODEL", "AI_COCKPIT_REASONING_EFFORT"),
 }
 
 #: §22 asks for backward compatibility. A deployment that set only
@@ -118,8 +123,8 @@ _FALLBACK_ROLE: dict[str, str] = {
     # A deployment that has not configured the Cockpit roles falls back to the
     # nearest legacy role rather than to the shared default, and reports that
     # it did. No model id is invented anywhere in this module.
-    COCKPIT_SONNET: ROUTER,
-    COCKPIT_OPUS: COMPLEX_PLANNER,
+    COCKPIT_PREPROCESS: ROUTER,
+    COCKPIT_REASONING: COMPLEX_PLANNER,
 }
 
 #: What each role is for, shown in Settings so an administrator configuring
@@ -139,14 +144,16 @@ PURPOSE: dict[str, str] = {
                   "whose answer is in the data. Orchestration, not judgement.",
     ANALYST: "Forms a credit judgement on gathered evidence — cause, "
              "materiality, what to do about it. The job worth paying for.",
-    COCKPIT_SONNET: "Cockpit preprocessing and summary: cleans and translates "
-                    "the question, normalises it into a business request, and "
-                    "updates the rolling thread summary. It chooses no method "
-                    "and computes nothing.",
-    COCKPIT_OPUS: "Cockpit reasoning: decides whether Cockpit owns the "
-                  "question at all, then owns the analysis plan, the method, "
-                  "every SQL and Python candidate including every repair, the "
-                  "sufficiency review and the final interpretation.",
+    COCKPIT_PREPROCESS: "Cockpit preprocessing and summary: cleans and "
+                        "translates the question, normalises it into a "
+                        "business request, and updates the rolling thread "
+                        "summary. It chooses no method and computes nothing. "
+                        "A fast, cheap model does this well.",
+    COCKPIT_REASONING: "Cockpit reasoning: decides whether the Cockpit owns "
+                       "the question at all, then owns the analysis plan, the "
+                       "method, every query candidate including every repair, "
+                       "the sufficiency review and the final interpretation. "
+                       "The job worth paying for.",
 }
 
 #: Effort levels a provider may be asked for. Ordered.

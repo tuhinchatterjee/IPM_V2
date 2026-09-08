@@ -42,7 +42,7 @@ from backend.cockpit_agentic.sonnet import prompt
 
 logger = logging.getLogger(__name__)
 
-OPUS_ROLE = "cockpit_opus"
+OPUS_ROLE = "cockpit_reasoning"
 OPUS_FAMILY = "opus"
 
 

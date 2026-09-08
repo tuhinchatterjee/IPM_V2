@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 PROMPTS = Path(__file__).parent / "prompts"
 
-SONNET_ROLE = "cockpit_sonnet"
+SONNET_ROLE = "cockpit_preprocess"
 SONNET_FAMILY = "sonnet"
 
 

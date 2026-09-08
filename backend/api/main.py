@@ -291,6 +291,15 @@ def create_app() -> FastAPI:
     app.include_router(engine_router.trace_router, prefix=API_PREFIX)
     app.include_router(ask_router.router, prefix=API_PREFIX)
     app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
+    # Cockpit Agentic V3. Its own router by design: the Cockpit path must not
+    # pass through the legacy deterministic answer path or the legacy analyst,
+    # and the cleanest guarantee of that is not sharing a surface with them
+    # (specification section 17). Registered unconditionally; every endpoint
+    # reports the switch being off rather than 404ing, so a deployment can tell
+    # "not enabled" from "not deployed".
+    from backend.api.routers import cockpit_agentic as cockpit_agentic_router
+
+    app.include_router(cockpit_agentic_router.router, prefix=API_PREFIX)
     app.include_router(early_warning_router.router, prefix=API_PREFIX)
     app.include_router(domain_intelligence_router.router,
                        prefix=API_PREFIX)

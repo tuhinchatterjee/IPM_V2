@@ -165,11 +165,19 @@ class Runtime:
                     help_text=("This is an operator or configuration matter, "
                                "not something rephrasing the question can "
                                "fix.")))
+        except context_mod.ContextTooLarge as e:
+            return self._finish(
+                st.CONTEXT_TOO_LARGE,
+                _stop_envelope(
+                    reason="context_too_large", narrative=str(e),
+                    understood=question,
+                    help_text=("An administrator can raise the per-call input "
+                               "cap for this deployment. Rephrasing the "
+                               "question cannot make the data dictionary "
+                               "smaller.")))
         except Exception as e:                              # noqa: BLE001
             from backend.llm.base import LLMError
 
-            if not isinstance(e, (LLMError, context_mod.ContextTooLarge)):
-                raise
             if isinstance(e, LLMError):
                 # The provider's own reason, not a generic internal error. A
                 # deployment with no credential must be told that, because it
@@ -182,18 +190,6 @@ class Runtime:
                         help_text=("This is an operator or configuration "
                                    "matter. No answer was produced from a "
                                    "deterministic substitute.")))
-            raise
-        except context_mod.ContextTooLarge as e:
-            return self._finish(
-                st.CONTEXT_TOO_LARGE,
-                _stop_envelope(
-                    reason="context_too_large", narrative=str(e),
-                    understood=question,
-                    help_text=("An administrator can raise the per-call input "
-                               "cap for this deployment. Rephrasing the "
-                               "question cannot make the data dictionary "
-                               "smaller.")))
-        except Exception as e:                              # noqa: BLE001
             logger.exception("The Cockpit request failed")
             return self._finish(
                 st.PROVIDER_ERROR,
