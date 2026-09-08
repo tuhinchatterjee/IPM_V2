@@ -928,7 +928,9 @@ def build_quarter(*, quarter: str, index: int, quarters: Sequence[str],
                   assets: Sequence[CollateralAsset],
                   trajectories: dict[str, pd.DataFrame],
                   statements: dict[str, list[dict[str, Any]]],
-                  macro: pd.DataFrame) -> dict[str, pd.DataFrame]:
+                  macro: pd.DataFrame,
+                  perturbations: dict[str, dict[str, float]] | None = None
+                  ) -> dict[str, pd.DataFrame]:
     """Every frame of one quarterly package.
 
     Returns the wide facility snapshot plus the detail tables that back it.
@@ -1180,10 +1182,27 @@ def build_quarter(*, quarter: str, index: int, quarters: Sequence[str],
                            and covenant_summary[b.borrower_id]["waived"] == 0))
         stage = int(sicr["stage"])
 
+        # ---- a deliberate perturbation of ONE stored input, for the
+        # anti-canned-answer checks of brief §6.2. It multiplies the
+        # rating-linked PD or the collateral coverage this borrower's
+        # measurement is built from, so the whole chain below recomputes. It is
+        # applied to the DATA, never to the narrative.
+        shift = (perturbations or {}).get(b.borrower_id, {})
+        if shift.get("pd_multiplier"):
+            base_pd = float(np.clip(base_pd * float(shift["pd_multiplier"]),
+                                    policy.PD_FLOOR, policy.PD_CAP))
+        if shift.get("coverage_multiplier"):
+            coverage_ratio = float(np.clip(
+                coverage_ratio * float(shift["coverage_multiplier"]), 0.0, 1.0))
+
         # ---- per-scenario parameters, through the declared macro model
         scenario_parameters: list[dict[str, Any]] = []
         scenario_detail: list[dict[str, Any]] = []
         weights = dict(policy.SCENARIO_WEIGHT)
+        if shift.get("downturn_weight"):
+            downturn = float(shift["downturn_weight"])
+            weights = {"base": round(1.0 - downturn - 0.20, 10),
+                       "upturn": 0.20, "downturn": downturn}
         if knobs.get("weights_only") and index >= len(quarters) - 1:
             # Only the weights move, and only in the FINAL generated quarter,
             # so that any two consecutive published quarters see a change on
@@ -1225,7 +1244,13 @@ def build_quarter(*, quarter: str, index: int, quarters: Sequence[str],
 
         if stage == ecl_mod.STAGE_3:
             base_recovery = policy.IMPAIRED_BASE_RECOVERY[b.segment]
-            shift = float(knobs.get("recovery_shift", 0.0)) * index
+            # One step in the final generated quarter, not a shift compounded
+            # over the whole history. Compounding it drove expected recovery to
+            # the policy floor and left a single Stage 3 borrower carrying 94%
+            # of the demo's allowance, which made every portfolio answer a
+            # statement about that one account.
+            recovery_shift = float(knobs.get("recovery_shift", 0.0))
+            shift = recovery_shift if index >= len(quarters) - 1 else 0.0
             impaired_parameters = [
                 {"scenario_id": s, "weight": weights[s],
                  "recovery_rate": float(np.clip(
@@ -1306,6 +1331,16 @@ def build_quarter(*, quarter: str, index: int, quarters: Sequence[str],
                 "data_version": DATA_VERSION, "origin": ORIGIN,
                 "is_synthetic": True,
             })
+            # The curve carries the WHOLE per-period input set — hazard,
+            # severity, exposure at default and discount factor — not only the
+            # probabilities. Brief §4.2 requires every scenario PD/LGD/EAD/ECL
+            # to be reproducible from the stored inputs, and the request-time
+            # reader rebuilds the measurement from exactly these rows, so a
+            # curve missing its severity path would leave the Cockpit
+            # re-deriving a number instead of reading it.
+            scenario_input = measurement.scenarios[
+                [s.scenario_id for s in measurement.scenarios]
+                .index(scenario_result.scenario_id)]
             for t, (marginal, survival) in enumerate(
                     zip(scenario_result.marginal_pd, scenario_result.survival)):
                 curve_rows.append({
@@ -1314,12 +1349,13 @@ def build_quarter(*, quarter: str, index: int, quarters: Sequence[str],
                     "reporting_date": as_at, "period": quarter,
                     "scenario_id": scenario_result.scenario_id,
                     "future_period": t + 1,
-                    "conditional_hazard": round(float(
-                        measurement.scenarios[
-                            [s.scenario_id for s in measurement.scenarios]
-                            .index(scenario_result.scenario_id)].hazard[t]), 12),
-                    "survival": round(float(survival), 12),
-                    "marginal_default_probability": round(float(marginal), 12),
+                    "conditional_hazard": float(scenario_input.hazard[t]),
+                    "survival": float(survival),
+                    "marginal_default_probability": float(marginal),
+                    "loss_severity": float(scenario_input.lgd[t]),
+                    "ead_at_default": float(scenario_input.ead[t]),
+                    "discount_factor": float(scenario_input.discount[t]),
+                    "scenario_weight": float(scenario_input.weight),
                     "model_version": MODEL_VERSION,
                     "data_version": DATA_VERSION, "origin": ORIGIN,
                     "is_synthetic": True,
@@ -1498,7 +1534,9 @@ class Build:
 
 def build_demo(*, publish: Sequence[str] | None = None,
                borrowers: int = 500, facilities_target: int = 1100,
-               history: Sequence[str] = cal.QUARTERS) -> Build:
+               history: Sequence[str] = cal.QUARTERS,
+               perturbations: dict[str, dict[str, float]] | None = None,
+               perturb_from: str = "") -> Build:
     """Generate the whole demo, and publish the requested quarters.
 
     `history` is always the full calendar even when only two quarters are
@@ -1535,10 +1573,16 @@ def build_demo(*, publish: Sequence[str] | None = None,
 
     for label in published:
         index = quarters.index(label)
+        # A perturbation applied from a named quarter onward changes the
+        # CLOSING date's inputs only, so the anti-canned-answer check sees a
+        # movement rather than two equally shifted endpoints.
+        applies = (not perturb_from
+                   or quarters.index(label) >= quarters.index(perturb_from))
         built = build_quarter(
             quarter=label, index=index, quarters=quarters,
             borrowers=borrowers_list, facilities=facilities, assets=assets,
-            trajectories=trajectories, statements=statements, macro=macro)
+            trajectories=trajectories, statements=statements, macro=macro,
+            perturbations=perturbations if applies else None)
         per_quarter[label] = built["snapshot"]
         measurements[label] = built["_measurements"]
         for name in collected:
@@ -1559,10 +1603,13 @@ def build_demo(*, publish: Sequence[str] | None = None,
     }
     frames["cockpit_movements"] = derived_movements(per_quarter, published)
 
+    manifest = source_manifest(published, frames, per_quarter)
+    manifest["perturbations"] = {k: dict(v)
+                                 for k, v in (perturbations or {}).items()}
+    manifest["perturb_from"] = perturb_from
     return Build(quarters=quarters, published=published, frames=frames,
                  per_quarter=per_quarter, measurements=measurements,
-                 assignments=assignments,
-                 manifest=source_manifest(published, frames, per_quarter))
+                 assignments=assignments, manifest=manifest)
 
 
 def _concat(frames: Sequence[pd.DataFrame]) -> pd.DataFrame:

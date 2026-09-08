@@ -26,20 +26,22 @@
     }
   },
   "checksums": {
-    "cockpit_credit_history": "652564f3af0a01bd2628dc490c35b143",
+    "cockpit_credit_history": "3cd2438b942ceb813f94e9e988f75e6d",
     "cockpit_borrower_financials": "ce7758ecfc92ee8e7169b8c55ad57abb",
     "cockpit_collateral_assets": "6c378de1b856bf80c07725c500518542",
     "cockpit_collateral_allocation": "539616137729746e2cbaa224d253e8c6",
     "cockpit_covenant_tests": "260ad2f3b15c636a47356b05064e6c0c",
-    "cockpit_scenario_parameters": "b0bcebe787aceeb948b4c6f981a1331b",
-    "cockpit_risk_curves": "01b83290b9166b19b63227a4c1c1ecc0",
+    "cockpit_scenario_parameters": "990bd20a203471f2a705d6d0c795ce9e",
+    "cockpit_risk_curves": "44ecbf709c62597b7649e2fa69e25122",
     "cockpit_macro_paths": "3bed6acf280fba20650bbd5f6759b5bc",
-    "cockpit_movements": "c10a7dbaa34b4c34e5ef51d3a2b7d9a2"
+    "cockpit_movements": "343d14e949d7243669621841e9b75270"
   },
   "quarter_checksums": {
-    "2026Q1": "1e94046ac75be7f13655466bfedfc578",
-    "2026Q2": "d227eb216124650f7a0fd021e38e386c"
+    "2026Q1": "670016053507867c6a4caac7d40d2c77",
+    "2026Q2": "ef74a1c7d96ba567696f80836f8bf14e"
   },
+  "perturbations": {},
+  "perturb_from": "",
   "written_rows": {
     "cockpit_2026_q1": 19,
     "cockpit_2026_q2": 19,
@@ -76,7 +78,7 @@
     "history_dataset": "cockpit_credit_history",
     "datasets_registered": 11,
     "datasets_preserved": 73,
-    "datasets_before": 73,
+    "datasets_before": 84,
     "total_datasets": 84,
     "relationships_declared": 22,
     "all_synthetic": true,
@@ -236,7 +238,7 @@
         "description": "marginal = survival(t-1) x hazard(t), and survival compounds",
         "passed": true,
         "detail": "",
-        "observed": 9.248157795127554e-12
+        "observed": 0.0
       },
       {
         "id": "lifetime_identity",
@@ -245,7 +247,7 @@
         "detail": "",
         "observed": {
           "scenario_curves_checked": 51,
-          "worst_discrepancy": 4.900000197261001e-11
+          "worst_discrepancy": 4.9828057695558425e-11
         }
       },
       {
@@ -262,7 +264,7 @@
         "detail": "",
         "observed": {
           "scenario_curves_checked": 51,
-          "worst_discrepancy": 5.0999995893086236e-11
+          "worst_discrepancy": 4.9828057695558425e-11
         }
       },
       {
@@ -288,7 +290,7 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "model": 5.999978291981733e-11,
+          "model": 6.000000496442226e-11,
           "reported": 1.000000082740371e-10
         }
       },
@@ -298,8 +300,8 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "naive_product": 67.6645,
-          "weighted_model_ecl": 69.1392
+          "naive_product": 33.4568,
+          "weighted_model_ecl": 34.9314
         }
       },
       {
@@ -308,8 +310,8 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "naive_product": 81.7344,
-          "weighted_model_ecl": 83.7675
+          "naive_product": 43.6741,
+          "weighted_model_ecl": 45.7072
         }
       },
       {
@@ -535,8 +537,8 @@
         "passed": true,
         "detail": "",
         "observed": {
-          "residual": -1.2434497875801753e-14,
-          "net_change": 14.625024
+          "residual": 7.105427357601002e-15,
+          "net_change": 10.772411
         }
       }
     ],

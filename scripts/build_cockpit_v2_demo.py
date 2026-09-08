@@ -52,6 +52,15 @@ def main() -> int:
                         help="where to write the build report")
     parser.add_argument("--skip-validation", action="store_true",
                         help="write without running the integrity gates")
+    parser.add_argument(
+        "--perturb", default="",
+        help=("Anti-canned-answer check (brief 6.2). "
+              "BORROWER:KEY=VALUE[,KEY=VALUE], where KEY is one of "
+              "pd_multiplier, coverage_multiplier, downturn_weight. Changes "
+              "the stored INPUT and regenerates; the narrative is never "
+              "touched. Example: CKB-0002:pd_multiplier=1.6"))
+    parser.add_argument("--perturb-from", default="",
+                        help="quarter from which the perturbation applies")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -77,11 +86,26 @@ def main() -> int:
     borrowers = args.borrowers or (12 if args.pilot else 500)
     facilities = args.facilities or (22 if args.pilot else 1100)
 
+    perturbations: dict[str, dict[str, float]] = {}
+    if args.perturb:
+        borrower, _, settings_text = args.perturb.partition(":")
+        entry: dict[str, float] = {}
+        for pair in settings_text.split(","):
+            key, _, value = pair.partition("=")
+            if key.strip():
+                entry[key.strip()] = float(value)
+        perturbations[borrower.strip()] = entry
+        print(f"\nPerturbation: {borrower.strip()} {entry}"
+              + (f" from {args.perturb_from}" if args.perturb_from else ""))
+
     print(f"\nGenerating {borrowers} borrowers, ~{facilities} facilities, "
           f"publishing {len(publish)} quarter(s): {', '.join(publish)}")
     started = time.perf_counter()
-    build = generate_mod.build_demo(publish=publish, borrowers=borrowers,
-                                    facilities_target=facilities)
+    build = generate_mod.build_demo(
+        publish=publish, borrowers=borrowers, facilities_target=facilities,
+        perturbations=perturbations or None,
+        perturb_from=(cal.parse(args.perturb_from).label
+                      if args.perturb_from else ""))
     generated = time.perf_counter() - started
     print(f"  generated in {generated:.1f}s")
 

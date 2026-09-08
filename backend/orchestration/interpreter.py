@@ -98,9 +98,19 @@ class Narrative:
     metrics: list[Metric] = field(default_factory=list)
     drivers: list[dict[str, Any]] = field(default_factory=list)
     caveats: list[str] = field(default_factory=list)
+    #: WHICH PATH wrote the sentence the reader is looking at. Before this
+    #: field existed the response carried two narratives — the deterministic
+    #: one and the analyst's — and nothing said which had been rendered.
+    #: "deterministic" is the historical default, so an existing consumer that
+    #: does not read this field keeps the behaviour it had.
+    prose_source: str = "deterministic"
+    #: Why the shown path was chosen when it was not the preferred one.
+    prose_fallback_reason: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "prose_source": self.prose_source,
+            "prose_fallback_reason": self.prose_fallback_reason,
             "direct_answer": self.direct_answer,
             "summary": self.summary,
             "findings": [f.to_dict() for f in self.findings],
