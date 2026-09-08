@@ -105,6 +105,15 @@ class Settings:
     #: defaulted to a magic string, because artifact keys, cache keys and the
     #: release's own rows all carry it and a mismatch must be visible.
     cockpit_agentic_v3_default_tenant: str
+    #: Explicit administrator overrides for the two per-call input caps. Zero
+    #: means "use the specification's value" (12,000 Standard / 20,000 Deep).
+    #: They exist because the specification's own section 7.4 says that where a
+    #: mandatory catalogue does not fit, the fix is a serialization or
+    #: CONFIGURATION change -- and a configuration change has to be something
+    #: an administrator can actually make, explicitly, rather than something
+    #: the code does to itself to pass a test.
+    cockpit_agentic_v3_standard_input_tokens: int
+    cockpit_agentic_v3_deep_input_tokens: int
     #: USD per million input/output tokens for the two Cockpit roles. Spending
     #: ceilings are only meaningful against configured prices; when these are
     #: zero the ledger reports cost as UNKNOWN and refuses to claim the cost
@@ -179,6 +188,10 @@ def _load() -> Settings:
                                              "standard"),
         cockpit_agentic_v3_default_tenant=_get(
             "COCKPIT_AGENTIC_V3_DEFAULT_TENANT", "demo-tenant"),
+        cockpit_agentic_v3_standard_input_tokens=_int(
+            "COCKPIT_AGENTIC_V3_STANDARD_INPUT_TOKENS", 0),
+        cockpit_agentic_v3_deep_input_tokens=_int(
+            "COCKPIT_AGENTIC_V3_DEEP_INPUT_TOKENS", 0),
         cockpit_agentic_v3_sonnet_input_usd_per_mtok=_float(
             "COCKPIT_AGENTIC_V3_SONNET_INPUT_USD_PER_MTOK", 0.0),
         cockpit_agentic_v3_sonnet_output_usd_per_mtok=_float(

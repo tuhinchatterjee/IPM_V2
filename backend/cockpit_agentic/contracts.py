@@ -281,10 +281,20 @@ class FieldProfile:
         if abs(self.missing_rate_among_applicable
                - self.missing_rate_overall) > 1e-9:
             out["miss_applicable"] = round(self.missing_rate_among_applicable, 4)
-        # A global rate must not conceal a completely missing quarter.
+        # A global rate must not conceal a completely missing quarter. Listed
+        # by name while that is short; a field empty in most quarters is
+        # reported as a count and a range instead, which says MORE than twenty
+        # labels do and costs a fraction of the context.
         empty = sorted(q for q, r in self.by_quarter.items() if r >= 0.9999)
         if empty:
-            out["quarters_fully_missing"] = empty
+            if len(empty) <= 4:
+                out["quarters_fully_missing"] = empty
+            elif len(empty) == len(self.by_quarter):
+                out["quarters_fully_missing"] = "every quarter"
+            else:
+                out["quarters_fully_missing"] = (
+                    f"{len(empty)} of {len(self.by_quarter)} quarters, "
+                    f"{empty[0]} to {empty[-1]}")
         if self.stale_carried_forward_rate > 0:
             out["carried_forward"] = round(self.stale_carried_forward_rate, 4)
         return out

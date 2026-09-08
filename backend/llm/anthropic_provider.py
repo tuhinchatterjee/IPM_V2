@@ -21,7 +21,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.llm import caching, telemetry
-from backend.llm.base import LLMError, LLMResult, ProviderStatus, register
+from backend.llm.base import (ConverseResult, LLMError, LLMResult,
+                              ProviderStatus, register)
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,108 @@ class AnthropicProvider:
         raise LLMError(
             f"The orchestrator did not answer: {telemetry.sanitise(str(last))}"
         ) from last
+
+    # ---- the conversation --------------------------------------------------
+
+    def converse(self, *, system: Any, messages: list[dict[str, Any]],
+                 tools: list[dict[str, Any]] | None = None,
+                 max_tokens: int = 4096, model: str = "",
+                 purpose: str = "conversation", role: str = "",
+                 effort: str = "", timeout: float = 0.0,
+                 allow_retry: bool = True) -> ConverseResult:
+        """One turn of a multi-turn conversation, blocks preserved.
+
+        `structured` returns the tool input and discards everything else. That
+        is correct for a single-shot schema-constrained call and useless for a
+        loop: a continuation has to send the assistant's own blocks back
+        verbatim and in order, paired one-to-one with the tool results that
+        answer them. So this returns the raw content list untouched and lets
+        the caller thread it.
+
+        `allow_retry` is False for a call the caller has already reserved
+        budget for once. Section 9.3 forbids invisible SDK retries; a transient
+        retry here is at most one, is recorded in `attempts`, and the caller
+        accounts for it.
+        """
+        if not self.configured:
+            raise LLMError("No Anthropic API key is configured.")
+
+        chosen = (model or "").strip() or self.model
+        client = self._client()
+        started = time.perf_counter()
+        attempts_allowed = MAX_ATTEMPTS if allow_retry else 1
+        last: Exception | None = None
+
+        for attempt in range(1, attempts_allowed + 1):
+            try:
+                request: dict[str, Any] = {
+                    "model": chosen,
+                    "max_tokens": max_tokens,
+                    "system": system,
+                    "messages": messages,
+                }
+                if tools:
+                    request["tools"] = tools
+                if timeout > 0:
+                    message = client.messages.with_options(
+                        timeout=timeout).create(**request) if hasattr(
+                        client.messages, "with_options") else client.messages.create(
+                        **request)
+                else:
+                    message = client.messages.create(**request)
+
+                blocks = list(getattr(message, "content", []) or [])
+                text = " ".join(
+                    getattr(b, "text", "") for b in blocks
+                    if getattr(b, "type", "") == "text").strip()
+                calls: list[dict[str, Any]] = []
+                for block in blocks:
+                    if getattr(block, "type", "") != "tool_use":
+                        continue
+                    payload = block.input
+                    if isinstance(payload, str):
+                        payload = json.loads(payload)
+                    calls.append({"id": getattr(block, "id", ""),
+                                  "name": getattr(block, "name", ""),
+                                  "input": payload})
+
+                usage = getattr(message, "usage", None)
+                cached = caching.usage(usage)
+                elapsed = int((time.perf_counter() - started) * 1000)
+                telemetry.record_success(
+                    provider=self.name, model=chosen, purpose=purpose,
+                    role=role, effort=effort, latency_ms=elapsed,
+                    request_id=_request_id(message), attempts=attempt,
+                    input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                    output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                    cache_write_tokens=cached["cache_creation_input_tokens"],
+                    cache_read_tokens=cached["cache_read_input_tokens"])
+                return ConverseResult(
+                    assistant_blocks=blocks, text=text, tool_calls=calls,
+                    stop_reason=str(getattr(message, "stop_reason", "") or ""),
+                    model=chosen, duration_ms=elapsed,
+                    input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                    output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                    cache_read_tokens=cached["cache_read_input_tokens"],
+                    cache_write_tokens=cached["cache_creation_input_tokens"],
+                    attempts=attempt, request_id=_request_id(message))
+            except Exception as e:  # noqa: BLE001 - reported, not swallowed
+                last = e
+                if not _worth_retrying(e) or attempt == attempts_allowed:
+                    break
+                logger.info("Retrying the conversation (attempt %d): %s",
+                            attempt + 1, e)
+                time.sleep(0.4 * attempt)
+
+        telemetry.record_failure(
+            provider=self.name, model=chosen, purpose=purpose, role=role,
+            effort=effort,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            error=last, request_id=_error_request_id(last),
+            attempts=min(attempt, attempts_allowed))
+        raise LLMError(
+            f"The conversation did not continue: "
+            f"{telemetry.sanitise(str(last))}") from last
 
     def _client(self) -> Any:
         if self.client is not None:

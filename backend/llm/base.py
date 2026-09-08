@@ -63,6 +63,53 @@ class LLMResult:
     request_id: str = ""
 
 
+@dataclass
+class ConverseResult:
+    """One turn of a multi-turn conversation, with its blocks preserved.
+
+    `structured` returns the tool input and throws the rest away, which is
+    right for a single-shot schema-constrained call and wrong for a loop. A
+    conversation that continues has to send the assistant's own blocks back
+    verbatim, in order, paired with the tool results that answer them --
+    including any opaque signature block the provider requires and nobody may
+    invent. So this carries the raw content list as well as the parsed calls.
+
+    Nothing here interprets the blocks. `assistant_blocks` goes back into the
+    next request exactly as it arrived.
+    """
+
+    #: The assistant's content blocks, exactly as the provider returned them.
+    #: Appended to `messages` verbatim on the next turn.
+    assistant_blocks: list[Any] = field(default_factory=list)
+    #: Text the model wrote outside any tool call.
+    text: str = ""
+    #: Parsed tool calls: {"id", "name", "input"}. Every one MUST be answered
+    #: with a matching tool_result on the next turn, in the same order.
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    stop_reason: str = ""
+    model: str = ""
+    duration_ms: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    attempts: int = 1
+    request_id: str = ""
+
+    @property
+    def truncated(self) -> bool:
+        """The model ran out of output tokens mid-answer.
+
+        Treated as INCOMPLETE by callers rather than as a short answer: a
+        truncated plan is not a smaller plan, it is half of one.
+        """
+        return self.stop_reason == "max_tokens"
+
+    @property
+    def wants_tools(self) -> bool:
+        return bool(self.tool_calls)
+
+
 @dataclass(frozen=True)
 class ProviderStatus:
     """What Settings and the Cockpit show about the AI.
@@ -116,6 +163,20 @@ class LLMProvider(Protocol):
         ...
 
     def status(self) -> ProviderStatus:
+        ...
+
+    def converse(self, *, system: Any, messages: list[dict[str, Any]],
+                 tools: list[dict[str, Any]] | None = None,
+                 max_tokens: int = 4096, model: str = "",
+                 purpose: str = "conversation", role: str = "",
+                 effort: str = "", timeout: float = 0.0,
+                 allow_retry: bool = True) -> "ConverseResult":
+        """One turn of a multi-turn conversation.
+
+        Optional on a provider: callers check `hasattr` and report the
+        capability as unavailable rather than degrading silently, because a
+        repair loop that cannot preserve tool blocks is not a repair loop.
+        """
         ...
 
     def structured(self, *, system: str, prompt: str, schema: dict[str, Any],
@@ -182,6 +243,12 @@ class NullProvider:
                     "phrasing."),
             health=telemetry.health(provider="none", model="",
                                     configured=False))
+
+    def converse(self, **_: Any) -> ConverseResult:
+        raise LLMError(
+            "No intelligence provider is configured, so no conversation can "
+            "be held. This is reported rather than substituted: there is no "
+            "deterministic stand-in for a model-authored analysis.")
 
     def structured(self, **_: Any) -> LLMResult:
         raise LLMError(self.reason)

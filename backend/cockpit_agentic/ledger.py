@@ -33,6 +33,7 @@ price means the limit is not a control.
 
 from __future__ import annotations
 
+import dataclasses
 import threading
 import time
 import uuid
@@ -115,7 +116,38 @@ LIMITS: dict[str, Limits] = {STANDARD: STANDARD_LIMITS, DEEP: DEEP_LIMITS}
 
 
 def limits_for(mode: str) -> Limits:
-    return LIMITS.get(str(mode or STANDARD).lower(), STANDARD_LIMITS)
+    """The mode's limits, with the one administrator override applied.
+
+    Only the per-call INPUT cap is overridable, and only upward, and only from
+    configuration. Nothing else in section 9.1 can be moved: the five
+    submissions, the three rounds, the deadline, the token ceiling and the
+    spending ceiling are what they are, and code that could raise them to pass
+    a test would make the whole ledger decorative.
+
+    The input cap is the exception because section 7.4 names it as one: where a
+    mandatory catalogue does not fit, the specification says to fix the
+    serialization or the configuration. The serialization was fixed as far as
+    it honestly goes; this is the configuration half, and it is inert unless an
+    administrator sets it.
+    """
+    from backend.config import settings
+
+    base = LIMITS.get(str(mode or STANDARD).lower(), STANDARD_LIMITS)
+    override = int(settings.cockpit_agentic_v3_deep_input_tokens
+                   if base.mode == DEEP
+                   else settings.cockpit_agentic_v3_standard_input_tokens)
+    if override > base.max_input_tokens_per_call:
+        return dataclasses.replace(base, max_input_tokens_per_call=override)
+    return base
+
+
+def input_cap_is_overridden(mode: str) -> bool:
+    """Whether this deployment is running a raised input cap. Reported in the
+    handoff and in the diagnostics, so a UAT result is never read as if it were
+    obtained under the specification's own limit."""
+    base = LIMITS.get(str(mode or STANDARD).lower(), STANDARD_LIMITS)
+    return limits_for(mode).max_input_tokens_per_call > \
+        base.max_input_tokens_per_call
 
 
 # ------------------------------------------------------------ stop reasons
@@ -692,4 +724,5 @@ __all__ = ["BudgetExceeded", "CallRecord", "DEEP_LIMITS", "HARD_STOPS",
            "STANDARD_LIMITS", "STOP_CALLS", "STOP_CANCELLED", "STOP_DEADLINE",
            "STOP_INPUT_TOO_LARGE", "STOP_METADATA", "STOP_NO_PROGRESS",
            "STOP_ROUNDS", "STOP_SPEND", "STOP_STEPS", "STOP_SUBMISSIONS",
-           "STOP_TOKENS", "STORE", "limits_for", "prices_from_settings"]
+           "STOP_TOKENS", "STORE", "input_cap_is_overridden", "limits_for",
+           "prices_from_settings"]
