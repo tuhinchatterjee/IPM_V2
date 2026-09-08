@@ -1,16 +1,41 @@
-"""Numeric band boundaries for the classifiers that have a real source field
-in `corporate_borrower_360` today, transcribed from the same Tab 2 cells
-`classifiers_v2.py` uses — this module is the numeric-cutoff counterpart to
-the descriptive band text already in `CLASSIFIER_DEFINITIONS`.
+"""Numeric band boundaries for the classifiers that have a real source
+field in `corporate_borrower_360` (or a real, governed derivation from the
+corporate graph domains) today — the numeric-cutoff counterpart to the
+descriptive band text already in `classifiers_v2.CLASSIFIER_DEFINITIONS`.
 
-Not every classifier has a real source field yet (spec Section 6's lineage
-gap): supplier/buyer concentration, project dependency, guarantor relative
-strength, and the upstream-supply-chain classifiers have no CreditProbe
-dataset today. Those are declared `UNSOURCED_DEFAULT_BAND` here rather than
-fabricated — consistent with the existing taxonomy module's own principle
-that "an absent measure is a stated absence" — and score at a neutral
-MEDIUM band so they contribute their configured weight without asserting a
-risk reading this deployment cannot support.
+23 classifiers now (Tab 03 of the corrected workbook), down from 35 in the
+earlier, incorrect draft. Several previously-unsourced classifiers were
+dropped for collinearity in the correction and no longer need a source at
+all; a few genuinely have no real field anywhere in this deployment and are
+declared `UNSOURCED_DEFAULT_BAND` here rather than fabricated — consistent
+with the platform's own principle that an absent measure is a stated
+absence, never a guessed one:
+
+  - `bank_share_of_obligor_debt` — needs a credit-bureau feed of the
+    obligor's total external debt; this deployment has none.
+  - `sector_vulnerability_grade` — needs an internal sector scorecard;
+    inventing a 1-5 grade with no analytical basis would be a fabrication,
+    not a proxy, so it is left unsourced rather than guessed.
+  - `supplier_replaceability` — needs an alternate-supplier count and
+    switching-time field; not tracked anywhere in this deployment.
+  - `guarantor_capacity` — needs the GUARANTOR's own rating to compare
+    against the obligor's; `corporate_borrower_360` has guarantee exposure
+    and links, but not a guarantor entity rating to compare with.
+
+Two classifiers are genuinely computed, not merely looked up:
+
+  - `supplier_concentration` and `receivable_concentration_by_counterparty`
+    are derived from the real (if synthetic-demonstration) `corporate_supply_chain`
+    graph edges — `buyer_cost_share_pct` summed over a borrower's top-3
+    suppliers, and the largest single buyer's `supplier_revenue_share_pct`
+    of a borrower's own revenue, respectively. Tab 03 marks both "Annual"
+    update frequency, so they are computed once from the currently-active
+    edges and held constant across the 15-month build, exactly as a real
+    annual refresh cadence would behave.
+  - `ebitda_margin_vs_sector` needs a cross-sectional sector median that
+    isn't a per-row field — the build script computes it once per sector
+    per period and merges it in as `sector_median_ebitda_margin` before
+    this module bands the relative position.
 """
 
 from __future__ import annotations
@@ -60,23 +85,10 @@ def banded(value: float, cutoffs: tuple[float, float, float, float], higher_is_w
         return "VERY_HIGH"
 
 
-def rating_band(internal_rating_numeric: float) -> str:
-    """Tab 2 #1: masterscale grade groups 1-3/4-5/6-7/8-9/10+."""
-    if internal_rating_numeric <= 3:
-        return "VERY_LOW"
-    if internal_rating_numeric <= 5:
-        return "LOW"
-    if internal_rating_numeric <= 7:
-        return "MEDIUM"
-    if internal_rating_numeric <= 9:
-        return "HIGH"
-    return "VERY_HIGH"
-
-
 def stage_band(stage: int, dpd: float) -> str:
-    """Tab 2 #4. Cannot distinguish "Stage 1 low-risk exemption" from
-    "Stage 1 on watch" without a source field for the exemption flag, so
-    Stage 1 defaults to LOW (the more conservative of the two Stage-1 bands)."""
+    """Tab 03 #2. Cannot distinguish "Stage 1 low-risk" from "Stage 1 on
+    watch" without a source field for the watch flag, so Stage 1 defaults
+    to LOW (the more conservative of the two Stage-1 bands)."""
     if stage >= 3:
         return "VERY_HIGH"
     if stage == 2 and dpd >= 30:
@@ -86,29 +98,46 @@ def stage_band(stage: int, dpd: float) -> str:
     return "LOW"
 
 
-def segment_band(segment: str) -> str:
-    """Tab 2 #24, proxied against this deployment's actual segment labels
-    (Large Corporate / Mid Corporate / Financial Institution / Commercial /
-    Public Sector) rather than the workbook's own wording (Large corporate /
-    Corporate / Mid corporate / SME / Micro), since the two vocabularies
-    don't line up 1:1. Financial Institution and Public Sector are treated
-    as institutionally-backed (lower band) rather than guessed at as SME."""
-    mapping = {
-        "Large Corporate": "VERY_LOW",
-        "Financial Institution": "LOW",
-        "Public Sector": "LOW",
-        "Mid Corporate": "MEDIUM",
-        "Commercial": "HIGH",
-    }
-    return mapping.get(segment, UNSOURCED_DEFAULT_BAND)
-
-
 def country_band(country: str) -> str:
-    """Tab 2 #26. This deployment's universe is single-jurisdiction (Saudi
+    """Tab 03 #17. This deployment's universe is single-jurisdiction (Saudi
     Arabia); a real sovereign-rating source would be needed to differentiate
     a multi-jurisdiction book. Defaulted LOW (AA-/A range) rather than
     VERY_LOW, since no sovereign rating feed actually backs this reading."""
     return "LOW"
+
+
+def ebitda_margin_relative_band(margin_pct: float, sector_median_pct: float) -> str:
+    """Tab 03 #8: bands are relative to the sector median, not absolute.
+    Expressed as a ratio to the median so a thin-margin sector and a
+    fat-margin sector are read the same way; a non-positive median falls
+    back to a flat +/-10 percentage-point comparison since a ratio is not
+    meaningful there."""
+    if sector_median_pct is None or abs(sector_median_pct) < 0.5:
+        diff = margin_pct - (sector_median_pct or 0.0)
+        return banded(-diff, (25.0, 10.0, -10.0, -25.0), True)
+    ratio = margin_pct / sector_median_pct
+    return banded(-ratio, (-1.25, -1.10, -0.90, -0.75), True)
+
+
+def obligor_profile_band(segment: str, tenure_years: float, restructure_flag: bool) -> str:
+    """Tab 03 #18, merged in version 2 from borrower size/segment and
+    relationship tenure — proxied against this deployment's actual segment
+    labels (Large Corporate / Corporate-equivalent Mid Corporate / Financial
+    Institution / Public Sector / Commercial), since the workbook's own
+    wording (Large corporate / Corporate / Mid corporate / SME / Micro)
+    doesn't map 1:1 onto them."""
+    if restructure_flag:
+        return "VERY_HIGH"
+    base = {
+        "Large Corporate": "VERY_LOW", "Financial Institution": "LOW",
+        "Public Sector": "LOW", "Mid Corporate": "MEDIUM", "Commercial": "HIGH",
+    }.get(segment, UNSOURCED_DEFAULT_BAND)
+    if tenure_years is not None and tenure_years < 1.0:
+        # A short relationship worsens by one band, floored at HIGH.
+        order = ["VERY_LOW", "LOW", "MEDIUM", "HIGH", "VERY_HIGH"]
+        idx = min(order.index(base) + 1, order.index("HIGH"))
+        return order[idx]
+    return base
 
 
 @dataclass(frozen=True)
@@ -122,39 +151,36 @@ class ClassifierSource:
 
 # ---------------------------------------------------------------------------
 # One entry per classifier key (classifiers_v2.CLASSIFIER_DEFINITIONS).
-# Fields not listed here score UNSOURCED_DEFAULT_BAND.
+# Keys not listed here score UNSOURCED_DEFAULT_BAND. `supplier_concentration`
+# and `receivable_concentration_by_counterparty` read precomputed columns
+# (`supplier_concentration_pct`, `receivable_concentration_pct`) that
+# scripts/build_early_warning_v2.py merges in from the graph edges;
+# `ebitda_margin_vs_sector` reads a precomputed `sector_median_ebitda_margin`.
 # ---------------------------------------------------------------------------
 
 SOURCES: dict[str, ClassifierSource] = {
-    "internal_rating_level": ClassifierSource(
-        ("internal_rating_numeric",), lambda r: rating_band(r)),
-    "pd_12m_level": ClassifierSource(
+    "pd_12m": ClassifierSource(
         ("pd_12m",), lambda v: banded(v, (0.15, 0.60, 3.0, 10.0), True)),
     "ifrs9_stage": ClassifierSource(
         ("stage", "current_dpd"), lambda s, d: stage_band(s, d)),
-    "ecl_coverage": ClassifierSource(
-        ("ecl_coverage",), lambda v: banded(v, (0.25, 1.0, 5.0, 20.0), True)),
-    "days_past_due_current": ClassifierSource(
+    "dpd_current": ClassifierSource(
         ("current_dpd",), lambda v: banded(v, (0.5, 7.5, 29.5, 89.5), True)),
     "dscr": ClassifierSource(
         ("dscr",), lambda v: banded(v, (2.00, 1.50, 1.25, 1.00), False)),
-    "interest_coverage_ebit_interest": ClassifierSource(
-        ("interest_coverage",), lambda v: banded(v, (6.50, 4.25, 2.50, 1.50), False)),
     "leverage_net_debt_ebitda": ClassifierSource(
         ("net_leverage",), lambda v: banded(v, (1.5, 3.0, 4.5, 6.0), True)),
-    "gearing_total_debt_equity": ClassifierSource(
-        ("debt_to_equity",), lambda v: banded(v, (0.50, 1.00, 2.00, 3.00), True)),
-    "current_ratio": ClassifierSource(
-        ("current_ratio",), lambda v: banded(v, (2.00, 1.50, 1.20, 1.00), False)),
     "quick_ratio": ClassifierSource(
         ("quick_ratio",), lambda v: banded(v, (1.50, 1.20, 0.90, 0.70), False)),
     "cash_conversion_cycle": ClassifierSource(
         ("cash_conversion_cycle_days",), lambda v: banded(v, (30, 60, 90, 150), True)),
+    "ebitda_margin_vs_sector": ClassifierSource(
+        ("ebitda_margin", "sector_median_ebitda_margin"),
+        lambda m, s: ebitda_margin_relative_band(m, s)),
     "revenue_trend_3y_cagr": ClassifierSource(
         # Proxy: single-period revenue growth, not a true 3-year CAGR — no
         # multi-year revenue series exists in this snapshot to compute one.
         ("revenue_growth",), lambda v: banded(v, (10.0, 0.0, -5.0, -15.0), False)),
-    "collateral_coverage": ClassifierSource(
+    "collateral_coverage_or_ltv": ClassifierSource(
         ("collateral_coverage_pct",), lambda v: banded(v, (150.0, 125.0, 100.0, 70.0), False)),
     "covenant_headroom": ClassifierSource(
         ("minimum_headroom_pct",),
@@ -162,33 +188,33 @@ SOURCES: dict[str, ClassifierSource] = {
     "facility_utilisation_12m_avg": ClassifierSource(
         ("drawn_exposure", "total_limit"),
         lambda d, t: banded(100.0 * d / t if t else 0.0, (40.0, 60.0, 80.0, 95.0), True)),
-    "unsecured_share_of_exposure": ClassifierSource(
-        ("collateral_eligible_value", "drawn_exposure"),
-        lambda c, d: banded(100.0 * max(0.0, 1.0 - (c / d if d else 0.0)),
-                             (10.0, 30.0, 50.0, 75.0), True)),
-    "single_name_exposure_pct_tier1": ClassifierSource(
-        ("single_name_utilisation_pct",), lambda v: banded(v, (2.5, 5.0, 10.0, 15.0), True)),
-    "group_connected_exposure_pct_tier1": ClassifierSource(
+    "connected_group_exposure_pct_tier1": ClassifierSource(
         ("group_utilisation_pct",),
         lambda v: banded(coerce(v, 0.0), (5.0, 10.0, 15.0, 20.0), True)),
-    "borrower_size_segment": ClassifierSource(
-        ("segment",), lambda s: segment_band(s)),
-    "financial_statement_quality": ClassifierSource(
+    "financial_statement_quality_and_age": ClassifierSource(
         # Proxy: statement age only — auditor identity/opinion type is not a
         # field this snapshot carries.
         ("financial_statement_age_days",), lambda v: banded(v, (182, 365, 546, 730), True)),
     "country_jurisdiction_risk": ClassifierSource(
         ("country",), lambda c: country_band(c)),
+    "obligor_profile": ClassifierSource(
+        ("segment", "relationship_tenure_years", "restructure_flag"),
+        lambda seg, ten, restr: obligor_profile_band(seg, ten, restr)),
+    "supplier_concentration": ClassifierSource(
+        ("supplier_concentration_pct",),
+        lambda v: banded(coerce(v, 0.0), (20.0, 35.0, 50.0, 70.0), True)),
+    "receivable_concentration_by_counterparty": ClassifierSource(
+        ("receivable_concentration_pct",),
+        lambda v: banded(coerce(v, 0.0), (10.0, 20.0, 35.0, 50.0), True)),
     "relationship_edge_confidence": ClassifierSource(
         ("graph_confidence",),
         # Inverted: HIGHER confidence is BETTER (lower risk band).
         lambda v: banded(coerce(v, 0.5), (0.90, 0.75, 0.50, 0.25), False)),
 }
 
-#: Overrides evaluated on top of the band computed above (Tab 2 Section C).
-#: Returns the forced/floored band, or None if the override does not apply.
-def classifier_overrides(row: dict) -> dict[str, str]:
-    forced: dict[str, str] = {}
-    if row.get("book_equity", 1.0) is not None and row.get("book_equity", 1.0) < 0:
-        forced["gearing_total_debt_equity"] = "VERY_HIGH"
-    return forced
+def negative_equity_flag(book_equity: float | None) -> bool:
+    """Tab 03 Section C: gearing was dropped for collinearity in Tab 02;
+    negative equity is retained as a Classifier-dimension override
+    (`classifiers_v2.score_classifiers`'s `negative_equity` flag) rather
+    than a per-classifier band, since gearing itself is no longer scored."""
+    return book_equity is not None and book_equity < 0

@@ -31,11 +31,14 @@ from backend.api.permissions import (
 )
 from backend.early_warning import (
     accelerator as accel,
+    aggregation as ta_agg,
     case_bridge,
     catalog as ews_catalog,
     classifiers_v2 as clf,
     escalation as esc,
     lineage as ews_lineage,
+    matrix,
+    notches as nt,
     reasons,
     reports as ews_reports,
     triggers_v2 as trg,
@@ -67,13 +70,13 @@ def _not_found(customer_id: str) -> HTTPException:
 
 @router.get("/methodology", summary="The Version 2 methodology, in full")
 def methodology() -> dict:
-    """Four layers, two dimensions, one explainable score — Tab 1-4 of the
-    workbook, transcribed exactly (spec Section AC). Never hard-codes a
-    sample number; every classifier/trigger/accelerator value here is the
-    live seed configuration the scoring engine actually runs."""
+    """Four layers, two dimensions, one explainable score — Tabs 01-07 of
+    the corrected workbook, transcribed exactly. Never hard-codes a sample
+    number; every classifier/trigger/sub-category/matrix/notch value here
+    is the live seed configuration the scoring engine actually runs."""
     catalog_summary = ews_catalog.describe()
     return {
-        "methodology_version": "ews-v2.0.0",
+        "methodology_version": ews_catalog.METHODOLOGY_VERSION,
         "layers": [
             {"code": "L1", "name": "Internal Behavioural Intelligence"},
             {"code": "L2", "name": "Credit & Financial Fundamentals"},
@@ -84,29 +87,41 @@ def methodology() -> dict:
         "classifiers": {
             "count": len(clf.CLASSIFIER_DEFINITIONS),
             "definitions": [c.to_dict() for c in clf.CLASSIFIER_DEFINITIONS],
-            "aggregation": "Weighted sum over observed classifiers (Tab 2 Section B), "
-                           "not a worst-of subcategory rollup.",
-            "verdict_bands": reasons.CLASSIFIER_VERDICT_READING,
+            "sub_categories": {code: {"name": d.name, "layer": d.layer, "rule": d.rule,
+                                       "weight_in_layer_dimension": d.weight_in_layer_dimension}
+                               for code, d in clf.SUBCATEGORIES.items()},
+            "layer_weights": clf.CLASSIFIER_LAYER_WEIGHTS,
+            "aggregation": "Worst-of (plus a bounded corroboration uplift) or weighted blend per "
+                           "sub-category (Tab 03 Section A), then L2-C x 0.85 + L4-C x 0.15.",
         },
         "triggers": {
             "count": len(trg.TRIGGER_DEFINITIONS),
             "definitions": [t.to_dict() for t in trg.TRIGGER_DEFINITIONS],
+            "sub_categories": {code: {"name": d.name, "layer": d.layer, "rule": d.rule,
+                                       "weight_in_layer_dimension": d.weight_in_layer_dimension}
+                               for code, d in ta_agg.TA_SUBCATEGORIES.items()},
+            "layer_weights": ta_agg.TA_LAYER_WEIGHTS,
         },
         "accelerator": {
             "dimension_weights": accel.DIMENSION_WEIGHTS,
-            "recency_bands": [{"max_age_days": b[0], "factor": b[1], "label": b[2]}
-                              for b in accel.RECENCY_BANDS],
-            "formula": "accelerator_multiplier = recency_factor * (1 + SUM(weight_d * (mult_d - 1)))",
+            "decay_classes": [{"name": dc.name, "half_life_days": dc.half_life_days,
+                               "floor": dc.floor, "sub_categories": dc.sub_categories}
+                              for dc in accel.DECAY_CLASSES],
+            "formula": "accelerator_multiplier = decay_factor * (1 + SUM(weight_d * (mult_d - 1)))",
+        },
+        "matrix": matrix.ANCHOR_MATRIX,
+        "notches": {
+            "keys": nt.NOTCH_KEYS, "criteria": nt.NOTCH_CRITERIA,
+            "points_per_notch": nt.POINTS_PER_NOTCH, "net_notch_cap": nt.NET_NOTCH_CAP,
         },
         "combination": {
-            "formula": "EWS score = MIN(100, T&A score * Classifier Context Multiplier)",
-            "note": "Multiplicative, not a 5x5 anchor-matrix lookup with notch modifiers — "
-                    "see the implementation plan's Section 0 for the full reconciliation "
-                    "against an earlier design description that assumed the latter.",
+            "formula": "anchor = matrix[ta_band][classifier_band]; "
+                       "final = clamp(anchor + 8 * net_notches, 0, 100); then caps/overrides.",
+            "note": "A published 5x5 matrix anchor, then five +/-1 notches (net capped at +/-2), "
+                    "then caps — never a multiplication.",
         },
         "reason_codes": {
-            "classifier_verdict": reasons.CLASSIFIER_VERDICT_READING,
-            "ta_verdict": reasons.TA_VERDICT_READING,
+            "subcategory": reasons.SUBCATEGORY_REASON_TEXT,
             "ews_expected_action": reasons.EWS_BAND_EXPECTED_ACTION,
         },
     }
@@ -243,6 +258,18 @@ def borrower(customer_id: str, principal: Principal = RequireEarlyWarningView) -
         obs = None
     detail["fired_signals"] = obs.to_dict(orient="records") if obs is not None and not obs.empty else []
     return detail
+
+
+@router.get("/borrower/{customer_id}/tree", summary="Layer -> sub-category -> signal drill-down")
+def borrower_tree(customer_id: str, principal: Principal = RequireEarlyWarningView) -> dict:
+    """The full hierarchy for the dedicated EWS borrower investigation view
+    — every node carries its own score, band and Tab 12 reason text."""
+    try:
+        return svc.layer_tree(customer_id)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError:
+        raise _not_found(customer_id)
 
 
 class EscalateRequest(BaseModel):

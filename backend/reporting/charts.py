@@ -32,6 +32,8 @@ MUTED = "#6c7a8c"
 GRID = "#e3e8ef"
 
 STAGE_COLORS = [GREEN, AMBER, RED]
+DARK_RED = "#8f1d21"
+BAND_COLORS = {"VERY_LOW": GREEN, "LOW": TEAL, "MEDIUM": AMBER, "HIGH": RED, "VERY_HIGH": DARK_RED}
 
 plt.rcParams.update({
     "font.size": 9,
@@ -203,6 +205,53 @@ def limit_utilisation(data, title):
     return _finish(fig)
 
 
+def ews_score_trend(data, title):
+    """A borrower's monthly EWS/T&A/Classifier score trend — three series,
+    since the two dimensions are never added into the final score but are
+    still worth reading side by side over time. `data` is a list of
+    (month_label, ews_score, ta_score, classifier_score) tuples."""
+    labels = [d[0] for d in data]
+    ews = [d[1] for d in data]
+    ta = [d[2] for d in data]
+    classifier = [d[3] for d in data]
+    fig, ax = plt.subplots(figsize=(6.6, 2.6))
+    ax.plot(labels, ews, color=RED, linewidth=2.4, marker="o", markersize=4.5, zorder=4, label="EWS")
+    ax.plot(labels, ta, color=BLUE, linewidth=1.6, marker="o", markersize=3.5, zorder=3, label="T&A")
+    ax.plot(labels, classifier, color=MUTED, linewidth=1.6, linestyle="--", marker="o",
+            markersize=3.5, zorder=3, label="Classifier")
+    _bare(ax)
+    ax.set_ylim(0, 100)
+    ax.tick_params(axis="x", rotation=45)
+    for lbl in ax.get_xticklabels():
+        lbl.set_horizontalalignment("right")
+    ax.legend(loc="upper left", frameon=False, fontsize=8)
+    ax.set_title(title, loc="left", fontsize=10, fontweight="bold", color=INK, pad=10)
+    return _finish(fig)
+
+
+def ews_band_mix(data, title):
+    """Severity-band donut, coloured by the band's own severity colour
+    rather than a fixed 3-slice palette — `data` is a list of
+    (band_label, value) pairs in VERY_LOW..VERY_HIGH order."""
+    labels = [d[0] for d in data]
+    values = [d[1] for d in data]
+    total = sum(values) or 1
+    colors = [BAND_COLORS.get(lbl.upper().replace(" ", "_"), MUTED) for lbl in labels]
+    fig, ax = plt.subplots(figsize=(4.8, 2.9))
+    wedges, _ = ax.pie(values, colors=colors, startangle=90, counterclock=False,
+                       wedgeprops=dict(width=0.42, edgecolor="white", linewidth=2))
+    ax.legend(wedges, [f"{lbl} — {v / total * 100:.1f}%" for lbl, v in zip(labels, values, strict=True)],
+              loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False, fontsize=8.5)
+    ax.set_title(title, loc="left", fontsize=10, fontweight="bold", color=INK, pad=10)
+    return _finish(fig)
+
+
+def ews_layer_bars(data, title):
+    """Horizontal bars for the six layer-dimension scores or the top
+    drivers — `data` is a list of (label, score) pairs, 0-100 scale."""
+    return _hbar([d[0] for d in data], [d[1] for d in data], BLUE, "{:.0f}", title)
+
+
 _RENDERERS = {
     "health_trend": health_trend,
     "stage_mix": stage_mix,
@@ -211,6 +260,9 @@ _RENDERERS = {
     "stress_ecl": stress_ecl,
     "climate_multiples": climate_multiples,
     "limit_utilisation": limit_utilisation,
+    "ews_score_trend": ews_score_trend,
+    "ews_band_mix": ews_band_mix,
+    "ews_layer_bars": ews_layer_bars,
 }
 
 

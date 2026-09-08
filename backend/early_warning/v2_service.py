@@ -14,9 +14,29 @@ from functools import lru_cache
 import pandas as pd
 
 from backend.config import settings
+from backend.early_warning import catalog as ews_catalog
+from backend.early_warning import reasons
 
 BORROWER_MONTH = "early_warning_borrower_month"
 SIGNAL_OBSERVATION = "early_warning_signal_observation"
+EXTERNAL_EVENT_SYNTHETIC = "early_warning_external_event_synthetic"
+
+#: layer -> ordered sub-category codes, for the drill-down tree.
+LAYER_SUBCATEGORIES: dict[str, tuple[str, ...]] = {
+    "L1": ("L1.1", "L1.2", "L1.3", "L1.4"),
+    "L2": ("L2.T1", "L2.T2", "L2.1", "L2.2", "L2.3", "L2.4", "L2.5", "L2.6", "L2.7"),
+    "L3": ("L3.1", "L3.2", "L3.3", "L3.4", "L3.5"),
+    "L4": ("L4.1", "L4.2", "L4.3", "L4.4"),
+}
+
+_BAND_CUTOFFS = ((20.0, "VERY_LOW"), (40.0, "LOW"), (60.0, "MEDIUM"), (80.0, "HIGH"), (101.0, "VERY_HIGH"))
+
+
+def _band_for(score: float) -> str:
+    for cutoff, band in _BAND_CUTOFFS:
+        if score < cutoff:
+            return band
+    return "VERY_HIGH"
 
 
 class EarlyWarningDataNotBuilt(RuntimeError):
@@ -140,4 +160,76 @@ def borrower_detail(customer_id: str) -> dict:
         "latest": latest,
         "history": history[["snapshot_month", "ews_score", "ews_band", "ta_score",
                             "classifier_score", "dpd", "utilisation_pct"]].to_dict(orient="records"),
+    }
+
+
+def external_events(customer_id: str | None = None, period: str | None = None) -> pd.DataFrame:
+    """The governed synthetic L3 events (always marked
+    `scenario_status="SYNTHETIC_DEMONSTRATION_DATA"`). Returns an empty
+    frame, not an error, for a build that predates this dataset."""
+    try:
+        df = _load(EXTERNAL_EVENT_SYNTHETIC)
+    except EarlyWarningDataNotBuilt:
+        return pd.DataFrame(columns=["snapshot_month", "customer_id", "trigger_key",
+                                     "severity_band", "source_tier", "evidence_type", "scenario_status"])
+    if customer_id is not None:
+        df = df[df["customer_id"] == customer_id]
+    if period is not None:
+        df = df[df["snapshot_month"] == period]
+    return df.copy()
+
+
+def layer_tree(customer_id: str) -> dict:
+    """Layer -> sub-category -> signal, for the borrower drill-down UI
+    (spec section on the dedicated EWS journey). Each node carries its own
+    score, band and Tab 12 reason text — 'collapse anything green, open
+    anything amber or rust' (Tab 14), so bands are included for the
+    frontend to decide what starts expanded."""
+    latest = borrower_history(customer_id)
+    if latest.empty:
+        raise KeyError(customer_id)
+    row = latest.iloc[-1]
+    subcat_scores: dict[str, float] = row.get("subcategory_scores") or {}
+    layer_scores: dict[str, float] = row.get("layer_dimension_scores") or {}
+    period = row["snapshot_month"]
+
+    obs = signal_observations(customer_id, period)
+    obs_by_subcat: dict[str, list[dict]] = {}
+    if not obs.empty:
+        for _, o in obs.iterrows():
+            obs_by_subcat.setdefault(o.get("sub_category", ""), []).append({
+                "signal_key": o["signal_key"], "signal_score": round(float(o["signal_score"]), 2),
+                "causal_chain_id": o["causal_chain_id"],
+            })
+
+    events = external_events(customer_id, period)
+    layer_dimension_key = {"L1": "l1_ta", "L2": None, "L3": "l3_ta", "L4": "l4_ta"}
+
+    tree = []
+    for layer, subcats in LAYER_SUBCATEGORIES.items():
+        layer_node = {"layer": layer, "sub_categories": []}
+        if layer == "L2":
+            layer_node["ta_score"] = round(float(layer_scores.get("l2_ta", 0.0)), 2)
+            layer_node["c_score"] = round(float(layer_scores.get("l2_c", 0.0)), 2)
+        elif layer == "L4":
+            layer_node["ta_score"] = round(float(layer_scores.get("l4_ta", 0.0)), 2)
+            layer_node["c_score"] = round(float(layer_scores.get("l4_c", 0.0)), 2)
+        else:
+            key = layer_dimension_key[layer]
+            layer_node["ta_score"] = round(float(layer_scores.get(key, 0.0)), 2)
+
+        for code in subcats:
+            score = float(subcat_scores.get(code, 0.0))
+            band = _band_for(score)
+            layer_node["sub_categories"].append({
+                "code": code, "name": reasons.subcategory_name(code),
+                "score": round(score, 2), "band": band,
+                "reason": reasons.subcategory_reason(code, band),
+                "signals": obs_by_subcat.get(code, []),
+            })
+        tree.append(layer_node)
+
+    return {
+        "customer_id": customer_id, "period": period, "tree": tree,
+        "external_events": events.to_dict(orient="records") if not events.empty else [],
     }

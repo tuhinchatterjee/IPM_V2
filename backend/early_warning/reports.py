@@ -9,12 +9,10 @@ packs, `_context(quarter)`). `write_docx()` itself is report-shape-agnostic
 — it only needs the dict shape documented below — so this module builds
 that same shape from Early Warning data instead, which is the reusable
 seam without reworking `content.py`'s credit-book-specific section
-functions. Chart embedding is not implemented in this pass (every section
-renders narrative + table + findings; `sec["chart"]` is always `None`,
-which `charts.render()` already handles by producing no image rather than
-failing the report) — a real follow-on would add Early Warning-specific
-chart renderers to `backend/reporting/charts.py` alongside the existing
-credit-book ones.
+functions. Each key section now carries a real chart spec (`ews_score_trend`,
+`ews_band_mix`, `ews_layer_bars` in `backend/reporting/charts.py`) built
+from the same live figures as the section's own table — `charts.render()`
+still degrades to no image on any failure rather than breaking the report.
 """
 
 from __future__ import annotations
@@ -33,9 +31,9 @@ def _finding(text: str, severity: str = "MEDIUM", area: str = "") -> dict:
 
 
 def _section(key: str, title: str, narrative: str, table: dict | None = None,
-             findings: list[dict] | None = None) -> dict:
+             findings: list[dict] | None = None, chart: dict | None = None) -> dict:
     return {"key": key, "title": title, "narrative": narrative, "table": table,
-            "chart": None, "findings": findings or []}
+            "chart": chart, "findings": findings or []}
 
 
 def _methodology_section() -> dict:
@@ -43,12 +41,16 @@ def _methodology_section() -> dict:
         "The model scores every obligor on two questions that are never added together. "
         "What is happening now is the trigger and accelerator dimension: fresh, observable "
         "deterioration measured against the obligor's own baseline, scaled by how large, fast, "
-        "persistent, repeated and corroborated it is, then decayed according to signal class. "
-        "How vulnerable the obligor is is the classifier dimension: slow-moving structural credit "
-        "quality, reviewed periodically and never re-scored daily. The two are combined at the "
-        "last step by multiplying the trigger-and-accelerator score by a classifier context "
-        "multiplier, not by an equation that adds them together — the same live signal reads "
-        "differently on a structurally strong borrower than on a fragile one."
+        "persistent, repeated and corroborated it is, then decayed by signal class. Signals roll "
+        "up through 14 sub-categories, then four layers (L1 internal behaviour, L2 credit events, "
+        "L3 external intelligence, L4 network) at published weights. How vulnerable the obligor is "
+        "is the classifier dimension: 23 structural classifiers in 8 sub-categories, reviewed "
+        "periodically and never re-scored daily, rolled up the same way. The two dimensions are "
+        "read together off a published 5x5 matrix to set an anchor score, then five discrete "
+        "notches (network contagion, direction of travel, evidence quality, data staleness, "
+        "management and governance) adjust it by up to 16 points either way, and a small set of "
+        "caps and overrides apply last — never a single equation that adds or multiplies the two "
+        "dimensions together."
     )
     return _section("methodology", "The Early Warning Model", narrative)
 
@@ -103,11 +105,16 @@ def borrower_report(customer_id: str, *, prepared_by: str = "") -> dict:
         "rows": [[h["snapshot_month"], f"{h['ews_score']:.1f}", h["ews_band"],
                   f"{h['ta_score']:.1f}", f"{h['classifier_score']:.1f}"] for h in history],
     }
+    trend_chart = {
+        "kind": "ews_score_trend", "title": "EWS, T&A and Classifier score by month",
+        "data": [(h["snapshot_month"], h["ews_score"], h["ta_score"], h["classifier_score"])
+                 for h in history],
+    }
     trend = _section(
         "trend", "Twelve-Month Movement",
         f"Score history over the {len(history)} months on record. "
         f"{'The score has moved into higher severity over this window.' if len(history) >= 2 and history[-1]['ews_score'] > history[0]['ews_score'] else 'The score has been broadly stable or improving over this window.'}",
-        table=history_table,
+        table=history_table, chart=trend_chart,
     )
 
     fired = detail.get("fired_signals", [])
@@ -164,9 +171,14 @@ def portfolio_report(*, period: str | None = None, prepared_by: str = "") -> dic
                   f"{b['exposure']:.1f}", f"{b['exposure_pct']:.1f}%"]
                  for b in summary["severity_distribution"]],
     }
+    dist_chart = {
+        "kind": "ews_band_mix", "title": "Borrowers by severity band",
+        "data": [(b["band"].replace("_", " ").title(), b["borrower_count"])
+                 for b in summary["severity_distribution"] if b["borrower_count"] > 0],
+    }
     position = _section("position", "Portfolio Position",
                          "Severity distribution across the governed monthly domain.",
-                         table=dist_table)
+                         table=dist_table, chart=dist_chart)
 
     trend_table = {"columns": ["Month", "Portfolio EWS", "High+ count"],
                    "rows": [[t["period"], f"{t['portfolio_ews']:.1f}", t["high_plus_count"]] for t in trend]}
@@ -185,8 +197,12 @@ def portfolio_report(*, period: str | None = None, prepared_by: str = "") -> dic
                    "rows": [[r["customer_name"], r["segment"], f"{r['exposure']:.1f}",
                              f"{r['ews_score']:.1f}", r["ews_band"], r.get("dominant_driver") or "—"]
                             for r in top]}
+    watch_chart = {
+        "kind": "ews_layer_bars", "title": "Top 10 highest-scoring obligors",
+        "data": [(r["customer_name"], r["ews_score"]) for r in top[:10]],
+    }
     watch_section = _section("watchlist", "Watchlist", "The highest-scoring obligors this period.",
-                              table=watch_table)
+                              table=watch_table, chart=watch_chart)
 
     return {
         "type": "ews_portfolio", "title": "Early Warning — Portfolio Report",
@@ -226,8 +242,14 @@ def segment_report(segment: str, *, period: str | None = None, prepared_by: str 
                   f"{r['ews_score']:.1f}", r["ews_band"], r.get("dominant_driver") or "—"]
                  for _, r in rows.sort_values("ews_score", ascending=False).iterrows()],
     }
+    borrowers_chart = {
+        "kind": "ews_layer_bars", "title": f"{segment} — top 10 by EWS score",
+        "data": [(r["customer_name"], r["ews_score"])
+                 for _, r in rows.sort_values("ews_score", ascending=False).head(10).iterrows()],
+    }
     borrowers_section = _section("borrowers", "Borrowers", "Every borrower in this segment, "
-                                  "ranked by Early Warning score.", table=borrower_table)
+                                  "ranked by Early Warning score.", table=borrower_table,
+                                  chart=borrowers_chart)
 
     return {
         "type": "ews_segment", "title": f"Early Warning — {segment}",

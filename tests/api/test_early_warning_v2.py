@@ -69,18 +69,21 @@ def test_methodology_needs_no_data_build(client):
     r = client.get("/api/v1/early-warning/v2/methodology", headers=headers("VIEWER"))
     assert r.status_code == 200
     body = r.json()
-    assert body["classifiers"]["count"] == 35
+    assert body["classifiers"]["count"] == 23
     assert body["triggers"]["count"] == 67
     assert body["signal_inventory"]["signal_count"] == 123
 
 
-def test_methodology_never_hardcodes_matrix_or_notches(client):
-    """Conflict A: no anchor-matrix / notch mechanism exists in the actual
-    workbook, so the methodology response must not imply one."""
+def test_methodology_reflects_the_matrix_and_notch_model(client):
+    """The corrected workbook's actual combination mechanism — a published
+    5x5 anchor matrix, then five +/-1 notches — must be what the
+    methodology response describes, not a multiplicative shortcut."""
     body = client.get("/api/v1/early-warning/v2/methodology",
                        headers=headers("VIEWER")).json()
-    assert "MIN(100, T&A score" in body["combination"]["formula"]
-    assert "notch" not in body["combination"]["formula"].lower()
+    assert "matrix" in body["combination"]["formula"].lower()
+    assert "notch" in body["combination"]["formula"].lower()
+    assert len(body["matrix"]) == 5
+    assert len(body["notches"]["keys"]) == 5
 
 
 def test_lineage_covers_every_signal(client):
