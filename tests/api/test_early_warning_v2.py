@@ -195,6 +195,129 @@ def test_escalate_creates_case_and_sends_one_message(client, domain_built, seede
     assert body["workflow_item"]["recipients"][0]["user_id"] == seeded_user
 
 
+def test_escalate_routes_through_the_matrix(client, domain_built, seeded_user):
+    """The matrix decides the rung, and it never used to be consulted.
+
+    Escalation went exactly where the caller said, carried no clock, and
+    never told the roles the matrix says to notify in parallel. Severity
+    decides urgency and materiality decides altitude — neither was applied.
+    """
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    row = overview["top_high_risk"][0]
+
+    r = client.post(f"/api/v1/early-warning/v2/borrower/{row['customer_id']}/escalate",
+                     headers=headers("ANALYST"),
+                     json={"recipient_user_ids": [seeded_user]})
+    assert r.status_code == 200
+    routing = r.json()["routing"]
+    assert routing["severity"] == row["ews_band"]
+    assert routing["escalated_to"], "the matrix named nobody"
+    # The rung is resolved to a real title rather than left as a code.
+    assert routing["escalated_to_roles"] and routing["escalated_to_roles"][0] != \
+        routing["escalated_to"][0]
+
+
+def test_escalate_stamps_the_decision_sla_as_a_due_date(client, domain_built,
+                                                         seeded_user):
+    """A control whose clock never starts is a report. The SLAs lived in the
+    matrix as literals and nothing ever turned one into a date, so no early
+    warning escalation could ever appear in the 'due soon' list."""
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][0]["customer_id"]
+    r = client.post(f"/api/v1/early-warning/v2/borrower/{customer_id}/escalate",
+                     headers=headers("ANALYST"),
+                     json={"recipient_user_ids": [seeded_user]})
+    body = r.json()
+    if body["routing"]["decision_sla_days"] is None:
+        pytest.skip("this severity carries no decision SLA")
+    assert body["workflow_item"]["due_at"], "no clock was stamped"
+
+
+def test_the_case_records_which_matrix_routed_it(client, domain_built, seeded_user):
+    """A case raised under one version must not later be read against
+    another. Lineage promised to record this and nothing wrote it."""
+    _require_domain(domain_built)
+    from backend.db.engine import get_session
+    from backend.models.platform import RiskCase
+
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][0]["customer_id"]
+    r = client.post(f"/api/v1/early-warning/v2/borrower/{customer_id}/escalate",
+                     headers=headers("ANALYST"),
+                     json={"recipient_user_ids": [seeded_user]})
+    body = r.json()
+    assert body["escalation_version"]
+
+    with get_session() as session:
+        case = session.get(RiskCase, body["case_id"])
+        evidence = case.evidence or {}
+        assert evidence.get("escalation_version") == body["escalation_version"]
+        assert evidence.get("routing", {}).get("escalated_to")
+        # The FK existed and was never set, so a case could not point back at
+        # the message it raised.
+        assert case.workflow_item_id == body["workflow_item"]["id"]
+
+
+def test_the_actions_route_recommends_from_the_library(client, domain_built):
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][0]["customer_id"]
+    r = client.get(f"/api/v1/early-warning/v2/borrower/{customer_id}/actions",
+                    headers=headers("ANALYST"))
+    assert r.status_code == 200
+    body = r.json()
+    assert body["actions"], "no action was recommended for a high-risk obligor"
+    for action in body["actions"]:
+        assert action["owner"], action
+        assert action["timeframe"], action
+        assert action["evidence_to_close"], action
+    assert body["priority_action"] in body["actions"]
+
+
+def test_the_escalation_note_is_drafted_from_the_facts(client, domain_built):
+    _require_domain(domain_built)
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    row = overview["top_high_risk"][0]
+    r = client.post(
+        f"/api/v1/early-warning/v2/borrower/{row['customer_id']}/escalation-note",
+        headers=headers("ANALYST"), json={"case_key": "EWS-TEST"})
+    assert r.status_code == 200
+    note = r.json()["note"]
+    # Position, driver, recommendation with an owner, and the case.
+    assert row["customer_name"] in note
+    assert "anchor" in note
+    assert "Evidence to close:" in note
+    assert "EWS-TEST" in note
+
+
+def test_recording_an_action_persists_more_than_prose(client, domain_built,
+                                                       seeded_user):
+    """Owner, due date and closing evidence used to be flattened into a
+    comment, so nothing could ask which actions were open or overdue."""
+    _require_domain(domain_built)
+    from backend.db.engine import get_session
+    from backend.models.platform import RiskCase
+
+    overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
+    customer_id = overview["top_high_risk"][4]["customer_id"]
+    r = client.post(f"/api/v1/early-warning/v2/borrower/{customer_id}/action",
+                     headers=headers("ANALYST"),
+                     json={"action": "Reserve rights on the breach",
+                           "owner_user_id": seeded_user,
+                           "due_at": "2026-07-15T00:00:00+00:00",
+                           "closing_evidence_required": "Reservation of rights letter"})
+    assert r.status_code == 200
+    with get_session() as session:
+        case = session.get(RiskCase, r.json()["case_id"])
+        recorded = (case.evidence or {}).get("actions") or []
+        assert recorded, "the action was written as prose only"
+        assert recorded[-1]["closing_evidence_required"] == \
+            "Reservation of rights letter"
+        assert case.owner_id == seeded_user
+
+
 def test_escalate_twice_reuses_the_same_case(client, domain_built, seeded_user):
     """about='early-warning-v2' dedupe: escalating the same borrower/period
     again updates the existing case rather than creating a duplicate."""

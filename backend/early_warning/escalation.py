@@ -107,3 +107,123 @@ def default_bundle() -> dict[str, Any]:
         "exposure_tiers": list(EXPOSURE_TIERS),
         "routing_matrix": ROUTING_MATRIX,
     }
+
+
+def role_of(level: str) -> str:
+    """The title behind a rung or a specialist code."""
+    for rung in LADDER:
+        if rung["level"] == level:
+            return str(rung["role"])
+    for route in SPECIALIST_ROUTES:
+        if route["code"] == level:
+            return str(route["name"])
+    return level
+
+
+def sla_due(days: int | None, *, from_when: Any = None) -> Any:
+    """The date an acknowledgement or a decision is due.
+
+    The matrix has always carried these; nothing ever stamped them, so no
+    early warning escalation could appear in the "due soon" list and an SLA
+    breach rate could not be measured. A control whose clock never starts is
+    a report.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if days is None:
+        return None
+    start = from_when or datetime.now(timezone.utc)
+    return start + timedelta(days=int(days))
+
+
+def route_with_actions(ews_band: str, exposure_sar_mn: float,
+                        driver_codes: list[str] | None = None) -> dict[str, Any]:
+    """The routing decision, with what the recipient is being asked to do.
+
+    An alert that arrives without a recommendation makes the recipient start
+    from the score, which is the least useful part of it. So the route
+    carries the actions keyed to the drivers, the owner of each, and the
+    evidence that closes them.
+    """
+    from backend.early_warning import actions as act
+
+    route = route_for(ews_band, exposure_sar_mn)
+    recommended = act.for_drivers(list(driver_codes or []))
+    first = act.single_highest_value(recommended)
+    return {
+        **route,
+        "escalated_to_roles": [role_of(l) for l in route.get("escalated_to") or []],
+        "notified_roles": [role_of(l) for l in route.get("notified") or []],
+        "ack_due": sla_due(route.get("ack_sla_days")),
+        "decision_due": sla_due(route.get("decision_sla_days")),
+        "actions": [a.to_dict() for a in recommended],
+        "priority_action": first.to_dict() if first else None,
+    }
+
+
+def note_for(figures: dict[str, Any], *, case_key: str = "",
+             requested_decision: str = "") -> str:
+    """The escalation note, drafted from the facts rather than from prose.
+
+    Written in the order a decision-maker reads: position, driver with its
+    score and whether it is cured, corroboration, recommendation with owner
+    and date, and the evidence that closes it. Everything in it is a figure
+    the pack already carried — an escalation note is the last place to
+    introduce a number nobody can trace.
+    """
+    from backend.early_warning import actions as act
+
+    name = figures.get("customer_name", "the obligor")
+    cid = figures.get("customer_id", "")
+    exposure = figures.get("exposure", 0.0)
+    limit = figures.get("limit") or 0.0
+    drivers = figures.get("drivers") or []
+    band = figures.get("ews_band", "")
+    route = route_for(band, float(exposure))
+
+    lines: list[str] = []
+    head = f"{name}, {cid}, exposure SAR {exposure:,.0f}m"
+    if limit:
+        head += f" of a SAR {limit:,.0f}m limit"
+    head += (f", {figures.get('dpd', 0)} days past due, "
+             f"Stage {figures.get('ifrs9_stage', 1)}.")
+    lines.append(head)
+
+    lines.append(
+        f"EWS {figures.get('ews_score', 0):.0f} ({band.replace('_', ' ').lower()}), "
+        f"anchor {figures.get('anchor_score', 0):.0f} from T&A "
+        f"{figures.get('live_versus_structural', {}).get('ta_band', '').replace('_', ' ').lower()} "
+        f"by classifier "
+        f"{figures.get('live_versus_structural', {}).get('classifier_band', '').replace('_', ' ').lower()}, "
+        f"{figures.get('net_notches', 0):+d} net notches.")
+
+    if drivers:
+        worst = drivers[0]
+        line = (f"Driver: {worst['code']} {worst['name'].lower()} at "
+                f"{worst['score']:.0f}, {worst['reason'].lower()}.")
+        others = [d for d in drivers[1:3] if d["score"] >= 50]
+        if others:
+            line += (" Corroborated by " + ", ".join(
+                f"{d['code']} {d['name'].lower()} at {d['score']:.0f}"
+                for d in others) + ".")
+        lines.append(line)
+
+    recommended = act.for_drivers([d["code"] for d in drivers])
+    first = act.single_highest_value(recommended)
+    if first is not None:
+        lines.append(
+            f"Recommendation: {first.action.lower()}. "
+            f"{first.owner_title}, {first.timeframe}. "
+            f"Evidence to close: {first.evidence_to_close.lower()}.")
+
+    to = [role_of(l) for l in route.get("escalated_to") or []]
+    if to:
+        decide = route.get("decision_sla_days")
+        ask = (requested_decision or
+               "what risk-mitigating action is proportionate to the exposure")
+        lines.append(
+            f"Decision requested from {' and '.join(to)}: {ask}"
+            + (f", within {decide} working days." if decide else "."))
+    if case_key:
+        lines.append(f"Case {case_key}.")
+    return " ".join(lines)

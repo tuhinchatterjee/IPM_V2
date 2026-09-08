@@ -297,6 +297,11 @@ class InformRequest(BaseModel):
     message: str = Field("", max_length=2000)
 
 
+class EscalationNoteRequest(BaseModel):
+    case_key: str = Field("", max_length=64)
+    requested_decision: str = Field("", max_length=300)
+
+
 class ActionRequest(BaseModel):
     action: str = Field(..., max_length=300)
     owner_user_id: int | None = None
@@ -327,7 +332,23 @@ def escalate(customer_id: str, payload: EscalateRequest,
                                      "message": "Escalate needs at least one recipient."})
 
     from backend.db.engine import get_session
+    from backend.early_warning import facts as ff
     from backend.services import workflow as wf
+
+    band = row.get("ews_band", "LOW")
+    exposure = float(row.get("exposure", 0.0) or 0.0)
+
+    # The matrix decides the rung, the urgency and who is told in parallel.
+    # It has always been able to; nothing consulted it, so an escalation went
+    # exactly where the caller said and carried no clock. Severity decides
+    # urgency and materiality decides altitude — neither was being applied.
+    try:
+        pack = ff.borrower(customer_id)
+        drivers = [d["code"] for d in pack.figures.get("drivers") or []]
+    except Exception:  # noqa: BLE001 - routing must not depend on the pack
+        pack, drivers = None, []
+    route = esc.route_with_actions(band, exposure, drivers)
+    version, _bundle, _note = _active_escalation_bundle()
 
     with get_session() as session:
         case = case_bridge.upsert_case(session, row)
@@ -335,21 +356,46 @@ def escalate(customer_id: str, payload: EscalateRequest,
         case_id = case.id
         case_key = case.case_key
 
-    band = row.get("ews_band", "LOW")
     title = f"Early Warning escalation: {row.get('customer_name', customer_id)} ({band})"
     body = payload.message or (
-        f"{row.get('customer_name', customer_id)} scores {row.get('ews_score', 0):.1f} ({band}). "
-        f"Dominant driver: {row.get('dominant_driver') or 'none'}. "
-        f"Exposure SAR {row.get('exposure', 0):.1f}mn. "
-        + (f"Requested decision: {payload.requested_decision}." if payload.requested_decision else "")
-    )
+        esc.note_for(pack.figures, case_key=case_key,
+                     requested_decision=payload.requested_decision)
+        if pack is not None else
+        f"{row.get('customer_name', customer_id)} scores {row.get('ews_score', 0):.1f} ({band}).")
     view = wf.send(
         object_type="risk_case", object_id=str(case_id), title=title, message=body,
         recipients=payload.recipient_user_ids, teams=payload.recipient_team_ids,
         action="review", priority="high" if band == "VERY_HIGH" else "normal",
         requested_by=principal.user_id,
+        # The decision clock, from the matrix's own SLA for this severity.
+        due_at=route.get("decision_due"),
     )
-    return {"case_id": case_id, "case_key": case_key, "workflow_item": asdict(view)}
+
+    # The case remembers which matrix routed it and what that route was, so a
+    # case raised under one version is not later read against another.
+    from backend.models.platform import RiskCase
+
+    with get_session() as session:
+        found = session.get(RiskCase, case_id)
+        if found is not None:
+            evidence = dict(found.evidence or {})
+            evidence["escalation_version"] = version
+            evidence["routing"] = {
+                k: v for k, v in route.items()
+                if k in ("severity", "exposure_tier", "escalated_to",
+                         "escalated_to_roles", "notified", "notified_roles",
+                         "ack_sla_days", "decision_sla_days")}
+            found.evidence = evidence
+            # The FK exists and was never set, so a case could not point back
+            # at the message it raised.
+            found.workflow_item_id = view.id
+            if route.get("decision_due") and not found.due_at:
+                found.due_at = route["decision_due"]
+            session.commit()
+
+    return {"case_id": case_id, "case_key": case_key,
+            "workflow_item": asdict(view), "routing": route,
+            "escalation_version": version}
 
 
 @router.post("/borrower/{customer_id}/inform", summary="Inform on a borrower finding (FYI)")
@@ -469,4 +515,106 @@ def record_action(customer_id: str, payload: ActionRequest,
 
     comment = wf.comment(object_type="risk_case", object_id=str(case_id), body=body,
                           author_id=principal.user_id)
+
+    # The comment is the human-readable record; these are the fields that make
+    # the action a control. Flattening the owner, the due date and the closing
+    # evidence into prose meant none of them could be queried — no "open
+    # actions", no "overdue", and no way to check a case closed on its
+    # evidence rather than on somebody's say-so.
+    from backend.models.platform import RiskCase
+
+    with get_session() as session:
+        found = session.get(RiskCase, case_id)
+        if found is not None:
+            if payload.owner_user_id:
+                found.owner_id = payload.owner_user_id
+            if payload.due_at:
+                try:
+                    from datetime import datetime
+
+                    found.due_at = datetime.fromisoformat(
+                        str(payload.due_at).replace("Z", "+00:00"))
+                except ValueError:
+                    logger.info("Unparseable due date on an action: %r",
+                                payload.due_at)
+            evidence = dict(found.evidence or {})
+            recorded = list(evidence.get("actions") or [])
+            recorded.append({
+                "action": payload.action,
+                "owner_user_id": payload.owner_user_id,
+                "due_at": payload.due_at,
+                "closing_evidence_required": payload.closing_evidence_required,
+                "recorded_by": principal.user_id,
+            })
+            evidence["actions"] = recorded
+            found.evidence = evidence
+            session.commit()
+
     return {"case_id": case_id, "action": payload.action, "comment": comment}
+
+
+@router.get("/borrower/{customer_id}/actions",
+            summary="The governed actions indicated for this borrower")
+def borrower_actions(customer_id: str,
+                     principal: Principal = RequireEarlyWarningView) -> dict:
+    """What the action library recommends, keyed to this obligor's drivers.
+
+    Ranked worst driver first, with the one to take if only one can be taken
+    chosen by reversibility and cost rather than by the score of the node it
+    came from.
+    """
+    from backend.early_warning import actions as act
+    from backend.early_warning import facts as ff
+
+    try:
+        pack = ff.borrower(customer_id)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError:
+        raise _not_found(customer_id)
+
+    drivers = pack.figures.get("drivers") or []
+    recommended = act.for_drivers([d["code"] for d in drivers])
+    first = act.single_highest_value(recommended)
+    return {
+        "customer_id": customer_id,
+        "customer_name": pack.figures.get("customer_name"),
+        "period": pack.period,
+        "drivers": drivers,
+        "actions": [a.to_dict() for a in recommended],
+        "priority_action": first.to_dict() if first else None,
+        "routing": esc.route_with_actions(
+            pack.figures["ews_band"], float(pack.figures["exposure"]),
+            [d["code"] for d in drivers]),
+    }
+
+
+@router.post("/borrower/{customer_id}/escalation-note",
+             summary="Draft the escalation note")
+def escalation_note(customer_id: str, payload: EscalationNoteRequest,
+                    principal: Principal = RequireEarlyWarningEscalate) -> dict:
+    """A draft, never a send.
+
+    The note is assembled from the borrower's own facts — position, driver
+    with its score, corroboration, recommendation with owner and evidence,
+    and the decision requested. Nothing in it is a figure the pack did not
+    carry, because an escalation note is the last place to introduce a
+    number nobody can trace.
+    """
+    from backend.early_warning import facts as ff
+
+    try:
+        pack = ff.borrower(customer_id)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+    except KeyError:
+        raise _not_found(customer_id)
+
+    return {
+        "customer_id": customer_id,
+        "note": esc.note_for(pack.figures, case_key=payload.case_key,
+                             requested_decision=payload.requested_decision),
+        "routing": esc.route_with_actions(
+            pack.figures["ews_band"], float(pack.figures["exposure"]),
+            [d["code"] for d in pack.figures.get("drivers") or []]),
+    }
