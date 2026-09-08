@@ -1830,6 +1830,27 @@ export function MigrationMatrix({
         {migration.note} Continuing {count(migration.continuing.count)} · exited{" "}
         {count(migration.exited.count)} · new {count(migration.new.count)}.
       </p>
+      {/* Default is a state and not a grade of the nineteen-point performing
+          scale, so it is neither a row nor a column of this matrix — which is
+          what lets every row sum to 100% of the population that STARTED
+          performing on that grade. It is also the most important thing a
+          migration table can tell you, so it is reported here rather than
+          quietly lost between the grid and the totals. */}
+      {migration.to_default ? (
+        <p className="text-[11px] text-text-muted" data-testid="migration-default">
+          Into default over the period: {count(migration.to_default.count)}{" "}
+          borrower(s), {money(migration.to_default.exposure, currency)}
+          {migration.from_default?.count
+            ? ` · cured out of default: ${count(migration.from_default.count)}`
+            : ""}
+          {migration.default_at_both_ends?.count
+            ? ` · in default at both ends: ${count(migration.default_at_both_ends.count)}`
+            : ""}
+          . These sit beside the matrix rather than inside it: default is a
+          state reached by the default event, not a grade of the performing
+          scale.
+        </p>
+      ) : null}
     </div>
   );
 }

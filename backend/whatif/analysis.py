@@ -780,6 +780,27 @@ def _line(label: str, part: pd.DataFrame, whole: pd.DataFrame,
             "cells": {key: _cell(METRICS[key], part, whole) for key in metrics}}
 
 
+def _asked_for(request: Request) -> set[str]:
+    """The dimension values the reader explicitly narrowed to, if any.
+
+    Empty when they narrowed by something other than the dimension itself — a
+    Stage filter on a rating table still shows the whole scale, because the
+    reader asked about ratings and said nothing about which ones.
+    """
+    if request.dimension == RATING and request.grades:
+        return set(request.grades)
+    if request.dimension == BAND and request.grades:
+        lookup = {g: name for name, grades in BROAD_BANDS for g in grades}
+        return {lookup[g] for g in request.grades if g in lookup}
+    if request.dimension == STAGE and request.stages:
+        return {f"Stage {s}" for s in request.stages}
+    if request.dimension == SECTOR and request.sectors:
+        return set(request.sectors)
+    if request.dimension == SEGMENT and request.segments:
+        return set(request.segments)
+    return set()
+
+
 def run(request: Request, *, source: Any = None) -> dict[str, Any]:
     """The table the question asked for, computed from the reported book."""
     work, settled = _prepare(request.period, source)
@@ -793,8 +814,17 @@ def run(request: Request, *, source: Any = None) -> dict[str, Any]:
     present = [v for v in order if v in set(part["_key"])]
     # A rating or a Stage shows every value even when the book holds none of
     # it: a table that silently omits AAA reads as though the scale stops.
-    labels = order if request.dimension in (RATING, BAND, STAGE, SECURED) \
-        else present
+    #
+    # Unless the reader NARROWED it. "Only show BBB- and weaker" is an
+    # instruction about the rows, and answering it with the whole scale again
+    # ignores the instruction while looking like it obeyed one.
+    asked = _asked_for(request)
+    if asked:
+        labels = [v for v in order if v in asked]
+    elif request.dimension in (RATING, BAND, STAGE, SECURED):
+        labels = order
+    else:
+        labels = present
 
     rows: list[dict[str, Any]] = []
     for label in labels:

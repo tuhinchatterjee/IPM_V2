@@ -476,9 +476,19 @@ class TestTheHttpSurface:
         assert body["count"] == len(dm.periods())
         assert body["latest"] == dm.latest_period()
 
-    def test_the_rating_profile_has_nineteen_grades_and_a_total(self, client) -> None:
+    def test_the_rating_profile_is_nineteen_grades_then_default(self, client) -> None:
         body = client.get("/api/v1/whatif/profile/rating", headers=ANALYST).json()
-        assert len(body["rows"]) == 19
+        assert body["grades"] == [
+            "AAA", "AA+", "AA", "AA-", "A+", "A", "A-", "BBB+", "BBB", "BBB-",
+            "BB+", "BB", "BB-", "B+", "B", "B-", "CCC", "CC", "C"]
+        assert "D" not in body["grades"], (
+            "default is a state reached by the default event, not the "
+            "twentieth grade of the performing scale")
+        labels = [r["label"] for r in body["rows"]]
+        assert labels[:19] == body["grades"]
+        assert labels[19] == body["default_grade"] == "D"
+        assert body["rows"][19]["performing"] is False
+        # The Total still ties to the whole book, which is why D has a row.
         assert body["total"]["count"] == body["borrowers"]
 
     def test_the_rating_migration_is_twenty_by_twenty(self, client) -> None:
@@ -521,12 +531,88 @@ class TestTheHttpSurface:
         assert body["opens_whatif"] is True
         assert "how big" in body["message"]
 
-    def test_an_informational_question_is_not_treated_as_a_scenario(self, client) -> None:
+    def test_an_informational_question_is_answered_rather_than_redirected(
+            self, client) -> None:
+        """It used to name a different screen. Now it computes the table.
+
+        The manual UAT report was exactly this: a precise analytical question,
+        answered with the observation that the profile views also answer it.
+        """
         body = client.post("/api/v1/whatif/interpret", headers=ANALYST, json={
             "instruction": "Show Stage 1 PD by sector.",
             "state": {"period": dm.latest_period(), "steps": []}}).json()
         assert body["informational"] is True
-        assert "no methodology is needed" in body["message"]
+        assert body["understood"] is True
+        assert body["answers_directly"] is True
+        assert body["changes_state"] is False, "a question changes nothing"
+        assert "profile views answer it" not in body.get("message", "")
+
+        analysis = body["analysis"]
+        assert analysis["kind"] == "breakdown"
+        assert analysis["dimension"] == "sector"
+        assert analysis["period"] == dm.latest_period()
+        assert analysis["request"]["stages"] == [1]
+        assert any(c["key"] == "applicable_pd" for c in analysis["columns"])
+        populated = [r for r in analysis["rows"]
+                     if r["cells"]["borrowers"]["value"]]
+        assert populated, "an empty table is not an answer"
+        assert analysis["interpretation"]["paragraphs"][0].strip()
+
+    def test_an_informational_question_raises_no_methodology_gate(
+            self, client) -> None:
+        """It prices nothing, so there is no methodology to choose."""
+        body = client.post("/api/v1/whatif/interpret", headers=ANALYST, json={
+            "instruction": "Show LGD by sector.",
+            "state": {"period": dm.latest_period(), "steps": []}}).json()
+        assert body.get("needs_methodology") is not True
+        assert "gate" not in body
+        assert body["opens_whatif"] is False
+
+    def test_a_question_about_shock_size_returns_measured_magnitudes(
+            self, client) -> None:
+        body = client.post("/api/v1/whatif/interpret", headers=ANALYST, json={
+            "instruction": "I want to stress BBB borrowers but what would be "
+                           "a sensible PD shock?",
+            "state": {"period": dm.latest_period(), "steps": []}}).json()
+        assert body["changes_state"] is False
+        suggestion = body["analysis"]
+        assert suggestion["kind"] == "suggestion"
+        assert suggestion["measure"] == "pd"
+        assert suggestion["request"]["grades"] == ["BBB+", "BBB", "BBB-"]
+        assert suggestion["options"], "a prompt for a magnitude is not an answer"
+        magnitudes = [o["magnitude"] for o in suggestion["options"]]
+        assert magnitudes == sorted(magnitudes)
+        assert all(o["instruction"] for o in suggestion["options"])
+        assert suggestion["history"]["observations"] > 0
+
+    def test_the_analyse_endpoint_answers_the_same_question_on_its_own(
+            self, client) -> None:
+        body = client.post("/api/v1/whatif/analyse", headers=ANALYST, json={
+            "question": "Can you give me the rating-wise PDs, getting rid of "
+                        "stages?"}).json()
+        assert body["understood"] is True
+        assert body["changes_state"] is False
+        assert body["by_stage"] is False
+        assert [r["label"] for r in body["rows"]][:19] == [
+            "AAA", "AA+", "AA", "AA-", "A+", "A", "A-", "BBB+", "BBB", "BBB-",
+            "BB+", "BB", "BB-", "B+", "B", "B-", "CCC", "CC", "C"]
+
+    def test_a_follow_up_narrows_the_table_it_was_given(self, client) -> None:
+        first = client.post("/api/v1/whatif/analyse", headers=ANALYST, json={
+            "question": "Show lifetime PD by rating.", "interpret": False}).json()
+        second = client.post("/api/v1/whatif/analyse", headers=ANALYST, json={
+            "question": "Only show BBB- and weaker.",
+            "previous": first["request"], "interpret": False}).json()
+        labels = [r["label"] for r in second["rows"]]
+        assert "BBB-" in labels and "AAA" not in labels
+        assert second["request"]["dimension"] == "rating"
+        assert "lifetime_pd" in second["request"]["metrics"]
+
+    def test_a_scenario_is_not_answered_as_a_table(self, client) -> None:
+        response = client.post("/api/v1/whatif/analyse", headers=ANALYST, json={
+            "question": "Increase PD for Stage 1 BB rating by 10%"})
+        assert response.status_code == 422
+        assert "break the book down by" in response.json()["detail"]["message"]
 
     def test_an_instruction_with_a_magnitude_becomes_a_step(self, client) -> None:
         body = client.post("/api/v1/whatif/interpret", headers=ANALYST, json={

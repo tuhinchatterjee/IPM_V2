@@ -6,7 +6,7 @@
 #
 # A cycle is not a test run. It is the question "if I stopped here, what would
 # somebody find?" asked in every way the repository knows how to ask it — lint,
-# the unit and property suites, the evaluation corpus, the red team, the fifteen
+# the unit and property suites, the evaluation corpus, the red team, the nineteen
 # browser journeys against a real Chromium, the manual-failure journeys, the
 # performance budgets, and the integration contract against the book on disk.
 #
@@ -73,12 +73,18 @@ step "What-If unit and invariant suites" \
   "${PY}" -m pytest "${ROOT}/tests/whatif/" -q
 step "the evaluation corpus" \
   "${PY}" -m pytest "${ROOT}/tests/evals/test_whatif_evaluation.py" -q
+# The quick-analysis corpus is its own step rather than folded into the one
+# above: a thread that answers scenario instructions perfectly and redirects
+# every analytical question is the exact product this pass exists to fix, and
+# a combined pass rate would hide it.
+step "the quick-analysis corpus" \
+  "${PY}" -m pytest "${ROOT}/tests/evals/test_whatif_analysis_evaluation.py" -q
 step "the API surface" \
   "${PY}" -m pytest "${ROOT}/tests/api/" -q
 step "the red team" \
   "${PY}" -m pytest "${ROOT}/tests/whatif/test_whatif_red_team.py" -q
 
-step "the fifteen browser journeys" \
+step "the nineteen browser journeys" \
   node "${ROOT}/scripts/acceptance/whatif_journeys.mjs"
 step "the manual-failure journeys" \
   node "${ROOT}/scripts/acceptance/whatif_manual_failures.mjs"

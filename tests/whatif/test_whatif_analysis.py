@@ -144,7 +144,12 @@ class TestTheStageProfile:
         bases = {r["stage"]: r["measured_on"] for r in body["rows"]}
         assert bases[1] == "12-month PD"
         assert bases[2] == "Lifetime PD"
-        assert bases[3] == "Lifetime PD"
+        # Stage 3 is not measured on a lifetime PD. The default has already
+        # happened, so the probability that it happens is one, and the screen
+        # has to say that rather than name a modelled PD the measurement does
+        # not use.
+        assert "100%" in bases[3]
+        assert "already happened" in bases[3]
 
     @needs_lake
     def test_the_stages_reconcile_to_the_book(self, period) -> None:
@@ -240,8 +245,35 @@ class TestTheRatingMigration:
 
     @needs_lake
     def test_only_continuing_borrowers_are_in_the_matrix(self, period) -> None:
+        """And only those that were PERFORMING at both ends.
+
+        Default is a state rather than a grade of the nineteen-point scale, so
+        it is neither a row nor a column — which is what lets every row sum to
+        100% of the population that started performing on that grade. The
+        borrowers that leaves out are reported beside the matrix rather than
+        lost, and this asserts the arithmetic closes over both.
+        """
         body = mg.rating_migration(period)
-        assert body["views"]["count"]["grand_total"] == body["continuing"]["count"]
+        excluded = (body["to_default"]["count"]
+                    + body["from_default"]["count"]
+                    + body["default_at_both_ends"]["count"])
+        assert body["views"]["count"]["grand_total"] == (
+            body["continuing"]["count"] - excluded)
+        assert excluded > 0, "this book has defaults; they must be accounted for"
+
+    @needs_lake
+    def test_the_borrowers_default_took_are_reported_beside_the_matrix(
+            self, period) -> None:
+        body = mg.rating_migration(period)
+        assert body["to_default"]["count"] > 0
+        assert body["to_default"]["exposure"] > 0
+        by_grade = body["to_default"]["by_opening_grade"]
+        assert by_grade, "a default with no opening grade explains nothing"
+        assert sum(by_grade.values()) == body["to_default"]["count"]
+        assert all(g in body["labels"] for g in by_grade), (
+            "every name that defaulted started on a performing grade")
+        assert "default_at_both_ends" in body and "from_default" in body
+        assert "beside the matrix" in body["note"]
         assert body["exited"]["count"] > 0 or body["new"]["count"] > 0
 
     @needs_lake

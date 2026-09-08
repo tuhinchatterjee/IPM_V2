@@ -5449,6 +5449,18 @@ export interface WhatIfMigration {
   continuing: { count: number; exposure: number };
   exited: { count: number; exposure: number };
   new: { count: number; exposure: number };
+  /** Rating migration only. Default is a STATE and not a grade of the
+   *  nineteen-point performing scale, so it is neither a row nor a column of
+   *  the matrix — which is what lets every row sum to 100% of the population
+   *  that started performing on that grade. These carry what would otherwise
+   *  be lost between the grid and the totals. */
+  to_default?: {
+    count: number;
+    exposure: number;
+    by_opening_grade: Record<string, number>;
+  };
+  from_default?: { count: number; exposure: number };
+  default_at_both_ends?: { count: number; exposure: number };
   duplicates_collapsed: number;
   moved?: number;
   downgraded?: number;
