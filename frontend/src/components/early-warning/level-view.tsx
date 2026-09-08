@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type EarlyWarningV2Level } from "@/lib/api";
-import { money } from "@/lib/format";
+import { moneyCell, MONEY_COLUMN_UNIT } from "@/lib/early-warning-format";
 import { useAsync } from "@/lib/hooks";
 import { CategoryBarChart } from "@/components/analytics/charts";
 
@@ -95,7 +95,7 @@ export function LevelView({
                   <tr className="border-b border-border text-left text-text-secondary">
                     <th className="py-1.5 pr-3">{data.data.label}</th>
                     <th className="py-1.5 pr-3">Obligors</th>
-                    <th className="py-1.5 pr-3">Exposure</th>
+                    <th className="py-1.5 pr-3">Exposure ({MONEY_COLUMN_UNIT})</th>
                     <th className="py-1.5 pr-3">EWS</th>
                     <th className="py-1.5 pr-3">Severity</th>
                     <th className="py-1.5 pr-3">High+</th>
@@ -121,7 +121,7 @@ export function LevelView({
                       >
                         <td className="py-1.5 pr-3 font-medium">{value}</td>
                         <td className="py-1.5 pr-3">{row.obligors}</td>
-                        <td className="py-1.5 pr-3">{money(row.exposure)}</td>
+                        <td className="py-1.5 pr-3">{moneyCell(row.exposure)}</td>
                         <td className="py-1.5 pr-3">{row.portfolio_ews.toFixed(1)}</td>
                         <td className="py-1.5 pr-3">
                           <Badge variant={BAND_VARIANT[row.band] ?? "default"}>

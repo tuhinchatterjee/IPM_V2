@@ -16,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.early_warning import units
+
 DEFAULT_VERSION = "1.0.0"
 
 LADDER: tuple[dict[str, str], ...] = (
@@ -182,9 +184,9 @@ def note_for(figures: dict[str, Any], *, case_key: str = "",
     route = route_for(band, float(exposure))
 
     lines: list[str] = []
-    head = f"{name}, {cid}, exposure SAR {exposure:,.0f}m"
+    head = f"{name}, {cid}, exposure {units.money(exposure)}"
     if limit:
-        head += f" of a SAR {limit:,.0f}m limit"
+        head += f" of a {units.money(limit)} limit"
     head += (f", {figures.get('dpd', 0)} days past due, "
              f"Stage {figures.get('ifrs9_stage', 1)}.")
     lines.append(head)

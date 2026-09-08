@@ -38,6 +38,7 @@ from backend.early_warning import actions as act
 from backend.early_warning import escalation as esc
 from backend.early_warning import facts as ff
 from backend.early_warning import reasons
+from backend.early_warning import units
 
 BAND_WORD = {
     "VERY_HIGH": "very high", "HIGH": "high", "MEDIUM": "medium",
@@ -72,11 +73,12 @@ class Composed:
 # --------------------------------------------------------------- helpers
 
 
-def _money(value: float) -> str:
-    """The book is kept in millions. A billion is written as one."""
-    if abs(value) >= 1000:
-        return f"SAR {value / 1000:,.1f}bn"
-    return f"SAR {value:,.0f}m"
+#: Money is written by `units.money()`, which sits below this module so the
+#: escalation note can reach it too — `compose` imports `escalation`, so a
+#: writer living here was unreachable from there and grew a second
+#: convention. Re-exported under both names because this module refers to it
+#: throughout and the report builders import it from here.
+money = _money = units.money
 
 
 def _sentence(parts: list[str]) -> str:

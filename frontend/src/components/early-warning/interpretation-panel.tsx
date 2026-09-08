@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type EarlyWarningV2Diagnosis } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money } from "@/lib/early-warning-format";
 import { useAsync } from "@/lib/hooks";
 
 /**

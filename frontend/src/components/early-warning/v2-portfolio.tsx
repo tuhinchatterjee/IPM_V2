@@ -13,7 +13,7 @@ import {
   type EarlyWarningV2Overview,
   type EarlyWarningV2Segments,
 } from "@/lib/api";
-import { money } from "@/lib/format";
+import { money, moneyCell, MONEY_COLUMN_UNIT } from "@/lib/early-warning-format";
 import { useAsync } from "@/lib/hooks";
 import { BorrowerDrilldown } from "@/components/early-warning/borrower-drilldown";
 import { InterpretationPanel } from "@/components/early-warning/interpretation-panel";
@@ -231,7 +231,7 @@ export function EarlyWarningV2Portfolio() {
               <tr className="border-b border-border text-left text-text-secondary">
                 <th className="py-1.5 pr-3">Customer</th>
                 <th className="py-1.5 pr-3">Segment</th>
-                <th className="py-1.5 pr-3">Exposure</th>
+                <th className="py-1.5 pr-3">Exposure ({MONEY_COLUMN_UNIT})</th>
                 <th className="py-1.5 pr-3">DPD</th>
                 <th className="py-1.5 pr-3">EWS</th>
                 <th className="py-1.5 pr-3">T&amp;A</th>
@@ -254,7 +254,7 @@ export function EarlyWarningV2Portfolio() {
                 >
                   <td className="py-1.5 pr-3 font-medium text-accent">{row.customer_name}</td>
                   <td className="py-1.5 pr-3 text-text-secondary">{row.segment}</td>
-                  <td className="py-1.5 pr-3">{money(row.exposure)}</td>
+                  <td className="py-1.5 pr-3">{moneyCell(row.exposure)}</td>
                   <td className="py-1.5 pr-3">{row.dpd}</td>
                   <td className="py-1.5 pr-3">
                     <div className="flex items-center gap-1.5">
@@ -309,7 +309,7 @@ export function EarlyWarningV2Portfolio() {
                 <tr className="border-b border-border text-left text-text-secondary">
                   <th className="py-1.5 pr-3">Segment</th>
                   <th className="py-1.5 pr-3">Borrowers</th>
-                  <th className="py-1.5 pr-3">Exposure</th>
+                  <th className="py-1.5 pr-3">Exposure ({MONEY_COLUMN_UNIT})</th>
                   <th className="py-1.5 pr-3">Portfolio EWS</th>
                   <th className="py-1.5 pr-3">High+</th>
                 </tr>
@@ -329,7 +329,7 @@ export function EarlyWarningV2Portfolio() {
                   >
                     <td className="py-1.5 pr-3 font-medium">{seg.segment}</td>
                     <td className="py-1.5 pr-3">{seg.borrower_count}</td>
-                    <td className="py-1.5 pr-3">{money(seg.exposure)}</td>
+                    <td className="py-1.5 pr-3">{moneyCell(seg.exposure)}</td>
                     <td className="py-1.5 pr-3">{seg.portfolio_ews.toFixed(1)}</td>
                     <td className="py-1.5 pr-3">{seg.high_plus_count}</td>
                   </tr>

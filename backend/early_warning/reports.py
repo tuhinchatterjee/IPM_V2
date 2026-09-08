@@ -229,8 +229,9 @@ def borrower_report(customer_id: str, *, prepared_by: str = "") -> dict:
 
     exec_summary = _section(
         "executive_summary", "Executive Summary",
-        f"{latest.get('customer_name', customer_id)} carries SAR {latest.get('exposure', 0):.1f} "
-        f"million of exposure against a SAR {latest.get('limit', 0):.1f} million limit, "
+        f"{latest.get('customer_name', customer_id)} carries "
+        f"{compose.money(latest.get('exposure', 0))} of exposure against a "
+        f"{compose.money(latest.get('limit', 0))} limit, "
         f"{latest.get('dpd', 0):.0f} days past due, IFRS 9 Stage {latest.get('ifrs9_stage', '—')}. "
         f"The Early Warning score is {latest.get('ews_score', 0):.1f}, {band.replace('_', ' ').title()} "
         f"severity. The anchor is a classifier score of {latest.get('classifier_score', 0):.1f} "
@@ -304,7 +305,7 @@ def borrower_report(customer_id: str, *, prepared_by: str = "") -> dict:
     escalation_section = _section(
         "escalation", "Escalation Status",
         (f"At {pack.figures['ews_band'].replace('_', ' ').lower()} severity on "
-         f"SAR {pack.figures['exposure']:,.0f}m of exposure — the "
+         f"{compose.money(pack.figures['exposure'])} of exposure — the "
          f"{route['exposure_tier']} tier — the decision sits with "
          f"{' and '.join(to)}. Severity decides how quickly the decision is "
          f"needed; materiality decides how high it goes."
@@ -352,8 +353,9 @@ def portfolio_report(*, period: str | None = None, prepared_by: str = "") -> dic
         f"The portfolio Early Warning score stands at {summary['portfolio_ews']:.1f} on an "
         f"exposure-weighted basis for {summary['borrower_count']} borrowers. "
         f"{summary['high_plus_count']} obligors ({100 * summary['high_plus_count'] / max(summary['borrower_count'], 1):.1f}%) "
-        f"sit at High severity or above, carrying SAR {summary['high_plus_exposure']:.1f} million "
-        f"of a total SAR {summary['total_exposure']:.1f} million.",
+        f"sit at High severity or above, carrying "
+        f"{compose.money(summary['high_plus_exposure'])} of a total "
+        f"{compose.money(summary['total_exposure'])}.",
     )
 
     dist_table = {
@@ -384,7 +386,8 @@ def portfolio_report(*, period: str | None = None, prepared_by: str = "") -> dic
                             "Segments ranked by exposure-weighted Early Warning score.",
                             table=seg_table)
 
-    watch_table = {"columns": ["Customer", "Segment", "Exposure", "EWS", "Band", "Dominant driver"],
+    watch_table = {"columns": ["Customer", "Segment", "Exposure (SAR mn)", "EWS", "Band",
+                                "Dominant driver"],
                    "rows": [[r["customer_name"], r["segment"], f"{r['exposure']:.1f}",
                              f"{r['ews_score']:.1f}", r["ews_band"], r.get("dominant_driver") or "—"]
                             for r in top]}
@@ -492,12 +495,13 @@ def segment_report(segment: str, *, period: str | None = None, prepared_by: str 
     exec_summary = _section(
         "executive_summary", "Executive Summary",
         f"{segment} carries an exposure-weighted Early Warning score of {weighted:.1f} across "
-        f"{len(rows)} borrowers and SAR {rows['exposure'].sum():.1f} million of exposure. "
+        f"{len(rows)} borrowers and {compose.money(rows['exposure'].sum())} of exposure. "
         f"{len(high_plus)} borrowers sit at High severity or above.",
     )
 
     borrower_table = {
-        "columns": ["Customer", "Exposure", "DPD", "EWS", "Band", "Dominant driver"],
+        "columns": ["Customer", "Exposure (SAR mn)", "DPD", "EWS", "Band",
+                     "Dominant driver"],
         "rows": [[r["customer_name"], f"{r['exposure']:.1f}", f"{r['dpd']:.0f}",
                   f"{r['ews_score']:.1f}", r["ews_band"], r.get("dominant_driver") or "—"]
                  for _, r in rows.sort_values("ews_score", ascending=False).iterrows()],
@@ -544,7 +548,8 @@ def multi_borrower_report(customer_ids: list[str], *, prepared_by: str = "") -> 
 
     rows = [d["latest"] for _, d in details]
     comparison_table = {
-        "columns": ["Customer", "Exposure", "EWS", "Band", "Dominant driver"],
+        "columns": ["Customer", "Exposure (SAR mn)", "EWS", "Band",
+                     "Dominant driver"],
         "rows": [[r.get("customer_name", cid), f"{r.get('exposure', 0):.1f}",
                   f"{r.get('ews_score', 0):.1f}", r.get("ews_band"), r.get("dominant_driver") or "—"]
                  for cid, r in zip(customer_ids, rows, strict=False)],
@@ -553,8 +558,8 @@ def multi_borrower_report(customer_ids: list[str], *, prepared_by: str = "") -> 
     high_plus = sum(1 for r in rows if r.get("ews_band") in ("HIGH", "VERY_HIGH"))
     comparison = _section(
         "comparison", "Population Comparison",
-        f"{len(details)} borrowers selected, SAR {total_exposure:.1f} million of combined "
-        f"exposure, {high_plus} at High severity or above.",
+        f"{len(details)} borrowers selected, {compose.money(total_exposure)} of "
+        f"combined exposure, {high_plus} at High severity or above.",
         table=comparison_table,
         chart={"kind": "ews_layer_bars",
                "title": "Selected borrowers by Early Warning score",
@@ -582,7 +587,7 @@ def multi_borrower_report(customer_ids: list[str], *, prepared_by: str = "") -> 
         }
         sections.append(_section(
             f"borrower_{idx}", f"{latest.get('customer_name', cid)}",
-            f"Exposure SAR {latest.get('exposure', 0):.1f} million, "
+            f"Exposure {compose.money(latest.get('exposure', 0))}, "
             f"{latest.get('dpd', 0):.0f} days past due, IFRS 9 Stage {latest.get('ifrs9_stage', '—')}. "
             f"EWS {latest.get('ews_score', 0):.1f} ({band}): classifier {latest.get('classifier_band')} "
             f"({latest.get('classifier_score', 0):.1f}), T&A {latest.get('ta_band')} "
@@ -626,7 +631,7 @@ def all_segments_report(*, period: str | None = None,
     exec_summary = _section(
         "executive_summary", "Executive Summary",
         f"{len(level.rows)} segments across {summary['borrower_count']} obligors "
-        f"and SAR {summary['total_exposure']:,.0f} million. The weakest is "
+        f"and {compose.money(summary['total_exposure'])}. The weakest is "
         f"{level.figures['weakest_group']}. Each segment below is reported on "
         f"its own terms: a segment whose high-risk exposure sits in a minority "
         f"of obligors is a single-name problem wearing a segment's label, and "
@@ -647,8 +652,8 @@ def all_segments_report(*, period: str | None = None,
         sections.append(_section(
             f"segment_{idx}", row["segment"],
             f"{written.direct} {written.interpretation}",
-            table={"columns": ["Customer", "Exposure", "DPD", "EWS", "Band",
-                                "Dominant driver"],
+            table={"columns": ["Customer", "Exposure (SAR mn)", "DPD", "EWS",
+                                "Band", "Dominant driver"],
                    "rows": [[b["customer_name"], f"{b['exposure']:.1f}",
                               str(b["dpd"]), f"{b['ews_score']:.1f}",
                               b["ews_band"], b.get("dominant_driver") or "—"]
