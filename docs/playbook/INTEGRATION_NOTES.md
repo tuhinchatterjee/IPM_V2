@@ -48,3 +48,115 @@ runs*. That feature is live and is **kept whole**: `/playbooks`,
 its notification deep-link. The new chat-first workspace is a separate route,
 package, API prefix and table set. Its nav label becomes "Monitoring Playbooks"
 so the two are distinguishable on screen; `href`, API and data are unchanged.
+
+## The What If adapter contract
+
+A future What If module integrates by producing one `Snapshot` and posting it.
+Nothing else changes: no Playbook code, no schema, no migration.
+
+**The hook.** `POST /api/v1/playbook/exports`, or in-process
+`backend.playbook.library.create(session, scope, snapshot)`.
+
+**The payload**, from `backend/exports/playbook_contract.py`:
+
+```python
+from backend.exports import playbook_contract as contract
+
+snapshot = contract.Snapshot(
+    source_module=contract.WHAT_IF,          # already declared, already accepted
+    title="Downturn sensitivity, Q2 2026",
+    question="What happens to ECL if the downturn scenario weight doubles?",
+    narrative="…what the scenario run found, in prose…",
+    tables=[contract.Table(
+        id="scenario_comparison",
+        title="ECL by scenario weight",
+        columns=["Weighting", "ECL"],
+        rows=[["60/15/25", "22.77"], ["45/15/40", "27.31"]],
+        units={"ECL": "SAR million"},
+    )],
+    scope={"reporting_period": "Q2 2026", "currency": "SAR",
+           "scenario_version": "v4.2"},
+    assumptions=["Scenario definitions unchanged."],
+    limitations=["Second-order effects are not modelled."],
+    source_ref={"scenario_id": 41, "run_id": 9012,
+                "link": "/what-if/41"},
+    source_revision="4",
+    reporting_period="Q2 2026",
+    insight="Doubling the downturn weight raises ECL by SAR 4.54 million.",
+)
+```
+
+**What the contract already guarantees.** `scenario_id` is in the identity keys,
+so two exports of the same scenario deduplicate and a changed scenario makes a
+new revision. `snapshot.validate()` refuses an incomplete run. Nothing in
+Playbook needs to learn about What If — it is in `SOURCE_MODULES` today and
+absent from `IMPLEMENTED_MODULES`.
+
+**What the future branch must do.**
+
+1. Render `ExportToPlaybook` on its completed scenario results:
+   `frontend/src/components/exports/export-to-playbook.tsx`, with a `build()`
+   returning the payload above. Add the builder beside the four in
+   `frontend/src/lib/playbook-export.ts` and a test beside theirs.
+2. Add `WHAT_IF` to `IMPLEMENTED_MODULES` in
+   `backend/exports/playbook_contract.py`. That constant is what the library API
+   reports as implemented, and the test
+   `test_what_if_is_in_the_contract_but_not_implemented_here` will fail until it
+   is moved — deliberately, so the change cannot be forgotten.
+3. Replace the six labelled fixtures in `backend/playbook/seed_exports.py`
+   (`_what_if`) with real exports, and drop `WHAT_IF_CAVEAT`.
+4. Update `docs/playbook/REQUIREMENTS_MATRIX.md`: PB-006 moves from
+   "four modules verified, What If deferred" to all five.
+
+**What is already tested.** `tests/playbook/test_export_library.py` asserts that
+a What If snapshot validates against the contract and produces a content hash,
+so the adapter is exercised now rather than being an untested promise.
+
+## Feature configuration
+
+Playbook follows the repository's existing convention — environment booleans read
+through `backend/config.py` — rather than introducing a flag framework the
+codebase does not have.
+
+| Variable | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | Required for generation. Without it, workspaces, sources and files stay readable and the composer says configuration is required. |
+| `AI_AUTHOR_MODEL` | The authoring model. Falls back to `AI_ANALYST_MODEL`, then `AI_MODEL`, then the provider default. Never silently downgraded. |
+| `AI_AUTHOR_EFFORT` | `low` / `medium` / `high`, where the provider supports it. |
+| `AI_TIER_AUTHOR` | Cost-report weighting only. Defaults to `deep`. |
+| `AI_PROVIDER=offline` | Turns generation off entirely; the demonstration stays browseable. |
+| `PLAYBOOK_MAX_TURNS`, `PLAYBOOK_MAX_OUTPUT_TOKENS`, `PLAYBOOK_TIMEOUT_SECONDS` | Bounds on one authoring run. |
+| `UPLOAD_DIR` | Where sources and artifacts are stored, under `<upload_dir>/playbook`. |
+
+## Migration and rollout
+
+Two additive migrations, `0032` and `0033`, on top of head `0031`. They create
+thirteen tables and alter nothing existing, so `alembic upgrade head` is safe on
+a populated database and `downgrade` drops only what they created.
+
+Seeding is bootstrap step **M** (`scripts/bootstrap_demo.py --step playbook`),
+idempotent, and makes no provider call. The Playbook tables are on the WORKSPACE
+side of `backend/demo/workspace.py`'s reset boundary, so a demo reset rebuilds
+them and never touches the governed platform.
+
+## Running it
+
+```bash
+# database (isolated cluster on 55432 in development)
+.venv/bin/python -m alembic upgrade head
+
+# the demonstration
+.venv/bin/python scripts/bootstrap_demo.py --step playbook
+
+# the application
+.venv/bin/python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+npm --prefix frontend run build && npm --prefix frontend run start
+
+# verification
+.venv/bin/python -m pytest tests/playbook
+.venv/bin/python scripts/acceptance/playbook_browser_acceptance.py
+.venv/bin/python scripts/acceptance/verify_playbook_artifacts.py
+.venv/bin/python scripts/playbook_live_slice.py     # needs ANTHROPIC_API_KEY
+```
+
+Then open `http://127.0.0.1:3000/playbook`.

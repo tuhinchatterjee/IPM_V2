@@ -19,6 +19,20 @@ materiality, a sentence explaining why a movement matters — none of those have
 locator and none of them should. The distinction PB-033 asks for is between a
 reported figure, which must reconcile, and an interpretation, which must be
 labelled as one.
+
+The boundary this check does NOT cross
+--------------------------------------
+This proves TRACEABILITY, not truth. A figure survives because it appears in the
+evidence, and a user-uploaded document is evidence — so a source asserting
+"coverage is 41.5 per cent" makes 41.5 a quotable figure, and a report quoting it
+with a citation is behaving correctly even if the source is wrong or hostile.
+
+That is the right boundary and it is worth being explicit about, because the
+tempting misreading is that grounding makes a document safe to believe. It does
+not. What it removes is the figure that came from nowhere — the one no source
+states and no calculation produced, which is the one nobody can check. Whether a
+source deserves belief is a question for the reader, which is why every figure
+carries where it came from.
 """
 
 from __future__ import annotations

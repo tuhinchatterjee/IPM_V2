@@ -1,0 +1,308 @@
+"""
+Playbook browser acceptance. Playbook §20.
+
+Drives a real Chromium against a real front end and a real backend, and asserts
+the things a screenshot cannot: that the home screen is in the order §3
+specifies, that a seeded thread is served from the database rather than from
+hard-coded strings, that only exported analyses are selectable, that previewing
+one does not lose the selection, and that every download resolves to real bytes.
+
+    .venv/bin/python scripts/acceptance/playbook_browser_acceptance.py
+
+Both servers are assumed to be up. If Chromium cannot launch this EXITS
+NON-ZERO rather than reporting a pass — the rule `scripts/browser_acceptance.py`
+already follows, because a run that did not happen is not a run that succeeded.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import pathlib
+import sys
+
+REPO = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO))
+
+WEB = "http://127.0.0.1:3000"
+API = "http://127.0.0.1:8000"
+DOWNLOADS = pathlib.Path("/tmp/playbook-acceptance")
+SHOTS = REPO / "docs" / "playbook" / "screenshots"
+EVIDENCE = REPO / "docs" / "playbook" / "browser_acceptance.json"
+
+#: §17 asks for a layout that works on a typical laptop, which is the viewport
+#: a dense table breaks first and the developer's monitor never does.
+VIEWPORTS = [("laptop", 1366, 768), ("desktop", 1600, 900)]
+
+ok: list[str] = []
+bad: list[str] = []
+notes: list[str] = []
+
+
+def check(name: str, condition: bool, detail: str = "") -> bool:
+    (ok if condition else bad).append(f"{name}{(' — ' + detail) if detail else ''}")
+    print(("  PASS  " if condition else "  FAIL  ") + name
+          + (f"  {detail}" if detail else ""), flush=True)
+    return bool(condition)
+
+
+def _chromium_path() -> str | None:
+    root = pathlib.Path("/opt/pw-browsers")
+    for pattern in ("chromium-*/chrome-linux/chrome", "chromium/chrome-linux/chrome"):
+        for found in sorted(root.glob(pattern)):
+            if found.is_file():
+                return str(found)
+    return None
+
+
+async def journey(page, viewport: str) -> None:
+    console_errors: list[str] = []
+    page.on("console", lambda m: console_errors.append(m.text)
+            if m.type == "error" else None)
+    page.on("pageerror", lambda e: console_errors.append(str(e)))
+
+    # ---------------------------------------------------- 1. home and its order
+    await page.goto(f"{WEB}/playbook", wait_until="networkidle")
+    await page.wait_for_timeout(1200)
+
+    composer = page.locator("#playbook-composer")
+    check(f"[{viewport}] the composer is on the home screen",
+          await composer.count() > 0)
+    check(f"[{viewport}] the plus button is in the composer",
+          await page.locator('button[aria-label="Add sources"]').count() > 0)
+
+    async def top_of(selector: str) -> float:
+        box = await page.locator(selector).first.bounding_box()
+        return box["y"] if box else -1.0
+
+    composer_y = await top_of("#playbook-composer")
+    playbooks_y = await top_of("#recent-playbooks")
+    exports_y = await top_of("#recent-exports")
+    check(f"[{viewport}] Recent Playbooks sits below the composer",
+          composer_y < playbooks_y, f"{composer_y:.0f} < {playbooks_y:.0f}")
+    check(f"[{viewport}] Recent Exported Analyses sits below Recent Playbooks",
+          playbooks_y < exports_y, f"{playbooks_y:.0f} < {exports_y:.0f}")
+
+    chips = page.locator("section[aria-label='Ask Playbook'] button")
+    check(f"[{viewport}] quick prompts are under the composer",
+          await chips.count() >= 4, f"{await chips.count()} controls")
+
+    overflow = await page.evaluate(
+        "document.body.scrollWidth > document.body.clientWidth")
+    check(f"[{viewport}] the page does not scroll sideways", not overflow)
+
+    SHOTS.mkdir(parents=True, exist_ok=True)
+    await page.screenshot(path=str(SHOTS / f"home-{viewport}.png"),
+                          full_page=True)
+
+    # ------------------------------------------ a starter must not generate
+    before = await page.locator("article").count()
+    await chips.nth(await chips.count() - 1).click()
+    await page.wait_for_timeout(600)
+    value = await composer.input_value()
+    check(f"[{viewport}] a quick prompt fills the composer",
+          len(value) > 20, f"{len(value)} characters")
+    check(f"[{viewport}] a quick prompt does not generate anything",
+          await page.locator("article").count() == before)
+
+    # ------------------------------------------------ 2. a seeded thread opens
+    cards = page.locator("section[aria-labelledby='recent-playbooks'] a")
+    check(f"[{viewport}] the three seeded playbooks are listed",
+          await cards.count() >= 3, f"{await cards.count()} cards")
+    # By name, not by position: the home screen orders by last activity, which
+    # is not what this journey is testing.
+    ifrs9 = cards.filter(has_text="IFRS 9 Committee Report")
+    check(f"[{viewport}] the IFRS 9 committee workspace is on the home screen",
+          await ifrs9.count() == 1)
+    await ifrs9.first.click()
+    await page.wait_for_load_state("networkidle")
+    await page.wait_for_timeout(1500)
+
+    articles = await page.locator("article").count()
+    check(f"[{viewport}] the thread reopens with its whole history",
+          articles >= 12, f"{articles} messages")
+
+    body = await page.locator("body").inner_text()
+    check(f"[{viewport}] seeded history is labelled synthetic",
+          "Demo" in body and "synthetic" in body.lower())
+    check(f"[{viewport}] the thread states the seeded ECL figure",
+          "22.77" in body)
+    check(f"[{viewport}] both artifact versions are recorded",
+          "Version 2" in body or "2 versions" in body)
+    check(f"[{viewport}] the sources pane lists the input files",
+          ".docx" in body or ".xlsx" in body)
+
+    await page.screenshot(path=str(SHOTS / f"thread-{viewport}.png"),
+                          full_page=True)
+
+    # ------------------------------------------------- downloads are real bytes
+    DOWNLOADS.mkdir(parents=True, exist_ok=True)
+    for fmt in ("docx", "pdf"):
+        link = page.locator(f'[data-testid="playbook-download-{fmt}"]').first
+        if await link.count() == 0:
+            check(f"[{viewport}] a {fmt} download is offered", False)
+            continue
+        async with page.expect_download() as info:
+            await link.click()
+        download = await info.value
+        target = DOWNLOADS / f"{viewport}-{download.suggested_filename}"
+        await download.save_as(str(target))
+        size = target.stat().st_size
+        head = target.read_bytes()[:4]
+        expected = b"%PDF" if fmt == "pdf" else b"PK\x03\x04"
+        check(f"[{viewport}] the {fmt} download is a real {fmt}",
+              size > 1000 and head == expected, f"{size} bytes")
+
+    # -------------------------------------------- 3. the picker and its boundary
+    await page.goto(f"{WEB}/playbook", wait_until="networkidle")
+    await page.wait_for_timeout(900)
+    await page.locator('button[aria-label="Add sources"]').click()
+    await page.wait_for_timeout(400)
+    check(f"[{viewport}] the plus menu offers both sources",
+          await page.locator('text="Upload from computer"').count() > 0
+          and await page.locator('text="Add exported analyses"').count() > 0)
+
+    await page.locator('text="Add exported analyses"').click()
+    await page.wait_for_timeout(1500)
+    dialog = page.locator('[role="dialog"]')
+    check(f"[{viewport}] the picker opens as a labelled dialog",
+          await dialog.count() > 0
+          and await dialog.first.get_attribute("aria-modal") == "true")
+
+    rows = dialog.locator('input[type="checkbox"]')
+    count = await rows.count()
+    check(f"[{viewport}] the picker lists the exported analyses",
+          count >= 10, f"{count} rows")
+
+    await rows.nth(0).check()
+    await rows.nth(1).check()
+    selected_before = await dialog.locator('text=/\\d+ selected/').inner_text()
+    check(f"[{viewport}] the selection count is visible",
+          "2 selected" in selected_before, selected_before)
+
+    # Preview one, come back, and the selection must survive.
+    await dialog.locator('button:has-text("Preview")').first.click()
+    await page.wait_for_timeout(2500)
+    preview_text = (await dialog.inner_text()).lower()
+    check(f"[{viewport}] the preview shows the analysis, not a summary",
+          "the question asked" in preview_text
+          and "what it found" in preview_text
+          and len(preview_text) > 600,
+          f"{len(preview_text)} characters")
+    await dialog.locator('button:has-text("Back to the list")').click()
+    await page.wait_for_timeout(800)
+    selected_after = await dialog.locator('text=/\\d+ selected/').inner_text()
+    check(f"[{viewport}] previewing does not clear the selection",
+          selected_after == selected_before,
+          f"{selected_before} then {selected_after}")
+
+    await page.screenshot(path=str(SHOTS / f"picker-{viewport}.png"))
+    await page.keyboard.press("Escape")
+    await page.wait_for_timeout(400)
+    check(f"[{viewport}] Escape closes the picker",
+          await page.locator('[role="dialog"]').count() == 0)
+
+    real_errors = [e for e in console_errors
+                   if "favicon" not in e.lower() and "404" not in e]
+    check(f"[{viewport}] no console errors", not real_errors,
+          "; ".join(real_errors[:2]))
+
+
+async def api_boundary(page) -> None:
+    """The backend half of PB-005 and PB-037, exercised over HTTP."""
+    unexported = await page.request.get(
+        f"{API}/api/v1/playbook/exports/revisions/99999999",
+        headers={"X-IPM-Role": "ADMIN"})
+    check("an id that was never exported is refused by the API",
+          unexported.status == 404, f"HTTP {unexported.status}")
+
+    missing_ws = await page.request.get(
+        f"{API}/api/v1/playbook/workspaces/99999999",
+        headers={"X-IPM-Role": "ADMIN"})
+    check("a workspace that does not exist is refused",
+          missing_ws.status == 404, f"HTTP {missing_ws.status}")
+
+    missing_file = await page.request.get(
+        f"{API}/api/v1/playbook/artifact-files/99999999/download",
+        headers={"X-IPM-Role": "ADMIN"})
+    check("a direct download of a file that does not exist is refused",
+          missing_file.status == 404, f"HTTP {missing_file.status}")
+
+    greeting = await page.request.post(
+        f"{API}/api/v1/playbook/exports",
+        headers={"X-IPM-Role": "ADMIN"},
+        data=json.dumps({"source_module": "cockpit", "title": "Hi",
+                         "narrative": "Hello."}),
+    )
+    check("a greeting cannot be exported through the API",
+          greeting.status == 422, f"HTTP {greeting.status}")
+
+    planner = await page.request.post(
+        f"{API}/api/v1/playbook/exports",
+        headers={"X-IPM-Role": "ADMIN"},
+        data=json.dumps({"source_module": "project_planner",
+                         "title": "Plan",
+                         "narrative": "x" * 200}),
+    )
+    check("Project Planner is not an accepted source module",
+          planner.status == 422, f"HTTP {planner.status}")
+
+    caps = await page.request.get(f"{API}/api/v1/playbook/capabilities",
+                                  headers={"X-IPM-Role": "ADMIN"})
+    body = await caps.text()
+    check("the capability report carries no credential",
+          "sk-ant" not in body)
+
+    monitoring = await page.request.get(f"{API}/api/v1/playbooks",
+                                        headers={"X-IPM-Role": "ADMIN"})
+    check("the monitoring Playbooks feature still answers",
+          monitoring.status in (200, 503), f"HTTP {monitoring.status}")
+
+
+async def main() -> int:
+    from playwright.async_api import async_playwright
+
+    executable = _chromium_path()
+    if executable is None:
+        print("CANNOT RUN: no Chromium found under /opt/pw-browsers.")
+        print("Browser acceptance is therefore NOT RUN, which is not a pass.")
+        return 2
+
+    print("Playbook browser acceptance")
+    print("=" * 72)
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(executable_path=executable,
+                                           args=["--no-sandbox"])
+        try:
+            for name, width, height in VIEWPORTS:
+                context = await browser.new_context(
+                    viewport={"width": width, "height": height},
+                    accept_downloads=True)
+                page = await context.new_page()
+                await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
+                print(f"\n-- {name} {width}x{height} " + "-" * 40)
+                await journey(page, name)
+                await context.close()
+
+            context = await browser.new_context()
+            page = await context.new_page()
+            print("\n-- API boundary " + "-" * 44)
+            await api_boundary(page)
+            await context.close()
+        finally:
+            await browser.close()
+
+    EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
+    EVIDENCE.write_text(json.dumps({
+        "passed": ok, "failed": bad, "notes": notes,
+        "screenshots": sorted(p.name for p in SHOTS.glob("*.png")),
+    }, indent=2) + "\n", encoding="utf-8")
+
+    print("\n" + "=" * 72)
+    print(f"{len(ok)} passed, {len(bad)} failed. "
+          f"Evidence: {EVIDENCE.relative_to(REPO)}")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(asyncio.run(main()))

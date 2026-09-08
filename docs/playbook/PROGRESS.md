@@ -57,13 +57,13 @@ These are pre-existing facts about the base commit, not defects introduced here.
 | Milestone | State |
 |---|---|
 | M0 — safe foundation | complete |
-| M1 — live vertical slice | implemented; live run BLOCKED on a credential |
-| M2 — home and thread UX | not started |
-| M3 — exported-analysis flow | not started |
-| M4 — intelligent reporting | not started |
-| M5 — demo completeness | not started |
-| M6 — verification and hardening | not started |
-| M7 — handoff | not started |
+| M1 — live vertical slice | implemented; live run **BLOCKED** on a credential |
+| M2 — home and thread UX | complete |
+| M3 — exported-analysis flow | complete; What If DEFERRED-INTEGRATION |
+| M4 — intelligent reporting | implemented; live behaviours **BLOCKED** |
+| M5 — demo completeness | complete |
+| M6 — verification and hardening | complete except the live suite |
+| M7 — handoff | in progress |
 
 ## Baseline test run
 
@@ -99,8 +99,30 @@ analytical runtime is untouched by this work, which is worth more than a tidier
 import path. Verified against the installed SDK rather than from memory, and
 re-checked against the provider's current documentation.
 
+## Verification actually run
+
+| What | Result |
+|---|---|
+| `pytest tests/playbook` | 196 passed |
+| `pytest tests/playbook tests/demo tests/api tests/services` | 830 passed |
+| `npm test` | 430 passed |
+| `tsc --noEmit`, `eslint`, `next build` | clean |
+| `ruff check .` | clean repository-wide |
+| `scripts/acceptance/playbook_browser_acceptance.py` | 57 passed, 0 failed |
+| `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
+| `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
+
+## GitHub Actions
+
+`list_workflow_runs` for `ci.yml` returns `total_count: 0` before and after
+pushing this branch. Actions appear to be disabled on this repository, so CI has
+never run and did not run on this work either. That is a fact about the
+repository, not about this branch — and it means CI is not a source of
+verification here. Everything above was run locally.
+
 ## Next action
 
-M2 and M3: the API surface, the Playbook home and thread UI, and the Export to
-Playbook hooks on the four modules that have a producing surface on this
-baseline.
+M7: the handoff summary. The only outstanding verification is the live
+authoring path, which needs `ANTHROPIC_API_KEY` in the environment.
+`scripts/playbook_live_slice.py` runs the whole vertical slice the moment one
+is present.
