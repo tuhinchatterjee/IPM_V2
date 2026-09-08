@@ -724,9 +724,18 @@ async function main() {
         (await page.locator('[data-testid="whatif-result"]').count()) === 0);
 
       // A follow-up narrows the table it is looking at.
+      //
+      // Waited for by COUNT rather than by selector: a card is already on
+      // screen from the first question, so `appears` returns true instantly
+      // and the assertions below then read the FIRST table — which is exactly
+      // what this check exists to catch, and it would have passed while the
+      // follow-up did nothing at all.
+      const before = await page.locator('[data-testid="whatif-analysis"]').count();
       await say(page, "Only show BBB- and weaker.");
-      const narrowed = await appears(page,
-        '[data-testid="whatif-analysis"]', 190_000);
+      const narrowed = await page.waitForFunction(
+        (n) => document.querySelectorAll(
+          '[data-testid="whatif-analysis"]').length > n,
+        before, { timeout: 190_000 }).then(() => true, () => false);
       check("a follow-up is answered too", narrowed);
       if (narrowed) {
         // The LAST card, scoped through the card itself. `:last-of-type` in
