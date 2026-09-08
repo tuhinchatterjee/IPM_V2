@@ -3791,6 +3791,9 @@ export interface PbSource {
   id: number;
   filename: string;
   role: string;
+  /** `user` when a person overruled the parser's guess. */
+  role_set_by?: string;
+  reporting_period?: string;
   status: "uploaded" | "parsing" | "parsed" | "partial" | "failed";
   size_bytes: number;
   manifest: {
@@ -4472,6 +4475,21 @@ export const api = {
     ),
   playbookWorkspace: (id: number) =>
     request<PbWorkspace>(`/playbook/workspaces/${id}`),
+  playbookSource: (sourceId: number) =>
+    request<PbSource>(`/playbook/sources/${sourceId}`),
+  correctPlaybookSource: (
+    sourceId: number,
+    payload: { source_role?: string; reporting_period?: string },
+  ) =>
+    request<PbSource>(`/playbook/sources/${sourceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  retryPlaybookSource: (sourceId: number) =>
+    request<PbSource>(`/playbook/sources/${sourceId}/retry`, {
+      method: "POST",
+      timeoutMs: 120_000,
+    }),
   playbookVersionPreview: (artifactId: number, version: number) =>
     request<PbVersionPreview>(
       `/playbook/artifacts/${artifactId}/versions/${version}/preview`,

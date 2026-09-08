@@ -541,3 +541,75 @@ class TestTheTaskFramingOverHTTP:
             json={"text": "Do it.", "task": "x" * 40,
                   "idempotency_key": f"ws{workspace_id}:long-task"})
         assert response.status_code == 422
+
+
+class TestCorrectingASource:
+    """PB-004 and PB-012. What a person may overrule about a parsed file."""
+
+    @pytest.fixture
+    def source_id(self, client, workspace_id) -> int:
+        import io as _io
+
+        from docx import Document as Docx
+
+        buf = _io.BytesIO()
+        doc = Docx()
+        doc.add_heading("Methodology", level=1)
+        doc.add_paragraph("Model monitoring is performed quarterly.")
+        doc.save(buf)
+        response = client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}/sources",
+            files={"file": ("standard.docx", buf.getvalue(),
+                            "application/vnd.openxmlformats-officedocument"
+                            ".wordprocessingml.document")},
+            data={"source_role": "supporting"})
+        assert response.status_code == 201, response.text
+        return response.json()["id"]
+
+    def test_a_source_reports_what_was_read_of_it(self, client, source_id):
+        body = client.get(f"/api/v1/playbook/sources/{source_id}").json()
+        assert body["status"] in {"parsed", "partial"}
+        assert body["manifest"]["read"]
+
+    def test_a_misidentified_role_can_be_corrected(self, client, source_id):
+        body = client.patch(f"/api/v1/playbook/sources/{source_id}",
+                            json={"source_role": "methodology"})
+        assert body.status_code == 200, body.text
+        assert body.json()["role"] == "methodology"
+        # Recorded as a person's decision, not another inference.
+        assert body.json()["role_set_by"] == "user"
+
+    def test_the_correction_survives_a_reload(self, client, workspace_id,
+                                              source_id):
+        client.patch(f"/api/v1/playbook/sources/{source_id}",
+                     json={"source_role": "previous_report",
+                           "reporting_period": "Q1 2026"})
+        workspace = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}").json()
+        source = next(s for s in workspace["sources"] if s["id"] == source_id)
+        assert source["role"] == "previous_report"
+        assert source["reporting_period"] == "Q1 2026"
+        assert source["role_set_by"] == "user"
+
+    def test_a_role_that_is_not_a_role_is_refused(self, client, source_id):
+        response = client.patch(f"/api/v1/playbook/sources/{source_id}",
+                                json={"source_role": "board_paper"})
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "invalid_source_role"
+        assert client.get(
+            f"/api/v1/playbook/sources/{source_id}").json()["role"] \
+            == "supporting"
+
+    def test_a_stored_file_can_be_parsed_again(self, client, source_id):
+        response = client.post(f"/api/v1/playbook/sources/{source_id}/retry")
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] in {"parsed", "partial"}
+
+    def test_another_tenants_source_is_not_reachable(self, client):
+        assert client.get(
+            "/api/v1/playbook/sources/99999999").status_code == 404
+        assert client.patch(
+            "/api/v1/playbook/sources/99999999",
+            json={"source_role": "results"}).status_code == 404
+        assert client.post(
+            "/api/v1/playbook/sources/99999999/retry").status_code == 404

@@ -114,6 +114,80 @@ def add_source(session, scope: repo.Scope, workspace_id: int, *,
     return source
 
 
+def get_source(session, scope: repo.Scope, source_id: int):
+    """One source, or NotFound, scoped to the caller's tenant."""
+    from backend.models.playbook import PlaybookSource
+
+    source = session.get(PlaybookSource, source_id)
+    if source is None:
+        raise repo.NotFound(f"No source {source_id}.")
+    repo.get_workspace(session, scope, source.workspace_id)
+    return source
+
+
+def correct_source(session, scope: repo.Scope, source_id: int, *,
+                   source_role: str = "", reporting_period: str | None = None):
+    """Let the user overrule what the parser decided about a file.
+
+    Two things are recorded, not one: the new value, and that a PERSON set it.
+    A role the user corrected must not be quietly re-inferred on the next
+    upload of the same file, and a reader of the evidence ledger should be able
+    to tell an inference from an instruction.
+    """
+    from backend.models.playbook import SOURCE_ROLES
+
+    source = get_source(session, scope, source_id)
+    if source_role:
+        if source_role not in SOURCE_ROLES:
+            raise repo.Invalid(
+                f"'{source_role}' is not a source role. Expected one of: "
+                + ", ".join(SOURCE_ROLES))
+        source.source_role = source_role
+        source.role_set_by = "user"
+        # The parser's confidence described the parser's guess. It says nothing
+        # about a value a person typed, so it goes rather than misleading.
+        source.role_confidence = ""
+    if reporting_period is not None:
+        source.reporting_period = reporting_period[:32]
+    session.flush()
+    return source
+
+
+def retry_source(session, scope: repo.Scope, source_id: int):
+    """Parse a stored file again.
+
+    The bytes are already on disk, so this re-reads them rather than asking the
+    user to upload the file a second time. It is the recovery for a parse that
+    failed on something transient; a file that is genuinely unreadable fails
+    again and says the same thing.
+    """
+    source = get_source(session, scope, source_id)
+    if not source.bytes_path or not store.exists(source.bytes_path):
+        raise repo.NotFound(
+            "This file's bytes are no longer stored, so it cannot be parsed "
+            "again. Upload it once more.")
+
+    content = store.read(source.bytes_path)
+    source.status = "parsing"
+    source.failure_reason = ""
+    session.flush()
+    try:
+        _, result = ingest.read(source.filename, content)
+    except ingest.UnreadableSource as exc:
+        source.status = "failed"
+        source.failure_reason = str(exc)
+        source.manifest = {"complete": False, "read": [], "skipped": [],
+                           "warnings": [str(exc)]}
+        session.flush()
+        return source
+
+    repo.set_chunks(session, source, result.chunks)
+    source.manifest = result.manifest.as_dict()
+    source.status = "parsed" if result.manifest.complete else "partial"
+    session.flush()
+    return source
+
+
 # --------------------------------------------------------------------------
 # Evidence
 # --------------------------------------------------------------------------

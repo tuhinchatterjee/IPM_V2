@@ -283,11 +283,7 @@ def get_workspace(workspace_id: int,
                     for m in repo.messages(session, ws.id)
                 ],
                 "sources": [
-                    {"id": s.id, "filename": s.filename, "role": s.source_role,
-                     "status": s.status, "size_bytes": s.size_bytes,
-                     "manifest": s.manifest,
-                     "failure_reason": s.failure_reason}
-                    for s in repo.sources(session, ws.id)
+                    _source_payload(s) for s in repo.sources(session, ws.id)
                 ],
                 "artifacts": artifacts,
             }
@@ -718,3 +714,81 @@ def preview_artifact_version(artifact_id: int, version_number: int,
         raise _not_found(exc) from exc
     except repo.StorageUnavailable as exc:
         raise _unavailable(exc) from exc
+
+
+# --------------------------------------------------------------------------
+# Correcting a source
+# --------------------------------------------------------------------------
+
+
+class SourceCorrection(BaseModel):
+    """What a person can overrule about a parsed file.
+
+    Only two things, and both because the parser guesses at them: what kind of
+    document this is, and which period it describes. Everything else about a
+    source is a fact about the bytes and is not the user's to change.
+    """
+
+    source_role: str = Field(default="", max_length=32)
+    reporting_period: str | None = Field(default=None, max_length=32)
+
+
+@router.get("/sources/{source_id}")
+def source(source_id: int, principal: Principal = RequireAnalyst) -> dict:
+    """One source: its parse status and what was and was not read of it."""
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return _source_payload(service.get_source(session, scope, source_id))
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.patch("/sources/{source_id}")
+def correct_source(source_id: int, body: SourceCorrection,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """Overrule what the parser decided about a file.
+
+    Records that a PERSON set the value, not just the value — so a reader of
+    the evidence can tell an inference from an instruction.
+    """
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return _source_payload(service.correct_source(
+                session, scope, source_id,
+                source_role=body.source_role,
+                reporting_period=body.reporting_period))
+    except repo.Invalid as exc:
+        raise _refused(exc, "invalid_source_role") from exc
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/sources/{source_id}/retry")
+def retry_source(source_id: int, principal: Principal = RequireAnalyst) -> dict:
+    """Parse a stored file again, without asking for it to be uploaded twice."""
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return _source_payload(
+                service.retry_source(session, scope, source_id))
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except store.StorageError as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+def _source_payload(source) -> dict:
+    return {"id": source.id, "filename": source.filename,
+            "role": source.source_role, "role_set_by": source.role_set_by,
+            "status": source.status, "size_bytes": source.size_bytes,
+            "reporting_period": source.reporting_period,
+            "manifest": source.manifest,
+            "failure_reason": source.failure_reason}

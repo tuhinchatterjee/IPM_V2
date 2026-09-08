@@ -13,6 +13,7 @@ import {
 
 import { AnalysisPicker } from "@/components/playbook/analysis-picker";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
+import { SourceCard } from "@/components/playbook/source-card";
 import { VersionPreview } from "@/components/playbook/version-preview";
 import { Composer, type Attachment } from "@/components/playbook/composer";
 import { MarkdownView } from "@/components/playbook/markdown-view";
@@ -33,12 +34,9 @@ import { useAsync } from "@/lib/hooks";
 import {
   composerState,
   currentVersion,
-  formatBytes,
   moduleLabel,
   nextSteps,
   openChangeSet,
-  roleLabel,
-  sourceStatus,
 } from "@/lib/playbook";
 
 const FORMAT_ICON = {
@@ -384,43 +382,13 @@ export default function PlaybookThreadPage({
               <p className="text-xs text-text-muted">Nothing attached yet.</p>
             ) : (
               <ul className="space-y-2">
-                {data.sources.map((source) => {
-                  const state = sourceStatus(source);
-                  return (
-                    <li
-                      key={source.id}
-                      className="rounded-md border border-border p-2.5"
-                    >
-                      <p className="truncate text-xs font-medium text-text-primary">
-                        {source.filename}
-                      </p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                        <Badge variant="outline">{roleLabel(source.role)}</Badge>
-                        <Badge
-                          variant={
-                            state.tone === "positive"
-                              ? "positive"
-                              : state.tone === "warning"
-                                ? "warning"
-                                : state.tone === "negative"
-                                  ? "negative"
-                                  : "default"
-                          }
-                        >
-                          {state.label}
-                        </Badge>
-                        <span className="text-[11px] text-text-muted">
-                          {formatBytes(source.size_bytes)}
-                        </span>
-                      </div>
-                      {state.detail && (
-                        <p className="mt-1 text-[11px] leading-relaxed text-text-muted">
-                          {state.detail}
-                        </p>
-                      )}
-                    </li>
-                  );
-                })}
+                {data.sources.map((source) => (
+                  <SourceCard
+                    key={source.id}
+                    source={source}
+                    onChanged={() => setRefresh((n) => n + 1)}
+                  />
+                ))}
               </ul>
             )}
           </section>

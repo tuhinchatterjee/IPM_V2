@@ -438,6 +438,71 @@ def _versioned_report() -> tuple[int, int]:
         return ws.id, artifact.id
 
 
+async def source_journey(page) -> None:
+    """PB-004 and PB-012. Correcting what the parser decided about a file."""
+    await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
+    created = await page.request.post(
+        f"{API}/api/v1/playbook/workspaces",
+        headers={"X-IPM-Role": "ADMIN",
+                 "Content-Type": "application/json"},
+        data=json.dumps({"title": "Acceptance — correcting a source"}))
+    workspace_id = (await created.json())["id"]
+    try:
+        DOWNLOADS.mkdir(parents=True, exist_ok=True)
+        path = DOWNLOADS / "acceptance-standard.docx"
+        path.write_bytes(_prior_report_bytes())
+        uploaded = await page.request.post(
+            f"{API}/api/v1/playbook/workspaces/{workspace_id}/sources",
+            headers={"X-IPM-Role": "ADMIN"},
+            multipart={"file": {"name": "acceptance-standard.docx",
+                                "mimeType": "application/vnd.openxmlformats-"
+                                            "officedocument.wordprocessingml"
+                                            ".document",
+                                "buffer": path.read_bytes()},
+                       "source_role": "supporting"})
+        source_id = (await uploaded.json())["id"]
+
+        await page.goto(f"{WEB}/playbook/{workspace_id}",
+                        wait_until="networkidle")
+        await page.wait_for_timeout(900)
+
+        select = page.locator(
+            f'[data-testid="playbook-source-role-{source_id}"]')
+        check("a source's kind is a control, not a fixed label",
+              await select.count() == 1)
+        check("it starts on what the upload said it was",
+              await select.input_value() == "supporting")
+
+        await select.select_option("methodology")
+        await page.wait_for_timeout(1200)
+        check("correcting the kind is recorded as a person's decision",
+              "You set this" in await page.locator("body").inner_text())
+
+        after = await (await page.request.get(
+            f"{API}/api/v1/playbook/sources/{source_id}",
+            headers={"X-IPM-Role": "ADMIN"})).json()
+        check("the correction reached the database, not just the screen",
+              after["role"] == "methodology" and after["role_set_by"] == "user",
+              f"{after['role']} / {after['role_set_by']}")
+
+        await page.reload(wait_until="networkidle")
+        await page.wait_for_timeout(900)
+        check("the correction survives a reload",
+              await page.locator(
+                  f'[data-testid="playbook-source-role-{source_id}"]'
+              ).input_value() == "methodology")
+
+        refused = await page.request.patch(
+            f"{API}/api/v1/playbook/sources/{source_id}",
+            headers={"X-IPM-Role": "ADMIN",
+                     "Content-Type": "application/json"},
+            data=json.dumps({"source_role": "board_paper"}))
+        check("a kind that is not one of the five is refused",
+              refused.status == 422, f"HTTP {refused.status}")
+    finally:
+        _drop_workspace(workspace_id)
+
+
 async def restore_journey(page) -> None:
     """PB-022. An earlier version comes back by moving forward."""
     await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
@@ -603,6 +668,8 @@ async def main() -> int:
 
             context = await browser.new_context()
             page = await context.new_page()
+            print("\n-- Correcting a source " + "-" * 37)
+            await source_journey(page)
             print("\n-- Restoring a version " + "-" * 37)
             await restore_journey(page)
             print("\n-- Proposed changes " + "-" * 40)

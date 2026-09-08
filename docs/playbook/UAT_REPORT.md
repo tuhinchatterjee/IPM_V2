@@ -10,7 +10,7 @@ check that could not run is `BLOCKED` rather than a pass.
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
 | Live Claude workflows | **BLOCKED** — no `ANTHROPIC_API_KEY` in this environment |
-| Browser and artifact UAT | **passed** — 84 browser checks, 62 artifact checks |
+| Browser and artifact UAT | **passed** — 90 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
@@ -44,9 +44,9 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **269 passed** |
+| Playbook backend | `pytest tests/playbook` | **275 passed** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
-| Full backend | `pytest -q` | see PROGRESS.md |
+| Full backend | `pytest -q` | **9753 passed, 22 skipped, 0 failed** |
 | Frontend units | `npm test` | **444 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
@@ -56,7 +56,7 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 ## Browser acceptance
 
 `scripts/acceptance/playbook_browser_acceptance.py` — real Chromium, real front
-end, real backend, at 1366×768 and 1600×900. **84 passed, 0 failed.**
+end, real backend, at 1366×768 and 1600×900. **90 passed, 0 failed.**
 
 What it proved, rather than what it looked at:
 
@@ -79,6 +79,9 @@ What it proved, rather than what it looked at:
   where v3 came from, the downloaded file is byte-for-byte the file that was
   reviewed as v1 under a v3 filename, and restoring the version already current
   is refused.
+- A source's kind is a control rather than a fixed label: correcting it is
+  recorded as a person's decision, reaches the database, survives a reload, and
+  a kind that is not one of the five is refused.
 - Any version can be read in the application without downloading it, and the
   preview offers the file rather than replacing it. Escape closes it.
 - A five-item proposal is decided in the interface: changes 1, 2 and 5 are

@@ -103,12 +103,12 @@ re-checked against the provider's current documentation.
 
 | What | Result |
 |---|---|
-| `pytest tests/playbook` | 216 passed |
+| `pytest tests/playbook` | 275 passed |
 | `pytest tests/playbook tests/demo tests/api tests/services` | 830 passed |
-| `npm test` | 442 passed |
+| `npm test` | 444 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
-| `scripts/acceptance/playbook_browser_acceptance.py` | 84 passed, 0 failed |
+| `scripts/acceptance/playbook_browser_acceptance.py` | 90 passed, 0 failed |
 | `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
 | `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
 
@@ -196,6 +196,20 @@ that was never about a document.
 `task` and `scope` are optional on the message API, and the follow-up chips
 carry theirs, so a chip's meaning does not depend on the wording of its
 sentence. Typing over the chip's text clears the framing with it.
+
+## Correcting a source
+
+The parser guesses at two things about an uploaded file — what kind of document
+it is and which period it describes — and until now neither could be overruled.
+A methodology document read as "supporting" is evidence the author weighs
+wrongly, and there was no way to say so.
+
+Both are now editable, and the correction records that a PERSON set the value,
+not just the value: a reader of the evidence can tell an inference from an
+instruction, and the parser's confidence is cleared rather than left describing
+a guess nobody made. A failed or partial parse offers a retry that re-reads the
+stored bytes rather than asking for the file again — the bytes are already
+there, and a second upload would prove nothing the first did not.
 
 ## Next action
 

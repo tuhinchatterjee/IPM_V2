@@ -55,6 +55,10 @@ class NotFound(LookupError):
     """No such workspace, source, artifact or export — for this caller."""
 
 
+class Invalid(ValueError):
+    """The request is well formed and asks for something that is not allowed."""
+
+
 def require_db() -> None:
     from backend.config import settings
 
