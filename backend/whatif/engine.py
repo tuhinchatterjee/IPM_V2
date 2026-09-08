@@ -39,6 +39,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from backend.corporate import ratingscale as rs
 from backend.ifrs9 import policy
 from backend.whatif import masterscale as ms
 from backend.whatif import scenarios as sc
@@ -892,8 +893,21 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
     # The clamps are a driver too, and a named one. A shock that ran into the
     # policy limits did not have the effect it asked for, and attributing the
     # difference to the shock would overstate it.
+    #
+    # The PD ceiling of 99% exists so a PERFORMING borrower is never modelled
+    # as certain to default. It must not touch a borrower that already has:
+    # a defaulted exposure carries 100%, and clipping it to 99 would restate
+    # the reported book — asserting a one-in-a-hundred chance that an event
+    # already observed did not occur — on every scenario, including one that
+    # never mentioned PD.
     _before = _snapshot()
-    work["pd_stressed"] = work["pd_stressed"].clip(lower=0.0, upper=99.0)
+    ceiling = np.where(
+        pd.to_numeric(work.get("stage_baseline", work.get("stage")),
+                      errors="coerce").fillna(1) >= 3,
+        rs.DEFAULT_PD_PCT, 99.0)
+    work["pd_stressed"] = np.clip(
+        pd.to_numeric(work["pd_stressed"], errors="coerce").fillna(0.0),
+        0.0, ceiling)
     work["lgd_stressed"] = work["lgd_stressed"].clip(lower=0.0, upper=95.0)
     work["ead_stressed"] = work["ead_stressed"].clip(lower=0.0)
     _record(DRIVER_LIMITS, _before)
