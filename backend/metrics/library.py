@@ -1225,6 +1225,35 @@ CORPORATE_EARLY_WARNING: tuple[MetricDefinition, ...] = (
        not_this="A breach on the reported headroom, not a waiver decision. "
                 "Whether the bank has waived it is a separate record."),
 
+    # The AMOUNTS behind the two rates above. See the note on
+    # `corporate.high_severity_exposure`: a share cannot be the numerator of
+    # another ratio, and "covenant breach exposure over corporate exposure" is
+    # a request for an amount.
+    _m("corporate.covenant_breach_exposure", "Covenant Breach Exposure",
+       "Exposure to facilities whose covenant headroom has gone negative.",
+       _total(_t("cb", "Breached EAD", FACILITIES, "sum", "exposure",
+                 covenant_headroom_pct__lt=0)),
+       unit="currency", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("covenant breach exposure", "breached exposure",
+                "exposure in covenant breach", "covenant breach ead"),
+       formula_text="SUM(exposure where covenant_headroom_pct < 0)",
+       decimals=0, higher_is_better=False,
+       not_this="Not the covenant breach RATE beside it. This is the amount; "
+                "that is the share of the book it represents."),
+
+    _m("corporate.watchlist_exposure_amount", "Watchlist Exposure Amount",
+       "Exposure to customers the bank has placed on the watchlist, as an "
+       "amount rather than a share.",
+       _total(_t("w", "Watchlist EAD", FACILITIES, "sum", "exposure",
+                 watchlist=True)),
+       unit="currency", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("watchlist exposure amount", "watchlisted exposure",
+                "exposure on watch"),
+       formula_text="SUM(exposure where watchlist)", decimals=0,
+       higher_is_better=False,
+       not_this="The same figure as Watchlist Exposure, kept under a second "
+                "name so a formula asking for an amount finds one."),
+
     _m("corporate.weighted_dscr", "Exposure-Weighted DSCR",
        "Debt service coverage across the book, weighted by exposure.",
        Formula(kind="weighted_average", numerator=Side(terms=(
@@ -1288,6 +1317,43 @@ CORPORATE_EARLY_WARNING: tuple[MetricDefinition, ...] = (
        not_this="An unweighted mean across facilities, not an exposure "
                 "weighting: the score is a property of the name rather than "
                 "of the amount lent to it."),
+
+    # The AMOUNT, beside the rates above. Every early-warning metric here was
+    # a share of the book, and a share cannot be the numerator of another
+    # ratio — "high-severity EWS exposure over total corporate exposure" needs
+    # an exposure, and until this entry existed the only thing the catalogue
+    # could offer for it was a percentage, which would have produced a
+    # plausible number a hundred times too small.
+    _m("corporate.high_severity_exposure", "High-Severity EWS Exposure",
+       "Exposure to facilities carrying a high or critical early-warning "
+       "severity.",
+       _total(_t("hs", "High-severity EAD", FACILITIES, "sum", "exposure",
+                 severity__in=("High", "Critical"))),
+       unit="currency", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("high severity exposure", "high ews exposure",
+                "high-severity ews exposure", "ews exposure",
+                "high severity ead", "severe exposure",
+                "high and critical severity exposure"),
+       formula_text="SUM(exposure where severity in ('High', 'Critical'))",
+       decimals=0, higher_is_better=False,
+       not_this="Not the critical-severity rate beside it. This is the "
+                "amount; that is the share, and dividing one ratio by another "
+                "is how a number ends up a hundred times too small."),
+
+    _m("corporate.high_severity_rate", "High-Severity EWS Exposure Rate",
+       "The share of exposure carrying a high or critical early-warning "
+       "severity.",
+       _ratio([_t("hs", "High-severity EAD", FACILITIES, "sum", "exposure",
+                  severity__in=("High", "Critical"))],
+              [_t("all", "Total exposure", FACILITIES, "sum", "exposure")]),
+       unit="percent", domain=CORPORATE_EW, portfolio="Corporate",
+       aliases=("high severity rate", "high severity share",
+                "high and critical severity rate"),
+       formula_text=("SUM(exposure where severity in ('High', 'Critical')) / "
+                     "SUM(exposure) × 100"),
+       higher_is_better=False,
+       not_this="Wider than the critical-severity rate beside it, which "
+                "counts only the worst band."),
 )
 
 

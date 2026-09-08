@@ -362,7 +362,13 @@ class Compiler:
         if comparison == "is_not_null":
             return f"{column} IS NOT NULL"
         if comparison in ("in", "not_in"):
-            values = value if isinstance(value, list) else [value]
+            # A tuple counts as a list of values. It did not before, and an
+            # `in` filter written with one — which is the natural shape for a
+            # frozen metric definition — bound the whole tuple to a single
+            # placeholder and failed inside DuckDB with a cast error nobody
+            # could trace back to the definition.
+            values = (list(value) if isinstance(value, (list, tuple))
+                      else [value])
             if not values:
                 # An empty IN list is a contradiction in SQL and a mistake in a
                 # plan. Say so rather than silently returning nothing.
