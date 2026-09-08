@@ -108,6 +108,21 @@ def apply(investigation: Any, v2: dict[str, Any]) -> bool:
     compound = getattr(investigation, "compound", None)
     if isinstance(compound, dict) and compound.get("why"):
         compound.pop("why", None)
+
+    # When V2 took the turn but could NOT answer — an unpublished quarter, a
+    # scope it may not read — the deterministic figures underneath it answer a
+    # DIFFERENT question, and leaving them on screen recreates the substitution
+    # the gap statement exists to prevent. The browser showed "Q4 2019 is not
+    # loaded" directly above a Q1-to-Q2 comparison of the other book.
+    answered_something = any(section.get("answered")
+                             for section in (v2.get("sections") or []))
+    if not answered_something:
+        narrative.metrics = []
+        narrative.findings = []
+        narrative.drivers = []
+        steps = getattr(investigation, "steps", None)
+        if isinstance(steps, list):
+            steps.clear()
     return True
 
 

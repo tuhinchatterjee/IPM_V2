@@ -15,13 +15,12 @@
     "incomplete_cases": [],
     "critical_failures": [],
     "latency_ms": {
-      "median": 377,
-      "p90": 1240,
-      "max": 4164
+      "median": 430,
+      "p90": 1501,
+      "max": 2695
     },
     "prose_sources": {
-      "deterministic": 2,
-      "deterministic_v2": 64
+      "deterministic_v2": 66
     },
     "model_calls_total": 0,
     "scoring": "Deterministic. Numeric facts matched as parsed numbers within tolerance with the unit in the same sentence, or in a returned table. No model grades a model. Reference prose is not scored against.",
@@ -131,7 +130,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 4164,
+      "elapsed_ms": 2695,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -142,8 +141,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A1-02",
@@ -187,7 +186,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 674,
+      "elapsed_ms": 586,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition",
@@ -199,8 +198,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 45.07 INR crore at Q1 2026 to 52.78 INR crore at Q2 2026, a movement of 7.70 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 7.24 INR crore, which this method allocates 94.0% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 8.88e-16 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 7.24 INR crore; exposure and ead path 0.52 INR crore. Reducing it: recovery and lgd -0.46 INR",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A1-03",
@@ -244,7 +243,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1324,
+      "elapsed_ms": 1300,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -254,8 +253,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A1-04",
@@ -357,7 +356,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 367,
+      "elapsed_ms": 334,
       "tools": [
         "aggregate_snapshot",
         "get_policy_definition"
@@ -367,8 +366,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "As at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\nAs at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\nAs at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverag",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A1-05",
@@ -430,7 +429,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 2194,
+      "elapsed_ms": 2256,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -441,8 +440,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A2-06",
@@ -530,7 +529,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 373,
+      "elapsed_ms": 434,
       "tools": [
         "get_policy_definition",
         "scenario_comparison"
@@ -540,8 +539,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 the three scenarios produce base 291.61 INR crore, upturn 223.08 INR crore, downturn 420.54 INR crore. Weighting them at base 60%, upturn 20%, downturn 20% gives a modelled ECL of 303.70 INR crore, and adding the separately identified overlay of 3.92 INR crore gives the reported allowance of 307.62 INR crore.\n\nThe weighted result sits where it does because base carries the largest weighted contribution at 174.97 INR crore \u2014 the downturn scenario is only 20% likely but its loss is 1.44 times the base case, so it pulls the weighted figure well above the base scenario.\n\nA weighted-para",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A2-07",
@@ -578,7 +577,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 371,
+      "elapsed_ms": 419,
       "tools": [
         "aggregate_snapshot",
         "get_definition",
@@ -590,8 +589,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Twelve-month PD. The probability of default within the next twelve months. A different measure from lifetime PD, and the horizon is part of the measure rather than a footnote to it.\n\nAs at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\nTwelve-month PD. The probability of default within the next twelve months. A different measure from lifetime PD, and the horizon is part of the measure rather than a footnote to it",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A2-08",
@@ -628,7 +627,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1182,
+      "elapsed_ms": 1242,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition",
@@ -640,8 +639,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A2-09",
@@ -714,7 +713,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 371,
+      "elapsed_ms": 433,
       "tools": [
         "collateral_review",
         "get_policy_definition",
@@ -728,8 +727,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "No. On this data at Q2 2026 the product of the weighted parameters comes to 136.56 INR crore while the weighted model ECL is 303.70 INR crore \u2014 a difference of 167.14 INR crore, or 55.0% of the modelled figure. The reason is that the expectation of a product is not the product of expectations: PD, LGD and EAD move together across scenarios, and the downturn scenario pairs its high PD with its high LGD. Weighting each parameter separately throws that covariance away. Weighted parameter summaries remain useful descriptive measures; they are not a route back to the weighted ECL.\n\nAt Q2 2026 recog",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A2-10",
@@ -759,7 +758,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 411,
+      "elapsed_ms": 422,
       "tools": [
         "get_policy_definition",
         "scenario_comparison"
@@ -769,8 +768,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 the three scenarios produce base 291.61 INR crore, upturn 223.08 INR crore, downturn 420.54 INR crore. Weighting them at base 60%, upturn 20%, downturn 20% gives a modelled ECL of 303.70 INR crore, and adding the separately identified overlay of 3.92 INR crore gives the reported allowance of 307.62 INR crore.\n\nThe weighted result sits where it does because base carries the largest weighted contribution at 174.97 INR crore \u2014 the downturn scenario is only 20% likely but its loss is 1.44 times the base case, so it pulls the weighted figure well above the base scenario.\n\nA weighted-para",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A3-11",
@@ -814,7 +813,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 109,
+      "elapsed_ms": 137,
       "tools": [
         "get_policy_definition",
         "rating_review"
@@ -824,8 +823,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A3-12",
@@ -862,7 +861,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 115,
+      "elapsed_ms": 138,
       "tools": [
         "get_policy_definition",
         "rating_review"
@@ -872,8 +871,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A3-13",
@@ -910,7 +909,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 387,
+      "elapsed_ms": 381,
       "tools": [
         "get_policy_definition",
         "rating_review"
@@ -920,8 +919,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A3-14",
@@ -965,7 +964,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 409,
+      "elapsed_ms": 449,
       "tools": [
         "get_policy_definition",
         "rating_review"
@@ -975,8 +974,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A3-15",
@@ -1042,7 +1041,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 173,
+      "elapsed_ms": 219,
       "tools": [
         "data_quality",
         "get_policy_definition",
@@ -1054,8 +1053,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A4-16",
@@ -1121,7 +1120,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 426,
+      "elapsed_ms": 404,
       "tools": [
         "covenant_review",
         "get_policy_definition"
@@ -1131,8 +1130,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\nAt Q2 2026 137 covenant test(s) are ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A4-17",
@@ -1169,7 +1168,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 348,
+      "elapsed_ms": 372,
       "tools": [
         "covenant_review",
         "get_policy_definition"
@@ -1179,8 +1178,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\nAt Q2 2026 137 covenant test(s) are ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A4-18",
@@ -1231,7 +1230,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 350,
+      "elapsed_ms": 362,
       "tools": [
         "covenant_review",
         "get_policy_definition"
@@ -1241,8 +1240,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\nAt Q2 2026 137 covenant test(s) are ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A4-19",
@@ -1286,7 +1285,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 355,
+      "elapsed_ms": 366,
       "tools": [
         "covenant_review",
         "get_policy_definition"
@@ -1296,8 +1295,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\nAt Q2 2026 137 covenant test(s) are ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A4-20",
@@ -1341,7 +1340,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 418,
+      "elapsed_ms": 403,
       "tools": [
         "covenant_review",
         "get_policy_definition"
@@ -1351,8 +1350,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\nAt Q2 2026 137 covenant test(s) are ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A5-21",
@@ -1389,7 +1388,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 99,
+      "elapsed_ms": 117,
       "tools": [
         "collateral_review",
         "get_policy_definition"
@@ -1399,8 +1398,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 recognised security covers 36,164.45 INR crore of 66,892.77 INR crore of exposure, leaving 30,728.32 INR crore unsecured \u2014 45.9% of the book. Recognised value is the valuation after the policy haircut and after allocation across the facilities that share an asset, so a property securing three facilities is counted once and not three times.\n\n1 asset(s) secure more than one facility. Summing the allocations of each shared asset and comparing with its recognised value shows 0 over-allocation(s), so the cross-collateralisation reconciles.\nAt Q2 2026 recognised security covers 36,164.45 ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A5-22",
@@ -1451,7 +1450,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 391,
+      "elapsed_ms": 408,
       "tools": [
         "collateral_review",
         "get_policy_definition"
@@ -1461,8 +1460,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 recognised security covers 36,164.45 INR crore of 66,892.77 INR crore of exposure, leaving 30,728.32 INR crore unsecured \u2014 45.9% of the book. Recognised value is the valuation after the policy haircut and after allocation across the facilities that share an asset, so a property securing three facilities is counted once and not three times.\n\n1 asset(s) secure more than one facility. Summing the allocations of each shared asset and comparing with its recognised value shows 0 over-allocation(s), so the cross-collateralisation reconciles.\nAt Q2 2026 recognised security covers 36,164.45 ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A5-23",
@@ -1510,7 +1509,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 388,
+      "elapsed_ms": 367,
       "tools": [
         "collateral_review",
         "get_policy_definition"
@@ -1520,8 +1519,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 recognised security covers 5,229.34 INR crore of 10,614.81 INR crore of exposure, leaving 5,385.47 INR crore unsecured \u2014 50.7% of the book. Recognised value is the valuation after the policy haircut and after allocation across the facilities that share an asset, so a property securing three facilities is counted once and not three times.\n\n1 asset(s) secure more than one facility. Summing the allocations of each shared asset and comparing with its recognised value shows 0 over-allocation(s), so the cross-collateralisation reconciles.\nAt Q2 2026 recognised security covers 5,229.34 INR",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A5-24",
@@ -1580,7 +1579,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 374,
+      "elapsed_ms": 386,
       "tools": [
         "collateral_review",
         "covenant_review",
@@ -1592,8 +1591,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\n\nAt Q2 2026 recognised security cove",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A5-25",
@@ -1630,7 +1629,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 423,
+      "elapsed_ms": 420,
       "tools": [
         "collateral_review",
         "get_policy_definition",
@@ -1642,8 +1641,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A6-26",
@@ -1694,7 +1693,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 447,
+      "elapsed_ms": 440,
       "tools": [
         "get_policy_definition",
         "stage_review"
@@ -1704,8 +1703,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 the book stands at 509 facilities in Stage 1, 0 facilities in Stage 2, 0 facilities in Stage 3. Staging follows the stated demo SICR policy: Stage 2 requires 3 or more notches of downgrade since origination, a lifetime PD at least 2 times its origination level above a 1% floor, or 30 days past due as a backstop. One downgrade on its own does not stage an account.\n\n93 facility/-ies changed stage since Q1 2026: CKB-0024-F2 2->1 (none); CKB-0028-F1 2->1 (none); CKB-0032-F1 2->1 (none); CKB-0034-F1 2->1 (none); CKB-0037-F1 2->1 (none); CKB-0046-F2 2->1 (none); CKB-0048-F1 2->1 (none); C",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A6-27",
@@ -1753,7 +1752,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 449,
+      "elapsed_ms": 458,
       "tools": [
         "get_policy_definition",
         "rating_review",
@@ -1765,8 +1764,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A6-28",
@@ -1817,7 +1816,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 501,
+      "elapsed_ms": 535,
       "tools": [
         "decompose_ratio",
         "get_policy_definition",
@@ -1831,8 +1830,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "NPL ratio moved from 0.160% to 0.145%, a change of -1.50 basis points. Splitting that exactly into a numerator and a denominator effect: the numerator contributed -1.48 bp and the denominator -0.02 bp. The numerator did the work \u2014 the ratio moved mainly because the numerator changed, which is a different fact from the other reading and the two should not be confused.\n\nIn levels: the numerator went from 106.78 INR crore to 96.88 INR crore and the denominator from 66,794.03 INR crore to 66,892.77 INR crore. The two effects sum to the whole change, so there is no separate mix term to add \u2014 one wo",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A6-29",
@@ -1887,7 +1886,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1284,
+      "elapsed_ms": 1564,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition",
@@ -1899,8 +1898,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A6-30",
@@ -1944,7 +1943,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1201,
+      "elapsed_ms": 1315,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition",
@@ -1956,8 +1955,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A7-31",
@@ -2005,7 +2004,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 442,
+      "elapsed_ms": 450,
       "tools": [
         "aggregate_snapshot",
         "concentration",
@@ -2019,8 +2018,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "As at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\n\n4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A7-32",
@@ -2057,7 +2056,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 460,
+      "elapsed_ms": 552,
       "tools": [
         "collateral_review",
         "get_policy_definition",
@@ -2071,8 +2070,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL over the 8 published quarter(s): Q3 2024 226.58 INR crore; Q4 2024 239.64 INR crore; Q1 2025 51.69 INR crore; Q2 2025 49.69 INR crore; Q3 2025 86.22 INR crore; Q4 2025 70.90 INR crore; Q1 2026 45.07 INR crore; Q2 2026 52.78 INR crore. The latest reading of 52.78 INR crore is 7.70 INR crore against the prior quarter.\n\nAgainst the 7 preceding observations the latest value sits -0.67 standard deviations from their mean of 109.97 INR crore. That is a descriptive comparison over a very short series, not a finding of statistical abnormality.\n\nNo rating downgrade is recorded in this scop",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A7-33",
@@ -2127,7 +2126,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1240,
+      "elapsed_ms": 1319,
       "tools": [
         "concentration",
         "decompose_ecl_factors",
@@ -2139,8 +2138,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A7-34",
@@ -2184,7 +2183,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1278,
+      "elapsed_ms": 1366,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition",
@@ -2196,8 +2195,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A7-35",
@@ -2234,7 +2233,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 236,
+      "elapsed_ms": 277,
       "tools": [
         "get_policy_definition",
         "rating_review"
@@ -2244,8 +2243,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A8-36",
@@ -2296,7 +2295,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 293,
+      "elapsed_ms": 359,
       "tools": [
         "get_macro_dependencies",
         "get_policy_definition"
@@ -2306,8 +2305,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Of the ten macroeconomic predictors this demo carries, 4 enter the PD model for Construction: real gdp growth with coefficient -0.42 at a 1-quarter lag; policy rate with coefficient +0.30 at a 2-quarter lag; commercial property prices with coefficient -0.22 at a 1-quarter lag; unemployment with coefficient +0.18 at a 2-quarter lag. The remaining 6 \u2014 inflation, government bond yield, exchange rate move, oil price move, industrial production, real household income \u2014 are carried in the dataset but have no declared sensitivity for this sector, so they do not affect its PD.\n\nSeparately, commercial ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A8-37",
@@ -2344,7 +2343,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 336,
+      "elapsed_ms": 339,
       "tools": [
         "data_quality",
         "get_macro_dependencies",
@@ -2356,8 +2355,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "The demo carries 10 macroeconomic predictors and 27 declared sensitivities across 8 sectors. This is a proposed demonstration set, not a statistically validated selection, and not every predictor enters every model.\n\nAt Q2 2026, of 805 facilities: 0 have no financial statement available at all; 1 rely on a statement older than the 450-day threshold; 1 carry a rating older than 400 days; 0 rely on a collateral valuation older than 540 days; 16 covenant test(s) could not be run; and 0 have no computable DSCR. Each of these is reported as unavailable rather than as a zero.\nThe demo carries 10 mac",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A8-38",
@@ -2394,7 +2393,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 2011,
+      "elapsed_ms": 2105,
       "tools": [
         "decompose_ecl_factors",
         "get_macro_dependencies",
@@ -2407,8 +2406,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A8-39",
@@ -2445,7 +2444,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 376,
+      "elapsed_ms": 479,
       "tools": [
         "get_macro_dependencies",
         "get_policy_definition",
@@ -2457,8 +2456,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "The demo carries 10 macroeconomic predictors and 27 declared sensitivities across 8 sectors. This is a proposed demonstration set, not a statistically validated selection, and not every predictor enters every model.\n\nAt Q2 2026 the three scenarios produce base 291.61 INR crore, upturn 223.08 INR crore, downturn 420.54 INR crore. Weighting them at base 60%, upturn 20%, downturn 20% gives a modelled ECL of 303.70 INR crore, and adding the separately identified overlay of 3.92 INR crore gives the reported allowance of 307.62 INR crore.\n\nThe weighted result sits where it does because base carries ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A8-40",
@@ -2495,7 +2494,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 392,
+      "elapsed_ms": 427,
       "tools": [
         "collateral_review",
         "get_macro_dependencies",
@@ -2507,8 +2506,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 recognised security covers 36,164.45 INR crore of 66,892.77 INR crore of exposure, leaving 30,728.32 INR crore unsecured \u2014 45.9% of the book. Recognised value is the valuation after the policy haircut and after allocation across the facilities that share an asset, so a property securing three facilities is counted once and not three times.\n\n1 asset(s) secure more than one facility. Summing the allocations of each shared asset and comparing with its recognised value shows 0 over-allocation(s), so the cross-collateralisation reconciles.\n\nThe demo carries 10 macroeconomic predictors an",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A9-41",
@@ -2545,7 +2544,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 482,
+      "elapsed_ms": 484,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -2556,8 +2555,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 45.07 INR crore at Q1 2026 to 52.78 INR crore at Q2 2026, a movement of 7.70 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 7.24 INR crore, which this method allocates 94.0% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 8.88e-16 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 7.24 INR crore; exposure and ead path 0.52 INR crore. Reducing it: recovery and lgd -0.46 INR",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A9-42",
@@ -2587,7 +2586,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1127,
+      "elapsed_ms": 1288,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -2597,8 +2596,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.53 INR crore at Q2 2026, a movement of 17.19 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.6% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.20e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A10-46",
@@ -2642,7 +2641,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 257,
+      "elapsed_ms": 326,
       "tools": [
         "get_definition",
         "get_policy_definition"
@@ -2652,8 +2651,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Credit conversion factor. The proportion of an undrawn commitment assumed to be drawn by the time a borrower defaults. It is what turns a limit into an exposure at default: EAD is the drawn balance plus the CCF applied to the undrawn part. Exposure and EAD are therefore different numbers, and this demo keeps them in separate fields.\nCredit conversion factor. The proportion of an undrawn commitment assumed to be drawn by the time a borrower defaults. It is what turns a limit into an exposure at default: EAD is the drawn balance plus the CCF applied to the undrawn part. Exposure and EAD are ther",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A10-47",
@@ -2690,7 +2689,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1143,
+      "elapsed_ms": 1289,
       "tools": [
         "decompose_ecl_factors",
         "get_definition",
@@ -2702,8 +2701,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Twelve-month ECL. Expected credit loss from defaults that occur within the next twelve months. The losses from such a default may still be realised years later.\n\nReported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figur",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A11-51",
@@ -2739,8 +2738,8 @@
           "detail": ""
         }
       ],
-      "prose_source": "deterministic",
-      "elapsed_ms": 282,
+      "prose_source": "deterministic_v2",
+      "elapsed_ms": 355,
       "tools": [
         "get_policy_definition"
       ],
@@ -2748,9 +2747,9 @@
         "ecl_factor_decomposition"
       ],
       "model_calls": 0,
-      "answer_excerpt": "Q4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nExpected credit loss fell from 6,000 to 5,313 USD mn between Q2 2025 and Q2 2026 \u2014 a change of 687.4 USD mn (11.46%).\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.",
-      "repeats": 2,
-      "repeat_agreement": true
+      "answer_excerpt": "Q4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.",
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "A12-56",
@@ -2794,7 +2793,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 293,
+      "elapsed_ms": 377,
       "tools": [
         "describe_scope",
         "get_policy_definition"
@@ -2804,8 +2803,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "The Cockpit reads its own certified demonstration domain and nothing else. That is enforced in the backend, as the intersection of this capability scope and your own dataset permissions, so a request cannot widen it \u2014 not by naming another domain, not by a flag in the request, and not by an instruction in a data field. The 17 dataset(s) readable here are cockpit_2024_q3, cockpit_2024_q4, cockpit_2025_q1, cockpit_2025_q2, cockpit_2025_q3, cockpit_2025_q4 and others in the same domain. Anything held in Early Warning, Scorecards, Planner, Lenses, Playbook or What-if stays in those features, which",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-01",
@@ -2853,7 +2852,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1234,
+      "elapsed_ms": 1550,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -2863,8 +2862,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-02",
@@ -2908,7 +2907,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1161,
+      "elapsed_ms": 1677,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -2919,8 +2918,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-03",
@@ -2972,7 +2971,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 332,
+      "elapsed_ms": 453,
       "tools": [
         "aggregate_snapshot",
         "get_policy_definition"
@@ -2982,8 +2981,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "As at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\nAs at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\nAs at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverag",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-04",
@@ -3031,7 +3030,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 327,
+      "elapsed_ms": 449,
       "tools": [
         "get_policy_definition",
         "scenario_comparison"
@@ -3041,8 +3040,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 the three scenarios produce base 291.61 INR crore, upturn 223.08 INR crore, downturn 420.54 INR crore. Weighting them at base 60%, upturn 20%, downturn 20% gives a modelled ECL of 303.70 INR crore, and adding the separately identified overlay of 3.92 INR crore gives the reported allowance of 307.62 INR crore.\n\nThe weighted result sits where it does because base carries the largest weighted contribution at 174.97 INR crore \u2014 the downturn scenario is only 20% likely but its loss is 1.44 times the base case, so it pulls the weighted figure well above the base scenario.\n\nA weighted-para",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-05",
@@ -3090,7 +3089,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 288,
+      "elapsed_ms": 426,
       "tools": [
         "get_policy_definition",
         "parameter_product_check"
@@ -3100,8 +3099,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "No. On this data at Q2 2026 the product of the weighted parameters comes to 136.56 INR crore while the weighted model ECL is 303.70 INR crore \u2014 a difference of 167.14 INR crore, or 55.0% of the modelled figure. The reason is that the expectation of a product is not the product of expectations: PD, LGD and EAD move together across scenarios, and the downturn scenario pairs its high PD with its high LGD. Weighting each parameter separately throws that covariance away. Weighted parameter summaries remain useful descriptive measures; they are not a route back to the weighted ECL.\nNo. On this data ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-06",
@@ -3138,7 +3137,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 351,
+      "elapsed_ms": 538,
       "tools": [
         "get_policy_definition",
         "rating_review"
@@ -3148,8 +3147,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-07",
@@ -3197,7 +3196,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 128,
+      "elapsed_ms": 156,
       "tools": [
         "data_quality",
         "get_policy_definition",
@@ -3209,8 +3208,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).\n\nOn the financial inputs behind those grades, the weakest debt service coverage on the book is CKB-0274 at -14.00x; CKB-0055 at -9.55x; CKB-0284 at -9.13x; CKB-0354 at -6.86x; CKB-0420 at -6.56x. DSCR here is cash available for debt servi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-08",
@@ -3265,7 +3264,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 336,
+      "elapsed_ms": 490,
       "tools": [
         "covenant_review",
         "get_policy_definition"
@@ -3275,8 +3274,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\nAt Q2 2026 137 covenant test(s) are ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-09",
@@ -3328,7 +3327,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 413,
+      "elapsed_ms": 538,
       "tools": [
         "collateral_review",
         "covenant_review",
@@ -3340,8 +3339,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.\n\nThe largest shortfall is CKB-0017 on GEARING_MAX: the test requires <= 2.293 and the observed value is 69.906, a headroom of -67.613 in the metric's own units. Its waiver status is none.\n\nAt Q2 2026 recognised security cove",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-10",
@@ -3396,7 +3395,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 379,
+      "elapsed_ms": 465,
       "tools": [
         "collateral_review",
         "get_policy_definition"
@@ -3406,8 +3405,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 recognised security covers 36,164.45 INR crore of 66,892.77 INR crore of exposure, leaving 30,728.32 INR crore unsecured \u2014 45.9% of the book. Recognised value is the valuation after the policy haircut and after allocation across the facilities that share an asset, so a property securing three facilities is counted once and not three times.\n\n1 asset(s) secure more than one facility. Summing the allocations of each shared asset and comparing with its recognised value shows 0 over-allocation(s), so the cross-collateralisation reconciles.\nAt Q2 2026 recognised security covers 36,164.45 ",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-11",
@@ -3444,7 +3443,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 128,
+      "elapsed_ms": 166,
       "tools": [
         "get_policy_definition",
         "stage_review"
@@ -3454,8 +3453,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 the book stands at 509 facilities in Stage 1, 294 facilities in Stage 2, 2 facilities in Stage 3. Staging follows the stated demo SICR policy: Stage 2 requires 3 or more notches of downgrade since origination, a lifetime PD at least 2 times its origination level above a 1% floor, or 30 days past due as a backstop. One downgrade on its own does not stage an account.\n\n164 facility/-ies changed stage since Q1 2026: CKB-0009-F1 1->2 (sicr); CKB-0015-F1 1->2 (sicr); CKB-0019-F1 1->2 (sicr); CKB-0021-F1 1->2 (sicr); CKB-0024-F1 1->2 (sicr); CKB-0024-F2 2->1 (none); CKB-0028-F1 2->1 (none)",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-12",
@@ -3496,7 +3495,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 329,
+      "elapsed_ms": 424,
       "tools": [
         "concentration",
         "get_policy_definition"
@@ -3506,8 +3505,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "At Q2 2026 the book is 66,892.77 INR crore across 499 borrowers in 73 connected groups. The largest group is Bhavani Group 001 (synthetic) at 3,628.03 INR crore, 5.42% of the book across 15 borrower(s) and 20 facilities. The top five groups hold 16.9%. Group exposure is the sum of facility rows once \u2014 a borrower with three facilities is one borrower and is not counted three times.\n\nBy sector the concentration is Hospitality 17.0%; Real Estate 15.9%; Information Technology 14.6%; Transport and Logistics 11.6%. Concentration is a share of exposure, and a large share is not by itself a quality pr",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-13",
@@ -3544,7 +3543,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 284,
+      "elapsed_ms": 336,
       "tools": [
         "get_macro_dependencies",
         "get_policy_definition"
@@ -3554,8 +3553,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Of the ten macroeconomic predictors this demo carries, 2 enter the PD model for Healthcare: real gdp growth with coefficient -0.14 at a 1-quarter lag; policy rate with coefficient +0.12 at a 2-quarter lag. The remaining 8 \u2014 inflation, unemployment, government bond yield, exchange rate move, commercial property prices, oil price move, industrial production, real household income \u2014 are carried in the dataset but have no declared sensitivity for this sector, so they do not affect its PD.\nOf the ten macroeconomic predictors this demo carries, 2 enter the PD model for Healthcare: real gdp growth wi",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-14",
@@ -3592,7 +3591,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 324,
+      "elapsed_ms": 398,
       "tools": [
         "get_definition",
         "get_policy_definition"
@@ -3602,8 +3601,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Significant increase in credit risk. The test that moves an account from Stage 1 to Stage 2. In this demo it fires on three or more notches of downgrade since origination, a doubling of lifetime PD above an absolute floor, or thirty days past due as a backstop.\nSignificant increase in credit risk. The test that moves an account from Stage 1 to Stage 2. In this demo it fires on three or more notches of downgrade since origination, a doubling of lifetime PD above an absolute floor, or thirty days past due as a backstop.\nSignificant increase in credit risk. The test that moves an account from Sta",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-15",
@@ -3640,7 +3639,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 323,
+      "elapsed_ms": 400,
       "tools": [
         "get_definition",
         "get_policy_definition"
@@ -3650,8 +3649,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Loss given default. The proportion of exposure expected to be lost if default occurs, after recoveries and the cost and timing of realising them.\nLoss given default. The proportion of exposure expected to be lost if default occurs, after recoveries and the cost and timing of realising them.\nLoss given default. The proportion of exposure expected to be lost if default occurs, after recoveries and the cost and timing of realising them.\nLoss given default is defined in the Cockpit glossary\nLoss given default. The proportion of exposure expected to be lost if default occurs, after recoveries and t",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-16",
@@ -3687,8 +3686,8 @@
           "detail": ""
         }
       ],
-      "prose_source": "deterministic",
-      "elapsed_ms": 305,
+      "prose_source": "deterministic_v2",
+      "elapsed_ms": 357,
       "tools": [
         "get_policy_definition"
       ],
@@ -3696,9 +3695,9 @@
         "ecl_factor_decomposition"
       ],
       "model_calls": 0,
-      "answer_excerpt": "Q4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nExpected credit loss rose from 5,248 to 5,313 USD mn between Q1 2026 and Q2 2026 \u2014 a change of 65.29 USD mn (1.24%).\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.",
-      "repeats": 2,
-      "repeat_agreement": true
+      "answer_excerpt": "Q4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.\nQ4 2019 is not loaded in this runtime. Published quarters are Q3 2024, Q4 2024, Q1 2025, Q2 2025, Q3 2025, Q4 2025, Q1 2026, Q2 2026.",
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-17",
@@ -3749,7 +3748,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1161,
+      "elapsed_ms": 1501,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -3759,8 +3758,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-18",
@@ -3811,7 +3810,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 1149,
+      "elapsed_ms": 1340,
       "tools": [
         "decompose_ecl_factors",
         "get_policy_definition"
@@ -3821,8 +3820,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of 3.91e-14 INR crore.\n\nThe net figure hides movement in both directions. Increasing the allowance: pd curves 12.65 INR crore; recovery and lgd 4.23 INR crore; exposure and ead path 3.69 INR crore. R",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-19",
@@ -3866,7 +3865,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 254,
+      "elapsed_ms": 307,
       "tools": [
         "describe_scope",
         "get_policy_definition"
@@ -3876,8 +3875,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "The Cockpit reads its own certified demonstration domain and nothing else. That is enforced in the backend, as the intersection of this capability scope and your own dataset permissions, so a request cannot widen it \u2014 not by naming another domain, not by a flag in the request, and not by an instruction in a data field. The 17 dataset(s) readable here are cockpit_2024_q3, cockpit_2024_q4, cockpit_2025_q1, cockpit_2025_q2, cockpit_2025_q3, cockpit_2025_q4 and others in the same domain. Anything held in Early Warning, Scorecards, Planner, Lenses, Playbook or What-if stays in those features, which",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     },
     {
       "case_id": "H-20",
@@ -3914,7 +3913,7 @@
         }
       ],
       "prose_source": "deterministic_v2",
-      "elapsed_ms": 367,
+      "elapsed_ms": 442,
       "tools": [
         "aggregate_snapshot",
         "get_policy_definition"
@@ -3924,8 +3923,8 @@
       ],
       "model_calls": 0,
       "answer_excerpt": "As at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\nAs at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.\nAs at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverag",
-      "repeats": 2,
-      "repeat_agreement": true
+      "repeats": 1,
+      "repeat_agreement": null
     }
   ]
 }

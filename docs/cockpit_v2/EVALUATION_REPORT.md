@@ -50,6 +50,24 @@ backend, flag off. Every one returned `analyst.path == "deterministic"` and
 | *Why did Construction's ECL rise this quarter?* | "CreditProbe could not find Construction in the published data." |
 | *The total provision barely changed. What deteriorated and what improved?* | One total movement, no decomposition, plus a caveat that half the question could not be applied |
 
+### Flag-off is byte-identical to the base commit
+
+A second backend was run on port 8101 with `COCKPIT_INTELLIGENCE_V2=false`,
+against the same code and the same runtime, and the same twelve questions were
+asked of both. Evidence: `docs/cockpit_v2/evidence/flag_off_comparison.json`.
+
+| | |
+|---|---|
+| Flag-off answers identical to those captured on the **base commit** | **12 / 12** |
+| Flag-off `prose_source` | `deterministic` on every one |
+| Flag-off responses carrying a `cockpit_v2` key | **none** |
+| Flag-on `prose_source` | `deterministic_v2` on every one |
+| Flag-on claim validation | passed on every one |
+| Median latency, flag-off / flag-on | 324 ms / 458 ms |
+
+So this branch changes nothing for a deployment with the switch off — observed,
+not asserted.
+
 ### Same-data comparison: what is and is not possible
 
 The base path cannot consume the V2 datasets. Its planner refuses the join it
