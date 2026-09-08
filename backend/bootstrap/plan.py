@@ -389,6 +389,41 @@ def _seed_workspace() -> str:
         or "workspace objects"
 
 
+
+def _playbook_needed() -> bool:
+    """Whether the Playbook demonstration still has to be built.
+
+    Asks the same question the readiness check asks, so the step and the gate
+    cannot disagree about what "seeded" means — which is exactly the drift the
+    review step's comment above records.
+    """
+    from backend.db.engine import get_session
+    from backend.playbook import repository as pb_repo
+    from backend.playbook import seed as pb_seed
+
+    with get_session() as session:
+        return not pb_seed.status(session, _playbook_scope(pb_repo))["ready"]
+
+
+def _playbook_scope(pb_repo):
+    from backend.agentic.principals import tenant_of
+
+    return pb_repo.Scope(tenant=tenant_of(None))
+
+
+def _seed_playbook() -> str:
+    """Seed the Playbook demonstration. Makes no provider call."""
+    from backend.db.engine import get_session
+    from backend.playbook import repository as pb_repo
+    from backend.playbook import seed as pb_seed
+
+    with get_session() as session:
+        result = pb_seed.reseed(session, _playbook_scope(pb_repo))
+    made = sum(1 for w in result["workspaces"] if w["created"])
+    return (f"{result['exports_total']} exported analyses and {made} "
+            f"Playbook workspace(s)")
+
+
 def _review_needed() -> bool:
     """Needed whenever the readiness gate would not pass, not merely when no
     run row exists.
@@ -457,6 +492,11 @@ def steps() -> tuple[Step, ...]:
              _workspace_needed, _seed_workspace, needs_database=True),
         Step("review", "L", f"Run the {readiness.PERIOD} portfolio review",
              _review_needed, _run_review, needs_database=True),
+        # M last: the Playbook demonstration attaches exported analyses and
+        # reads the workspace it sits beside, and it makes no provider call, so
+        # it is safe to run on every start.
+        Step("playbook", "M", "Seed the Playbook demonstration",
+             _playbook_needed, _seed_playbook, needs_database=True),
     )
 
 

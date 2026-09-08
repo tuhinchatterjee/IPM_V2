@@ -333,7 +333,43 @@ def _database_checks(session: Any) -> list[Check]:
     checks.append(_scorecard_models(session))
     checks.append(_workspace(session))
     checks.append(_review(session))
+    checks.append(_playbook(session))
     return checks
+
+
+def _playbook(session: Any) -> Check:
+    """Is the Playbook demonstration there?
+
+    A deployment that reports READY with an empty Playbook is one where the
+    first click of the demonstration lands on an empty screen. The check asks
+    the same question the bootstrap step asks, so the two cannot drift.
+    """
+    key, title = "playbook_demo", "Playbook demonstration is seeded"
+    remedy = "scripts/bootstrap_demo.py --step playbook"
+    try:
+        from backend.agentic.principals import tenant_of
+        from backend.playbook import repository as pb_repo
+        from backend.playbook import seed as pb_seed
+
+        state = pb_seed.status(session, pb_repo.Scope(tenant=tenant_of(None)))
+    except Exception as exc:  # noqa: BLE001 — a check never raises
+        return Check(key=key, title=title, status=UNKNOWN,
+                     detail=f"Could not be read: {exc}", remedy=remedy)
+
+    workspaces = len(state["workspaces_present"])
+    expected = len(state["workspaces_expected"])
+    exports = state["exports_total"]
+    if state["ready"]:
+        return Check(key=key, title=title, status=OK,
+                     detail=(f"{workspaces} demonstration workspace(s) and "
+                             f"{exports} exported analyses."),
+                     data={"workspaces": workspaces, "exports": exports})
+    return Check(
+        key=key, title=title, status=MISSING,
+        detail=(f"{workspaces} of {expected} workspace(s) and {exports} of 30 "
+                "exported analyses — Playbook opens on an empty screen."),
+        remedy=remedy,
+        data={"workspaces": workspaces, "exports": exports})
 
 
 def _scorecard_models(session: Any) -> Check:

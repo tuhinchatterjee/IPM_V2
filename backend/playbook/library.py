@@ -116,11 +116,19 @@ def _identity(snapshot: contract.Snapshot) -> str:
 
     The source ids plus the exported scope. Two exports of the same run at
     different scopes are genuinely different evidence and are kept apart.
+
+    When a snapshot carries no source identifier at all, the title is the
+    discriminator. Without that fallback every such export in a module resolves
+    to the same identity and the second one silently becomes a REVISION of the
+    first — which is how thirty distinct analyses would appear in the library as
+    five, each with six revisions, and nobody would see a row go missing.
     """
     ref = snapshot.source_ref or {}
-    parts = [str(ref.get(k, "")) for k in
-             ("run_id", "thread_id", "result_id", "lens_id", "report_id",
-              "borrower_id", "scenario_id")]
+    keys = ("run_id", "thread_id", "result_id", "lens_id", "report_id",
+            "borrower_id", "scenario_id")
+    parts = [str(ref.get(k, "")) for k in keys]
+    if not any(parts):
+        parts = [snapshot.title.strip().lower()]
     return "|".join(parts) + "|" + snapshot.scope_kind
 
 

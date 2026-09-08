@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from backend.playbook import provider, repository as repo, service
+from backend.playbook import provider, service
+from backend.playbook import repository as repo
 
 REPORT_MD = """# Committee report
 
