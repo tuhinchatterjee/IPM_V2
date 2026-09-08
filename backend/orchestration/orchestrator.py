@@ -179,6 +179,9 @@ class Answered:
     #: the assembled `AnalysisPlan` so a later Trace-modify re-validates
     #: against the SAME domain the investigation actually ran under.
     domain_lock: str | None = None
+    #: Which scope a governed domain answered at ("borrower", "portfolio",
+    #: "diagnosis", ...), when one did. Empty when the ordinary path answered.
+    domain_answer: str = ""
     written: interpretation.Interpretation | None = None
     clarification: str = ""
     #: The governed choice behind a clarification, when the reason CreditProbe
@@ -368,6 +371,22 @@ def answer(question: str, *, context: Any = None,
     def finish(target: Answered) -> Answered:
         target.duration_ms = int((time.perf_counter() - started) * 1000)
         return target
+
+    # A thread locked to a governed domain is answered by that domain.
+    #
+    # This sits ahead of every guard below because those guards are written
+    # for the credit book and reject an Early Warning question before it can
+    # be read: the coverage check does not recognise an early warning node as
+    # a governed concept, and the unknown-borrower check looks the obligor up
+    # in the customer master, does not find it, and replies that CreditProbe
+    # holds no data about it. Both are accurate about the book they consulted
+    # and wrong about the question, which was asked inside the domain that
+    # does hold the answer. The domain lock has already guaranteed this thread
+    # reads nothing else, so routing here narrows nothing.
+    if domain_lock:
+        routed = _from_domain(answered, question, domain_lock, period)
+        if routed is not None:
+            return finish(routed)
 
     # "You didn't answer my second question." The complaint itself names no
     # figure, so reading it literally produces a menu of concepts — which is
@@ -953,6 +972,61 @@ def _from_metadata(answered: Answered, question: str, reading: cap.Reading,
     # message was "you didn't answer my second question". The remaining clauses
     # are put through the follow-up path against the answer just produced.
     answered.compound = compound.complete(answered, question, context).to_dict()
+    return answered
+
+
+def _from_domain(answered: Answered, question: str, domain: str,
+                  period: tuple[str, str] | None) -> Answered | None:
+    """Answer from a governed domain that reads its own data.
+
+    Returns None when the domain cannot answer, so the question falls
+    through to the ordinary path rather than failing inside a route that was
+    only meant to help. Early Warning is the only domain wired for this
+    today; the shape is deliberately general because the next single-product
+    surface will want the same thing.
+    """
+    from backend.orchestration import domain_lock as dl
+
+    if domain != dl.EARLY_WARNING:
+        return None
+    try:
+        from backend.early_warning import ask as ews_ask
+    except Exception as e:  # noqa: BLE001 - the domain is not installed here
+        logger.info("The Early Warning answerer is unavailable: %s", e)
+        return None
+
+    try:
+        found = ews_ask.answer(question, period=period[1] if period else None)
+    except Exception as e:  # noqa: BLE001 - fall through, never fail the turn
+        logger.warning("The Early Warning answerer could not read %r: %s",
+                       question, e)
+        return None
+    if found is None:
+        # Not a question this domain answers. Falling through matters: it is
+        # how a question needing another domain's data still reaches the
+        # domain lock and is refused, rather than being absorbed here.
+        return None
+
+    composed = found.composed
+    # `execution` is what the Trace consistency contract reads to decide
+    # whether a figure was computed. This one computed from a governed
+    # domain, and reporting it as metadata would make the Trace say nothing
+    # was calculated when the answer is full of figures.
+    answered.result = handlers.HandlerResult(
+        answer=composed.direct,
+        rows=list(found.pack.rows) if found.pack else [],
+        values=dict(found.pack.figures) if found.pack else {},
+        detail={"scope": found.scope, "facts": found.pack.to_dict() if found.pack else {},
+                "drivers": composed.drivers, "chart": composed.chart},
+        follow_ups=list(composed.follow_ups),
+        warnings=list(composed.caveats),
+        interpretation=composed.interpretation,
+        interpretation_points=list(composed.points),
+        execution="early_warning" if not found.refused else "metadata",
+        execution_label=("Early Warning domain" if not found.refused
+                         else "Governed refusal"),
+    )
+    answered.domain_answer = found.scope
     return answered
 
 

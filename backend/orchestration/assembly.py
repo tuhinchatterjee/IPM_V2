@@ -248,16 +248,28 @@ def from_handler(question: str, reading: cap.Reading,
     scope = Scope(focus=reading.label, output="list",
                   period_requirement="none", period_specified=False,
                   period_source="not needed for this request")
+    # What the Trace is told has to be true. Most capabilities describe the
+    # catalogue and compute nothing, and saying so is the point of the note.
+    # But a capability that DID compute — a governed domain answering from
+    # its own data — would be misreported by that sentence, and the Trace
+    # consistency contract reads `execution` precisely so the two cannot
+    # disagree.
+    computed = result.execution not in ("", "metadata")
+    note = ("This request was answered by a governed domain, which computed "
+            f"the figures it quotes ({result.execution_label.lower()})."
+            if computed else
+            "This request was answered from the governed catalogue. No "
+            "analytical engine ran and no figure was computed.")
     plan = AnalysisPlan(
         question=question, intent=reading.objective or question, scope=scope,
         steps=[], planner=reading.source, model_name=reading.model or None,
         follow_ups=list(result.follow_ups),
-        notes=["This request was answered from the governed catalogue. No "
-               "analytical engine ran and no figure was computed."],
+        notes=[note],
     )
     narrative = Narrative(
         direct_answer=result.answer, summary=result.answer,
-        findings=[], interpretation="", interpretation_points=[],
+        findings=[], interpretation=result.interpretation,
+        interpretation_points=list(result.interpretation_points),
         caveats=list(result.warnings),
     )
     step = ExecutedStep(

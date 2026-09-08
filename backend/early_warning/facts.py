@@ -132,6 +132,17 @@ class FactPack:
 # --------------------------------------------------------------- helpers
 
 
+def _as_list(value: Any) -> list[str]:
+    """Overrides are stored as one comma-separated string. A caller that
+    treats that as a list gets one entry per character, which is how an
+    override line came out reading `c, l, a, s, s, i, f, i, e, r`."""
+    if not value:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if str(v).strip()]
+    return [part.strip() for part in str(value).split(",") if part.strip()]
+
+
 def _band_of(score: float) -> str:
     if score >= 80:
         return "VERY_HIGH"
@@ -529,7 +540,9 @@ def borrower(customer_id: str) -> FactPack:
         "dominant_layer": _dominant_layer(layers),
         "dominant_subcategory": latest.get("dominant_subcategory"),
         "signal_count_fired": int(latest.get("signal_count_fired") or 0),
-        "overrides_applied": latest.get("overrides_applied") or [],
+        # Stored comma-separated. Split here so a caller listing them does not
+        # iterate the string a character at a time.
+        "overrides_applied": _as_list(latest.get("overrides_applied")),
         "drivers": drivers,
         "live_versus_structural": live_versus_structural(
             latest["ta_score"], latest["ta_band"],
@@ -617,6 +630,54 @@ def movement(period_from: str | None = None, period_to: str | None = None,
         rows=found["layers"] if found else [],
         provenance=["early_warning_borrower_month"],
         caveats=[_NOT_CALIBRATED],
+    )
+
+
+def methodology() -> FactPack:
+    """How the score is built, from the model itself rather than from prose.
+
+    Every number here is read from the modules that actually compute the
+    score, so a change to the model changes the explanation of it. A
+    methodology page maintained by hand drifts from the engine and is worse
+    than none.
+    """
+    from backend.early_warning import catalog, matrix, notches, triggers_v2
+
+    counts = catalog.status_counts()
+    return FactPack(
+        scope="methodology", label="the Early Warning framework",
+        period=svc.latest_period(),
+        figures={
+            "signals_total": len(catalog.SIGNAL_INVENTORY),
+            "signals_scored": counts.get("SCORED", 0),
+            "signals_removed": sum(v for k, v in counts.items() if k != "SCORED"),
+            "classifiers": len(clf.CLASSIFIER_DEFINITIONS),
+            "triggers": len(triggers_v2.TRIGGER_DEFINITIONS),
+            "sub_categories": len(agg.TA_SUBCATEGORIES) + len(clf.SUBCATEGORIES),
+            "ta_layer_weights": TA_LAYER_WEIGHTS,
+            "classifier_layer_weights": clf.CLASSIFIER_LAYER_WEIGHTS,
+            "anchor_matrix": matrix.ANCHOR_MATRIX,
+            "notches": list(notches.NOTCH_KEYS),
+            "points_per_notch": notches.POINTS_PER_NOTCH,
+            "net_notch_cap": notches.NET_NOTCH_CAP,
+        },
+        provenance=["backend.early_warning (the scoring modules themselves)"],
+        caveats=[_NOT_CALIBRATED],
+    )
+
+
+def diagnosis(period: str | None = None, *, band: str | None = None,
+               segment: str | None = None) -> FactPack:
+    """What the selected population has in common, as a driver tree."""
+    from backend.early_warning import diagnosis as dg
+
+    found = dg.tree(period, band=band, segment=segment)
+    return FactPack(
+        scope="diagnosis", label=found["population"],
+        period=found["period"], figures=found,
+        rows=found.get("leaves") or [],
+        provenance=["early_warning_borrower_month"],
+        caveats=found["caveats"],
     )
 
 

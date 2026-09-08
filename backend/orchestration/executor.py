@@ -1010,6 +1010,7 @@ def answer_investigation(question: str, *, user_id: int | None = None,
         investigation = assembly.from_handler(
             question, answered.reading, answered.result,
             duration_ms=answered.duration_ms, mode=mode_now)
+        interpret_domain_answer(question, answered, investigation)
     else:
         investigation = assembly.from_analysis(
             question, answered.reading, answered.build, answered.runtime,
@@ -1304,6 +1305,41 @@ class _CertifiedResult:
         self.warnings = list(payload.get("warnings") or [])
         self.row_count = len(self.rows)
         self.reconciliation = payload.get("reconciliation")
+
+
+def interpret_domain_answer(question: str, answered: Any,
+                             investigation: Investigation) -> None:
+    """Offer a governed domain's own facts to the live model, if there is one.
+
+    The domain has already written a reading from those facts, and that
+    reading stands on its own — this deployment has no provider at all. Where
+    one IS configured the same facts become its grounding, and the
+    interpreter's existing check discards any prose containing a figure the
+    facts do not carry. So a model can improve the writing and cannot invent
+    a number, which is the only basis on which a generated sentence belongs
+    in a credit conversation.
+    """
+    from backend.orchestration import interpretation
+
+    result = getattr(answered, "result", None)
+    if result is None or not getattr(answered, "domain_answer", ""):
+        return
+    try:
+        written = interpretation.write(
+            question, investigation.narrative.direct_answer,
+            _CertifiedResult({"rows": result.rows, "columns": result.columns,
+                              "values": result.values,
+                              "warnings": result.warnings}),
+            plan_note=("These figures come from the Early Warning domain, "
+                       "which computed them. Name the node behind every "
+                       "claim, never a number the facts do not carry, and "
+                       "do not describe a notch-driven score movement as an "
+                       "improvement in the obligor."))
+    except Exception as e:  # noqa: BLE001 - the written reading already stands
+        logger.info("No live reading for the domain answer: %s", e)
+        return
+    if written and getattr(written, "interpretation", ""):
+        investigation.narrative.interpretation = written.interpretation
 
 
 def _interpret_certified(question: str, found: Any, step: ExecutedStep) -> Any:
