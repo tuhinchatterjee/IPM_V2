@@ -61,15 +61,21 @@ def _secret() -> bytes:
     """The key the session cookie is signed with.
 
     Derived from the application secret so there is one thing to configure. In
-    a deployment without one set, sessions do not survive a restart — which is
-    the correct failure: it is visible, and it is not a silently insecure
-    default key.
+    a real deployment without one set, sessions do not survive a restart —
+    which is the correct failure there: it is visible, and it is not a
+    silently insecure default key.
+
+    Local development is the one exception, and deliberately narrow: restart
+    durability is a convenience for whoever is on the machine, worth nothing
+    to an attacker who is already on it, and pure friction everywhere else.
+    Every other environment — anything with `ENV` actually set — keeps the
+    original per-process behaviour untouched.
     """
     configured = getattr(settings, "secret_key", "") or ""
     if not configured:
-        # Per-process, so a restart invalidates sessions rather than trusting a
-        # published constant.
-        configured = _process_key()
+        configured = (
+            _dev_persisted_key() if settings.env == "dev" else _process_key()
+        )
     return hashlib.sha256(configured.encode("utf-8")).digest()
 
 
@@ -87,6 +93,49 @@ def _process_key() -> str:
             "and will not survive a restart."
         )
     return _PROCESS_KEY
+
+
+_DEV_KEY: str | None = None
+
+
+def _dev_persisted_key() -> str:
+    """A key that survives a local backend restart, for `ENV=dev` only.
+
+    A per-process key is the right failure for a real deployment, but a local
+    UAT session is not one: the API restarts constantly while someone is
+    actively fixing something, the tester's browser tab does not, and every
+    one of those restarts silently invalidated every open session — the top
+    navigation kept asserting "signed in" from state it had already fetched,
+    while the very next Lens save came back "Sign in to use CreditProbe." That
+    mismatch, not a missing auth check, was what UAT actually hit.
+
+    Persisted next to the logs this process already writes — gitignored,
+    already created, nothing new to configure — and regenerated if the file
+    is ever missing or unreadable, which only ever costs the sessions open at
+    that moment on this one machine.
+    """
+    global _DEV_KEY
+    if _DEV_KEY is not None:
+        return _DEV_KEY
+    import secrets
+
+    path = settings.log_dir / ".dev_session_secret"
+    try:
+        existing = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        existing = ""
+    if existing:
+        _DEV_KEY = existing
+        return _DEV_KEY
+    generated = secrets.token_urlsafe(32)
+    try:
+        path.write_text(generated, encoding="utf-8")
+    except OSError as e:  # pragma: no cover - a read-only local disk
+        logger.warning(
+            "Could not persist a dev session key (%s); sessions will not "
+            "survive a restart this run.", e)
+    _DEV_KEY = generated
+    return _DEV_KEY
 
 
 def _sign(payload: dict[str, Any]) -> str:

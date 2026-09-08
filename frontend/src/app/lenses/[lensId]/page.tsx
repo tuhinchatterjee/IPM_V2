@@ -40,6 +40,7 @@ import {
   saveLayout,
 } from "@/components/lenses/edit-mode";
 import { LayoutEditor } from "@/components/lenses/layout-editor";
+import { LensInterpretationPanel } from "@/components/lenses/lens-interpretation";
 import { LensScopeBar } from "@/components/lenses/lens-scope";
 import { MetricBuilder } from "@/components/lenses/metric-builder";
 import { useAsync } from "@/lib/hooks";
@@ -337,7 +338,14 @@ function LensView({ id }: { id: number }) {
           onCancel={() => setCharting(false)}
         />
       ) : addingMetric ? null : (
-        <LensBody rendered={view} lens={lens} />
+        <>
+          <LensInterpretationPanel
+            lensId={id}
+            period={view.period}
+            version={lens.version}
+          />
+          <LensBody rendered={view} lens={lens} />
+        </>
       )}
 
       {changed && <p className="text-xs text-positive">{changed}</p>}

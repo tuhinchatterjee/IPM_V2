@@ -2115,6 +2115,50 @@ export class ApiError extends Error {
   get isForbidden(): boolean {
     return this.status === 403;
   }
+
+  /**
+   * True when the BACKEND says this session is not signed in — as opposed to
+   * `isForbidden`, which means a real session exists but its role may not do
+   * this. Distinct codes, distinct recovery: a 403 is not a reason to sign
+   * anyone out.
+   */
+  get isSessionExpired(): boolean {
+    return this.status === 401 && this.code === "not_signed_in";
+  }
+}
+
+/**
+ * Told when the backend stops recognising this browser's session.
+ *
+ * One place notices this, not every screen that happens to make a mutating
+ * call. Without it, a session that dies mid-use — a local backend restart is
+ * the everyday cause, since a session signed with no configured `SECRET_KEY`
+ * does not survive one — leaves the top navigation asserting "signed in" long
+ * after the backend has stopped agreeing, because nothing ever asked it
+ * again. Every screen that tried to act would then show the backend's own
+ * refusal text inline, which reads as a dead end rather than as what it is:
+ * an expired session with a normal recovery, sign in again.
+ *
+ * `AuthProvider` is the one subscriber. On the signal it flips its own state
+ * to "anonymous" immediately, without waiting on a refetch race, and the
+ * application shell's existing gate — already correct, already tested — takes
+ * it from there: it swaps to the real sign-in screen, and once that succeeds
+ * the app comes back exactly where the interrupted action can be retried.
+ * Nothing here decides what "signed in" means or grants anything; it only
+ * relays what the backend already said on the one response that noticed.
+ */
+type SessionListener = () => void;
+let sessionListeners: SessionListener[] = [];
+
+export function onSessionExpired(listener: SessionListener): () => void {
+  sessionListeners.push(listener);
+  return () => {
+    sessionListeners = sessionListeners.filter((l) => l !== listener);
+  };
+}
+
+function announceSessionExpired(): void {
+  for (const listener of sessionListeners) listener();
 }
 
 export interface RelationshipNode {
@@ -2799,6 +2843,9 @@ async function request<T>(
     } catch {
       /* the body was not JSON — the governed sentence above stands */
     }
+    if (response.status === 401 && code === "not_signed_in") {
+      announceSessionExpired();
+    }
     throw new ApiError(message, response.status, code, detail);
   }
 
@@ -2866,6 +2913,9 @@ async function download(
       detail = payload;
     } catch {
       /* a non-JSON error body: keep the fallback message */
+    }
+    if (response.status === 401 && code === "not_signed_in") {
+      announceSessionExpired();
     }
     throw new ApiError(message, response.status, code, detail);
   }
@@ -4466,6 +4516,33 @@ export interface RenderedLens {
   note: string;
 }
 
+/** One high-priority observation, traceable to the tile(s) it is about. */
+export interface LensObservation {
+  text: string;
+  metric_names: string[];
+}
+
+/**
+ * What a Lens means, read as a whole — above the tiles, not a restatement
+ * of them. `live` is false whenever there is nothing to show: no provider
+ * configured, the call failed, or a written reading referenced a figure
+ * this Lens does not carry and was withheld rather than shown wrong.
+ * `unavailable` explains which, in the one sentence a reader needs; the
+ * tiles themselves are never affected either way.
+ */
+export interface LensInterpretation {
+  headline: string;
+  narrative: string;
+  observations: LensObservation[];
+  unavailable_note: string;
+  model: string;
+  duration_ms: number;
+  cached: boolean;
+  live: boolean;
+  unavailable: string;
+  ungrounded: string[];
+}
+
 /**
  * A dashboard the platform ships, as the library lists it.
  *
@@ -4569,6 +4646,50 @@ export interface LensIntent {
   wants_new: boolean;
   question: string;
   understood: string;
+}
+
+/** One metric a Lens plan proposes, and why. */
+export interface PlannedMetric {
+  metric_id: string;
+  name: string;
+  unit: string;
+  domain: string;
+  section: string;
+  section_label: string;
+  why: string;
+  as_chart: boolean;
+  dimension: string;
+  dimension_label: string;
+  visual: string;
+}
+
+/**
+ * A whole Lens, proposed from a broad request rather than matched from
+ * keywords — "include all metrics you feel are relevant" answered by
+ * reasoning about the purpose, not by scanning for words that match a
+ * metric's name.
+ *
+ * `understood` is false when no AI provider is configured: the plan is then
+ * the same deterministic keyword matcher `LensIntent` already uses, carried
+ * in the same shape so the screen can render either without knowing which
+ * one it got. `unavailable` says why, when it is false.
+ */
+export interface LensPlan {
+  title: string;
+  purpose: string;
+  scope_summary: string;
+  domains: DomainOption[];
+  portfolios: string[];
+  risk_questions: string[];
+  metrics: PlannedMetric[];
+  sections: Record<string, PlannedMetric[]>;
+  unsupported: { requested: string; because: string }[];
+  rationale: string;
+  clarify: string;
+  period: string;
+  understood: boolean;
+  unavailable: string;
+  model: string;
 }
 
 /** A metric skeleton, and everything about it that is still a guess. */
@@ -5280,6 +5401,15 @@ export const api = {
       body: JSON.stringify({ text }),
       timeoutMs: 60_000,
     }),
+  planLens: (text: string) =>
+    request<LensPlan>("/lenses/plan", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+      // A full reading reasons over the whole governed catalogue in one
+      // call; give it real room rather than timing out a proposal that was
+      // about to answer.
+      timeoutMs: 45_000,
+    }),
   proposeMetric: (text: string, domain = "", dataset = "") =>
     request<MetricProposal>("/metrics/propose", {
       method: "POST",
@@ -5339,6 +5469,12 @@ export const api = {
     request<RenderedLens>(
       `/lenses/${id}/render${period ? `?period=${encodeURIComponent(period)}` : ""}`,
       { timeoutMs: 180_000 },
+    ),
+  lensInterpretation: (id: number, period?: string) =>
+    request<LensInterpretation>(
+      `/lenses/${id}/interpretation${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+      // A full reading of the whole Lens, not one tile — give it real room.
+      { timeoutMs: 45_000 },
     ),
   buildLens: (requestText: string, apply = true) =>
     request<{ lens: Lens | null; proposal: LensProposal }>("/lenses/build", {

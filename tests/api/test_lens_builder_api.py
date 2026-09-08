@@ -93,6 +93,47 @@ def test_a_viewer_cannot_use_the_builder(client):
                        json={"text": "exposure"}).status_code in (401, 403)
 
 
+# --------------------------------------------------------------------- plan
+#
+# UAT: "include all metrics which you feel are relevant" needs more than
+# `/interpret`'s keyword matcher. This sandbox has no AI provider configured,
+# so what is asserted here is the honest degradation — the route answers, it
+# never invents a metric, and it says plainly that a fuller reading needs a
+# model. The model's own reasoning is covered in
+# `tests/metrics/test_lens_planner.py` against a scripted provider.
+
+
+@needs_db
+def test_plan_answers_without_a_provider_configured(client):
+    body = client.post(f"{API}/lenses/plan", headers=ANALYST,
+                       json={"text": "watchlist exposure and covenant "
+                                     "breaches"}).json()
+    assert body["understood"] is False
+    assert body["unavailable"]
+    assert body["metrics"], "even the fallback must propose something"
+
+
+@needs_db
+def test_plan_never_names_a_metric_outside_the_catalogue(client):
+    from backend.metrics import service
+
+    body = client.post(f"{API}/lenses/plan", headers=ANALYST,
+                       json={"text": "corporate exposure and utilisation"}
+                       ).json()
+    known = {m.metric_id for m in service.catalogue()}
+    assert all(m["metric_id"] in known for m in body["metrics"])
+
+
+def test_plan_is_refused_by_the_schema_when_empty(client):
+    assert client.post(f"{API}/lenses/plan", headers=ANALYST,
+                       json={"text": ""}).status_code == 422
+
+
+def test_a_viewer_cannot_use_the_planner_either(client):
+    assert client.post(f"{API}/lenses/plan", headers=VIEWER,
+                       json={"text": "exposure"}).status_code in (401, 403)
+
+
 # ----------------------------------------------------------------- propose
 
 
