@@ -610,7 +610,12 @@ _BS = [
      "float", "RCY", "not_additive", ()),
 ]
 
-BALANCE_SHEET_FIELDS: tuple[CockpitFieldSpec, ...] = tuple(
+BALANCE_SHEET_FIELDS: tuple[CockpitFieldSpec, ...] = (
+    _f(BORROWER_FINANCIAL, "borrower_id",
+       "Stable borrower identifier. Part of this relation's grain: one "
+       "borrower has ONE statement per quarter and scope, however many "
+       "facilities it holds.", "string", agg="identifier", nullable=False),
+) + tuple(
     _f(BORROWER_FINANCIAL, name, definition, dtype, unit=unit, agg=agg,
        enum=enum, currency_scoped=bool(unit == "RCY"))
     for name, definition, dtype, unit, agg, enum in _BS)

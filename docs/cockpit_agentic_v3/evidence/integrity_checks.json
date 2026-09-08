@@ -1,0 +1,548 @@
+{
+  "dataset_release_id": "demo-20q-v1",
+  "passed": true,
+  "checks_run": 72,
+  "checks_failed": 0,
+  "failures": [],
+  "results": [
+    {
+      "check_id": "calendar.twenty",
+      "description": "Exactly twenty reporting slots",
+      "passed": true,
+      "detail": "",
+      "observed": 20
+    },
+    {
+      "check_id": "calendar.populated_honest",
+      "description": "Populated slots match the rows that exist",
+      "passed": true,
+      "detail": "",
+      "observed": 20
+    },
+    {
+      "check_id": "calendar.no_outside_quarter",
+      "description": "Every reporting_quarter is one of the twenty",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "macro.offsets",
+      "description": "Ten factors x twenty offsets per anchor",
+      "passed": true,
+      "detail": "",
+      "observed": 12000
+    },
+    {
+      "check_id": "macro.second_axis",
+      "description": "Macro targets extend beyond the calendar without extending it",
+      "passed": true,
+      "detail": "",
+      "observed": 19
+    },
+    {
+      "check_id": "macro.no_future_actual",
+      "description": "Forward values are forecasts and past values are actuals",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "macro.vintages",
+      "description": "Forecasts differ from the actuals that later arrived",
+      "passed": true,
+      "detail": "",
+      "observed": 1.0
+    },
+    {
+      "check_id": "grain.cockpit_facility_quarter",
+      "description": "cockpit_facility_quarter is unique on ['reporting_quarter', 'facility_id', 'position_id']",
+      "passed": true,
+      "detail": "",
+      "observed": 6758
+    },
+    {
+      "check_id": "grain.cockpit_borrower_financial_quarter",
+      "description": "cockpit_borrower_financial_quarter is unique on ['reporting_quarter', 'borrower_id', 'statement_scope']",
+      "passed": true,
+      "detail": "",
+      "observed": 4113
+    },
+    {
+      "check_id": "grain.cockpit_rating_ratio_quarter",
+      "description": "cockpit_rating_ratio_quarter is unique on ['reporting_quarter', 'borrower_id', 'rating_basis']",
+      "passed": true,
+      "detail": "",
+      "observed": 4113
+    },
+    {
+      "check_id": "grain.cockpit_qualitative_quarter",
+      "description": "cockpit_qualitative_quarter is unique on ['reporting_quarter', 'borrower_id', 'question_id']",
+      "passed": true,
+      "detail": "",
+      "observed": 82260
+    },
+    {
+      "check_id": "grain.cockpit_collateral_quarter",
+      "description": "cockpit_collateral_quarter is unique on ['reporting_quarter', 'collateral_id']",
+      "passed": true,
+      "detail": "",
+      "observed": 12440
+    },
+    {
+      "check_id": "grain.cockpit_collateral_allocation",
+      "description": "cockpit_collateral_allocation is unique on ['reporting_quarter', 'collateral_id', 'facility_id', 'position_id']",
+      "passed": true,
+      "detail": "",
+      "observed": 18600
+    },
+    {
+      "check_id": "grain.cockpit_covenant_quarter",
+      "description": "cockpit_covenant_quarter is unique on ['reporting_quarter', 'covenant_id', 'test_version']",
+      "passed": true,
+      "detail": "",
+      "observed": 12310
+    },
+    {
+      "check_id": "grain.cockpit_reporting_calendar",
+      "description": "cockpit_reporting_calendar is unique on ['reporting_quarter']",
+      "passed": true,
+      "detail": "",
+      "observed": 20
+    },
+    {
+      "check_id": "grain.borrower_statement",
+      "description": "One statement per borrower-quarter, and joining it to facilities visibly inflates it",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "honest_total_assets": 6530632.59,
+        "inflated_by_facility_join": 10186686.87
+      }
+    },
+    {
+      "check_id": "grain.shared_collateral",
+      "description": "Allocated value sums to the asset value; the naive join double counts",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "asset_grain_total": 5718667.56,
+        "allocated_total": 5718667.56,
+        "naive_join_total": 7212664.96
+      }
+    },
+    {
+      "check_id": "collateral.shares",
+      "description": "Allocation shares sum to at most one per asset",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "collateral.single_haircut",
+      "description": "Net value equals eligible less haircut, applied once",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "collateral.haircut_combination",
+      "description": "The total haircut differs from the naive component sum, and the method is declared",
+      "passed": true,
+      "detail": "",
+      "observed": [
+        "multiplicative"
+      ]
+    },
+    {
+      "check_id": "prob.cockpit_facility_quarter.pd_pit_12m",
+      "description": "pd_pit_12m lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_facility_quarter.pd_pit_lifetime",
+      "description": "pd_pit_lifetime lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_facility_quarter.pd_ttc_12m",
+      "description": "pd_ttc_12m lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_facility_quarter.pd_ttc_lifetime",
+      "description": "pd_ttc_lifetime lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_facility_quarter.lgd_pit",
+      "description": "lgd_pit lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_facility_quarter.lgd_ttc",
+      "description": "lgd_ttc lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_facility_quarter.ccf_pit",
+      "description": "ccf_pit lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_ifrs9_detail.scenario_pd_pit_12m",
+      "description": "scenario_pd_pit_12m lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_ifrs9_detail.scenario_pd_pit_lifetime",
+      "description": "scenario_pd_pit_lifetime lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_ifrs9_detail.scenario_lgd",
+      "description": "scenario_lgd lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_ifrs9_detail.scenario_weight",
+      "description": "scenario_weight lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_ifrs9_detail.term_pd_marginal",
+      "description": "term_pd_marginal lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_ifrs9_detail.term_pd_cumulative",
+      "description": "term_pd_cumulative lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "prob.cockpit_ifrs9_detail.term_survival",
+      "description": "term_survival lies in [0, 1]",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "pd.lifetime_semantics",
+      "description": "Lifetime PD is a cumulative survival measure, distinct from annual PD times years",
+      "passed": true,
+      "detail": "",
+      "observed": 0.9588
+    },
+    {
+      "check_id": "pd.pit_vs_ttc",
+      "description": "PIT and TTC differ, and their gap moves across quarters",
+      "passed": true,
+      "detail": "",
+      "observed": 0.006185
+    },
+    {
+      "check_id": "ifrs9.curve_identities",
+      "description": "Survival and cumulative PD reconcile with the marginals",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "ifrs9.ecl_reconciles",
+      "description": "Scenario ECL reconciles to its horizon shortfalls",
+      "passed": true,
+      "detail": "",
+      "observed": 20274
+    },
+    {
+      "check_id": "ifrs9.weights",
+      "description": "Scenario weights sum to one",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "baseline": 0.5,
+        "upside": 0.2,
+        "downside": 0.3
+      }
+    },
+    {
+      "check_id": "ifrs9.scenario_sum",
+      "description": "Summing scenario ECL overstates the booked figure, as it should",
+      "passed": true,
+      "detail": "",
+      "observed": 2.95
+    },
+    {
+      "check_id": "ifrs9.no_forced_formula",
+      "description": "PD x LGD x EAD does not reproduce the reported ECL",
+      "passed": true,
+      "detail": "",
+      "observed": 1.0
+    },
+    {
+      "check_id": "rating.default_separate",
+      "description": "default_flag and grade C are distinct",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "c_rated": 0,
+        "defaulted": 5
+      }
+    },
+    {
+      "check_id": "rating.scale",
+      "description": "Ratings are on the nineteen-grade scale and the rank agrees",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "grades_used": 18,
+        "coverage": 0.95
+      }
+    },
+    {
+      "check_id": "statement.assets = liabilities + equity",
+      "description": "assets = liabilities + equity",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "statement.current + non-current = total assets",
+      "description": "current + non-current = total assets",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "statement.current + non-current = total liabilities",
+      "description": "current + non-current = total liabilities",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "statement.gross profit = revenue - cost of sales",
+      "description": "gross profit = revenue - cost of sales",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "statement.working capital = current assets - current liabilities",
+      "description": "working capital = current assets - current liabilities",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "statement.carried_forward",
+      "description": "Carried-forward statements are labelled and visibly aged",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "carried_forward_rows": 1395,
+        "max_age_days": 275
+      }
+    },
+    {
+      "check_id": "ratio.current_ratio",
+      "description": "current_ratio agrees with its statement inputs",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "ratio.debt_to_equity",
+      "description": "debt_to_equity agrees with its statement inputs",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "ratio.ebitda_margin",
+      "description": "ebitda_margin agrees with its statement inputs",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "ratio.dscr",
+      "description": "dscr agrees with its statement inputs",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "ratio.liabilities_to_assets",
+      "description": "liabilities_to_assets agrees with its statement inputs",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "ratio.no_infinity",
+      "description": "No ratio is infinite; unusable ones carry a status",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "any_flagged": true
+      }
+    },
+    {
+      "check_id": "ratio.opening_balance",
+      "description": "Average-denominator ratios are unavailable in the first slot rather than computed from an invented opening balance",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "covenant.headroom",
+      "description": "Headroom follows the contractual comparator, and its sign matches the status",
+      "passed": true,
+      "detail": "",
+      "observed": 5570
+    },
+    {
+      "check_id": "covenant.untested",
+      "description": "Untested covenants carry no observation and say why",
+      "passed": true,
+      "detail": "",
+      "observed": 6249
+    },
+    {
+      "check_id": "covenant.scope",
+      "description": "Borrower-wide and facility-specific covenants are distinguished",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "borrower_wide": 6135
+      }
+    },
+    {
+      "check_id": "covenant.outcomes",
+      "description": "Compliant, breached and waived outcomes all occur",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "not_tested": 6204,
+        "compliant": 4636,
+        "breached": 934,
+        "waived": 491,
+        "unavailable": 45
+      }
+    },
+    {
+      "check_id": "qualitative.twenty",
+      "description": "Twenty questions per borrower-quarter, some unanswered",
+      "passed": true,
+      "detail": "",
+      "observed": {
+        "rows": 82260,
+        "unanswered": 5755
+      }
+    },
+    {
+      "check_id": "label.cockpit_reporting_calendar",
+      "description": "cockpit_reporting_calendar is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_facility_quarter",
+      "description": "cockpit_facility_quarter is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_ifrs9_detail",
+      "description": "cockpit_ifrs9_detail is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_borrower_financial_quarter",
+      "description": "cockpit_borrower_financial_quarter is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_rating_ratio_quarter",
+      "description": "cockpit_rating_ratio_quarter is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_qualitative_quarter",
+      "description": "cockpit_qualitative_quarter is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_collateral_quarter",
+      "description": "cockpit_collateral_quarter is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_collateral_allocation",
+      "description": "cockpit_collateral_allocation is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_covenant_quarter",
+      "description": "cockpit_covenant_quarter is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.cockpit_macro_quarter_window",
+      "description": "cockpit_macro_quarter_window is corporate_cockpit only",
+      "passed": true,
+      "detail": "",
+      "observed": null
+    },
+    {
+      "check_id": "label.origin",
+      "description": "The release is labelled synthetic",
+      "passed": true,
+      "detail": "",
+      "observed": "SYNTHETIC_DEMO"
+    }
+  ]
+}

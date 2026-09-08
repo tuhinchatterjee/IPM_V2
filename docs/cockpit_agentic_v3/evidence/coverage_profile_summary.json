@@ -1,0 +1,2604 @@
+{
+  "dataset_release_id": "demo-20q-v1",
+  "computed_from": "the full authorized release, not the sample rows",
+  "computed_at": "2026-09-08T19:05:23+00:00",
+  "row_counts": {
+    "cockpit_reporting_calendar": 20,
+    "cockpit_facility_quarter": 6758,
+    "cockpit_ifrs9_detail": 23118,
+    "cockpit_borrower_financial_quarter": 4113,
+    "cockpit_rating_ratio_quarter": 4113,
+    "cockpit_qualitative_quarter": 82260,
+    "cockpit_collateral_quarter": 12440,
+    "cockpit_collateral_allocation": 18600,
+    "cockpit_covenant_quarter": 12310,
+    "cockpit_macro_quarter_window": 12000,
+    "cockpit_macro_pivot": 60
+  },
+  "populated_quarters": [
+    "2021Q3",
+    "2021Q4",
+    "2022Q1",
+    "2022Q2",
+    "2022Q3",
+    "2022Q4",
+    "2023Q1",
+    "2023Q2",
+    "2023Q3",
+    "2023Q4",
+    "2024Q1",
+    "2024Q2",
+    "2024Q3",
+    "2024Q4",
+    "2025Q1",
+    "2025Q2",
+    "2025Q3",
+    "2025Q4",
+    "2026Q1",
+    "2026Q2"
+  ],
+  "missing_quarters": [],
+  "fields_with_full_coverage": 737,
+  "fields_with_gaps": {
+    "cockpit_borrower_financial_quarter": [
+      {
+        "n": "tenant_id",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "domain_id",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "dataset_release_id",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "reporting_quarter",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "quarter_end_date",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "data_cutoff_at",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "source_system",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "source_record_id",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "source_period_start",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "source_period_end",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "source_published_at",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "source_available_at",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "source_version",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "mapping_version",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "ingested_at",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "provenance_id",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "value_origin",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "missing_reason",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "currency_code",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "reporting_currency",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "fx_to_reporting_currency",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "amount_scale",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "record_status",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "observation_age_days",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "borrower_id",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "statement_scope",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "statement_id",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "statement_version",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "statement_period_basis",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "statement_period_days",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "audited_flag",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "audit_opinion",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "cash_and_cash_equivalents",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "restricted_cash",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "short_term_investments",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "trade_receivables_gross",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "receivables_loss_allowance",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "trade_receivables_net",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "inventory",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "prepayments",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_current_assets",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "current_assets",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "ppe_gross",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "accumulated_depreciation",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "ppe_net",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "goodwill",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_intangible_assets",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "long_term_investments",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_noncurrent_assets",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "noncurrent_assets",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "total_assets",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "trade_payables",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "short_term_borrowings",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "current_portion_long_term_debt",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "interest_payable",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "tax_payable",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "accrued_expenses",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_current_liabilities",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "current_liabilities",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "long_term_debt",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "lease_liabilities_current",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "lease_liabilities_noncurrent",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "deferred_tax_liabilities",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "provisions_noncurrent",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_noncurrent_liabilities",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "noncurrent_liabilities",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "total_liabilities",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "share_capital",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "retained_earnings",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "reserves",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "noncontrolling_interests",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "shareholders_equity",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "equity_scope",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "tangible_net_worth",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "tangible_net_worth_basis",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "working_capital",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "liquid_assets",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "liquid_assets_basis",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "total_debt",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "debt_lease_treatment",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "net_debt",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "capital_employed",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "revenue",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "domestic_revenue",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "export_revenue",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "credit_sales",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "sales_returns",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "sales_discounts",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "cost_of_goods_sold",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "gross_profit",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "staff_costs",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "selling_distribution_expenses",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "administrative_expenses",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "research_development_expenses",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "lease_rent_expense",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "depreciation_expense",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "amortization_expense",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_operating_expenses",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "total_operating_expenses",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_operating_income",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "ebitda",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "ebit",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "interest_income",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "interest_expense",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "net_finance_cost",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "foreign_exchange_gain_loss",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "exceptional_income",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "exceptional_expenses",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "other_nonoperating_income",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "profit_before_tax",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "tax_expense",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "net_profit",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "net_profit_attributable_to_owners",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "dividends_declared",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "operating_expense_basis",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "ebitda_basis",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "operating_cash_flow",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "capital_expenditure",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "free_cash_flow",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "cash_available_for_debt_service",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "scheduled_principal_due",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "interest_due_for_debt_service",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "debt_service_due",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "credit_purchases",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_total_assets",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_shareholders_equity",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_inventory",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_trade_receivables_net",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_trade_payables",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_ppe_net",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_working_capital",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "opening_capital_employed",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ],
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "fcf_basis",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "dscr_basis",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      },
+      {
+        "n": "financial_input_coverage",
+        "miss": 0.0,
+        "carried_forward": 0.3392
+      }
+    ],
+    "cockpit_collateral_allocation": [
+      {
+        "n": "source_period_start",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_period_end",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_published_at",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_available_at",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      }
+    ],
+    "cockpit_collateral_quarter": [
+      {
+        "n": "source_period_start",
+        "miss": 0.0473
+      },
+      {
+        "n": "source_period_end",
+        "miss": 0.0473
+      },
+      {
+        "n": "source_published_at",
+        "miss": 0.0473
+      },
+      {
+        "n": "source_available_at",
+        "miss": 0.0473
+      },
+      {
+        "n": "observation_age_days",
+        "miss": 0.0473
+      },
+      {
+        "n": "valuation_date",
+        "miss": 0.0473
+      },
+      {
+        "n": "valuation_available_at",
+        "miss": 0.0473
+      },
+      {
+        "n": "gross_market_value",
+        "miss": 0.0473
+      },
+      {
+        "n": "gross_market_value_rcy",
+        "miss": 0.0473
+      },
+      {
+        "n": "eligible_value_before_haircut",
+        "miss": 0.0473
+      },
+      {
+        "n": "market_haircut",
+        "miss": 0.0473
+      },
+      {
+        "n": "liquidity_haircut",
+        "miss": 0.0473
+      },
+      {
+        "n": "fx_haircut",
+        "miss": 0.0473
+      },
+      {
+        "n": "legal_haircut",
+        "miss": 0.0473
+      },
+      {
+        "n": "total_haircut",
+        "miss": 0.0473
+      },
+      {
+        "n": "haircut_amount",
+        "miss": 0.0473
+      },
+      {
+        "n": "net_realizable_value",
+        "miss": 0.0473
+      },
+      {
+        "n": "valuation_expiry_date",
+        "miss": 0.0473
+      },
+      {
+        "n": "valuation_overdue_flag",
+        "miss": 0.0473
+      }
+    ],
+    "cockpit_covenant_quarter": [
+      {
+        "n": "facility_id",
+        "miss": 0.4984
+      },
+      {
+        "n": "threshold_lower",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "threshold_upper",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "observed_value",
+        "miss": 0.5076,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2022Q1",
+          "2022Q3",
+          "2023Q1",
+          "2023Q3",
+          "2024Q1",
+          "2024Q3",
+          "2025Q1",
+          "2025Q3",
+          "2026Q1"
+        ]
+      },
+      {
+        "n": "headroom_value",
+        "miss": 0.5076,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2022Q1",
+          "2022Q3",
+          "2023Q1",
+          "2023Q3",
+          "2024Q1",
+          "2024Q3",
+          "2025Q1",
+          "2025Q3",
+          "2026Q1"
+        ]
+      },
+      {
+        "n": "breach_date",
+        "miss": 0.9241,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2022Q1",
+          "2022Q3",
+          "2023Q1",
+          "2023Q3",
+          "2024Q1",
+          "2024Q3",
+          "2025Q1",
+          "2025Q3",
+          "2026Q1"
+        ]
+      },
+      {
+        "n": "waiver_date",
+        "miss": 0.9601,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2022Q1",
+          "2022Q3",
+          "2023Q1",
+          "2023Q3",
+          "2024Q1",
+          "2024Q3",
+          "2025Q1",
+          "2025Q3",
+          "2026Q1"
+        ]
+      },
+      {
+        "n": "waiver_expiry_date",
+        "miss": 0.9601,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2022Q1",
+          "2022Q3",
+          "2023Q1",
+          "2023Q3",
+          "2024Q1",
+          "2024Q3",
+          "2025Q1",
+          "2025Q3",
+          "2026Q1"
+        ]
+      },
+      {
+        "n": "cure_deadline",
+        "miss": 0.9241,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2022Q1",
+          "2022Q3",
+          "2023Q1",
+          "2023Q3",
+          "2024Q1",
+          "2024Q3",
+          "2025Q1",
+          "2025Q3",
+          "2026Q1"
+        ]
+      }
+    ],
+    "cockpit_facility_quarter": [
+      {
+        "n": "ead_ttc",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "ccf_ttc",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "lgd_downturn",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "default_date",
+        "miss": 0.9993,
+        "quarters_fully_missing": [
+          "2022Q2",
+          "2022Q3",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "cash_deposits_haircut_weighted",
+        "miss": 0.8982
+      },
+      {
+        "n": "cash_deposits_valuation_missing_rate",
+        "miss": 0.8946
+      },
+      {
+        "n": "government_securities_haircut_weighted",
+        "miss": 0.8628
+      },
+      {
+        "n": "government_securities_valuation_missing_rate",
+        "miss": 0.8578
+      },
+      {
+        "n": "bank_guarantees_haircut_weighted",
+        "miss": 0.8779
+      },
+      {
+        "n": "bank_guarantees_valuation_missing_rate",
+        "miss": 0.8744
+      },
+      {
+        "n": "residential_property_haircut_weighted",
+        "miss": 0.913
+      },
+      {
+        "n": "residential_property_valuation_missing_rate",
+        "miss": 0.9084
+      },
+      {
+        "n": "commercial_property_haircut_weighted",
+        "miss": 0.8822
+      },
+      {
+        "n": "commercial_property_valuation_missing_rate",
+        "miss": 0.8763
+      },
+      {
+        "n": "plant_machinery_haircut_weighted",
+        "miss": 0.8895
+      },
+      {
+        "n": "plant_machinery_valuation_missing_rate",
+        "miss": 0.8835
+      },
+      {
+        "n": "vehicles_haircut_weighted",
+        "miss": 0.8732
+      },
+      {
+        "n": "vehicles_valuation_missing_rate",
+        "miss": 0.8661
+      },
+      {
+        "n": "inventory_haircut_weighted",
+        "miss": 0.8796
+      },
+      {
+        "n": "inventory_valuation_missing_rate",
+        "miss": 0.8753
+      },
+      {
+        "n": "receivables_haircut_weighted",
+        "miss": 0.86
+      },
+      {
+        "n": "receivables_valuation_missing_rate",
+        "miss": 0.852
+      },
+      {
+        "n": "listed_equities_haircut_weighted",
+        "miss": 0.8349
+      },
+      {
+        "n": "listed_equities_valuation_missing_rate",
+        "miss": 0.8263
+      },
+      {
+        "n": "debt_securities_haircut_weighted",
+        "miss": 0.8921
+      },
+      {
+        "n": "debt_securities_valuation_missing_rate",
+        "miss": 0.8869
+      },
+      {
+        "n": "other_collateral_haircut_weighted",
+        "miss": 0.9125
+      },
+      {
+        "n": "other_collateral_valuation_missing_rate",
+        "miss": 0.9086
+      }
+    ],
+    "cockpit_ifrs9_detail": [
+      {
+        "n": "source_period_start",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_period_end",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_published_at",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_available_at",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      }
+    ],
+    "cockpit_qualitative_quarter": [
+      {
+        "n": "source_period_start",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_period_end",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_published_at",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "source_available_at",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "observation_age_days",
+        "miss": 0.07
+      },
+      {
+        "n": "answer_value",
+        "miss": 0.07
+      },
+      {
+        "n": "assessment_date",
+        "miss": 0.07
+      },
+      {
+        "n": "answer_value where question_id=Q01",
+        "miss": 0.0744,
+        "carried_forward": 0.6963
+      },
+      {
+        "n": "answer_value where question_id=Q02",
+        "miss": 0.0717,
+        "carried_forward": 0.6951
+      },
+      {
+        "n": "answer_value where question_id=Q03",
+        "miss": 0.0725,
+        "carried_forward": 0.6963
+      },
+      {
+        "n": "answer_value where question_id=Q04",
+        "miss": 0.069,
+        "carried_forward": 0.6983
+      },
+      {
+        "n": "answer_value where question_id=Q05",
+        "miss": 0.072,
+        "carried_forward": 0.6961
+      },
+      {
+        "n": "answer_value where question_id=Q06",
+        "miss": 0.0725,
+        "carried_forward": 0.6973
+      },
+      {
+        "n": "answer_value where question_id=Q07",
+        "miss": 0.0676,
+        "carried_forward": 0.7
+      },
+      {
+        "n": "answer_value where question_id=Q08",
+        "miss": 0.0632,
+        "carried_forward": 0.7017
+      },
+      {
+        "n": "answer_value where question_id=Q09",
+        "miss": 0.0659,
+        "carried_forward": 0.7024
+      },
+      {
+        "n": "answer_value where question_id=Q10",
+        "miss": 0.07,
+        "carried_forward": 0.6983
+      },
+      {
+        "n": "answer_value where question_id=Q11",
+        "miss": 0.0722,
+        "carried_forward": 0.6995
+      },
+      {
+        "n": "answer_value where question_id=Q12",
+        "miss": 0.0712,
+        "carried_forward": 0.7
+      },
+      {
+        "n": "answer_value where question_id=Q13",
+        "miss": 0.0688,
+        "carried_forward": 0.6973
+      },
+      {
+        "n": "answer_value where question_id=Q14",
+        "miss": 0.0695,
+        "carried_forward": 0.6988
+      },
+      {
+        "n": "answer_value where question_id=Q15",
+        "miss": 0.0644,
+        "carried_forward": 0.7034
+      },
+      {
+        "n": "answer_value where question_id=Q16",
+        "miss": 0.0768,
+        "carried_forward": 0.6934
+      },
+      {
+        "n": "answer_value where question_id=Q17",
+        "miss": 0.0673,
+        "carried_forward": 0.6975
+      },
+      {
+        "n": "answer_value where question_id=Q18",
+        "miss": 0.0574,
+        "carried_forward": 0.7119
+      },
+      {
+        "n": "answer_value where question_id=Q19",
+        "miss": 0.0729,
+        "carried_forward": 0.6961
+      },
+      {
+        "n": "answer_value where question_id=Q20",
+        "miss": 0.0797,
+        "carried_forward": 0.6924
+      }
+    ],
+    "cockpit_rating_ratio_quarter": [
+      {
+        "n": "return_on_assets",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "return_on_equity",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "return_on_capital_employed",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "total_asset_turnover",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "fixed_asset_turnover",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "working_capital_turnover",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "inventory_turnover",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "receivables_turnover",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "payables_turnover",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "receivables_days",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "inventory_days",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "payables_days",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "cash_conversion_cycle_days",
+        "miss": 0.0532,
+        "quarters_fully_missing": [
+          "2021Q3"
+        ]
+      },
+      {
+        "n": "quick_ratio_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "cash_ratio_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "operating_cash_flow_to_current_liabilities_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "working_capital_to_total_assets_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "liquid_assets_to_total_assets_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "ebitda_interest_coverage_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "fixed_charge_coverage_ratio_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "operating_cash_flow_to_debt_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "free_cash_flow_to_debt_service_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "debt_to_ebitda_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "liabilities_to_assets_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "equity_to_assets_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "long_term_debt_to_capital_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "tangible_net_worth_to_debt_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "gross_profit_margin_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "ebitda_margin_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "operating_profit_margin_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "net_profit_margin_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "return_on_assets_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "return_on_equity_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "return_on_capital_employed_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "operating_cash_flow_margin_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "free_cash_flow_margin_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "total_asset_turnover_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "fixed_asset_turnover_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "working_capital_turnover_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "inventory_turnover_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "receivables_turnover_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "payables_turnover_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "receivables_days_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "inventory_days_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "payables_days_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "cash_conversion_cycle_days_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      },
+      {
+        "n": "capex_to_operating_cash_flow_source_value",
+        "miss": 1.0,
+        "quarters_fully_missing": [
+          "2021Q3",
+          "2021Q4",
+          "2022Q1",
+          "2022Q2",
+          "2022Q3",
+          "2022Q4",
+          "2023Q1",
+          "2023Q2",
+          "2023Q3",
+          "2023Q4",
+          "2024Q1",
+          "2024Q2",
+          "2024Q3",
+          "2024Q4",
+          "2025Q1",
+          "2025Q2",
+          "2025Q3",
+          "2025Q4",
+          "2026Q1",
+          "2026Q2"
+        ]
+      }
+    ],
+    "cockpit_reporting_calendar": [
+      {
+        "n": "source_period_start",
+        "miss": 1.0
+      },
+      {
+        "n": "source_period_end",
+        "miss": 1.0
+      },
+      {
+        "n": "source_published_at",
+        "miss": 1.0
+      },
+      {
+        "n": "source_available_at",
+        "miss": 1.0
+      }
+    ]
+  },
+  "further_fields_with_gaps_not_listed": 0,
+  "truncation_note": "",
+  "denominator_note": "'miss' is the fraction of ALL rows where the field is empty. 'miss_applicable' appears only when it differs, and excludes rows whose missing_reason is not_applicable. 'quarters_fully_missing' lists reporting quarters where the field is empty in every row -- a low overall rate does not mean the quarter you selected has data.",
+  "small_group_note": "Per-quarter rates are suppressed for groups smaller than 5 rows."
+}
