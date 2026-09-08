@@ -50,6 +50,18 @@ const LAYER_LABEL: Record<string, string> = {
 
 const OPEN_BY_DEFAULT = new Set(["HIGH", "VERY_HIGH"]);
 
+/**
+ * Whether a sub-category code is on the Classifier side (L2.1-L2.7, L4.4)
+ * rather than the Trigger & Accelerator side (L1.x, L2.T1/T2, L3.x, L4.1-3).
+ * A Classifier sub-category is a structural reading from bands and
+ * overrides, not something a trigger fires into — the empty state reads
+ * differently for the two, or "no signal fired" misreads a classifier
+ * reading already in force as a missing observation.
+ */
+function isClassifierSubCategory(code: string): boolean {
+  return /^L2\.\d/.test(code) || code === "L4.4";
+}
+
 export function SignalTree({ tree }: { tree: EarlyWarningV2BorrowerTree }) {
   return (
     <div className="space-y-3">
@@ -159,6 +171,11 @@ function SubCategoryRow({ sub }: { sub: EarlyWarningV2SubCategoryNode }) {
                 </li>
               ))}
             </ul>
+          ) : isClassifierSubCategory(sub.code) ? (
+            <p className="text-xs text-text-muted">
+              Structural reading, not a fired trigger — this score comes
+              from the classifier&rsquo;s own bands and overrides.
+            </p>
           ) : (
             <p className="text-xs text-text-muted">No signal fired here this period.</p>
           )}
