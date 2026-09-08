@@ -338,8 +338,17 @@ def pd_from_quality(z: np.ndarray) -> np.ndarray:
     Logistic: strong names cluster within a few basis points, weak ones climb
     steeply. Floored above zero because no rating system publishes a PD of
     exactly zero, and capped below 100 for the same reason.
+
+    The floor is the SCALE's floor rather than a second one written here. It
+    used to be 0.02%, which sat ABOVE the AAA band's upper edge of 0.011% —
+    so no borrower could ever be graded AAA, and the strongest grade of a
+    nineteen-point scale was unreachable by construction. Two floors that
+    disagree is the same defect as two copies of a policy threshold: one of
+    them silently wins, and here the one that won truncated the top of the
+    scale.
     """
-    return np.clip(100.0 / (1.0 + np.exp(2.10 * z + PD_OFFSET)), 0.02, 99.0)
+    return np.clip(100.0 / (1.0 + np.exp(2.10 * z + PD_OFFSET)),
+                   ratingscale.PD_FLOOR_PCT, ratingscale.PD_CEILING_PCT)
 
 
 def grade_from_pd(pd_pct: np.ndarray) -> np.ndarray:
@@ -827,6 +836,27 @@ def spine(entities: pd.DataFrame, state: dict[str, np.ndarray],
 #: this produce nine two-notch moves for every one-notch move.
 RATING_REVIEW_BUFFER = 3
 
+#: The same buffer, in the units it actually has to be measured in.
+#:
+#: A notch is not a constant amount of credit risk. On the governed masterscale
+#: three notches is 1.11 in log-odds at the investment-grade end and 1.90
+#: through the distressed tail, so a buffer counted in NOTCHES is a tight
+#: filter at the top of the scale and a loose one at the bottom. The book it
+#: produced said so plainly: AAA held its grade 75% of quarters and BB+ held it
+#: 90%, which is the wrong way round — a real rating system's strongest grades
+#: are its stickiest, and its CCC names are the ones that move.
+#:
+#: So the buffer is expressed on the axis the masterscale is built on. 1.57 is
+#: exactly three notches at BBB, where the mass of this book sits, so the
+#: middle of the scale behaves as it did and the two ends are corrected: about
+#: four and a half notches at AAA, and about two and a half through CCC/CC/C.
+#: The number is the same evidence as before — the model grade's annual drift,
+#: 75th percentile — read on the right axis.
+#: BBB (ordinal 9) to BB (ordinal 12) is the three notches, on the axis.
+RATING_REVIEW_BUFFER_LOG_ODDS = float(
+    ratingscale.log_odds_gap([ratingscale.ORDINAL["BBB"] - 1],
+                             [ratingscale.ORDINAL["BB"] - 1])[0])
+
 #: How far a grade may travel in one quarter once the committee does act.
 #: Multi-notch downgrades are real and they belong in the book; what does not
 #: belong is a six-notch move as the routine consequence of discretising a
@@ -869,6 +899,14 @@ RATING_REVIEW_QUARTERS = 4
 #: ten of its peers, which is what cannot wait for an anniversary.
 RATING_OUT_OF_CYCLE_NOTCHES = 5
 
+#: The out-of-cycle threshold on the same axis, and for the same reason: five
+#: notches at BBB, which is about seven and a half at the top of the scale and
+#: about four through the tail.
+#: BBB (ordinal 9) to B+ (ordinal 14) is the five notches, on the axis.
+RATING_OUT_OF_CYCLE_LOG_ODDS = float(
+    ratingscale.log_odds_gap([ratingscale.ORDINAL["BBB"] - 1],
+                             [ratingscale.ORDINAL["B+"] - 1])[0])
+
 
 def _rating_with_inertia(candidate: np.ndarray, entity: np.ndarray,
                          quarter: np.ndarray, default_flag: np.ndarray,
@@ -884,7 +922,8 @@ def _rating_with_inertia(candidate: np.ndarray, entity: np.ndarray,
       quarter, or it has drifted far enough to be brought forward;
 
       the evidence has MOVED — the model grade sits at least
-      `RATING_REVIEW_BUFFER` notches from the grade being carried;
+      `RATING_REVIEW_BUFFER_LOG_ODDS` away in credit risk from the grade
+      being carried;
 
       and then it travels at most `RATING_MAX_STEP` notches.
 
@@ -906,9 +945,16 @@ def _rating_with_inertia(candidate: np.ndarray, entity: np.ndarray,
         opening = standing < 0
         gap = want - np.where(opening, want, standing)
 
+        # How far the evidence has moved, measured in credit risk rather than
+        # in notch counts — the two are not the same thing on a scale whose
+        # notches widen down it, and counting notches made the strongest
+        # grades the least stable in the book.
+        moved_by = ratingscale.log_odds_gap(
+            np.where(opening, want, standing), want)
+
         due = review_quarter[here] == (step % RATING_REVIEW_QUARTERS)
-        urgent = np.abs(gap) >= RATING_OUT_OF_CYCLE_NOTCHES
-        acts = (due | urgent) & (np.abs(gap) >= RATING_REVIEW_BUFFER)
+        urgent = moved_by >= RATING_OUT_OF_CYCLE_LOG_ODDS
+        acts = (due | urgent) & (moved_by >= RATING_REVIEW_BUFFER_LOG_ODDS)
 
         # A notch, ordinarily; further only for the drift that brought the
         # name forward out of cycle — and never past the candidate itself,

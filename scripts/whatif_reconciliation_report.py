@@ -228,15 +228,25 @@ def spot_check(periods: list[str]) -> dict[str, Any]:
             reported = float(pd.to_numeric(row.get("final_ecl"), errors="coerce") or 0.0)
             overlay = float(pd.to_numeric(row.get("management_overlay"),
                                           errors="coerce") or 0.0)
-            applicable = pd_12m if stage <= 1 else pd_life
+            # The governed basis, and the governed weighting with it. Stage 3
+            # is measured at 100% and carries NO scenario weighting: those
+            # multipliers scale a probability that has not resolved, and a
+            # default has. Recomputing a defaulted row at 1.082 x LGD x EAD
+            # would report the book as failing to tie to arithmetic that is
+            # itself wrong.
+            applicable = (rs.DEFAULT_PD_PCT if stage >= 3
+                          else pd_12m if stage <= 1 else pd_life)
+            weighting = (1.0 if stage >= 3
+                         else policy.WEIGHTED_SCENARIO_FACTOR)
             recomputed = min(
-                applicable / 100.0 * lgd / 100.0 * ead
-                * policy.WEIGHTED_SCENARIO_FACTOR, ead)
+                applicable / 100.0 * lgd / 100.0 * ead * weighting, ead)
             history[str(row["borrower_id"])].append({
                 "period": period,
                 "rating": str(row.get("internal_rating", "")),
                 "stage": stage,
-                "measurement_basis": "12-month PD" if stage <= 1 else "Lifetime PD",
+                "measurement_basis": ("Defaulted - PD 100%" if stage >= 3
+                                      else "12-month PD" if stage <= 1
+                                      else "Lifetime PD"),
                 "pd_12m": round(pd_12m, 4),
                 "pd_lifetime": round(pd_life, 4),
                 "pd_applicable": round(applicable, 4),

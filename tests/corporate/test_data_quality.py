@@ -175,22 +175,43 @@ class TestTheProvisionIsAProduct:
 
     def test_the_measurement_basis_follows_the_stage(self, ifrs9):
         stage_one = ifrs9[ifrs9["stage"] <= 1]
-        later = ifrs9[ifrs9["stage"] >= 2]
+        stage_two = ifrs9[ifrs9["stage"] == 2]
+        stage_three = ifrs9[ifrs9["stage"] == 3]
         assert (stage_one["pd_measurement_basis"] == "12-month PD").all()
-        assert (later["pd_measurement_basis"] == "Lifetime PD").all()
+        assert (stage_two["pd_measurement_basis"] == "Lifetime PD").all()
+        assert (stage_three["pd_measurement_basis"]
+                == "Defaulted - PD 100%").all()
 
     def test_the_applicable_pd_is_the_one_the_basis_names(self, ifrs9):
-        expected = np.where(ifrs9["stage"] <= 1, ifrs9["pd_12m"],
-                            ifrs9["pd_lifetime"])
+        expected = np.where(
+            ifrs9["stage"] >= 3, 100.0,
+            np.where(ifrs9["stage"] <= 1, ifrs9["pd_12m"],
+                     ifrs9["pd_lifetime"]))
         assert float(np.abs(ifrs9["pd_applicable"] - expected).max()) < 1e-9
 
     def test_the_provision_before_overlay_is_the_governed_product(self, ifrs9):
+        """And the scenario weighting does not apply to a resolved default.
+
+        Its multipliers scale a probability that has not yet resolved.
+        Multiplying a certainty by 1.082 would assert a loss rate above the
+        borrower's own LGD, which is an arithmetic error rather than a
+        provision.
+        """
+        weighting = np.where(ifrs9["stage"] >= 3, 1.0,
+                             policy.WEIGHTED_SCENARIO_FACTOR)
         expected = (ifrs9["pd_applicable"] / 100.0
                     * ifrs9["lgd"] / 100.0
-                    * ifrs9["ead"] * policy.WEIGHTED_SCENARIO_FACTOR)
+                    * ifrs9["ead"] * weighting)
         capped = np.minimum(expected, ifrs9["ead"])
         gap = (ifrs9["ecl_before_overlay"] - capped).abs()
         assert float(gap.max()) < 0.05
+
+    def test_a_defaulted_provision_never_exceeds_its_loss_given_default(
+            self, ifrs9):
+        defaulted = ifrs9[ifrs9["stage"] >= 3]
+        assert len(defaulted) > 0
+        ceiling = defaulted["lgd"] / 100.0 * defaulted["ead"]
+        assert float((defaulted["ecl_before_overlay"] - ceiling).max()) < 0.05
 
     def test_loss_given_default_sits_between_its_secured_and_unsecured_legs(
             self, ifrs9):

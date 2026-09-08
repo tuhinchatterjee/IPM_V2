@@ -61,9 +61,20 @@ class TestThePortfolioReconciles:
 
 class TestTheRatingDistribution:
     def test_every_governed_grade_appears(self, report) -> None:
+        """Nineteen performing grades, then default as its own row.
+
+        The scale is the nineteen; the twentieth row is the state a borrower
+        reaches by the default event, and it is there so the total ties to the
+        book rather than to the performing part of it.
+        """
         dist = report["rating_distribution"]
         assert dist["grades"] == 19
-        assert len(dist["rows"]) == 19
+        assert len(dist["rows"]) == 20
+        assert [r["grade"] for r in dist["rows"]][:19] == [
+            "AAA", "AA+", "AA", "AA-", "A+", "A", "A-", "BBB+", "BBB", "BBB-",
+            "BB+", "BB", "BB-", "B+", "B", "B-", "CCC", "CC", "C"]
+        assert dist["rows"][19]["grade"] == "D"
+        assert dist["rows"][19]["performing"] is False
 
     def test_the_through_the_cycle_scale_is_ordered(self, report) -> None:
         assert report["rating_distribution"]["monotone_ttc"]
@@ -107,6 +118,10 @@ class TestTheSpotCheck:
     def test_the_measurement_basis_follows_the_stage_on_every_row(self, report) -> None:
         for entries in report["spot_check"]["history"].values():
             for row in entries:
+                if row["stage"] >= 3:
+                    assert row["measurement_basis"] == "Defaulted - PD 100%"
+                    assert row["pd_applicable"] == 100.0
+                    continue
                 expected = "12-month PD" if row["stage"] <= 1 else "Lifetime PD"
                 assert row["measurement_basis"] == expected
                 assert row["pd_applicable"] == (

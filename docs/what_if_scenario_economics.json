@@ -21,20 +21,20 @@
     {
      "question": "the provision moves in the expected direction",
      "status": "PASS",
-     "detail": "up by 1,320.6 (+41.93%)",
+     "detail": "up by 1,018.5 (+32.47%)",
      "evidence": {
-      "change": 1320.596,
-      "pct": 41.9349
+      "change": 1018.456,
+      "pct": 32.4725
      }
     },
     {
      "question": "the movement is carried by the expected driver",
      "status": "PASS",
-     "detail": "largest driver is 'pd' at 687.4; expected 'pd'",
+     "detail": "largest driver is 'pd' at 659.9; expected 'pd'",
      "evidence": {
       "drivers": {
-       "pd": 687.39,
-       "basis": 633.2
+       "pd": 659.87,
+       "basis": 358.58
       }
      }
     },
@@ -43,16 +43,16 @@
      "status": "PASS",
      "detail": "0 borrowers improved a stage under an adverse shock",
      "evidence": {
-      "deteriorated": 55,
+      "deteriorated": 54,
       "cured": 0
      }
     },
     {
      "question": "the effect lands only where the scenario pointed",
      "status": "PASS",
-     "detail": "2280 borrowers moved, 0 of them opening outside Stage 1",
+     "detail": "2291 borrowers moved, 0 of them opening outside Stage 1",
      "evidence": {
-      "moved": 2280,
+      "moved": 2291,
       "outside": 0
      }
     }
@@ -61,10 +61,10 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +1,320.6 against ML +1,323.8",
+     "detail": "Delta +1,018.5 against ML +1,019.0",
      "evidence": {
-      "delta": 1320.6,
-      "ml": 1323.85
+      "delta": 1018.46,
+      "ml": 1019.04
      }
     },
     {
@@ -72,7 +72,7 @@
      "status": "PASS",
      "detail": "the ML movement is 1.00x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.0025,
+      "ratio": 1.0006,
       "band": [
        0.4,
        2.5
@@ -82,17 +82,17 @@
     {
      "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "median ML/Delta ratio 1.02 for the 55 borrowers that changed stage against 1.00 for those that did not",
+     "detail": "median ML/Delta ratio 1.01 for the 54 borrowers that changed stage against 1.00 for those that did not",
      "evidence": {
-      "crossed": 1.0188,
+      "crossed": 1.0102,
       "held": 1.0,
-      "gap": 0.0188
+      "gap": 0.0102
      }
     },
     {
      "question": "the boundary behaviour is disclosed on the comparison",
      "status": "PASS",
-     "detail": "The model prices the 55 borrower(s) that changed stage at 1.02 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
+     "detail": "The model prices the 54 borrower(s) that changed stage at 1.01 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
      "evidence": {
       "disclosed": true
      }
@@ -109,42 +109,20 @@
     }
    ],
    "result": {
-    "population": 2423,
-    "baseline_ecl": 3149.16,
-    "whatif_ecl": 4469.75,
-    "change": 1320.6,
-    "change_pct": 41.9349,
-    "deteriorated": 55,
+    "population": 2435,
+    "baseline_ecl": 3136.37,
+    "whatif_ecl": 4154.82,
+    "change": 1018.46,
+    "change_pct": 32.4725,
+    "deteriorated": 54,
     "cured": 0,
     "drivers": {
-     "pd": 687.39,
-     "basis": 633.2
+     "pd": 659.87,
+     "basis": 358.58
     },
     "plausibility": "Consistent with recent experience"
    },
    "top_borrowers": [
-    {
-     "borrower_id": "CORP-100007",
-     "sector": "Petrochemicals",
-     "opening_rating": "BB",
-     "stressed_rating": "BB",
-     "stage_baseline": 1,
-     "stage_stressed": 2,
-     "ecl_baseline": 133.9,
-     "ecl_stressed": 373.9,
-     "ecl_increase": 240.0
-    },
-    {
-     "borrower_id": "CORP-102959",
-     "sector": "Contracting",
-     "opening_rating": "B+",
-     "stressed_rating": "B+",
-     "stage_baseline": 1,
-     "stage_stressed": 2,
-     "ecl_baseline": 19.58,
-     "ecl_stressed": 74.19,
-     "ecl_increase": 54.61
-    },
     {
      "borrower_id": "CORP-101304",
      "sector": "Manufacturing",
@@ -152,105 +130,127 @@
      "stressed_rating": "B+",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 14.05,
-     "ecl_stressed": 66.22,
-     "ecl_increase": 52.17
+     "ecl_baseline": 13.21,
+     "ecl_stressed": 59.49,
+     "ecl_increase": 46.28
     },
     {
-     "borrower_id": "CORP-101839",
-     "sector": "Contracting",
-     "opening_rating": "B+",
-     "stressed_rating": "B+",
+     "borrower_id": "CORP-101219",
+     "sector": "Manufacturing",
+     "opening_rating": "B",
+     "stressed_rating": "B",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 27.92,
-     "ecl_stressed": 75.3,
-     "ecl_increase": 47.38
+     "ecl_baseline": 16.42,
+     "ecl_stressed": 48.15,
+     "ecl_increase": 31.73
     },
     {
-     "borrower_id": "CORP-101884",
+     "borrower_id": "CORP-100463",
+     "sector": "Real Estate",
+     "opening_rating": "B",
+     "stressed_rating": "B",
+     "stage_baseline": 1,
+     "stage_stressed": 2,
+     "ecl_baseline": 5.29,
+     "ecl_stressed": 36.26,
+     "ecl_increase": 30.97
+    },
+    {
+     "borrower_id": "CORP-101208",
      "sector": "Petrochemicals",
-     "opening_rating": "BBB-",
-     "stressed_rating": "BBB-",
+     "opening_rating": "BB",
+     "stressed_rating": "BB",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 21.13,
-     "ecl_stressed": 59.42,
-     "ecl_increase": 38.29
+     "ecl_baseline": 13.03,
+     "ecl_stressed": 40.4,
+     "ecl_increase": 27.37
+    },
+    {
+     "borrower_id": "CORP-101984",
+     "sector": "Real Estate",
+     "opening_rating": "BB",
+     "stressed_rating": "BB",
+     "stage_baseline": 1,
+     "stage_stressed": 2,
+     "ecl_baseline": 12.9,
+     "ecl_stressed": 39.64,
+     "ecl_increase": 26.75
     }
    ],
    "by_sector": [
     {
-     "sector": "Petrochemicals",
-     "borrowers": 177,
-     "baseline_ead": 161260.4,
-     "stressed_ead": 161260.4,
-     "baseline_ecl": 594.042,
-     "stressed_ecl": 984.459,
-     "ecl_increase": 390.418,
-     "ecl_increase_pct": 65.722
-    },
-    {
-     "sector": "Contracting",
-     "borrowers": 167,
-     "baseline_ead": 41512.25,
-     "stressed_ead": 41512.25,
-     "baseline_ecl": 289.936,
-     "stressed_ecl": 471.314,
-     "ecl_increase": 181.378,
-     "ecl_increase_pct": 62.558
-    },
-    {
      "sector": "Manufacturing",
-     "borrowers": 202,
-     "baseline_ead": 72712.15,
-     "stressed_ead": 72712.15,
-     "baseline_ecl": 362.929,
-     "stressed_ecl": 521.873,
-     "ecl_increase": 158.944,
-     "ecl_increase_pct": 43.795
+     "borrowers": 203,
+     "baseline_ead": 73700.08,
+     "stressed_ead": 73700.08,
+     "baseline_ecl": 370.677,
+     "stressed_ecl": 539.929,
+     "ecl_increase": 169.252,
+     "ecl_increase_pct": 45.66
     },
     {
      "sector": "Real Estate",
-     "borrowers": 223,
-     "baseline_ead": 50760.56,
-     "stressed_ead": 50760.56,
-     "baseline_ecl": 299.468,
-     "stressed_ecl": 442.698,
-     "ecl_increase": 143.229,
-     "ecl_increase_pct": 47.828
+     "borrowers": 226,
+     "baseline_ead": 51741.26,
+     "stressed_ead": 51741.26,
+     "baseline_ecl": 309.628,
+     "stressed_ecl": 478.263,
+     "ecl_increase": 168.634,
+     "ecl_increase_pct": 54.464
     },
     {
-     "sector": "Wholesale & Retail Trade",
-     "borrowers": 181,
-     "baseline_ead": 56850.27,
-     "stressed_ead": 56850.27,
-     "baseline_ecl": 294.334,
-     "stressed_ecl": 374.769,
-     "ecl_increase": 80.435,
-     "ecl_increase_pct": 27.328
+     "sector": "Petrochemicals",
+     "borrowers": 179,
+     "baseline_ead": 164006.27,
+     "stressed_ead": 164006.27,
+     "baseline_ecl": 541.381,
+     "stressed_ecl": 708.932,
+     "ecl_increase": 167.551,
+     "ecl_increase_pct": 30.949
+    },
+    {
+     "sector": "Contracting",
+     "borrowers": 165,
+     "baseline_ead": 40873.41,
+     "stressed_ead": 40873.41,
+     "baseline_ecl": 268.592,
+     "stressed_ecl": 369.916,
+     "ecl_increase": 101.324,
+     "ecl_increase_pct": 37.724
+    },
+    {
+     "sector": "Oil & Gas",
+     "borrowers": 166,
+     "baseline_ead": 164975.07,
+     "stressed_ead": 164975.07,
+     "baseline_ecl": 414.516,
+     "stressed_ecl": 502.758,
+     "ecl_increase": 88.243,
+     "ecl_increase_pct": 21.288
     }
    ],
    "comparison": {
-    "spread": 3.25,
-    "spread_pct": 0.073,
+    "spread": 0.59,
+    "spread_pct": 0.014,
     "agree": true,
     "rows": [
      {
       "method": "delta",
       "label": "Delta Model",
       "available": true,
-      "whatif_ecl": 4469.75,
-      "absolute_change": 1320.6,
-      "percentage_change": 41.935
+      "whatif_ecl": 4154.82,
+      "absolute_change": 1018.46,
+      "percentage_change": 32.472
      },
      {
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 4473.0,
-      "absolute_change": 1323.85,
-      "percentage_change": 42.038
+      "whatif_ecl": 4155.41,
+      "absolute_change": 1019.04,
+      "percentage_change": 32.491
      }
     ]
    }
@@ -269,20 +269,20 @@
     {
      "question": "the provision moves in the expected direction",
      "status": "PASS",
-     "detail": "up by 6,232.6 (+64.84%)",
+     "detail": "up by 7,523.3 (+68.15%)",
      "evidence": {
-      "change": 6232.62,
-      "pct": 64.8389
+      "change": 7523.296,
+      "pct": 68.1492
      }
     },
     {
      "question": "the movement is carried by the expected driver",
      "status": "PASS",
-     "detail": "largest driver is 'rating' at 4,805.0; expected 'rating'",
+     "detail": "largest driver is 'rating' at 5,756.2; expected 'rating'",
      "evidence": {
       "drivers": {
-       "rating": 4804.97,
-       "basis": 1427.65
+       "rating": 5756.22,
+       "basis": 1767.08
       }
      }
     },
@@ -291,16 +291,16 @@
      "status": "PASS",
      "detail": "0 borrowers improved a stage under an adverse shock",
      "evidence": {
-      "deteriorated": 167,
+      "deteriorated": 165,
       "cured": 0
      }
     },
     {
      "question": "the effect lands only where the scenario pointed",
      "status": "PASS",
-     "detail": "258 borrowers moved, 0 of them outside Contracting",
+     "detail": "259 borrowers moved, 0 of them outside Contracting",
      "evidence": {
-      "moved": 258,
+      "moved": 259,
       "outside": 0
      }
     }
@@ -309,18 +309,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +6,232.6 against ML +6,232.6",
+     "detail": "Delta +7,523.3 against ML +6,952.0",
      "evidence": {
-      "delta": 6232.62,
-      "ml": 6232.59
+      "delta": 7523.3,
+      "ml": 6951.96
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 1.00x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 0.92x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.0,
+      "ratio": 0.9241,
       "band": [
        0.4,
        2.5
@@ -330,17 +330,17 @@
     {
      "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "median ML/Delta ratio 0.98 for the 167 borrowers that changed stage against 1.03 for those that did not",
+     "detail": "median ML/Delta ratio 0.98 for the 165 borrowers that changed stage against 0.99 for those that did not",
      "evidence": {
-      "crossed": 0.9765,
-      "held": 1.0274,
-      "gap": -0.0509
+      "crossed": 0.9827,
+      "held": 0.9928,
+      "gap": -0.0101
      }
     },
     {
      "question": "the boundary behaviour is disclosed on the comparison",
      "status": "PASS",
-     "detail": "The model prices the 167 borrower(s) that changed stage at 0.98 times the Delta figure, against 1.03 for those that did not. It therefore UNDER-prices the crossings relative to the governed arithmetic. That is structural: the Stage 1 to Stage 2 step is a change of measurement basis from a twelve-month to a lifetime PD, which is a discontinuity, and a model fitting a continuous surface smooths across it.",
+     "detail": "The model prices the 165 borrower(s) that changed stage at 0.98 times the Delta figure, against 0.99 for those that did not. The two treat a crossing and a non-crossing alike.",
      "evidence": {
       "disclosed": true
      }
@@ -358,73 +358,73 @@
    ],
    "result": {
     "population": 289,
-    "baseline_ecl": 9612.48,
-    "whatif_ecl": 15845.1,
-    "change": 6232.62,
-    "change_pct": 64.8389,
-    "deteriorated": 167,
+    "baseline_ecl": 11039.44,
+    "whatif_ecl": 18562.74,
+    "change": 7523.3,
+    "change_pct": 68.1492,
+    "deteriorated": 165,
     "cured": 0,
     "drivers": {
-     "rating": 4804.97,
-     "basis": 1427.65
+     "rating": 5756.22,
+     "basis": 1767.08
     },
     "plausibility": "Plausible for selected pockets"
    },
    "top_borrowers": [
     {
-     "borrower_id": "CORP-100049",
+     "borrower_id": "CORP-100097",
      "sector": "Contracting",
      "opening_rating": "B-",
      "stressed_rating": "CC",
      "stage_baseline": 2,
      "stage_stressed": 2,
-     "ecl_baseline": 443.25,
-     "ecl_stressed": 947.68,
-     "ecl_increase": 504.43
-    },
-    {
-     "borrower_id": "CORP-100097",
-     "sector": "Contracting",
-     "opening_rating": "B+",
-     "stressed_rating": "B-",
-     "stage_baseline": 2,
-     "stage_stressed": 2,
-     "ecl_baseline": 257.08,
-     "ecl_stressed": 576.05,
-     "ecl_increase": 318.97
+     "ecl_baseline": 448.67,
+     "ecl_stressed": 935.84,
+     "ecl_increase": 487.16
     },
     {
      "borrower_id": "CORP-103437",
      "sector": "Contracting",
-     "opening_rating": "B+",
-     "stressed_rating": "B-",
-     "stage_baseline": 2,
-     "stage_stressed": 2,
-     "ecl_baseline": 175.98,
-     "ecl_stressed": 394.33,
-     "ecl_increase": 218.35
-    },
-    {
-     "borrower_id": "CORP-102952",
-     "sector": "Contracting",
      "opening_rating": "B-",
      "stressed_rating": "CC",
      "stage_baseline": 2,
      "stage_stressed": 2,
-     "ecl_baseline": 152.91,
-     "ecl_stressed": 318.47,
-     "ecl_increase": 165.56
+     "ecl_baseline": 335.56,
+     "ecl_stressed": 645.0,
+     "ecl_increase": 309.44
     },
     {
-     "borrower_id": "CORP-103324",
+     "borrower_id": "CORP-101214",
      "sector": "Contracting",
-     "opening_rating": "BB+",
-     "stressed_rating": "BB-",
+     "opening_rating": "B",
+     "stressed_rating": "CCC",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 28.37,
-     "ecl_stressed": 188.51,
-     "ecl_increase": 160.14
+     "ecl_baseline": 9.34,
+     "ecl_stressed": 302.83,
+     "ecl_increase": 293.49
+    },
+    {
+     "borrower_id": "CORP-101555",
+     "sector": "Contracting",
+     "opening_rating": "B",
+     "stressed_rating": "CCC",
+     "stage_baseline": 1,
+     "stage_stressed": 2,
+     "ecl_baseline": 8.27,
+     "ecl_stressed": 268.05,
+     "ecl_increase": 259.78
+    },
+    {
+     "borrower_id": "CORP-103430",
+     "sector": "Contracting",
+     "opening_rating": "CCC",
+     "stressed_rating": "C",
+     "stage_baseline": 2,
+     "stage_stressed": 2,
+     "ecl_baseline": 223.85,
+     "ecl_stressed": 436.11,
+     "ecl_increase": 212.25
     }
    ],
    "by_sector": [
@@ -433,32 +433,32 @@
      "borrowers": 289,
      "baseline_ead": 73093.1,
      "stressed_ead": 73093.1,
-     "baseline_ecl": 9612.477,
-     "stressed_ecl": 15845.097,
-     "ecl_increase": 6232.62,
-     "ecl_increase_pct": 64.839
+     "baseline_ecl": 11039.442,
+     "stressed_ecl": 18562.738,
+     "ecl_increase": 7523.296,
+     "ecl_increase_pct": 68.149
     }
    ],
    "comparison": {
-    "spread": -0.03,
-    "spread_pct": -0.0,
-    "agree": true,
+    "spread": -571.34,
+    "spread_pct": -3.078,
+    "agree": false,
     "rows": [
      {
       "method": "delta",
       "label": "Delta Model",
       "available": true,
-      "whatif_ecl": 15845.1,
-      "absolute_change": 6232.62,
-      "percentage_change": 64.839
+      "whatif_ecl": 18562.74,
+      "absolute_change": 7523.3,
+      "percentage_change": 68.149
      },
      {
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 15845.07,
-      "absolute_change": 6232.59,
-      "percentage_change": 64.839
+      "whatif_ecl": 17991.4,
+      "absolute_change": 6951.96,
+      "percentage_change": 62.974
      }
     ]
    }
@@ -477,37 +477,37 @@
     {
      "question": "the provision moves in the expected direction",
      "status": "PASS",
-     "detail": "up by 237.7 (+157.09%)",
+     "detail": "up by 234.5 (+174.32%)",
      "evidence": {
-      "change": 237.725,
-      "pct": 157.0883
+      "change": 234.451,
+      "pct": 174.3211
      }
     },
     {
      "question": "the movement is carried by the expected driver",
      "status": "PASS",
-     "detail": "largest driver is 'basis' at 237.7; expected 'basis'",
+     "detail": "largest driver is 'basis' at 234.5; expected 'basis'",
      "evidence": {
       "drivers": {
-       "basis": 237.72
+       "basis": 234.45
       }
      }
     },
     {
      "question": "staging deteriorates as the scenario asked",
      "status": "PASS",
-     "detail": "60 deteriorated, 0 cured",
+     "detail": "59 deteriorated, 0 cured",
      "evidence": {
-      "deteriorated": 60,
+      "deteriorated": 59,
       "cured": 0
      }
     },
     {
      "question": "the effect lands only where the scenario pointed",
      "status": "PASS",
-     "detail": "60 borrowers moved, 0 of them outside Transport & Logistics",
+     "detail": "59 borrowers moved, 0 of them outside Transport & Logistics",
      "evidence": {
-      "moved": 60,
+      "moved": 59,
       "outside": 0
      }
     },
@@ -525,18 +525,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +237.7 against ML +253.3",
+     "detail": "Delta +234.4 against ML +238.1",
      "evidence": {
-      "delta": 237.72,
-      "ml": 253.32
+      "delta": 234.45,
+      "ml": 238.11
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 1.07x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.02x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.0656,
+      "ratio": 1.0156,
       "band": [
        0.4,
        2.5
@@ -546,17 +546,17 @@
     {
      "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "median ML/Delta ratio 1.05 for the 60 borrowers that changed stage against 1.00 for those that did not",
+     "detail": "median ML/Delta ratio 1.00 for the 59 borrowers that changed stage against 1.00 for those that did not",
      "evidence": {
-      "crossed": 1.0483,
+      "crossed": 1.0,
       "held": 1.0,
-      "gap": 0.0483
+      "gap": 0.0
      }
     },
     {
      "question": "the boundary behaviour is disclosed on the comparison",
      "status": "PASS",
-     "detail": "The model prices the 60 borrower(s) that changed stage at 1.05 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
+     "detail": "The model prices the 59 borrower(s) that changed stage at 1.00 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
      "evidence": {
       "disclosed": true
      }
@@ -573,19 +573,30 @@
     }
    ],
    "result": {
-    "population": 120,
-    "baseline_ecl": 151.33,
-    "whatif_ecl": 389.06,
-    "change": 237.72,
-    "change_pct": 157.0883,
-    "deteriorated": 60,
+    "population": 118,
+    "baseline_ecl": 134.49,
+    "whatif_ecl": 368.94,
+    "change": 234.45,
+    "change_pct": 174.3211,
+    "deteriorated": 59,
     "cured": 0,
     "drivers": {
-     "basis": 237.72
+     "basis": 234.45
     },
     "plausibility": "Outside observed history"
    },
    "top_borrowers": [
+    {
+     "borrower_id": "CORP-102260",
+     "sector": "Transport & Logistics",
+     "opening_rating": "B+",
+     "stressed_rating": "B+",
+     "stage_baseline": 1,
+     "stage_stressed": 2,
+     "ecl_baseline": 3.74,
+     "ecl_stressed": 27.39,
+     "ecl_increase": 23.65
+    },
     {
      "borrower_id": "CORP-102441",
      "sector": "Transport & Logistics",
@@ -593,20 +604,31 @@
      "stressed_rating": "B-",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 5.53,
-     "ecl_stressed": 29.77,
-     "ecl_increase": 24.24
+     "ecl_baseline": 5.44,
+     "ecl_stressed": 29.07,
+     "ecl_increase": 23.63
     },
     {
-     "borrower_id": "CORP-101746",
+     "borrower_id": "CORP-103316",
      "sector": "Transport & Logistics",
-     "opening_rating": "BB+",
-     "stressed_rating": "BB+",
+     "opening_rating": "BB-",
+     "stressed_rating": "BB-",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 13.11,
-     "ecl_stressed": 35.63,
-     "ecl_increase": 22.52
+     "ecl_baseline": 10.94,
+     "ecl_stressed": 28.2,
+     "ecl_increase": 17.27
+    },
+    {
+     "borrower_id": "CORP-103453",
+     "sector": "Transport & Logistics",
+     "opening_rating": "B",
+     "stressed_rating": "B",
+     "stage_baseline": 1,
+     "stage_stressed": 2,
+     "ecl_baseline": 3.36,
+     "ecl_stressed": 18.48,
+     "ecl_increase": 15.12
     },
     {
      "borrower_id": "CORP-102365",
@@ -615,65 +637,43 @@
      "stressed_rating": "BB-",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 10.22,
-     "ecl_stressed": 26.02,
-     "ecl_increase": 15.8
-    },
-    {
-     "borrower_id": "CORP-103316",
-     "sector": "Transport & Logistics",
-     "opening_rating": "BB",
-     "stressed_rating": "BB",
-     "stage_baseline": 1,
-     "stage_stressed": 2,
-     "ecl_baseline": 10.3,
-     "ecl_stressed": 25.51,
-     "ecl_increase": 15.21
-    },
-    {
-     "borrower_id": "CORP-103453",
-     "sector": "Transport & Logistics",
-     "opening_rating": "B+",
-     "stressed_rating": "B+",
-     "stage_baseline": 1,
-     "stage_stressed": 2,
-     "ecl_baseline": 2.81,
-     "ecl_stressed": 13.6,
-     "ecl_increase": 10.79
+     "ecl_baseline": 9.6,
+     "ecl_stressed": 23.56,
+     "ecl_increase": 13.96
     }
    ],
    "by_sector": [
     {
      "sector": "Transport & Logistics",
-     "borrowers": 120,
-     "baseline_ead": 23504.94,
-     "stressed_ead": 23504.94,
-     "baseline_ecl": 151.332,
-     "stressed_ecl": 389.057,
-     "ecl_increase": 237.725,
-     "ecl_increase_pct": 157.088
+     "borrowers": 118,
+     "baseline_ead": 22158.75,
+     "stressed_ead": 22158.75,
+     "baseline_ecl": 134.494,
+     "stressed_ecl": 368.945,
+     "ecl_increase": 234.451,
+     "ecl_increase_pct": 174.321
     }
    ],
    "comparison": {
-    "spread": 15.6,
-    "spread_pct": 4.01,
+    "spread": 3.66,
+    "spread_pct": 0.993,
     "agree": false,
     "rows": [
      {
       "method": "delta",
       "label": "Delta Model",
       "available": true,
-      "whatif_ecl": 389.06,
-      "absolute_change": 237.72,
-      "percentage_change": 157.088
+      "whatif_ecl": 368.94,
+      "absolute_change": 234.45,
+      "percentage_change": 174.321
      },
      {
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 404.66,
-      "absolute_change": 253.32,
-      "percentage_change": 167.396
+      "whatif_ecl": 372.61,
+      "absolute_change": 238.11,
+      "percentage_change": 177.045
      }
     ]
    }
@@ -692,20 +692,20 @@
     {
      "question": "the provision moves in the expected direction",
      "status": "PASS",
-     "detail": "up by 4,752.7 (+9.52%)",
+     "detail": "up by 4,760.5 (+9.61%)",
      "evidence": {
-      "change": 4752.728,
-      "pct": 9.5164
+      "change": 4760.534,
+      "pct": 9.6051
      }
     },
     {
      "question": "the movement is carried by the expected driver",
      "status": "PASS",
-     "detail": "largest driver is 'lgd' at 4,788.5; expected 'lgd'",
+     "detail": "largest driver is 'lgd' at 4,768.8; expected 'lgd'",
      "evidence": {
       "drivers": {
-       "lgd": 4788.52,
-       "limits": -8.98
+       "lgd": 4768.84,
+       "limits": -8.3
       }
      }
     },
@@ -723,18 +723,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +4,752.7 against ML +5,423.7",
+     "detail": "Delta +4,760.5 against ML +4,263.8",
      "evidence": {
-      "delta": 4752.73,
-      "ml": 5423.74
+      "delta": 4760.53,
+      "ml": 4263.79
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 1.14x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 0.90x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.1412,
+      "ratio": 0.8957,
       "band": [
        0.4,
        2.5
@@ -760,15 +760,15 @@
    ],
    "result": {
     "population": 3241,
-    "baseline_ecl": 49942.41,
-    "whatif_ecl": 54695.14,
-    "change": 4752.73,
-    "change_pct": 9.5164,
+    "baseline_ecl": 49562.54,
+    "whatif_ecl": 54323.07,
+    "change": 4760.53,
+    "change_pct": 9.6051,
     "deteriorated": 0,
     "cured": 0,
     "drivers": {
-     "lgd": 4788.52,
-     "limits": -8.98
+     "lgd": 4768.84,
+     "limits": -8.3
     },
     "plausibility": "Consistent with recent experience"
    },
@@ -780,9 +780,9 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 3177.25,
-     "ecl_stressed": 3457.63,
-     "ecl_increase": 280.38
+     "ecl_baseline": 2939.4,
+     "ecl_stressed": 3198.79,
+     "ecl_increase": 259.39
     },
     {
      "borrower_id": "CORP-101151",
@@ -791,9 +791,9 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 1042.28,
-     "ecl_stressed": 1174.45,
-     "ecl_increase": 132.17
+     "ecl_baseline": 964.26,
+     "ecl_stressed": 1086.53,
+     "ecl_increase": 122.27
     },
     {
      "borrower_id": "CORP-103284",
@@ -802,9 +802,9 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 1227.42,
-     "ecl_stressed": 1326.1,
-     "ecl_increase": 98.68
+     "ecl_baseline": 1135.53,
+     "ecl_stressed": 1226.83,
+     "ecl_increase": 91.3
     },
     {
      "borrower_id": "CORP-101563",
@@ -813,20 +813,20 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 850.46,
-     "ecl_stressed": 945.76,
-     "ecl_increase": 95.3
+     "ecl_baseline": 786.8,
+     "ecl_stressed": 874.96,
+     "ecl_increase": 88.17
     },
     {
-     "borrower_id": "CORP-100879",
-     "sector": "Oil & Gas",
-     "opening_rating": "D",
-     "stressed_rating": "D",
-     "stage_baseline": 3,
-     "stage_stressed": 3,
-     "ecl_baseline": 823.03,
-     "ecl_stressed": 900.83,
-     "ecl_increase": 77.79
+     "borrower_id": "CORP-100049",
+     "sector": "Contracting",
+     "opening_rating": "CC",
+     "stressed_rating": "CC",
+     "stage_baseline": 2,
+     "stage_stressed": 2,
+     "ecl_baseline": 960.8,
+     "ecl_stressed": 1043.75,
+     "ecl_increase": 82.96
     }
    ],
    "by_sector": [
@@ -835,72 +835,72 @@
      "borrowers": 289,
      "baseline_ead": 73093.1,
      "stressed_ead": 73093.1,
-     "baseline_ecl": 9612.477,
-     "stressed_ecl": 10392.052,
-     "ecl_increase": 779.575,
-     "ecl_increase_pct": 8.11
-    },
-    {
-     "sector": "Oil & Gas",
-     "borrowers": 194,
-     "baseline_ead": 201713.16,
-     "stressed_ead": 201713.16,
-     "baseline_ecl": 7096.407,
-     "stressed_ecl": 7767.1,
-     "ecl_increase": 670.693,
-     "ecl_increase_pct": 9.451
+     "baseline_ecl": 11039.442,
+     "stressed_ecl": 11996.881,
+     "ecl_increase": 957.439,
+     "ecl_increase_pct": 8.673
     },
     {
      "sector": "Wholesale & Retail Trade",
      "borrowers": 292,
      "baseline_ead": 96015.11,
      "stressed_ead": 96015.11,
-     "baseline_ecl": 6990.464,
-     "stressed_ecl": 7622.002,
-     "ecl_increase": 631.538,
-     "ecl_increase_pct": 9.034
+     "baseline_ecl": 6626.463,
+     "stressed_ecl": 7230.497,
+     "ecl_increase": 604.034,
+     "ecl_increase_pct": 9.115
     },
     {
      "sector": "Real Estate",
      "borrowers": 340,
      "baseline_ead": 79920.32,
      "stressed_ead": 79920.32,
-     "baseline_ecl": 6099.549,
-     "stressed_ecl": 6721.18,
-     "ecl_increase": 621.631,
-     "ecl_increase_pct": 10.191
+     "baseline_ecl": 5935.534,
+     "stressed_ecl": 6538.63,
+     "ecl_increase": 603.096,
+     "ecl_increase_pct": 10.161
     },
     {
-     "sector": "Petrochemicals",
-     "borrowers": 231,
-     "baseline_ead": 214185.38,
-     "stressed_ead": 214185.38,
-     "baseline_ecl": 3427.633,
-     "stressed_ecl": 3836.292,
-     "ecl_increase": 408.659,
-     "ecl_increase_pct": 11.922
+     "sector": "Oil & Gas",
+     "borrowers": 194,
+     "baseline_ead": 201713.16,
+     "stressed_ead": 201713.16,
+     "baseline_ecl": 6358.762,
+     "stressed_ecl": 6956.904,
+     "ecl_increase": 598.141,
+     "ecl_increase_pct": 9.407
+    },
+    {
+     "sector": "Shipping",
+     "borrowers": 127,
+     "baseline_ead": 29553.36,
+     "stressed_ead": 29553.36,
+     "baseline_ecl": 4590.096,
+     "stressed_ecl": 5014.395,
+     "ecl_increase": 424.3,
+     "ecl_increase_pct": 9.244
     }
    ],
    "comparison": {
-    "spread": 671.01,
-    "spread_pct": 1.227,
+    "spread": -496.74,
+    "spread_pct": -0.914,
     "agree": false,
     "rows": [
      {
       "method": "delta",
       "label": "Delta Model",
       "available": true,
-      "whatif_ecl": 54695.14,
-      "absolute_change": 4752.73,
-      "percentage_change": 9.516
+      "whatif_ecl": 54323.07,
+      "absolute_change": 4760.53,
+      "percentage_change": 9.605
      },
      {
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 55366.15,
-      "absolute_change": 5423.74,
-      "percentage_change": 10.86
+      "whatif_ecl": 53826.33,
+      "absolute_change": 4263.79,
+      "percentage_change": 8.603
      }
     ]
    }
@@ -919,19 +919,19 @@
     {
      "question": "the provision moves in the expected direction",
      "status": "PASS",
-     "detail": "up by 8,192.7 (+16.40%)",
+     "detail": "up by 8,092.2 (+16.33%)",
      "evidence": {
-      "change": 8192.712,
-      "pct": 16.4043
+      "change": 8092.175,
+      "pct": 16.3272
      }
     },
     {
      "question": "the movement is carried by the expected driver",
      "status": "PASS",
-     "detail": "largest driver is 'ead' at 8,192.7; expected 'ead'",
+     "detail": "largest driver is 'ead' at 8,092.2; expected 'ead'",
      "evidence": {
       "drivers": {
-       "ead": 8192.71
+       "ead": 8092.18
       }
      }
     },
@@ -949,18 +949,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +8,192.7 against ML +10,389.0",
+     "detail": "Delta +8,092.2 against ML +9,438.5",
      "evidence": {
-      "delta": 8192.71,
-      "ml": 10389.04
+      "delta": 8092.17,
+      "ml": 9438.45
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 1.27x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 1.17x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.2681,
+      "ratio": 1.1664,
       "band": [
        0.4,
        2.5
@@ -987,14 +987,14 @@
    ],
    "result": {
     "population": 3241,
-    "baseline_ecl": 49942.41,
-    "whatif_ecl": 58135.12,
-    "change": 8192.71,
-    "change_pct": 16.4043,
+    "baseline_ecl": 49562.54,
+    "whatif_ecl": 57654.71,
+    "change": 8092.17,
+    "change_pct": 16.3272,
     "deteriorated": 0,
     "cured": 0,
     "drivers": {
-     "ead": 8192.71
+     "ead": 8092.18
     },
     "plausibility": "Historically plausible"
    },
@@ -1006,9 +1006,9 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 3177.25,
-     "ecl_stressed": 3812.7,
-     "ecl_increase": 635.45
+     "ecl_baseline": 2939.4,
+     "ecl_stressed": 3527.28,
+     "ecl_increase": 587.88
     },
     {
      "borrower_id": "CORP-103262",
@@ -1017,9 +1017,9 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 1150.44,
-     "ecl_stressed": 1380.52,
-     "ecl_increase": 230.09
+     "ecl_baseline": 1064.31,
+     "ecl_stressed": 1277.18,
+     "ecl_increase": 212.86
     },
     {
      "borrower_id": "CORP-101151",
@@ -1028,9 +1028,20 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 1042.28,
-     "ecl_stressed": 1250.74,
-     "ecl_increase": 208.46
+     "ecl_baseline": 964.26,
+     "ecl_stressed": 1157.11,
+     "ecl_increase": 192.85
+    },
+    {
+     "borrower_id": "CORP-100049",
+     "sector": "Contracting",
+     "opening_rating": "CC",
+     "stressed_rating": "CC",
+     "stage_baseline": 2,
+     "stage_stressed": 2,
+     "ecl_baseline": 960.8,
+     "ecl_stressed": 1152.96,
+     "ecl_increase": 192.16
     },
     {
      "borrower_id": "CORP-101829",
@@ -1039,20 +1050,9 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 854.6,
-     "ecl_stressed": 1025.52,
-     "ecl_increase": 170.92
-    },
-    {
-     "borrower_id": "CORP-100879",
-     "sector": "Oil & Gas",
-     "opening_rating": "D",
-     "stressed_rating": "D",
-     "stage_baseline": 3,
-     "stage_stressed": 3,
-     "ecl_baseline": 823.03,
-     "ecl_stressed": 987.64,
-     "ecl_increase": 164.61
+     "ecl_baseline": 790.63,
+     "ecl_stressed": 948.75,
+     "ecl_increase": 158.13
     }
    ],
    "by_sector": [
@@ -1061,72 +1061,72 @@
      "borrowers": 289,
      "baseline_ead": 73093.1,
      "stressed_ead": 85455.606,
-     "baseline_ecl": 9612.477,
-     "stressed_ecl": 10992.583,
-     "ecl_increase": 1380.106,
-     "ecl_increase_pct": 14.357
-    },
-    {
-     "sector": "Oil & Gas",
-     "borrowers": 194,
-     "baseline_ead": 201713.16,
-     "stressed_ead": 238205.86,
-     "baseline_ecl": 7096.407,
-     "stressed_ecl": 8309.49,
-     "ecl_increase": 1213.083,
-     "ecl_increase_pct": 17.094
+     "baseline_ecl": 11039.442,
+     "stressed_ecl": 12673.078,
+     "ecl_increase": 1633.636,
+     "ecl_increase_pct": 14.798
     },
     {
      "sector": "Wholesale & Retail Trade",
      "borrowers": 292,
      "baseline_ead": 96015.11,
      "stressed_ead": 112187.982,
-     "baseline_ecl": 6990.464,
-     "stressed_ecl": 8199.312,
-     "ecl_increase": 1208.848,
-     "ecl_increase_pct": 17.293
+     "baseline_ecl": 6626.463,
+     "stressed_ecl": 7761.942,
+     "ecl_increase": 1135.479,
+     "ecl_increase_pct": 17.136
+    },
+    {
+     "sector": "Oil & Gas",
+     "borrowers": 194,
+     "baseline_ead": 201713.16,
+     "stressed_ead": 238205.86,
+     "baseline_ecl": 6358.762,
+     "stressed_ecl": 7443.139,
+     "ecl_increase": 1084.376,
+     "ecl_increase_pct": 17.053
     },
     {
      "sector": "Real Estate",
      "borrowers": 340,
      "baseline_ead": 79920.32,
      "stressed_ead": 93756.782,
-     "baseline_ecl": 6099.549,
-     "stressed_ecl": 7097.68,
-     "ecl_increase": 998.131,
-     "ecl_increase_pct": 16.364
+     "baseline_ecl": 5935.534,
+     "stressed_ecl": 6901.314,
+     "ecl_increase": 965.78,
+     "ecl_increase_pct": 16.271
     },
     {
      "sector": "Shipping",
      "borrowers": 127,
      "baseline_ead": 29553.36,
      "stressed_ead": 34554.672,
-     "baseline_ecl": 4110.158,
-     "stressed_ecl": 4739.138,
-     "ecl_increase": 628.98,
-     "ecl_increase_pct": 15.303
+     "baseline_ecl": 4590.096,
+     "stressed_ecl": 5271.797,
+     "ecl_increase": 681.702,
+     "ecl_increase_pct": 14.852
     }
    ],
    "comparison": {
-    "spread": 2196.33,
-    "spread_pct": 3.778,
+    "spread": 1346.27,
+    "spread_pct": 2.335,
     "agree": false,
     "rows": [
      {
       "method": "delta",
       "label": "Delta Model",
       "available": true,
-      "whatif_ecl": 58135.12,
-      "absolute_change": 8192.71,
-      "percentage_change": 16.404
+      "whatif_ecl": 57654.71,
+      "absolute_change": 8092.17,
+      "percentage_change": 16.327
      },
      {
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 60331.45,
-      "absolute_change": 10389.04,
-      "percentage_change": 20.802
+      "whatif_ecl": 59000.99,
+      "absolute_change": 9438.45,
+      "percentage_change": 19.044
      }
     ]
    }
@@ -1145,20 +1145,20 @@
     {
      "question": "the provision moves in the expected direction",
      "status": "PASS",
-     "detail": "up by 3,052.7 (+6.11%)",
+     "detail": "up by 2,692.9 (+5.43%)",
      "evidence": {
-      "change": 3052.731,
-      "pct": 6.1125
+      "change": 2692.897,
+      "pct": 5.4333
      }
     },
     {
      "question": "the movement is carried by the expected driver",
      "status": "PASS",
-     "detail": "largest driver is 'macro' at 2,564.8; expected 'macro'",
+     "detail": "largest driver is 'macro' at 2,483.6; expected 'macro'",
      "evidence": {
       "drivers": {
-       "macro": 2564.84,
-       "basis": 490.55
+       "macro": 2483.63,
+       "basis": 209.27
       }
      }
     },
@@ -1167,7 +1167,7 @@
      "status": "PASS",
      "detail": "0 borrowers improved a stage under an adverse shock",
      "evidence": {
-      "deteriorated": 30,
+      "deteriorated": 27,
       "cured": 0
      }
     }
@@ -1176,18 +1176,18 @@
     {
      "question": "the model does not reverse the direction",
      "status": "PASS",
-     "detail": "Delta +3,052.7 against ML +4,112.6",
+     "detail": "Delta +2,692.9 against ML +2,614.1",
      "evidence": {
-      "delta": 3052.73,
-      "ml": 4112.57
+      "delta": 2692.9,
+      "ml": 2614.1
      }
     },
     {
      "question": "the model shades the arithmetic rather than replacing it",
      "status": "PASS",
-     "detail": "the ML movement is 1.35x the Delta movement; the band is 0.4-2.5x",
+     "detail": "the ML movement is 0.97x the Delta movement; the band is 0.4-2.5x",
      "evidence": {
-      "ratio": 1.3472,
+      "ratio": 0.9707,
       "band": [
        0.4,
        2.5
@@ -1197,17 +1197,17 @@
     {
      "question": "the model does not price a crossing above the rest",
      "status": "PASS",
-     "detail": "median ML/Delta ratio 1.00 for the 30 borrowers that changed stage against 1.00 for those that did not",
+     "detail": "median ML/Delta ratio 1.00 for the 27 borrowers that changed stage against 1.00 for those that did not",
      "evidence": {
-      "crossed": 1.001,
+      "crossed": 0.9987,
       "held": 1.0,
-      "gap": 0.001
+      "gap": -0.0013
      }
     },
     {
      "question": "the boundary behaviour is disclosed on the comparison",
      "status": "PASS",
-     "detail": "The model prices the 30 borrower(s) that changed stage at 1.00 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
+     "detail": "The model prices the 27 borrower(s) that changed stage at 1.00 times the Delta figure, against 1.00 for those that did not. The two treat a crossing and a non-crossing alike.",
      "evidence": {
       "disclosed": true
      }
@@ -1225,30 +1225,19 @@
    ],
    "result": {
     "population": 3241,
-    "baseline_ecl": 49942.41,
-    "whatif_ecl": 52995.14,
-    "change": 3052.73,
-    "change_pct": 6.1125,
-    "deteriorated": 30,
+    "baseline_ecl": 49562.54,
+    "whatif_ecl": 52255.44,
+    "change": 2692.9,
+    "change_pct": 5.4333,
+    "deteriorated": 27,
     "cured": 0,
     "drivers": {
-     "macro": 2564.84,
-     "basis": 490.55
+     "macro": 2483.63,
+     "basis": 209.27
     },
     "plausibility": ""
    },
    "top_borrowers": [
-    {
-     "borrower_id": "CORP-100007",
-     "sector": "Petrochemicals",
-     "opening_rating": "BB",
-     "stressed_rating": "BB",
-     "stage_baseline": 1,
-     "stage_stressed": 2,
-     "ecl_baseline": 133.9,
-     "ecl_stressed": 360.71,
-     "ecl_increase": 226.82
-    },
     {
      "borrower_id": "CORP-101658",
      "sector": "Oil & Gas",
@@ -1256,116 +1245,127 @@
      "stressed_rating": "D",
      "stage_baseline": 3,
      "stage_stressed": 3,
-     "ecl_baseline": 3177.25,
-     "ecl_stressed": 3233.33,
-     "ecl_increase": 56.08
+     "ecl_baseline": 2939.4,
+     "ecl_stressed": 2991.28,
+     "ecl_increase": 51.88
     },
     {
-     "borrower_id": "CORP-102959",
+     "borrower_id": "CORP-100049",
      "sector": "Contracting",
-     "opening_rating": "B+",
-     "stressed_rating": "B+",
-     "stage_baseline": 1,
+     "opening_rating": "CC",
+     "stressed_rating": "CC",
+     "stage_baseline": 2,
      "stage_stressed": 2,
-     "ecl_baseline": 19.58,
-     "ecl_stressed": 72.2,
-     "ecl_increase": 52.62
+     "ecl_baseline": 960.8,
+     "ecl_stressed": 998.57,
+     "ecl_increase": 37.77
     },
     {
-     "borrower_id": "CORP-101304",
-     "sector": "Manufacturing",
-     "opening_rating": "B+",
-     "stressed_rating": "B+",
-     "stage_baseline": 1,
-     "stage_stressed": 2,
-     "ecl_baseline": 14.05,
-     "ecl_stressed": 65.45,
-     "ecl_increase": 51.41
-    },
-    {
-     "borrower_id": "CORP-101839",
+     "borrower_id": "CORP-100097",
      "sector": "Contracting",
-     "opening_rating": "B+",
-     "stressed_rating": "B+",
+     "opening_rating": "B-",
+     "stressed_rating": "B-",
+     "stage_baseline": 2,
+     "stage_stressed": 2,
+     "ecl_baseline": 448.67,
+     "ecl_stressed": 485.09,
+     "ecl_increase": 36.42
+    },
+    {
+     "borrower_id": "CORP-100463",
+     "sector": "Real Estate",
+     "opening_rating": "B",
+     "stressed_rating": "B",
      "stage_baseline": 1,
      "stage_stressed": 2,
-     "ecl_baseline": 27.92,
-     "ecl_stressed": 74.46,
-     "ecl_increase": 46.54
+     "ecl_baseline": 5.29,
+     "ecl_stressed": 36.19,
+     "ecl_increase": 30.9
+    },
+    {
+     "borrower_id": "CORP-100473",
+     "sector": "Mining & Metals",
+     "opening_rating": "B+",
+     "stressed_rating": "B+",
+     "stage_baseline": 2,
+     "stage_stressed": 2,
+     "ecl_baseline": 319.29,
+     "ecl_stressed": 348.75,
+     "ecl_increase": 29.45
     }
    ],
    "by_sector": [
-    {
-     "sector": "Petrochemicals",
-     "borrowers": 231,
-     "baseline_ead": 214185.38,
-     "stressed_ead": 214185.38,
-     "baseline_ecl": 3427.633,
-     "stressed_ecl": 3956.585,
-     "ecl_increase": 528.952,
-     "ecl_increase_pct": 15.432
-    },
     {
      "sector": "Contracting",
      "borrowers": 289,
      "baseline_ead": 73093.1,
      "stressed_ead": 73093.1,
-     "baseline_ecl": 9612.477,
-     "stressed_ecl": 10122.773,
-     "ecl_increase": 510.296,
-     "ecl_increase_pct": 5.309
+     "baseline_ecl": 11039.442,
+     "stressed_ecl": 11523.914,
+     "ecl_increase": 484.472,
+     "ecl_increase_pct": 4.389
     },
     {
      "sector": "Wholesale & Retail Trade",
      "borrowers": 292,
      "baseline_ead": 96015.11,
      "stressed_ead": 96015.11,
-     "baseline_ecl": 6990.464,
-     "stressed_ecl": 7361.921,
-     "ecl_increase": 371.457,
-     "ecl_increase_pct": 5.314
+     "baseline_ecl": 6626.463,
+     "stressed_ecl": 6973.839,
+     "ecl_increase": 347.376,
+     "ecl_increase_pct": 5.242
     },
     {
      "sector": "Real Estate",
      "borrowers": 340,
      "baseline_ead": 79920.32,
      "stressed_ead": 79920.32,
-     "baseline_ecl": 6099.549,
-     "stressed_ecl": 6419.839,
-     "ecl_increase": 320.29,
-     "ecl_increase_pct": 5.251
+     "baseline_ecl": 5935.534,
+     "stressed_ecl": 6274.943,
+     "ecl_increase": 339.409,
+     "ecl_increase_pct": 5.718
+    },
+    {
+     "sector": "Petrochemicals",
+     "borrowers": 231,
+     "baseline_ead": 214185.38,
+     "stressed_ead": 214185.38,
+     "baseline_ecl": 3187.105,
+     "stressed_ecl": 3516.713,
+     "ecl_increase": 329.607,
+     "ecl_increase_pct": 10.342
     },
     {
      "sector": "Manufacturing",
      "borrowers": 292,
      "baseline_ead": 105723.46,
      "stressed_ead": 105723.46,
-     "baseline_ecl": 3414.425,
-     "stressed_ecl": 3726.049,
-     "ecl_increase": 311.624,
-     "ecl_increase_pct": 9.127
+     "baseline_ecl": 3192.995,
+     "stressed_ecl": 3448.029,
+     "ecl_increase": 255.034,
+     "ecl_increase_pct": 7.987
     }
    ],
    "comparison": {
-    "spread": 1059.84,
-    "spread_pct": 2.0,
+    "spread": -78.8,
+    "spread_pct": -0.151,
     "agree": false,
     "rows": [
      {
       "method": "delta",
       "label": "Delta Model",
       "available": true,
-      "whatif_ecl": 52995.14,
-      "absolute_change": 3052.73,
-      "percentage_change": 6.113
+      "whatif_ecl": 52255.44,
+      "absolute_change": 2692.9,
+      "percentage_change": 5.433
      },
      {
       "method": "ml",
       "label": "ML Model \u2014 XGBoost",
       "available": true,
-      "whatif_ecl": 54054.98,
-      "absolute_change": 4112.57,
-      "percentage_change": 8.235
+      "whatif_ecl": 52176.64,
+      "absolute_change": 2614.1,
+      "percentage_change": 5.274
      }
     ]
    }

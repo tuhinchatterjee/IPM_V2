@@ -256,13 +256,32 @@ def rating_economics(review: Review, latest: pd.DataFrame,
     # scale a reader actually reads these against.
     book_rate = _rate(latest)
     floor = book_rate * 0.05
+    # And a grade too thin to have a mean cannot be evidence of a reversal
+    # either way. The single borrower in C moves that row's coverage by its own
+    # collateral, and a check that reads one name's LGD as a statement about
+    # the scale is measuring the borrower. The rule is the one this script
+    # already uses for the PD ordering: the fall has to be larger than the
+    # sampling noise of the two grades' own means.
+    per_borrower = (pd.to_numeric(latest["final_ecl"], errors="coerce")
+                    / pd.to_numeric(latest["ead"], errors="coerce")
+                    .replace(0, np.nan) * 100.0)
+    spread = per_borrower.groupby(latest["internal_rating"]).std().reindex(
+        grades).fillna(0.0).tolist()
+    counts = performing["borrowers"].tolist()
+    errors = [float(sd) / np.sqrt(max(int(n), 1)) if int(n) > 1 else np.nan
+              for sd, n in zip(spread, counts, strict=False)]
+    thin = [g for g, n in zip(grades, counts, strict=False) if int(n) <= 1]
+
     material = []
     for i in range(1, len(values)):
         if np.isnan(values[i]) or np.isnan(values[i - 1]) or not values[i - 1]:
             continue
+        if np.isnan(errors[i]) or np.isnan(errors[i - 1]):
+            continue
+        noise = 2.0 * float(np.sqrt(errors[i] ** 2 + errors[i - 1] ** 2))
         fall = values[i - 1] - values[i]
         relative = fall / values[i - 1] * 100.0
-        if relative > 25.0 and fall >= floor:
+        if relative > 25.0 and fall >= floor and fall > noise:
             material.append({"where": f"{grades[i - 1]}->{grades[i]}",
                              "fall_pct": round(relative, 2),
                              "fall_pp": round(fall, 4),
@@ -283,11 +302,15 @@ def rating_economics(review: Review, latest: pd.DataFrame,
         {"spearman": round(rank, 4), "material_reversals": material,
          "values": [round(v, 5) for v in values], "grades": grades,
          "materiality_floor_pp": round(floor, 5),
+         "too_thin_to_be_evidence": thin,
          "book_ecl_rate_pct": round(book_rate, 4)},
         basis="Rank, not step: the provision rate is PD x LGD, and LGD is a "
               "property of the security. A grade whose names are better "
               "secured may carry a lower rate than the grade above it, which "
-              "is the collateral working rather than the scale failing.")
+              "is the collateral working rather than the scale failing. A "
+              "grade holding one borrower is excluded from the reversal test "
+              "for the same reason the PD ordering excludes it: one name's "
+              "collateral is not a statement about a scale.")
 
     # Stage 2 incidence should rise with weakness. It is a step function of a
     # threshold, so it is checked by RANK rather than by strict monotonicity.
@@ -1437,15 +1460,26 @@ def scale_review(review: Review, latest: pd.DataFrame, period: str) -> None:
     # The endpoints, in the terms the requirement uses.
     strongest = next((r for r in rows if r[0] == "AAA"), None)
     weakest = next((r for r in rows if r[0] == "C"), None)
-    defaulted = next((r for r in rows if r[0] == "D"), None)
+    # This is a question about the SCALE, so it is read off the scale. The
+    # first version read it off the quarter and failed twice for reasons that
+    # had nothing to do with the claim: an exposure-weighted mean of a column
+    # of 100s comes back as 100.00000000000001, and a quarter in which no
+    # borrower happens to be rated C produces a NaN. Neither says anything
+    # about whether C is the weakest performing grade.
     review.say(
         section, "Is C plainly the weakest PERFORMING grade and plainly not "
                  "default?",
-        PASS if (weakest and defaulted and weakest[3] < 100.0
-                 and defaulted[3] == 100.0) else FAIL,
-        f"C carries a TTC PD of {rs.TTC_PD_PCT['C']:.3f}% against the 100% "
-        "that belongs to default alone.",
-        {"c_ttc_pd": rs.TTC_PD_PCT["C"], "default_pd": rs.DEFAULT_PD_PCT})
+        PASS if (PERFORMING[-1] == "C"
+                 and rs.TTC_PD_PCT["C"] == max(rs.TTC_PD_PCT.values())
+                 and rs.TTC_PD_PCT["C"] < rs.DEFAULT_PD_PCT) else FAIL,
+        f"C carries a TTC PD of {rs.TTC_PD_PCT['C']:.3f}%, the highest on the "
+        f"performing scale, against the {rs.DEFAULT_PD_PCT:.0f}% that belongs "
+        "to default alone.",
+        {"c_ttc_pd": rs.TTC_PD_PCT["C"], "default_pd": rs.DEFAULT_PD_PCT,
+         "borrowers_in_c_this_quarter": (weakest[1] if weakest else 0)},
+        basis="A property of the masterscale, not of this quarter's "
+              "population: a quarter holding no C-rated name says nothing "
+              "about where C sits on the scale.")
     review.say(
         section, "Is the investment-grade end low enough to be worth having?",
         PASS if rs.TTC_PD_PCT["AAA"] < 0.05 and rs.TTC_PD_PCT["BBB-"] < 0.5

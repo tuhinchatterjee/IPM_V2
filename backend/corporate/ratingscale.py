@@ -247,6 +247,32 @@ def _bounds() -> tuple[float, ...]:
 
 RATING_BOUNDS: tuple[float, ...] = _bounds()
 
+
+#: The log-odds of each performing grade's TTC PD, in scale order.
+#:
+#: This is the axis the scale is actually built on, and it is exported because
+#: a notch is not a constant amount of credit risk. Three notches at the
+#: investment-grade end is 1.11 in log-odds; three notches through the
+#: distressed tail is 2.85. Anything that asks "has this name moved enough to
+#: matter?" has to ask it here rather than in notch counts, or the same rule
+#: becomes a tight filter at one end of the scale and a loose one at the other.
+LOG_ODDS: tuple[float, ...] = tuple(
+    float(np.log((TTC_PD_PCT[g] / 100.0) / (1.0 - TTC_PD_PCT[g] / 100.0)))
+    for g in PERFORMING)
+
+
+def log_odds_gap(left: np.ndarray, right: np.ndarray) -> np.ndarray:
+    """How far apart two grades are, in log-odds, by ZERO-BASED index.
+
+    Indices outside the performing scale are clipped into it: a defaulted name
+    is not on this axis, and the caller decides what to do about that rather
+    than getting a silent zero.
+    """
+    axis = np.asarray(LOG_ODDS)
+    a = np.clip(np.asarray(left, dtype=int), 0, PERFORMING_COUNT - 1)
+    b = np.clip(np.asarray(right, dtype=int), 0, PERFORMING_COUNT - 1)
+    return np.abs(axis[b] - axis[a])
+
 PD_FLOOR_PCT = 0.003
 PD_CEILING_PCT = 99.0
 
@@ -563,12 +589,12 @@ __all__ = [
     "ALL_STATES", "BANDS", "BY_ORDINAL", "DEFAULT_CORRELATION",
     "DEFAULT_GRADE", "DEFAULT_ORDINAL", "DEFAULT_PD_PCT",
     "DEFAULT_STATE_INDEX", "INVESTMENT_GRADE", "LIFETIME_HORIZON_YEARS",
-    "ORDINAL", "PD_CEILING_PCT", "PD_FLOOR_PCT", "PERFORMING",
+    "LOG_ODDS", "ORDINAL", "PD_CEILING_PCT", "PD_FLOOR_PCT", "PERFORMING",
     "PERFORMING_COUNT", "RATING_BOUNDS", "REVERSION", "SCALE_EFFECTIVE",
     "SCALE_OWNER", "SCALE_VERSION", "SECTOR_CORRELATION", "SPECULATIVE_GRADE",
     "STATE_COUNT", "TTC_ANCHOR_GRADE", "TTC_ANCHOR_PD_PCT",
     "TTC_LOG_ODDS_STEPS", "TTC_PD_PCT", "WEAKEST_PERFORMING", "applicable_pd",
     "correlation", "describe", "grade_from_pd", "grades_in", "lifetime_pd",
-    "notches", "ordinal", "pit_pd", "shift", "stage_three_pd", "table",
-    "ttc_pd",
+    "log_odds_gap", "notches", "ordinal", "pit_pd", "shift",
+    "stage_three_pd", "table", "ttc_pd",
 ]
