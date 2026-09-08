@@ -6,7 +6,8 @@ a number that is in no evidence does not survive into a document.
 
 from __future__ import annotations
 
-from backend.playbook import document as D, evidence, grounding
+from backend.playbook import document as D
+from backend.playbook import evidence, grounding
 from backend.playbook.fixtures import ecl_oracle as oracle
 
 

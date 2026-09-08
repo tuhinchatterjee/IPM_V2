@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from backend.playbook import provider, repository as repo, service
+from backend.playbook import provider, service
+from backend.playbook import repository as repo
 from backend.playbook.fixtures import ecl_oracle as oracle
 
 REPORT_MD = """# IFRS 9 Committee Report — Q2 2026

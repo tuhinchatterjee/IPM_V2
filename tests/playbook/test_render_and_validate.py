@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from backend.playbook import capabilities, document as D, render, validate
+from backend.playbook import capabilities, render, validate
+from backend.playbook import document as D
 from backend.playbook.fixtures import ecl_oracle as oracle
 
 
