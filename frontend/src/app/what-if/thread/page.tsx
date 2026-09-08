@@ -35,6 +35,7 @@ import {
   Composer,
   EclHeadline,
   Figure,
+  MethodologyComparison,
   MethodologyGate,
   MigrationMatrix,
   PeriodPicker,
@@ -55,6 +56,7 @@ import type {
   WhatIfBorrowerList,
   WhatIfGate,
   WhatIfInvestigation,
+  WhatIfMethodologyComparison,
   WhatIfMacro,
   WhatIfMigration,
   WhatIfParameterProfile,
@@ -73,7 +75,8 @@ type Turn =
   | { kind: "said"; text: string }
   | { kind: "replied"; text: string; tone?: "note" | "warn" }
   | { kind: "result"; result: WhatIfRunResult }
-  | { kind: "answer"; answer: WhatIfInvestigation };
+  | { kind: "answer"; answer: WhatIfInvestigation }
+  | { kind: "comparison"; comparison: WhatIfMethodologyComparison };
 
 const JOURNEY_TITLES: Record<string, string> = {
   rating: "Rating Movement",
@@ -311,6 +314,19 @@ export default function WhatIfThreadPage() {
       setError(null);
       try {
         const read = await api.whatIfInterpret(said, state);
+
+        // "What would the other model say?" is answered by pricing the same
+        // scenario both ways rather than by reading the result on screen —
+        // and it works from either side, because the comparison is one object
+        // and only its phrasing follows whichever methodology got here first.
+        if (read.intent === "comparison") {
+          const both = await api.whatIfCompareMethodologies(
+            state,
+            state.methodology ?? "",
+          );
+          say({ kind: "comparison", comparison: both });
+          return;
+        }
 
         // A question about the result is answered from the result. The
         // scenario is not touched, no methodology gate appears, and nothing
@@ -779,6 +795,16 @@ export default function WhatIfThreadPage() {
                       }
                     >
                       {turn.text}
+                    </li>
+                  );
+                }
+                if (turn.kind === "comparison") {
+                  return (
+                    <li key={index} data-testid="whatif-comparison">
+                      <MethodologyComparison
+                        comparison={turn.comparison}
+                        currency={turn.comparison.currency}
+                      />
                     </li>
                   );
                 }

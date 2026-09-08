@@ -4867,7 +4867,32 @@ export interface WhatIfInterpretation {
   used_evidence?: string[];
 }
 
-export type WhatIfIntent = "explain" | "view" | "modify";
+/**
+ * What a message in a What-If thread is asking for.
+ *
+ * Three families, and the boundary between them is the one that matters: the
+ * ASKS family reads nothing and prices nothing, the READS family reads the
+ * result or the book without touching either, and only the CHANGES family may
+ * move the scenario. A question can never change a number.
+ */
+export type WhatIfIntent =
+  // asks about the product
+  | "help"
+  | "data"
+  | "fields"
+  | "methodology"
+  | "plausibility"
+  | "macro_analysis"
+  // reads the result or the book
+  | "explain"
+  | "view"
+  | "comparison"
+  | "explainability"
+  | "export"
+  // changes the scenario
+  | "scenario"
+  | "modify"
+  | "macro_config";
 
 export interface WhatIfReading {
   intent: WhatIfIntent;
@@ -4932,12 +4957,80 @@ export interface WhatIfInvestigation {
 }
 
 export interface WhatIfMethodologyComparison {
+  version: string;
   scenario: string;
+  currency: string;
   rows: { method: string; label: string; available: boolean; because?: string;
           version?: string; baseline_ecl?: number; whatif_ecl?: number;
-          absolute_change?: number; percentage_change?: number }[];
+          absolute_change?: number; percentage_change?: number;
+          population?: number }[];
+  /** The methodology the reader arrived on, and the one being compared with.
+   *  Only the phrasing follows them — both figures are always computed. */
+  ran: string;
+  compared_with: string;
+  direction: string;
+  /** Neither figure is the right one. Always shown. */
+  statement: string;
+  available?: boolean;
+  why?: string;
   spread?: number;
   spread_pct?: number;
+  /** True when the two are within the agreement threshold, in which case the
+   *  product says so rather than manufacturing a difference. */
+  agree?: boolean;
+  agreement_threshold_pct?: number;
+  reading?: string;
+  matched_borrowers?: number;
+  delta_population?: number;
+  ml_population?: number;
+  by_sector?: WhatIfComparisonGroup[];
+  by_rating?: WhatIfComparisonGroup[];
+  by_stage?: WhatIfComparisonGroup[];
+  borrowers?: {
+    borrower_id: string; borrower: string; sector: string; rating: string;
+    stage: number; exposure: number; delta_ecl: number; ml_ecl: number;
+    difference: number; difference_pct: number;
+  }[];
+  borrowers_priced_higher_by_ml?: number;
+  borrowers_priced_lower_by_ml?: number;
+  borrowers_priced_the_same?: number;
+  ml?: { model_version?: string; mean_factor?: number;
+         fell_back_to_delta?: number; in_distribution?: boolean };
+  /** A limit on how far the ML figure should be carried. */
+  out_of_distribution?: { feature: string; message: string }[];
+  warnings?: string[];
+  explanation?: WhatIfComparisonExplanation;
+}
+
+export interface WhatIfComparisonGroup {
+  group: string;
+  borrowers: number;
+  delta_ecl: number;
+  ml_ecl: number;
+  difference: number;
+  share_of_difference_pct: number;
+}
+
+export interface WhatIfComparisonExplanation {
+  version: string;
+  paragraphs: string[];
+  headline: string;
+  where_it_sits?: string[];
+  written_by: string;
+  verified?: boolean;
+  statement: string;
+  /** Present when a written explanation was discarded for stating a figure
+   *  the evidence did not contain. */
+  rejected_because?: string;
+  evidence?: Record<string, unknown>;
+}
+
+export interface WhatIfComparisonMethod {
+  version: string;
+  methods: { method: string; label: string }[];
+  agreement_threshold_pct: number;
+  both_directions: string;
+  statement: string;
 }
 
 export interface WhatIfProfileRow {
@@ -6491,9 +6584,17 @@ export const api = {
   whatIfExecute: (body: WhatIfExecuteIn) =>
     request<WhatIfRunResult>("/whatif/execute",
       { method: "POST", body: JSON.stringify(body), timeoutMs: 120_000 }),
-  whatIfCompareMethodologies: (body: WhatIfExecuteIn) =>
+  /** Price one scenario both ways.
+   *
+   *  `ran` is the methodology the reader arrived on, so the answer is phrased
+   *  in their direction. It never changes a figure: both are always computed,
+   *  which is what makes the comparison work from either side. */
+  whatIfCompareMethodologies: (state: WhatIfState, ran = "", explain = true) =>
     request<WhatIfMethodologyComparison>("/whatif/compare-methodologies",
-      { method: "POST", body: JSON.stringify(body), timeoutMs: 180_000 }),
+      { method: "POST", body: JSON.stringify({ state, ran, explain }),
+        timeoutMs: 180_000 }),
+  whatIfComparisonMethod: () =>
+    request<WhatIfComparisonMethod>("/whatif/compare-methodologies/method"),
   whatIfSaved: (limit = 24) =>
     request<{ saved: WhatIfCard[]; count: number; persistence: WhatIfPersistence }>(
       `/whatif/saved${qs({ limit: String(limit) })}`),

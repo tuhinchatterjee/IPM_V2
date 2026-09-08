@@ -39,6 +39,7 @@ import type {
   WhatIfDistribution,
   WhatIfInterpretation,
   WhatIfInvestigation,
+  WhatIfMethodologyComparison,
   WhatIfParameterGroup,
   WhatIfParameterProfile,
   WhatIfGate,
@@ -968,6 +969,192 @@ export function ResultInterpretation({
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** A small heading above a table inside a card. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-1.5 text-[11px] uppercase tracking-wide text-text-muted">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The same scenario, priced both ways.
+ *
+ * Offered from either side: whichever methodology produced the result, the
+ * other is one button away, and the panel below is the same object with the
+ * direction flipped. A spread on its own is not an answer, so the panel leads
+ * with WHERE the two disagree — the sectors carrying the difference and the
+ * borrowers furthest apart — and only then with the reading.
+ *
+ * It never recommends one. The Delta Model is the governed arithmetic carried
+ * onto the reported book and the ML model is a fitted estimate anchored to it;
+ * which belongs in a submission is a governance decision, and the panel says
+ * so rather than picking.
+ */
+export function MethodologyComparison({
+  comparison,
+  currency = "SAR",
+}: {
+  comparison: WhatIfMethodologyComparison;
+  currency?: string;
+}) {
+  const priced = comparison.rows.filter((r) => r.available);
+  const explanation = comparison.explanation;
+  return (
+    <Card data-testid="whatif-methodology-comparison">
+      <CardHeader>
+        <CardTitle className="text-[14px]">
+          Both methodologies on this scenario
+        </CardTitle>
+        <p className="mt-0.5 text-[11px] text-text-muted">
+          {comparison.direction}
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {comparison.available === false ? (
+          <p className="text-[12px] text-text-secondary">{comparison.why}</p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {priced.map((row) => (
+                <div
+                  key={row.method}
+                  data-comparison-method={row.method}
+                  className="rounded-md border border-border p-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-medium text-text-primary">
+                      {row.label}
+                    </span>
+                    <Badge variant="outline">v{row.version}</Badge>
+                  </div>
+                  <div className="mt-1 text-[16px] font-medium text-text-primary">
+                    {money(row.whatif_ecl, currency)}
+                  </div>
+                  <div className="text-[11px] text-text-muted">
+                    {signed(row.percentage_change ?? 0)} against the reported
+                    book
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {comparison.agree ? (
+              <p
+                className="text-[12px] text-text-secondary"
+                data-testid="whatif-methodologies-agree"
+              >
+                {comparison.reading}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Figure
+                  label="Apart by"
+                  value={money(Math.abs(comparison.spread ?? 0), currency)}
+                />
+                <Figure
+                  label="As a share"
+                  value={signed(comparison.spread_pct ?? 0)}
+                />
+                <Figure
+                  label="Priced higher by ML"
+                  value={count(comparison.borrowers_priced_higher_by_ml ?? 0)}
+                />
+                <Figure
+                  label="Priced lower by ML"
+                  value={count(comparison.borrowers_priced_lower_by_ml ?? 0)}
+                />
+              </div>
+            )}
+
+            {explanation?.paragraphs?.length ? (
+              <div
+                className="rounded-md border border-border bg-surface-sunken p-4"
+                data-testid="whatif-comparison-explanation"
+              >
+                <h4 className="mb-2 text-[13px] font-semibold text-text-primary">
+                  Why they differ
+                </h4>
+                {explanation.paragraphs.map((paragraph, i) => (
+                  <p
+                    key={i}
+                    className="mb-2 text-[12px] leading-relaxed text-text-secondary"
+                  >
+                    {paragraph}
+                  </p>
+                ))}
+                <p className="text-[11px] text-text-muted">
+                  {explanation.statement}
+                  {explanation.written_by
+                    ? ` Written by ${explanation.written_by}.`
+                    : ""}
+                </p>
+              </div>
+            ) : null}
+
+            {comparison.by_sector?.length && !comparison.agree ? (
+              <div>
+                <SectionLabel>Where the difference sits</SectionLabel>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sector</TableHead>
+                      <TableHead className="text-right">Borrowers</TableHead>
+                      <TableHead className="text-right">Delta</TableHead>
+                      <TableHead className="text-right">ML</TableHead>
+                      <TableHead className="text-right">Difference</TableHead>
+                      <TableHead className="text-right">Share</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comparison.by_sector.slice(0, 8).map((group) => (
+                      <TableRow key={group.group}>
+                        <TableCell>{group.group}</TableCell>
+                        <TableCell className="text-right">
+                          {count(group.borrowers)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {money(group.delta_ecl, currency)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {money(group.ml_ecl, currency)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Movement value={group.difference} currency={currency} />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {pct(group.share_of_difference_pct, 1)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : null}
+
+            {comparison.out_of_distribution?.length ? (
+              <div data-testid="whatif-comparison-out-of-distribution">
+                <SectionLabel>
+                  Outside what the model was trained on
+                </SectionLabel>
+                <ul className="space-y-1">
+                  {comparison.out_of_distribution.map((item) => (
+                    <li key={item.feature} className="text-[12px] text-warning">
+                      {item.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        )}
+        <p className="text-[11px] text-text-muted">{comparison.statement}</p>
+      </CardContent>
+    </Card>
   );
 }
 

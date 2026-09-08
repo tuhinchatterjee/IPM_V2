@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.whatif import comparison as cp
 from backend.whatif import domain as dm
 from backend.whatif import macro as mc
 from backend.whatif import macrolab as ml
@@ -281,3 +282,115 @@ class TestProductKnowledge:
             written = pr._composed(intent, body)
             assert written, intent
             assert all(str(line).strip() for line in written), intent
+
+
+# ========================================================= model comparison
+
+
+class TestTheComparisonDoesNotRecommend:
+    """Neither figure is the right one, and the product must not pick."""
+
+    def test_it_says_what_neither_figure_is(self) -> None:
+        body = cp.describe()
+        said = body["statement"] + " " + body["both_directions"]
+        assert "SAME shocked book" in said
+        assert "one question away" in said
+
+    def test_the_system_prompt_forbids_a_recommendation(self) -> None:
+        assert "Do NOT recommend one methodology" in cp._SYSTEM
+        assert "governance decision" in cp._SYSTEM
+
+    def test_it_forbids_calling_either_one_more_accurate(self) -> None:
+        assert "more accurate, more correct or better" in cp._SYSTEM
+
+    def test_the_evidence_is_the_only_thing_the_writer_knows(self) -> None:
+        assert "THE EVIDENCE PACKET BELOW IS THE ONLY THING YOU KNOW" in (
+            cp._SYSTEM)
+
+    def test_agreement_is_stated_rather_than_dressed_as_a_difference(
+            self) -> None:
+        assert "If the two agree, say so plainly" in cp._SYSTEM
+
+
+@pytest.mark.usefixtures("data_loaded")
+class TestTheComparisonAgainstTheBook:
+    @staticmethod
+    def _state():
+        from backend.whatif import scenarios as sc
+
+        return sp.ScenarioState(period=dm.latest_period()).add(
+            sp.Step(sp.PD, (sc.Shock(sc.PD, 20.0, sc.RELATIVE),),
+                    interpreted="PD +20%"))
+
+    def test_it_prices_the_scenario_both_ways(self) -> None:
+        from backend.whatif import methodology as me
+
+        body = cp.compare(self._state())
+        if not body.get("available"):
+            pytest.skip(body.get("why", "one methodology is unavailable"))
+        assert {r["method"] for r in body["rows"] if r["available"]} == set(
+            me.METHODS)
+
+    def test_the_figures_do_not_depend_on_the_direction_asked_from(
+            self) -> None:
+        """Only the phrasing follows the reader. The numbers do not."""
+        from backend.whatif import methodology as me
+
+        state = self._state()
+        left = cp.compare(state, ran=me.DELTA)
+        right = cp.compare(state, ran=me.ML)
+        if not (left.get("available") and right.get("available")):
+            pytest.skip("one methodology is unavailable")
+        assert left["spread"] == pytest.approx(right["spread"])
+        assert left["direction"] != right["direction"]
+        assert left["ran"] != right["ran"]
+
+    def test_it_locates_the_difference_rather_than_only_measuring_it(
+            self) -> None:
+        """A spread is where the useful part starts, not where it ends."""
+        body = cp.compare(self._state())
+        if not body.get("available") or body.get("agree"):
+            pytest.skip("the two methodologies agreed here")
+        assert body["by_sector"], "no sector split"
+        assert body["borrowers"], "no borrowers named"
+
+    def test_the_borrower_counts_account_for_the_matched_population(
+            self) -> None:
+        body = cp.compare(self._state())
+        if not body.get("available"):
+            pytest.skip("one methodology is unavailable")
+        total = (body["borrowers_priced_higher_by_ml"]
+                 + body["borrowers_priced_lower_by_ml"]
+                 + body["borrowers_priced_the_same"])
+        assert total == body["matched_borrowers"]
+
+    def test_the_written_reading_states_no_figure_it_was_not_given(
+            self) -> None:
+        from backend.whatif import narrative as nr
+
+        body = cp.compare(self._state())
+        if not body.get("available"):
+            pytest.skip("one methodology is unavailable")
+        reading = cp.explain(body)
+        assert nr.check([*reading["paragraphs"], reading["headline"]],
+                        cp.packet(body)) == []
+
+    def test_it_never_recommends_a_methodology_in_the_prose(self) -> None:
+        body = cp.compare(self._state())
+        if not body.get("available"):
+            pytest.skip("one methodology is unavailable")
+        said = " ".join(cp.explain(body)["paragraphs"]).lower()
+        for word in ("recommend", "you should use", "more accurate",
+                     "the better model", "the correct model"):
+            assert word not in said, word
+
+    def test_a_model_limit_reaches_the_reader(self) -> None:
+        """A borrower outside what the model saw is a limit on the figure,
+        not a footnote."""
+        body = cp.compare(self._state())
+        if not body.get("available"):
+            pytest.skip("one methodology is unavailable")
+        assert "out_of_distribution" in body
+        if body["out_of_distribution"]:
+            said = " ".join(cp.compose(body)["paragraphs"])
+            assert "outside the range" in said

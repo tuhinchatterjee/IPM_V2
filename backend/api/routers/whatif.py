@@ -23,6 +23,7 @@ from backend.api.permissions import RequireAnalyst
 from backend.ifrs9 import policy
 from backend.whatif import answers as wa
 from backend.whatif import cache as ch
+from backend.whatif import comparison as cmp_
 from backend.whatif import delta as dl
 from backend.whatif import domain as dm
 from backend.whatif import engine as wf
@@ -1269,14 +1270,47 @@ def plausibility_method(_: Any = RequireAnalyst) -> dict[str, Any]:
     return pl.describe()
 
 
+class CompareIn(BaseModel):
+    """A request to price one scenario both ways."""
+
+    state: StateIn
+    #: The methodology the person is coming FROM, so the answer is phrased in
+    #: their direction. Never changes a figure — both are always computed.
+    ran: str = Field(default="", max_length=16)
+    #: Whether to write the reading. Off for a caller that only wants figures.
+    explain: bool = Field(default=True)
+
+
+@router.get("/compare-methodologies/method")
+def compare_method(_: Any = RequireAnalyst) -> dict[str, Any]:
+    """How the comparison is made, and what neither figure is."""
+    return cmp_.describe()
+
+
 @router.post("/compare-methodologies")
-def compare_methodologies(body: ExecuteIn,
+def compare_methodologies(body: CompareIn,
                           _: Any = RequireAnalyst) -> dict[str, Any]:
-    """The same scenario under both methodologies, side by side."""
+    """The same scenario under both methodologies, and where they disagree.
+
+    Works in both directions from one object: whichever methodology produced
+    the result on screen, the other is one question away, and only the
+    phrasing follows the reader — the figures do not.
+    """
     try:
-        return rn.compare_methodologies(_state_from(body.state))
+        state = _state_from(body.state)
+    except (stg.StagingError, sp.StepError) as e:
+        raise _refused(str(e)) from e
+    if not state.active:
+        raise _refused(
+            "There is no scenario to compare yet. Build one and run it "
+            "first, then ask what the other methodology would have said.")
+    try:
+        found = cmp_.compare(state, ran=body.ran or state.methodology)
     except (rn.RunError, dm.DomainError, ValueError) as e:
         raise _refused(str(e)) from e
+    if body.explain:
+        found["explanation"] = cmp_.explain(found)
+    return found
 
 
 # ------------------------------------------------------------------- saving
