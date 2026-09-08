@@ -42,6 +42,7 @@ which exists in the stored data:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -51,6 +52,9 @@ from backend.early_warning import aggregation as agg
 from backend.early_warning import classifiers_v2 as clf
 from backend.early_warning import reasons
 from backend.early_warning import v2_service as svc
+
+#: A numeral as it is written anywhere in the pack, including inside a label.
+_NUMERAL = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
 
 #: Bands at or above which an obligor counts as high risk.
 HIGH_PLUS = ("HIGH", "VERY_HIGH")
@@ -109,7 +113,14 @@ class FactPack:
                 "provenance": self.provenance, "caveats": self.caveats}
 
     def numbers(self) -> list[float]:
-        """Every numeric value the pack carries, for grounding checks."""
+        """Every numeric value the pack carries, for grounding checks.
+
+        Numerals written inside the pack's own strings count. A driver-tree
+        split arrives as the label "Days past due >= 90", and a reading that
+        quotes that threshold is quoting the pack, not inventing a number —
+        a check that could not see it would report correct prose as a defect,
+        which is how a check stops being read.
+        """
         found: list[float] = []
 
         def walk(value: Any) -> None:
@@ -117,6 +128,12 @@ class FactPack:
                 return
             if isinstance(value, (int, float)):
                 found.append(float(value))
+            elif isinstance(value, str):
+                for raw in _NUMERAL.findall(value):
+                    try:
+                        found.append(float(raw.replace(",", "")))
+                    except ValueError:
+                        continue
             elif isinstance(value, dict):
                 for v in value.values():
                     walk(v)
@@ -126,6 +143,7 @@ class FactPack:
 
         walk(self.figures)
         walk(self.rows)
+        walk(self.caveats)
         return found
 
 
@@ -459,6 +477,12 @@ def level(field_name: str, period: str | None = None) -> FactPack:
     figures["level_label"] = LEVEL_FIELDS[field_name]
     figures["groups"] = len(rows)
     figures["weakest_group"] = rows[0][field_name] if rows else None
+    # The exposure the three weakest groups carry between them. It is derived
+    # here rather than in the sentence that states it, because a figure a
+    # composer adds up on its way to the page is a figure the pack cannot
+    # vouch for, and the grounding check is right to refuse it.
+    figures["top_three_exposure"] = round(
+        sum(r["exposure"] for r in rows[:3]), 4)
     caveats = [_NOT_CALIBRATED]
     if field_name == "internal_rating":
         caveats.append(_GRADE_IS_NOT_EWS)
@@ -551,6 +575,15 @@ def borrower(customer_id: str) -> FactPack:
         "movement_12m": movement_attribution(history, months=12),
         "history": detail["history"],
     }
+    # The governed actions this obligor's drivers select, carried on the pack
+    # rather than fetched again by whoever writes the sentence. A timeframe
+    # the library defines is a figure the answer is entitled to quote, and it
+    # can only be quoted safely if the pack is the thing that carries it.
+    from backend.early_warning import actions as _act
+    recommended = _act.for_drivers([d["code"] for d in drivers])
+    figures["actions"] = [a.to_dict() for a in recommended]
+    first = _act.single_highest_value(recommended)
+    figures["single_highest_value"] = first.to_dict() if first else None
     caveats = [_NOT_CALIBRATED]
     if any(d["code"].startswith("L4") for d in drivers):
         caveats.append(_LAYER_4_EDGES)
@@ -581,13 +614,28 @@ def layer(customer_id: str, layer_code: str) -> FactPack:
         "sub_categories": (node or {}).get("sub_categories", []),
         "worst_node": max(subcats, key=lambda d: d["score"]) if subcats else None,
     }
+    # The action for this layer's worst node, carried here for the same
+    # reason the borrower pack carries its own: the reading quotes the
+    # owner and the timeframe, and a figure the pack does not hold is a
+    # figure the pack cannot vouch for.
+    from backend.early_warning import actions as _act
+    within = _act.for_drivers([d["code"] for d in subcats])
+    figures["actions"] = [a.to_dict() for a in within]
+    first = _act.single_highest_value(within)
+    figures["single_highest_value"] = first.to_dict() if first else None
+    # Every scope carries the calibration limit. One stated on the portfolio
+    # and dropped on the layer is a limit the reader stops seeing exactly
+    # where they have drilled far enough to act on what they are reading.
+    caveats = [_NOT_CALIBRATED]
+    if layer_code == "L3":
+        caveats.append(_LAYER_3_SYNTHETIC)
+    elif layer_code == "L4":
+        caveats.append(_LAYER_4_EDGES)
     return FactPack(
         scope="layer", label=f"{pack.label} — {LAYER_NAMES.get(layer_code, layer_code)}",
         period=pack.period, figures=figures,
         rows=(node or {}).get("sub_categories", []),
-        provenance=pack.provenance,
-        caveats=([_LAYER_3_SYNTHETIC] if layer_code == "L3" else
-                 [_LAYER_4_EDGES] if layer_code == "L4" else []),
+        provenance=pack.provenance, caveats=caveats,
     )
 
 
@@ -633,7 +681,15 @@ def movement(period_from: str | None = None, period_to: str | None = None,
     )
 
 
-def methodology() -> FactPack:
+#: The parts of the model a reader asks about by name. A question about
+#: double-counting is not answered by an explanation of the notch model,
+#: and being told how the framework works in general when you asked whether
+#: a supplier event is being counted twice reads like reassurance.
+METHODOLOGY_ASPECTS = ("deduplication", "network", "limits", "reliability",
+                       "notches")
+
+
+def methodology(aspect: str | None = None) -> FactPack:
     """How the score is built, from the model itself rather than from prose.
 
     Every number here is read from the modules that actually compute the
@@ -641,13 +697,20 @@ def methodology() -> FactPack:
     methodology page maintained by hand drifts from the engine and is worse
     than none.
     """
-    from backend.early_warning import catalog, matrix, notches, triggers_v2
+    from backend.early_warning import catalog, matrix, network, notches
+    from backend.early_warning import triggers_v2
 
     counts = catalog.status_counts()
     return FactPack(
         scope="methodology", label="the Early Warning framework",
         period=svc.latest_period(),
         figures={
+            "aspect": aspect if aspect in METHODOLOGY_ASPECTS else None,
+            "max_propagation_hops": network.MAX_PROPAGATION_HOPS_DEFAULT,
+            "max_propagation_hops_with_approval":
+                network.MAX_PROPAGATION_HOPS_WITH_APPROVAL,
+            "min_edge_confidence_band": network.MIN_EDGE_CONFIDENCE_BAND,
+            "edge_revalidation_months": network.EDGE_REVALIDATION_MONTHS,
             "signals_total": len(catalog.SIGNAL_INVENTORY),
             "signals_scored": counts.get("SCORED", 0),
             "signals_removed": sum(v for k, v in counts.items() if k != "SCORED"),

@@ -157,6 +157,41 @@ def _escalation_line(band: str, exposure: float) -> str:
     return line
 
 
+def _live_or_structural_line(figures: dict[str, Any]) -> str:
+    """Whether the weakness is happening now or has been there all along.
+
+    It is not a nuance. An obligor whose transactional and arrears reading is
+    clean while its classifier reading is very high has no live deterioration
+    to contain, and containment is what most of the action library is for; an
+    obligor deteriorating live against a sound structure needs the opposite.
+    An action or an escalation that does not say which of the two this is
+    invites the reader to apply the wrong half of the library.
+    """
+    lvs = figures.get("live_versus_structural") or {}
+    reading = lvs.get("reading")
+    if not reading:
+        return ""
+    ta, cl = lvs.get("ta_band", ""), lvs.get("classifier_band", "")
+    if reading == "structural":
+        return (f"This is structural rather than live: the transactional and "
+                f"arrears reading is {BAND_WORD.get(ta, ta.lower())} while "
+                f"the classifier reading is "
+                f"{BAND_WORD.get(cl, cl.lower())}. There is no live "
+                f"deterioration to contain, so the actions that matter are "
+                f"the ones that re-test the structure rather than the ones "
+                f"that stem an outflow.")
+    if reading == "live":
+        return (f"This is live rather than structural: the transactional and "
+                f"arrears reading is {BAND_WORD.get(ta, ta.lower())} against "
+                f"a classifier reading of {BAND_WORD.get(cl, cl.lower())}. "
+                f"The behaviour is moving now, so containment comes before "
+                f"any re-test of the structure.")
+    return (f"The weakness is both live and structural — transactional and "
+            f"arrears at {BAND_WORD.get(ta, ta.lower())}, classifier at "
+            f"{BAND_WORD.get(cl, cl.lower())} — so containing the behaviour "
+            f"does not resolve the position underneath it.")
+
+
 def _drill(label: str) -> str:
     return label
 
@@ -263,7 +298,8 @@ def level(pack: ff.FactPack) -> Composed:
     if weakest:
         top = rows[:3]
         listed = _list_of([f"{r[field_name]} at {r['portfolio_ews']:.1f}" for r in top])
-        carrying = sum(r["exposure"] for r in top)
+        carrying = f.get("top_three_exposure",
+                         sum(r["exposure"] for r in top))
         paras.append(
             f"The three weakest are {listed}, together carrying "
             f"{_money(carrying)}. The comparison worth making is not the "
@@ -572,6 +608,8 @@ def action(pack: ff.FactPack) -> Composed:
     """
     f = pack.figures
     drivers = f.get("drivers") or []
+    # From the pack, so that every figure in the sentences below — the
+    # timeframes especially — is one the pack vouches for.
     recommended = act.for_drivers([d["code"] for d in drivers])
     if not recommended:
         return Composed(
@@ -592,6 +630,9 @@ def action(pack: ff.FactPack) -> Composed:
         f"afterwards. Taking the expensive one first forecloses nothing and "
         f"delays the one that does.",
     ]
+    live = _live_or_structural_line(f)
+    if live:
+        paras.insert(0, live)
     points = [_action_line(a) for a in recommended[:4]]
     points.append(_escalation_line(f["ews_band"], f["exposure"]))
     return Composed(direct=direct, interpretation=_sentence(paras), points=points,
@@ -632,6 +673,9 @@ def escalation(pack: ff.FactPack) -> Composed:
             f"{worst['code']} {worst['name']} at {worst['score']:.0f}, "
             f"{worst['reason'].lower()}, with the recommended action and the "
             f"evidence that closes it.")
+    live = _live_or_structural_line(f)
+    if live:
+        paras.append(live)
     points = [_action_line(a) for a in recommended[:2]]
     return Composed(direct=direct, interpretation=_sentence(paras), points=points,
                     follow_ups=["Draft the escalation note.",
@@ -639,9 +683,104 @@ def escalation(pack: ff.FactPack) -> Composed:
                     caveats=pack.caveats)
 
 
+#: What each named part of the model actually does, led by the answer to the
+#: question rather than by a description of the framework. A reader asking
+#: whether a supplier event is being counted twice needs the deduplication
+#: rule, not a tour of the notch model — and a general explanation offered
+#: in place of the specific one reads as reassurance, which is the one thing
+#: a model explanation must never be.
+def _methodology_aspect(aspect: str, f: dict[str, Any]) -> tuple[str, str]:
+    """The direct answer and the reading, for the part that was asked about."""
+    if aspect == "deduplication":
+        return (
+            "No. Signals sharing a causal chain are deduplicated before the "
+            "sub-category score is formed: only the strongest member of the "
+            "chain carries a score and the rest are recorded at zero.",
+            "One deterioration reaching the bank through several signals is "
+            "one deterioration. A supplier failure that shows up as a "
+            "receivable-ageing signal, a utilisation signal and an external "
+            "news signal is a single chain, and scoring all three would let "
+            "the loudest event outrank a broader one that fired through a "
+            "single route. The members are kept rather than discarded, so "
+            "the evidence is still there to read — what is set to zero is "
+            "their contribution, not their existence.")
+    if aspect == "network":
+        return (
+            f"Connected names are scored by propagation, not by association: "
+            f"a counterparty's deterioration reaches an obligor across at "
+            f"most {f.get('max_propagation_hops')} hops "
+            f"({f.get('max_propagation_hops_with_approval')} with approval), "
+            f"and only across edges at confidence band "
+            f"{f.get('min_edge_confidence_band')} or better.",
+            "The transmitted amount depends on the relationship type, the "
+            "number of hops and the confidence in the edge, so a weak link "
+            "two hops away moves the score far less than a sole supplier one "
+            "hop away. Edges below the confidence band are logged rather "
+            "than scored, and an edge is revalidated every "
+            f"{f.get('edge_revalidation_months')} months, because a "
+            "relationship map nobody re-checks becomes the least reliable "
+            "input in the model while still looking like data.")
+    if aspect == "limits":
+        return (
+            "The weights, bands and multipliers are a documented starting "
+            "calibration, not estimates fitted to default data, so the model "
+            "orders obligors rather than predicting them.",
+            "It says which names are deteriorating relative to their own "
+            "baseline and to each other; it does not say how likely any of "
+            "them is to default, and no output here is a probability. "
+            "Layer 3 external intelligence is synthetic in this build and is "
+            "marked as such wherever it is shown. Nothing in the tool "
+            "changes a score or closes a case: an override is a documented "
+            "control and an escalation is a decision the matrix routes to a "
+            "person.")
+    if aspect == "reliability":
+        return (
+            "It depends on the source tier and on corroboration, and the "
+            "reading says which. A single tier-3 source is a reason to look, "
+            "not a finding.",
+            "Corroboration is one of the five accelerator dimensions, so a "
+            "signal confirmed across independent sources scores higher than "
+            "the same signal seen once — the model already discounts what it "
+            "cannot corroborate rather than leaving the reader to. Layer 3 "
+            "is synthetic in this build, which is stated on every answer "
+            "that leans on it, and evidence answers name the source system "
+            "so an analyst verifies the reading where it was produced rather "
+            "than here.")
+    if aspect == "notches":
+        return (
+            f"{len(f.get('notches') or [])} notch modifiers are applied to "
+            f"the anchor, each worth {f.get('points_per_notch')} points, with "
+            f"the net capped at plus or minus {f.get('net_notch_cap')}.",
+            "The notches adjust for what the two dimension scores cannot see "
+            "on their own, and the cap is what stops them from becoming a "
+            "second scoring model: a score can move by them, but not far "
+            "enough that the anchor stops being the thing that decides the "
+            "band. That is also why a fall driven by the notches is not an "
+            "improvement in the obligor — the anchor is where a condition "
+            "change would show, and the two are reported separately for "
+            "exactly that reason.")
+    return ("", "")
+
+
 def methodology(pack: ff.FactPack) -> Composed:
-    """How the score is built, from the engine rather than from a page."""
+    """How the score is built, from the engine rather than from a page.
+
+    Led by the part that was asked about, when one was, and followed by the
+    general explanation — so the answer to the question comes first and the
+    context comes after, rather than the reader having to find their question
+    inside a description of the framework.
+    """
     f = pack.figures
+    aspect = f.get("aspect")
+    if aspect:
+        lead, reading = _methodology_aspect(str(aspect), f)
+        if lead:
+            return Composed(
+                direct=lead, interpretation=reading,
+                follow_ups=["How is the score built?",
+                            "Show me the evidence behind a node.",
+                            "What are the limits of this tool?"],
+                caveats=pack.caveats)
     direct = (f"The score is built from {f['signals_scored']} scored signals "
               f"of {f['signals_total']} in the inventory, across "
               f"{f['sub_categories']} sub-category nodes, "

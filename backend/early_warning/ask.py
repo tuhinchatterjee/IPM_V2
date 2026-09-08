@@ -92,12 +92,61 @@ _DIAGNOSIS = re.compile(
     r"\b(in common|diagnos\w*|driver tree|what do the .* share|"
     r"common (driver|feature))", re.I)
 _METHODOLOGY = re.compile(
-    r"\b(methodolog\w*|how (does|is) the (score|model)|explain (the )?"
-    r"(matrix|notch\w*|decay|l\d(\.\w+)?)|why is.*not (independently )?scored|"
-    r"which signals|what does .* mean)", re.I)
+    r"\b(methodolog\w*|framework|how (does|is|do) the (score|model|notch\w*|"
+    r"matrix|framework|decay|weights?)|explain (the )?"
+    r"(matrix|notch\w*|decay|model|framework|early warning|l\d(\.\w+)?)|"
+    r"why is.*not (independently )?scored|which signals|what does .* mean|"
+    # Questions about the model's own honesty. A reader asking whether a
+    # supplier event is being counted twice, or how far the external layer
+    # can be trusted, or what the tool cannot see, is asking about the
+    # model — and the worst possible answer is a portfolio summary, which
+    # reads like reassurance and answers nothing.
+    r"double.count\w*|counted twice|deduplicat\w*|"
+    r"how (reliable|trustworthy|accurate|confident)|"
+    r"(what|where) (are|is) (the )?(limit\w*|weakness\w*|caveat\w*)|"
+    r"limitations?\b|connected (name|obligor|counterpart\w*)|"
+    r"\bnetwork (exposure|effect|risk|treatment)\b|"
+    r"handle connected|cause[sd]? the score)", re.I)
 _COMPARE = re.compile(r"\bcompare\b|\bversus\b|\bvs\.?\b|\bagainst\b", re.I)
+
+#: Which part of the model a methodology question is actually about. Tested
+#: in order, so "how does the network get double-counted" is a
+#: deduplication question before it is a network one.
+_METHODOLOGY_ASPECTS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("deduplication", re.compile(
+        r"double.count\w*|counted twice|deduplicat\w*|"
+        r"same event|one event|causal chain", re.I)),
+    ("network", re.compile(
+        r"\bnetwork\b|connected (name|obligor|counterpart\w*|part\w*)|"
+        r"\bcounterpart\w*|\bsupply chain\b|\bpropagat\w*|\bcontagion\b",
+        re.I)),
+    ("limits", re.compile(
+        r"\blimit(s|ation\w*)\b|\bcan(not|'t) (it |the model )?see\b|"
+        r"\bweakness\w* of\b|\bcaveat\w*|\bnot calibrat\w*|"
+        r"\bpredict\w*", re.I)),
+    ("reliability", re.compile(
+        r"how (reliable|trustworthy|accurate|confident)|"
+        r"\btrust\b|\bconfidence in\b|\bcorroborat\w*|\bsource tier\b",
+        re.I)),
+    ("notches", re.compile(r"\bnotch\w*", re.I)),
+)
+
+
+def resolve_methodology_aspect(question: str) -> str | None:
+    """Which part of the model the reader is asking about, if a nameable one."""
+    for aspect, pattern in _METHODOLOGY_ASPECTS:
+        if pattern.search(question or ""):
+            return aspect
+    return None
+
+#: An explicit request to see the book cut a particular way. "Group the
+#: portfolio by grade", "break the book down by stage", "how does it look by
+#: rating" — all the same request, and all of them name the level after "by".
 _GROUP_BY = re.compile(
-    r"\b(group|grouped|by) (the (portfolio|book) )?by ([a-z0-9 ]+)", re.I)
+    r"\b(group|grouped|grouping|break|broken|split|cut|slice)\b[^.?]*\bby\b|"
+    r"\blook\w*\s+by\b|\bby\s+(internal\s+)?"
+    r"(segment|sector|grade|rating|stage|region|branch|geography|severity|"
+    r"band|layer|utilisation|relationship manager|rm)\b", re.I)
 
 #: Plain-language names for the fields the book can be grouped by.
 _LEVEL_WORDS: dict[str, tuple[str, ...]] = {
@@ -141,6 +190,15 @@ class Answer:
 # ------------------------------------------------------------- resolution
 
 
+#: An obligor referred to by its position rather than its name. Only the
+#: weakest is resolvable this way: "the second worst" is a rank the reader
+#: should see in a table rather than have guessed at.
+_SUPERLATIVE = re.compile(
+    r"\b(the )?(weakest|worst|highest.risk|riskiest|most deteriorated|"
+    r"top|worst.performing)\s+(borrower|obligor|name|customer|credit|"
+    r"exposure|account)\b", re.I)
+
+
 def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]+", " ", (text or "").lower()).strip()
 
@@ -171,7 +229,17 @@ def resolve_borrower(question: str, period: str | None = None) -> str | None:
             score = len(name)
             if best is None or score > best[0]:
                 best = (score, str(row["customer_id"]))
-    return best[1] if best else None
+    if best:
+        return best[1]
+
+    # A reader who is looking at the screen refers to what is on it. "What
+    # should I do about the weakest borrower?" names an obligor as surely as
+    # its name does, and failing to resolve it sent an action question to the
+    # portfolio, which answered a question nobody asked.
+    if _SUPERLATIVE.search(question or ""):
+        weakest = bm.sort_values("ews_score", ascending=False).iloc[0]
+        return str(weakest["customer_id"])
+    return None
 
 
 def resolve_level(question: str) -> str | None:
@@ -279,7 +347,7 @@ def answer(question: str, *, period: str | None = None,
     # A question about the model itself is answered before any population is
     # resolved: "explain the matrix" names no obligor and needs none.
     if _METHODOLOGY.search(text) and not _MOVEMENT.search(text):
-        pack = ff.methodology()
+        pack = ff.methodology(resolve_methodology_aspect(text))
         return Answer(pack, cp.compose(pack), "methodology")
 
     named = resolve_borrower(text, period)
@@ -325,12 +393,16 @@ def answer(question: str, *, period: str | None = None,
         pack = ff.movement(period_to=period)
         return Answer(pack, cp.compose(pack), "movement")
 
+    # A level is asked for either explicitly ("by grade") or by naming a
+    # grouping and nothing else. The explicit form wins over the words that
+    # usually mean the whole book: "how does the book look by rating?" names
+    # the book AND the cut, and it is the cut that was asked for.
     grouped = _GROUP_BY.search(text)
     level_field = resolve_level(text)
-    if grouped or (level_field and not any(w in _norm(text) for w in _PORTFOLIO)):
-        if level_field:
-            pack = ff.level(level_field, period)
-            return Answer(pack, cp.compose(pack), "level")
+    if level_field and (grouped or not any(w in _norm(text)
+                                           for w in _PORTFOLIO)):
+        pack = ff.level(level_field, period)
+        return Answer(pack, cp.compose(pack), "level")
 
     # Falling back to a portfolio summary for anything unrecognised would
     # answer a different question from the one asked — "how much is in
