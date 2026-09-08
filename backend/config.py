@@ -66,6 +66,15 @@ class Settings:
     #: a fixed id rather than an alias so a provider-side change cannot alter
     #: how CreditProbe reads a question without a release.
     ai_model: str
+    #: Cockpit Intelligence V2. Cockpit-scoped and OFF unless explicitly set,
+    #: so every other feature — Early Warning, What-if, Scorecards, Planner,
+    #: Lenses, Playbook — keeps the behaviour it has today whatever this branch
+    #: does. Nothing outside `backend/cockpit_v2/` and the four guarded call
+    #: sites listed in docs/cockpit_v2/INTEGRATION_NOTES.md reads it.
+    cockpit_intelligence_v2: bool
+    #: The namespace every V2 dataset name, seed target and cache key carries.
+    #: The startup guard refuses to write anywhere that does not contain it.
+    cockpit_v2_namespace: str
     # Populated in later phases; empty until then.
     database_url: str
     secret_key: str
@@ -121,6 +130,9 @@ def _load() -> Settings:
         anthropic_api_key=_get("ANTHROPIC_API_KEY", ""),
         ai_provider=_get("AI_PROVIDER", "anthropic"),
         ai_model=_get("AI_MODEL", ""),
+        cockpit_intelligence_v2=_get("COCKPIT_INTELLIGENCE_V2", "false")
+        .strip().lower() in ("1", "true", "yes", "on"),
+        cockpit_v2_namespace=_get("COCKPIT_V2_NAMESPACE", "cockpit_v2"),
         database_url=_get("DATABASE_URL", ""),
         secret_key=_get("SECRET_KEY", ""),
         # Signing in is compulsory by default. A credit-risk product where
