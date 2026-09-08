@@ -7,11 +7,11 @@
   {
    "what": "read the book (cold)",
    "runs": [
-    1.032
+    1.062
    ],
-   "median": 1.032,
-   "best": 1.032,
-   "worst": 1.032,
+   "median": 1.062,
+   "best": 1.062,
+   "worst": 1.062,
    "budget": 8.0,
    "status": "ok"
   },
@@ -31,99 +31,99 @@
   {
    "what": "price a scenario \u2014 Delta",
    "runs": [
-    0.681,
-    0.661,
-    0.656
+    0.689,
+    0.708,
+    0.695
    ],
-   "median": 0.661,
-   "best": 0.656,
-   "worst": 0.681,
+   "median": 0.695,
+   "best": 0.689,
+   "worst": 0.708,
    "budget": 3.0,
    "status": "ok"
   },
   {
    "what": "price a scenario \u2014 ML",
    "runs": [
-    1.411,
-    0.787,
-    0.785
+    1.504,
+    0.762,
+    0.761
    ],
-   "median": 0.787,
-   "best": 0.785,
-   "worst": 1.411,
+   "median": 0.762,
+   "best": 0.761,
+   "worst": 1.504,
    "budget": 6.0,
    "status": "ok"
   },
   {
    "what": "attribution (5 shocks)",
    "runs": [
-    0.715,
-    0.729,
-    0.73
+    0.732,
+    0.739,
+    0.733
    ],
-   "median": 0.729,
-   "best": 0.715,
-   "worst": 0.73,
+   "median": 0.733,
+   "best": 0.732,
+   "worst": 0.739,
    "budget": 6.0,
    "status": "ok"
   },
   {
    "what": "plausibility (cold)",
    "runs": [
-    2.136
+    2.067
    ],
-   "median": 2.136,
-   "best": 2.136,
-   "worst": 2.136,
+   "median": 2.067,
+   "best": 2.067,
+   "worst": 2.067,
    "budget": 8.0,
    "status": "ok"
   },
   {
    "what": "plausibility (warm)",
    "runs": [
-    0.101,
-    0.097,
-    0.097
+    0.105,
+    0.099,
+    0.098
    ],
-   "median": 0.097,
-   "best": 0.097,
-   "worst": 0.101,
+   "median": 0.099,
+   "best": 0.098,
+   "worst": 0.105,
    "budget": 1.0,
    "status": "ok"
   },
   {
    "what": "macro fit",
    "runs": [
-    0.421,
-    0.579
+    0.466,
+    0.581
    ],
-   "median": 0.5,
-   "best": 0.421,
-   "worst": 0.579,
+   "median": 0.523,
+   "best": 0.466,
+   "worst": 0.581,
    "budget": 5.0,
    "status": "ok"
   },
   {
    "what": "both methodologies",
    "runs": [
-    1.523,
-    1.527
+    1.624,
+    1.675
    ],
-   "median": 1.525,
-   "best": 1.523,
-   "worst": 1.527,
+   "median": 1.65,
+   "best": 1.624,
+   "worst": 1.675,
    "budget": 10.0,
    "status": "ok"
   },
   {
    "what": "detailed workbook",
    "runs": [
-    6.572,
-    6.415
+    6.631,
+    6.274
    ],
-   "median": 6.493,
-   "best": 6.415,
-   "worst": 6.572,
+   "median": 6.452,
+   "best": 6.274,
+   "worst": 6.631,
    "budget": 30.0,
    "status": "ok"
   }

@@ -2,143 +2,226 @@
 
 **Branch:** `claude/what-if-analysis-rebuild`
 **Baseline:** `origin/claude/integration-rehearsal` @ `4f7956666feca2822cc74effd335823ba1a391e9`
-**Not merged. No pull request opened.**
+**Not merged. No pull request opened. No other branch touched.**
 
-The bar this is written against: *a senior credit-risk / IFRS 9 professional can
-use What-If Analysis conversationally, trust the numbers, understand every
-material ECL movement, drill into it with follow-up questions, and see
-internally coherent IFRS 9 data.*
+The bar this is written against:
 
----
-
-## 1. What manual acceptance found, and what happened to it
-
-Fourteen findings. None is closed by an assertion; each has a test, a browser
-journey or a measured figure named beside it in
-`docs/what_if_analysis_requirement_audit.md`.
-
-Four of them were not user-interface problems at all. They were the visible end
-of defects in the book underneath, and the book was rebuilt.
-
-**Stage 3 moved and nothing explained it.** Twenty-seven borrowers were
-credit-impaired by days past due, still rated `B-`, still carrying a ten per
-cent probability of default — so a rating shock aimed at performing names moved
-the provision on defaulted ones. Ninety days past due is the presumption of
-default and nothing in this book rebuts it now, so `default_flag`, Stage 3, the
-`D` grade and a defaulted PD agree by construction.
-
-**Seventy obligors sat in the IFRS 9 book at zero exposure** — rated, staged,
-provisioned at nothing — because every facility they held had matured while the
-relationship was still on book.
-
-**Stage 2 walked from 6% of the book to 75% and back** as the credit cycle
-turned, because the SICR reference held its own vintage while the
-point-in-time PD moved with the cycle: the trigger was measuring the economy
-rather than the borrower. It runs 7% → 22% → 19% now.
-
-**The average twelve-month PD moved twenty-three-fold in four years**, because
-the cycle was counted twice — the grade absorbed 45% of it and the conditioning
-then applied all of it again.
-
-And one that was neither the screen nor the data: **thirty-one columns were
-invisible to every reader.** A dataset published through Data Builder overrides
-the file catalogue, so a rebuilt lake with new columns is refused with "not a
-field of dataset" until the published entry learns about them. The build
-reconciles them now and says what it added.
-
-## 2. The numbers a reader can check
-
-**Portfolio reconciliation, 16 quarters.** Every quarter's totals against the
-sum of every partition of them — Stage, sector, segment, rating. All four,
-every quarter, within the precision the book publishes.
-
-**Rating distribution, Q2 2026.** Nineteen of nineteen grades populated, the
-through-the-cycle scale strictly ordered, and coverage running from 0.01% at
-AAA to 60.03% at D with no inversion anywhere in between.
-
-**Spot check.** Ten borrowers, stratified across Stage and sector on a fixed
-seed rather than chosen, followed across eight quarters with the arithmetic
-shown. Every row ties to the governed product plus its overlay to within
-0.0001.
-
-All three are `scripts/whatif_reconciliation_report.py`, written to
-`docs/whatif_reconciliation.json`, and asserted in the suite so a change that
-breaks one is found by the build rather than by somebody reading the report.
-
-## 3. What the product can now be asked
-
-Every message in a thread is classified before anything is done with it, and
-only one of the three classes may touch the scenario:
-
-* **EXPLAIN** — "Why did Stage 3 ECL increase?" · "Which borrowers contributed
-  most?" · "How much of this is the measurement basis changing?"
-* **VIEW** — "Show this by sector." · "Break it down by rating."
-* **MODIFY** — "Now increase LGD by 5 points." · "Undo the last step."
-
-An explanation is computed from the borrower rows the run already produced, so
-asking why a number moved cannot move it. Eighty-one evaluation cases pin the
-reading, and none of them needs a language model.
-
-## 4. Verification
-
-Three readiness cycles, everything each time, in the order a build server would
-run it. Cycles 2 and 3 are identical in every figure.
-
-| | Result |
-|---|---|
-| Backend suite | **14,129 passed**, 42 skipped, 6 failed |
-| The six failures | identical every cycle, and every one reproduced on the baseline `4f79566` with the same lake and the same database. None is in What-If, and none is new — there were six before this work on a suite eleven hundred tests smaller. |
-| Frontend tests | **551 passed** |
-| Types, lint, display contract | clean |
-| Browser journeys | **11/11** original · **8/8** manual-failure · **185 checks** |
-| Reconciliation report | 16/16 quarters, 19/19 grades, 10 borrowers × 8 quarters |
-
-The full table, the six failures named individually, and the suites this work
-added are in `docs/what_if_analysis_as_built.md` §10.
-
-## 5. What is NOT claimed
-
-* The macro series in this installation are generated from a single latent
-  cycle factor, so GDP growth, the oil price and the policy rate move together
-  by construction. There are effectively sixteen independent macro
-  observations. Macro variables are therefore not model features and the
-  ten-variable What-If runs on declared sensitivities, which are management
-  assumptions rather than estimated elasticities.
-* The reported ECL on this book is close to a closed form, so a very high
-  R-squared is MECHANICAL and is not evidence of predictive skill. It is said
-  on the model card.
-* The model estimates a rate, not a cash flow. There is no contractual
-  cash-flow projection, no lifetime PD term structure and no effective-interest
-  discounting.
-* Covenants are reported under stress, not re-evaluated.
-* The data is synthetic and says so on every row.
+> A senior credit-risk or IFRS 9 professional can use What-If Analysis
+> conversationally, trust every number, understand exactly why each one moved,
+> judge whether the scenario is defensible, drill into it, take the detail away
+> in a form an auditor accepts, and hand the feature a different book without
+> rewriting it.
 
 ---
 
-## 6. Status
+## 1. Status
 
 **READY FOR UAT.**
 
-Against the directive's own bar — *do not claim ready with any FAIL, any
-unresolved calculation bug, any unreconciled dataset, an ML loader traceback,
-lost filter logic, an inability to answer follow-up questions, a raw JSON
-screen, missing Back navigation, incorrect migration percentages, unexplained
-Stage 3 movement, or zero PD and measurement-basis attribution on a Stage 1→2
-movement*:
+Three readiness cycles were run, each one exercising the whole feature: lint,
+typecheck, the unit and invariant suites, the evaluation corpus, the red team,
+the API surface, fifteen browser journeys against a real Chromium, the
+manual-failure journeys, the performance budgets, and both contracts against
+the book on disk.
 
-| Blocker | State |
+| Cycle | Result |
 |---|---|
-| Any FAIL | None in What-If. Six pre-existing failures elsewhere, each reproduced on the baseline, each named in as-built §10 |
-| Unresolved calculation bug | The exposure bound was the last one, found by red-teaming and fixed at source |
-| Unreconciled dataset | 16 of 16 quarters reconcile across four partitions |
-| ML loader traceback | Refused in a sentence; journey D asserts no `@rpath` reaches a screen |
-| Lost filter logic | 207 borrowers, not 3,244, and the screen restates both filters first |
-| Cannot answer follow-up questions | Five asked and answered in a browser, none of them moving the figure |
-| Raw JSON screen | None; journey E asserts it |
-| Missing Back navigation | On all three screens; journey B clicks each |
-| Incorrect migration percentages | Row-normalised, declared, and every populated row sums to 100% of its own origin grade |
-| Unexplained Stage 3 movement | Every movement carries a named mechanism, and the mechanisms sum to the whole |
-| Zero PD / basis attribution on a Stage 1→2 movement | The measurement basis is a driver of its own, with the borrowers, the exposure and both PDs |
+| 1 | 13 of 14 steps passed. One failure, diagnosed and fixed. |
+| 2 | Every step passed. |
+| 3 | Every step passed. |
 
-Not merged. No pull request opened. The branch is
-`claude/what-if-analysis-rebuild`.
+Logs and machine-readable results: `docs/readiness/cycle-{1,2,3}.{log,json}`.
+
+Cycle 1's failure was in the cycle harness rather than the product: it read
+`healthy` from the top level of the schema endpoint, which serves the contract
+with the installation's comparison nested inside it, so a healthy book was
+reported as a failure. That is worth recording rather than quietly correcting —
+a readiness harness that reports a false failure is a harness that will
+eventually be ignored.
+
+---
+
+## 2. What the last pass of work actually found
+
+Seven defects, none of which any test in the repository was looking for. They
+are listed because the fixes are the substance of this pass, not because a
+count is impressive.
+
+**The user-defined macro sensitivity was unreachable from the browser.**
+`StateIn` had no `sensitivities` field, so the state returned by
+`/macro/configure` carrying an override was posted back to `/execute` and the
+override was silently discarded. Every part of the feature worked in isolation
+and the whole did nothing. A contract that cannot read what the previous call
+emitted is the shape of this bug, and it now round-trips — and refuses a
+relationship it cannot read rather than dropping it.
+
+**The thread never told the backend a result was on screen.** The same sentence
+is a different intent depending on what is there: "what would the ML model
+say?" with a result behind it is a comparison, without one it is a question
+about the methodology. So every intent that only exists after a result silently
+degraded to its empty-thread fallback, and `/investigate` — which exists to
+answer questions about a result — was classifying with no context at all.
+Browser journey 14 caught it.
+
+**A cached result with no owner was readable by every signed-in analyst.** The
+module's own docstring says a run is readable only by the account that produced
+it and that handing one over on a guessed id would leak the portfolio; the
+implementation said `self.owner is None or self.owner == owner`. The frame it
+holds is the book at borrower grain.
+
+**Four macro variables were measured in the wrong unit.** Index and price
+columns were differenced raw against an adverse unit quoted as a percentage,
+and the policy rate's column is in percent against an adverse unit of 200 basis
+points. The fitted slope for the policy rate came back implying a PD multiplier
+of 46, offered to a reader as an empirical estimate.
+
+**The current account's adverse direction was inverted.** Written `+2.0` for a
+"2pp deterioration" when a deterioration is a fall, so the engine applied the
+adverse sensitivity to a 2pp improvement — a stress that made the book better.
+It was also the only moderately strong empirical fit in the set, and it was
+pointing the wrong way.
+
+**The attribution bridge reported "ML model adjustment" on a Delta run.** The
+residual was labelled after a methodology that had not priced it, and a
+relative tolerance of 1e-6 treated the last digit of a nine-figure sum as a
+finding.
+
+**73 of 179 evaluation questions were classified wrongly.** Writing the corpus
+by hand and checking it against the classifier — rather than labelling it with
+whatever the classifier said — found that the new intents matched only narrow
+phrasings while a broad EXPLAIN caught everything else.
+
+---
+
+## 3. The numbers a reader can check
+
+Corporate IFRS 9 book, Q2 2026, 3,241 borrowers, 16 quarters Q3 2022 → Q2 2026,
+19-grade masterscale. Delta Model, whole book:
+
+| Scenario | Incremental ECL | Change | Moved to a worse stage |
+|---|---|---|---|
+| One-notch downgrade | 19,241.8 | +30.5% | 229 |
+| LGD +5pp | 6,203.2 | +9.8% | **0** |
+| PD +20% | 4,169.3 | +6.6% | 85 |
+| GDP −1pp | 3,263.2 | +5.2% | 49 |
+| Rates +200bp | 2,531.9 | +4.0% | 40 |
+
+The LGD scenario producing zero migrations is the engine being right: a
+loss-given-default shock changes what is recovered, not the likelihood of
+default, so the measurement moves and the staging does not.
+
+Plausibility, same book:
+
+| Proposed | Verdict |
+|---|---|
+| PD +20% | Consistent with recent experience — 43.8% of borrower-quarters saw a move at least this size |
+| PD +200% | Historically plausible — 9.7% did |
+| PD +2000% | Plausible for selected pockets — 0.31% did |
+
+Performance, median seconds, all inside budget:
+
+| | median | budget |
+|---|---|---|
+| Read the book (cold / warm) | 1.03 / 0.02 | 8.0 / 1.0 |
+| Price a scenario — Delta / ML | 0.66 / 0.79 | 3.0 / 6.0 |
+| Attribution, 5 shocks | 0.73 | 6.0 |
+| Plausibility (cold / warm) | 2.14 / 0.10 | 8.0 / 1.0 |
+| Both methodologies | 1.52 | 10.0 |
+| Eleven-sheet workbook | 6.49 | 30.0 |
+
+---
+
+## 4. Verification
+
+| | |
+|---|---|
+| Evaluation corpus | **179 questions**, all fourteen intents, 2,513 assertions |
+| Red team | **54 attacks**, eleven shapes |
+| Browser journeys | **15/15**, 153/153 checks, real Chromium against a real backend |
+| Manual-failure journeys | **8/8**, 71/71 checks |
+| Regression | **5,833 passed** across whatif, api, evals, orchestration, exports |
+| Readiness cycles | **3**, the last two clean |
+
+The five regression failures are pre-existing: two in `tests/evals/test_properties.py`,
+one multi-analysis reconciliation, and two workbook-formula tests. Each was
+reproduced on baseline `4f79566` with this same lake and database using a
+`git worktree` with `DATA_*_DIR` overrides. **None is in What-If.**
+
+Timing is measured, not asserted. A timing assertion in a test suite fails on a
+busy machine and passes on a quiet one, and guards a number nobody wanted; a
+row over budget is reported.
+
+---
+
+## 5. What is NOT claimed
+
+Stated here rather than left for UAT to discover.
+
+**The economics of the shipped book are not validated by any of this.** The
+integration report establishes that a column called `pd_12m` exists, is numeric
+and lies between 0 and 100. It cannot establish that it is the twelve-month
+probability of default, and it says so in its own output.
+
+**The empirical macro relationships are directional evidence, not
+calibrations.** `corporate_macro` is generated from a single latent cycle
+factor, so every observed series is a linear function of it plus noise and a
+regression recovers the generator's own arithmetic. Sixteen quarters give
+fifteen changes. `recommend()` therefore returns the configured sensitivity in
+all ten cases, and says why. A canonical domain with genuinely independent
+series would make those estimates mean what they appear to mean.
+
+**Re-scoping a step that already exists is not supported.** "Now restrict that
+to Contracting" is a modification, but the builder reads a population only off
+a new step. The thread answers it as a question and changes nothing — safe,
+because it cannot silently move a number. Recorded as a known gap in the
+evaluation corpus, with a test that it still behaves as recorded.
+
+**Covenant re-testing under stress is reported, not re-evaluated.**
+
+**The macro sensitivities are declared assumptions.** No screen showing one
+fails to say so.
+
+**Facility grain in the export is an allocation.** Staging here is assessed on
+the obligor, so there is no facility-level measurement to export. The sheet
+carries the borrower's movement apportioned by IFRS 9 EAD share, says so in its
+heading and in a column, and sums back exactly.
+
+---
+
+## 6. What a UAT tester should try first
+
+Ordered by how likely each is to find something.
+
+1. **Ask the product about itself** before running anything — "what can this
+   do?", "what data is this?", "which fields can I shock?", "how is ECL
+   calculated?". None of it should price anything, and none of it should invent
+   a capability.
+2. **Run a scenario, then ask the same sentence again.** It should modify
+   rather than open a second one.
+3. **Ask a question that contains an instruction** — "was any of this the
+   rating downgrade?" — and check the figure does not move.
+4. **Propose an absurd shock** — PD +2000% — and read the plausibility verdict.
+   It must place the shock in history and must not state a probability.
+5. **Open a macro variable, look at what the history shows, then define your
+   own relationship.** Check the figure changes, and check every screen that
+   shows it says whose assumption it is.
+6. **Ask for the other methodology** from a Delta result and from an ML one.
+   The figures must be identical either way.
+7. **Download the workbook** and go to `RECONCILIATION` first. Nine tie-outs,
+   each a test. Then sum the borrower column and check the difference is the
+   one the sheet already told you about.
+8. **Change a staging rule and re-run.** The version stamped on the second
+   result must not be the default, and the reported book must still be staged
+   by the reported policy.
+
+---
+
+## 7. Constraints observed
+
+- Stayed on `claude/what-if-analysis-rebuild` throughout.
+- No merge to `main` or to any other branch.
+- Lenses, Project Planner and Early Warning untouched.
+- No pull request opened.
+- No Homebrew or system package installed from application runtime.
+- No stack trace reaches a user; a provider that is off is an ordinary state
+  and is logged as a reason, not a traceback.
