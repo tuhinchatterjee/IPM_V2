@@ -286,6 +286,12 @@ def start_thread(payload: ThreadIn, principal: Principal = RequireAnalyst) -> di
             project_id=payload.project_id, investigation_id=thread.id,
             period=window, state=cv.load(thread.context),
             memory=wm.load(thread.context),
+            # A thread opened with a governed domain in its context (e.g. an
+            # Early Warning investigation) is locked to that domain from its
+            # very first turn, not just from the first follow-up — otherwise
+            # the opening question of every EWS thread would bypass the lock
+            # that `threads.ask` enforces on every later one.
+            domain_lock=thread.context.get("domain"),
         )
     result = officer.investigation
     th.remember(thread.id, result, officer.answered)

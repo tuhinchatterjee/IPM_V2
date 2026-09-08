@@ -155,12 +155,17 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
             question: str = "",
             intent: str = "",
             source: Any = None,
-            population_steps: list[str] | None = None) -> RuntimeResult:
+            population_steps: list[str] | None = None,
+            domain_lock: str | None = None) -> RuntimeResult:
     """Validate, compile and run one plan.
 
     The single entry point. Every caller — Ask CreditProbe, a saved method, a
     Trace modification, a test — comes through here, so the checks cannot be
-    bypassed by adding a caller.
+    bypassed by adding a caller. `domain_lock`, forwarded to `validate()`,
+    is how a thread scoped to one product surface (e.g. Early Warning)
+    refuses a plan that reads outside it — this is the only place in the
+    live compute path where that refusal can be enforced, since every
+    caller reaches this function.
     """
     started = time.perf_counter()
     run_id = uuid.uuid4().hex[:16]
@@ -168,7 +173,7 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     if isinstance(plan, dict):
         plan = AnalyticalPlan.from_dict(plan)
 
-    report = validate(plan, limits=limits).raise_if_bad()
+    report = validate(plan, limits=limits, domain_lock=domain_lock).raise_if_bad()
     query = compile_plan(plan, report, limits=limits, source=source)
 
     graph = TraceGraph()

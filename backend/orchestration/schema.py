@@ -201,6 +201,12 @@ class AnalysisPlan:
     # Set when the question could not be matched to any registered analysis.
     unmatched: bool = False
     notes: list[str] = field(default_factory=list)
+    # The governed domain (e.g. "early_warning") this investigation was locked
+    # to when it ran, if any. Carried on the plan — not just passed as a
+    # function argument — so a stored Trace remembers its own lock: a later
+    # Trace-modify preview/apply re-validates against the SAME domain the
+    # original investigation was answered under, rather than re-opening it.
+    domain_lock: str | None = None
 
     @property
     def primary(self) -> PlanStep | None:
@@ -221,6 +227,7 @@ class AnalysisPlan:
             "follow_ups": list(self.follow_ups),
             "unmatched": self.unmatched,
             "notes": list(self.notes),
+            "domain_lock": self.domain_lock,
         }
 
     @classmethod
@@ -235,6 +242,7 @@ class AnalysisPlan:
             follow_ups=list(payload.get("follow_ups") or []),
             unmatched=bool(payload.get("unmatched")),
             notes=list(payload.get("notes") or []),
+            domain_lock=payload.get("domain_lock"),
         )
 
     def replace_steps(self, steps: list[PlanStep]) -> AnalysisPlan:

@@ -407,7 +407,12 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
             # follow-up about a field set reached the planner with no "those"
             # to resolve — which worked in tests that drove the orchestrator
             # directly and failed for every user.
-            memory=wm.load(context))
+            memory=wm.load(context),
+            # A thread started from a governed domain (e.g. Early Warning)
+            # stays locked to that domain's own datasets for every later
+            # turn — the lock lives on the thread's stored context, not on
+            # each incoming request, so it cannot be widened mid-conversation.
+            domain_lock=context.get("domain"))
 
     result = officer.investigation
     answered = officer.answered

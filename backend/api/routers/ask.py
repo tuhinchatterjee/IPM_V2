@@ -59,6 +59,11 @@ class AskIn(BaseModel):
     #: and "no, the movement since last quarter" are different answers to the
     #: same words and neither is served from the other's cache entry.
     clarification: str | None = Field(default=None, max_length=2000)
+    #: A governed domain (e.g. "early_warning") this question is locked to.
+    #: Only meaningful when starting a fresh investigation — an existing
+    #: `investigation_id` carries its own stored domain, which is authoritative
+    #: and is not overridable by a later request.
+    domain: str | None = Field(default=None, max_length=64)
 
 
 class ModifyIn(BaseModel):
@@ -295,6 +300,7 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
             investigation_id=payload.investigation_id,
             persist=payload.persist,
             period=period,
+            domain_lock=payload.domain,
         )
     except PlanRejected as e:  # pragma: no cover - run_investigation returns instead
         raise HTTPException(status_code=422,

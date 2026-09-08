@@ -489,7 +489,8 @@ def _reuse_scope_line(cached: Any) -> str:
 
 def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
                   runtime: Any, *, duration_ms: int,
-                  mode: dict[str, Any]) -> Investigation:
+                  mode: dict[str, Any],
+                  domain_lock: str | None = None) -> Investigation:
     """An Investigation for a question the runtime computed."""
     scope = Scope(
         focus=build.summary or reading.objective,
@@ -521,6 +522,7 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         planner=reading.source, model_name=reading.model or None,
         follow_ups=_follow_ups(build, runtime),
         notes=[_composed_note(build), *_presentation_note(build)],
+        domain_lock=domain_lock,
     )
 
     # Computed once, then quoted. Anything the prose says is a figure the

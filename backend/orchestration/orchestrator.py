@@ -175,6 +175,10 @@ class Answered:
     certified_params: dict[str, Any] = field(default_factory=dict)
     build: ap.AnalysisBuild | None = None
     runtime: Any = None
+    #: The governed domain this question was locked to, if any — carried onto
+    #: the assembled `AnalysisPlan` so a later Trace-modify re-validates
+    #: against the SAME domain the investigation actually ran under.
+    domain_lock: str | None = None
     written: interpretation.Interpretation | None = None
     clarification: str = ""
     #: The governed choice behind a clarification, when the reason CreditProbe
@@ -266,7 +270,8 @@ def answer(question: str, *, context: Any = None,
            memory: wm.WorkingMemory | None = None,
            period: tuple[str, str] | None = None,
            extra_filters: dict[str, Any] | None = None,
-           use_certified: bool = True) -> Answered:
+           use_certified: bool = True,
+           domain_lock: str | None = None) -> Answered:
     """Read, route, and either answer from metadata or compose and run.
 
     `period` is a comparison already chosen — from answering a clarification, or
@@ -279,6 +284,10 @@ def answer(question: str, *, context: Any = None,
     because a question CreditProbe cannot read is a conversation rather than an
     error. It raises nothing for a failed plan either — that comes back as a
     stated failure, for the same reason.
+
+    `domain_lock`, when set, restricts every dataset the composed plan may
+    read to that domain's allow-list (`backend.orchestration.domain_lock`),
+    forwarded to `backend.runtime.validation.validate()` via `_analyse()`.
     """
     started = time.perf_counter()
     state = state or cv.ConversationState()
@@ -515,7 +524,7 @@ def answer(question: str, *, context: Any = None,
             return finish(answered)
 
     return finish(_analyse(answered, question, reading, context, state,
-                           continuation, period, extra_filters))
+                           continuation, period, extra_filters, domain_lock))
 
 
 def _as_association(question: str, reading: cap.Reading) -> cap.Reading:
@@ -951,10 +960,12 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
              context: Any, state: cv.ConversationState,
              continuation: cv.Continuation,
              period: tuple[str, str] | None,
-             extra_filters: dict[str, Any] | None) -> Answered:
+             extra_filters: dict[str, Any] | None,
+             domain_lock: str | None = None) -> Answered:
     """Compose, validate, run and interpret. Or say why it could not."""
     from backend.runtime.executor import ExecutionClass, execute
 
+    answered.domain_lock = domain_lock
     reading = _with_overrides(reading, period, extra_filters)
     answered.reading = reading
 
@@ -1035,7 +1046,8 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         answered.runtime = execute(
             build.plan, question=question, intent=build.summary,
             certification=ExecutionClass.DYNAMIC,
-            population_steps=_population_steps(build))
+            population_steps=_population_steps(build),
+            domain_lock=domain_lock)
     except Exception as e:  # noqa: BLE001
         logger.exception("The governed runtime failed for %r", question)
         answered.failure_kind = FAILED_RUNTIME

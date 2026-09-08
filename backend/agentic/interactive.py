@@ -162,7 +162,8 @@ def run(session: Any, *, question: str, user_id: int | None = None,
         period: tuple[str, str] | None = None,
         state: Any = None, memory: Any = None,
         answer_one: Callable[..., Any] | None = None,
-        should_stop: Callable[[], bool] | None = None) -> Answered:
+        should_stop: Callable[[], bool] | None = None,
+        domain_lock: str | None = None) -> Answered:
     """Answer one question, with the officer record around it.
 
     Returns an `Answered` carrying the Investigation the caller already expects
@@ -212,7 +213,8 @@ def run(session: Any, *, question: str, user_id: int | None = None,
             investigation, orchestrated = answer_investigation(
                 q, user_id=user_id, project_id=project_id,
                 investigation_id=investigation_id, persist=True,
-                period=period, state=state, memory=memory)
+                period=period, state=state, memory=memory,
+                domain_lock=domain_lock)
             if q == question and found.answered is None:
                 found.answered = orchestrated
             return investigation

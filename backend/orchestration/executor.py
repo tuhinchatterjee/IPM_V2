@@ -901,12 +901,13 @@ def run_investigation(question: str, *, user_id: int | None = None,
                       persist: bool = True,
                       period: tuple[str, str] | None = None,
                       extra_filters: dict[str, Any] | None = None,
-                      state: Any = None) -> Investigation:
+                      state: Any = None,
+                      domain_lock: str | None = None) -> Investigation:
     """Answer one question end to end — for callers that do not track state."""
     return answer_investigation(
         question, user_id=user_id, project_id=project_id,
         investigation_id=investigation_id, persist=persist, period=period,
-        extra_filters=extra_filters, state=state)[0]
+        extra_filters=extra_filters, state=state, domain_lock=domain_lock)[0]
 
 
 def answer_investigation(question: str, *, user_id: int | None = None,
@@ -916,7 +917,8 @@ def answer_investigation(question: str, *, user_id: int | None = None,
                          period: tuple[str, str] | None = None,
                          extra_filters: dict[str, Any] | None = None,
                          state: Any = None,
-                         memory: Any = None
+                         memory: Any = None,
+                         domain_lock: str | None = None,
                          ) -> tuple[Investigation, Any]:
     """Answer one question end to end, and report how it was answered.
 
@@ -952,7 +954,8 @@ def answer_investigation(question: str, *, user_id: int | None = None,
     try:
         answered = orchestrator.answer(question, state=state, memory=memory,
                                        period=period,
-                                       extra_filters=extra_filters)
+                                       extra_filters=extra_filters,
+                                       domain_lock=domain_lock)
     except Exception as e:  # noqa: BLE001 - stated, never substituted
         logger.exception("The orchestrator raised on %r", question)
         return (_stated_failure(question, str(e), started), None)
@@ -961,7 +964,7 @@ def answer_investigation(question: str, *, user_id: int | None = None,
 
     if answered.certified is not None:
         certified = _run_certified(question, answered, mode_now, started,
-                                   user_id=user_id)
+                                   user_id=user_id, domain_lock=domain_lock)
         if certified is not None:
             _record_conversation(certified, answered)
             if persist:
@@ -976,7 +979,8 @@ def answer_investigation(question: str, *, user_id: int | None = None,
         answered = orchestrator.answer(question, state=state, memory=memory,
                                        period=period,
                                        extra_filters=extra_filters,
-                                       use_certified=False)
+                                       use_certified=False,
+                                       domain_lock=domain_lock)
 
     if answered.unsupported:
         investigation = _unsupported(question, answered, mode_now, started)
@@ -1009,7 +1013,8 @@ def answer_investigation(question: str, *, user_id: int | None = None,
     else:
         investigation = assembly.from_analysis(
             question, answered.reading, answered.build, answered.runtime,
-            duration_ms=answered.duration_ms, mode=mode_now)
+            duration_ms=answered.duration_ms, mode=mode_now,
+            domain_lock=answered.domain_lock)
         _apply_interpretation(investigation, answered)
         _check_stated_thresholds(investigation, answered)
         _record_invariants(investigation, answered)
@@ -1208,12 +1213,22 @@ def _settle_caveats(investigation: Investigation) -> None:
 
 
 def _run_certified(question: str, answered: Any, mode_now: dict[str, Any],
-                   started: float, *, user_id: int | None) -> Investigation | None:
+                   started: float, *, user_id: int | None,
+                   domain_lock: str | None = None) -> Investigation | None:
     """Run the bank's approved analysis for a methodology asked for by name.
 
     Returns None if it will not run, and the caller composes instead. It never
     reaches for a *different* certified analysis: the whole reason this route is
     safe is that it only ever runs the one the request actually named.
+
+    `domain_lock`, when set, is checked against the certified analysis's own
+    required datasets (`backend.orchestration.domain_lock`) before it runs —
+    this is a second, independent enforcement point from the composed-plan
+    path in `orchestrator._analyse()`, needed because a named methodology
+    never reaches `backend.runtime.validation.validate()` at all. A
+    violation here returns None exactly like any other reason this route
+    will not run, so the caller falls through to composing instead — which
+    is domain-checked on its own path.
     """
     found = answered.certified
     plan = AnalysisPlan(
@@ -1230,7 +1245,16 @@ def _run_certified(question: str, answered: Any, mode_now: dict[str, Any],
         model_name=answered.reading.model or None,
         notes=[found.because,
                f"Selected because the request matched {found.matched}."],
+        domain_lock=domain_lock,
     )
+    if domain_lock:
+        from backend.orchestration import domain_lock as dl
+
+        violations = dl.check_plan(plan.steps, domain_lock)
+        if violations:
+            logger.info("Certified analysis %s refused by domain_lock=%r: %s",
+                        found.analysis_id, domain_lock, dl.refusal_message(violations))
+            return None
     try:
         steps = execute_plan(plan, user_id=user_id)
     except Exception as e:  # noqa: BLE001 - compose instead, never substitute
