@@ -158,6 +158,20 @@ class MetricDefinition:
     version: str = "1.0.0"
     #: The metric's own scope, applied to every term alike.
     scope: tuple[Condition, ...] = ()
+    #: A metric expressed over other metrics or over two periods, where the
+    #: term tree cannot express it. Serialised; kept as a dict rather than a
+    #: `Composite` so this module stays free of the composite engine, which
+    #: imports the catalogue.
+    #:
+    #: A metric with one of these has an EMPTY `formula`, because there is no
+    #: single term tree that computes it. Everything that runs a metric checks
+    #: `composite` first — see `service.value`.
+    composite: dict[str, Any] | None = None
+    #: The §6 code artefact a person approved: their formula, the interpreted
+    #: one, the plain-English steps, the SQL, the compiled statement and the
+    #: validation report. Empty for a governed metric, which was written in
+    #: code and reviewed in a pull request rather than approved on a screen.
+    code: dict[str, Any] | None = None
     #: Filled for user metrics; empty for governed ones.
     created_by: int | None = None
     verified_by: int | None = None
@@ -168,11 +182,27 @@ class MetricDefinition:
     # -- reading it ---------------------------------------------------------
 
     @property
+    def is_composite(self) -> bool:
+        return bool(self.composite)
+
+    @property
     def datasets(self) -> tuple[str, ...]:
+        if self.composite:
+            # A composite's legs may name governed metrics, whose datasets are
+            # not reachable from here without a resolver. They were resolved
+            # once, at lock time, and recorded on the code artefact — which is
+            # the only place that knows them without a database round trip per
+            # tile.
+            recorded = tuple((self.code or {}).get("datasets") or ())
+            return recorded or self.formula.datasets
         return self.formula.datasets
 
     @property
     def fields(self) -> tuple[str, ...]:
+        if self.composite:
+            recorded = tuple((self.code or {}).get("fields") or ())
+            if recorded:
+                return recorded
         out: list[str] = []
         for term in self.formula.terms:
             for name in (term.field, term.weight_field):
@@ -230,6 +260,13 @@ class MetricDefinition:
             "definition": self.definition,
             "formula": self.formula_text or self.formula.describe(),
             "formula_tree": self.formula.to_dict(),
+            "composite": dict(self.composite) if self.composite else None,
+            "is_composite": self.is_composite,
+            # §10 and §13. Everything a person was shown before they approved
+            # this metric, travelling with every figure it produces — so "what
+            # code computed this?" is answered on the tile rather than by
+            # going back to the builder.
+            "code": dict(self.code) if self.code else None,
             "unit": self.unit,
             "decimals": self.decimals,
             "numerator": self.numerator_text or (
@@ -239,6 +276,22 @@ class MetricDefinition:
                 if self.formula.denominator else ""),
             "domain": self.domain,
             "portfolio": self.portfolio,
+            # Which of the two domains a Lens may read this metric reaches:
+            # cockpit, ews, or both. A FACT about the definition, computed
+            # from the fields it actually names rather than from the library
+            # category it was filed under — see backend.metrics.lens_domains.
+            #
+            # On the panel rather than only in the builder because a refresh
+            # snapshot records it, and a "what changed" reading that cannot
+            # tell a Cockpit movement from an Early Warning one cannot report
+            # the corroboration between them, which is most of its value.
+            "lens_domains": list(_lens_domains(self)),
+            # …and which domain's STORY it belongs to. "Watchlist Exposure"
+            # touches both and IS an Early Warning metric; reporting only the
+            # lineage put every such metric in both domains' change lists and
+            # made "Cockpit and Early Warning moved together" true by
+            # construction.
+            "lens_domain": _primary_domain(self),
             "datasets": list(self.datasets),
             # What one row of the source IS. Any metric is clearer for it, and
             # a COUNT metric is unreadable without it: "Retail Accounts —
@@ -269,6 +322,26 @@ class MetricDefinition:
 
     def to_dict(self, *, catalog: Any = None) -> dict[str, Any]:
         return self.panel(catalog=catalog)
+
+
+def _primary_domain(metric: Any) -> str:
+    try:
+        from backend.metrics import lens_domains
+
+        return lens_domains.primary_domain(metric)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _lens_domains(metric: Any) -> tuple[str, ...]:
+    """Which Lens domains a metric reads. Imported late to avoid a cycle:
+    `lens_domains` reads metric definitions, and this module defines them."""
+    try:
+        from backend.metrics import lens_domains
+
+        return lens_domains.metric_domains(metric)
+    except Exception:  # noqa: BLE001 - a panel is not worth a crash
+        return ()
 
 
 # ---------------------------------------------------------------------------

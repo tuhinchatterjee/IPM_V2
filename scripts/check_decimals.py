@@ -128,6 +128,19 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "package has no API router, no frontend route and no navigation "
         "entry, so none of these numbers reaches a reader as a figure."),
     Allowed(
+        "frontend/src/components/lenses/formula-builder.tsx",
+        "The two sides of the metric approval card, and only those. This "
+        "card is not a tile reporting a figure - it is the working shown to "
+        "somebody who has to approve arithmetic before it becomes a governed "
+        "metric, and the sentence directly under the two rows is written by "
+        "`_fmt` in backend/metrics/execution.py at the same precision. Round "
+        "the rows to two decimals and the card contradicts itself: the "
+        "reader is asked to check that 74,017.56 over 74,352.67 gives "
+        "-0.4507 when the engine divided 74,017.555. Every other number in "
+        "this component - and every figure this metric later produces on a "
+        "Lens - goes through the contract as everywhere else.",
+        lines=(828, 833)),
+    Allowed(
         "frontend/src/lib/scorecard-format.ts",
         "Fitted scorecard coefficients, and nothing else. A coefficient is "
         "not a business figure - it is part of the model's specification, "

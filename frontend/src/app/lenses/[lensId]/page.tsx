@@ -40,8 +40,14 @@ import {
   saveLayout,
 } from "@/components/lenses/edit-mode";
 import { LayoutEditor } from "@/components/lenses/layout-editor";
+import {
+  LensChangesPanel,
+  LensDesignPanel,
+  MetricHistoryPanel,
+} from "@/components/lenses/lens-changes";
 import { LensInterpretationPanel } from "@/components/lenses/lens-interpretation";
 import { LensScopeBar } from "@/components/lenses/lens-scope";
+import { FormulaBuilder } from "@/components/lenses/formula-builder";
 import { MetricBuilder } from "@/components/lenses/metric-builder";
 import { useAsync } from "@/lib/hooks";
 import { fromLens, linkBack, type ReturnContext } from "@/lib/return-to";
@@ -88,12 +94,28 @@ function LensView({ id }: { id: number }) {
   // with it. The metric builder was losing its locked step to a reload it had
   // itself asked for. The previous render is still true until the new one
   // arrives, so it stays up until then.
-  const rendered = useAsync(
-    () => api.renderLens(id, period ?? undefined),
+  //
+  // ONE call, not two. §19 and §44: opening a Lens IS a refresh, so the same
+  // pipeline that renders the panels records the snapshot, chooses the
+  // previous comparable one and works out what changed — and returns all of
+  // it together. Calling `renderLens` and then `lensChanges` executed every
+  // panel twice on every page load, which is a second full pass over the book
+  // for a result the first pass already had.
+  const opened = useAsync(
+    () => api.refreshLens(id, {
+      period: period ?? undefined,
+      trigger: "lens_opened",
+    }),
     [id, nonce, period],
     { keepPrevious: true },
   );
+  const rendered = {
+    ...opened,
+    data: opened.data?.rendered,
+  } as { data: RenderedLens | undefined; loading: boolean;
+         error: string | null };
   const view = rendered.data;
+  const changes = opened.data ?? null;
 
   const [request, setRequest] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -101,6 +123,9 @@ function LensView({ id }: { id: number }) {
   const [changed, setChanged] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [showHistory, setShowHistory] = React.useState(false);
+  // §32. Which tile's two histories are open, if any. One at a time: a page
+  // with every tile's history expanded is a page nobody reads.
+  const [historyFor, setHistoryFor] = React.useState<string | null>(null);
   const [arranging, setArranging] = React.useState(false);
   const [charting, setCharting] = React.useState(false);
 
@@ -289,6 +314,15 @@ function LensView({ id }: { id: number }) {
       />
 
       {editing && addingMetric && (
+        <FormulaBuilder
+          period={view.period ?? ""}
+          lensId={id}
+          onLocked={(made) => void attach(made.metric_id)}
+          onCancel={() => setAddingMetric(false)}
+        />
+      )}
+
+      {editing && addingMetric && (
         <MetricBuilder
           lensName={lens.name}
           domain={view.scope.domains[0] ?? ""}
@@ -339,12 +373,26 @@ function LensView({ id }: { id: number }) {
         />
       ) : addingMetric ? null : (
         <>
+          {/* §31. What CHANGED goes above what the Lens SHOWS, because a
+              reader arriving at a dashboard they saw last quarter is asking
+              the first question and the tiles answer the second. */}
+          <LensChangesPanel
+            changes={changes}
+            onRefreshed={() => setNonce((n) => n + 1)}
+          />
+          <LensDesignPanel design={lens.design} />
           <LensInterpretationPanel
             lensId={id}
             period={view.period}
             version={lens.version}
           />
-          <LensBody rendered={view} lens={lens} />
+          <LensBody
+            rendered={view}
+            lens={lens}
+            lensId={id}
+            showHistoryFor={historyFor}
+            onShowHistory={setHistoryFor}
+          />
         </>
       )}
 
@@ -462,9 +510,15 @@ function LensView({ id }: { id: number }) {
 function LensBody({
   rendered,
   lens,
+  lensId,
+  showHistoryFor,
+  onShowHistory,
 }: {
   rendered: RenderedLens;
   lens: Lens;
+  lensId: number;
+  showHistoryFor: string | null;
+  onShowHistory: (metricId: string | null) => void;
 }) {
   const from = fromLens(String(lens.id), lens.name);
   const sections =
@@ -507,10 +561,47 @@ function LensBody({
             {tiles.length > 0 && (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {tiles.map((panel, position) => (
-                  <MetricTile
+                  <div
                     key={`${panel.metric_id}-${position}`}
-                    panel={panel}
-                  />
+                    className="space-y-1"
+                  >
+                    <MetricTile panel={panel} />
+                    {panel.metric_id && (
+                      <>
+                        {/* §32. A tile's own two histories, on the tile,
+                            because "has this been moving?" is asked while
+                            looking at the figure rather than on another
+                            screen. */}
+                        <button
+                          type="button"
+                          className="text-[10px] text-text-muted hover:text-text-secondary"
+                          data-testid={`show-history-${panel.metric_id}`}
+                          onClick={() =>
+                            onShowHistory(
+                              showHistoryFor === panel.metric_id
+                                ? null
+                                : panel.metric_id,
+                            )
+                          }
+                        >
+                          {showHistoryFor === panel.metric_id
+                            ? "Hide history"
+                            : "History"}
+                        </button>
+                        {showHistoryFor === panel.metric_id && (
+                          <Card className="p-3">
+                            <MetricHistoryPanel
+                              lensId={lensId}
+                              metricId={panel.metric_id}
+                              metricName={
+                                panel.title || panel.metric?.name || ""
+                              }
+                            />
+                          </Card>
+                        )}
+                      </>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

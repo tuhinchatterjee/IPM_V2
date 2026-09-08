@@ -40,6 +40,7 @@ from backend.api.routers import early_warning as early_warning_router
 from backend.api.routers import engine as engine_router
 from backend.api.routers import exports as exports_router
 from backend.api.routers import feedback as feedback_router
+from backend.api.routers import formula as formula_router
 from backend.api.routers import health as health_router
 from backend.api.routers import hierarchy as hierarchy_router
 from backend.api.routers import intelligence as intelligence_router
@@ -341,6 +342,7 @@ def create_app() -> FastAPI:
     app.include_router(hierarchy_router.analyses_router, prefix=API_PREFIX)
     app.include_router(lenses_router.router, prefix=API_PREFIX)
     app.include_router(metrics_router.router, prefix=API_PREFIX)
+    app.include_router(formula_router.router, prefix=API_PREFIX)
     app.include_router(whatif_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     # The AI Intelligence Studio, on /intelligence. Distinct from the four

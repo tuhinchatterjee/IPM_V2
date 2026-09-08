@@ -4347,6 +4347,15 @@ export interface LensScope {
   visibility: string;
 }
 
+/** §17. The reasoning behind a Lens's shape, stored with it. */
+export interface LensDesign {
+  objective: string;
+  rationale: string;
+  risk_questions: string[];
+  why_these_domains: string;
+  why_these_comparisons: string;
+}
+
 export interface Lens {
   id: number;
   slug: string;
@@ -4357,6 +4366,10 @@ export interface Lens {
   sections: LensSection[];
   notes: LensNote[];
   scope: LensScope;
+  /** §17. Why this Lens is laid out this way — kept, not thrown away when the
+   *  proposal screen closed. Empty on a Lens built tile by tile, which is
+   *  honest: nobody wrote a rationale for it. */
+  design: LensDesign;
   status: string;
   version: number;
   origin: string;
@@ -4812,6 +4825,267 @@ export interface MetricPreview {
   run_id: string;
   warnings: string[];
   unavailable: string;
+}
+
+// ===================================================== Lenses V3 (§4-§13)
+//
+// Formula to code to a locked metric. Every one of these travels the WHOLE
+// artefact in the body — there is no server-side draft — so the browser is
+// the only source and every route revalidates everything it is sent. That is
+// §11 ("never trust user code merely because it came from the browser")
+// enforced by construction rather than by policy.
+
+/** §5. A formula the person typed, located but not rewritten. */
+export interface FormulaIntake {
+  said: string;
+  /** ALWAYS a substring of `said`. */
+  formula: string;
+  is_formula: boolean;
+  numerator: string;
+  denominator: string;
+  operation: string;
+  wants_chart: boolean;
+  group_by: string;
+  period_hint: string;
+  unconventional: UnconventionalFormula | null;
+  suggested_name: string;
+  intent: string;
+  unit_hint: string;
+  understood: boolean;
+  model: string;
+  preserved: boolean;
+  notes: string[];
+}
+
+/** §5 and §34. Flagged, offered an alternative, and nothing applied. */
+export interface UnconventionalFormula {
+  because: string;
+  conventional: string;
+  convention_name: string;
+  choices: { id: string; label: string }[];
+}
+
+/** §6. The sixteen things a generated metric must be able to say. */
+export interface MetricCode {
+  name: string;
+  user_formula: string;
+  interpreted_formula: string;
+  plain_english: string[];
+  domains: string[];
+  datasets: string[];
+  fields: string[];
+  grain: string;
+  period_logic: string;
+  filters: string[];
+  join_logic: string;
+  aggregation: string;
+  unit: string;
+  /** What the model wrote, over governed names. Read and approved. */
+  sql: string;
+  language: string;
+  python: string;
+  output_grain: string;
+  why: string;
+  formula: FormulaTree | null;
+  composite: Record<string, unknown> | null;
+  scope: Record<string, unknown>[];
+  decimals: number;
+  stage: string;
+  stage_label: string;
+  author: string;
+  author_label: string;
+  /** False when CreditProbe wrote both the program and the SQL, in which case
+   *  reconciling them proves only that the compiler works. */
+  independently_written: boolean;
+  model: string;
+  /** The statement CreditProbe will actually run. Never model-written. */
+  compiled_sql: string;
+  compiled_params: string[];
+  validation: CodeValidation;
+  approval_note: string;
+  notes: string[];
+  checksum: string;
+  version: string;
+}
+
+/** §8. What CreditProbe checked, and what it refused. */
+export interface CodeValidation {
+  ok: boolean;
+  failures: CodeFailure[];
+  warnings: { rule: string; label: string; message: string }[];
+  compiled_sql: string;
+  compiled_params: string[];
+  reconciliation: Record<string, unknown>;
+  checks_run: string[];
+  repairable: boolean;
+  version: string;
+}
+
+export interface CodeFailure {
+  rule: string;
+  label: string;
+  message: string;
+  repairable: boolean;
+  hints: {
+    dataset?: string;
+    related_fields?: string[];
+    available_fields?: string[];
+    periods?: string[];
+    governed_relationships?: string[];
+    [key: string]: unknown;
+  };
+}
+
+export interface FormulaDraft {
+  intake: FormulaIntake;
+  code: MetricCode;
+  validation: CodeValidation;
+  ready: boolean;
+  chosen_note: string;
+}
+
+/** §12. The exact calculation, with everything that produced it. */
+export interface FormulaPreview {
+  value: number | null;
+  formatted: string;
+  unit: string;
+  period: string;
+  final: string;
+  numerator: PreviewLeg;
+  denominator: PreviewLeg;
+  terms: PreviewTerm[];
+  rows_considered: number;
+  datasets: string[];
+  domains: string[];
+  filters: string[];
+  group_by: string;
+  join_logic: string;
+  data_version: string;
+  code_version: string;
+  run_id: string;
+  sql: string;
+  compiled_sql: string;
+  warnings: string[];
+  unavailable: string;
+  available: boolean;
+}
+
+export interface PreviewLeg {
+  id?: string;
+  label?: string;
+  said?: string;
+  metric_id?: string;
+  period_offset?: number;
+  value?: number | null;
+  period?: string;
+  rows?: number;
+  dataset?: string;
+  unit?: string;
+  domains?: string[];
+  unavailable?: string;
+}
+
+/** §11. What an edit changed about what the metric MEANS. */
+export interface CodeDivergence {
+  changed: boolean;
+  changes: string[];
+  matches_original_formula: boolean;
+  original_formula: string;
+  note: string;
+  confirmation_required: boolean;
+}
+
+// ================================================ Lenses V3 live (§18-§32)
+
+/** §31. Everything the live Lens header and the What Changed panel need. */
+export interface LensChanges {
+  remembered: boolean;
+  note: string;
+  reporting_period: string;
+  last_refreshed: string;
+  refresh_id: number | null;
+  trigger: string;
+  compared_with: {
+    id: number;
+    refreshed_at: string;
+    reporting_period: string;
+    exact: boolean;
+    relaxed: string[];
+  } | null;
+  why_no_comparison: string;
+  data_changes: { cockpit: boolean; ews: boolean; datasets: string[] };
+  classification: string[];
+  classification_labels: string[];
+  classification_meaning: string[];
+  changes: ChangeReading | null;
+  delta: Record<string, unknown> | null;
+  history: RefreshSummary[];
+  duration_ms: number;
+}
+
+/** §27's structure, once every figure in it has been verified. */
+export interface ChangeReading {
+  headline: string;
+  sections: Record<string, ChangeClaim[]>;
+  material_changes: ChangeClaim[];
+  no_material_change: boolean;
+  definition_caveat: string;
+  baseline: boolean;
+  model: string;
+  duration_ms: number;
+  /** Figures the model wrote that the refresh does not support. Non-empty
+   *  means the written reading was withheld. */
+  ungrounded: string[];
+  downgraded: string[];
+  unavailable: string;
+  live: boolean;
+  verified: boolean;
+  version: string;
+}
+
+/** §28. Every claim declares which rung of the evidence ladder it stands on. */
+export interface ChangeClaim {
+  text: string;
+  basis: string;
+  basis_label: string;
+  metrics: string[];
+  downgraded_from: string;
+}
+
+export interface RefreshSummary {
+  id: number;
+  refreshed_at: string;
+  reporting_period: string;
+  trigger: string;
+  trigger_label: string;
+  classification: string[];
+  classification_labels: string[];
+  baseline: boolean;
+  status: string;
+}
+
+/** §22 and §32. Two histories, labelled apart and never mixed. */
+export interface MetricHistory {
+  metric_id: string;
+  lens_id: number;
+  remembered: boolean;
+  refresh_history: HistoryPoint[];
+  reporting_period_history: HistoryPoint[];
+  labels: { refresh_history: string; reporting_period_history: string };
+  definition_changed_during: boolean;
+  definition_note: string;
+}
+
+export interface HistoryPoint {
+  refresh_id: number;
+  refreshed_at: string;
+  reporting_period: string;
+  value: number | null;
+  unit: string;
+  decimals: number;
+  status: string;
+  definition_hash: string;
+  trigger: string;
 }
 
 /** What the lens definition panel may offer. */
@@ -5454,6 +5728,7 @@ export const api = {
     description?: string;
     audience?: string;
     scope?: Partial<LensScope>;
+    design?: Partial<LensDesign>;
     panels?: Partial<LensPanel>[];
   }) =>
     request<Lens>("/lenses", {
@@ -5475,6 +5750,119 @@ export const api = {
       `/lenses/${id}/interpretation${period ? `?period=${encodeURIComponent(period)}` : ""}`,
       // A full reading of the whole Lens, not one tile — give it real room.
       { timeoutMs: 45_000 },
+    ),
+  // -------------------------------------------- Lenses V3: formula to code
+  //
+  // Six calls, one per step of §57's sequence. Each takes the whole artefact
+  // and returns the whole artefact: there is no server-side draft, so nothing
+  // half-built exists in the catalogue and every call revalidates everything.
+  readFormula: (said: string, period = "", mode = "standard") =>
+    request<FormulaIntake>("/formula/read", {
+      method: "POST",
+      body: JSON.stringify({ said, period, mode }),
+      timeoutMs: 30_000,
+    }),
+  /** §6-§9. The code, written and validated, with any repair already done. */
+  draftFormula: (
+    said: string,
+    opts: { period?: string; lensId?: number; keepFormula?: string;
+            mode?: string } = {},
+  ) =>
+    request<FormulaDraft>("/formula/draft", {
+      method: "POST",
+      body: JSON.stringify({
+        said,
+        period: opts.period ?? "",
+        lens_id: opts.lensId ?? null,
+        keep_formula: opts.keepFormula ?? "",
+        mode: opts.mode ?? "standard",
+      }),
+      // A model writing a whole metric definition, and possibly repairing it.
+      timeoutMs: 120_000,
+    }),
+  /** §11. Code the person edited, through the same validator. */
+  reviseFormula: (
+    code: MetricCode,
+    opts: { period?: string; previous?: MetricCode; edited?: boolean } = {},
+  ) =>
+    request<{ code: MetricCode; validation: CodeValidation; ready: boolean;
+              divergence?: CodeDivergence }>("/formula/revise", {
+      method: "POST",
+      body: JSON.stringify({
+        code,
+        period: opts.period ?? "",
+        previous: opts.previous ?? null,
+        edited: opts.edited ?? true,
+      }),
+      timeoutMs: 45_000,
+    }),
+  /** §10. Revalidated first: approving code CreditProbe will not run is an
+   *  approval of nothing. */
+  approveFormula: (code: MetricCode, note = "", period = "") =>
+    request<{ code: MetricCode; validation: CodeValidation;
+              approved: boolean; checksum?: string; why?: string }>(
+      "/formula/approve",
+      {
+        method: "POST",
+        body: JSON.stringify({ code, note, period }),
+        timeoutMs: 45_000,
+      },
+    ),
+  /** §12. Run the approved program on real data and show the arithmetic. */
+  previewFormula: (code: MetricCode, approvedChecksum: string, period = "") =>
+    request<{ code: MetricCode; validation: CodeValidation;
+              preview: FormulaPreview; checksum?: string }>("/formula/preview", {
+      method: "POST",
+      body: JSON.stringify({ code, period,
+                             approved_checksum: approvedChecksum }),
+      timeoutMs: 120_000,
+    }),
+  /** §13. Persist it, with everything that was approved. */
+  lockFormula: (code: MetricCode, approvedChecksum: string, period = "") =>
+    request<{ locked: boolean; metric_id?: string;
+              metric?: Record<string, unknown>; code: MetricCode;
+              validation: CodeValidation; why?: string }>("/formula/lock", {
+      method: "POST",
+      body: JSON.stringify({ code, period,
+                             approved_checksum: approvedChecksum }),
+      timeoutMs: 60_000,
+    }),
+
+  // ------------------------------------------------ Lenses V3: live refresh
+  /** §19 and §23. Execute, store the snapshot, compare, interpret, render. */
+  refreshLens: (
+    id: number,
+    opts: { period?: string; trigger?: string; mode?: string;
+            interpret?: boolean } = {},
+  ) =>
+    request<LensChanges & { rendered: RenderedLens }>(`/lenses/${id}/refresh`, {
+      method: "POST",
+      body: JSON.stringify({
+        period: opts.period ?? null,
+        trigger: opts.trigger ?? "manual",
+        mode: opts.mode ?? "standard",
+        interpret: opts.interpret ?? true,
+      }),
+      timeoutMs: 180_000,
+    }),
+  /** §31. The CreditProbe View — what changed — and its header. */
+  lensChanges: (id: number, period?: string, mode = "standard") =>
+    request<LensChanges>(
+      `/lenses/${id}/changes?mode=${encodeURIComponent(mode)}` +
+        (period ? `&period=${encodeURIComponent(period)}` : ""),
+      { timeoutMs: 180_000 },
+    ),
+  /** §22A. One row per refresh, newest first. */
+  lensRefreshes: (id: number, limit = 12) =>
+    request<{ lens_id: number; remembered: boolean;
+              refreshes: RefreshSummary[]; count: number; note?: string }>(
+      `/lenses/${id}/refreshes?limit=${limit}`,
+    ),
+  /** §32. One metric's two histories, labelled apart. */
+  lensMetricHistory: (id: number, metricId: string, limit = 12) =>
+    request<MetricHistory>(
+      `/lenses/${id}/metrics/${encodeURIComponent(metricId)}/history` +
+        `?limit=${limit}`,
     ),
   buildLens: (requestText: string, apply = true) =>
     request<{ lens: Lens | null; proposal: LensProposal }>("/lenses/build", {

@@ -153,6 +153,18 @@ function Builder() {
         description,
         audience: effectiveScope.audience,
         scope: effectiveScope,
+        // §17. The reasoning goes onto the Lens rather than off the screen
+        // with the proposal. Empty when the Lens was assembled by hand, which
+        // is the honest answer — nobody wrote a rationale for it.
+        design: plan
+          ? {
+              objective: plan.purpose,
+              rationale: plan.rationale,
+              risk_questions: plan.risk_questions,
+              why_these_domains: plan.scope_summary,
+              why_these_comparisons: "",
+            }
+          : undefined,
         panels: [
           ...picked.map((m) => ({
             kind: "metric" as const,

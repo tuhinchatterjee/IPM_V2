@@ -55,6 +55,12 @@ pydantic-settings==2.15.0
 duckdb==1.5.5
 # FastAPI's TestClient needs httpx at runtime of the test suite.
 httpx==0.28.1
+# Six routers declare UploadFile/File parameters — Data Builder, Playbook,
+# Planner, Brain, Messages and Regulatory — and FastAPI raises at IMPORT time
+# without this, not at request time. So a clean install of this file could not
+# start the API at all; the container happened to have it pulled in
+# transitively. Pinned here where the dependency actually is.
+python-multipart==0.0.20
 
 # ---- Part G: regulatory circular ingestion ----
 # pypdf reads the page text and the page count out of a circular PDF. Pure

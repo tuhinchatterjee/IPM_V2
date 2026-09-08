@@ -152,6 +152,39 @@ class DuckDBSource:
         found = [p.name.split("=", 1)[1] for p in directory.iterdir() if p.is_dir() and "=" in p.name]
         return sorted(found, key=_period_sort_key)
 
+    def freshness(self, dataset: str, period: str | None = None) -> str:
+        """When the Parquet for this dataset was last written, and how big.
+
+        The write time and byte length of every file the pattern covers,
+        hashed. It changes when the data is rewritten and does not change when
+        it is merely read — which is exactly the signal the refresh classifier
+        needs and the one a row count cannot give: a restatement that corrects
+        figures in place leaves the row count identical.
+
+        No scan. `stat()` on a handful of files, and nothing is opened.
+        """
+        import hashlib
+
+        directory = self._dataset_dir(dataset)
+        if not directory.exists():
+            return ""
+        if period:
+            key = self._partition_key(dataset)
+            files = sorted((directory / f"{key}={period}").glob("*.parquet"))
+        else:
+            files = sorted(directory.glob("**/*.parquet"))
+        if not files:
+            return ""
+        digest = hashlib.sha256()
+        for path in files:
+            try:
+                stat = path.stat()
+            except OSError:  # pragma: no cover - a file that vanished mid-read
+                continue
+            digest.update(f"{path.name}:{stat.st_size}:{stat.st_mtime_ns}"
+                          .encode())
+        return digest.hexdigest()[:16]
+
     def row_count(self, dataset: str, period: str | None = None) -> int:
         """How many rows are in the lake for this dataset.
 

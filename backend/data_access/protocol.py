@@ -63,6 +63,27 @@ class DataSource(Protocol):
         """Reporting periods present, oldest first, e.g. ["Q4 2023", ...]."""
         ...
 
+    def freshness(self, dataset: str, period: str | None = None) -> str:
+        """An opaque token that changes when the stored data changes.
+
+        Asked, not computed, because only the storage layer can answer it
+        cheaply — a file's write time and size here, a table version on a
+        lakehouse, an ETag on object storage. Nothing above this layer may
+        assume what is in the string; it is only ever compared with an earlier
+        one.
+
+        Why the engine needs it: "the same figures over restated data" and
+        "nothing happened" are different facts, and no amount of comparing
+        FIGURES distinguishes them. A Lens reporting the second when the first
+        is true tells a committee the book is quiet on a morning it was
+        rewritten.
+
+        Must not scan. An implementation that cannot answer without reading
+        rows should return an empty string, which callers read as "this
+        source cannot say".
+        """
+        ...
+
     def fetch(
         self,
         dataset: str,
