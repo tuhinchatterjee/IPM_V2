@@ -55,6 +55,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+# Registers `users` on the shared metadata. Almost every table below
+# carries a foreign key to users.id, and SQLAlchemy can only resolve it
+# if that Table object exists — without this import, a flush fails with
+# NoReferencedTableError depending purely on which module was imported
+# first. `backend/models/platform.py` carries the same import for the
+# same reason.
+from backend.db import models as _core_models  # noqa: F401
 from backend.db.base import Base
 
 # --------------------------------------------------------------------------

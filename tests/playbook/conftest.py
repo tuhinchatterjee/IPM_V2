@@ -150,3 +150,82 @@ def image_only_pdf() -> bytes:
     c.showPage()
     c.save()
     return buf.getvalue()
+
+
+@pytest.fixture
+def db():
+    """A session against the configured platform database, or a skip.
+
+    Follows the repository's own convention: `database_available()` from the
+    root conftest decides, and a missing database skips rather than failing —
+    except that Playbook's persistence tests are the point of the suite, so a
+    skip here is reported as a skip and never counted as a pass.
+    """
+    from tests.conftest import database_available
+
+    if not database_available():
+        pytest.skip("Playbook persistence needs the platform database")
+    from backend.db.engine import get_session
+
+    with get_session() as session:
+        yield session
+
+
+@pytest.fixture
+def scope():
+    from backend.playbook.repository import Scope
+
+    return Scope(tenant="test-tenant", user_id=None)
+
+
+@pytest.fixture
+def workspace(db, scope):
+    from backend.playbook import repository as repo
+
+    ws = repo.create_workspace(db, scope, title="IFRS 9 Committee Report",
+                               document_family="ifrs9_committee_report")
+    db.flush()
+    return ws
+
+
+@pytest.fixture
+def scripted_author(monkeypatch):
+    """Stand in for the provider, so the pipeline around it can be tested.
+
+    Returns a setter: the test supplies the Markdown the author "wrote" and,
+    optionally, files it "produced". Nothing here reaches a network, and results
+    obtained this way are never reported as live verification.
+    """
+    from backend.playbook import provider
+
+    state = {"text": "", "files": [], "model": "scripted-author"}
+
+    def fake_author(*, system, messages, formats, purpose="playbook_authoring",
+                    container_id="", on_milestone=None, is_cancelled=None):
+        if is_cancelled and is_cancelled():
+            raise provider.Cancelled("stopped")
+        if on_milestone:
+            on_milestone("drafting", "scripted")
+        result = provider.AuthoringResult(
+            text=state["text"],
+            files=list(state["files"]),
+            model_requested=state["model"],
+            model_served=state["model"],
+            request_ids=["req_scripted"],
+            turns=1,
+        )
+        state["last_system"] = system
+        state["last_user"] = messages[0]["content"]
+        return result
+
+    monkeypatch.setattr(provider, "author", fake_author)
+    monkeypatch.setattr("backend.playbook.service.provider.author", fake_author)
+
+    def configure(text: str, files=None, model: str = "scripted-author"):
+        state["text"] = text
+        state["files"] = files or []
+        state["model"] = model
+        return state
+
+    configure.state = state
+    return configure
