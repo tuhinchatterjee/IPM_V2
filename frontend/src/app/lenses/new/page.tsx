@@ -19,7 +19,14 @@ import { MetricBuilder, type BuiltMetric } from "@/components/lenses/metric-buil
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { api, type ChartIntent, type LensIntent, type LensScope } from "@/lib/api";
+import {
+  api,
+  type ChartIntent,
+  type LensIntent,
+  type LensPlan,
+  type LensScope,
+  type PlannedMetric,
+} from "@/lib/api";
 
 /**
  * Creating a lens by describing it.
@@ -72,6 +79,17 @@ function Builder() {
   const [charts, setCharts] = React.useState<ChartIntent[]>([]);
   const [adding, setAdding] = React.useState(false);
 
+  // UAT: "include all metrics which you feel are relevant" is not a sentence
+  // the keyword matcher above can answer, so once the sentence is settled a
+  // fuller reading is asked for in the background — reasoned over the
+  // governed catalogue rather than matched on words. It only replaces the
+  // quick-add chips above when it actually understood something; offline, or
+  // on a request too short to reason about, those chips are still the
+  // working path, unchanged.
+  const [plan, setPlan] = React.useState<LensPlan | null>(null);
+  const [planLoading, setPlanLoading] = React.useState(false);
+  const planned = React.useRef(false);
+
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
 
@@ -103,6 +121,22 @@ function Builder() {
     const timer = setTimeout(() => void read(carried), 0);
     return () => clearTimeout(timer);
   }, [carried, read]);
+
+  // Fired once the sentence and the name are both settled -- naming is when
+  // this stops being "what does that sentence mean" and starts being "what
+  // should THIS lens show", which is the question a full reading answers.
+  React.useEffect(() => {
+    if (!named || !sentence || planned.current) return;
+    planned.current = true;
+    setPlanLoading(true);
+    const timer = setTimeout(() => {
+      api.planLens(sentence)
+        .then(setPlan)
+        .catch(() => setPlan(null))
+        .finally(() => setPlanLoading(false));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [named, sentence]);
 
   async function create() {
     // The same condition the button is disabled by. They were different —
@@ -375,6 +409,40 @@ function Builder() {
             </ul>
           )}
 
+          {planLoading && (
+            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-text-muted">
+              <Loader2 className="size-3 animate-spin" aria-hidden />
+              Reading the request for a fuller proposal…
+            </p>
+          )}
+
+          {plan && plan.understood && (
+            <LensPlanPanel
+              plan={plan}
+              picked={picked}
+              charts={charts}
+              onAdd={(newMetrics, newCharts) => {
+                setPicked((c) => [
+                  ...c,
+                  ...newMetrics.filter(
+                    (m) => !c.some((x) => x.metric_id === m.metric_id)),
+                ]);
+                setCharts((c) => [
+                  ...c,
+                  ...newCharts.filter(
+                    (x) => !c.some((y) => y.metric_id === x.metric_id &&
+                                          y.dimension === x.dimension)),
+                ]);
+              }}
+            />
+          )}
+
+          {plan && !plan.understood && plan.unavailable && (
+            <p className="mt-3 text-[11px] text-text-muted">
+              {plan.unavailable}
+            </p>
+          )}
+
           {/* §11: the chart the sentence asked for, offered rather than assumed. */}
           {intent && intent.charts.length > 0 && (
             <div className="mt-4">
@@ -506,6 +574,186 @@ function suggestName(intent: LensIntent): string {
     return `${domain} watch`;
   }
   return domain ? `${domain} lens` : "";
+}
+
+/**
+ * A whole Lens, proposed rather than assembled one metric at a time.
+ *
+ * Every item starts ticked: the request already said what it wants, so this
+ * reads as "here is the Lens" with a way to trim it, not as another question.
+ * `unsupported` is shown with the same weight as what WAS added — the brief
+ * is explicit that one unavailable metric must not block the rest of a
+ * coherent Lens, and hiding the refusal would make that look like an
+ * oversight rather than a stated limit.
+ */
+function LensPlanPanel({
+  plan,
+  picked,
+  charts,
+  onAdd,
+}: {
+  plan: LensPlan;
+  picked: Picked[];
+  charts: ChartIntent[];
+  onAdd: (metrics: Picked[], charts: ChartIntent[]) => void;
+}) {
+  const key = (m: PlannedMetric) => `${m.metric_id}::${m.as_chart ? m.dimension : ""}`;
+  const already = React.useMemo(
+    () =>
+      new Set([
+        ...picked.map((p) => `${p.metric_id}::`),
+        ...charts.map((c) => `${c.metric_id}::${c.dimension}`),
+      ]),
+    [picked, charts],
+  );
+  const [ticked, setTicked] = React.useState<Set<string>>(
+    () => new Set(plan.metrics.filter((m) => !already.has(key(m))).map(key)),
+  );
+
+  function toggle(k: string) {
+    setTicked((t) => {
+      const next = new Set(t);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  }
+
+  function add() {
+    const chosen = plan.metrics.filter((m) => ticked.has(key(m)));
+    onAdd(
+      chosen.filter((m) => !m.as_chart)
+        .map((m) => ({ metric_id: m.metric_id, name: m.name })),
+      chosen.filter((m) => m.as_chart)
+        .map((m) => ({
+          metric_id: m.metric_id, metric_name: m.name, dimension: m.dimension,
+          dimension_label: m.dimension_label, over_time: m.dimension === "period",
+          visual: m.visual, chart_types: [m.visual],
+        })),
+    );
+    setTicked(new Set());
+  }
+
+  const remaining = plan.metrics.filter((m) => ticked.has(key(m)) && !already.has(key(m)));
+
+  return (
+    <div className="mt-4 rounded-md border border-accent/30 bg-accent/5 p-4"
+        data-testid="lens-plan">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-text-primary">
+            <Sparkles className="size-3.5 text-accent" aria-hidden />
+            Proposed Lens
+          </p>
+          {plan.purpose && (
+            <p className="mt-1 text-xs leading-relaxed text-text-secondary">
+              {plan.purpose}
+            </p>
+          )}
+          {plan.scope_summary && (
+            <p className="mt-1 text-[11px] text-text-muted">
+              Scope: {plan.scope_summary}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {plan.risk_questions.length > 0 && (
+        <ul className="mt-3 space-y-0.5 text-[11px] text-text-muted">
+          {plan.risk_questions.map((q) => (
+            <li key={q}>• {q}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-3 space-y-3">
+        {Object.entries(plan.sections).map(([label, metrics]) => (
+          <div key={label}>
+            <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-text-muted">
+              {label}
+            </p>
+            <div className="mt-1.5 space-y-1">
+              {metrics.map((m) => {
+                const k = key(m);
+                const isAlready = already.has(k);
+                return (
+                  <label
+                    key={k}
+                    className={`flex items-start gap-2 rounded px-1.5 py-1 text-xs ${
+                      isAlready ? "opacity-50" : "cursor-pointer hover:bg-surface-hover"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={ticked.has(k) || isAlready}
+                      disabled={isAlready}
+                      onChange={() => toggle(k)}
+                      data-testid="plan-metric-checkbox"
+                    />
+                    <span>
+                      <span className="text-text-primary">
+                        {m.name}
+                        {m.as_chart && ` by ${m.dimension_label}`}
+                      </span>
+                      {m.why && (
+                        <span className="block text-[11px] text-text-muted">
+                          {m.why}
+                        </span>
+                      )}
+                      {isAlready && (
+                        <span className="block text-[10px] text-accent">
+                          Already on this lens
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {plan.unsupported.length > 0 && (
+        <div className="mt-3 border-t border-border pt-2.5">
+          <p className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-text-muted">
+            <TriangleAlert className="size-3" aria-hidden />
+            Not supported in this deployment
+          </p>
+          <ul className="mt-1 space-y-1" data-testid="plan-unsupported">
+            {plan.unsupported.map((u) => (
+              <li key={u.requested} className="text-[11px] text-text-muted">
+                <span className="text-text-secondary">{u.requested}</span>
+                {u.because ? ` — ${u.because}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {plan.clarify && (
+        <p className="mt-3 text-xs text-warning">{plan.clarify}</p>
+      )}
+
+      {plan.rationale && (
+        <p className="mt-3 text-[11px] italic leading-relaxed text-text-muted">
+          {plan.rationale}
+        </p>
+      )}
+
+      <div className="mt-3 flex items-center gap-2">
+        <Button size="sm" onClick={add} disabled={remaining.length === 0}
+                data-testid="use-lens-plan">
+          <Check aria-hidden />
+          Add {remaining.length || ""} ticked to this lens
+        </Button>
+        {plan.model && (
+          <span className="text-[10px] text-text-muted">via {plan.model}</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function Step({ n, title, done }: { n: number; title: string; done: boolean }) {

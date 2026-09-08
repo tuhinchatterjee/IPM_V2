@@ -240,6 +240,28 @@ def interpret_lens(payload: InterpretIn,
     return builder.interpret(payload.text, user_id=principal.user_id).to_dict()
 
 
+class PlanIn(BaseModel):
+    text: str = Field(min_length=1, max_length=1200)
+
+
+@router.post("/plan", summary="A whole Lens proposed from a broad request")
+def plan_lens(payload: PlanIn, principal: Principal = RequireAnalyst) -> dict:
+    """UAT: "include all metrics which you feel are relevant" is not a
+    sentence `/interpret`'s keyword matcher can answer, so this asks the
+    question `/interpret` cannot: not which words match a metric name, but
+    what a senior risk officer would actually want monitored, reasoned from
+    the request and the governed catalogue and validated against it —
+    covered in `backend/metrics/lens_planner.py`.
+
+    Degrades to the same deterministic matching `/interpret` already does
+    when no model is configured, so the builder never blocks on a missing
+    key — it answers with less, not with a refusal.
+    """
+    from backend.metrics import lens_planner
+
+    return lens_planner.plan(payload.text, user_id=principal.user_id).to_dict()
+
+
 @router.post("", status_code=201, summary="Create a lens")
 def create_lens(payload: LensIn, principal: Principal = RequireAnalyst) -> dict:
     try:
@@ -341,6 +363,52 @@ def render_lens(lens_id: int, period: str | None = None) -> dict:
         raise _not_found(e) from e
     except ln.StorageUnavailable as e:
         raise _unavailable(e) from e
+
+
+@router.get("/{lens_id}/interpretation",
+           summary="What this Lens means, above what it shows")
+def lens_interpretation(lens_id: int, period: str | None = None,
+                        principal: Principal = RequireAnalyst) -> dict:
+    """UAT: a Lens that opens straight into metric cards, with nothing above
+    them saying what a reader should conclude, is a dashboard rather than a
+    product. Covered in `backend.metrics.lens_interpretation`.
+
+    Downstream of the ordinary render, never a second path into the data:
+    this calls the exact same `ln.render` the tiles themselves come from, at
+    the exact period requested, plus the period immediately before it when
+    the Lens's own calendar has one, for the comparison a reading needs.
+    Degrades to a plain "temporarily unavailable" note — never an error, and
+    never a change to the figures below it — when no model is configured or
+    the call fails.
+    """
+    try:
+        lens = ln.get(lens_id).to_dict()
+        rendered = ln.render(lens_id, period=period, user_id=principal.user_id)
+    except ln.LensNotFound as e:
+        raise _not_found(e) from e
+    except ln.StorageUnavailable as e:
+        raise _unavailable(e) from e
+
+    prior_rendered = None
+    try:
+        calendar = ln.periods(lens_id)
+        offered = calendar.get("periods") or []
+        shown = period or calendar.get("default") or calendar.get("latest") or ""
+        if shown in offered:
+            index = offered.index(shown)
+            if index > 0:
+                prior_rendered = ln.render(lens_id, period=offered[index - 1],
+                                          user_id=principal.user_id)
+    except Exception:  # noqa: BLE001 - a comparison is an enhancement, not a
+        # requirement: an interpretation with no prior-period figures is
+        # still an honest one, and is exactly what `interpret()` produces
+        # when `prior` is None.
+        logger.warning("could not resolve a prior period for lens %s",
+                       lens_id, exc_info=True)
+
+    from backend.metrics import lens_interpretation as li
+
+    return li.interpret(lens, rendered, prior_rendered).to_dict()
 
 
 @router.post("/{lens_id}/ask", summary="Change a lens by asking")
