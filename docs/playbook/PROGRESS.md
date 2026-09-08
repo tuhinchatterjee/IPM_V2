@@ -108,7 +108,7 @@ re-checked against the provider's current documentation.
 | `npm test` | 442 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
-| `scripts/acceptance/playbook_browser_acceptance.py` | 80 passed, 0 failed |
+| `scripts/acceptance/playbook_browser_acceptance.py` | 84 passed, 0 failed |
 | `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
 | `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
 
@@ -161,6 +161,16 @@ rather than a button that arrives too late to.
 
 Cancelling something that already finished changes nothing and says so. A
 version that landed is not withdrawn by a stop pressed after it landed.
+
+## Reading a version without downloading it
+
+A preview rendered from the CONTENT that was persisted, not from the generated
+file and not from what the model first replied. Two consequences worth naming:
+it shows what grounding actually left in the document, and it works for a
+version whose files a browser cannot display inline anyway. It is not a
+substitute for the file — the download stays the authoritative artifact and is
+offered inside the preview — it is how somebody reads version 1 before deciding
+whether to bring it back.
 
 ## Next action
 

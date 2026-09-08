@@ -4,6 +4,7 @@ import * as React from "react";
 import { use } from "react";
 import {
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   History,
@@ -12,6 +13,7 @@ import {
 
 import { AnalysisPicker } from "@/components/playbook/analysis-picker";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
+import { VersionPreview } from "@/components/playbook/version-preview";
 import { Composer, type Attachment } from "@/components/playbook/composer";
 import { MarkdownView } from "@/components/playbook/markdown-view";
 import { BackLink } from "@/components/layout/back-link";
@@ -465,6 +467,7 @@ function ArtifactCard({
   const current = currentVersion(artifact);
   const [showAll, setShowAll] = React.useState(false);
   const [restoring, setRestoring] = React.useState(0);
+  const [previewing, setPreviewing] = React.useState(0);
   const [error, setError] = React.useState("");
   const versions = [...artifact.versions].reverse();
   const shown = showAll ? versions : versions.slice(0, 1);
@@ -522,6 +525,15 @@ function ArtifactCard({
                   </a>
                 );
               })}
+              <button
+                type="button"
+                onClick={() => setPreviewing(version.version)}
+                className="inline-flex items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 text-[11px] text-text-secondary hover:bg-surface-hover"
+                data-testid={`playbook-preview-${version.version}`}
+              >
+                <Eye className="size-3" aria-hidden />
+                Read
+              </button>
               {current?.id !== version.id && (
                 <button
                   type="button"
@@ -539,6 +551,13 @@ function ArtifactCard({
         ))}
       </ul>
       {error && <p className="mt-1 text-[11px] text-negative">{error}</p>}
+      {previewing > 0 && (
+        <VersionPreview
+          artifactId={artifact.id}
+          version={previewing}
+          onClose={() => setPreviewing(0)}
+        />
+      )}
       {versions.length > 1 && (
         <Button
           variant="ghost"

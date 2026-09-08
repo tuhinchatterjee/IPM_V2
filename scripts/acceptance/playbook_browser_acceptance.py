@@ -496,6 +496,26 @@ async def restore_journey(page) -> None:
               "-v3.docx" in copy.headers.get("content-disposition", ""),
               copy.headers.get("content-disposition", ""))
 
+        # Reading a version without downloading it. The list collapses back to
+        # the current version after the restore, so expand it again first.
+        await page.locator('button:has-text("Show all")').first.click()
+        await page.wait_for_timeout(300)
+        await page.locator('[data-testid="playbook-preview-1"]').first.click()
+        await page.wait_for_timeout(700)
+        pane = page.locator('[data-testid="playbook-version-preview"]')
+        check("an older version can be read in the application",
+              await pane.count() == 1)
+        pane_text = await pane.inner_text()
+        check("the preview shows the document that version saved",
+              "Draft 1" in pane_text, pane_text[:120])
+        check("the preview offers the file rather than replacing it",
+              await pane.locator('a:has-text("DOCX")').count() > 0)
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(300)
+        check("Escape closes the preview",
+              await page.locator(
+                  '[data-testid="playbook-version-preview"]').count() == 0)
+
         already = await page.request.post(
             f"{API}/api/v1/playbook/artifacts/{artifact_id}/restore/3",
             headers={"X-IPM-Role": "ADMIN"})

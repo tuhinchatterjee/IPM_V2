@@ -689,3 +689,24 @@ def cancel_job(job_id: int, principal: Principal = RequireAnalyst) -> dict:
         raise _not_found(exc) from exc
     except repo.StorageUnavailable as exc:
         raise _unavailable(exc) from exc
+
+
+@router.get("/artifacts/{artifact_id}/versions/{version_number}/preview")
+def preview_artifact_version(artifact_id: int, version_number: int,
+                             principal: Principal = RequireAnalyst) -> dict:
+    """Read one version in the application, without downloading it.
+
+    Rendered from the persisted content, so it shows what grounding actually
+    left in the document rather than what the model first replied. The download
+    remains the authoritative artifact; this is how somebody reads version 1
+    without opening a file.
+    """
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return service.version_preview(session, scope, artifact_id,
+                                           version_number)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc

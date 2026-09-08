@@ -624,6 +624,56 @@ def approved_instruction(session, change_set_id: int) -> str:
 # --------------------------------------------------------------------------
 
 
+def version_preview(session, scope: repo.Scope, artifact_id: int,
+                    version_number: int) -> dict:
+    """One version's document, readable in the application.
+
+    Rendered from the CONTENT that was persisted, not from the generated file
+    and not from what the model first replied. Two consequences worth naming:
+    it shows what grounding actually left in the document, and it works for a
+    version whose files a browser cannot display inline anyway.
+
+    A preview is not a substitute for the file. The download stays the
+    authoritative artifact; this is how somebody reads version 1 without
+    downloading it.
+    """
+    from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
+
+    artifact = session.get(PlaybookArtifact, artifact_id)
+    if artifact is None:
+        raise repo.NotFound(f"No artifact {artifact_id}.")
+    repo.get_workspace(session, scope, artifact.workspace_id)
+
+    version = session.execute(
+        select(PlaybookArtifactVersion)
+        .where(PlaybookArtifactVersion.artifact_id == artifact.id,
+               PlaybookArtifactVersion.version == version_number)
+    ).scalar_one_or_none()
+    if version is None:
+        raise repo.NotFound(f"This document has no version {version_number}.")
+
+    doc = D.Document.from_dict(version.content or {})
+    return {
+        "artifact_id": artifact.id,
+        "artifact_title": artifact.title,
+        "version": version.version,
+        "is_current": version.id == artifact.current_version_id,
+        "change_summary": version.change_summary,
+        "created_at": version.created_at.isoformat() if version.created_at else "",
+        "title": doc.title,
+        "subtitle": doc.subtitle,
+        "meta": dict(doc.meta),
+        "markdown": _markdown_of(doc),
+        "sections": [s.heading for s in doc.sections],
+        # The locators the document carries, so a reader can see what each
+        # claim rests on without opening the file.
+        "sources": list(doc.sources),
+        "files": [{"id": f.id, "format": f.format, "filename": f.filename,
+                   "size_bytes": f.size_bytes, "validated": f.validated}
+                  for f in repo.files(session, version.id)],
+    }
+
+
 class AlreadyCurrent(RuntimeError):
     """The version asked for is the one already on screen."""
 

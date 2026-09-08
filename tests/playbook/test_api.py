@@ -90,6 +90,47 @@ def _export_body(**over) -> dict:
     return body
 
 
+@pytest.fixture
+def artifact(workspace_id) -> dict:
+    """Three versions of a report, built directly.
+
+    Generating them would need a provider. What is under test is the
+    restore, not the way the versions arrived.
+    """
+    from backend.db.engine import get_session
+    from backend.playbook import repository as repo
+    from backend.playbook import store
+
+    with get_session() as session:
+        art = repo.create_artifact(session, workspace_id, kind="report",
+                                   title="Committee report")
+        ids = []
+        for n in range(1, 4):
+            version = repo.new_version(
+                session, art,
+                content={"title": "Committee report",
+                         "sections": [{"heading": f"Draft {n}",
+                                       "blocks": []}]},
+                source_manifest={}, content_hash=f"hash{n}",
+                change_summary=f"Draft {n}",
+                base_version_id=art.current_version_id)
+            stored = store.put_artifact(
+                workspace_id, art.id, version.version,
+                f"committee-report-v{version.version}.docx",
+                f"PK\x03\x04 draft {n}".encode())
+            repo.add_file(session, version, fmt="docx",
+                          bytes_path=stored.relative,
+                          mime="application/vnd.openxmlformats-officedocument"
+                               ".wordprocessingml.document",
+                          filename=f"committee-report-v{version.version}.docx",
+                          size_bytes=stored.size_bytes,
+                          sha256=stored.sha256, renderer="local",
+                          validated=True)
+            ids.append(version.id)
+        session.commit()
+        return {"artifact_id": art.id, "version_ids": ids}
+
+
 class TestCapabilitiesAreReportedHonestly:
     def test_the_formats_are_listed(self, client):
         body = client.get("/api/v1/playbook/capabilities").json()
@@ -359,46 +400,6 @@ class TestDecidingProposedChangesOverHTTP:
 class TestRestoringAndStoppingOverHTTP:
     """PB-022 and PB-038 at the route boundary."""
 
-    @pytest.fixture
-    def artifact(self, workspace_id) -> dict:
-        """Three versions of a report, built directly.
-
-        Generating them would need a provider. What is under test is the
-        restore, not the way the versions arrived.
-        """
-        from backend.db.engine import get_session
-        from backend.playbook import repository as repo
-        from backend.playbook import store
-
-        with get_session() as session:
-            art = repo.create_artifact(session, workspace_id, kind="report",
-                                       title="Committee report")
-            ids = []
-            for n in range(1, 4):
-                version = repo.new_version(
-                    session, art,
-                    content={"title": "Committee report",
-                             "sections": [{"heading": f"Draft {n}",
-                                           "blocks": []}]},
-                    source_manifest={}, content_hash=f"hash{n}",
-                    change_summary=f"Draft {n}",
-                    base_version_id=art.current_version_id)
-                stored = store.put_artifact(
-                    workspace_id, art.id, version.version,
-                    f"committee-report-v{version.version}.docx",
-                    f"PK\x03\x04 draft {n}".encode())
-                repo.add_file(session, version, fmt="docx",
-                              bytes_path=stored.relative,
-                              mime="application/vnd.openxmlformats-officedocument"
-                                   ".wordprocessingml.document",
-                              filename=f"committee-report-v{version.version}.docx",
-                              size_bytes=stored.size_bytes,
-                              sha256=stored.sha256, renderer="local",
-                              validated=True)
-                ids.append(version.id)
-            session.commit()
-            return {"artifact_id": art.id, "version_ids": ids}
-
     def test_restoring_an_earlier_version_moves_forward(self, client, artifact):
         response = client.post(
             f"/api/v1/playbook/artifacts/{artifact['artifact_id']}/restore/1")
@@ -481,4 +482,39 @@ class TestRestoringAndStoppingOverHTTP:
     def test_an_unknown_key_names_no_generation(self, client):
         assert client.get(
             "/api/v1/playbook/jobs/by-key/nothing-ran-under-this"
+        ).status_code == 404
+
+
+class TestReadingAVersionWithoutDownloadingIt:
+    """PB-020. The preview pane, over HTTP."""
+
+    def test_the_preview_carries_the_document_that_was_saved(
+            self, client, artifact):
+        body = client.get(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}"
+            f"/versions/2/preview")
+        assert body.status_code == 200, body.text
+        payload = body.json()
+        assert payload["version"] == 2
+        assert payload["is_current"] is False
+        assert payload["sections"] == ["Draft 2"]
+        assert "Draft 2" in payload["markdown"]
+        assert payload["change_summary"] == "Draft 2"
+        assert [f["format"] for f in payload["files"]] == ["docx"]
+
+    def test_the_current_version_says_so(self, client, artifact):
+        payload = client.get(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}"
+            f"/versions/3/preview").json()
+        assert payload["is_current"] is True
+
+    def test_a_version_that_does_not_exist_has_no_preview(self, client,
+                                                          artifact):
+        assert client.get(
+            f"/api/v1/playbook/artifacts/{artifact['artifact_id']}"
+            f"/versions/9/preview").status_code == 404
+
+    def test_an_artifact_that_does_not_exist_has_no_preview(self, client):
+        assert client.get(
+            "/api/v1/playbook/artifacts/99999999/versions/1/preview"
         ).status_code == 404

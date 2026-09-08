@@ -3886,6 +3886,29 @@ export interface PbDecision {
   instruction: string;
 }
 
+export interface PbVersionPreview {
+  artifact_id: number;
+  artifact_title: string;
+  version: number;
+  is_current: boolean;
+  change_summary: string;
+  created_at: string;
+  title: string;
+  subtitle: string;
+  meta: Record<string, unknown>;
+  /** Rendered from what was SAVED, so it shows what grounding left in. */
+  markdown: string;
+  sections: string[];
+  sources: string[];
+  files: {
+    id: number;
+    format: string;
+    filename: string;
+    size_bytes: number;
+    validated: boolean;
+  }[];
+}
+
 export interface PbJob {
   id: number;
   workspace_id: number;
@@ -4449,6 +4472,10 @@ export const api = {
     ),
   playbookWorkspace: (id: number) =>
     request<PbWorkspace>(`/playbook/workspaces/${id}`),
+  playbookVersionPreview: (artifactId: number, version: number) =>
+    request<PbVersionPreview>(
+      `/playbook/artifacts/${artifactId}/versions/${version}/preview`,
+    ),
   restorePlaybookVersion: (artifactId: number, version: number) =>
     request<PbRestore>(
       `/playbook/artifacts/${artifactId}/restore/${version}`,
