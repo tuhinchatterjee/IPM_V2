@@ -63,7 +63,7 @@ These are pre-existing facts about the base commit, not defects introduced here.
 | M4 — intelligent reporting | implemented; live behaviours **BLOCKED** |
 | M5 — demo completeness | complete |
 | M6 — verification and hardening | complete except the live suite |
-| M7 — handoff | in progress |
+| M7 — handoff | complete; live verification remains **BLOCKED** |
 
 ## Baseline test run
 
@@ -104,7 +104,8 @@ re-checked against the provider's current documentation.
 | What | Result |
 |---|---|
 | `pytest tests/playbook` | 275 passed |
-| `pytest tests/playbook tests/demo tests/api tests/services` | 830 passed |
+| `pytest tests/playbook tests/api tests/demo tests/services tests/exports tests/docs tests/proof tests/validation tests/llm` | 1373 passed, 8 skipped |
+| `pytest` (whole repository) | **9759 passed, 22 skipped, 0 failed** |
 | `npm test` | 444 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
@@ -211,9 +212,31 @@ a guess nobody made. A failed or partial parse offers a retry that re-reads the
 stored bytes rather than asking for the file again — the bytes are already
 there, and a second upload would prove nothing the first did not.
 
+## What is genuinely not done
+
+Stated here rather than left to be discovered.
+
+1. **Every live behaviour.** `ANTHROPIC_API_KEY` is not set in this
+   environment, checked repeatedly through the work and again at the end. Six
+   requirements are BLOCKED on it and nothing else: PB-013, PB-015, PB-017,
+   PB-029, PB-030, PB-043. The pipeline around the provider is tested against a
+   scripted one; that is not live verification and is nowhere reported as
+   though it were. `scripts/playbook_live_slice.py` runs the whole vertical
+   slice the moment a key is present, and exits 2 rather than 0 without one.
+2. **Token streaming.** Generation is synchronous. It reports real milestones —
+   reviewing sources, drafting, rendering, validating — and it can be stopped,
+   but the text does not arrive a token at a time. There is no percentage
+   anywhere, because there is no honest basis for one.
+3. **What If.** DEFERRED-INTEGRATION. No such module exists on this baseline.
+   The adapter contract, a payload example, a contract test and six labelled
+   fixture exports ship; `INTEGRATION_NOTES.md` names the hook a future branch
+   must call. No live cross-module claim is made.
+4. **CI.** GitHub Actions has never run on this repository — `total_count: 0`
+   before and after every push on this branch. CI is not a source of
+   verification here; everything recorded above was run locally and the
+   commands are in this file.
+
 ## Next action
 
-M7: the handoff summary. The only outstanding verification is the live
-authoring path, which needs `ANTHROPIC_API_KEY` in the environment.
-`scripts/playbook_live_slice.py` runs the whole vertical slice the moment one
-is present.
+Human UAT, and the live slice once a credential is in the environment. Nothing
+in the implementation is waiting on a decision.

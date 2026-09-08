@@ -46,7 +46,7 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 |---|---|---|
 | Playbook backend | `pytest tests/playbook` | **275 passed** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
-| Full backend | `pytest -q` | **9753 passed, 22 skipped, 0 failed** |
+| Full backend | `pytest -q` | **9759 passed, 22 skipped, 0 failed** |
 | Frontend units | `npm test` | **444 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
@@ -127,9 +127,9 @@ one held back**, and version 2 does not contain the held change.
 |---|---|
 | 1 — Home and seeded history | **passed** (browser acceptance) |
 | 2 — Picker and export boundary | **passed** (browser acceptance + API boundary) |
-| 3 — Prior report + methodology + new results | **partial** — sources, gap manifest and partial approval verified in the browser; the live gap review is BLOCKED |
+| 3 — Prior report + methodology + new results | **partial** — sources with correctable roles, the gap manifest and partial approval all verified in the browser; the coverage framing sent to the author is asserted; running the review is BLOCKED |
 | 4 — No-template report | **BLOCKED** — needs the live path |
-| 5 — Continue, revise, present | **partial** — versions, lineage and a real PPTX verified from the seed; live revision BLOCKED |
+| 5 — Continue, revise, present | **partial** — versions, lineage, restore, the in-app preview and a real PPTX verified; the scoped-edit framing and the current document sent with every revision are asserted; performing the revision is BLOCKED |
 | 6 — Fail safely | **passed** — provider-not-configured, validation failure, stale base, duplicate send, cancellation |
 | 7 — Authorization and untrusted content | **passed** — 29 security tests plus the API boundary |
 | 8 — Regression and fresh state | **passed** — isolated database, idempotent reseed, edited thread preserved |
@@ -163,6 +163,17 @@ one held back**, and version 2 does not contain the held change.
    label a user sees is "Synthetic data" — the check was asserting the copy the
    repository bans. Fixed to assert both the badge and the per-message note that
    the reply was not written by a model.
+
+## What is genuinely not done
+
+1. **Every live behaviour.** No `ANTHROPIC_API_KEY` in this environment.
+   Six requirements BLOCKED on it and nothing else.
+2. **Token streaming.** Generation is synchronous. It reports real milestones
+   and can be stopped; the text does not arrive a token at a time. No
+   percentage anywhere, because there is no honest basis for one.
+3. **What If.** DEFERRED-INTEGRATION — the module does not exist here.
+4. **CI.** GitHub Actions has never run on this repository, before or after any
+   push on this branch. Everything above was run locally.
 
 ## Known limitation, stated rather than discovered later
 
