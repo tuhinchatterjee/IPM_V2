@@ -275,11 +275,20 @@ export function CockpitV3Answer({ payload, onAsk, onNavigate }: {
 
   return (
     <section data-testid="cockpit-v3-answer" className="space-y-3">
-      {!envelope.complete && (
+      {/* Only an ANSWER can be partial or approximate. A referral, a
+          clarification and a stop are not incomplete answers — they are
+          different outcomes, and labelling a stop "partial" implies an answer
+          was attempted and nearly reached. */}
+      {envelope.kind === "answer" && !envelope.complete && (
         <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] text-amber-900">
           {envelope.approximate
             ? "This answer is approximate. What could not be isolated is named below."
             : "This answer is partial. What is missing is named below."}
+        </p>
+      )}
+      {envelope.kind === "stop" && (
+        <p className="rounded border border-slate-300 bg-slate-50 px-2 py-1 text-[11px] text-slate-700">
+          This question was not answered. What follows is why.
         </p>
       )}
 
