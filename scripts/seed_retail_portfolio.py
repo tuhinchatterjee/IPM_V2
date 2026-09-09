@@ -73,6 +73,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from backend.planner import demo  # noqa: E402 - after the path is set up
+from backend.planner import policy as pol  # noqa: E402
 
 EXIT_OK = 0
 EXIT_INCOMPLETE = 1
@@ -426,6 +427,15 @@ def scorecard(today: date) -> dict[str, Any]:
         "start": -150, "end": 120, "cadence": "WEEKLY", "stale": 10,
         "manager": "priya.raman",
         "sponsor": "ananya.shah",
+        # A regulatory redevelopment with a committee date behind it. Chosen
+        # deliberately: this is the programme where a day matters, and it is
+        # the one whose escalation behaviour the demonstration turns on.
+        # Setting a mode supersedes "stale" above: the mode carries its own
+        # reminder cadence and staleness window, and a programme cannot be
+        # Critical on escalation and routine on reminders.
+        "agentic": "CRITICAL",
+        "owner": "priya.raman",
+        "escalation": "ananya.shah",
         "participants": [
             ("ananya.shah", "SPONSOR", "OWNER"),
             ("priya.raman", "PROJECT_MANAGER", "OWNER"),
@@ -516,11 +526,24 @@ def scorecard(today: date) -> dict[str, Any]:
 
             ("S-701", "Conceptual soundness review", "WS-VAL", None,
              "daniel.lee", "COMPLETED", 100, -10, -4, 2, False, False, "", ""),
+            # Due on a reminder threshold on purpose: Critical reminds at 14,
+            # 7, 3, 1 and 0 days, and an imminent item nobody is reminded
+            # about demonstrates nothing. Three days out, so the demonstration
+            # shows a reminder that is not yet an escalation.
             ("S-702", "Independent replication", "WS-VAL", None,
-             "daniel.lee", "IN_PROGRESS", 40, -6, 2, 3, True, False, "",
+             "daniel.lee", "IN_PROGRESS", 40, -6, 3, 3, True, False, "",
              "Replication of the fitted coefficients."),
             ("S-703", "Sensitivity and limitations", "WS-VAL", None,
              "daniel.lee", "NOT_STARTED", 0, -1, 8, 2, False, False, "", ""),
+            # Blocked, and blocked on somebody outside the team — which is
+            # what makes it an escalation rather than a nudge. The engine
+            # team owe the extract; no amount of chasing Daniel produces it.
+            ("S-705", "Reject inference sample from the decision engine",
+             "WS-VAL", None, "daniel.lee", "IN_PROGRESS", 25, -12, 6, 2,
+             False, True,
+             "The decision engine team have not delivered the declined-"
+             "application extract for the reject inference sample.",
+             "Chase the engine team for the extract."),
             ("S-704", "Validation report", "WS-VAL", None,
              "daniel.lee", "NOT_STARTED", 0, 8, 25, 3, True, False, "", ""),
 
@@ -542,16 +565,25 @@ def scorecard(today: date) -> dict[str, Any]:
             ("S-905", "Production go-live", "WS-TECH", None,
              "omar.rahman", "NOT_STARTED", 0, 110, 118, 3, True, False, "", ""),
         ],
+        # The seventh column is the milestone's escalation contact: who hears
+        # when the work under it is not going to land. Different from the
+        # owner on purpose — the owner is the person doing it, and escalating
+        # to them says nothing they do not already know.
         "milestones": [
-            ("M-1", "Dataset Ready", "sameer.iqbal", -85, "ACHIEVED", True),
+            ("M-1", "Dataset Ready", "sameer.iqbal", -85, "ACHIEVED", True,
+             "priya.raman", ("WS-DEF", "WS-DATA")),
             ("M-2", "Candidate Model Selected", "rohan.mehta", -40,
-             "ACHIEVED", True),
-            ("M-3", "Development Complete", "rohan.mehta", -8, "ACHIEVED", True),
-            ("M-4", "Validation Complete", "daniel.lee", 25, "PENDING", True),
+             "ACHIEVED", True, "priya.raman", ("WS-EDA",)),
+            ("M-3", "Development Complete", "rohan.mehta", -8, "ACHIEVED",
+             True, "priya.raman", ("WS-DEV", "WS-PERF")),
+            ("M-4", "Validation Complete", "daniel.lee", 25, "PENDING", True,
+             "priya.raman", ("WS-VAL",)),
             ("M-5", "Credit Committee Approval", "ananya.shah", 55,
-             "PENDING", True),
-            ("M-6", "UAT Complete", "omar.rahman", 88, "PENDING", False),
-            ("M-7", "Production Go-Live", "omar.rahman", 118, "PENDING", True),
+             "PENDING", True, "ananya.shah", ("WS-POL", "WS-GOV")),
+            ("M-6", "UAT Complete", "omar.rahman", 88, "PENDING", False,
+             "priya.raman", ()),
+            ("M-7", "Production Go-Live", "omar.rahman", 118, "PENDING", True,
+             "ananya.shah", ("WS-TECH",)),
         ],
         "dependencies": [
             ("TASK", "S-103", "TASK", "S-203", "FS", 0),
@@ -560,6 +592,7 @@ def scorecard(today: date) -> dict[str, Any]:
             ("TASK", "S-403", "TASK", "S-405", "FS", 0),
             ("TASK", "S-405", "TASK", "S-506", "FS", 0),
             ("TASK", "S-506", "TASK", "S-702", "FS", 0),
+            ("TASK", "S-705", "TASK", "S-704", "FS", 0),
             ("TASK", "S-702", "TASK", "S-704", "FS", 2),
             ("TASK", "S-704", "TASK", "S-802", "FS", 3),
             ("TASK", "S-802", "TASK", "S-803", "FS", 5),
@@ -918,6 +951,21 @@ def _build_one(session: Any, who: Any, people: dict[str, int],
     project.demo_origin = demo.RETAIL_DEMO
     project.demo_anchor_date = today
 
+    # How hard the agent chases this programme, and the last stop when a
+    # delay has not been resolved. Both are Copilot concepts and neither is
+    # a parameter of `create_project`, so they are set here beside the demo
+    # markers rather than by widening a signature every caller would learn.
+    if spec.get("agentic"):
+        # `stamp` writes the mode's reminder and staleness numbers through as
+        # well. Without it this project would carry the mode's escalation
+        # ladder and `create_project`'s default reminder cadence, which is not
+        # what "this programme is Critical" means to anybody reading it.
+        pol.stamp(project, pol.preset(spec["agentic"]))
+    if spec.get("owner"):
+        project.owner_id = people[spec["owner"]]
+    if spec.get("escalation"):
+        project.escalation_id = people[spec["escalation"]]
+
     for username, role, access in spec["participants"]:
         if people[username] == getattr(who, "user_id", None) and (
                 access != "OWNER"):
@@ -953,12 +1001,40 @@ def _build_one(session: Any, who: Any, people: dict[str, int],
         tasks[code] = int(row.id)
 
     stones: dict[str, int] = {}
-    for code, name, owner, target, status, critical in spec["milestones"]:
+    #: workstream code → milestone id, so the tasks already grouped by
+    #: workstream can also say which date they are under. Two different
+    #: things: a workstream is a slice of the team, a milestone is a
+    #: commitment, and the escalation ladder walks the second.
+    stream_stone: dict[str, int] = {}
+    for row_spec in spec["milestones"]:
+        # The last two columns are optional. A programme that names neither
+        # gets a milestone with no escalation contact — which inherits the
+        # project's, exactly as the ladder intends — and no tasks mapped
+        # under it.
+        code, name, owner, target, status, critical = row_spec[:6]
+        escalates = row_spec[6] if len(row_spec) > 6 else ""
+        streams_under = row_spec[7] if len(row_spec) > 7 else ()
         row = svc.create_milestone(
             session, who, pid, code=code, name=name, owner_id=people[owner],
+            escalation_id=people.get(escalates) if escalates else None,
             target_date=_d(today, target), status=status, critical=critical)
         session.flush()
         stones[code] = int(row.id)
+        for stream in streams_under:
+            stream_stone[stream] = int(row.id)
+
+    # Hang the tasks off their milestones now that both exist. Done here
+    # rather than at creation because a task's milestone is usually written
+    # after the milestones are, and because the mapping is by workstream: 40
+    # task rows do not each need a milestone column repeating what their
+    # workstream already says.
+    if stream_stone:
+        for (code, _title, ws, *_rest) in spec["tasks"]:
+            stone_id = stream_stone.get(ws)
+            if stone_id and code in tasks:
+                svc.update_task(session, who, tasks[code],
+                                milestone_id=stone_id)
+        session.flush()
 
     for pred_kind, pred, succ_kind, succ, kind, lag in spec["dependencies"]:
         pred_id = (tasks if pred_kind == "TASK" else stones).get(pred)

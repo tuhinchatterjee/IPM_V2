@@ -43,6 +43,7 @@ from backend.config import settings
 from backend.db.engine import SessionLocal
 from backend.models.planner import PlannerProject
 from backend.planner import access as acl
+from backend.planner import activity as pa
 from backend.planner import agent as ai
 from backend.planner import channels
 from backend.planner import monitor as mon
@@ -124,6 +125,20 @@ def attention(limit: int = Query(default=10, ge=1, le=50),
               session: Session = Depends(get_db),
               principal: Principal = RequireCommenter) -> dict:
     return {"items": pq.attention(session, principal, limit=limit)}
+
+
+@router.get("/needs-attention",
+            summary="The issues that need somebody, one row per issue")
+def needs_attention(limit: int = Query(default=25, ge=1, le=100),
+                    session: Session = Depends(get_db),
+                    principal: Principal = RequireCommenter) -> dict:
+    """§17. Every row says what it is, whose it is, and what to do about it.
+
+    Deterministic: these are the monitoring engine's own findings, filtered to
+    the ones that mean something, with the chase record beside each so a
+    reader can see whether the agent has already acted.
+    """
+    return pq.needs_attention(session, principal, limit=limit)
 
 
 @router.get("/my-work", summary="What you have to do")
@@ -796,6 +811,54 @@ def activity(project_id: int, limit: int = Query(default=100, ge=1, le=500),
              principal: Principal = RequireCommenter) -> dict:
     return _guard(lambda: pq.activity(session, principal, project_id,
                                       limit=limit, offset=offset))
+
+
+@router.get("/projects/{project_id}/agent-activity",
+            summary="What the agent has done on this project")
+def agent_activity(project_id: int,
+                   kind: str = Query(default="", max_length=24),
+                   limit: int = Query(default=100, ge=1, le=500),
+                   offset: int = Query(default=0, ge=0),
+                   session: Session = Depends(get_db),
+                   principal: Principal = RequireCommenter) -> dict:
+    """The agent's own timeline, in a person's words.
+
+    Separate from `/activity`, which is what PEOPLE did. A project manager
+    asking "what has the agent been doing?" wants who was reminded, who was
+    chased, what escalated and how far — not a scheduler log, and not
+    interleaved with every percentage somebody typed.
+    """
+    return _guard(lambda: pa.agent_activity(session, principal, project_id,
+                                            kind=kind, limit=limit,
+                                            offset=offset))
+
+
+@router.post("/projects/{project_id}/sweep",
+             summary="Run the agent over this project now")
+def run_project_sweep(project_id: int, dry_run: bool = False,
+                      session: Session = Depends(get_db),
+                      principal: Principal = RequireCommenter) -> dict:
+    """The overnight check, on one project, for the person who runs it.
+
+    The global sweep is an administrator's tool and the scheduler's job. This
+    is neither: "why has nobody been reminded about this?" is a question the
+    project manager asks about their own project on a Tuesday afternoon, and
+    routing them to an administrator to find out is how a monitoring feature
+    stops being trusted. Editor access on the project, and the same
+    fingerprint deduplication as the scheduled run — so pressing it twice
+    does not send anything twice.
+    """
+    _guard(lambda: acl.require(session, project_id, principal,
+                               acl.ACCESS_EDITOR,
+                               "run the agent over this project"))
+    outcome = mon.sweep(session, send=not dry_run, project_ids=[project_id])
+    body = outcome.to_dict()
+    if dry_run:
+        body["would_send"] = [
+            {"user_id": m.user_id, "reference": m.entity_code,
+             "trigger": m.trigger, "body": m.body}
+            for m in outcome.messages]
+    return body
 
 
 @router.get("/projects/{project_id}/changes",

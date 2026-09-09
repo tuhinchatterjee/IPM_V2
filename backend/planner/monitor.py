@@ -45,7 +45,10 @@ from backend.models.planner import (
     PlannerReminder,
 )
 from backend.planner import control
+from backend.planner import escalation as esc
+from backend.planner import policy as pol
 from backend.planner import query as pq
+from backend.planner import schedule as sched
 from backend.planner import service as svc
 
 logger = logging.getLogger(__name__)
@@ -72,7 +75,9 @@ REVIEW = "review"
 #: them".
 UPDATE_REQUESTED = "update_requested"
 
-#: How each reads to the person receiving it.
+#: How each reads to the person receiving it. The escalation titles come from
+#: `escalation.py`, which owns that vocabulary — one word for one thing, in
+#: one place, so a screen grouping by trigger cannot find two spellings.
 _TITLES = {
     DUE: "Due soon",
     OVERDUE: "Overdue",
@@ -83,6 +88,7 @@ _TITLES = {
     HEALTH_RED: "Project needs attention",
     REVIEW: "Review required",
     UPDATE_REQUESTED: "Action required",
+    **esc.TITLES,
 }
 
 #: What the reader is being asked to do. A notification that says a task is
@@ -99,6 +105,7 @@ _ACTIONS = {
     HEALTH_RED: "Review the project and decide what changes.",
     REVIEW: "Review the work and accept it or send it back.",
     UPDATE_REQUESTED: "Please update your progress, blocker and next step.",
+    **esc.ACTIONS,
 }
 
 #: The button the notification effectively is.
@@ -107,6 +114,9 @@ _LABELS = {
     BLOCKED: "Open task", MILESTONE_DUE: "Open milestone",
     MILESTONE_OVERDUE: "Open milestone", HEALTH_RED: "Review project",
     REVIEW: "Review task", UPDATE_REQUESTED: "Update task",
+    esc.ESCALATED: "Open task", esc.ESCALATED_BLOCKED: "Open task",
+    esc.CRITICAL_PATH: "Open task", esc.SPONSOR_ALERT: "Open task",
+    esc.MILESTONE_AT_RISK: "Open milestone",
 }
 
 
@@ -128,6 +138,45 @@ class Message:
     asked: bool = False
     #: The engine's own sentence for why they were asked. Empty for a nudge.
     reason: str = ""
+    #: How far up the ladder this went. Empty for a reminder to the owner.
+    level: str = ""
+
+    # ---- context, stamped once per project after the rules have run ------
+    #
+    # §20 asks every message to carry the project's name as well as its code,
+    # the item, the owner, the due date, how far the escalation went and a
+    # link. The rules that decide WHETHER to send do not need any of that, so
+    # it is filled in afterwards rather than threaded through forty
+    # constructor calls: a rule that had to know the owner's display name in
+    # order to decide that a task is overdue would be a worse rule.
+    project_name: str = ""
+    #: Whose work it is. Resolved to a name when the message is written.
+    owner_id: int | None = None
+    #: The date the item was committed to, as text. Empty when it has none.
+    due: str = ""
+
+    @property
+    def path(self) -> str:
+        """Where this opens, as a URL a person can paste. §20's direct link."""
+        return f"/delivery/{self.project_id}"
+
+    def footer(self, owner_name: str) -> str:
+        """The facts, under the sentence, in a fixed order.
+
+        Fixed so that somebody reading their twentieth message this month
+        does not have to re-read it to find the due date.
+        """
+        lines = [
+            f"Project: {self.project_name} ({self.project_code})"
+            if self.project_name else f"Project: {self.project_code}",
+            f"Item: {self.entity_code}" if self.entity_code else "",
+            f"Owner: {owner_name}" if owner_name else "",
+            f"Due: {self.due}" if self.due else "",
+            f"Escalation: {_LADDER_SAID.get(self.level, self.level)}"
+            if self.level else "",
+            f"Open: {self.path}",
+        ]
+        return "\n".join(line for line in lines if line)
 
     @property
     def action(self) -> str:
@@ -156,6 +205,16 @@ class Message:
         if self.entity_type == ENTITY_PROJECT:
             return str(self.project_id)
         return f"{self.project_id}:{self.entity_id}"
+
+
+#: How far a message travelled, said rather than coded. §20.
+_LADDER_SAID = {
+    "own": "the item's own escalation contact",
+    "milestone": "the milestone's escalation contact",
+    "project": "the project's escalation contact",
+    "manager": "the project manager",
+    "sponsor": "the sponsor",
+}
 
 
 @dataclass
@@ -203,12 +262,19 @@ def _print(project_id: int, entity_type: str, entity_id: int, user_id: int,
 
 
 def _task_messages(project: Any, plan: control.Plan, today: date,
-                   policy: control.Policy) -> list[Message]:
+                   policy: control.Policy, *,
+                   every: int = 1) -> list[Message]:
     """Reminders about tasks, at most one per task per person.
 
     Ordered by seriousness and stopping at the first hit: an overdue, blocked,
     silent task must not send its owner three messages that all mean "look at
     T-104".
+
+    `every` is the project's own chase cadence. A Light project reminds its
+    owner about an overdue task every third day and a Critical one every day,
+    and the difference is in the fingerprint rather than in a decision about
+    whether to send: bucketing by how long it has been late means two sweeps
+    on the same day collapse and a missed day does not skip the reminder.
     """
     out: list[Message] = []
     days = tuple(project.reminder_days or policy.reminder_days)
@@ -224,7 +290,8 @@ def _task_messages(project: Any, plan: control.Plan, today: date,
                 owner, int(project.id), project.code, ENTITY_TASK,
                 int(task.id), task.code, OVERDUE,
                 _print(int(project.id), ENTITY_TASK, int(task.id), owner,
-                       OVERDUE, f"{task.due_date}:{today}"),
+                       OVERDUE,
+                       f"{task.due_date}:{esc.bucket(late, every)}"),
                 _TITLES[OVERDUE],
                 f"{task.code} {task.title} was due {task.due_date} and is "
                 f"{late} day{'' if late == 1 else 's'} overdue."))
@@ -401,11 +468,48 @@ def _health_messages(project: Any, verdict: Any, was: str,
         for user_id in dict.fromkeys(managers)]
 
 
+def _escalation_messages(project: Any, plan: control.Plan,
+                         milestones: list[Any], today: date, *,
+                         agentic: pol.Agentic) -> list[Message]:
+    """The rungs above the owner, told what the owner did not resolve.
+
+    The critical path is computed once per project rather than per task,
+    because it is a property of the whole network: asking the schedule engine
+    per task would be both slow and capable of disagreeing with itself inside
+    one sweep. When the network cannot be scheduled — no dependencies yet —
+    `critical_path` is empty and the rule simply does not fire, which is the
+    honest answer rather than a guess about which task matters most.
+    """
+    critical: frozenset[str] = frozenset()
+    if agentic.escalation.notify_manager_on_critical_path:
+        found = sched.compute(plan)
+        if found.computed:
+            critical = frozenset(found.critical_path)
+
+    out: list[Message] = []
+    for finding in esc.findings(project, plan, milestones, today,
+                                agentic=agentic, critical_codes=critical):
+        out.append(Message(
+            finding.rung.user_id, int(project.id), project.code,
+            finding.entity_type, finding.entity_id, finding.entity_code,
+            finding.trigger,
+            _print(int(project.id), finding.entity_type, finding.entity_id,
+                   finding.rung.user_id, finding.trigger, finding.about),
+            _TITLES.get(finding.trigger, "Escalated"),
+            # The reason is part of the message, not a tooltip: somebody
+            # receiving an escalation needs to know why it reached THEM, or
+            # the next one goes unread.
+            f"{finding.sentence} You are seeing this because "
+            f"{finding.rung.because}.",
+            level=finding.rung.level))
+    return out
+
+
 # ================================================================ the sweep
 
 
 def sweep(session: Any, *, today: date | None = None,
-          policy: control.Policy = control.DEFAULT_POLICY,
+          policy: control.Policy | None = None,
           project_ids: list[int] | None = None,
           send: bool = True) -> Sweep:
     """One pass over the open projects. Nothing commits; the caller owns that.
@@ -413,6 +517,12 @@ def sweep(session: Any, *, today: date | None = None,
     `today` is a parameter and never `date.today()` inside a rule, so the
     whole engine can be tested at a frozen moment — which is the only way to
     prove that a reminder fires once rather than on every run.
+
+    Each project is assessed under ITS OWN policy, read from the mode its
+    manager chose. `policy` here overrides that for every project and exists
+    for tests that want one fixed rule set; leaving it alone is what the
+    product does, and it is what makes Light and Critical mean anything. A
+    single global policy would have made the mode a label on a screen.
     """
     now = datetime.now(UTC)
     day = today or now.date()
@@ -452,8 +562,11 @@ def sweep(session: Any, *, today: date | None = None,
         result.projects += 1
         result.tasks += len(plan.tasks)
 
+        agentic = pol.of(project)
+        rules = policy or agentic.policy
+
         was = project.calculated_health or "UNKNOWN"
-        verdict = control.health(plan, day, policy=policy)
+        verdict = control.health(plan, day, policy=rules)
         percent = control.progress(plan.tasks)
         if (verdict.status != was
                 or verdict.reason != (project.calculated_health_reason or "")
@@ -477,15 +590,23 @@ def sweep(session: Any, *, today: date | None = None,
                            new_status=verdict.status,
                            narrative=verdict.reason)
 
+        first = len(pending)
         pending.extend(_merge_chases(
-            _task_messages(project, plan, day, policy),
-            _chase_messages(project, plan, day, policy)))
-        pending.extend(_review_messages(project, plan))
+            _task_messages(project, plan, day, rules,
+                           every=agentic.escalation.overdue_every_days),
+            _chase_messages(project, plan, day, rules)))
+        # A project set to Light does not remind reviewers. That is the whole
+        # point of Light: fewer people hear about fewer things.
+        if agentic.escalation.remind_reviewers:
+            pending.extend(_review_messages(project, plan))
         pending.extend(_milestone_messages(project, milestones[pid], day,
-                                           policy))
+                                           rules))
+        pending.extend(_escalation_messages(project, plan, milestones[pid],
+                                            day, agentic=agentic))
         managers = [i for i in ([project.manager_id] if project.manager_id
                                 else []) + watchers[pid] if i]
         pending.extend(_health_messages(project, verdict, was, managers))
+        _stamp(pending[first:], project, plan, milestones[pid])
 
     if send:
         _deliver(session, pending, result)
@@ -493,6 +614,43 @@ def sweep(session: Any, *, today: date | None = None,
         result.messages = pending
         result.suppressed = len(pending)
     return result
+
+
+def _names(session: Any, user_ids: set[int]) -> dict[int, str]:
+    """Display names for the owners a sweep is about to mention."""
+    if not user_ids:
+        return {}
+    from backend.db.models import User
+    rows = session.execute(select(User).where(User.id.in_(user_ids))).scalars()
+    return {int(u.id): (f"{u.first_name} {u.last_name}".strip() or u.username)
+            for u in rows}
+
+
+def _stamp(messages: list[Message], project: Any, plan: control.Plan,
+           milestones: list[Any]) -> None:
+    """Fill in the context §20 asks every message to carry.
+
+    One pass over the messages one project produced, reading the plan that
+    was already loaded. Nothing here changes whether a message is sent — by
+    the time this runs, that has been decided.
+    """
+    by_milestone = {int(row.id): row for row in milestones}
+    for message in messages:
+        message.project_name = str(project.name or "")
+        if message.entity_type == ENTITY_TASK:
+            task = plan.task(int(message.entity_id))
+            if task is not None:
+                message.owner_id = task.owner_id
+                message.due = str(task.due_date) if task.due_date else ""
+        elif message.entity_type == ENTITY_MILESTONE:
+            row = by_milestone.get(int(message.entity_id))
+            if row is not None:
+                message.owner_id = row.owner_id
+                message.due = str(row.target_date) if row.target_date else ""
+        else:
+            message.owner_id = project.manager_id
+            message.due = (str(project.target_end_date)
+                           if project.target_end_date else "")
 
 
 def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
@@ -510,6 +668,10 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
     already = {row for row in session.execute(
         select(PlannerReminder.fingerprint).where(
             PlannerReminder.fingerprint.in_(prints))).scalars()}
+    # One query for every owner named across the whole sweep, not one per
+    # message: a nightly run over a large estate would otherwise be thousands
+    # of single-row lookups for a name that repeats.
+    names = _names(session, {m.owner_id for m in pending if m.owner_id})
 
     seen: set[str] = set()
     for message in pending:
@@ -520,6 +682,7 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
         body = message.body
         if message.action:
             body = f"{body}\n\n{message.action}"
+        body = f"{body}\n\n{message.footer(names.get(message.owner_id, ''))}"
         note = Notification(
             user_id=message.user_id, kind="planner",
             title=f"{message.project_code}: {message.title}",
@@ -533,7 +696,7 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
             trigger=message.trigger, fingerprint=message.fingerprint,
             notification_id=int(note.id),
             asked=bool(message.asked), reason=message.reason,
-            state="sent"))
+            level=message.level, state="sent"))
         result.messages.append(message)
         result.sent += 1
 
@@ -742,6 +905,10 @@ EVENTS: tuple[str, ...] = (
     "milestone_changed", "dependency_changed",
     "raid_severity_changed", "participant_changed",
     "project_dates_changed", "imported",
+    # A project coming into existence is the largest change of shape there
+    # is. `draft.publish` signals it, and without it here every publish
+    # logged a swallowed exception and quietly did not queue the first sweep.
+    "project_published",
 )
 
 

@@ -9310,7 +9310,21 @@ export const api = {
     attention: (limit = 10) =>
       request<{ items: PlannerAttentionItem[] }>(
         `/planner/attention?limit=${limit}`),
+    /** §17. One row per issue, not one row per project. */
+    needsAttention: (limit = 25) =>
+      request<PlannerNeedsAttention>(
+        `/planner/needs-attention?limit=${limit}`),
     myWork: () => request<PlannerMyWork>("/planner/my-work"),
+    /** What the AGENT has done on one project — not what people did. */
+    agentActivity: (id: number, kind = "", limit = 100) =>
+      request<PlannerAgentActivity>(
+        `/planner/projects/${id}/agent-activity?limit=${limit}` +
+        (kind ? `&kind=${encodeURIComponent(kind)}` : "")),
+    /** Run the agent over one project now. Editor access, deduplicated. */
+    runAgent: (id: number, dryRun = false) =>
+      request<PlannerSweepResult>(
+        `/planner/projects/${id}/sweep${dryRun ? "?dry_run=true" : ""}`,
+        { method: "POST" }),
     project: (id: number) =>
       request<PlannerProjectDetail>(`/planner/projects/${id}`),
     createProject: (body: Record<string, unknown>) =>
@@ -9447,6 +9461,71 @@ export const api = {
       request<{ requests: PlannerUpdateRequest[]; count: number;
                 state: string }>(
         `/planner/projects/${id}/requests?state=${encodeURIComponent(state)}`),
+
+    /**
+     * The Copilot. Chat and the structured panels call the SAME `apply`.
+     *
+     * There is no `applyFromChat`. A rule the backend enforces on one path it
+     * enforces on both, and a client that had two ways in would be the place
+     * the two paths quietly diverged. `publish` takes `confirm` explicitly,
+     * because a POST is not a person saying yes.
+     */
+    /**
+     * The plan a project is built from, before it is a project.
+     *
+     * Named for what it is rather than for the URL prefix it lives behind:
+     * these are the draft routes, and the wizard is the only thing that calls
+     * them. The chat that used to share the prefix is gone.
+     */
+    plan: {
+      drafts: (status = "") =>
+        request<{ drafts: DraftRow[] }>(
+          `/planner/copilot/drafts${status ? `?status=${status}` : ""}`),
+      start: (name = "") =>
+        request<DraftRow>("/planner/copilot/drafts", {
+          method: "POST", body: JSON.stringify({ name }),
+        }),
+      draft: (key: string) =>
+        request<DraftDetail>(`/planner/copilot/drafts/${key}`),
+      apply: (key: string, command: string,
+              payload: Record<string, unknown> = {},
+              expectedVersion?: number) =>
+        request<Record<string, unknown> & { draft: DraftRow }>(
+          `/planner/copilot/drafts/${key}/apply`, {
+            method: "POST",
+            body: JSON.stringify({
+              command, payload, expected_version: expectedVersion,
+            }),
+          }),
+      linkPreview: (key: string, body: {
+        predecessor: string; successor: string;
+        dependency_type?: string; lag_days?: number;
+      }) =>
+        request<DraftLinkPreview>(
+          `/planner/copilot/drafts/${key}/link-preview`,
+          { method: "POST", body: JSON.stringify(body) }),
+      previousTask: (key: string, code: string) =>
+        request<{ code: string; item: Record<string, unknown> | null }>(
+          `/planner/copilot/drafts/${key}/previous-task` +
+          `?code=${encodeURIComponent(code)}`),
+      preview: (key: string) =>
+        request<DraftPreview>(`/planner/copilot/drafts/${key}/preview`),
+      publish: (key: string, confirm: boolean) =>
+        request<{ project_id: number; code: string; name: string }>(
+          `/planner/copilot/drafts/${key}/publish`,
+          { method: "POST", body: JSON.stringify({ confirm }) }),
+      discard: (key: string) =>
+        request<{ discarded: string }>(`/planner/copilot/drafts/${key}`,
+          { method: "DELETE" }),
+      people: (search = "", limit = 20) =>
+        request<{ people: CopilotPerson[] }>(
+          `/planner/copilot/people?search=${encodeURIComponent(search)}` +
+          `&limit=${limit}`),
+      /** §7. Is this project code still free? Asked on step one, not at publish. */
+      codeAvailable: (code: string) =>
+        request<{ code: string; available: boolean; used_by: string }>(
+          `/planner/copilot/code-available?code=${encodeURIComponent(code)}`),
+    },
   },
 
   /**
@@ -9987,6 +10066,8 @@ export type PlannerTaskRow = {
   critical: boolean;
   owner: PlannerPerson;
   workstream_id: number | null;
+  /** The milestone it hangs off — the first rung of the escalation ladder. */
+  milestone_id: number | null;
   last_update_at: string | null;
   last_update_text: string;
   version: number;
@@ -10047,6 +10128,36 @@ export type PlannerPortfolio = {
   count: number;
 };
 
+/** One thing that needs a person, with everything needed to act on it. §17. */
+export type PlannerAttentionRow = {
+  project: { id: number; code: string; name: string };
+  entity_type: string;
+  entity_id: number | null;
+  entity_code: string;
+  title: string;
+  rule: string;
+  /** critical | warn */
+  severity: string;
+  reason: string;
+  owner: { id: number; name: string; username?: string } | null;
+  due_date: string | null;
+  escalation: {
+    /** none | reminded | escalated | answered */
+    state: string;
+    level: string;
+    said: string;
+    person: { id: number; name: string } | null;
+    at: string | null;
+  };
+  next_action: string;
+};
+
+export type PlannerNeedsAttention = {
+  items: PlannerAttentionRow[];
+  count: number;
+  projects: number;
+};
+
 export type PlannerAttentionItem = {
   id: number;
   code: string;
@@ -10100,6 +10211,8 @@ export type PlannerMilestone = {
   days_overdue: number | null;
   critical: boolean;
   owner: PlannerPerson;
+  /** Who hears about it when the work under it will not land. */
+  escalation: PlannerPerson;
   workstream_id: number | null;
   version: number;
 };
@@ -10174,6 +10287,25 @@ export type PlannerProjectDetail = {
     reporting_cadence: string;
     reminder_days: number[];
     stale_after_days: number;
+    owner: PlannerPerson;
+    /** The last stop when a delay has not been resolved. */
+    escalation: PlannerPerson;
+    agentic_mode: string;
+    /** How hard the agent chases this project, in numbers and in words. */
+    agentic: {
+      mode: string;
+      label: string;
+      note: string;
+      sentence: string;
+      reminder_days: number[];
+      escalate_after_days: number | null;
+      escalate_blocked_after_days: number | null;
+      overdue_every_days: number;
+      notify_manager_on_critical_path: boolean;
+      notify_sponsor_after_days: number | null;
+      remind_reviewers: boolean;
+      milestone_escalate_before_days: number | null;
+    };
     archived: boolean;
     version: number;
     created_at: string | null;
@@ -10299,6 +10431,305 @@ export type PlannerImportPreview = {
   };
   changes: PlannerImportChange[];
   issues: PlannerImportIssue[];
+};
+
+/**
+ * The Copilot's boundary decision about one message.
+ *
+ * `anchors` names the projects that kept an otherwise-foreign phrase in
+ * scope, so the screen can say why it answered rather than leaving the person
+ * to wonder whether it understood.
+ */
+export type CopilotScope = {
+  in_scope: boolean;
+  area: string;
+  label: string;
+  matched: string;
+  message: string;
+  anchors: string[];
+};
+
+export type CopilotCapabilities = {
+  agent: {
+    agent_id: string;
+    business_name: string;
+    purpose: string;
+    allowed_tools: string[];
+    allowed_data_domains: string[];
+    version: string;
+  };
+  tools: {
+    tool_id: string;
+    name: string;
+    purpose: string;
+    writes: boolean;
+  }[];
+  out_of_scope: { area: string; label: string; where: string }[];
+};
+
+/** One thing the plan still needs, or that a careful person would fix. */
+export type DraftNote = {
+  level: "BLOCKER" | "WARNING";
+  scope: string;
+  code: string;
+  message: string;
+  fix: string;
+};
+
+export type DraftCompleteness = {
+  publishable: boolean;
+  complete: boolean;
+  blockers: DraftNote[];
+  warnings: DraftNote[];
+};
+
+/**
+ * The plan document itself.
+ *
+ * Milestones and tasks are flat lists joined by `milestone_code` rather than
+ * nested, because that is the shape the draft is stored in and a client that
+ * re-nested it would have to un-nest it again on every write.
+ */
+export type DraftPlan = {
+  version: string;
+  overview: {
+    name: string; code: string; description: string; objective: string;
+  };
+  governance: {
+    sponsor_id: number | null;
+    manager_id: number | null;
+    owner_id: number | null;
+    escalation_id: number | null;
+    priority: string;
+    status: string;
+    start_date: string | null;
+    target_end_date: string | null;
+    reporting_cadence: string;
+  };
+  agentic: { mode: string; policy: Record<string, unknown> };
+  milestones: Record<string, unknown>[];
+  tasks: Record<string, unknown>[];
+  links: {
+    predecessor: string; successor: string;
+    dependency_type: string; lag_days: number;
+    /** Non-empty when a date conflict was kept rather than adjusted away. */
+    notes?: string;
+  }[];
+};
+
+export type DraftRow = {
+  key: string;
+  name: string;
+  code: string;
+  status: "DRAFTING" | "READY" | "PUBLISHED";
+  step: string;
+  plan: DraftPlan;
+  version: number;
+  project_id: number | null;
+  created_by: number | null;
+  updated_by: number | null;
+  updated_at: string;
+};
+
+/** Anything a dependency could point at, milestones first then their tasks. */
+export type DraftCatalogueRow = {
+  code: string;
+  kind: string;
+  name: string;
+  milestone: string;
+  owner_id: number | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+export type DraftDetail = DraftRow & {
+  completeness: DraftCompleteness;
+  catalogue: DraftCatalogueRow[];
+  /**
+   * Everybody this plan names, and nobody else. The person-pickers search
+   * the directory; this is what lets the screen print a name beside a task
+   * without holding a staff list a browser has no business holding.
+   */
+  people: CopilotPerson[];
+  agentic_choices: AgenticChoice[];
+};
+
+export type AgenticChoice = {
+  mode: string;
+  label: string;
+  note: string;
+  sentence: string;
+};
+
+/** One item an adjustment would move, with both sets of dates. */
+export type DraftShift = {
+  code: string;
+  kind: string;
+  label: string;
+  start_date?: string;
+  new_start_date?: string;
+  target_date?: string;
+  new_target_date?: string;
+  due_date?: string;
+  new_due_date?: string;
+  critical_date?: string;
+  new_critical_date?: string;
+};
+
+/** What a link would do, stated before it is made. §17. */
+export type DraftLinkPreview = {
+  predecessor: string;
+  successor: string;
+  dependency_type: string;
+  lag_days: number;
+  sentence: string;
+  conflict: string;
+  /**
+   * What "adjust the dates" would actually change — present only when there
+   * IS a conflict. Never applied by asking for the preview.
+   */
+  adjustment: {
+    days: number;
+    sentence: string;
+    items: DraftShift[];
+  } | Record<string, never>;
+  predecessor_label: string;
+  successor_label: string;
+};
+
+/** The critical-path engine's answer, run over a plan that is not a project. */
+export type DraftSchedule = {
+  computed: boolean;
+  basis: string;
+  nodes: {
+    kind: string; code: string; name: string;
+    duration_days: number | null;
+    early_start: string; early_finish: string;
+    total_float_days: number; calculated_critical: boolean;
+  }[];
+  critical_path: string[];
+  project_start: string | null;
+  project_finish: string | null;
+  cannot_because: string[];
+};
+
+/** Who a delay on this item reaches, and where that was decided. */
+export type DraftEscalation = {
+  user_id: number | null;
+  source: "" | "own" | "milestone" | "project";
+  from_code: string;
+};
+
+export type DraftPreview = {
+  overview: DraftPlan["overview"];
+  governance: DraftPlan["governance"];
+  agentic: {
+    mode: string; label: string; sentence: string;
+    [key: string]: unknown;
+  };
+  milestones: (Record<string, unknown> & {
+    escalation: DraftEscalation;
+    tasks: (Record<string, unknown> & { escalation: DraftEscalation })[];
+  })[];
+  links: (DraftPlan["links"][number] & { sentence: string })[];
+  schedule: DraftSchedule;
+  totals: {
+    milestones: number; tasks: number; links: number; people: number;
+  };
+  completeness: DraftCompleteness;
+};
+
+/** One change the Copilot read out of a sentence, resolved and in words. */
+export type CopilotCommand = {
+  command: string;
+  payload: Record<string, unknown>;
+  sentence: string;
+  /** True where the change moves a commitment and needs a confirmation. */
+  preview: boolean;
+  source: string;
+  creates: string;
+};
+
+/** A short clarification, with the answers as buttons. */
+export type CopilotQuestion = {
+  text: string;
+  field: string;
+  options: { label: string; value: string }[];
+  /** The words that were ambiguous — sent back with the answer. */
+  fragment: string;
+};
+
+/** One conversational turn: what was read, what ran, and the plan after it. */
+export type CopilotTurn = {
+  in_scope: boolean;
+  message?: string;
+  refusal?: CopilotScope;
+  scope?: CopilotScope;
+  purpose?: string;
+  said?: string;
+  draft?: DraftRow;
+  completeness?: DraftCompleteness;
+  catalogue?: DraftCatalogueRow[];
+  commands?: CopilotCommand[];
+  questions?: CopilotQuestion[];
+  unread?: string[];
+  applied?: { command: string; sentence: string; code: string }[];
+  created?: Record<string, string>;
+  needs_confirmation?: boolean;
+  /** Which reader understood it: "rules", "model" or "rules+model". */
+  reader?: string;
+  focus?: string;
+  project_id?: number;
+  /**
+   * The project as it stands after this turn, in the same shape as a draft's
+   * plan. Present on a project turn instead of `draft`, so a screen beside
+   * the conversation can show what changed without a second request.
+   */
+  project_plan?: DraftPlan;
+};
+
+/** One line of the agent's own timeline on a project. */
+export type PlannerAgentActivityItem = {
+  at: string;
+  /** reminder | request | escalation | response | health */
+  kind: string;
+  headline: string;
+  detail: string;
+  person: { id?: number; name?: string; username?: string };
+  entity_type: string;
+  entity_code: string;
+  entity_id: number | null;
+  /** own | milestone | project | manager | sponsor. Empty for a reminder. */
+  level: string;
+  /** sent | answered | cancelled. */
+  state: string;
+};
+
+export type PlannerAgentActivity = {
+  count: number;
+  kinds: string[];
+  items: PlannerAgentActivityItem[];
+};
+
+/** What one run of the agent did. */
+export type PlannerSweepResult = {
+  at: string;
+  projects: number;
+  tasks: number;
+  sent: number;
+  suppressed: number;
+  by_trigger: Record<string, number>;
+  health_changed: { project_id: number; code: string; from: string;
+                    to: string; reason: string }[];
+  would_send?: { user_id: number; reference: string; trigger: string;
+                 body: string }[];
+};
+
+export type CopilotPerson = {
+  user_id: number;
+  name: string;
+  username: string;
+  role: string;
 };
 
 /** §52. One section of the CBUAE-aligned report, as the API returns it. */

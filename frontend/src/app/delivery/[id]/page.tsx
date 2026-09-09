@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { AgentActivity } from "@/components/planner/agent-activity";
 import { ImportPanel } from "@/components/planner/import-panel";
 import {
   AddTask,
@@ -41,14 +42,21 @@ import { useAsync } from "@/lib/hooks";
 /**
  * One delivery project, in full.
  *
- * The tab order is the order somebody asks: is it all right (Overview), what
- * is the work (Plan), what dates are we judged on (Milestones), what could go
- * wrong (RAID), who is on it (People), what has been said (Updates), and what
- * would a good summary of all that say (Brief).
+ * Everything here is populated from what was entered when the project was
+ * created. There is no second copy and nothing to re-enter: publishing wrote
+ * the plan into ordinary planner rows, and these tabs read those rows.
  *
- * The header carries the three things that decide whether the rest gets read:
- * the health with its reason, the progress, and how long since anybody said
- * anything.
+ * The tab order is the order somebody asks: is it all right (Overview), what
+ * is the work (Plan), when does it land (Timeline), what dates are we judged
+ * on (Milestones), what could go wrong (RAID), who is on it (People), what
+ * has been said (Updates), and what has the agent actually done (Agent
+ * activity).
+ *
+ * §16. The Copilot tab is gone. It was a chat box that could answer some
+ * questions about this project and refuse others, and it competed with every
+ * tab beside it. The one part of it worth keeping — a grounded read of where
+ * the project stands — is now a panel on Overview, where it is read rather
+ * than talked to.
  */
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -58,7 +66,7 @@ const TABS = [
   { id: "raid", label: "RAID" },
   { id: "people", label: "People" },
   { id: "updates", label: "Updates" },
-  { id: "brief", label: "Brief" },
+  { id: "agent", label: "Agent activity" },
 ];
 
 export default function DeliveryProjectPage() {
@@ -76,8 +84,8 @@ export default function DeliveryProjectPage() {
   const detail = useAsync(() => api.planner.project(projectId), [projectId]);
   const brief = useAsync(
     () => api.planner.brief(projectId),
-    [projectId, tab === "brief"],
-    { enabled: tab === "brief" || tab === "overview" },
+    [projectId],
+    { enabled: tab === "overview" },
   );
   const activity = useAsync(
     () => api.planner.activity(projectId, 100),
@@ -170,6 +178,32 @@ export default function DeliveryProjectPage() {
           <>
             <SectionCard title="What the schedule rules flag">
               <FindingList findings={findings} />
+            </SectionCard>
+
+            <ProjectBrief brief={brief} />
+
+            {/*
+              §11. The policy the person approved when they created this
+              project, read back to them in the same words. It was settled at
+              creation and then invisible from the day after — so nobody
+              could answer "why has the agent not chased this?" without
+              reading the database.
+            */}
+            <SectionCard title="How the Agentic AI works on this project">
+              <div className="px-4 py-3">
+                <p className="text-sm font-medium text-text-primary">
+                  {project.agentic.label}
+                </p>
+                <p className="mt-1 text-sm text-text-secondary">
+                  {project.agentic.sentence}
+                </p>
+                <p className="mt-2 text-xs text-text-muted">
+                  Escalates to{" "}
+                  {project.escalation?.name ?? "nobody — it stops at the "
+                    + "project manager"}
+                  {project.owner?.name ? ` · owned by ${project.owner.name}` : ""}
+                </p>
+              </div>
             </SectionCard>
             {mayEdit && (
               <SectionCard title="Project settings">
@@ -527,49 +561,8 @@ export default function DeliveryProjectPage() {
           </>
         )}
 
-        {tab === "brief" && (
-          <SectionCard
-            title="Project brief"
-            action={
-              brief.data ? (
-                <Badge variant="outline">{brief.data.as_of}</Badge>
-              ) : null
-            }
-          >
-            {brief.loading && <Empty>Reading the project…</Empty>}
-            {brief.error && (
-              <p className="px-4 py-4 text-sm text-negative">{brief.error}</p>
-            )}
-            {brief.data && (
-              <div className="px-4 py-3">
-                <p className="text-sm font-medium text-text-primary">
-                  {brief.data.headline}
-                </p>
-                <ul className="mt-2 divide-y divide-border">
-                  {brief.data.statements.map((s, i) => (
-                    <StatementLine key={i} statement={s} />
-                  ))}
-                </ul>
-                {brief.data.open_questions.length > 0 && (
-                  <div className="mt-4 rounded-md border border-border bg-surface-sunken px-3 py-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
-                      Open questions
-                    </p>
-                    <ul className="mt-1 space-y-1">
-                      {brief.data.open_questions.map((q, i) => (
-                        <li key={i} className="text-sm text-text-secondary">
-                          {q}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <p className="mt-3 border-t border-border pt-2 text-[11px] text-text-muted">
-                  {brief.data.grounding}
-                </p>
-              </div>
-            )}
-          </SectionCard>
+        {tab === "agent" && (
+          <AgentActivity projectId={projectId} mayRun={mayEdit} />
         )}
       </div>
 
@@ -586,6 +579,63 @@ export default function DeliveryProjectPage() {
     </div>
   );
 }
+
+/**
+ * §22. What remained of the assistant: a read of where this stands.
+ *
+ * Grounded — every statement is computed from the plan and carries the rows
+ * it came from — and read-only. It cannot be asked a question, so it can
+ * never answer "I did not follow that", which is what made the chat box a
+ * liability on a page somebody opened to find out whether the project is all
+ * right.
+ */
+function ProjectBrief({
+  brief,
+}: {
+  brief: ReturnType<typeof useAsync<Awaited<ReturnType<typeof api.planner.brief>>>>;
+}) {
+  return (
+    <SectionCard
+      title="Where this project stands"
+      action={brief.data ? <Badge variant="outline">{brief.data.as_of}</Badge> : null}
+    >
+      {brief.loading && <Empty>Reading the project…</Empty>}
+      {brief.error && (
+        <p className="px-4 py-4 text-sm text-negative">{brief.error}</p>
+      )}
+      {brief.data && (
+        <div className="px-4 py-3">
+          <p className="text-sm font-medium text-text-primary">
+            {brief.data.headline}
+          </p>
+          <ul className="mt-2 divide-y divide-border">
+            {brief.data.statements.map((statement, index) => (
+              <StatementLine key={index} statement={statement} />
+            ))}
+          </ul>
+          {brief.data.open_questions.length > 0 && (
+            <div className="mt-4 rounded-md border border-border bg-surface-sunken px-3 py-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
+                Open questions
+              </p>
+              <ul className="mt-1 space-y-1">
+                {brief.data.open_questions.map((question, index) => (
+                  <li key={index} className="text-sm text-text-secondary">
+                    {question}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p className="mt-3 border-t border-border pt-2 text-[11px] text-text-muted">
+            {brief.data.grounding}
+          </p>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 
 /**
  * Who to ask for an update, and the words to use.

@@ -182,6 +182,16 @@ SOURCE_SYSTEM = "SYSTEM"
 SOURCES = (SOURCE_UI, SOURCE_API, SOURCE_AI, SOURCE_AI_CHAT, SOURCE_EXCEL,
            SOURCE_SYSTEM)
 
+#: How hard the agent chases. The behaviour behind each of these lives in
+#: `backend.planner.policy`; the column stores only the name, so a deployment
+#: that retunes Standard retunes every project on it.
+AGENTIC_LIGHT = "LIGHT"
+AGENTIC_STANDARD = "STANDARD"
+AGENTIC_CRITICAL = "CRITICAL"
+AGENTIC_CUSTOM = "CUSTOM"
+AGENTIC_MODES = (AGENTIC_LIGHT, AGENTIC_STANDARD, AGENTIC_CRITICAL,
+                 AGENTIC_CUSTOM)
+
 CADENCE_WEEKLY = "WEEKLY"
 CADENCE_FORTNIGHTLY = "FORTNIGHTLY"
 CADENCE_MONTHLY = "MONTHLY"
@@ -225,9 +235,33 @@ class PlannerProject(Base):
     team_id: Mapped[int | None] = mapped_column(
         ForeignKey("teams.id", ondelete="SET NULL"), nullable=True)
 
+    #: Who owns the project day to day. Distinct from the sponsor, who is
+    #: accountable for it, and from the manager, who runs it: a project can
+    #: have all three in one person and often does, and the schema should not
+    #: force that to be said three times or prevent it being said once.
+    owner_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    #: Where a delay goes when it stops being the owner's problem. The last
+    #: stop in the ladder task → milestone → project, so a task with no
+    #: escalation owner of its own still reaches somebody.
+    escalation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     target_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     actual_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    #: How hard the agent chases on this project: LIGHT, STANDARD, CRITICAL or
+    #: CUSTOM. `backend.planner.policy` turns it into the thresholds the
+    #: deterministic engine already reads, so the modes add a vocabulary
+    #: rather than a second engine.
+    agentic_mode: Mapped[str] = mapped_column(String(16), nullable=False,
+                                              default=AGENTIC_STANDARD)
+    #: The thresholds, when the mode is CUSTOM. Empty for the three presets,
+    #: because storing a preset's numbers would freeze them: a project on
+    #: Standard should follow Standard as it is, not as it was.
+    agentic_policy: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                                 default=dict)
 
     reporting_cadence: Mapped[str] = mapped_column(String(16), nullable=False,
                                                    default=CADENCE_WEEKLY)
@@ -421,6 +455,17 @@ class PlannerTask(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     reviewer_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    #: Where a slip on THIS task goes. Null is the normal case: the monitor
+    #: walks task → milestone → project, so naming one here is an override
+    #: rather than an obligation.
+    escalation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    #: The milestone this work sits under, when it sits under one. Separate
+    #: from `workstream_id` because a workstream is a slice of the team and a
+    #: milestone is a date: a task usually has both and may have either.
+    milestone_id: Mapped[int | None] = mapped_column(
+        ForeignKey("planner_milestones.id", ondelete="SET NULL"),
+        nullable=True, index=True)
     #: User ids. A join table would be correct and is not worth six extra
     #: queries per screen for a list that is read whole and written whole.
     contributor_ids: Mapped[list] = mapped_column(JSONB, nullable=False,
@@ -433,6 +478,10 @@ class PlannerTask(Base):
 
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: The date after which this task can no longer recover without moving
+    #: something downstream. Separate from the due date, which is when it was
+    #: promised, and from `critical`, which is somebody's judgement.
+    critical_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     completed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     effort_days: Mapped[float | None] = mapped_column(Integer, nullable=True)
 
@@ -516,8 +565,25 @@ class PlannerMilestone(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     owner_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    #: Where a milestone slip goes. Inherited by the tasks under it that do
+    #: not name their own.
+    escalation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
+    #: A milestone is a period as well as a date. The start is what makes a
+    #: plan drawable and what a task under it is checked against.
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    #: The date after which this milestone can no longer recover — which is
+    #: not the target date, and is the one a committee asks about.
+    critical_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    priority: Mapped[str] = mapped_column(String(16), nullable=False,
+                                          default=PRIORITY_MEDIUM)
+    #: What the OWNER says is done. The engine calculates its own figure from
+    #: the tasks underneath; both are reported, and a disagreement between
+    #: them is information rather than an error to resolve.
+    percent_complete: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                  default=0)
     actual_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False,
                                         default=MILESTONE_PENDING)
@@ -769,6 +835,16 @@ class PlannerReminder(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     responded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+
+    #: Which rung of the ladder this reached: own | milestone | project |
+    #: manager | sponsor. Empty for a plain reminder to the person who owns
+    #: the work, which is not an escalation at all.
+    #:
+    #: Recorded rather than derived from `trigger`, because the trigger says
+    #: WHAT happened and this says HOW FAR IT WENT — and "the sponsor was
+    #: told" is the fact a governance review asks about.
+    level: Mapped[str] = mapped_column(String(16), nullable=False, default="",
+                                       server_default=text("''"))
     #: The history row the owner wrote in answer, so the manager can read the
     #: reply beside the request rather than hunting for it in the timeline.
     response_update_id: Mapped[int | None] = mapped_column(
@@ -823,6 +899,81 @@ class PlannerImport(Base):
     )
 
 
+#: A draft that is still being built. Only PUBLISHED has a project behind it.
+DRAFT_DRAFTING = "DRAFTING"
+DRAFT_READY = "READY"
+DRAFT_PUBLISHED = "PUBLISHED"
+DRAFT_STATUSES = (DRAFT_DRAFTING, DRAFT_READY, DRAFT_PUBLISHED)
+
+#: Where in the conversational flow the draft had reached. Stored so that
+#: saving and returning resumes rather than restarts — a person who has
+#: entered six milestones and left should not be asked for the overview again.
+STEP_OVERVIEW = "OVERVIEW"
+STEP_GOVERNANCE = "GOVERNANCE"
+STEP_AGENTIC = "AGENTIC"
+STEP_MILESTONES = "MILESTONES"
+STEP_TASKS = "TASKS"
+#: Dependencies became a step of their own when the builder became a wizard.
+#: They used to be a panel somebody scrolled past, and a plan whose links are
+#: an afterthought has no critical path worth calculating.
+STEP_DEPENDENCIES = "DEPENDENCIES"
+STEP_REVIEW = "REVIEW"
+DRAFT_STEPS = (STEP_OVERVIEW, STEP_GOVERNANCE, STEP_AGENTIC, STEP_MILESTONES,
+               STEP_TASKS, STEP_DEPENDENCIES, STEP_REVIEW)
+
+
+class PlannerDraft(Base):
+    """A project being built, before it is a project.
+
+    One table with one JSONB document, deliberately, rather than a shadow copy
+    of the six planner tables. A draft is a working document: nothing joins to
+    a draft milestone, nobody reports across drafts, and the moment it is
+    published it becomes ordinary rows through the ordinary service layer.
+    Six draft tables would be six more things to migrate whenever the real
+    schema moved, and the first time they drifted the preview would be showing
+    something publish could not create.
+
+    The document's shape is owned by `backend.planner.draft`, which is also
+    the only thing that writes it. Nothing reads a key out of it here.
+    """
+
+    __tablename__ = "planner_drafts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    #: The identifier the URL and the chat use. Opaque and stable: a draft's
+    #: eventual project code is a thing the person is still deciding.
+    key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    code: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default=DRAFT_DRAFTING)
+    step: Mapped[str] = mapped_column(String(32), nullable=False,
+                                      default=STEP_OVERVIEW)
+    plan: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    #: The project this became. RESTRICT rather than CASCADE: deleting a
+    #: published project should not quietly take the record of what was
+    #: approved with it.
+    project_id: Mapped[int | None] = mapped_column(
+        ForeignKey("planner_projects.id", ondelete="RESTRICT"), nullable=True)
+
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_planner_drafts_created_by", "created_by"),
+        Index("ix_planner_drafts_status", "status"),
+    )
+
+
 __all__ = [
     "PROJECT_STATUSES", "PROJECT_OPEN", "PROJECT_DRAFT", "PROJECT_ACTIVE",
     "PROJECT_ON_HOLD", "PROJECT_COMPLETED", "PROJECT_CANCELLED",
@@ -849,6 +1000,12 @@ __all__ = [
     "DEP_FINISH_TO_FINISH", "DEP_START_TO_FINISH",
     "ENTITY_TYPES", "ENTITY_TASK", "ENTITY_MILESTONE", "ENTITY_PROJECT",
     "ENTITY_RAID",
+    "DRAFT_DRAFTING", "DRAFT_PUBLISHED", "DRAFT_READY", "DRAFT_STATUSES",
+    "DRAFT_STEPS", "PlannerDraft",
+    "STEP_AGENTIC", "STEP_DEPENDENCIES", "STEP_GOVERNANCE", "STEP_MILESTONES",
+    "STEP_OVERVIEW", "STEP_REVIEW", "STEP_TASKS",
+    "AGENTIC_CRITICAL", "AGENTIC_CUSTOM", "AGENTIC_LIGHT", "AGENTIC_MODES",
+    "AGENTIC_STANDARD",
     "SOURCES", "SOURCE_UI", "SOURCE_API", "SOURCE_AI", "SOURCE_AI_CHAT",
     "SOURCE_EXCEL",
     "SOURCE_SYSTEM",

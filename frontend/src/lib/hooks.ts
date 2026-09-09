@@ -53,13 +53,18 @@ export function useAsync<T>(
 ): AsyncState<T> {
   const enabled = options.enabled ?? true;
   /**
-   * Keep the last result on screen while the next one loads.
+   * Keep the last answer on screen while the next one is fetched.
    *
-   * Off by default: a first load has nothing to keep, and most screens
-   * reload only when the thing they are showing has been replaced. It is for
-   * screens that reload *underneath* an interaction — a lens re-rendering
-   * because a metric was added to it from inside the page. Blanking the body
-   * there unmounts whatever the person was in the middle of along with it.
+   * Off by default: a first load has nothing to keep, and on most screens a
+   * reload means "this is now different", so showing the old figures would be
+   * a lie.
+   *
+   * It is for the screens that reload the SAME thing after changing it, and
+   * two independent cases arrived at it. A Lens re-renders because a metric
+   * was added to it from inside the page; a form saves a field and re-reads
+   * the document. In both, blanking the body unmounts whatever the person was
+   * in the middle of — the interaction, or the text being typed and the step
+   * of the form they were on.
    */
   const keepPrevious = options.keepPrevious ?? false;
   const [phase, setPhase] = React.useState<Phase<T>>(enabled ? { status: "loading" } : { status: "idle" });

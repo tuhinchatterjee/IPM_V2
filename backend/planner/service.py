@@ -377,13 +377,31 @@ def update_project(session: Any, principal: Any, project_id: int, *,
                                 str(new_date or "")]
                 setattr(project, key, new_date)
 
-    for key in ("sponsor_id", "manager_id", "team_id"):
+    # `owner_id` and `escalation_id` belong here with the other three: the
+    # escalation contact is the last rung of the ladder the monitor walks, and
+    # a project whose contact could only be set at creation would have to be
+    # rebuilt to change who hears about a delay.
+    for key in ("sponsor_id", "manager_id", "team_id", "owner_id",
+                "escalation_id"):
         if key in fields:
             new_id = fields[key]
             new_id = int(new_id) if new_id else None
             if new_id != getattr(project, key):
                 changes[key] = [getattr(project, key), new_id]
                 setattr(project, key, new_id)
+
+    # How hard the agent chases. Written through `policy.stamp` rather than
+    # onto the column, so the mode's own reminder cadence and staleness
+    # window come with it — see the note there.
+    if fields.get("agentic_mode"):
+        from backend.planner import policy as policy_mod
+        document = fields.get("agentic_policy")
+        wanted = policy_mod.resolve(str(fields["agentic_mode"]), document)
+        if (wanted.mode != project.agentic_mode
+                or (dict(document or {}) != dict(project.agentic_policy or {})
+                    and wanted.mode == policy_mod.MODE_CUSTOM)):
+            changes["agentic_mode"] = [project.agentic_mode, wanted.mode]
+            policy_mod.stamp(project, wanted, document)
 
     if "stale_after_days" in fields and fields["stale_after_days"]:
         project.stale_after_days = max(1, int(fields["stale_after_days"]))
@@ -612,14 +630,34 @@ def _resolve_workstream(session: Any, project_id: int,
     return int(workstream_id)
 
 
+def _resolve_milestone(session: Any, project_id: int,
+                       milestone_id: Any) -> int | None:
+    """A milestone on THIS project, or nothing.
+
+    Checked rather than trusted, for the same reason `_resolve_workstream`
+    checks: an id in a request body is a request. Hanging a task off another
+    project's milestone would put it on a screen its owner cannot open.
+    """
+    if not milestone_id:
+        return None
+    row = session.get(PlannerMilestone, int(milestone_id))
+    if row is None or int(row.project_id) != int(project_id):
+        raise PlannerError(
+            f"Milestone {milestone_id} is not part of this project.")
+    return int(row.id)
+
+
 def create_task(session: Any, principal: Any, project_id: int, *,
                 code: str, title: str, description: str = "",
                 workstream_id: int | None = None,
+                milestone_id: int | None = None,
                 parent_id: int | None = None,
                 owner_id: int | None = None, reviewer_id: int | None = None,
+                escalation_id: int | None = None,
                 contributor_ids: list[int] | None = None,
                 status: str = "NOT_STARTED", priority: str = "MEDIUM",
                 start_date: Any = None, due_date: Any = None,
+                critical_date: Any = None,
                 effort_days: Any = None, weight: Any = 1,
                 percent_complete: Any = 0, critical: bool = False,
                 blocked: bool = False, blocker_reason: str = "",
@@ -656,12 +694,15 @@ def create_task(session: Any, principal: Any, project_id: int, *,
         project_id=int(project_id), code=code, title=_text(title, 300),
         description=_text(description),
         workstream_id=_resolve_workstream(session, project_id, workstream_id),
+        milestone_id=_resolve_milestone(session, project_id, milestone_id),
         parent_id=int(parent_id) if parent else None,
         owner_id=owner_id, reviewer_id=reviewer_id,
+        escalation_id=escalation_id,
         contributor_ids=[int(c) for c in (contributor_ids or [])],
         status=state,
         priority=_one_of(priority, PRIORITIES, "priority", "MEDIUM"),
         start_date=start, due_date=due,
+        critical_date=_as_date(critical_date, "Critical date"),
         effort_days=int(effort_days) if effort_days not in (None, "") else None,
         weight=_weight(weight),
         percent_complete=_percent(percent_complete),
@@ -804,7 +845,11 @@ def update_task(session: Any, principal: Any, task_id: int, *,
     # moving the date is a change to the commitment, not a report on it.
     restricted = {"owner_id", "reviewer_id", "contributor_ids", "due_date",
                   "start_date", "weight", "critical", "workstream_id",
-                  "parent_id", "code"}
+                  "milestone_id", "parent_id", "code",
+                  # Who a delay escalates to, and the date after which the
+                  # task cannot recover, are both statements about the
+                  # commitment rather than reports on it.
+                  "escalation_id", "critical_date"}
     wanted = restricted & {k for k, v in fields.items() if v is not None}
     if wanted:
         acl.require(session, int(task.project_id), principal, ACCESS_EDITOR,
@@ -812,7 +857,7 @@ def update_task(session: Any, principal: Any, task_id: int, *,
                         k.replace("_id", "").replace("_", " ")
                         for k in wanted)))
 
-    for key in ("owner_id", "reviewer_id"):
+    for key in ("owner_id", "reviewer_id", "escalation_id"):
         if key in fields:
             new_id = int(fields[key]) if fields[key] else None
             if new_id != getattr(task, key):
@@ -820,7 +865,13 @@ def update_task(session: Any, principal: Any, task_id: int, *,
                 setattr(task, key, new_id)
     if "contributor_ids" in fields and fields["contributor_ids"] is not None:
         task.contributor_ids = [int(c) for c in fields["contributor_ids"]]
-    for key in ("start_date", "due_date"):
+    if "milestone_id" in fields:
+        moved = _resolve_milestone(session, int(task.project_id),
+                                   fields["milestone_id"])
+        if moved != task.milestone_id:
+            changes["milestone_id"] = [task.milestone_id, moved]
+            task.milestone_id = moved
+    for key in ("start_date", "due_date", "critical_date"):
         if key in fields:
             new_date = _as_date(fields[key], key.replace("_", " ").title())
             if new_date != getattr(task, key):
@@ -942,10 +993,40 @@ def delete_task(session: Any, principal: Any, task_id: int, *,
 # ============================================================ milestones
 
 
+def _milestone_period(row: Any) -> None:
+    """A milestone that finishes before it starts is a typo, not a plan.
+
+    Checked on the row after every write rather than on the arguments, so a
+    change that moves only the start is still checked against the end that was
+    already there. The critical date is the date after which the milestone
+    cannot recover, so it belongs inside the period: after the start, and not
+    after the end.
+    """
+    start, end = row.start_date, row.target_date
+    if start and end and end < start:
+        raise PlannerError(
+            f"Milestone {row.code} would end on {end}, before it starts on "
+            f"{start}.")
+    critical = row.critical_date
+    if critical and start and critical < start:
+        raise PlannerError(
+            f"Milestone {row.code} has a critical date of {critical}, before "
+            f"it starts on {start}.")
+    if critical and end and critical > end:
+        raise PlannerError(
+            f"Milestone {row.code} has a critical date of {critical}, after "
+            f"its target date of {end}. The critical date is the point of no "
+            "return, so it falls on or before the date it protects.")
+
+
 def create_milestone(session: Any, principal: Any, project_id: int, *,
                      code: str, name: str, description: str = "",
                      workstream_id: int | None = None,
-                     owner_id: int | None = None, target_date: Any = None,
+                     owner_id: int | None = None,
+                     escalation_id: int | None = None,
+                     start_date: Any = None, target_date: Any = None,
+                     critical_date: Any = None, priority: str = "MEDIUM",
+                     percent_complete: Any = 0,
                      status: str = "PENDING", critical: bool = False,
                      source: str = SOURCE_UI) -> PlannerMilestone:
     acl.require(session, project_id, principal, ACCESS_EDITOR,
@@ -964,10 +1045,16 @@ def create_milestone(session: Any, principal: Any, project_id: int, *,
         project_id=int(project_id), code=code, name=_text(name, 300),
         description=_text(description),
         workstream_id=_resolve_workstream(session, project_id, workstream_id),
-        owner_id=owner_id, target_date=_as_date(target_date, "Target date"),
+        owner_id=owner_id, escalation_id=escalation_id,
+        start_date=_as_date(start_date, "Start date"),
+        target_date=_as_date(target_date, "Target date"),
+        critical_date=_as_date(critical_date, "Critical date"),
+        priority=_one_of(priority, PRIORITIES, "priority", "MEDIUM"),
+        percent_complete=_percent(percent_complete),
         status=_one_of(status, MILESTONE_STATUSES, "milestone status",
                        "PENDING"),
         critical=bool(critical), created_by=actor, updated_by=actor)
+    _milestone_period(row)
     session.add(row)
     session.flush()
     record(session, project_id, entity_type=ENTITY_MILESTONE,
@@ -1007,6 +1094,22 @@ def update_milestone(session: Any, principal: Any, milestone_id: int, *,
             row.target_date = new_date
     if "actual_date" in fields:
         row.actual_date = _as_date(fields["actual_date"], "Actual date")
+    if "escalation_id" in fields:
+        row.escalation_id = (int(fields["escalation_id"])
+                             if fields["escalation_id"] else None)
+    if "priority" in fields and fields["priority"]:
+        row.priority = _one_of(fields["priority"], PRIORITIES, "priority")
+    if "percent_complete" in fields and fields["percent_complete"] is not None:
+        row.percent_complete = _percent(fields["percent_complete"])
+    for field_name, label in (("start_date", "Start date"),
+                              ("critical_date", "Critical date")):
+        if field_name not in fields:
+            continue
+        moved = _as_date(fields[field_name], label)
+        if moved != getattr(row, field_name):
+            changes[field_name] = [str(getattr(row, field_name) or ""),
+                                   str(moved or "")]
+            setattr(row, field_name, moved)
     if "status" in fields and fields["status"]:
         new = _one_of(fields["status"], MILESTONE_STATUSES,
                       "milestone status")
@@ -1016,6 +1119,7 @@ def update_milestone(session: Any, principal: Any, milestone_id: int, *,
         if new == MILESTONE_ACHIEVED and row.actual_date is None:
             row.actual_date = date.today()
 
+    _milestone_period(row)
     if not changes and not narrative:
         return row
     _bump(row, actor, expected_version)

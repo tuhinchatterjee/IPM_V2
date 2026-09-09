@@ -4,90 +4,117 @@ import Link from "next/link";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
-import {
-  Empty,
-  HealthPill,
-  Progress,
-  SectionCard,
-  Stat,
-  StatementLine,
-  when,
-} from "@/components/planner/parts";
+import { Empty, HealthPill, Progress, SectionCard, when }
+  from "@/components/planner/parts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api";
+import {
+  api,
+  type DraftRow,
+  type PlannerAttentionRow,
+  type PlannerProjectRow,
+} from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { cn } from "@/lib/utils";
 
 /**
- * The delivery portfolio — every project this person can see, in one table.
+ * The Project Planner, in the order §2 asks for it.
  *
- * The reader is a senior risk person at nine in the morning. They have four
- * questions and they are in this order: what is in trouble, what is late,
- * what is coming, and everything else. So the Attention panel is above the
- * table, not beside it, and the table's first sortable columns are health and
- * lateness rather than name.
+ *   Create new project · Import project · View my tasks
+ *   Needs attention
+ *   Current projects
+ *   Draft projects
+ *   Closed and completed projects
  *
- * Every number here is a count of rows that can be opened. A "3 overdue" that
- * leads nowhere teaches people that the figures on this screen are decoration.
+ * The page this replaces opened with a chat box and a suggestion to "start a
+ * new project" by describing it in conversation. UAT found that confusing,
+ * and it was: the product's primary action was a text field that might or
+ * might not understand the sentence typed into it. There is no chat here now.
+ * Creating a project is a form, and the form is one click away.
+ *
+ * Drafts are listed apart from projects, never mixed in. A draft is not a
+ * project — nothing is scheduled off it and nobody is chased about it — and a
+ * list that showed both would be a list where "we have 14 projects" is false.
  */
 export default function DeliveryPortfolioPage() {
   const [search, setSearch] = React.useState("");
-  const [health, setHealth] = React.useState("");
-  const [status, setStatus] = React.useState("");
   const [query, setQuery] = React.useState("");
 
-  // Typing filters the table on every keystroke, which is a query per
-  // keystroke. Debounced rather than searched-on-enter: a filter that needs
-  // a keypress to take effect gets used once and then abandoned.
   React.useEffect(() => {
     const timer = setTimeout(() => setQuery(search.trim()), 250);
     return () => clearTimeout(timer);
   }, [search]);
 
-  const portfolio = useAsync(
-    () => api.planner.portfolio({ search: query, health, status }),
-    [query, health, status],
-  );
-  const brief = useAsync(() => api.planner.portfolioBrief(6), []);
+  const open = useAsync(
+    () => api.planner.portfolio({ search: query, limit: 200 }), [query]);
+  const closed = useAsync(
+    () => api.planner.portfolio({ status: "COMPLETED", limit: 200 }), []);
+  const attention = useAsync(() => api.planner.needsAttention(25), []);
+  const drafts = useAsync(() => api.planner.plan.drafts("DRAFTING"), []);
 
-  const totals = portfolio.data?.totals;
-  const rows = portfolio.data?.projects ?? [];
+  const current = (open.data?.projects ?? []).filter(
+    (row) => row.status !== "COMPLETED" && row.status !== "CANCELLED");
+  const done = closed.data?.projects ?? [];
+  const issues = attention.data?.items ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-6">
+    <div className="mx-auto w-full max-w-7xl px-6 py-6">
       <PageHeader
         title="Project Planner"
-        description="Every delivery project you are on: what is late, what is blocked, who owes an update, and what is due next."
+        description="Your projects, what needs somebody today, and what the Agentic AI is chasing."
         actions={
-          <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
-              <a href={api.planner.templateUrl()}>Plan template</a>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/delivery/new">New project</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link href="/delivery/my-work">My work</Link>
-            </Button>
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <a href={api.planner.templateUrl()}>Plan template</a>
+          </Button>
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Stat label="Projects" value={totals?.projects ?? 0} />
-        <Stat label="Red" value={totals?.by_health.RED ?? 0} tone="negative" />
-        <Stat label="Amber" value={totals?.by_health.AMBER ?? 0}
-              tone="warning" />
-        <Stat label="Overdue tasks" value={totals?.overdue_tasks ?? 0}
-              tone={totals?.overdue_tasks ? "negative" : undefined} />
-        <Stat label="Blocked" value={totals?.blocked_tasks ?? 0}
-              tone={totals?.blocked_tasks ? "warning" : undefined} />
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button asChild>
+          <Link href="/delivery/new">Create new project</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/delivery/new?import=1">Import project</Link>
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/delivery/my-work">View my tasks</Link>
+        </Button>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
+      <SectionCard
+        title="Needs attention"
+        action={
+          attention.data ? (
+            <Badge variant="outline">
+              {attention.data.count} across {attention.data.projects}{" "}
+              {attention.data.projects === 1 ? "project" : "projects"}
+            </Badge>
+          ) : null
+        }
+      >
+        {attention.loading && <Empty>Working out what needs you…</Empty>}
+        {attention.error && (
+          <p className="px-4 py-6 text-sm text-negative">{attention.error}</p>
+        )}
+        {attention.data && issues.length === 0 && (
+          <Empty>
+            Nothing is overdue, blocked, stale or about to slip on any project
+            you can see.
+          </Empty>
+        )}
+        {issues.length > 0 && (
+          <ul className="divide-y divide-border">
+            {issues.map((issue, index) => (
+              <AttentionRow key={index} issue={issue} />
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+
+      <div className="mt-4">
         <SectionCard
-          title="Projects"
+          title="Current projects"
           action={
             <div className="flex items-center gap-2">
               <Input
@@ -97,188 +124,250 @@ export default function DeliveryPortfolioPage() {
                 className="h-8 w-48 text-xs"
                 aria-label="Search projects"
               />
-              <select
-                value={health}
-                onChange={(e) => setHealth(e.target.value)}
-                aria-label="Filter by health"
-                className="h-8 rounded-md border border-border bg-surface px-2 text-xs text-text-secondary"
-              >
-                <option value="">All health</option>
-                <option value="RED">Red</option>
-                <option value="AMBER">Amber</option>
-                <option value="GREEN">Green</option>
-                <option value="UNKNOWN">Unknown</option>
-              </select>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                aria-label="Filter by status"
-                className="h-8 rounded-md border border-border bg-surface px-2 text-xs text-text-secondary"
-              >
-                <option value="">All open</option>
-                <option value="DRAFT">Draft</option>
-                <option value="ACTIVE">Active</option>
-                <option value="ON_HOLD">On hold</option>
-                <option value="COMPLETED">Completed</option>
-              </select>
+              <Badge variant="outline">{current.length}</Badge>
             </div>
           }
         >
-          {portfolio.loading && <Empty>Reading the portfolio…</Empty>}
-          {portfolio.error && (
-            <p className="px-4 py-6 text-sm text-negative">{portfolio.error}</p>
+          {open.loading && <Empty>Reading the portfolio…</Empty>}
+          {open.error && (
+            <p className="px-4 py-6 text-sm text-negative">{open.error}</p>
           )}
-          {!portfolio.loading && !portfolio.error && rows.length === 0 && (
+          {!open.loading && !open.error && current.length === 0 && (
             <Empty>
-              {query || health || status
-                ? "No project matches that filter."
-                : "You are not on any delivery project yet."}
+              {query
+                ? "No open project matches that filter."
+                : "No open projects yet. Create one to get started."}
             </Empty>
           )}
-          {rows.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-text-muted">
-                    <th className="px-4 py-2 font-medium">Project</th>
-                    <th className="px-3 py-2 font-medium">Health</th>
-                    <th className="px-3 py-2 font-medium">Progress</th>
-                    <th className="px-3 py-2 font-medium text-right">Overdue</th>
-                    <th className="px-3 py-2 font-medium text-right">Blocked</th>
-                    <th className="px-3 py-2 font-medium">Next milestone</th>
-                    <th className="px-3 py-2 font-medium">Manager</th>
-                    <th className="px-4 py-2 font-medium">Recalculated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id}
-                        className="border-b border-border last:border-0 hover:bg-surface-hover">
-                      <td className="px-4 py-2.5">
-                        <Link href={`/delivery/${row.id}`}
-                              className="block min-w-0">
-                          <span className="font-mono text-[11px] text-text-muted">
-                            {row.code}
-                          </span>
-                          <span className="ml-2 text-text-primary">
-                            {row.name}
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <HealthPill health={row.health}
-                                    reason={row.health_reason}
-                                    overridden={row.health_overridden} />
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Progress percent={row.percent_complete} />
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">
-                        {row.overdue_tasks > 0 ? (
-                          <span className="text-negative">{row.overdue_tasks}</span>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">
-                        {row.blocked_tasks > 0 ? (
-                          <span className="text-warning">{row.blocked_tasks}</span>
-                        ) : (
-                          <span className="text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-text-secondary">
-                        {row.next_milestone ? (
-                          <>
-                            {row.next_milestone}
-                            <span className="ml-1 text-text-muted">
-                              {row.next_milestone_date}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-text-muted">None set</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-text-secondary">
-                        {row.manager?.name ?? "—"}
-                      </td>
-                      <td className="px-4 py-2.5 text-xs text-text-muted">
-                        {when(row.calculated_at)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {current.length > 0 && <ProjectTable rows={current} />}
+        </SectionCard>
+      </div>
+
+      <div className="mt-4">
+        <SectionCard
+          title="Draft projects"
+          action={
+            <Badge variant="outline">{drafts.data?.drafts.length ?? 0}</Badge>
+          }
+        >
+          {drafts.loading && <Empty>Looking for unfinished plans…</Empty>}
+          {drafts.data && drafts.data.drafts.length === 0 && (
+            <Empty>
+              No drafts. A project you start but do not publish waits here.
+            </Empty>
+          )}
+          {(drafts.data?.drafts.length ?? 0) > 0 && (
+            <ul className="divide-y divide-border">
+              {drafts.data?.drafts.map((draft) => (
+                <DraftLine key={draft.key} draft={draft}
+                           onGone={() => drafts.reload()} />
+              ))}
+            </ul>
           )}
         </SectionCard>
+      </div>
 
-        <div className="flex flex-col gap-4">
-          <SectionCard title="Needs attention">
-            {brief.loading && <Empty>Working out what needs you…</Empty>}
-            {brief.data && brief.data.attention.length === 0 && (
-              <Empty>
-                Nothing in your portfolio is amber or red on the record.
-              </Empty>
-            )}
-            {brief.data && brief.data.attention.length > 0 && (
-              <ul className="divide-y divide-border">
-                {brief.data.attention.map((item) => (
-                  <li key={item.id} className="px-4 py-3">
-                    <Link href={`/delivery/${item.id}`} className="block">
-                      <div className="flex items-center gap-2">
-                        <HealthPill health={item.health} />
-                        <span className="truncate text-sm text-text-primary">
-                          {item.name}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-text-secondary">
-                        {item.reason}
-                      </p>
-                      {item.findings.length > 0 && (
-                        <ul className="mt-1.5 space-y-0.5">
-                          {item.findings.slice(0, 3).map((f, i) => (
-                            <li key={i} className="text-xs text-text-muted">
-                              · {f.detail}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-
-          <SectionCard
-            title="Portfolio read"
-            action={
-              brief.data ? (
-                <Badge variant="outline">{brief.data.as_of}</Badge>
-              ) : null
-            }
-          >
-            {brief.data ? (
-              <div className="px-4 py-3">
-                <p className="text-sm font-medium text-text-primary">
-                  {brief.data.headline}
-                </p>
-                <ul className="mt-2 divide-y divide-border">
-                  {brief.data.statements.map((s, i) => (
-                    <StatementLine key={i} statement={s} />
-                  ))}
-                </ul>
-                <p className="mt-3 border-t border-border pt-2 text-[11px] text-text-muted">
-                  {brief.data.grounding}
-                </p>
-              </div>
-            ) : (
-              <Empty>{brief.error ?? "Reading the portfolio…"}</Empty>
-            )}
-          </SectionCard>
-        </div>
+      <div className="mt-4">
+        <SectionCard
+          title="Closed and completed projects"
+          action={<Badge variant="outline">{done.length}</Badge>}
+        >
+          {closed.loading && <Empty>Reading closed projects…</Empty>}
+          {!closed.loading && done.length === 0 && (
+            <Empty>Nothing has been completed yet.</Empty>
+          )}
+          {done.length > 0 && <ProjectTable rows={done} />}
+        </SectionCard>
       </div>
     </div>
+  );
+}
+
+/** §2. Every column a person reads before deciding to open a project. */
+function ProjectTable({ rows }: { rows: PlannerProjectRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-text-muted">
+            <th className="px-4 py-2 font-medium">Project</th>
+            <th className="px-3 py-2 font-medium">Code</th>
+            <th className="px-3 py-2 font-medium">Sponsor</th>
+            <th className="px-3 py-2 font-medium">Project manager</th>
+            <th className="px-3 py-2 font-medium">Health</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+            <th className="px-3 py-2 font-medium">Progress</th>
+            <th className="px-3 py-2 font-medium">Start</th>
+            <th className="px-3 py-2 font-medium">Target</th>
+            <th className="px-3 py-2 font-medium">Next milestone</th>
+            <th className="px-3 py-2 text-right font-medium">Overdue</th>
+            <th className="px-3 py-2 text-right font-medium">Blocked</th>
+            <th className="px-4 py-2 font-medium">Last updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}
+                className="border-b border-border last:border-0 hover:bg-surface-hover">
+              <td className="px-4 py-2.5">
+                <Link href={`/delivery/${row.id}`}
+                      className="text-text-primary hover:text-accent">
+                  {row.name}
+                </Link>
+              </td>
+              <td className="px-3 py-2.5 font-mono text-[11px] text-text-muted">
+                {row.code}
+              </td>
+              <td className="px-3 py-2.5 text-xs text-text-secondary">
+                {row.sponsor?.name ?? "—"}
+              </td>
+              <td className="px-3 py-2.5 text-xs text-text-secondary">
+                {row.manager?.name ?? "—"}
+              </td>
+              <td className="px-3 py-2.5">
+                <HealthPill health={row.health} reason={row.health_reason}
+                            overridden={row.health_overridden} />
+              </td>
+              <td className="px-3 py-2.5 text-xs text-text-secondary">
+                {row.status}
+              </td>
+              <td className="px-3 py-2.5">
+                <Progress percent={row.percent_complete} />
+              </td>
+              <td className="px-3 py-2.5 text-xs text-text-muted">
+                {row.start_date ?? "—"}
+              </td>
+              <td className="px-3 py-2.5 text-xs text-text-muted">
+                {row.target_end_date ?? "—"}
+              </td>
+              <td className="px-3 py-2.5 text-xs text-text-secondary">
+                {row.next_milestone ? (
+                  <>
+                    {row.next_milestone}
+                    <span className="ml-1 text-text-muted">
+                      {row.next_milestone_date}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-text-muted">None set</span>
+                )}
+              </td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {row.overdue_tasks > 0 ? (
+                  <span className="text-negative">{row.overdue_tasks}</span>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
+              <td className="px-3 py-2.5 text-right tabular-nums">
+                {row.blocked_tasks > 0 ? (
+                  <span className="text-warning">{row.blocked_tasks}</span>
+                ) : (
+                  <span className="text-text-muted">—</span>
+                )}
+              </td>
+              <td className="px-4 py-2.5 text-xs text-text-muted">
+                {when(row.updated_at)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * §17. One issue, with everything needed to act on it.
+ *
+ * Including how far the agent has already chased it — a list that showed the
+ * same overdue task for a week without saying "the sponsor was told on
+ * Tuesday" is a list people learn to scroll past.
+ */
+function AttentionRow({ issue }: { issue: PlannerAttentionRow }) {
+  return (
+    <li className="px-4 py-3">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <span className={cn(
+          "rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+          issue.severity === "critical"
+            ? "bg-negative/15 text-negative"
+            : "bg-warning/15 text-warning",
+        )}>
+          {issue.severity === "critical" ? "Critical" : "Warning"}
+        </span>
+        <Link href={`/delivery/${issue.project.id}`}
+              className="text-sm text-text-primary hover:text-accent">
+          {issue.project.name}
+        </Link>
+        <span className="font-mono text-[11px] text-text-muted">
+          {issue.entity_code}
+        </span>
+        <span className="text-sm text-text-secondary">{issue.title}</span>
+      </div>
+      <p className="mt-1 text-xs text-text-secondary">{issue.reason}</p>
+      <p className="mt-1 text-xs text-text-muted">
+        Owner {issue.owner?.name ?? "not named"}
+        {" · due "}{issue.due_date ?? "no date"}
+        {" · "}{issue.escalation.said}
+      </p>
+      <p className="mt-1 text-xs text-text-primary">
+        Next: {issue.next_action}
+      </p>
+    </li>
+  );
+}
+
+/** §14. A draft, and the three things you can do with one. */
+function DraftLine({
+  draft,
+  onGone,
+}: {
+  draft: DraftRow;
+  onGone: () => void;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const milestones = draft.plan?.milestones?.length ?? 0;
+  const tasks = draft.plan?.tasks?.length ?? 0;
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm text-text-primary">
+          {draft.name || "Unnamed plan"}
+          {draft.code && (
+            <span className="ml-2 font-mono text-[11px] text-text-muted">
+              {draft.code}
+            </span>
+          )}
+        </p>
+        <p className="mt-0.5 text-xs text-text-muted">
+          {milestones} {milestones === 1 ? "milestone" : "milestones"},{" "}
+          {tasks} {tasks === 1 ? "task" : "tasks"} · last saved{" "}
+          {when(draft.updated_at)} · not published, so nobody is being chased
+          about it.
+        </p>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <Button asChild size="sm" variant="outline">
+          <Link href={`/delivery/new?draft=${draft.key}`}>Continue editing</Link>
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await api.planner.plan.discard(draft.key);
+              onGone();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Discard
+        </Button>
+      </div>
+    </li>
   );
 }

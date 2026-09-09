@@ -33,12 +33,14 @@ from backend.models.planner import (
     PlannerParticipant,
     PlannerProject,
     PlannerRaid,
+    PlannerReminder,
     PlannerTask,
     PlannerUpdate,
     PlannerWorkstream,
 )
 from backend.planner import access as acl
 from backend.planner import control, schedule
+from backend.planner import policy as policy_mod
 
 QUERY_VERSION = "1.0.0"
 
@@ -466,6 +468,11 @@ def _task_row(row: Any, project: Any, directory: dict[int, dict[str, Any]],
         "critical": bool(row.critical),
         "owner": _person(directory, row.owner_id),
         "workstream_id": row.workstream_id,
+        # Which milestone it hangs off. Carried on every task row because the
+        # escalation ladder walks task → milestone → project, and a screen
+        # that cannot say which milestone a task belongs to cannot say who
+        # hears about it being late.
+        "milestone_id": row.milestone_id,
         "last_update_at": _iso(row.last_update_at),
         "last_update_text": row.last_update_text or "",
         "version": int(row.version or 1),
@@ -554,10 +561,11 @@ def project_detail(session: Any, principal: Any, project_id: int
 
     directory = people(session, (
         [t.owner_id for t in tasks] + [t.reviewer_id for t in tasks]
-        + [m.owner_id for m in milestones] + [r.owner_id for r in raid]
+        + [m.owner_id for m in milestones]
+        + [m.escalation_id for m in milestones] + [r.owner_id for r in raid]
         + [p.user_id for p in participants] + [w.lead_id for w in workstreams]
-        + [project.manager_id, project.sponsor_id,
-           project.manual_health_by]))
+        + [project.manager_id, project.sponsor_id, project.owner_id,
+           project.escalation_id, project.manual_health_by]))
     ws_progress = control.workstream_progress(plan.tasks)
     waiting = control.blocking(plan)
 
@@ -583,6 +591,15 @@ def project_detail(session: Any, principal: Any, project_id: int
             "reporting_cadence": project.reporting_cadence,
             "reminder_days": list(project.reminder_days or []),
             "stale_after_days": int(project.stale_after_days or 7),
+            "owner": _person(directory, project.owner_id),
+            # The last stop when a delay has not been resolved, and how hard
+            # the agent chases. Both were settled when the project was
+            # created and neither could be read back afterwards, so the
+            # policy a person approved was invisible from the day after they
+            # approved it.
+            "escalation": _person(directory, project.escalation_id),
+            "agentic_mode": project.agentic_mode,
+            "agentic": policy_mod.describe(policy_mod.of(project)),
             "archived": bool(project.archived),
             "version": int(project.version or 1),
             "created_at": _iso(project.created_at),
@@ -620,6 +637,7 @@ def project_detail(session: Any, principal: Any, project_id: int
             "actual_date": _iso(m.actual_date),
             "critical": bool(m.critical),
             "owner": _person(directory, m.owner_id),
+            "escalation": _person(directory, m.escalation_id),
             "workstream_id": m.workstream_id,
             "days_overdue": (max(0, (now - m.target_date).days)
                              if m.target_date and m.status in MILESTONE_OPEN
@@ -805,8 +823,183 @@ def attention(session: Any, principal: Any, *, limit: int = 10
     return [row for _rank, row in ranked[:limit]]
 
 
+# ===================================================== needs attention, §17
+
+
+#: What to do about each rule, in the words a project manager would use.
+#: Keyed by the engine's rule name so a new rule is a compile-time-obvious
+#: gap rather than a row that silently renders an empty column.
+_NEXT_ACTION = {
+    "overdue": "Get a completion date from the owner, or move the date.",
+    "due_soon": "Confirm with the owner that it will land on time.",
+    "blocked": "Clear the blocker, or escalate it to somebody who can.",
+    "stale": "Ask the owner for an update.",
+    "not_started": "Start it, or move the start date.",
+    "dependency": "Re-plan the dependency, or move the dates behind it.",
+    "milestone": "Re-baseline the milestone, or escalate the slip.",
+    "raid": "Work the item, or close it with a reason.",
+    "no_plan": "Give the project milestones and tasks to be judged against.",
+}
+
+#: How far a chase went, as a phrase rather than a code.
+_LEVEL_SAID = {
+    "": "the owner",
+    "own": "the item's own escalation contact",
+    "milestone": "the milestone's escalation contact",
+    "project": "the project's escalation contact",
+    "manager": "the project manager",
+    "sponsor": "the sponsor",
+}
+
+
+def _escalation_state(reminder: Any,
+                      directory: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    """Where the chase has got to, or that it has not started.
+
+    Read from the reminder record rather than recomputed, because "who was
+    actually told, and did they answer" is a fact about what was sent — and a
+    screen that re-derived it would eventually disagree with the message the
+    person is holding.
+    """
+    if reminder is None:
+        return {"state": "none", "level": "", "said": "Nobody chased yet.",
+                "person": None, "at": None}
+    person = _person(directory, reminder.user_id)
+    who = person["name"] if person else _LEVEL_SAID.get(reminder.level or "",
+                                                        "somebody")
+    when = _iso(reminder.sent_at)
+    if reminder.state == "answered":
+        state, said = "answered", f"{who} answered."
+    elif reminder.level:
+        state = "escalated"
+        said = (f"Escalated to {who} — "
+                f"{_LEVEL_SAID.get(reminder.level, reminder.level)} — {when}.")
+    else:
+        state, said = "reminded", f"{who} was reminded on {when}."
+    return {"state": state, "level": reminder.level or "", "said": said,
+            "person": person, "at": when}
+
+
+def needs_attention(session: Any, principal: Any, *,
+                    limit: int = 25) -> dict[str, Any]:
+    """The issues that need a person, one row per issue. §17.
+
+    The older `attention` returned one row per PROJECT with a few findings
+    hanging off it, which is the right shape for a health dashboard and the
+    wrong shape for a work list: a person reading it cannot tell what to do,
+    or who they would be chasing. This returns the finding itself — what it is
+    about, whose it is, when it was due, why it is here, how far the agent has
+    already chased it, and what would resolve it.
+
+    Deterministic throughout. Nothing here asks a model what is late.
+    """
+    allowed = acl.readable_project_ids(session, principal)
+    if not allowed:
+        return {"items": [], "count": 0, "projects": 0}
+    projects = {int(p.id): p for p in session.execute(
+        select(PlannerProject).where(
+            PlannerProject.id.in_(allowed),
+            PlannerProject.status.in_(PROJECT_OPEN),
+            PlannerProject.archived.is_(False))).scalars()}
+    if not projects:
+        return {"items": [], "count": 0, "projects": 0}
+
+    plans = plans_of(session, list(projects))
+    now = today()
+
+    # One pass for the findings, then one query each for the names and the
+    # chase records — never a lookup inside the loop.
+    raw: list[tuple[tuple[int, int, int], int, Any]] = []
+    for pid in projects:
+        verdict = control.health(plans[pid], now)
+        for finding in verdict.findings:
+            if finding.severity == control.INFO:
+                continue
+            rank = (0 if finding.severity == control.CRITICAL else 1,
+                    0 if finding.entity_type else 1,
+                    -int(finding.value or 0))
+            raw.append((rank, pid, finding))
+    raw.sort(key=lambda row: row[0])
+    chosen = raw[:limit]
+
+    owners: list[int | None] = []
+    for _rank, pid, finding in chosen:
+        holder = _finding_entity(plans[pid], finding)
+        owners.append(getattr(holder, "owner_id", None) if holder else None)
+
+    reminders = _latest_reminders(
+        session, [(pid, f.entity_type, f.entity_id)
+                  for _r, pid, f in chosen if f.entity_id])
+    directory = people(
+        session,
+        owners
+        + [r.user_id for r in reminders.values()]
+        + [p.manager_id for p in projects.values()])
+
+    items = []
+    for (_rank, pid, finding), owner_id in zip(chosen, owners, strict=True):
+        project = projects[pid]
+        holder = _finding_entity(plans[pid], finding)
+        due = (getattr(holder, "due_date", None)
+               or getattr(holder, "target_date", None)) if holder else None
+        reminder = reminders.get(
+            (pid, finding.entity_type, int(finding.entity_id or 0)))
+        items.append({
+            "project": {"id": pid, "code": project.code, "name": project.name},
+            "entity_type": finding.entity_type or "PROJECT",
+            "entity_id": finding.entity_id,
+            "entity_code": finding.entity_code or project.code,
+            "title": (getattr(holder, "title", None)
+                      or getattr(holder, "name", None) or project.name),
+            "rule": finding.rule,
+            "severity": finding.severity,
+            "reason": finding.detail,
+            "owner": _person(directory, owner_id)
+                     or _person(directory, project.manager_id),
+            "due_date": _iso(due),
+            "escalation": _escalation_state(reminder, directory),
+            "next_action": _NEXT_ACTION.get(
+                finding.rule, "Decide what to do and record it."),
+        })
+    return {"items": items, "count": len(raw),
+            "projects": len({row[1] for row in raw})}
+
+
+def _finding_entity(plan: control.Plan, finding: Any) -> Any:
+    """The task or milestone a finding is about, or None for a project one."""
+    if not finding.entity_id:
+        return None
+    if finding.entity_type == ENTITY_MILESTONE:
+        return plan.milestone(int(finding.entity_id))
+    return plan.task(int(finding.entity_id))
+
+
+def _latest_reminders(session: Any, keys: list[tuple[int, str, int]]
+                      ) -> dict[tuple[int, str, int], Any]:
+    """The most recent chase for each item, in one query.
+
+    Most recent rather than all of them: the question the screen asks is "how
+    far has this got", and that is answered by the last rung reached.
+    """
+    if not keys:
+        return {}
+    project_ids = {key[0] for key in keys}
+    rows = session.execute(
+        select(PlannerReminder)
+        .where(PlannerReminder.project_id.in_(project_ids))
+        .order_by(PlannerReminder.sent_at)).scalars()
+    wanted = set(keys)
+    found: dict[tuple[int, str, int], Any] = {}
+    for row in rows:
+        key = (int(row.project_id), row.entity_type, int(row.entity_id))
+        if key in wanted:
+            found[key] = row
+    return found
+
+
 __all__ = [
     "QUERY_VERSION", "today", "people", "plan_of", "plans_of",
     "refresh_calculations", "effective_health", "portfolio", "my_work",
     "project_detail", "activity", "changes_since", "attention",
+    "needs_attention",
 ]

@@ -272,6 +272,14 @@ PERMITTED_WRITERS: dict[str, str] = {
     "planner_create_raid_item": "Raises a risk or issue on the register. "
                                 "Raising only — closing one is a judgement "
                                 "and has no tool.",
+    "planner_draft_start": "Opens a draft plan, which is a private working "
+                           "document its author is the only person who can "
+                           "see. It creates no project and appears on nobody "
+                           "else's screen.",
+    "planner_draft_apply": "Edits that same private draft — a milestone, a "
+                           "task, a date, a link. Publishing it is a separate "
+                           "act on a route a person calls, and there is no "
+                           "tool for it.",
 }
 
 #: Verbs that would make a capability a Level 4 action whatever it is called.

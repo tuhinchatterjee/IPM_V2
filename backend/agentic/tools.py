@@ -104,6 +104,19 @@ PLANNER_POST_TASK_UPDATE = "planner_post_task_update"
 PLANNER_SET_TASK_BLOCKER = "planner_set_task_blocker"
 PLANNER_CREATE_RAID_ITEM = "planner_create_raid_item"
 
+# Building a plan that is not a project yet. These write, and they write to
+# ONE place: the draft document in `planner_drafts`, which nobody but its
+# author can see. There is deliberately NO tool that publishes one. Creating a
+# real project is a material act with an audience, which §21 puts at Level 4,
+# so it happens on a route a person calls with an explicit confirmation and
+# never inside a conversation the assistant is steering.
+PLANNER_DRAFT_START = "planner_draft_start"
+PLANNER_DRAFT_READ = "planner_draft_read"
+PLANNER_DRAFT_APPLY = "planner_draft_apply"
+PLANNER_DRAFT_LINK_PREVIEW = "planner_draft_link_preview"
+PLANNER_DRAFT_PREVIEW = "planner_draft_preview"
+PLANNER_PEOPLE = "planner_people"
+
 
 class ToolDenied(PermissionError):
     """An agent asked for something it is not permitted to do."""
@@ -388,6 +401,38 @@ TOOLS: tuple[Tool, ...] = (
          "backend.planner.agent",
          parameters=("project", "task", "tone"), required=("project",),
          writes=True, reads_data=True),
+    Tool(PLANNER_PEOPLE, "Find a colleague",
+         "Look up the people who can be named as an owner, a sponsor or an "
+         "escalation contact, by name or by what they do.",
+         "backend.planner.copilot",
+         parameters=("search", "limit"), reads_data=True),
+    Tool(PLANNER_DRAFT_START, "Start a plan",
+         "Open a new draft project. Creates nothing that anybody else can "
+         "see; a draft becomes a project only when it is published.",
+         "backend.planner.draft",
+         parameters=("name",), writes=True, reads_data=True),
+    Tool(PLANNER_DRAFT_READ, "Read the plan being built",
+         "The draft as it currently stands, with what it still needs.",
+         "backend.planner.draft",
+         parameters=("draft",), required=("draft",), reads_data=True),
+    Tool(PLANNER_DRAFT_APPLY, "Change the plan being built",
+         "Apply one named change to a draft: the overview, the governance, "
+         "the way the agent works, a milestone, a task or a link.",
+         "backend.planner.draft",
+         parameters=("draft", "command", "payload", "expected_version"),
+         required=("draft", "command"), writes=True, reads_data=True),
+    Tool(PLANNER_DRAFT_LINK_PREVIEW, "What a link would do",
+         "State the effect of making one thing wait for another, without "
+         "making it.",
+         "backend.planner.draft",
+         parameters=("draft", "predecessor", "successor", "dependency_type",
+                     "lag_days"),
+         required=("draft", "predecessor", "successor"), reads_data=True),
+    Tool(PLANNER_DRAFT_PREVIEW, "The whole plan, before it exists",
+         "Everything that would be created, in full, for a person to read "
+         "before confirming.",
+         "backend.planner.draft",
+         parameters=("draft",), required=("draft",), reads_data=True),
 )
 
 _BY_ID: dict[str, Tool] = {t.tool_id: t for t in TOOLS}
@@ -414,6 +459,10 @@ NO_TOOL_EXISTS: tuple[str, ...] = (
     # Not actions in §21's list, but the same prohibition: capabilities that
     # would make every other permission in this file decorative.
     "alter_certified_method",
+    # Creating a project out of a draft. The draft tools build the plan; the
+    # act of making it real, with everybody named on it able to see it, is a
+    # person's, performed on a route with an explicit confirmation.
+    "publish_project",
     # The planner's own forbidden list. A person owns their commitments: an
     # agent that could quietly mark a task done, move a deadline or close a
     # risk would make every status report in the product unreliable, and the
@@ -606,8 +655,14 @@ __all__ = [
     "PLANNER_CHANGES",
     "PLANNER_CHASE_LIST",
     "PLANNER_DEPENDENCIES",
+    "PLANNER_DRAFT_APPLY",
+    "PLANNER_DRAFT_LINK_PREVIEW",
+    "PLANNER_DRAFT_PREVIEW",
+    "PLANNER_DRAFT_READ",
+    "PLANNER_DRAFT_START",
     "PLANNER_DRAFT_UPDATE",
     "PLANNER_MILESTONES",
+    "PLANNER_PEOPLE",
     "PLANNER_MY_WORK",
     "PLANNER_PORTFOLIO",
     "PLANNER_PROJECT",
