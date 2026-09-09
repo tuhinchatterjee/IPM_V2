@@ -162,6 +162,16 @@ suite and the demonstration share it, and the suite's fixtures delete seeded
 committees and packs as they tear down. If you have run it, re-run
 `scripts/bootstrap_demo.py` — it takes seconds.
 
+**Export to Playbook is live in four modules, not five.** The Cockpit, Early
+Warning, Scorecard Validation and Lenses each carry the button. What-If does
+not: the export contract declares `what_if` as a source module and the seeded
+library holds six What-If analyses, but no producing surface exists on this
+baseline — `IMPLEMENTED_MODULES` in `backend/exports/playbook_contract.py` says
+so in as many words, deliberately, rather than shipping a control that fails.
+Wiring it is M7 in the integration plan and is the one part of the
+Export-to-Playbook decision still open. If the demonstration turns on exporting
+a What-If result, say that it comes next rather than clicking for it.
+
 **Without an AI provider key**, every model-backed surface says so rather than
 failing: the Playbook composer explains that generation needs a configured
 provider while every seeded workspace, its sources and its Word, PDF and
