@@ -1244,3 +1244,32 @@ Backend and frontend started for real, not in a test client:
 | `next start` (production build) | serves every route |
 | Routes checked | `/`, `/early-warning`, `/what-if`, `/lenses`, `/playbook`, `/playbook/library`, `/playbook/committees`, `/playbook/packs/new`, `/playbook/artifacts/{1,2,3}`, `/projects`, `/scorecard-validation`, `/scorecard-validation/monitoring`, `/borrower-360`, `/data-builder`, `/studio`, `/investigations` — **all 200** |
 | Retirements | `/playbooks` **404**; `/stress` renders a redirect to `/what-if`; `/early-warning/signals` redirects to `/early-warning`. No nav entry points at any of the three |
+
+#### `scripts/browser_acceptance.py` — NOT VERIFIED, and why
+
+Playwright was not in the environment; installed (1.62.0) against the
+pre-installed Chromium at `/opt/pw-browsers`. The harness then failed twice,
+both times on the harness rather than on a screen:
+
+```
+Page.evaluate: Execution context was destroyed, most likely because of a
+navigation
+  browser_acceptance.py:253 _theme_applied
+```
+
+`_theme_applied` evaluates script against a page that has, by then, navigated
+away — which is what a client-side redirect does, and this build now has three
+of them (`/stress`, `/early-warning/signals`, and the Playbook landing's own
+router pushes). The second run hung with its Chromium children idle at zero CPU
+and was killed at its timeout.
+
+**Recorded as NOT VERIFIED rather than as passed or as a product defect**, per
+the rule the rehearsal set: a claim the environment cannot support is written
+as NOT VERIFIED and never conflated with a weaker one that can be. Making the
+harness wait for navigation to settle before evaluating is a fix to the harness
+and belongs with the M10 navigation audit.
+
+What *was* verified live, and is not a substitute for the above but is what the
+environment could actually show: both servers started for real, and every demo
+route plus all three retirements answered as intended over HTTP (recorded in
+the previous section).
