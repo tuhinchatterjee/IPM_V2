@@ -47,6 +47,11 @@ frontend/node_modules/
 # data/raw IS committed (it is the source of truth for the demo).
 data/curated/*.parquet
 data/analytics/
+# The Cockpit Agentic V3 release lake. Deterministically rebuilt from one seed
+# by scripts/build_cockpit_agentic_v3.py, so the bytes are a build artefact and
+# the script is the source of truth. Its manifest, integrity report and
+# coverage profile ARE committed, under docs/cockpit_agentic_v3/evidence.
+data/cockpit_agentic_v3/
 metadata/catalog.json
 
 # ---- intelligence release ----

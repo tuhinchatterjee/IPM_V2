@@ -1,0 +1,586 @@
+{
+  "policy_version": "1.0.0",
+  "assumption": "Synthetic demonstration assumption. Not calibrated, not validated, not approved for any regulatory or accounting purpose.",
+  "rating": {
+    "scale_id": "COCKPIT_DEMO_MASTER_SCALE",
+    "model_id": "COCKPIT_DEMO_CORPORATE_RATING_V1",
+    "model_version": "1.0.0",
+    "grades": [
+      {
+        "grade": "AAA",
+        "rank": 1,
+        "twelve_month_pd": 0.0003,
+        "investment": true
+      },
+      {
+        "grade": "AA",
+        "rank": 2,
+        "twelve_month_pd": 0.0006,
+        "investment": true
+      },
+      {
+        "grade": "A",
+        "rank": 3,
+        "twelve_month_pd": 0.0012,
+        "investment": true
+      },
+      {
+        "grade": "BBB",
+        "rank": 4,
+        "twelve_month_pd": 0.003,
+        "investment": true
+      },
+      {
+        "grade": "BB+",
+        "rank": 5,
+        "twelve_month_pd": 0.007,
+        "investment": false
+      },
+      {
+        "grade": "BB",
+        "rank": 6,
+        "twelve_month_pd": 0.013,
+        "investment": false
+      },
+      {
+        "grade": "BB-",
+        "rank": 7,
+        "twelve_month_pd": 0.022,
+        "investment": false
+      },
+      {
+        "grade": "B+",
+        "rank": 8,
+        "twelve_month_pd": 0.038,
+        "investment": false
+      },
+      {
+        "grade": "B",
+        "rank": 9,
+        "twelve_month_pd": 0.062,
+        "investment": false
+      },
+      {
+        "grade": "B-",
+        "rank": 10,
+        "twelve_month_pd": 0.095,
+        "investment": false
+      },
+      {
+        "grade": "CCC",
+        "rank": 11,
+        "twelve_month_pd": 0.18,
+        "investment": false
+      },
+      {
+        "grade": "CC",
+        "rank": 12,
+        "twelve_month_pd": 0.32,
+        "investment": false
+      },
+      {
+        "grade": "D",
+        "rank": 13,
+        "twelve_month_pd": 1.0,
+        "investment": false
+      }
+    ],
+    "factors": [
+      {
+        "field": "dscr",
+        "label": "Debt service coverage",
+        "weight": 0.28,
+        "higher_is_better": true,
+        "missing_score": 5.0
+      },
+      {
+        "field": "net_debt_to_ebitda",
+        "label": "Net debt / EBITDA",
+        "weight": 0.24,
+        "higher_is_better": false,
+        "missing_score": 5.0
+      },
+      {
+        "field": "interest_coverage",
+        "label": "EBIT / interest",
+        "weight": 0.18,
+        "higher_is_better": true,
+        "missing_score": 5.0
+      },
+      {
+        "field": "ebitda_margin",
+        "label": "EBITDA margin",
+        "weight": 0.14,
+        "higher_is_better": true,
+        "missing_score": 5.0
+      },
+      {
+        "field": "current_ratio",
+        "label": "Current ratio",
+        "weight": 0.09,
+        "higher_is_better": true,
+        "missing_score": 5.0
+      },
+      {
+        "field": "revenue_growth",
+        "label": "Revenue growth",
+        "weight": 0.07,
+        "higher_is_better": true,
+        "missing_score": 5.0
+      }
+    ]
+  },
+  "sicr": {
+    "policy_id": "COCKPIT_DEMO_SICR_V1",
+    "notch_threshold": 3,
+    "relative_pd_increase": 2.0,
+    "absolute_pd_floor": 0.01,
+    "dpd_backstop": 30,
+    "default_dpd": 90,
+    "npl_equals_stage_3": true,
+    "npl_note": "In this demonstration an account is non-performing exactly when it is credit-impaired and in Stage 3. That is a stated demo policy, not a universal identity between the two definitions."
+  },
+  "recovery": {
+    "policy_id": "COCKPIT_DEMO_RECOVERY_V1",
+    "unsecured_lgd": {
+      "Large Corporate": 0.55,
+      "Mid Corporate": 0.62,
+      "SME": 0.7
+    },
+    "secured_lgd": {
+      "Large Corporate": 0.18,
+      "Mid Corporate": 0.22,
+      "SME": 0.28
+    },
+    "collateral": {
+      "Commercial property": {
+        "haircut": 0.3,
+        "recovery_lag_years": 2.0
+      },
+      "Residential property": {
+        "haircut": 0.25,
+        "recovery_lag_years": 1.5
+      },
+      "Industrial property": {
+        "haircut": 0.35,
+        "recovery_lag_years": 2.5
+      },
+      "Plant and machinery": {
+        "haircut": 0.5,
+        "recovery_lag_years": 1.5
+      },
+      "Inventory": {
+        "haircut": 0.6,
+        "recovery_lag_years": 0.75
+      },
+      "Receivables": {
+        "haircut": 0.4,
+        "recovery_lag_years": 0.5
+      },
+      "Listed securities": {
+        "haircut": 0.2,
+        "recovery_lag_years": 0.25
+      },
+      "Cash deposit": {
+        "haircut": 0.0,
+        "recovery_lag_years": 0.0
+      }
+    },
+    "impaired_base_recovery": {
+      "Large Corporate": 0.42,
+      "Mid Corporate": 0.36,
+      "SME": 0.3
+    },
+    "impaired_recovery_lag_years": 2.0,
+    "stale_valuation_days": 540
+  },
+  "scenarios": [
+    {
+      "scenario_id": "base",
+      "label": "Base",
+      "weight": 0.6
+    },
+    {
+      "scenario_id": "upturn",
+      "label": "Upturn",
+      "weight": 0.2
+    },
+    {
+      "scenario_id": "downturn",
+      "label": "Downturn",
+      "weight": 0.2
+    }
+  ],
+  "macro": {
+    "model_id": "COCKPIT_DEMO_MACRO_PD_V1",
+    "predictors": [
+      {
+        "predictor": "real_gdp_growth",
+        "label": "Real GDP growth",
+        "unit": "percent per annum",
+        "direction": "higher is better"
+      },
+      {
+        "predictor": "inflation",
+        "label": "Consumer price inflation",
+        "unit": "percent per annum",
+        "direction": "context dependent"
+      },
+      {
+        "predictor": "unemployment",
+        "label": "Unemployment rate",
+        "unit": "percent",
+        "direction": "lower is better"
+      },
+      {
+        "predictor": "policy_rate",
+        "label": "Policy interest rate",
+        "unit": "percent",
+        "direction": "lower is better for borrowers"
+      },
+      {
+        "predictor": "government_bond_yield",
+        "label": "10-year government bond yield",
+        "unit": "percent",
+        "direction": "lower is better for borrowers"
+      },
+      {
+        "predictor": "exchange_rate_move",
+        "label": "Exchange rate movement",
+        "unit": "percent change against the reporting currency",
+        "direction": "context dependent: it is not a basis-point measure and its sign helps an exporter and hurts an importer"
+      },
+      {
+        "predictor": "commercial_property_prices",
+        "label": "Commercial property prices",
+        "unit": "percent change",
+        "direction": "higher is better"
+      },
+      {
+        "predictor": "oil_price_move",
+        "label": "Oil price movement",
+        "unit": "percent change",
+        "direction": "context dependent"
+      },
+      {
+        "predictor": "industrial_production",
+        "label": "Industrial production growth",
+        "unit": "percent per annum",
+        "direction": "higher is better"
+      },
+      {
+        "predictor": "real_household_income",
+        "label": "Real household income growth",
+        "unit": "percent per annum",
+        "direction": "higher is better"
+      }
+    ],
+    "sensitivities": [
+      {
+        "sector": "Construction",
+        "predictor": "real_gdp_growth",
+        "target": "pd",
+        "coefficient": -0.42,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Construction",
+        "predictor": "policy_rate",
+        "target": "pd",
+        "coefficient": 0.3,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Construction",
+        "predictor": "commercial_property_prices",
+        "target": "pd",
+        "coefficient": -0.22,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Construction",
+        "predictor": "commercial_property_prices",
+        "target": "lgd",
+        "coefficient": -0.35,
+        "lag_quarters": 0,
+        "note": "Enters recovery, not default: it moves what the security is worth, not how likely the borrower is to fail."
+      },
+      {
+        "sector": "Construction",
+        "predictor": "unemployment",
+        "target": "pd",
+        "coefficient": 0.18,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Manufacturing",
+        "predictor": "industrial_production",
+        "target": "pd",
+        "coefficient": -0.46,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Manufacturing",
+        "predictor": "real_gdp_growth",
+        "target": "pd",
+        "coefficient": -0.28,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Manufacturing",
+        "predictor": "policy_rate",
+        "target": "pd",
+        "coefficient": 0.22,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Manufacturing",
+        "predictor": "exchange_rate_move",
+        "target": "pd",
+        "coefficient": -0.14,
+        "lag_quarters": 1,
+        "note": "Exporter-weighted: a weaker reporting currency helps."
+      },
+      {
+        "sector": "Retail Trade",
+        "predictor": "real_household_income",
+        "target": "pd",
+        "coefficient": -0.5,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Retail Trade",
+        "predictor": "unemployment",
+        "target": "pd",
+        "coefficient": 0.34,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Retail Trade",
+        "predictor": "inflation",
+        "target": "pd",
+        "coefficient": 0.16,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Transport and Logistics",
+        "predictor": "oil_price_move",
+        "target": "pd",
+        "coefficient": 0.3,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Transport and Logistics",
+        "predictor": "real_gdp_growth",
+        "target": "pd",
+        "coefficient": -0.32,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Transport and Logistics",
+        "predictor": "industrial_production",
+        "target": "pd",
+        "coefficient": -0.2,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Hospitality",
+        "predictor": "real_household_income",
+        "target": "pd",
+        "coefficient": -0.44,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Hospitality",
+        "predictor": "unemployment",
+        "target": "pd",
+        "coefficient": 0.3,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Hospitality",
+        "predictor": "exchange_rate_move",
+        "target": "pd",
+        "coefficient": 0.18,
+        "lag_quarters": 1,
+        "note": "Importer-weighted: a weaker reporting currency hurts."
+      },
+      {
+        "sector": "Healthcare",
+        "predictor": "real_gdp_growth",
+        "target": "pd",
+        "coefficient": -0.14,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Healthcare",
+        "predictor": "policy_rate",
+        "target": "pd",
+        "coefficient": 0.12,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Information Technology",
+        "predictor": "real_gdp_growth",
+        "target": "pd",
+        "coefficient": -0.24,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Information Technology",
+        "predictor": "exchange_rate_move",
+        "target": "pd",
+        "coefficient": -0.2,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Information Technology",
+        "predictor": "policy_rate",
+        "target": "pd",
+        "coefficient": 0.16,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Real Estate",
+        "predictor": "commercial_property_prices",
+        "target": "pd",
+        "coefficient": -0.4,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Real Estate",
+        "predictor": "policy_rate",
+        "target": "pd",
+        "coefficient": 0.34,
+        "lag_quarters": 2,
+        "note": ""
+      },
+      {
+        "sector": "Real Estate",
+        "predictor": "real_gdp_growth",
+        "target": "pd",
+        "coefficient": -0.2,
+        "lag_quarters": 1,
+        "note": ""
+      },
+      {
+        "sector": "Real Estate",
+        "predictor": "commercial_property_prices",
+        "target": "lgd",
+        "coefficient": -0.45,
+        "lag_quarters": 0,
+        "note": "Enters recovery: collateral values move with the index."
+      }
+    ],
+    "pd_floor": 0.0001,
+    "pd_cap": 0.95,
+    "candidate_set_note": "A proposed demonstration set of ten macroeconomic predictors. It is not a statistically validated 'top ten' and no selection procedure produced it."
+  },
+  "ccf": {
+    "Term Loan": 0.0,
+    "Revolving Credit Facility": 0.55,
+    "Working Capital Line": 0.5,
+    "Overdraft": 0.45,
+    "Trade Finance": 0.3,
+    "Project Finance": 0.6,
+    "Guarantee": 0.5
+  },
+  "covenants": {
+    "policy_id": "COCKPIT_DEMO_COVENANTS_V1",
+    "cure_days": 60,
+    "definitions": [
+      {
+        "covenant_id": "DSCR_MIN",
+        "metric": "dscr",
+        "label": "Minimum debt service coverage",
+        "formula": "cash available for debt service / (scheduled principal + cash interest)",
+        "operator": ">=",
+        "tolerance": 0.02,
+        "frequency": "quarterly",
+        "materiality": "high"
+      },
+      {
+        "covenant_id": "LEVERAGE_MAX",
+        "metric": "net_debt_to_ebitda",
+        "label": "Maximum net leverage",
+        "formula": "(total debt - cash) / EBITDA, trailing twelve months",
+        "operator": "<=",
+        "tolerance": 0.1,
+        "frequency": "quarterly",
+        "materiality": "high"
+      },
+      {
+        "covenant_id": "ICR_MIN",
+        "metric": "interest_coverage",
+        "label": "Minimum interest cover",
+        "formula": "EBIT / interest expense, trailing twelve months",
+        "operator": ">=",
+        "tolerance": 0.05,
+        "frequency": "semiannual",
+        "materiality": "medium"
+      },
+      {
+        "covenant_id": "CURRENT_MIN",
+        "metric": "current_ratio",
+        "label": "Minimum current ratio",
+        "formula": "total current assets / total current liabilities",
+        "operator": ">=",
+        "tolerance": 0.05,
+        "frequency": "quarterly",
+        "materiality": "medium"
+      },
+      {
+        "covenant_id": "GEARING_MAX",
+        "metric": "debt_to_equity",
+        "label": "Maximum gearing",
+        "formula": "total debt / total equity",
+        "operator": "<=",
+        "tolerance": 0.1,
+        "frequency": "annual",
+        "materiality": "low"
+      }
+    ]
+  },
+  "overlays": [
+    {
+      "overlay_id": "OVL_CONSTRUCTION_CYCLE",
+      "label": "Construction sector cycle overlay",
+      "sector": "Construction",
+      "rationale": "A demonstration overlay standing for model risk the committee judged the through-the-cycle PD not to capture.",
+      "basis": "percentage of modelled ECL on the sector"
+    },
+    {
+      "overlay_id": "OVL_SME_DATA_QUALITY",
+      "label": "SME statement-availability overlay",
+      "segment": "SME",
+      "rationale": "A demonstration overlay standing for the uncertainty in rating SME borrowers on stale statements.",
+      "basis": "percentage of modelled ECL on the segment"
+    }
+  ],
+  "staleness": {
+    "valuation_days": 540,
+    "statement_days": 450,
+    "rating_days": 400
+  }
+}

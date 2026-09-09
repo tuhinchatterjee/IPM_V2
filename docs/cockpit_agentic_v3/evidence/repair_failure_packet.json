@@ -1,0 +1,204 @@
+{
+  "request_id": "req-trace-001",
+  "plan_id": "plan-1",
+  "analysis_round": 1,
+  "submission_id": "sub-33fbd628",
+  "submission_number": 1,
+  "failing_step_id": "s1",
+  "phase": "validation",
+  "language": "sql",
+  "category": "UNRESOLVED_FIELD",
+  "message": "Binder Error: Referenced column \"pd_12_month\" not found in FROM clause!",
+  "submitted_code": "SELECT facility_id, pd_12_month FROM cockpit_facility_quarter WHERE reporting_quarter = '2026Q2' AND sector_code = 'F41'",
+  "parameters": {},
+  "sqlstate": "",
+  "line": null,
+  "column": null,
+  "unresolved_name": "pd_12_month",
+  "invalid_value": "",
+  "available_alternatives": [
+    {
+      "field": "pd_pit_12m",
+      "meaning": "Point-in-time probability of default over the next 12 months.",
+      "unit": "probability_0_1",
+      "type": "float"
+    },
+    {
+      "field": "pd_ttc_12m",
+      "meaning": "Through-the-cycle 12-month PD on the documented horizon.",
+      "unit": "probability_0_1",
+      "type": "float"
+    },
+    {
+      "field": "pd_lifetime_horizon_months",
+      "meaning": "The actual remaining horizon underlying the lifetime PD. Not automatically twenty quarters and not the reporting calendar.",
+      "unit": "months",
+      "type": "float"
+    },
+    {
+      "field": "pd_pit_12m_at_origination",
+      "meaning": "PIT 12-month PD at initial recognition, the SICR comparison baseline.",
+      "unit": "probability_0_1",
+      "type": "float"
+    },
+    {
+      "field": "pd_ttc_12m_at_origination",
+      "meaning": "TTC 12-month PD at initial recognition, where supplied.",
+      "unit": "probability_0_1",
+      "type": "float"
+    },
+    {
+      "field": "pd_parameter_version",
+      "meaning": "Source parameter version for the PD values.",
+      "unit": "",
+      "type": "string"
+    }
+  ],
+  "available_filter_values": {
+    "reporting_quarter": [
+      "2021Q3",
+      "2021Q4",
+      "2022Q1",
+      "2022Q2",
+      "2022Q3",
+      "2022Q4",
+      "2023Q1",
+      "2023Q2",
+      "2023Q3",
+      "2023Q4",
+      "2024Q1",
+      "2024Q2",
+      "2024Q3",
+      "2024Q4",
+      "2025Q1",
+      "2025Q2",
+      "2025Q3",
+      "2025Q4",
+      "2026Q1",
+      "2026Q2"
+    ]
+  },
+  "relevant_grains": {
+    "cockpit_borrower_financial_quarter": "borrower_id x reporting_quarter x statement_scope -- BORROWER grain. One borrower may secure several facilities; joining this to cockpit_facility_quarter repeats the statement once per facility",
+    "cockpit_collateral_allocation": "collateral_id x facility_id x position_id x reporting_quarter -- the allocation link. Summing gross_market_value across this relation double counts a shared asset",
+    "cockpit_collateral_quarter": "collateral_id x reporting_quarter -- ASSET grain. An asset shared across facilities appears ONCE here",
+    "cockpit_covenant_quarter": "covenant_id x reporting_quarter x test_version -- obligation grain. A borrower-wide covenant must not be counted once per facility",
+    "cockpit_facility_quarter": "tenant_id x dataset_release_id x reporting_quarter x facility_id x position_id -- one atomic facility position per reporting quarter",
+    "cockpit_ifrs9_detail": "facility position x reporting_quarter x ifrs9_run_id x scenario_id x term_horizon_index -- stored IFRS 9 parameters and results only",
+    "cockpit_macro_quarter_window": "reporting_quarter (anchor) x factor_id x country_or_region x scenario_id x quarter_offset (-4..+15) -- 20 offsets per anchor",
+    "cockpit_qualitative_quarter": "borrower_id x reporting_quarter x question_id -- twenty rows per borrower-quarter when fully answered",
+    "cockpit_rating_ratio_quarter": "borrower_id x reporting_quarter x rating_basis -- BORROWER grain, same repetition warning as the financial statements",
+    "cockpit_reporting_calendar": "dataset_release_id x reporting_quarter"
+  },
+  "valid_join_keys": {
+    "cockpit_facility_quarter -> cockpit_borrower_financial_quarter": [
+      "borrower_id",
+      "reporting_quarter"
+    ],
+    "cockpit_facility_quarter -> cockpit_rating_ratio_quarter": [
+      "borrower_id",
+      "reporting_quarter"
+    ],
+    "cockpit_facility_quarter -> cockpit_qualitative_quarter": [
+      "borrower_id",
+      "reporting_quarter"
+    ],
+    "cockpit_facility_quarter -> cockpit_ifrs9_detail": [
+      "facility_id",
+      "position_id",
+      "reporting_quarter"
+    ],
+    "cockpit_facility_quarter -> cockpit_collateral_allocation": [
+      "facility_id",
+      "position_id",
+      "reporting_quarter"
+    ],
+    "cockpit_collateral_allocation -> cockpit_collateral_quarter": [
+      "collateral_id",
+      "reporting_quarter"
+    ],
+    "cockpit_facility_quarter -> cockpit_covenant_quarter": [
+      "facility_id",
+      "reporting_quarter"
+    ],
+    "cockpit_facility_quarter -> cockpit_macro_quarter_window": [
+      "reporting_quarter",
+      "country_code=country_or_region"
+    ]
+  },
+  "field_coverage": {
+    "pd_pit_12m": {
+      "availability": "demo_only",
+      "aggregation": "not_additive",
+      "unit": "probability_0_1"
+    },
+    "pd_ttc_12m": {
+      "availability": "demo_only",
+      "aggregation": "not_additive",
+      "unit": "probability_0_1"
+    },
+    "pd_lifetime_horizon_months": {
+      "availability": "demo_only",
+      "aggregation": "not_additive",
+      "unit": "months"
+    },
+    "pd_pit_12m_at_origination": {
+      "availability": "demo_only",
+      "aggregation": "not_additive",
+      "unit": "probability_0_1"
+    }
+  },
+  "completed_steps": [],
+  "failed_steps": [
+    "s1"
+  ],
+  "reusable_artifacts": [],
+  "previous_failed_approaches": [],
+  "partial_results_complete_for": [],
+  "repairable": true,
+  "user_input_needed": false,
+  "suggested_clarification": "If the request did not say which, ask whether the user means the point-in-time or the through-the-cycle PD, and the twelve-month or the lifetime horizon. Do not substitute one silently.",
+  "operator_fix_required": false,
+  "dataset_release_id": "trace-20q",
+  "duplicate_fingerprint": "31464af7eda9a29d86f40e5c",
+  "budget": {
+    "request_id": "req-trace-001",
+    "mode": "standard",
+    "submissions_used": 1,
+    "submissions_remaining": 4,
+    "analysis_rounds_used": 1,
+    "analysis_rounds_remaining": 2,
+    "model_requests_used": 3,
+    "model_requests_remaining": 37,
+    "metadata_requests_remaining": 2,
+    "executable_steps_used": 1,
+    "executable_steps_remaining": 11,
+    "tokens_used": 33897,
+    "tokens_remaining": 366103,
+    "max_input_tokens_per_call": 60000,
+    "max_output_tokens_per_call": 4096,
+    "seconds_remaining": 59.73,
+    "step_wall_seconds": 15.0,
+    "max_charts": 2,
+    "spend_usd": "UNKNOWN",
+    "spend_ceiling_usd": "NOT_ENFORCED",
+    "cost_enforced": false,
+    "stopped": ""
+  },
+  "permitted_next_actions": [
+    "submit_repaired_code",
+    "revise_the_analysis_plan",
+    "ask_a_targeted_clarification",
+    "explain_and_stop"
+  ],
+  "context_attached": [
+    "original_and_normalized_request",
+    "full_authorized_compact_catalogue",
+    "thread_and_scope_context",
+    "functionality_decision",
+    "current_plan_and_attempt_history",
+    "coverage_profile",
+    "completed_step_results",
+    "actual_remaining_budget_ledger"
+  ]
+}

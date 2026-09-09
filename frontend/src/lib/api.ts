@@ -877,6 +877,106 @@ export interface Narrative {
   why_multiple?: string;
   /** What the figures cover: population, window, measures. */
   scope?: string;
+  /**
+   * WHICH PATH wrote the sentence above. Before this field the response
+   * carried two narratives — the deterministic one and the analyst's — and
+   * nothing said which had been rendered. "deterministic" is the historical
+   * default, so a build without Cockpit V2 reads exactly as it always did.
+   */
+  prose_source?: "analyst" | "deterministic_v2" | "interpretation" | "deterministic";
+  /** Why the shown path was chosen when it was not the preferred one. */
+  prose_fallback_reason?: string;
+}
+
+/** One requested output of a Cockpit V2 answer, answered or explicitly not. */
+export interface CockpitV2Section {
+  output: string;
+  heading: string;
+  paragraphs: string[];
+  findings: string[];
+  table: CockpitV2Table | null;
+  chart: CockpitV2Chart | null;
+  limitations: string[];
+  answered: boolean;
+  unanswered_reason: string;
+}
+
+export interface CockpitV2Table {
+  title: string;
+  columns: string[];
+  rows: Record<string, string | number | boolean | null>[];
+  unit: string;
+  footer: string;
+}
+
+export interface CockpitV2Chart {
+  type: string;
+  title: string;
+  unit: string;
+  steps?: { label: string; value: number; kind: string }[];
+  series?: { label: string; value: number | null }[];
+  reconciled?: boolean;
+  residual?: number;
+}
+
+/** The Cockpit Intelligence V2 answer. Absent when the switch is off. */
+export interface CockpitV2Answer {
+  version: string;
+  prose_source: string;
+  fallback_reason: string;
+  direct_answer: string;
+  narrative: string;
+  sections: CockpitV2Section[];
+  findings: string[];
+  limitations: string[];
+  unanswered: { output: string; reason: string }[];
+  tables: CockpitV2Table[];
+  charts: CockpitV2Chart[];
+  clarification: {
+    question: string;
+    choices: { label: string; output: string }[];
+    free_text: boolean;
+  } | null;
+  recommendations: Record<string, string>[];
+  evidence: { observations: Record<string, unknown>[]; count: number; tools: string[] };
+  coverage: Record<string, unknown>;
+  validation: { ok: boolean; issues: { sentence: string; problem: string; detail: string }[] } | null;
+  trace: Record<string, unknown>;
+  budget: Record<string, unknown>;
+  model_calls: number;
+  duration_ms: number;
+  synthetic: string;
+  understood: {
+    requested_outputs: string[];
+    subquestions: string[];
+    filters: Record<string, unknown>;
+  };
+}
+
+/** What the Cockpit V2 diagnostic badge shows. */
+export interface CockpitV2Diagnostics {
+  cockpit_intelligence_v2: boolean;
+  available: boolean;
+  answer_version?: string;
+  data_version?: string;
+  model_version?: string;
+  policy_version?: string;
+  branch?: string;
+  commit?: string;
+  published_quarters?: string[];
+  selected_quarter_default?: string | null;
+  dataset_checksums?: Record<string, string>;
+  reporting_currency?: string;
+  amount_unit?: string;
+  coverage?: { quarters?: number; borrowers?: number; facilities?: number };
+  isolation?: {
+    analytics_dir: string[];
+    metadata_dir: string[];
+    database_name: string;
+    namespace: string;
+  };
+  synthetic?: string;
+  reason?: string;
 }
 
 export interface Stage {
@@ -1457,6 +1557,12 @@ export interface InvestigationResponse {
    * the screen can mark it as a reading rather than as a measurement.
    */
   analyst?: AnalystInvestigation;
+  /**
+   * The Cockpit Intelligence V2 answer, when the switch is on and the demo
+   * datasets are published. Absent otherwise, and every consumer treats its
+   * absence as the ordinary case.
+   */
+  cockpit_v2?: CockpitV2Answer;
 }
 
 /**
@@ -6742,6 +6848,13 @@ export const api = {
       /** Set after the user answers a period clarification. */
       fromPeriod?: string;
       toPeriod?: string;
+      /**
+       * The conversation so far, oldest first. The browser holds the
+       * transcript and passes it back, which is what lets a follow-up like
+       * "only Construction" keep the intent of the turn before it instead of
+       * being read as a fresh question.
+       */
+      turns?: { question: string; answer: string }[];
     } = {},
   ) =>
     request<InvestigationResponse>("/ask", {
@@ -6753,10 +6866,38 @@ export const api = {
         persist: true,
         from_period: options.fromPeriod ?? null,
         to_period: options.toPeriod ?? null,
+        turns: options.turns ?? null,
       }),
       // An investigation can run up to five analyses over two periods each.
       timeoutMs: 120_000,
     }),
+
+  /** The Cockpit V2 diagnostic badge. Empty payload when the switch is off. */
+  cockpitV3Diagnostics: () =>
+    request<CockpitV3Diagnostics>("/cockpit/diagnostics"),
+
+  cockpitV3Ask: (body: {
+    question: string;
+    mode?: string;
+    thread_id?: string;
+    dataset_release_id?: string;
+    filters?: Record<string, unknown>;
+    request_id?: string;
+    recent_pairs?: number;
+  }) =>
+    request<CockpitV3Answer>("/cockpit/ask", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  cockpitV3Cancel: (requestId: string) =>
+    request<{ request_id: string; cancelled: boolean; note: string }>(
+      `/cockpit/cancel/${encodeURIComponent(requestId)}`,
+      { method: "POST" },
+    ),
+
+  cockpitV2Diagnostics: () =>
+    request<CockpitV2Diagnostics>("/ask/cockpit-v2/diagnostics"),
 
   // ---- trace versions and modification ----
   investigation: (runId: number, version?: number) =>
@@ -14068,5 +14209,177 @@ export type ScvAnswer = {
     /** Where the answer does live, when it lives somewhere. */
     where_instead?: string;
     [key: string]: unknown;
+  };
+};
+
+// ---------------------------------------------------------------- Cockpit V3
+// The agentic Cockpit. Every field here is rendered exactly as the backend
+// sent it; nothing on this side computes, formats a figure or fills a gap.
+
+export type CockpitV3AnswerKind = "answer" | "referral" | "clarification"
+  | "stop";
+
+export type CockpitV3Table = {
+  title: string;
+  columns: string[];
+  rows: unknown[][];
+  units: Record<string, string>;
+  fact_ids: string[];
+  note: string;
+};
+
+export type CockpitV3Chart = {
+  kind: "bar" | "line" | "waterfall" | "scatter";
+  title: string;
+  series: Record<string, unknown>[];
+  x_label: string;
+  y_label: string;
+  unit: string;
+  fact_ids: string[];
+};
+
+export type CockpitV3Alternative = {
+  question: string;
+  required_fields: string[];
+  available_periods: string[];
+  limitation: string;
+};
+
+export type CockpitV3Referral = {
+  destination: string;
+  reason: string;
+  /** Null when the destination is not implemented in this deployment. A
+   *  referral must never offer a link that goes nowhere. */
+  route: string | null;
+  enabled: boolean;
+  navigation_available: boolean;
+};
+
+export type CockpitV3Envelope = {
+  kind: CockpitV3AnswerKind;
+  narrative: string;
+  status: string;
+  complete: boolean;
+  approximate: boolean;
+  tables: CockpitV3Table[];
+  charts: CockpitV3Chart[];
+  limitations: string[];
+  assumptions: string[];
+  /** Claims the evidence supports only as association. Never shown as cause. */
+  hypotheses: string[];
+  fact_ids: string[];
+  referral: CockpitV3Referral | Record<string, never>;
+  alternatives: CockpitV3Alternative[];
+  clarification_question: string;
+  clarification_options: string[];
+  stop_reason: string;
+  what_was_understood: string;
+  what_was_tried: string[];
+  what_would_help: string;
+};
+
+export type CockpitV3Score = {
+  functionality_id: string;
+  score: number;
+  justification: string;
+};
+
+export type CockpitV3Decision = {
+  decision: string;
+  scores: CockpitV3Score[];
+  best_fit: string;
+  may_execute: boolean;
+  public_explanation: string;
+};
+
+export type CockpitV3Budget = {
+  mode: string;
+  submissions_used: number;
+  submissions_remaining: number;
+  analysis_rounds_used: number;
+  analysis_rounds_remaining: number;
+  model_requests_used: number;
+  tokens_used: number;
+  seconds_remaining: number;
+  spend_usd: number | string;
+  cost_enforced: boolean;
+  stopped: string;
+};
+
+export type CockpitV3Answer = {
+  request_id: string;
+  domain_id: string;
+  status: string;
+  answer: CockpitV3Envelope;
+  functionality_decision: CockpitV3Decision | null;
+  plan: Record<string, unknown> | null;
+  results: Record<string, unknown>[];
+  failures: Record<string, unknown>[];
+  budget: CockpitV3Budget & Record<string, unknown>;
+  states: { state: string; history: { state: string; why: string }[];
+            progress: string[] };
+  thread_id: string;
+  history: Record<string, unknown>;
+  summary_updated: boolean;
+};
+
+export type CockpitV3Diagnostics = {
+  cockpit_agentic_v3: boolean;
+  available: boolean;
+  domain_id: string;
+  dataset_release_id: string;
+  namespace: string;
+  default_mode: string;
+  modes: string[];
+  functionality_routes: {
+    verified: boolean;
+    results: Record<string, { enabled: boolean; route: string | null;
+                              route_exists: boolean | null;
+                              unavailable_reason?: string }>;
+  };
+  python_execution: { available: boolean; reason: string };
+  cockpit_models: {
+    configured: boolean;
+    status: string;
+    reason?: string;
+    variables_to_set?: string[];
+    preprocess_model?: string;
+    reasoning_model?: string;
+    fallback_used?: boolean;
+    required: Record<string, string>;
+  };
+  standard_limits: Record<string, number | string>;
+  deep_limits: Record<string, number | string>;
+  standard_overrides_in_force: Record<
+    string, { specification: number; configured: number }>;
+  deep_overrides_in_force: Record<
+    string, { specification: number; configured: number }>;
+  guardrails_note: string;
+  model_roles: Record<string, { role: string; model: string; effort: string;
+                                inherited: boolean; purpose: string }>;
+  provider: {
+    name?: string;
+    /** The variable that must be set — the Cockpit's own, not ANTHROPIC_API_KEY. */
+    variable?: string;
+    /** PRESENT or MISSING. Never a prefix, suffix, length, hash or mask. */
+    status?: string;
+    configured: boolean;
+    note: string;
+    behaviour?: string;
+  };
+  preflight?: Record<string, string | boolean>;
+  cost_enforced: boolean;
+  cost_note?: string;
+  release: {
+    reporting_quarters?: string[];
+    populated_quarters?: string[];
+    missing_quarters?: string[];
+    built_at?: string;
+    data_version?: string;
+    origin?: string;
+    not_client_data?: string;
+    rows?: Record<string, number>;
+    available?: boolean;
+    reason?: string;
   };
 };

@@ -1,0 +1,76 @@
+{
+  "started_at": "2026-09-08T21:05:37+00:00",
+  "base_url": "http://localhost:3000",
+  "note": "A real browser run. It settles what is on screen. It does not settle answer quality, and with no model credential the expected outcome is the honest stop.",
+  "checks": [
+    {
+      "check": "the V3 badge is on screen",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "the badge names the domain",
+      "passed": true,
+      "detail": "COCKPIT AGENTIC V3"
+    },
+    {
+      "check": "the badge names the release and its quarters",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "the badge declares the data synthetic",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "a raised limit is disclosed on screen",
+      "passed": true,
+      "detail": "the deployment is running raised limits and says so"
+    },
+    {
+      "check": "the depth control says Deep is never selected for you",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "q1: an envelope rendered",
+      "passed": true,
+      "detail": "How much did reported ECL change in the latest quarter?"
+    },
+    {
+      "check": "q1: nothing was substituted for a missing model",
+      "passed": true,
+      "detail": "This question was not answered. What follows is why."
+    },
+    {
+      "check": "q2: an envelope rendered",
+      "passed": true,
+      "detail": "Why did this borrower's early warning score increase?"
+    },
+    {
+      "check": "q2: nothing was substituted for a missing model",
+      "passed": true,
+      "detail": "This question was not answered. What follows is why."
+    },
+    {
+      "check": "q3: an envelope rendered",
+      "passed": true,
+      "detail": "Show stage 2 exposure by sector, excluding Construction."
+    },
+    {
+      "check": "q3: nothing was substituted for a missing model",
+      "passed": true,
+      "detail": "This question was not answered. What follows is why."
+    }
+  ],
+  "status": "PASSED",
+  "finished_at": "2026-09-08T21:06:02+00:00",
+  "screenshots": [
+    "00-cockpit.png",
+    "01-badge.png",
+    "q1.png",
+    "q2.png",
+    "q3.png"
+  ]
+}

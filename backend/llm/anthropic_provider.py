@@ -21,7 +21,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.llm import caching, telemetry
-from backend.llm.base import LLMError, LLMResult, ProviderStatus, register
+from backend.llm.base import (ConverseResult, LLMError, LLMResult,
+                              ProviderStatus, register)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,12 @@ TIMEOUT_SECONDS = 60.0
 class AnthropicProvider:
     """Anthropic Claude, used as an orchestrator rather than an author."""
 
-    api_key: str
+    #: `repr=False` is not cosmetic. A dataclass renders every field into its
+    #: repr, so before this the key appeared in any log line, traceback or
+    #: f-string that mentioned the provider -- `raise ValueError(f"{provider}")`
+    #: was enough. `__repr__` below reports whether one is set and never what
+    #: it is.
+    api_key: str = field(repr=False)
     model: str = DEFAULT_MODEL
     name: str = "anthropic"
     timeout: float = TIMEOUT_SECONDS
@@ -51,6 +57,10 @@ class AnthropicProvider:
     #: default is built lazily, because constructing a client at import time
     #: would make the whole backend fail to start on a bad key.
     client: Any = field(default=None, repr=False)
+
+    def __repr__(self) -> str:
+        return (f"AnthropicProvider(model={self.model!r}, "
+                f"credential={'PRESENT' if self.api_key else 'MISSING'})")
 
     @property
     def configured(self) -> bool:
@@ -157,6 +167,136 @@ class AnthropicProvider:
         raise LLMError(
             f"The orchestrator did not answer: {telemetry.sanitise(str(last))}"
         ) from last
+
+    # ---- counting, before spending ------------------------------------------
+
+    def count_tokens(self, *, system: Any, messages: list[dict[str, Any]],
+                     tools: list[dict[str, Any]] | None = None,
+                     model: str = "") -> int:
+        """How many input tokens this exact request will cost, per the provider.
+
+        Uses `messages.count_tokens`, which counts against the named model's own
+        tokenizer. That matters: tokenizers differ between model families, so a
+        count taken against the wrong model is not a count. Callers pass the id
+        they are about to send to.
+
+        Raises rather than guessing. The caller decides whether to fall back to
+        a local estimate, and records which it used -- an estimate reported as a
+        measurement is worse than no measurement.
+        """
+        if not self.configured:
+            raise LLMError("No Anthropic API key is configured, so tokens "
+                           "cannot be counted against the provider.")
+        chosen = (model or "").strip() or self.model
+        request: dict[str, Any] = {"model": chosen, "messages": messages}
+        if system:
+            request["system"] = system
+        if tools:
+            request["tools"] = tools
+        counted = self._client().messages.count_tokens(**request)
+        return int(getattr(counted, "input_tokens", 0) or 0)
+
+    # ---- the conversation --------------------------------------------------
+
+    def converse(self, *, system: Any, messages: list[dict[str, Any]],
+                 tools: list[dict[str, Any]] | None = None,
+                 max_tokens: int = 4096, model: str = "",
+                 purpose: str = "conversation", role: str = "",
+                 effort: str = "", timeout: float = 0.0,
+                 allow_retry: bool = True) -> ConverseResult:
+        """One turn of a multi-turn conversation, blocks preserved.
+
+        `structured` returns the tool input and discards everything else. That
+        is correct for a single-shot schema-constrained call and useless for a
+        loop: a continuation has to send the assistant's own blocks back
+        verbatim and in order, paired one-to-one with the tool results that
+        answer them. So this returns the raw content list untouched and lets
+        the caller thread it.
+
+        `allow_retry` is False for a call the caller has already reserved
+        budget for once. Section 9.3 forbids invisible SDK retries; a transient
+        retry here is at most one, is recorded in `attempts`, and the caller
+        accounts for it.
+        """
+        if not self.configured:
+            raise LLMError("No Anthropic API key is configured.")
+
+        chosen = (model or "").strip() or self.model
+        client = self._client()
+        started = time.perf_counter()
+        attempts_allowed = MAX_ATTEMPTS if allow_retry else 1
+        last: Exception | None = None
+
+        for attempt in range(1, attempts_allowed + 1):
+            try:
+                request: dict[str, Any] = {
+                    "model": chosen,
+                    "max_tokens": max_tokens,
+                    "system": system,
+                    "messages": messages,
+                }
+                if tools:
+                    request["tools"] = tools
+                if timeout > 0:
+                    message = client.messages.with_options(
+                        timeout=timeout).create(**request) if hasattr(
+                        client.messages, "with_options") else client.messages.create(
+                        **request)
+                else:
+                    message = client.messages.create(**request)
+
+                blocks = list(getattr(message, "content", []) or [])
+                text = " ".join(
+                    getattr(b, "text", "") for b in blocks
+                    if getattr(b, "type", "") == "text").strip()
+                calls: list[dict[str, Any]] = []
+                for block in blocks:
+                    if getattr(block, "type", "") != "tool_use":
+                        continue
+                    payload = block.input
+                    if isinstance(payload, str):
+                        payload = json.loads(payload)
+                    calls.append({"id": getattr(block, "id", ""),
+                                  "name": getattr(block, "name", ""),
+                                  "input": payload})
+
+                usage = getattr(message, "usage", None)
+                cached = caching.usage(usage)
+                elapsed = int((time.perf_counter() - started) * 1000)
+                telemetry.record_success(
+                    provider=self.name, model=chosen, purpose=purpose,
+                    role=role, effort=effort, latency_ms=elapsed,
+                    request_id=_request_id(message), attempts=attempt,
+                    input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                    output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                    cache_write_tokens=cached["cache_creation_input_tokens"],
+                    cache_read_tokens=cached["cache_read_input_tokens"])
+                return ConverseResult(
+                    assistant_blocks=blocks, text=text, tool_calls=calls,
+                    stop_reason=str(getattr(message, "stop_reason", "") or ""),
+                    model=chosen, duration_ms=elapsed,
+                    input_tokens=getattr(usage, "input_tokens", 0) or 0,
+                    output_tokens=getattr(usage, "output_tokens", 0) or 0,
+                    cache_read_tokens=cached["cache_read_input_tokens"],
+                    cache_write_tokens=cached["cache_creation_input_tokens"],
+                    attempts=attempt, request_id=_request_id(message))
+            except Exception as e:  # noqa: BLE001 - reported, not swallowed
+                last = e
+                if not _worth_retrying(e) or attempt == attempts_allowed:
+                    break
+                logger.info("Retrying the conversation (attempt %d): %s",
+                            attempt + 1, e)
+                time.sleep(0.4 * attempt)
+
+        telemetry.record_failure(
+            provider=self.name, model=chosen, purpose=purpose, role=role,
+            effort=effort,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            error=last, request_id=_error_request_id(last),
+            attempts=min(attempt, attempts_allowed))
+        raise LLMError(
+            f"The conversation did not continue: "
+            f"{telemetry.sanitise(str(last))}") from last
 
     def _client(self) -> Any:
         if self.client is not None:

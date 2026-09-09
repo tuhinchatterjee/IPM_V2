@@ -1,0 +1,24 @@
+{
+  "full_packet_tokens": 33388,
+  "required_core_tokens": 26114,
+  "breakdown": {
+    "context_version": 2,
+    "request_id": 3,
+    "A_request": 166,
+    "B_scope": 620,
+    "C_thread": 110,
+    "D_E_catalogue": 22079,
+    "F_coverage": 6152,
+    "G_samples": 922,
+    "H_functionalities": 2330,
+    "I_execution": 729,
+    "J_budget": 167,
+    "untrusted_data_note": 57
+  },
+  "catalogue_tokens": 22079,
+  "reductions_applied": [],
+  "standard_cap": 64000,
+  "deep_cap": 96000,
+  "standard_total": 250000,
+  "deep_total": 500000
+}

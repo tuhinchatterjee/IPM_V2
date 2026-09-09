@@ -1,0 +1,143 @@
+{
+  "generated_at": "2026-09-09T12:49:30Z",
+  "credential_variable": "COCKPIT_ANTHROPIC_API_KEY",
+  "credential_configured": false,
+  "credential_value_recorded": false,
+  "release": "demo-20q-v1",
+  "mode": "standard",
+  "question": "How did reported ECL move across the last four quarters, and which sectors drove the change?",
+  "python_sandbox": {
+    "available": true,
+    "strategy": "privileged_namespaces",
+    "reason": "",
+    "guarantees": {
+      "network_denied": "connect() raised OSError",
+      "host_filesystem_hidden": "/etc/passwd raised FileNotFoundError; root holds ['dev', 'lib', 'lib64', 'proc', 'site', 'tmp', 'usr', 'work']",
+      "host_files_read_only": "writing the bound /usr/lib raised OSError",
+      "jail_skeleton_read_only": "/usr raised PermissionError; /site raised PermissionError",
+      "repository_hidden": "/home/user/IPM_V2 not present",
+      "inputs_read_only": "appending to the input raised PermissionError",
+      "environment_scrubbed": "no credential-shaped variables",
+      "no_shell": "/bin/sh raised FileNotFoundError; no binary directory exists",
+      "dependency_surface": "approved: ['2.5.0', '3.0.3']; unapproved importable: none",
+      "privileges_dropped": "uid 65534",
+      "separate_process": "a child process, never the API process"
+    },
+    "caveats": [],
+    "elapsed_seconds": 0.408
+  },
+  "cockpit_models": {
+    "configured": false,
+    "status": "MODEL_CONFIGURATION_MISSING",
+    "reason": "The Cockpit cannot run because its model roles are not configured \u2014 not set: AI_COCKPIT_PREPROCESS_MODEL (for the two preprocessing passes and the rolling-summary update); AI_COCKPIT_REASONING_MODEL (for functionality selection, planning, every query and every repair, the sufficiency review and the final interpretation). Both must be set explicitly. There is no fallback to AI_MODEL, to another role, or to the provider's own default: an answer nobody can attribute to a named model is not an answer this application will give.",
+    "variables_to_set": [
+      "AI_COCKPIT_PREPROCESS_MODEL",
+      "AI_COCKPIT_REASONING_MODEL"
+    ],
+    "required": {
+      "AI_COCKPIT_PREPROCESS_MODEL": "the two preprocessing passes and the rolling-summary update",
+      "AI_COCKPIT_REASONING_MODEL": "functionality selection, planning, every query and every repair, the sufficiency review and the final interpretation"
+    }
+  },
+  "steps": [
+    {
+      "step": 1,
+      "name": "provider connectivity",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 2,
+      "name": "the configured Sonnet model id",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 3,
+      "name": "the configured Opus model id",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 4,
+      "name": "provider token counting against those exact models",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 5,
+      "name": "real Sonnet pass 1 and pass 2",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 6,
+      "name": "real Opus functionality routing",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 7,
+      "name": "real Opus plan and code generation",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 8,
+      "name": "real SQL execution, and Python where the sandbox is available",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 9,
+      "name": "a deliberately exercised Opus repair cycle",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 10,
+      "name": "real Opus sufficiency review",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 11,
+      "name": "real final answer generation",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    },
+    {
+      "step": 12,
+      "name": "the final Sonnet rolling-summary update",
+      "status": "BLOCKED",
+      "detail": "No COCKPIT_ANTHROPIC_API_KEY is configured, so this step did not run. It is reported BLOCKED rather than substituted: there is no deterministic path that could stand in for it, and the Cockpit does not borrow ANTHROPIC_API_KEY.",
+      "evidence": {},
+      "elapsed_seconds": 0.0
+    }
+  ],
+  "budget": null,
+  "tokens": null,
+  "total_seconds": 0.41
+}

@@ -58,6 +58,11 @@ class AskIn(BaseModel):
     #: and "no, the movement since last quarter" are different answers to the
     #: same words and neither is served from the other's cache entry.
     clarification: str | None = Field(default=None, max_length=2000)
+    #: The conversation so far, oldest first, as {question, answer}. The client
+    #: holds the transcript and passes it back, which is how a follow-up like
+    #: "only Construction" keeps the intent of the turn before it. Bounded so a
+    #: caller cannot make the request unbounded.
+    turns: list[dict[str, str]] | None = Field(default=None, max_length=12)
 
 
 class ModifyIn(BaseModel):
@@ -200,6 +205,28 @@ def posture() -> dict:
     return analyst_route.posture()
 
 
+@router.get("/cockpit-v2/diagnostics",
+            summary="Which backend and which data the Cockpit is using")
+def cockpit_v2_diagnostics(principal: Principal = RequireAnalyst) -> dict:
+    """The Cockpit V2 diagnostic badge. Brief §1.3.
+
+    Branch, commit, dataset version and checksum, published quarters, the
+    selected default and the isolation state — enough to PROVE which backend
+    and which data the browser is talking to. Paths are reduced to their last
+    two segments and the database appears by NAME; no connection string, no
+    credential and no key is returned.
+    """
+    try:
+        from backend.cockpit_v2 import service as cockpit_v2_service
+
+        return cockpit_v2_service.diagnostics(principal)
+    except Exception as e:  # noqa: BLE001 - the badge is not load-bearing
+        logger.warning("Cockpit V2 diagnostics unavailable: %s", e)
+        return {"cockpit_intelligence_v2": False, "available": False,
+                "reason": "Cockpit Intelligence V2 is not installed in this "
+                          "deployment."}
+
+
 @router.post("/investigate", summary="Investigate a question as an analyst")
 def investigate(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     """The analyst path on its own. §2.
@@ -316,29 +343,60 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
                             detail={"error": "plan_rejected", "message": str(e),
                                     "reasons": e.reasons}) from e
     body = investigation.to_dict()
+
+    # Cockpit Intelligence V2. Off by default and inert when off: with the
+    # switch unset `answer_for` returns None on its first line and the rest of
+    # this function is exactly what it was on the base commit.
+    from backend.cockpit_v2 import integration as cockpit_v2
+
+    v2 = cockpit_v2.answer_for(
+        payload.question, principal,
+        turns=[dict(t) for t in (payload.turns or [])],
+        clarification=payload.clarification or "",
+        to_period=payload.to_period or "",
+        from_period=payload.from_period or "")
+    answered_by_v2 = bool(v2 and v2.get("direct_answer"))
+    if answered_by_v2:
+        cockpit_v2.apply(investigation, v2)
+        body = investigation.to_dict()
+        cockpit_v2.attach(body, v2)
+
     # Belt and braces, and both are load-bearing. `_analyst_view` catches what
     # the analyst can throw; this catches what `_analyst_view` itself can —
     # an import failure, a missing module in a partial deployment. §9: a
     # failure in one path is not a failure of the product, and the
     # deterministic answer above is already computed and correct.
     try:
-        body["analyst"] = _analyst_view(payload, principal)
+        body["analyst"] = _analyst_view(payload, principal, skip=answered_by_v2)
     except Exception as e:  # noqa: BLE001 - the deterministic answer stands
         logger.warning("The analyst view could not be built: %s", e)
         body["analyst"] = {"path": "deterministic", "analyst_available": False,
                            "why": "the governed semantic reader answered"}
+
+    cockpit_v2.record_prose_source(body)
     return body
 
 
-def _analyst_view(payload: AskIn, principal: Principal) -> dict[str, Any]:
+def _analyst_view(payload: AskIn, principal: Principal, *,
+                  skip: bool = False) -> dict[str, Any]:
     """The analyst's investigation of the same question, when one is possible.
 
     Never raises. An analyst that cannot run must not take the deterministic
     answer down with it — §9's whole point is that a failure in one path is
     not a failure of the product.
+
+    `skip` is set when Cockpit V2 has already answered. Running the analyst
+    then would be a paid model call whose output is discarded, which is the
+    waste the original Phase 1 review identified — in the opposite direction
+    from the one it described.
     """
     from backend.analyst import route as analyst_route
 
+    if skip:
+        return {"path": analyst_route.DETERMINISTIC,
+                "analyst_available": analyst_route.available(),
+                "why": ("Cockpit Intelligence V2 answered from the governed "
+                        "demonstration data, so no model call was made")}
     if not analyst_route.available():
         return {"path": analyst_route.DETERMINISTIC,
                 "analyst_available": False,

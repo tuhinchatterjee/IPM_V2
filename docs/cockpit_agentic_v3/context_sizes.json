@@ -1,0 +1,20 @@
+{
+  "catalogue": {
+    "characters": 75064,
+    "approx_tokens": 18766
+  },
+  "summary": {
+    "relations": 11,
+    "common_keys": 24,
+    "declared_fields": 751,
+    "facility_quarter_columns": 198,
+    "ratios": 40,
+    "rating_grades": 19,
+    "qualitative_questions": 20,
+    "collateral_types": 12,
+    "collateral_generated_columns": 108,
+    "macro_factors": 10,
+    "macro_pivot_cells": 200,
+    "unexpanded_placeholders": 0
+  }
+}

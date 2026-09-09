@@ -196,6 +196,14 @@ class Investigation:
     #: 3", and a counter that only appeared when something went wrong is a
     #: counter nobody has learned to read.
     compound: dict[str, Any] = field(default_factory=dict)
+    #: The Cockpit Intelligence V2 answer, when the switch is on and V2
+    #: answered. Carried on the INVESTIGATION rather than added to a response
+    #: dict at one call site, so the stored turn, the thread's memory, the API
+    #: response and the screen all serialise the same thing — a payload
+    #: attached at the router survived the response and vanished on reload.
+    #: Empty for every other deployment, and omitted from `to_dict` when empty
+    #: so no existing consumer sees a new key.
+    cockpit_v2: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -204,6 +212,7 @@ class Investigation:
             "intent": self.plan.intent,
             "steps": [s.to_dict() for s in self.steps],
             "narrative": self.narrative.to_dict(),
+            **({"cockpit_v2": self.cockpit_v2} if self.cockpit_v2 else {}),
             "follow_ups": self.plan.follow_ups,
             "notes": self.plan.notes,
             "unmatched": self.plan.unmatched,

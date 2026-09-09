@@ -288,6 +288,27 @@ def start_thread(payload: ThreadIn, principal: Principal = RequireAnalyst) -> di
             memory=wm.load(thread.context),
         )
     result = officer.investigation
+
+    # Cockpit Intelligence V2. Applied to the INVESTIGATION before it is
+    # serialised, so the stored message, the thread's memory, the API response
+    # and the screen all carry the same narrative. This is the path the
+    # Cockpit's own composer calls; wiring only POST /ask left the browser
+    # showing the base build's clarification while the API answered.
+    from backend.cockpit_v2 import integration as cockpit_v2
+
+    v2 = cockpit_v2.answer_for(
+        payload.question, principal,
+        to_period=payload.to_period or "", from_period=payload.from_period or "")
+    if cockpit_v2.apply(result, v2 or {}):
+        th.remember(thread.id, result, officer.answered)
+        th.record_answer(thread.id, result, user_id=principal.user_id,
+                         agentic=officer.agentic())
+        body = cockpit_v2.attach(result.to_dict(), v2)
+        cockpit_v2.record_prose_source(body)
+        return {"status": result.status, "run": body,
+                "agentic": officer.agentic(),
+                "thread": th.load(thread.id).to_dict()}
+
     th.remember(thread.id, result, officer.answered)
     if result.status == "needs_clarification":
         run = result.to_dict()

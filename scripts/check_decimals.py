@@ -126,6 +126,17 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "the percentages it publishes go through the contract as everywhere "
         "else."),
     Allowed(
+        "backend/cockpit_agentic/validate_data.py",
+        "Data-integrity gate diagnostics, and nothing else lives in this "
+        "file. Two of them are only meaningful at high precision: a "
+        "reconciliation residual that must sit at zero reads 0.00 at two "
+        "decimals whether it is 0.000001 or 0.004999, and a probability-range "
+        "check reporting 0.00-1.00 has said nothing about whether a PD column "
+        "actually escaped [0, 1]. These are build-time gate messages in a "
+        "release report, not business figures: the percentages, amounts and "
+        "counts this domain publishes go through the display contract like "
+        "everywhere else."),
+    Allowed(
         "backend/orchestration/evidence.py",
         "Grounding validation. Builds every plausible rendering of a computed "
         "value so a figure in the prose can be matched against the result. "

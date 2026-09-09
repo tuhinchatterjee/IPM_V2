@@ -625,3 +625,109 @@ a fixed `TODAY` with `datetime.now()`.
 
 Left alone would have meant a permanent red that masks real failures at every
 later gate, including M13.
+
+### M4 — Cockpit Agentic V3 (`275284c`)
+
+| | |
+|---|---|
+| **Approved checkpoint** | `08bd5d5` |
+| **Adopted** | **`275284c`** — moved again during M3 |
+| **Conflicts** | two: `backend/services/threads.py`, `frontend/src/lib/api.ts` |
+| **Migrations** | **none**; head stays `0045` |
+
+#### Why the newer checkpoint, and why it matters beyond Cockpit
+
+`6eba08b` fixes a **product-wide security leak that happens to arrive on a
+feature branch**. `AnthropicProvider` is a dataclass, so every field reached
+its `repr` — `repr(provider)`, `str(provider)`, any f-string or traceback
+naming it printed the API key in full. `api_key` is now `field(repr=False)`
+with an explicit `__repr__` reporting only `PRESENT` / `MISSING`. Verified
+present after the merge.
+
+The same commit isolates the Cockpit's credential: it reads
+`COCKPIT_ANTHROPIC_API_KEY` and nothing else — not `ANTHROPIC_API_KEY`, not
+the SDK's implicit discovery, not `settings.anthropic_api_key`. The reason is
+specific and sound: in this environment `ANTHROPIC_API_KEY` is also what the
+tooling uses, so sharing it would bill the product's calls against whoever was
+driving the tools, with no way to separate or revoke afterwards.
+
+**This refines the AI plan rather than contradicting it: provider *code* is
+shared, the Cockpit's *credential* deliberately is not.** That is an isolation
+boundary to preserve, not a divergence to reconcile away.
+
+#### Resolution 1 — `threads.py`, and the second defect that was not predicted
+
+The plan anticipated one problem: Cockpit's short-circuit returns early, so a
+caveat placed after it is never reached. Reading the merge found a second.
+
+Cockpit called `cockpit_v2.answer_for(question, ...)` — the user's **raw**
+words — while the deterministic path immediately above planned on `asked`, the
+clarification-merged question. **One turn, two different questions**, and the
+Cockpit path silently answering the one the user typed rather than the one
+CreditProbe resolved.
+
+Both fixed, and the ordering is the fix for the first:
+
+* the `if resumed:` caveat is appended **before** the Cockpit block, because
+  `cockpit_v2.apply` only ever *appends* to `narrative.caveats` and never
+  replaces them — so a caveat placed first survives into the V2 answer intact;
+* `answer_for` now takes `asked`. Where nothing was resumed the two strings are
+  identical, so the change bites only on the path it was wrong on.
+
+#### Resolution 2 — `api.ts`, which was not the conflict it appeared to be
+
+It looked like two disjoint blocks appended at one point. Both sides in fact
+ended **mid-declaration**, sharing the trailing `};\n};` — HEAD's tail was
+`ScvAnswer`, Cockpit's `CockpitV3Diagnostics`. Taking either side would have
+silently truncated a type. Both kept; `ScvAnswer` closed explicitly so the
+existing suffix closes Cockpit's. `tsc --noEmit` is the proof.
+
+#### Integration defect I-4 — a screen said "demonstration"
+
+`tests/release/test_product_copy.py::TestNothingOnScreenNamesAVendor::test_no_rendered_string_says_demo`
+failed on `frontend/src/components/ask/cockpit-v2.tsx`, which rendered
+**"Synthetic demonstration data"**.
+
+**Proven inherited** — checked out at `275284c` in a worktree, the rule and the
+offending string coexist and the identical test fails there.
+
+Not a tension between honesty and the rule, which was the thing worth checking
+before touching a label about synthetic data. The product already has one
+vocabulary for this — the Data Builder badge's `"Synthetic data"`, the home
+page's `SYNTHETIC_SENTENCE`, and `backend/release/product_copy.py`'s own
+constants — and that file states the reason the word is kept off every screen:
+the switch keeps its internal name, but a reader is shown *the posture it
+produces*. Cockpit had simply not used the shared vocabulary.
+
+**Fixed** to `"Synthetic data"`. The claim is unchanged; only the word the rest
+of the product does not use is gone. `tests/release/`: **86 passed, 0 failed**.
+
+**Observed, not changed:** four backend constants still contain "Synthetic
+demonstration…" (`cockpit_agentic/__init__.py`, `cockpit_v2/__init__.py`,
+`cockpit_v2/answer.py`, `cockpit_v2/policy.py`). The rule scans `frontend/src`
+only, deliberately — it is about what reaches a screen. Widening it is a
+product decision, not an integration one, so it is recorded for M4b rather than
+taken unilaterally.
+
+#### The gate, and the container
+
+The first run showed 92 failures and 47 setup errors against **479
+`Connection refused`** lines; the PostgreSQL log now records **15 cluster
+kills** this session. Re-run in batches:
+
+| Batch | Result |
+|---|---|
+| `test_early_warning_api`, `test_corporate_api`, `test_metrics_api` | **109 passed, 0 failed** |
+| `test_lens_scope_api`, `test_engine_api`, all `tests/orchestration/` | **1,422 passed, 11 skipped, 0 failed** |
+| `tests/cockpit_agentic/`, `tests/cockpit_v2/`, `tests/llm/` | **580 passed, 34 skipped**, 3 failed — all `Connection refused` |
+| `tests/release/` (after I-4) | **86 passed, 4 skipped, 0 failed** |
+
+Frontend: `tsc --noEmit` clean, eslint clean, **564 passed, 0 failed**.
+`ruff check .` clean. `alembic heads`: one, `0045`.
+
+Preserved and verified after the merge: `STRICT_ROLES` with
+`COCKPIT_PREPROCESS` / `COCKPIT_REASONING` and `REQUIRED_UNSET`; the
+credential-leak `__repr__`; `COCKPIT_CREDENTIAL_VAR`.
+
+**The Cockpit private universe is still present and still not wired to the
+canonical domains.** M4 merges; M4b repoints.

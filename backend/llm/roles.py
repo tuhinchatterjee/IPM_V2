@@ -65,15 +65,29 @@ TRANSLATION = "translation"
 INVESTIGATOR = "investigator"
 ANALYST = "analyst"
 
+#: Cockpit Agentic V3's two model jobs, configured independently of the seven
+#: legacy roles above. The Cockpit's contract is a two-model one -- one model
+#: preprocesses and summarises, a stronger one decides ownership, plans,
+#: authors every query and reviews -- and binding those to `planner` or
+#: `analyst` would mean an administrator could not change one without changing
+#: the other.
+#:
+#: Named for the JOB, not for a model family, because a role called after a
+#: model reads as though it were pinned to one. Nothing here names a model and
+#: every id still comes from the environment.
+COCKPIT_PREPROCESS = "cockpit_preprocess"
+COCKPIT_REASONING = "cockpit_reasoning"
+
 ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER, INVESTIGATOR,
-                          ANALYST, INTERPRETATION, CRITIC, TRANSLATION)
+                          ANALYST, INTERPRETATION, CRITIC, TRANSLATION,
+                          COCKPIT_PREPROCESS, COCKPIT_REASONING)
 
 #: Roles the product calls today. TRANSLATION is declared but unused, and a
 #: report that counted it as unconfigured would be reporting a gap that is not
 #: one.
 ACTIVE_ROLES: tuple[str, ...] = (ROUTER, PLANNER, COMPLEX_PLANNER,
                                  INVESTIGATOR, ANALYST, INTERPRETATION,
-                                 CRITIC)
+                                 CRITIC, COCKPIT_PREPROCESS, COCKPIT_REASONING)
 
 #: Which environment variable names each role's model, and how hard it should
 #: think. Effort is passed through only where the provider supports it.
@@ -87,6 +101,8 @@ _ENV: dict[str, tuple[str, str]] = {
     INVESTIGATOR: ("AI_INVESTIGATOR_MODEL", "AI_INVESTIGATOR_EFFORT"),
     ANALYST: ("AI_ANALYST_MODEL", "AI_ANALYST_EFFORT"),
     TRANSLATION: ("AI_TRANSLATION_MODEL", "AI_TRANSLATION_EFFORT"),
+    COCKPIT_PREPROCESS: ("AI_COCKPIT_PREPROCESS_MODEL", "AI_COCKPIT_PREPROCESS_EFFORT"),
+    COCKPIT_REASONING: ("AI_COCKPIT_REASONING_MODEL", "AI_COCKPIT_REASONING_EFFORT"),
 }
 
 #: §22 asks for backward compatibility. A deployment that set only
@@ -106,6 +122,20 @@ _FALLBACK_ROLE: dict[str, str] = {
     ANALYST: COMPLEX_PLANNER,
 }
 
+#: Roles that must be configured explicitly or not at all. No fallback to
+#: another role, none to AI_MODEL, none to the provider's default.
+#:
+#: The rest of CreditProbe runs unconfigured by design -- the deterministic
+#: reader does the reading, and a resolver that refused to find a model would
+#: be refusing a supported mode. The Cockpit has no deterministic reader: every
+#: answer it gives is authored by a model, so an id nobody chose produces an
+#: answer nobody can attribute. `backend/cockpit_agentic/models.py` is where
+#: that refusal is enforced at execution time; this set is here so the Settings
+#: page and the preflight report the same thing the runtime will do, instead of
+#: showing an inherited model for a role that will not use one.
+STRICT_ROLES: frozenset[str] = frozenset({COCKPIT_PREPROCESS,
+                                          COCKPIT_REASONING})
+
 #: What each role is for, shown in Settings so an administrator configuring
 #: four model ids knows which is which.
 PURPOSE: dict[str, str] = {
@@ -123,6 +153,16 @@ PURPOSE: dict[str, str] = {
                   "whose answer is in the data. Orchestration, not judgement.",
     ANALYST: "Forms a credit judgement on gathered evidence — cause, "
              "materiality, what to do about it. The job worth paying for.",
+    COCKPIT_PREPROCESS: "Cockpit preprocessing and summary: cleans and "
+                        "translates the question, normalises it into a "
+                        "business request, and updates the rolling thread "
+                        "summary. It chooses no method and computes nothing. "
+                        "A fast, cheap model does this well.",
+    COCKPIT_REASONING: "Cockpit reasoning: decides whether the Cockpit owns "
+                       "the question at all, then owns the analysis plan, the "
+                       "method, every query candidate including every repair, "
+                       "the sufficiency review and the final interpretation. "
+                       "The job worth paying for.",
 }
 
 #: Effort levels a provider may be asked for. Ordered.
@@ -168,6 +208,12 @@ def role(name: str) -> Role:
 
     if configured:
         return Role(name=name, model=configured, effort=effort, inherited=False)
+
+    if name in STRICT_ROLES:
+        # Empty, and NOT "inherited": nothing was inherited. A role reported as
+        # inheriting a model an operator never chose is the failure this whole
+        # change is about.
+        return Role(name=name, model="", effort=effort, inherited=False)
 
     fallback = _FALLBACK_ROLE.get(name)
     if fallback:
@@ -244,6 +290,12 @@ def verify(provider: Any) -> list[str]:
     problems: list[str] = []
     supported = set(getattr(provider, "supported_models", None) or ())
     for configured in all_roles():
+        if configured.name in STRICT_ROLES and not configured.model:
+            problems.append(
+                f"{_ENV[configured.name][0]} is not set. The Cockpit will not "
+                f"run without it and will not borrow a model from another "
+                f"role, from AI_MODEL or from the provider's default.")
+            continue
         if configured.inherited or not configured.model:
             continue
         if supported and configured.model not in supported:
@@ -270,6 +322,12 @@ UNVERIFIED = "UNVERIFIED"
 #: refusing the supported way to run it. §29 validates the ids that ARE
 #: configured; it does not require any.
 UNCONFIGURED = "UNCONFIGURED"
+#: A role that must be configured explicitly and is not. Distinct from
+#: UNCONFIGURED, which means "the provider's default serves it": nothing serves
+#: this one. Reported rather than blocking, because the feature that needs it
+#: is off by default and a preflight that refused to start would leave an
+#: administrator unable to reach the page where they would fix it.
+REQUIRED_UNSET = "REQUIRED_UNSET"
 
 
 def preflight(provider: Any) -> dict[str, Any]:
@@ -293,7 +351,23 @@ def preflight(provider: Any) -> dict[str, Any]:
 
     rows: list[dict[str, Any]] = []
     for configured in all_roles(include_inactive=True):
-        if not configured.model:
+        if not configured.model and configured.name in STRICT_ROLES:
+            # Not the same UNCONFIGURED as the rest, and not UNAVAILABLE
+            # either. For every other role an empty id means the provider's
+            # default serves it; for these two it means nothing serves them
+            # and the Cockpit refuses to answer.
+            #
+            # It does NOT fail the preflight. The Cockpit is off by default
+            # and the rest of the product runs without it, so refusing to
+            # start would leave an administrator unable to reach the settings
+            # page on which they would fix this. The state is reported and the
+            # Cockpit enforces it where it matters: at its own first request.
+            state = REQUIRED_UNSET
+            note = (f"{_ENV[configured.name][0]} is not set, and this role does "
+                    "not inherit. The Cockpit stops every question with "
+                    "MODEL_CONFIGURATION_MISSING until it is set. Nothing else "
+                    "is affected.")
+        elif not configured.model:
             state = UNCONFIGURED
             note = ("Nothing is configured for this role, so the provider's "
                     "own default serves it.")
@@ -337,6 +411,8 @@ def preflight(provider: Any) -> dict[str, Any]:
 __all__ = [
     "ACTIVE_ROLES",
     "INHERITED",
+    "REQUIRED_UNSET",
+    "STRICT_ROLES",
     "OK",
     "UNAVAILABLE",
     "UNCONFIGURED",

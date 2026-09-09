@@ -1,0 +1,235 @@
+{
+  "note": "Flag-off answers are compared against the answers captured on the base commit before any V2 code existed. Identical text means this branch changed nothing for a deployment with the switch off.",
+  "identical_to_base_commit": 12,
+  "questions": 12,
+  "rows": [
+    {
+      "question": "Give me an ECL decomposition and explain the impact of PD.",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Over which horizon? Twelve-month and lifetime PD are different measures, and IFRS 9 uses each in different stages.",
+        "ms": 1612
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual",
+        "tables": 2,
+        "charts": 1,
+        "validation_ok": true,
+        "ms": 3573
+      },
+      "baseline_at_base_commit": "Over which horizon? Twelve-month and lifetime PD are different measures, and IFRS 9 uses each in different stages."
+    },
+    {
+      "question": "Why did Construction's ECL rise this quarter? Separate growth from credit deterioration.",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "CreditProbe could not find Construction in the published data. It only reads datasets that have been published and marked authoritative, so a borrower it has never been given cannot be looked up. Check the name, or ask a Data Steward whether that book has been onboarded.",
+        "ms": 392
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "Reported ECL rose from 45.07 INR crore at Q1 2026 to 52.78 INR crore at Q2 2026, a movement of 7.70 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 7.24 INR crore, which this method allocates 94.0% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual of ",
+        "tables": 2,
+        "charts": 1,
+        "validation_ok": true,
+        "ms": 623
+      },
+      "baseline_at_base_commit": "CreditProbe could not find Construction in the published data. It only reads datasets that have been published and marked authoritative, so a borrower it has never been given cannot be looked up. Check the name, or ask a Data Steward whether that book has been onboarded."
+    },
+    {
+      "question": "The total provision barely changed. What deteriorated and what improved underneath it?",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Expected credit loss fell from 6,000 to 5,313 USD mn between Q2 2025 and Q2 2026 \u2014 a change of 687.4 USD mn (11.46%).",
+        "ms": 332
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "Reported ECL rose from 290.35 INR crore at Q1 2026 to 307.62 INR crore at Q2 2026, a movement of 17.27 INR crore. Decomposing that movement across the parameter groups of the governed calculator, the largest single component is pd curves at 12.65 INR crore, which this method allocates 73.2% of the net change. The bridge reconciles: opening plus every component below equals closing, with a residual",
+        "tables": 1,
+        "charts": 1,
+        "validation_ok": true,
+        "ms": 1411
+      },
+      "baseline_at_base_commit": "Expected credit loss fell from 6,000 to 5,313 USD mn between Q2 2025 and Q2 2026 \u2014 a change of 687.4 USD mn (11.46%)."
+    },
+    {
+      "question": "Break the current ECL down by stage and sector. I am not asking for a movement analysis.",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "CreditProbe cannot join ifrs9_staging to portfolio_facility: no active relationship connects them. A data steward can declare one in Data Builder.",
+        "ms": 302
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "As at Q2 2026 the reported allowance is 307.62 INR crore over 66,892.77 INR crore of exposure across 805 facilities, a coverage of 0.46%. This is the position at that date, not a movement: nothing below compares it with another quarter.",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 428
+      },
+      "baseline_at_base_commit": "CreditProbe cannot join ifrs9_staging to portfolio_facility: no active relationship connects them. A data steward can declare one in Data Builder."
+    },
+    {
+      "question": "Show base, upturn, downturn and weighted ECL. Explain why the weighted result is where it is.",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "The 10 largest facilities by expected credit loss at Q2 2026.",
+        "ms": 383
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "At Q2 2026 the three scenarios produce base 291.61 INR crore, upturn 223.08 INR crore, downturn 420.54 INR crore. Weighting them at base 60%, upturn 20%, downturn 20% gives a modelled ECL of 303.70 INR crore, and adding the separately identified overlay of 3.92 INR crore gives the reported allowance of 307.62 INR crore.",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 402
+      },
+      "baseline_at_base_commit": "The 10 largest facilities by expected credit loss at Q2 2026."
+    },
+    {
+      "question": "Which rating downgrades matter most by exposure, and which financial ratios weakened?",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Which exposure figure should CreditProbe use? The three governed measures are materially different amounts.",
+        "ms": 30
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "4 facility/-ies were downgraded between Q1 2026 and Q2 2026, carrying 96.99 INR crore of exposure, against 0 upgraded. Ranked by exposure the downgrades that matter most are CKB-0008 (50.67 INR crore, 1 notch(es) to BB+); CKB-0009 (24.09 INR crore, 4 notch(es) to BB); CKB-0002 (14.11 INR crore, 1 notch(es) to B-); CKB-0002 (8.13 INR crore, 1 notch(es) to B-).",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 147
+      },
+      "baseline_at_base_commit": "Which exposure figure should CreditProbe use? The three governed measures are materially different amounts."
+    },
+    {
+      "question": "Which covenants are breached, by how much, and which are covered by valid waivers?",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "38.56 % of covenant headroom at Q2 2026.",
+        "ms": 341
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "At Q2 2026 137 covenant test(s) are breached across 120 borrower(s), out of 1502 tests on the book. 32 are covered by a waiver valid beyond the reporting date, 17 by a waiver expiring within the next quarter, and 88 are uncovered. A further 6 test(s) are inside their tolerance without having breached, and 11 could not be tested because the observed value was not available.",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 484
+      },
+      "baseline_at_base_commit": "38.56 % of covenant headroom at Q2 2026."
+    },
+    {
+      "question": "Which borrowers lost collateral protection, and what was the modeled LGD effect?",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Market value or net realisable value? They differ by the governed haircut, and coverage computed on the wrong one is overstated.",
+        "ms": 44
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "At Q2 2026 recognised security covers 36,164.45 INR crore of 66,892.77 INR crore of exposure, leaving 30,728.32 INR crore unsecured \u2014 45.9% of the book. Recognised value is the valuation after the policy haircut and after allocation across the facilities that share an asset, so a property securing three facilities is counted once and not three times.",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 1498
+      },
+      "baseline_at_base_commit": "Market value or net realisable value? They differ by the governed haircut, and coverage computed on the wrong one is overstated."
+    },
+    {
+      "question": "What is CCF?",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Which figure should CreditProbe measure? Name one of the governed concepts \u2014 exposure at default, expected credit loss, internal rating, days past due \u2014 and it will compose the analysis.",
+        "ms": 263
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "Credit conversion factor. The proportion of an undrawn commitment assumed to be drawn by the time a borrower defaults. It is what turns a limit into an exposure at default: EAD is the drawn balance plus the CCF applied to the undrawn part. Exposure and EAD are therefore different numbers, and this demo keeps them in separate fields.",
+        "tables": 0,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 1239
+      },
+      "baseline_at_base_commit": "Which figure should CreditProbe measure? Name one of the governed concepts \u2014 exposure at default, expected credit loss, internal rating, days past due \u2014 and it will compose the analysis."
+    },
+    {
+      "question": "Compare with a quarter that is not loaded.",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Which figure should CreditProbe measure? Name one of the governed concepts \u2014 exposure at default, expected credit loss, internal rating, days past due \u2014 and it will compose the analysis.",
+        "ms": 284
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "Reported ECL moved 17.27 INR crore between Q1 2026 and Q2 2026, from 290.35 INR crore to 307.62 INR crore. By sector the largest movement is Manufacturing at 13.30 INR crore, which is 77.0% of the net change. Increases total 28.93 INR crore and decreases -11.66 INR crore.",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 432
+      },
+      "baseline_at_base_commit": "Which figure should CreditProbe measure? Name one of the governed concepts \u2014 exposure at default, expected credit loss, internal rating, days past due \u2014 and it will compose the analysis."
+    },
+    {
+      "question": "Give me two paragraphs: what improved, what deteriorated, and what should I review first?",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Which figure should CreditProbe measure? Name one of the governed concepts \u2014 exposure at default, expected credit loss, internal rating, days past due \u2014 and it will compose the analysis.",
+        "ms": 330
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "Reported ECL moved 17.27 INR crore between Q1 2026 and Q2 2026, from 290.35 INR crore to 307.62 INR crore. By sector the largest movement is Manufacturing at 13.30 INR crore, which is 77.0% of the net change. Increases total 28.93 INR crore and decreases -11.66 INR crore.",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 370
+      },
+      "baseline_at_base_commit": "Which figure should CreditProbe measure? Name one of the governed concepts \u2014 exposure at default, expected credit loss, internal rating, days past due \u2014 and it will compose the analysis."
+    },
+    {
+      "question": "Which of these ten macro variables actually enter the demo PD model for Construction?",
+      "flag_off": {
+        "prose_source": "deterministic",
+        "has_cockpit_v2": false,
+        "direct_answer": "Which borrowers do you mean by 'these ten'? Nothing earlier in this investigation names a set I can carry forward, so tell me the population \u2014 a sector, a rating band, a stage, or a question that produces the list \u2014 and I will take it from there.",
+        "ms": 319
+      },
+      "flag_on": {
+        "prose_source": "deterministic_v2",
+        "has_cockpit_v2": true,
+        "direct_answer": "Of the ten macroeconomic predictors this demo carries, 4 enter the PD model for Construction: real gdp growth with coefficient -0.42 at a 1-quarter lag; policy rate with coefficient +0.30 at a 2-quarter lag; commercial property prices with coefficient -0.22 at a 1-quarter lag; unemployment with coefficient +0.18 at a 2-quarter lag. The remaining 6 \u2014 inflation, government bond yield, exchange rate ",
+        "tables": 1,
+        "charts": 0,
+        "validation_ok": true,
+        "ms": 330
+      },
+      "baseline_at_base_commit": "Which borrowers do you mean by 'these ten'? Nothing earlier in this investigation names a set I can carry forward, so tell me the population \u2014 a sector, a rating band, a stage, or a question that produces the list \u2014 and I will take it from there."
+    }
+  ]
+}

@@ -303,6 +303,15 @@ def create_app() -> FastAPI:
     app.include_router(engine_router.trace_router, prefix=API_PREFIX)
     app.include_router(ask_router.router, prefix=API_PREFIX)
     app.include_router(ask_router.trace_edit_router, prefix=API_PREFIX)
+    # Cockpit Agentic V3. Its own router by design: the Cockpit path must not
+    # pass through the legacy deterministic answer path or the legacy analyst,
+    # and the cleanest guarantee of that is not sharing a surface with them
+    # (specification section 17). Registered unconditionally; every endpoint
+    # reports the switch being off rather than 404ing, so a deployment can tell
+    # "not enabled" from "not deployed".
+    from backend.api.routers import cockpit_agentic as cockpit_agentic_router
+
+    app.include_router(cockpit_agentic_router.router, prefix=API_PREFIX)
     app.include_router(early_warning_router.router, prefix=API_PREFIX)
     app.include_router(domain_intelligence_router.router,
                        prefix=API_PREFIX)
@@ -386,6 +395,19 @@ def create_app() -> FastAPI:
     from backend.services import domain_status
 
     domain_status.install()
+
+    # Cockpit Intelligence V2's governed tools. `install()` returns an empty
+    # list and changes nothing when COCKPIT_INTELLIGENCE_V2 is off, so a
+    # deployment without the switch keeps exactly the tool registry it had.
+    try:
+        from backend.cockpit_v2 import tools as cockpit_v2_tools
+
+        installed = cockpit_v2_tools.install()
+        if installed:
+            logger.info("Cockpit Intelligence V2 is ON; registered %d "
+                        "governed tool(s)", len(installed))
+    except Exception:  # noqa: BLE001 - a partial deployment is not a failure
+        logger.warning("Cockpit V2 tools could not be registered", exc_info=True)
 
     logger.info("CreditProbe API ready (env=%s, cors=%s)", settings.env, list(settings.cors_origins))
     return app

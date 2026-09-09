@@ -422,10 +422,47 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
 
     result = officer.investigation
     answered = officer.answered
+    # The clarification caveat is appended BEFORE the Cockpit path runs, and
+    # that ordering is the whole of the resolution.
+    #
+    # Cockpit V2 short-circuits the turn and returns, so a caveat added after
+    # it would never be reached on a V2-answered turn: the reader would be
+    # given a figure without being told it answers the question CreditProbe
+    # asked rather than the one they typed. `cockpit_v2.apply` only ever
+    # APPENDS to `narrative.caveats`, so a caveat put there first survives
+    # into the V2 answer intact.
     if resumed:
         result.narrative.caveats.append(
             f"Read as an answer to the question CreditProbe asked, so this "
             f"was computed for \u201c{asked}\u201d.")
+
+    # Cockpit Intelligence V2, on the follow-up path too. A conversation where
+    # the first turn is answered by V2 and the second by the base reader would
+    # change voice mid-thread; the transcript is passed through so a follow-up
+    # keeps the intent of the turn before it.
+    from backend.cockpit_v2 import integration as cockpit_v2
+
+    transcript = [
+        {"question": str(m.get("content") or ""), "answer": ""}
+        for m in (load(thread_id).to_dict().get("messages") or [])
+        if m.get("role") == ROLE_USER][-6:]
+    # `asked`, not `question`: the deterministic path above planned on the
+    # merged question, and one turn cannot be two questions. Where nothing was
+    # resumed the two are the same string, so this only bites on the path it
+    # was wrong on.
+    v2 = cockpit_v2.answer_for(asked, None, turns=transcript,
+                               to_period=(window[1] if window else ""),
+                               from_period=(window[0] if window else ""))
+    if cockpit_v2.apply(result, v2 or {}):
+        remember(thread_id, result, answered)
+        record_answer(thread_id, result, user_id=user_id,
+                      agentic=officer.agentic())
+        body = cockpit_v2.attach(result.to_dict(), v2)
+        cockpit_v2.record_prose_source(body)
+        return {"status": result.status, "run": body,
+                "agentic": officer.agentic(),
+                "thread": load(thread_id).to_dict()}
+
     remember(thread_id, result, answered)
 
     if result.status == "needs_clarification":
