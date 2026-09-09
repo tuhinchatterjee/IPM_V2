@@ -539,6 +539,13 @@ def _routes() -> list[Route]:
     base = ROOT / "frontend" / "src" / "app"
     for page in sorted(base.rglob("page.tsx")):
         relative = page.parent.relative_to(base).as_posix()
+        # A folder whose name starts with `_` is a Next.js PRIVATE folder:
+        # it is opted out of routing, so a `page.tsx` inside one is not a page
+        # anybody can reach. Early Warning V1 was retired by moving it to
+        # `_legacy-signals`, and without this the matrix demanded a curated
+        # expected behaviour for a route that returns 404 by design.
+        if any(part.startswith("_") for part in relative.split("/")):
+            continue
         path = "/" if relative == "." else f"/{relative}"
         path = re.sub(r"/\(.*?\)", "", path) or "/"
         out.append(Route(path=path,

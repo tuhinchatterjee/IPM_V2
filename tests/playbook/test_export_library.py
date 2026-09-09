@@ -170,9 +170,13 @@ class TestBrowsingTheLibrary:
 
 
 class TestTheContractIsExplicitAboutWhatIsDeferred:
-    def test_what_if_is_in_the_contract_but_not_implemented_here(self):
+    def test_what_if_is_in_the_contract_and_now_implemented(self):
+        """What-If was the one declared source module with no surface behind
+        it. `/what-if/thread` now carries the Export to Playbook control and
+        `playbook-export.ts::fromWhatIfResult` builds its payload, so the
+        contract and the product agree."""
         assert contract.WHAT_IF in contract.SOURCE_MODULES
-        assert contract.WHAT_IF not in contract.IMPLEMENTED_MODULES
+        assert contract.WHAT_IF in contract.IMPLEMENTED_MODULES
 
     def test_project_planner_is_not_a_source_module(self):
         assert "project_planner" not in contract.SOURCE_MODULES

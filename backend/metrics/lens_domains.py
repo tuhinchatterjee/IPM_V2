@@ -102,6 +102,10 @@ COCKPIT_DATASETS: frozenset[str] = frozenset({
     "corporate_ownership_edges", "corporate_guarantees",
     "corporate_exposure_network", "corporate_supply_chain",
     "corporate_graph_nodes",
+    # Impairment at facility grain. A governed derivative of `corporate_ifrs9`
+    # by summation, not a second book, so it sits where the obligor grain
+    # already sits.
+    "corporate_ifrs9_facility",
     # Liquidity and cash flow — the borrower's capacity to pay, measured.
     "borrower_cash_flow", "capital_expenditure", "cash_balance_history",
     "debt_maturity_schedule", "debt_service_schedule", "inventory_position",
@@ -140,6 +144,11 @@ EWS_DATASETS: frozenset[str] = frozenset({
     "sector_sensitivity", "shipping_events",
     # Forward-looking hazard.
     "climate_risk",
+    # The Early Warning book itself: the score, the observations behind it and
+    # the external intelligence attached to a borrower. Every one of these
+    # exists to warn, which is the test this set applies.
+    "early_warning_borrower_month", "early_warning_signal_observation",
+    "early_warning_external_event_synthetic",
 })
 
 #: Data Builder domains, as a FALLBACK for a dataset this file does not name.

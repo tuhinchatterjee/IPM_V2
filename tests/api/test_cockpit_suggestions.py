@@ -27,7 +27,10 @@ APPROVED = [question for question, _ in sg.COCKPIT]
 
 @pytest.fixture(scope="module")
 def governed():
-    return retrieve("")
+    # The same context the endpoint builds. An empty question ranks every
+    # dataset at zero, so the datasets an approved question needs are asked
+    # for by name rather than left to the tie-breakers.
+    return retrieve("", datasets=list(sg.COCKPIT_NEEDS))
 
 
 @pytest.fixture(scope="module")

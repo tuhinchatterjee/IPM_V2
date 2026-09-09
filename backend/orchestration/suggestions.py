@@ -233,6 +233,20 @@ COCKPIT: tuple[tuple[str, tuple[str, ...]], ...] = (
      ("portfolio_facility",)),
 )
 
+#: Every dataset any approved question needs, so a caller can ask the
+#: catalogue for them BY NAME rather than hoping a ranking returns them.
+#:
+#: `opening` is called before anything has been asked, so the context it gets
+#: is the governed context for an EMPTY question — every dataset scores zero
+#: on a question with no words in it, and which few come back is settled by
+#: the tie-breakers, in effect by alphabetical order. Registering three Early
+#: Warning datasets in the catalogue pushed `portfolio_facility` out of that
+#: set, and the Cockpit's opening screen fell from three governed questions to
+#: one "what data do you have in..." fallback. Nothing about the deployment
+#: had changed except the spelling of three dataset names.
+COCKPIT_NEEDS: tuple[str, ...] = tuple(sorted(
+    {name for _, needs in COCKPIT for name in needs}))
+
 
 def _rotation(on: Any = None) -> int:
     """Which of the approved questions the Cockpit starts from today.

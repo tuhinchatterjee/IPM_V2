@@ -174,6 +174,33 @@ def _grain_of(dataset: Any) -> str:
     return ""
 
 
+def _narrow(matched: list[Any], wanted_grain: str) -> Any:
+    """One dataset out of several that share a domain AND a grain, or None.
+
+    Two datasets can honestly answer to "the facility IFRS 9 dataset": the
+    canonical facility-grain book, `corporate_ifrs9_facility`, and the older
+    `ifrs9_staging`. Ranking them needs a signal, and the strongest one
+    available is the dataset's own NAME — a person who says "facility" and a
+    dataset called `..._facility` agree about the grain in the one place the
+    catalogue cannot get wrong. A dataset that merely HAS that grain, without
+    saying so in its name, is the weaker claim.
+
+    Still returns None when the tie-break does not break the tie. A resolver
+    that guesses between two books answers the wrong question silently, and
+    "which dataset did you mean?" is the better failure.
+    """
+    if len(matched) == 1:
+        return matched[0]
+    if not matched or not wanted_grain:
+        return None
+    forms = _GRAIN_WORDS.get(wanted_grain, ())
+    named = [m for m in matched
+             if any(w in _normal(getattr(m, "name", "")) or
+                    w in _normal(getattr(m, "business_name", ""))
+                    for w in forms)]
+    return named[0] if len(named) == 1 else None
+
+
 def resolve(question: str, catalogue: Any = None) -> Any:
     """The dataset a sentence names, or None.
 
@@ -216,9 +243,11 @@ def resolve(question: str, catalogue: Any = None) -> Any:
     for domain, members in by_domain.items():
         if _normal(domain) and _normal(domain) in asked:
             if wanted_grain:
-                matched = [m for m in members if _grain_of(m) == wanted_grain]
-                if len(matched) == 1:
-                    return matched[0]
+                narrowed = _narrow(
+                    [m for m in members if _grain_of(m) == wanted_grain],
+                    wanted_grain)
+                if narrowed is not None:
+                    return narrowed
             if len(members) == 1:
                 return members[0]
 
@@ -234,9 +263,11 @@ def resolve(question: str, catalogue: Any = None) -> Any:
             if len(token) < 3 or token not in asked:
                 continue
             if wanted_grain:
-                matched = [m for m in members if _grain_of(m) == wanted_grain]
-                if len(matched) == 1:
-                    return matched[0]
+                narrowed = _narrow(
+                    [m for m in members if _grain_of(m) == wanted_grain],
+                    wanted_grain)
+                if narrowed is not None:
+                    return narrowed
             if len(members) == 1:
                 return members[0]
     return None

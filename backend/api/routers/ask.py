@@ -140,7 +140,10 @@ def suggestions() -> dict:
     from backend.orchestration.context import retrieve
 
     try:
-        approved = sg.opening(retrieve(""))
+        # Named, not ranked: see `suggestions.COCKPIT_NEEDS`. A dataset
+        # the deployment does not have still cannot be retrieved, so
+        # this asks for them without promising them.
+        approved = sg.opening(retrieve("", datasets=list(sg.COCKPIT_NEEDS)))
     except Exception:  # noqa: BLE001 - an empty composer is not a failure
         logger.exception("Opening suggestions could not be built")
         approved = []

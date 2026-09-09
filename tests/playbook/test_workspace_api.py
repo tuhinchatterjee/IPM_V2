@@ -267,7 +267,8 @@ class TestExportToPlaybook:
     def test_the_library_reports_which_modules_are_implemented(self, client):
         body = client.get("/api/v1/playbook/exports").json()
         assert "what_if" in body["modules"]
-        assert "what_if" not in body["implemented_modules"]
+        # Implemented since the What-If thread gained its export control.
+        assert "what_if" in body["implemented_modules"]
 
 
 class TestWorkspacesAndDownloads:

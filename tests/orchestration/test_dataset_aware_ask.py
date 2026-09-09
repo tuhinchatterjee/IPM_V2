@@ -82,11 +82,19 @@ class TestWhichDatasetASentenceNames:
             assert cat.resolve(asked).name == "ifrs9_staging"
 
     def test_a_domain_and_a_grain_together(self) -> None:
-        """The catalogue gives two IFRS 9 datasets near-identical names. The
+        """The catalogue gives the IFRS 9 datasets near-identical names. The
         grain is the whole of what tells them apart, and neither "facility
-        IFRS 9" nor "corporate IFRS 9" is a name the catalogue holds."""
+        IFRS 9" nor "corporate IFRS 9" is a name the catalogue holds.
+
+        Three of them share the domain now — `corporate_ifrs9` at obligor
+        grain, `corporate_ifrs9_facility` and `ifrs9_staging` at facility
+        grain — so the grain alone stopped deciding. The tie-break is the
+        dataset's own name: a reader who says "facility" and a dataset called
+        `..._facility` agree about the grain explicitly, which is a stronger
+        claim than a declared grain that the name does not mention.
+        """
         assert cat.resolve("Show me the Facility IFRS 9 dataset").name == \
-            "ifrs9_staging"
+            "corporate_ifrs9_facility"
         assert cat.resolve("Tell me about Corporate IFRS 9").name == \
             "corporate_ifrs9"
 
@@ -312,7 +320,7 @@ class TestTheThreadKeepsTheDatasetAndThePeriod:
 
     def test_naming_a_dataset_opens_that_dataset(self, thread) -> None:
         assert thread[1]["datasets"][0] == "corporate_ifrs9"
-        assert thread[2]["datasets"][0] == "ifrs9_staging"
+        assert thread[2]["datasets"][0] == "corporate_ifrs9_facility"
 
     def test_a_dataset_turn_is_a_profile_and_its_rows(self, thread) -> None:
         """Two blocks, not one. A profile is a description and a description
@@ -324,7 +332,7 @@ class TestTheThreadKeepsTheDatasetAndThePeriod:
 
     def test_a_bare_period_continues_the_dataset_on_the_table(self, thread
                                                                ) -> None:
-        assert thread[3]["datasets"][0] == "ifrs9_staging"
+        assert thread[3]["datasets"][0] == "corporate_ifrs9_facility"
         assert "This is Q1 2025" in thread[3]["answer"]
         assert any("Q1 2025" in b["title"]
                    for b in thread[3]["package"]["blocks"])
