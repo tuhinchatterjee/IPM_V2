@@ -435,3 +435,100 @@ under it, because that would hide a leak rather than report it.
 `tests/proof/test_fresh_clone_acceptance.py` in that order — the order that
 used to fail — together with the two other affected suites: **95 passed, 0
 failed**, and no `Test Domain` row afterwards.
+
+### M2 — What-If (`80e74a4`), the canonical foundation
+
+| | |
+|---|---|
+| **Merged** | `80e74a4e1e5552e73c532849b72329008335b09f`, head re-verified against the live remote first |
+| **Merge commit** | `15d81c5` |
+| **Conflicts** | **one**, and it was a generated file |
+| **Migrations after** | `0032`-`0042`, single head `0042` — What-If adds none of its own |
+
+**The conflict, and why it was regenerated rather than resolved.**
+`docs/FINAL_FEATURE_VERIFICATION_MATRIX.md` is written by
+`scripts/feature_matrix.py`. Both sides were stale with respect to the tree the
+merge produced — one said 60 pages and 588 endpoints, the other 63 and 612 — so
+picking either would have committed a number that was wrong before it was
+written. Regenerated from the merged tree: **64 pages, 652 endpoints across 42
+areas, 98 browser-crawled routes**.
+
+**What landed, verified rather than assumed.**
+
+| | |
+|---|---|
+| `backend/corporate/ratingscale.py` | 19 performing grades, `SCALE_VERSION 3.0.0` |
+| `universe.py` | delegates — `PERFORMING = ratingscale.PERFORMING` |
+| `backend/whatif/masterscale.py` | binds to `ratingscale`, not the 13-grade scale |
+| `requires-python` | `>=3.12` — closes the numpy defect recorded at M1 |
+| `uv.lock` | present |
+| `.github/workflows/ci.yml` | carries the corporate-build step, in the order its comment requires |
+
+Two files the plan expected to fight over resolved themselves: Lenses V3 never
+touched `masterscale.py` or `universe.py`, so What-If's versions landed without
+a conflict.
+
+**The lake had to be rebuilt before the gate could mean anything.** The
+corporate book on disk was built at M1 under the 13-grade scale; the merge
+replaced the scale underneath it. Rebuilt, and the record is substantive rather
+than the timings churn seen at M1 — **69 non-timing lines changed**, the
+catalogue moving from 73 to 80 datasets, and the generator now publishing the
+fields the What-If schema contract asks for: `ttc_pd_pct`, `pit_pd_12m_pct`,
+`lifetime_pd_pct`, `pd_applicable`, `pd_measurement_basis`, `secured_lgd`,
+`unsecured_lgd`, `ecl_before_overlay`, `credit_conversion_factor`,
+`internal_rating_ordinal`, `stage_measured`, `sicr_clear_quarters`. The
+contract and the generator agree by construction now rather than by
+coincidence. The build reports `catalogue reconciles with the lake: True`.
+
+**A sequencing rule this established, which applies to every later merge.** A
+merge can invalidate the data lake AND the installed environment, not just the
+code. It invalidated the lake here by replacing the rating scale, and the
+environment by introducing `xgboost`, `scikit-learn`, `scipy` and `shap` — the
+first G-DATA run failed four What-If ML tests purely because the venv predated
+the merge. Both are refreshed before gating from here. **EWS at M5 needs the
+same treatment**, because it reads the corporate snapshot.
+
+### G-DATA — the canonical gate
+
+Asserted directly against the rebuilt book, independently of any suite:
+
+| Check | Result |
+|---|---|
+| Reported period set | **16 quarters**, `Q3 2022` to `Q2 2026` |
+| Canonical borrowers | **3,800**, `CORP-100000` .. `CORP-103799` |
+| Orphan `corporate_ifrs9` rows vs the 360 snapshot | **0**, joined on `borrower_id` + `period` |
+| Distinct rating grades in the book | **20**, none outside the 19-performing + `D` scale |
+| Rating ordinals | range **1-20**, none outside |
+
+*Method note.* Two earlier attempts at the grade check were wrong — the first
+queried `internal_rating` on `corporate_ifrs9`, which does not carry it, and
+the second mis-parsed DuckDB's `describe` output. The figures above are from
+the corrected run.
+
+## Correction — the `python-multipart` claim in the plan is overstated
+
+The integration plan recorded, from the Lenses V3 branch's own comment, that
+six routers declare `UploadFile` and that **"FastAPI raises at IMPORT time
+without this... a clean install of this file could not start the API at all."**
+
+**That is not reproducible.** Tested in a clean 3.12 virtualenv built from
+`requirements.txt` with `python-multipart` removed, `backend.api.main` imports
+and constructs its routes. The reason is that `python-multipart` arrives
+**transitively as a dependency of `mcp`**, so the environment was getting away
+with the declaration gap.
+
+An earlier attempt of mine to test this by blocking `sys.modules` proved
+nothing, because Starlette binds the module at its own import and the block
+came too late. Recorded because the first attempt led me to state the claim was
+false before I had established it.
+
+**The declaration gap is still real and still worth fixing, for a different
+reason.** Six routers use `python-multipart` directly, and it was declared only
+in the `dev` group of `pyproject.toml` while `requirements.txt` pinned it as a
+runtime dependency — two files, two answers. Upload support therefore rested on
+what an unrelated library happened to require, and an `mcp` bump that dropped
+it would have taken uploads with it silently.
+
+**Fixed**: promoted to a direct runtime dependency in `pyproject.toml`, pinned
+`==0.0.20` to match `requirements.txt` rather than the `>=0.0.20` the dev group
+carried, so the two files cannot resolve to different versions.

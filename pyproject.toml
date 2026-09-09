@@ -78,6 +78,19 @@ dependencies = [
     # first time anybody ran that kernel. scikit-learn and shap both need it
     # anyway; declaring it fixes a defect that predates this work.
     "scipy==1.16.2",
+    # Six routers declare UploadFile/File/Form — Data Builder, Playbook,
+    # Planner, Brain, Messages and Regulatory — so this is a DIRECT runtime
+    # dependency of the API, not dev tooling.
+    #
+    # It was previously declared only in the `dev` group, and the environment
+    # got away with it because `mcp` happens to require it transitively. A
+    # dependency the product uses directly should not rest on what an
+    # unrelated library happens to pull in: an `mcp` bump that dropped it
+    # would take uploads with it, and nothing here would have said so.
+    #
+    # Pinned to match requirements.txt rather than the `>=` the dev group
+    # carried, so the two files cannot resolve to different versions.
+    "python-multipart==0.0.20",
 ]
 
 [dependency-groups]
@@ -89,7 +102,6 @@ dev = [
     "pytest>=8.0",
     # FastAPI's TestClient needs httpx.
     "httpx>=0.27",
-  "python-multipart>=0.0.20",
 ]
 
 [tool.ruff]
