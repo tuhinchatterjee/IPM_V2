@@ -48,6 +48,54 @@ def dataset_name():
     _remove_dataset(name)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _remove_test_domain():
+    """Take "Test Domain" out again when this module is done.
+
+    The datasets these tests create are cleaned up one by one, for a reason the
+    fixture above states: a leaked dataset makes the governed catalogue
+    advertise data that is no longer on disk, and an unrelated suite asserts
+    that invariant. The DOMAIN created beside them was never cleaned up, and
+    the same argument applies to it.
+
+    It leaks into `tests/proof/test_fresh_clone_acceptance.py`, which counts
+    the live business domains and finds eight where seven were expected. Both
+    the What-If and the Project Planner branches traced a failure to this row
+    and left it alone as outside their work, which is right for a feature
+    branch and leaves it nobody's — so it is fixed here.
+
+    Module-scoped rather than per-test because several tests share the domain
+    within a module, and autouse because a cleanup somebody has to remember to
+    ask for is the one that gets forgotten.
+    """
+    yield
+    _remove_domain("Test Domain")
+
+
+def _remove_domain(name: str) -> None:
+    """Delete the domain row, and only if nothing is still filed under it.
+
+    A domain holding datasets is not this fixture's to remove: that would mean
+    a test leaked a dataset, and deleting the domain would hide it rather than
+    report it. The dataset cleanup runs first, so by here there should be none.
+    """
+    from sqlalchemy import delete, select
+
+    from backend.db.engine import get_session
+    from backend.models.platform import DataDomain, DatasetDefinition
+
+    try:
+        with get_session() as session:
+            still_filed = session.execute(
+                select(DatasetDefinition.name).where(
+                    DatasetDefinition.domain == name)).scalars().all()
+            if still_filed:
+                return
+            session.execute(delete(DataDomain).where(DataDomain.name == name))
+    except Exception:
+        pass
+
+
 def _remove_dataset(name: str) -> None:
     """Delete the dataset row (cascading to uploads, mappings and versions) and
     the Parquet it published."""

@@ -502,9 +502,12 @@ class TestTheAccountsProbeAsksForThePeopleByName:
             def build():
                 return _Report()
 
-        monkeypatch.setitem(
-            __import__("sys").modules, "scripts.seed_playbook_committees",
-            _Builder)
+        # Patch the module's own `build`, not sys.modules: `import a.b as c`
+        # binds through getattr(a, "b") when the package already carries the
+        # submodule, so replacing the sys.modules entry alone is not seen.
+        import scripts.seed_playbook_committees as real
+
+        monkeypatch.setattr(real, "build", _Builder.build)
         with pytest.raises(RuntimeError) as raised:
             plan._seed_playbook()
         # The reason travels with the refusal; "it did nothing" is not enough

@@ -194,6 +194,17 @@ REFUSED: dict[str, str] = {
     "retail_application_scorecard_development_reference": (
         "A scorecard's development window belongs to the Scorecard domain. A "
         "Lens reads the retail book, not the sample a model was fitted on."),
+    "sme_scorecard_monthly_validation": (
+        "The SME scorecard's validation book belongs to the Scorecard domain, "
+        "which a Lens may not read. A Lens reports the credit book; how a "
+        "model performed on it is Scorecard Validation's to publish."),
+    "sme_scorecard_development_reference": (
+        "A scorecard's development window belongs to the Scorecard domain. A "
+        "Lens reads the SME book, not the sample a model was fitted on."),
+    "sme_scorecard_decisions": (
+        "Application decisions and their overrides belong to the Scorecard "
+        "domain. A Lens reads exposure and its trend, not who was approved "
+        "and who overruled the score."),
     "scenario_definitions": (
         "The stress and scenario library belongs to What-If, which a Lens may "
         "not read. A Lens reports the book as it is and as it is trending, "

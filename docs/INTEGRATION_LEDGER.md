@@ -318,3 +318,120 @@ shared-database pollution reaching a **different** surface: there it inflates a
 domain count, here its fixture accounts satisfied a user count. Both are
 arguments for the same fix — probes that ask for the thing rather than counting
 rows — and `Test Domain` itself is still outstanding.
+
+## M1 — closed
+
+### The gate, after the deployment was properly bootstrapped
+
+The first two suite runs are recorded rather than dropped, because the
+difference between them is the finding.
+
+| Run | State of the environment | Failures | Setup errors |
+|---|---|---|---|
+| 1 | lake incomplete — scorecards not built | **aborted at collection** (2 `tests/brain/` modules) | — |
+| 2 | lake complete, **application never bootstrapped** | **64** | **75** |
+| 3 | bootstrapped, after the I-1 fix | **7** | **4** |
+
+**None of run 2's 64 failures could have been an integration regression, and
+this is provable rather than argued.** The integration HEAD at that point
+differed from the Lenses V3 tip by exactly two Markdown files under `docs/` —
+no code, no tests, no configuration:
+
+```
+git diff --stat c0b66d0 HEAD
+ docs/INTEGRATION_LEDGER.md            | 250 ++++++
+ docs/cockpit_repoint/FIELD_MAPPING.md | 239 ++++++
+```
+
+They were the product of an unbootstrapped deployment. Bootstrapping it removed
+57 of the 64.
+
+### The 7 remaining, each classified
+
+| Test | Verdict |
+|---|---|
+| `tests/proof/test_bootstrap_marker.py:508` | **Mine, and the suite was right.** My own new regression test did not raise. `import a.b as c` binds through `getattr(a, "b")` when the package already carries the submodule, so replacing the `sys.modules` entry was never seen. Fixed by patching the module's own `build`. |
+| `tests/metrics/test_lens_domains.py:152` | **A real latent defect this integration surfaced.** See I-2. |
+| `tests/exports/test_workbooks.py:50` (x2) | **Inherited.** Present in run 2, before any of my changes. What-If's own handoff describes four of its six failures as *"the catalogue and workbook defects on the credit book established on baseline 4f79566"*; these are two of them. |
+| `tests/evals/test_properties.py:90` and `:103` | **Inherited.** Same, and the other two of that four. |
+| `tests/evals/test_multi_analysis_response.py:166` | **Inherited.** Present in run 2. |
+
+None of my three fixes touches `backend/exports`, `backend/evals` or the
+credit-book analytics — the changed files are `backend/bootstrap/plan.py`,
+`backend/metrics/lens_domains.py` and two test files.
+
+### The 4 setup errors
+
+All four in `tests/scorecard/test_report_api.py`, all
+`psycopg.OperationalError: connection refused` on port 5433. **Environmental,
+not a product defect:** this container reaps background processes and killed the
+PostgreSQL cluster mid-run. A supervisor now restarts it within five seconds,
+which is why run 3 has four rather than run 2's block of skips. Re-run in
+isolation, these pass.
+
+### Other M1 gates
+
+| Gate | Result |
+|---|---|
+| Merge | clean, no conflicts |
+| `alembic heads` | one, `0042` |
+| Empty DB to head | 145 tables, 2,376 columns |
+| Round trip `0042 -> 0031 -> 0042` | 104 tables at `0031`, back to 145 / 2,376 |
+| `scv_results.value` nullable | YES |
+| `ruff check .` | clean |
+| Frontend `tsc --noEmit`, eslint | clean |
+| Frontend `npm test` | **541 passed, 0 failed** (46 suites) |
+| Governed catalogue | **80 catalogued, 80 registered** |
+| Bootstrap readiness | 16 of 16 checks pass |
+| Corporate book | 3,800 borrowers over 16 quarters |
+| Q2 2026 review | completed, 7 Risk Cases |
+
+## Integration defect I-2 — three governed datasets no registry named
+
+**Found at M1. Severity: material. Fixed.**
+
+Registering the SME datasets in the governed catalogue — which the SME build
+never did — made `tests/metrics/test_lens_domains.py` fail:
+
+> These governed datasets are named in neither COCKPIT_DATASETS, EWS_DATASETS
+> nor REFUSED, so whether a Lens may read them is being decided by a Data
+> Builder domain label rather than by this registry:
+> ['sme_scorecard_decisions', 'sme_scorecard_development_reference',
+> 'sme_scorecard_monthly_validation']
+
+The registry had never had to name them because they had never reached the
+catalogue. Whether a Lens could read the SME book was being decided by a
+domain label rather than by the registry that exists to decide it.
+
+**Fixed** by adding all three to `REFUSED` with stated reasons, which is what
+Decision 6 and the rehearsal's R-3 boundary both require: a Lens may read the
+Cockpit and Early Warning domains, and Scorecard Validation stays restricted.
+The reasons follow the file's own doctrine that *"no rule for this" and "this
+belongs to another product" are different answers and only the second is
+useful*.
+
+## Integration defect I-3 — the Test Domain row, fixed
+
+**Found by two feature branches, owned by neither. Fixed here.**
+
+`tests/api/test_data_builder.py` created a business domain called `Test Domain`
+in seven places and never removed it. `tests/proof/test_fresh_clone_acceptance.py`
+then counted eight live domains where seven were expected. Both the What-If and
+the Project Planner branches traced a failure to this row and deliberately left
+it alone as outside their work — correct for a feature branch, and it left the
+defect nobody's.
+
+The same file already cleans up its *datasets*, with a fixture docstring
+explaining exactly why leaking matters: a leaked dataset makes the governed
+catalogue advertise data no longer on disk, and an unrelated suite asserts that
+invariant. That argument was never applied to the domain created beside them.
+
+**Fixed** with a module-scoped autouse teardown, following that doctrine —
+autouse because a cleanup somebody has to remember to ask for is the one that
+gets forgotten, and refusing to delete a domain that still has datasets filed
+under it, because that would hide a leak rather than report it.
+
+**Verified** by running `tests/api/test_data_builder.py` and then
+`tests/proof/test_fresh_clone_acceptance.py` in that order — the order that
+used to fail — together with the two other affected suites: **95 passed, 0
+failed**, and no `Test Domain` row afterwards.
