@@ -295,8 +295,26 @@ def main(argv: list[str] | None = None) -> int:
               bool((payload.get("source_ref") or {}).get("link")),
               str((payload.get("source_ref") or {}).get("link")))
     status, committees, _ = c.call("/playbook/committees")
-    r.add("the committee half answers",
-          status == 200 and isinstance(committees, dict))
+    rows = (committees or {}).get("committees") or []
+    r.add("the committee half is seeded", status == 200 and len(rows) > 0,
+          f"{len(rows)} committee(s)")
+    status, packs, _ = c.call("/playbook/packs")
+    pack_rows = (packs or {}).get("packs") or []
+    r.add("committee packs exist to open", len(pack_rows) > 0,
+          f"{len(pack_rows)} pack(s)")
+    if pack_rows:
+        pack = pack_rows[0]
+        status, opened, _ = c.call(f"/playbook/packs/{pack['id']}")
+        r.add("a pack opens with its sections",
+              status == 200 and len((opened or {}).get("sections") or []) > 0,
+              f"{pack.get('code')}: "
+              f"{len((opened or {}).get('sections') or [])} section(s), "
+              f"{pack.get('readiness_percent')}% ready")
+    # The chase list is a DRY RUN: reading it must notify nobody. Asserted
+    # because the screen says so and a demonstration will open it.
+    status, chase, _ = c.call("/playbook/chase")
+    r.add("the chase list reads without sending anything", status == 200,
+          f"{len((chase or {}).get('outstanding') or [])} outstanding")
 
     # ------------------------------------------------------ Project Planner
     r.head("Project Planner")

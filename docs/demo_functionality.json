@@ -230,9 +230,27 @@
     },
     {
       "section": "Playbook",
-      "check": "the committee half answers",
+      "check": "the committee half is seeded",
       "ok": true,
-      "detail": ""
+      "detail": "3 committee(s)"
+    },
+    {
+      "section": "Playbook",
+      "check": "committee packs exist to open",
+      "ok": true,
+      "detail": "6 pack(s)"
+    },
+    {
+      "section": "Playbook",
+      "check": "a pack opens with its sections",
+      "ok": true,
+      "detail": "corporate-credit-committee-q2-2026: 3 section(s), 40% ready"
+    },
+    {
+      "section": "Playbook",
+      "check": "the chase list reads without sending anything",
+      "ok": true,
+      "detail": "0 outstanding"
     },
     {
       "section": "Project Planner",
@@ -361,9 +379,9 @@
       "detail": "HTTP 200"
     }
   ],
-  "check_count": 60,
-  "passed": 60,
+  "check_count": 63,
+  "passed": 63,
   "failed": 0,
-  "duration_seconds": 4.2,
+  "duration_seconds": 4.3,
   "result": "PASS"
 }
