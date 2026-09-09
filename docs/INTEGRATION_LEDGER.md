@@ -731,3 +731,99 @@ credential-leak `__repr__`; `COCKPIT_CREDENTIAL_VAR`.
 
 **The Cockpit private universe is still present and still not wired to the
 canonical domains.** M4 merges; M4b repoints.
+
+### M4b — Cockpit repoint, DEFERRED to post-demo, with the measurement that decided it
+
+The approved M4b was the full repoint plus a Cockpit-owned projection layer.
+The demo fast-track asks for "only the minimum safe compatibility layer
+required so Cockpit runs correctly on canonical actuals", with the fallback
+that anything which cannot be done *quickly and honestly* is disabled, marked
+post-demo, and must not block the unified demo.
+
+**The measurement:** of the Cockpit's **791 declared fields across 10
+relations**, exactly **50 share even a NAME with any canonical `corporate_*`
+dataset — 6%.**
+
+| Cockpit relation | fields | share a name |
+|---|---|---|
+| `cockpit_facility_quarter` | 198 | 6 |
+| `cockpit_rating_ratio_quarter` | 170 | 12 |
+| `cockpit_borrower_financial_quarter` | 135 | 12 |
+| `cockpit_covenant_quarter` | 59 | 6 |
+| `cockpit_collateral_quarter` | 49 | 3 |
+| `cockpit_ifrs9_detail` | 44 | 3 |
+| `cockpit_macro_quarter_window` | 40 | 2 |
+| `cockpit_collateral_allocation` | 34 | 3 |
+| `cockpit_qualitative_quarter` | 33 | 2 |
+| `cockpit_reporting_calendar` | 29 | 1 |
+| **total** | **791** | **50** |
+
+And a name match is an **upper bound**, not a mapping: two of the ten macro
+factors match by name and mean different things (`fx_lcy_per_usd` against an
+`fx_index`; `commercial_property_price_index` against a *residential*
+`house_price_index`).
+
+**So the "minimum compatibility layer" IS the whole repoint** — roughly 740
+hand-mapped fields, every one a place to change what a number means. Doing that
+quickly is precisely the fabrication the decision forbids. Deferred, and the
+fallback rule applied to the repoint rather than only to the projection.
+
+#### Why deferring is safe: the boundary is structural, not procedural
+
+| Check | Result |
+|---|---|
+| Cockpit store root | `data/cockpit_agentic_v3/` — its own root |
+| `store.FORBIDDEN` | refuses `data/analytics`, `metadata`, `data/curated`, `data/raw` |
+| `cockpit_*` datasets in the governed catalogue | **none of the 80** |
+
+A canonical consumer cannot read Cockpit data even by mistake, because the
+catalogue does not name it. What-If, EWS, Lenses and Borrower 360 continue to
+read the canonical book; the Cockpit reads its own; and neither can reach the
+other.
+
+**New: `tests/proof/test_cockpit_canonical_boundary.py`** — 6 tests, all
+passing. No `cockpit_*` dataset is governed (and the catalogue still holds the
+canonical book, so an empty catalogue cannot pass it for the wrong reason); the
+Cockpit root is outside the analytics and metadata directories and refuses them
+by name; no `BRW`/`FAC0`/`GRP0`/`CKB-`/`CKG-` identifier appears in
+`corporate_borrower_360` and every borrower there is `CORP-`; and
+`corporate_ifrs9` holds exactly 16 periods with no 2021, 2027 or 2030 quarter —
+so a projection cannot have become a reported period.
+
+Each feature branch tests its own side. **Neither owns the boundary between
+them**, which is why it was untested and why it belongs to the integration.
+
+#### The forward-projection question, and why it does not arise for the demo
+
+150 of the 200 macro-pivot cells per anchor (10 factors x offsets +1..+15) are
+forward projections with no canonical source. That is a *repoint* problem: on
+its own store the Cockpit's macro window is internally consistent and works.
+Deferring the repoint defers this with it. Nothing is fabricated and nothing is
+hidden, because nothing changed.
+
+*(Correction to an earlier figure in this ledger and in my reporting: I gave
+"175 of 200". The correct count is 150 forward cells per anchor. The 175
+conflated those with backward cells missing only at the first four anchors —
+Q3 2022 loses -4..-1, Q4 2022 -4..-2, Q1 2023 -4..-3, Q2 2023 -4 — which is 100
+cells across four anchors, not a per-anchor loss.)*
+
+#### Carried to post-demo
+
+1. The 740-field mapping, using the five classes in
+   `docs/cockpit_repoint/FIELD_MAPPING.md`.
+2. `sql.py::_build_session`'s 512 MB whole-relation materialisation — harmless
+   at 250 borrowers, impossible at 3,800, and it must become pushdown *before*
+   the repoint.
+3. `corporate_ifrs9_facility` in the canonical build (19 of 32 fields already
+   producible inside `build_ifrs9()`).
+4. Cockpit V2's 12-grade scale, re-derived **via PD** and never via rank.
+5. The Cockpit-owned projection layer for `quarter_offset > 0`.
+6. Four backend constants still reading "Synthetic demonstration…".
+
+#### One honesty point for the demo itself
+
+While the two books are separate, the Cockpit answers portfolio questions on
+250 borrowers and What-If/EWS/Lenses answer them on 3,800. **A viewer who asks
+both the same question will get different portfolio totals**, and that is a
+presentation risk rather than a defect. It is named here so the demo script can
+avoid a side-by-side that invites the comparison.
