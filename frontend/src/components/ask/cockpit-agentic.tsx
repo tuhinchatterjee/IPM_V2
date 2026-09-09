@@ -123,18 +123,23 @@ export function CockpitV3Badge({ diagnostics }: {
         </p>
       )}
 
-      {/* The Cockpit has its own Anthropic credential, deliberately separate
-          from the one the tooling uses. Missing means it answers nothing —
-          and never that it quietly borrowed another. */}
+      {/* The Cockpit has its own model-provider credential, deliberately
+          separate from the one the surrounding tooling uses. Missing means it
+          answers nothing — never that it quietly borrowed another.
+
+          The variable NAME comes from the server rather than being written
+          here: nothing rendered on screen names a vendor, which is a product
+          rule this badge is not exempt from, and the server is where the name
+          is decided anyway. */}
       {!diagnostics.provider.configured && (
         <p className="text-[11px] leading-snug text-red-800">
           <span className="font-semibold">
-            No Cockpit Anthropic credential.
+            No model-provider credential is configured.
           </span>{" "}
-          Set {diagnostics.provider.variable ?? "COCKPIT_ANTHROPIC_API_KEY"} in
-          the runtime environment. It is deliberately separate from
-          ANTHROPIC_API_KEY, and nothing here falls back to that or to any
-          other credential: every question stops with
+          Set <code>{diagnostics.provider.variable ?? "the Cockpit credential"}</code>{" "}
+          in the runtime environment. It is deliberate that this is the
+          Cockpit&apos;s own: nothing here falls back to a shared or
+          surrounding credential, and every question stops with
           PROVIDER_CREDENTIAL_MISSING until it is set.
         </p>
       )}
