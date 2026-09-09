@@ -175,7 +175,10 @@ idempotency key and its event log are already what a queued worker would use.
 ## Running it
 
 ```bash
-# database (isolated cluster on 55432 in development)
+# the isolated development cluster (start / stop / status / create)
+scripts/playbook_dev_env.sh start
+
+# database
 .venv/bin/python -m alembic upgrade head
 
 # the demonstration
@@ -191,5 +194,16 @@ npm --prefix frontend run build && npm --prefix frontend run start
 .venv/bin/python scripts/acceptance/verify_playbook_artifacts.py
 .venv/bin/python scripts/playbook_live_slice.py     # needs ANTHROPIC_API_KEY
 ```
+
+`scripts/playbook_dev_env.sh` exists because the cluster survives a restart and
+the *server* does not, and because this cluster's `postgresql.conf` sets no
+port: a bare `pg_ctl start` brings it up on 5432, where every connection string
+in `.env` is then quietly wrong. The script passes 55432 explicitly, is
+idempotent in both directions, refuses to `initdb` over an existing cluster, and
+carries no credential — `DATABASE_URL` and `SECRET_KEY` stay in the gitignored
+`.env`, which it names and does not read.
+
+It is a development convenience for the isolated cluster. It is not a deployment
+tool and knows nothing about one.
 
 Then open `http://127.0.0.1:3000/playbook`.

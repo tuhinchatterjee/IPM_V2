@@ -21,7 +21,7 @@ Git isolation is not database isolation, so both are separated.
 | Concern | Value |
 |---|---|
 | Python | 3.12.11, fetched by `uv` into `.venv` |
-| Database cluster | PostgreSQL 16.13, own cluster at `/var/lib/postgresql/playbook_dev`, **port 55432** |
+| Database cluster | PostgreSQL 16.13, own cluster at `/var/lib/postgresql/playbook_dev`, **port 55432**. Managed by `scripts/playbook_dev_env.sh` (`start` / `stop` / `status` / `create`). |
 | Dev database | `creditprobe_playbook_dev` |
 | Test database | `creditprobe_playbook_test` |
 | Uploads / artifacts | `.playbook-dev/uploads` (gitignored) |
@@ -30,6 +30,14 @@ Git isolation is not database isolation, so both are separated.
 
 Nothing in this setup touches a default `5432`, a production database, or any
 committed data file.
+
+**Resuming after a container restart.** The cluster's data survives; the server
+does not, and neither do the two application processes. `scripts/playbook_dev_env.sh start`
+brings the database back, and the "Running it" block in `INTEGRATION_NOTES.md`
+covers the rest. The port matters more than it looks: this cluster's
+`postgresql.conf` sets no `port`, so a bare `pg_ctl start` comes up on 5432 and
+every connection string in `.env` is then quietly pointing somewhere else. The
+script passes 55432 explicitly so that cannot happen.
 
 ## Baseline findings recorded before any Playbook change
 
