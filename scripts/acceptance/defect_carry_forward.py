@@ -22,9 +22,10 @@ import argparse
 import glob
 import json
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -71,6 +72,7 @@ def cockpit_credential_is_its_own() -> tuple[str, str]:
     variable and seeing whether the Cockpit takes it can.
     """
     import os
+
     from backend.cockpit_agentic import credential
 
     saved = {name: os.environ.get(name)
@@ -141,6 +143,7 @@ def clarification_caveat_survives_the_cockpit_path() -> tuple[str, str]:
 
 def scope_and_domain_lock_both_survived() -> tuple[str, str]:
     import inspect
+
     from backend.runtime.validation import validate
     params = inspect.signature(validate).parameters
     have = {"scope", "domain_lock"} <= set(params)
@@ -148,8 +151,9 @@ def scope_and_domain_lock_both_survived() -> tuple[str, str]:
 
 
 def cockpit_reads_the_canonical_book() -> tuple[str, str]:
-    from backend.cockpit_agentic import service
     import pandas as pd
+
+    from backend.cockpit_agentic import service
     path = (ROOT / "data" / "cockpit_agentic_v3" / service.DEFAULT_RELEASE
             / "cockpit_facility_quarter.parquet")
     if not path.exists():
@@ -291,6 +295,7 @@ def scorecard_domains_stay_out_of_reach_of_a_lens() -> tuple[str, str]:
 
 def both_playbooks_mount_without_collision() -> tuple[str, str]:
     from collections import Counter
+
     from backend.api.main import create_app
     spec = create_app().openapi()
     pairs = Counter((path, method) for path, ops in spec["paths"].items()

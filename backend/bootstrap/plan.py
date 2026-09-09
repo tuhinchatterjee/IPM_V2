@@ -541,7 +541,19 @@ def _seed_playbook() -> str:
     return (f"{len(report.built)} committee(s) built, "
             f"{len(report.present)} already present")
 def _early_warning_needed() -> bool:
+    """Files on disk are not enough; the catalogue has to know about them.
+
+    This asked only whether the Parquet existed, and that is how three Early
+    Warning datasets came to sit in the lake while Data Builder listed eighty
+    governed datasets and none of them Early Warning's. A dataset the governed
+    catalogue does not carry cannot be browsed, cannot be joined under a
+    declared relationship, and cannot be reached by any module that goes
+    through the catalogue rather than around it — so a deployment missing the
+    registration is not ready, whatever is on disk.
+    """
     if not _lake_has(*readiness.EARLY_WARNING_DATASETS):
+        return True
+    if not _early_warning_catalogued():
         return True
     try:
         from backend.data_access import get_data_source
@@ -552,13 +564,39 @@ def _early_warning_needed() -> bool:
     return months < readiness.MINIMUM_EARLY_WARNING_MONTHS
 
 
+def _early_warning_catalogued() -> bool:
+    from backend.config import settings
+    from backend.data_access import catalogue_io
+
+    try:
+        catalogue = catalogue_io.read(settings.metadata_dir)
+    except Exception:  # noqa: BLE001 - an unreadable catalogue is one to write
+        return False
+    known = {str(d.get("name")) for d in catalogue.get("datasets", [])}
+    return set(readiness.EARLY_WARNING_DATASETS) <= known
+
+
 def _build_early_warning() -> str:
     import scripts.build_early_warning_v2 as builder
+    from backend.early_warning import catalogue as ews_catalogue
 
-    if builder.main([]) != 0:
-        raise RuntimeError("the Early Warning V2 monthly build reported failure")
+    built = ""
+    if not _lake_has(*readiness.EARLY_WARNING_DATASETS):
+        if builder.main([]) != 0:
+            raise RuntimeError(
+                "the Early Warning V2 monthly build reported failure")
+        _refresh_data_access()
+        built = (f"{readiness.MINIMUM_EARLY_WARNING_MONTHS}+ Early Warning "
+                 f"monthly snapshot(s); ")
+    # Register whatever is on disk, every time. Idempotent by construction —
+    # `catalogue_io.merge` replaces entries by name and leaves every other
+    # generator's alone — so a deployment whose data was built before this step
+    # existed is repaired by running the bootstrap rather than by rebuilding
+    # the lake.
+    report = ews_catalogue.merge_into_catalogue(ews_catalogue.read_lake())
     _refresh_data_access()
-    return f"{readiness.MINIMUM_EARLY_WARNING_MONTHS}+ Early Warning monthly snapshot(s)"
+    return (f"{built}{report.get('dataset_count', 0)} Early Warning dataset(s) "
+            f"registered in the governed catalogue")
 
 
 def _playbook_workspace_needed() -> bool:

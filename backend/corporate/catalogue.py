@@ -50,6 +50,12 @@ GRAIN: dict[str, str] = {
     "corporate_financials": "One row per borrower per fiscal year.",
     "corporate_facilities": "One row per facility per quarter.",
     "corporate_ifrs9": "One row per borrower per quarter (obligor staging).",
+    "corporate_ifrs9_facility": (
+        "One row per FACILITY per quarter. The same book as corporate_ifrs9 "
+        "at a second grain, not a second measurement: stage, SICR, PD and LGD "
+        "are the obligor's and are carried unchanged to each of their "
+        "facilities, EAD is read from the facility itself, and ECL is split "
+        "by EAD share and sums back to the obligor figure exactly."),
     "corporate_delinquency": "One row per borrower per quarter.",
     "corporate_covenants": "One row per covenant test per quarter.",
     "corporate_collateral": "One row per collateral item per quarter.",
@@ -88,6 +94,7 @@ PERIOD_FIELD: dict[str, str] = {
 
 #: Primary keys, where they are not (borrower_id, period).
 PRIMARY_KEYS: dict[str, list[str]] = {
+    "corporate_ifrs9_facility": ["facility_id", "period"],
     "corporate_financials": ["borrower_id", "fiscal_year"],
     "corporate_facilities": ["facility_id", "period"],
     "corporate_covenants": ["borrower_id", "period", "covenant_id"],

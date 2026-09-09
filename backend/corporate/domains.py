@@ -96,10 +96,14 @@ DOMAINS: tuple[Domain, ...] = (
         purpose=("The staging decision and the expected credit loss behind "
                  "it: PD, LGD, EAD, twelve-month and lifetime ECL, scenario "
                  "weighting and any management overlay."),
-        datasets=("corporate_ifrs9",),
+        datasets=("corporate_ifrs9", "corporate_ifrs9_facility"),
         authoritative_for=("corporate_staging", "corporate_ecl"),
         notes=("The Borrower 360 snapshot copies stage and final_ecl. It is "
-               "never authoritative over them - B2."),
+               "never authoritative over them - B2. "
+               "`corporate_ifrs9_facility` is the SAME book at facility "
+               "grain, not a second measurement: it re-decides no stage, no "
+               "SICR, no PD, no LGD and no ECL total, and a test fails if the "
+               "two grains ever disagree."),
     ),
     Domain(
         key="delinquency",

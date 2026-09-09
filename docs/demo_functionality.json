@@ -1,0 +1,291 @@
+{
+  "checks": [
+    {
+      "section": "Session",
+      "check": "sign in",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "section": "Session",
+      "check": "the session is carried by a real cookie",
+      "ok": true,
+      "detail": "alex.rahman"
+    },
+    {
+      "section": "Session",
+      "check": "every deterministic component reports ok",
+      "ok": true,
+      "detail": "{'postgresql': 'ok', 'analytical_store': 'ok', 'data_catalog': 'ok', 'ipm_engine': 'ok'}"
+    },
+    {
+      "section": "Session",
+      "check": "the AI provider states its own configuration rather than faking it",
+      "ok": true,
+      "detail": "ai_provider=not_configured"
+    },
+    {
+      "section": "Cockpit",
+      "check": "the Cockpit is available",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Cockpit",
+      "check": "it is pinned to the canonical release",
+      "ok": true,
+      "detail": "canonical-16q-v1"
+    },
+    {
+      "section": "Cockpit",
+      "check": "the catalogue answers in SAR millions",
+      "ok": true,
+      "detail": "SAR millions"
+    },
+    {
+      "section": "Cockpit",
+      "check": "sixteen canonical quarters are populated",
+      "ok": true,
+      "detail": "['2022Q3']..['2026Q2'] (16)"
+    },
+    {
+      "section": "Cockpit",
+      "check": "a question either answers or refuses honestly",
+      "ok": true,
+      "detail": "HTTP 200; credential"
+    },
+    {
+      "section": "Early Warning",
+      "check": "the Early Warning overview answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Early Warning",
+      "check": "it reports a portfolio score and a borrower count",
+      "ok": true,
+      "detail": "score 8.36, 300 borrowers"
+    },
+    {
+      "section": "Early Warning",
+      "check": "segments drill down",
+      "ok": true,
+      "detail": "5 segment(s)"
+    },
+    {
+      "section": "Early Warning",
+      "check": "the methodology is published",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "What-If",
+      "check": "the configuration answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "What-If",
+      "check": "the masterscale carries 19 performing grades",
+      "ok": true,
+      "detail": "19 grades"
+    },
+    {
+      "section": "What-If",
+      "check": "in the exact 19-point order",
+      "ok": true,
+      "detail": "['AAA', 'AA+', 'AA', 'AA-']..['CC', 'C']"
+    },
+    {
+      "section": "What-If",
+      "check": "guided scenarios are offered",
+      "ok": true,
+      "detail": "13 scenario(s)"
+    },
+    {
+      "section": "What-If",
+      "check": "the catalogue offers a scenario that actually shocks something",
+      "ok": true,
+      "detail": "12 of 13 carry a shock"
+    },
+    {
+      "section": "What-If",
+      "check": "a Delta What-If calculates",
+      "ok": true,
+      "detail": "One-notch corporate downgrade \u2014 HTTP 200 in 0.7s"
+    },
+    {
+      "section": "What-If",
+      "check": "it returns a baseline AND a scenario ECL that DIFFER",
+      "ok": true,
+      "detail": "49,563 -> 67,604"
+    },
+    {
+      "section": "What-If",
+      "check": "the movement reconciles to the two figures",
+      "ok": true,
+      "detail": "stated 18041.85, computed 18,041.85"
+    },
+    {
+      "section": "What-If",
+      "check": "it names the population it ran over",
+      "ok": true,
+      "detail": "3241 borrowers"
+    },
+    {
+      "section": "Lenses",
+      "check": "the shipped lenses are installed",
+      "ok": true,
+      "detail": "9 lens(es)"
+    },
+    {
+      "section": "Lenses",
+      "check": "a lens opens with its definition",
+      "ok": true,
+      "detail": "Retail Analytics"
+    },
+    {
+      "section": "Playbook",
+      "check": "the Playbook home answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Playbook",
+      "check": "it carries seeded workspaces",
+      "ok": true,
+      "detail": "3 workspace(s)"
+    },
+    {
+      "section": "Playbook",
+      "check": "the export library answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Playbook",
+      "check": "it holds analyses from every implemented module",
+      "ok": true,
+      "detail": "{'early_warning': 6, 'cockpit': 6, 'lenses': 6, 'scorecard_validation': 6, 'what_if': 7}"
+    },
+    {
+      "section": "Playbook",
+      "check": "What-If is an implemented export source",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Playbook",
+      "check": "an exported What-If opens with its provenance",
+      "ok": true,
+      "detail": "revision 1"
+    },
+    {
+      "section": "Playbook",
+      "check": "it carries the limitation that it is conditional",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Playbook",
+      "check": "it carries a link back to its source",
+      "ok": true,
+      "detail": "/what-if/thread"
+    },
+    {
+      "section": "Playbook",
+      "check": "the committee half answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Project Planner",
+      "check": "the delivery plan is seeded",
+      "ok": true,
+      "detail": "1 project(s)"
+    },
+    {
+      "section": "Project Planner",
+      "check": "a project opens with its workstreams and tasks",
+      "ok": true,
+      "detail": "IFRS 9 Model Redevelopment"
+    },
+    {
+      "section": "Scorecard Validation",
+      "check": "the validation overview answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Scorecard Validation",
+      "check": "all three scorecards are offered",
+      "ok": true,
+      "detail": "['scorecard_retail_application', 'scorecard_retail_behaviour', 'scorecard_saudi_sme']"
+    },
+    {
+      "section": "Scorecard Validation",
+      "check": "the governed test catalogue is published",
+      "ok": true,
+      "detail": "48 test(s)"
+    },
+    {
+      "section": "Data Builder",
+      "check": "the governed catalogue is registered",
+      "ok": true,
+      "detail": "84 dataset(s)"
+    },
+    {
+      "section": "Data Builder",
+      "check": "corporate_borrower_360 is catalogued",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Data Builder",
+      "check": "corporate_ifrs9 is catalogued",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Data Builder",
+      "check": "corporate_ifrs9_facility is catalogued",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Data Builder",
+      "check": "early_warning_borrower_month is catalogued",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Data Builder",
+      "check": "early_warning_signal_observation is catalogued",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "Borrower 360",
+      "check": "a canonical borrower is found by id",
+      "ok": true,
+      "detail": "1 hit(s)"
+    },
+    {
+      "section": "Downloads",
+      "check": "the Early Warning portfolio workbook downloads",
+      "ok": true,
+      "detail": "130,444 bytes"
+    },
+    {
+      "section": "Downloads",
+      "check": "and opens as a real Word document",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "check_count": 47,
+  "passed": 47,
+  "failed": 0,
+  "duration_seconds": 2.7,
+  "result": "PASS"
+}

@@ -79,6 +79,18 @@ def main(argv: list[str] | None = None) -> int:
         chunk.to_parquet(part / "data.parquet", index=False)
     print(f"> wrote {directory} "
           f"({frame['period'].nunique()} period partitions)")
+
+    # Register it, or it is invisible. A dataset the governed catalogue does
+    # not carry cannot be browsed in Data Builder, cannot be joined under a
+    # declared relationship, and cannot be read by any module that goes
+    # through the catalogue rather than around it — which is exactly how the
+    # three Early Warning datasets came to exist on disk and nowhere else.
+    from backend.corporate import catalogue as corporate_catalogue
+
+    report = corporate_catalogue.merge_into_catalogue(
+        {derive.DATASET: frame})
+    print(f"> registered in the governed catalogue "
+          f"({report.get('total_datasets')} datasets now)")
     return 0
 
 
