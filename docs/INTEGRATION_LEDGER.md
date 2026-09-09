@@ -69,11 +69,28 @@ carried with its origin named.
 
 | Source | Baseline as stated by the branch | Status |
 |---|---|---|
-| What-If `80e74a4` | 6 classified failures, recorded in its own whole-repository regression commit | to be read and transcribed before M2 |
-| Project Planner `e84bc68` | 2 classified failures, recorded in its definitive UAT regression | to be read and transcribed before M3 |
+| What-If `80e74a4` | 6 failures on the whole-repository run. Its own account: **none are What-If and none are new** — four are catalogue and workbook defects on the credit book already established on baseline `4f79566`, and one is not a code failure at all (see the shared-database note below). Its own readiness cycle 6 is **16 of 16 steps PASS, 44 checks passed, 0 failed** | recorded |
+| Project Planner `e84bc68` | 13,033 passed, 2 failed, 38 skipped. Both traced, neither in the Planner, neither a product defect: the stray `Test Domain` row (below), and a messaging directory that returns a bounded page whose fixture account has fallen outside it among accumulated users — it passes on a fresh database | recorded |
 | Early Warning `4dcef65` | 2,295 passed; **38 non-passing, the same 38 identifiers as its captured baseline, none introduced** | recorded from the branch's completion handoff |
 | Chat-first Playbook `713f99a` | 9,810 passed, 30 skipped, 0 failed. **6 BLOCKED** — PB-013, PB-015, PB-017, PB-029, PB-030, PB-043 — every one blocked solely on a missing `ANTHROPIC_API_KEY`, none on a defect. What-If carried as DEFERRED-INTEGRATION inside PB-006 | recorded |
 | Cockpit `08bd5d5` | 490 Cockpit tests and 380 frontend tests pass; 413 repository failures identical to its preserved base, id for id; seven stated blockers | recorded |
+
+### A shared defect both branches name, owned by neither
+
+What-If and Project Planner independently trace one of their failures to the
+same cause: `tests/api/test_data_builder.py` creates a data domain called
+`Test Domain` through the API and never deletes it, and these suites share one
+development database. The fresh-clone proof then counts more live domains than
+it expects. Project Planner proved it both ways — delete the row and the proof
+suite passes 23 of 23; run the data-builder suite and it comes back — and noted
+it only appears once the full suite has run twice against the same database.
+
+Both branches deliberately left it alone rather than widening into a file
+outside their work. It is nobody's feature and everybody's failure, which makes
+it **an integration defect** and this branch's to fix. It also means these
+particular failures may not reproduce here at all, because this integration
+runs against a database created fresh — so their absence is not evidence that
+anything was fixed, and their presence is not an integration regression.
 
 ### The pre-merge regression floor
 
@@ -132,3 +149,58 @@ per-merge history this ledger exists to keep.
 checks above re-run rather than taken from the plan.
 
 ---
+
+### M1 — Lenses V3 (`c0b66d0`)
+
+| | |
+|---|---|
+| **Merged** | `c0b66d0a6f7586c3b4f75c9b1863a26a735544f8` — head re-verified against the live remote immediately before merging |
+| **Merge commit** | `d499f99` |
+| **Conflicts** | **none** |
+| **Migrations after** | `0032`–`0042`, single head `0042` |
+
+**What this one merge brings.** The whole chain in a single reviewable step:
+`playbook-committee-intelligence`, `scorecard-validation-intelligence`,
+`lenses-specialist-dashboards`, the integration rehearsal's three fixes, Lenses
+V3 itself, and migrations `0032` through `0042`.
+
+**Migration gate — PASS.**
+
+| Check | Result |
+|---|---|
+| `alembic heads` | **one**, `0042` |
+| Empty database → head | 42 migrations, **145 tables, 2,376 columns** |
+| Round trip `0042 → 0031 → 0042` | down to **104 tables** — exactly the rehearsal's main-era count — and back to 145 / 2,376 |
+| `scv_results.value` nullable | **YES** — a refused test still cannot come back out of the database as a zero |
+
+Against the rehearsal's floor of 143 tables / 2,336 columns at `0041`, this is
+`0042` adding two tables and forty columns, which is what
+`0042_lens_live_intelligence` declares it adds. No unexplained schema movement.
+
+**Other gates.** `ruff check .` clean. Frontend `tsc --noEmit` clean. Saudi
+data lake builds — 51 governed datasets. Full backend suite and the remaining
+frontend checks were still running when this entry was written and are recorded
+in the M1 completion entry below rather than anticipated here.
+
+### Environment defects found while standing the toolchain up
+
+Neither is caused by this integration; both are recorded because they block a
+clean install and would otherwise be rediscovered.
+
+**The chain cannot be installed on Python 3.11.** `pyproject.toml` at this tip
+declares `requires-python = ">=3.11"` and pins `numpy==2.5.0`, which requires
+`>=3.12`. `uv sync` therefore fails to resolve at all:
+
+> Because the requested Python version (>=3.11) does not satisfy Python>=3.12
+> and numpy==2.5.0 depends on Python>=3.12, we can conclude that numpy==2.5.0
+> cannot be used.
+
+What-If's bump to `requires-python = ">=3.12"` at M2 is the fix, and this is the
+concrete reason it exists rather than a stylistic preference. Until M2 lands,
+this branch is built against an explicitly selected 3.12 interpreter.
+
+**`python-multipart` is declared in the `dev` dependency group**, not as a
+runtime dependency, exactly as the plan predicted. Six routers declare
+`UploadFile`, and FastAPI raises at *import* time without it, so a production
+install from `pyproject.toml` alone cannot construct the app. To be promoted to
+a runtime pin during the AI/dependency consolidation.
