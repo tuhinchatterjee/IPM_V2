@@ -1191,3 +1191,56 @@ The backend suite and the demonstration share one database, so running
 and packs as fixtures tear down. Re-run `python scripts/bootstrap_demo.py`
 afterwards — it is idempotent and takes seconds. This is the I-3 class of
 problem, recorded rather than fixed: separating them is a post-demo change.
+
+#### The shared-database failures, measured on a clean database
+
+Forty-one backend failures across `tests/orchestration` and `tests/api` looked
+like an M6 regression and were not. Every one of them raised the same thing:
+
+```
+ForeignKeyViolation: Key (user_id)=(1) is not present in table "users".
+```
+
+The suites assume the first seeded account is id 1. On the demonstration
+database it is not: the test runs of this session had created and deleted
+thousands of throwaway users, so the sequence stood at 3,157 and the table
+carried 91 rows, 79 of them test leftovers. This is the I-3 class again — one
+database serving both the demonstration and the suite — and it is a property of
+the deployment, not of the code.
+
+Rebuilt the database from empty (`DROP`, `CREATE`, `alembic upgrade head`,
+`bootstrap_demo.py`) and re-measured:
+
+| Suite | On the polluted database | On a clean one |
+|---|---|---|
+| `tests/orchestration` + `tests/api` + `tests/llm` + `tests/runtime` | 41 failures | **8** |
+| `tests/playbook` | 52 errors | **0 failures, 0 errors, 8 skipped** |
+
+**The remaining 8 are inherited, proven by construction rather than by a run.**
+M6's diff against the M5b head touches **zero** files under
+`backend/orchestration/`, `backend/metrics/`, `backend/engine/`,
+`backend/runtime/`, or any API router but the Playbook ones — so no change in
+this merge can reach the analytical planner that these eight exercise. They are
+the credit-book planner defects What-If's own handoff already classified.
+They are:
+
+- `tests/orchestration/test_compound_and_investigation.py` — 4
+- `tests/orchestration/test_portfolio_and_length.py` — 2
+- `tests/api/test_cockpit_suggestions.py` — 2 (both the same approved question,
+  *"Where is risk building across the bank?"*, which returns no rows)
+
+An attempted worktree comparison against the pre-M6 head is recorded as
+**invalid and not used**: the worktree's models sit at `0046` while the shared
+database is migrated to `0049`, so its 351 failures measure the schema gap and
+nothing else. The diff is the proof here, not that run.
+
+#### The live deployment
+
+Backend and frontend started for real, not in a test client:
+
+| | |
+|---|---|
+| `uvicorn backend.api.main:app` | health `ok` — PostgreSQL connected, DuckDB serving **83** Parquet datasets |
+| `next start` (production build) | serves every route |
+| Routes checked | `/`, `/early-warning`, `/what-if`, `/lenses`, `/playbook`, `/playbook/library`, `/playbook/committees`, `/playbook/packs/new`, `/playbook/artifacts/{1,2,3}`, `/projects`, `/scorecard-validation`, `/scorecard-validation/monitoring`, `/borrower-360`, `/data-builder`, `/studio`, `/investigations` — **all 200** |
+| Retirements | `/playbooks` **404**; `/stress` renders a redirect to `/what-if`; `/early-warning/signals` redirects to `/early-warning`. No nav entry points at any of the three |
