@@ -106,7 +106,7 @@ re-checked against the provider's current documentation.
 |---|---|
 | `pytest tests/playbook` | 326 passed, 8 live checks skipped |
 | `pytest tests/playbook tests/api tests/demo tests/services tests/exports tests/docs tests/proof tests/validation tests/llm` | 1373 passed, 8 skipped |
-| `pytest` (whole repository) | **9802 passed, 22 skipped, 0 failed** |
+| `pytest` (whole repository) | **9810 passed, 30 skipped, 0 failed** |
 | `npm test` | 462 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |

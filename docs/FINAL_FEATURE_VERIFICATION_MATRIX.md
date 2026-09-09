@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `fe5261c` by `scripts/feature_matrix.py`.
+Generated from the build at `2702b39` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 

@@ -57,7 +57,7 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 |---|---|---|
 | Playbook backend | `pytest tests/playbook` | **326 passed, 8 live checks skipped** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
-| Full backend | `pytest -q` | **9802 passed, 22 skipped, 0 failed** |
+| Full backend | `pytest -q` | **9810 passed, 30 skipped, 0 failed** |
 | Frontend units | `npm test` | **462 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
