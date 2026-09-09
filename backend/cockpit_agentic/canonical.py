@@ -79,6 +79,17 @@ TENANT = "demo-tenant"
 SOURCE_SYSTEM = "corporate_canonical_book"
 ORIGIN = "canonical_corporate"
 
+#: What a canonical release IS, printed on every Cockpit screen. The Cockpit's
+#: module constant describes its own generated demonstration and would be a
+#: false provenance sentence here: these rows are the shared corporate book
+#: every other module reads, which is synthetic but is not the Cockpit's.
+NOT_CLIENT_DATA = (
+    "The canonical CreditProbe corporate book — the same borrowers, "
+    "facilities and IFRS 9 measurements Borrower 360, Early Warning and "
+    "What-If read. Synthetic throughout: it describes no real borrower, no "
+    "real facility and no real bank's book, and no parameter in it is "
+    "calibrated, validated or approved for any regulatory purpose.")
+
 #: Relations a canonical release publishes. `cockpit_ifrs9_detail` is
 #: deliberately absent — see the module docstring.
 RELATIONS: tuple[str, ...] = (
@@ -1014,11 +1025,15 @@ def build(root: Path | str | None = None, *,
         F.MACRO_WINDOW: build_macro_window(
             source, calendar, dataset_release_id=dataset_release_id),
     }
-    return Release(dataset_release_id=dataset_release_id, calendar=calendar,
-                   frames=frames)
+    release = Release(dataset_release_id=dataset_release_id,
+                      calendar=calendar, frames=frames)
+    # Carried on the object so `store.write` stamps the manifest with the
+    # sentence that is true of THIS release rather than the module default.
+    release.not_client_data = NOT_CLIENT_DATA          # type: ignore[attr-defined]
+    return release
 
 
-__all__ = ["ANNOTATIONS", "AMOUNT_SCALE", "COLLATERAL_TYPES", "COUNTRY",
+__all__ = ["ANNOTATIONS", "AMOUNT_SCALE", "NOT_CLIENT_DATA", "COLLATERAL_TYPES", "COUNTRY",
            "CURRENCY", "CanonicalMissing", "MACRO_FACTORS",
            "MACRO_UNAVAILABLE", "ORIGIN", "RELATIONS", "RELEASE_ID", "Source",
            "build", "build_calendar", "build_collateral", "build_covenant",

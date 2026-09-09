@@ -1,0 +1,41 @@
+{
+  "journeys": [
+    "sign in",
+    "Cockpit",
+    "Early Warning",
+    "What-If",
+    "Lenses",
+    "Playbook",
+    "Project Planner",
+    "Scorecard Validation",
+    "Borrower 360",
+    "Data Builder",
+    "Investigations",
+    "Analysis Studio",
+    "Playbook export",
+    "retired routes",
+    "navigation"
+  ],
+  "journey_count": 15,
+  "check_count": 68,
+  "passed": 68,
+  "failed": 0,
+  "screenshots": [
+    "docs/demo_screenshots/01-cockpit.png",
+    "docs/demo_screenshots/02-cockpit-landing.png",
+    "docs/demo_screenshots/03-early-warning.png",
+    "docs/demo_screenshots/04-what-if.png",
+    "docs/demo_screenshots/05-lenses.png",
+    "docs/demo_screenshots/06-playbook.png",
+    "docs/demo_screenshots/07-planner.png",
+    "docs/demo_screenshots/08-scorecard.png",
+    "docs/demo_screenshots/10-borrower-360.png",
+    "docs/demo_screenshots/11-data-builder.png",
+    "docs/demo_screenshots/12-investigations.png",
+    "docs/demo_screenshots/13-studio.png",
+    "docs/demo_screenshots/09-playbook-library.png"
+  ],
+  "duration_seconds": 69.0,
+  "result": "PASS",
+  "failures": []
+}

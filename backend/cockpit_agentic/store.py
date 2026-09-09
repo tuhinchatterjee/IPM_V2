@@ -118,7 +118,13 @@ def write(release: Release, *, require_flag: bool = True,
         "dataset_release_id": release.dataset_release_id,
         "domain_id": DOMAIN,
         "origin": ORIGIN,
-        "not_client_data": NOT_CLIENT_DATA,
+        # A release says what it IS. The module constant describes the
+        # Cockpit's own generated demonstration, which was the only kind of
+        # release that existed when it was written; a canonical release is a
+        # view of the shared corporate book and says so instead. Getting this
+        # wrong puts a false provenance sentence on every Cockpit screen.
+        "not_client_data": getattr(release, "not_client_data", "")
+                           or NOT_CLIENT_DATA,
         "data_version": DATA_VERSION,
         "catalog_version": CATALOG_VERSION,
         "namespace": namespace(),

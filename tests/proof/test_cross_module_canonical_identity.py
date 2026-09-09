@@ -24,8 +24,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-
-
 LAKE = Path("data/analytics")
 COCKPIT_RELEASE = "canonical-16q-v1"
 
