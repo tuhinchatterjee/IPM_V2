@@ -56,6 +56,13 @@ def _load(dataset: str) -> pd.DataFrame:
 
 def reset() -> None:
     _load.cache_clear()
+    # The wide projection and the dictionary profile are both read from these
+    # frames and both cached. A rebuild that cleared one and not the others
+    # would leave the product answering from two different builds at once.
+    from backend.early_warning import dictionary, wide
+
+    wide.reset()
+    dictionary.reset()
 
 
 def periods() -> list[str]:
@@ -81,6 +88,19 @@ def signal_observations(customer_id: str, period: str | None = None) -> pd.DataF
     df = _load(SIGNAL_OBSERVATION)
     period = period or latest_period()
     return df[(df["customer_id"] == customer_id) & (df["snapshot_month"] == period)].copy()
+
+
+def observations(period: str | None = None) -> pd.DataFrame:
+    """Every signal observation, for one month or for all of them.
+
+    The wide view joins these onto the obligor-month grain, and it does it
+    once for a whole frame: a per-obligor lookup would make a two-thousand
+    column projection something nobody would ever call.
+    """
+    df = _load(SIGNAL_OBSERVATION)
+    if period is None:
+        return df.copy()
+    return df[df["snapshot_month"] == period].copy()
 
 
 def signal_evidence(customer_id: str, signal_key: str,

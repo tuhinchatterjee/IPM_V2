@@ -92,6 +92,7 @@ from backend.early_warning import (
     lineage as lin,
     matrix,
     notches as nt,
+    reasons,
     thresholds as th,
     triggers_v2 as trg,
 )
@@ -397,11 +398,24 @@ def severity_band_from_adverse_pct(pct: float) -> int | None:
     return 1 if pct < 25 else 2 if pct < 40 else 3 if pct < 55 else 4 if pct < 70 else 5
 
 
+#: Severity band 1-5 as the band label the workbook's reason text is keyed
+#: by. The canonical reason for a signal is the reason for its node at the
+#: severity it fired, which is what makes it a reason rather than a restated
+#: score.
+_BAND_LABEL: dict[int, str] = {1: "VERY_LOW", 2: "LOW", 3: "MEDIUM",
+                                4: "HIGH", 5: "VERY_HIGH"}
+
+
 def signal_explanation(trigger, *, severity_band: int, trigger_score: float,
                         accel_input: accel.AcceleratorInput,
                         accel_result: accel.AcceleratorResult,
                         decay: accel.DecayResult, state: TriggerDecayState,
-                        month_idx: int, source_tier: int | None = None) -> dict:
+                        month_idx: int, source_tier: int | None = None,
+                        observed_value: float | None = None,
+                        baseline_value: float | None = None,
+                        normalised_value: float | None = None,
+                        observed_metric: str = "",
+                        observed_unit: str = "") -> dict:
     """How one signal's score was reached, in flat, writable fields.
 
     Every value here is already computed to produce the score; without this
@@ -410,13 +424,37 @@ def signal_explanation(trigger, *, severity_band: int, trigger_score: float,
     severity, its five accelerator dimension bands and its decay; the
     customer report's lineage table asks it for its source system, signal
     class, half-life and applied decay factor. Both are answered from here.
+
+    The reading itself is persisted too — the raw value observed, what it was
+    measured against, and the normalised figure the severity band was taken
+    from. A signal that can show its bands but not the number it saw is a
+    signal whose evidence stops one step short of the thing a credit officer
+    would actually check.
     """
     decay_class = accel.SUBCATEGORY_DECAY_CLASS.get(trigger.sub_category)
     first_seen = state._first_seen_idx.get(trigger.key, month_idx)
     cured_idx = state._cured_idx.get(trigger.key)
     layer = trigger.sub_category.split(".")[0]
+    band_label = _BAND_LABEL.get(int(severity_band), "MEDIUM")
+    try:
+        reason = reasons.subcategory_reason(trigger.sub_category, band_label)
+    except KeyError:
+        reason = ""
     return {
         "layer": layer,
+        # The reading that produced the score.
+        "observed_value": (None if observed_value is None
+                            else round(float(observed_value), 6)),
+        "baseline_value": (None if baseline_value is None
+                            else round(float(baseline_value), 6)),
+        "normalised_value": (None if normalised_value is None
+                              else round(float(normalised_value), 6)),
+        "observed_metric": observed_metric or trigger.key,
+        "observed_unit": observed_unit,
+        # The canonical reason for this node at this severity, from the
+        # workbook's own text rather than a sentence composed at read time.
+        "reason_code": f"{trigger.sub_category}:B{int(severity_band)}",
+        "reason": reason,
         "trigger_severity_band": severity_band,
         "trigger_severity_score": round(float(trigger_score), 4),
         "magnitude_band": accel_input.magnitude_band,
@@ -457,16 +495,25 @@ def l1_signal_scores(borrower_series: dict[str, dict[pd.Timestamp, float]], mont
     fired: list[agg.FiredSignal] = []
     month_idx = months.index(month)
 
-    def pct_change(key: str) -> float | None:
+    def pct_change(key: str) -> tuple[float, float, float] | None:
+        """The value observed, what it was measured against, and the change.
+
+        All three travel together because the percentage on its own is not
+        evidence: a reader checking a signal wants the reading and the
+        baseline it was compared with, and re-deriving them later against a
+        window that may have moved is not the same fact.
+        """
         series = borrower_series.get(key)
         if series is None or pd.isna(series.get(month, float("nan"))):
             return None
         base = trailing_baseline(series, months, month)
         if base in (None, 0) or pd.isna(base):
             return None
-        return 100.0 * (series[month] - base) / abs(base)
+        return (float(series[month]), float(base),
+                100.0 * (series[month] - base) / abs(base))
 
-    def fire(trigger_key: str, change_pct: float, worse_if_negative: bool):
+    def fire(trigger_key: str, change_pct: float, worse_if_negative: bool, *,
+             observed: float, baseline: float, metric: str):
         t = trg.BY_KEY[trigger_key]
         magnitude = abs(change_pct)
         adverse = -change_pct if worse_if_negative else change_pct
@@ -491,24 +538,34 @@ def l1_signal_scores(borrower_series: dict[str, dict[pd.Timestamp, float]], mont
             explanation=signal_explanation(
                 t, severity_band=band, trigger_score=trigger_score,
                 accel_input=accel_input, accel_result=result, decay=decay,
-                state=state, month_idx=month_idx),
+                state=state, month_idx=month_idx,
+                observed_value=observed, baseline_value=baseline,
+                normalised_value=adverse, observed_metric=metric,
+                observed_unit="% adverse change vs the trailing baseline"),
         ))
 
-    utilisation_change = pct_change("utilisation")
-    if utilisation_change is not None:
-        fire("utilisation_increase", utilisation_change, worse_if_negative=False)
+    utilisation = pct_change("utilisation")
+    if utilisation is not None:
+        fire("utilisation_increase", utilisation[2], worse_if_negative=False,
+             observed=utilisation[0], baseline=utilisation[1],
+             metric="utilisation_pct")
 
-    dpd_change = pct_change("dpd")
-    if dpd_change is not None and borrower_series["dpd"][month] >= 1:
-        fire("repayment_delay", dpd_change, worse_if_negative=False)
+    delay = pct_change("dpd")
+    if delay is not None and borrower_series["dpd"][month] >= 1:
+        fire("repayment_delay", delay[2], worse_if_negative=False,
+             observed=delay[0], baseline=delay[1], metric="dpd_days")
 
-    cash_change = pct_change("cash")
-    if cash_change is not None:
-        fire("operating_deposit_balance_decline", cash_change, worse_if_negative=True)
+    cash = pct_change("cash")
+    if cash is not None:
+        fire("operating_deposit_balance_decline", cash[2],
+             worse_if_negative=True, observed=cash[0], baseline=cash[1],
+             metric="operating_deposit_balance")
 
-    cfo_change = pct_change("cash_flow_from_operations")
-    if cfo_change is not None:
-        fire("cash_flow_deterioration", cfo_change, worse_if_negative=True)
+    cfo = pct_change("cash_flow_from_operations")
+    if cfo is not None:
+        fire("cash_flow_deterioration", cfo[2], worse_if_negative=True,
+             observed=cfo[0], baseline=cfo[1],
+             metric="cash_flow_from_operations")
 
     return fired
 
@@ -528,7 +585,9 @@ def l2_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
     if prev is None:
         return fired
 
-    def add(trigger_key: str, band: int):
+    def add(trigger_key: str, band: int, *, observed: float | None = None,
+            baseline: float | None = None, normalised: float | None = None,
+            metric: str = "", unit: str = ""):
         t = trg.BY_KEY[trigger_key]
         trigger_score = trg.trigger_score_for_band(band)
         state.observe(trigger_key, month_idx, continuous_active=False)
@@ -545,38 +604,56 @@ def l2_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
             explanation=signal_explanation(
                 t, severity_band=band, trigger_score=trigger_score,
                 accel_input=accel_input, accel_result=result, decay=decay,
-                state=state, month_idx=month_idx),
+                state=state, month_idx=month_idx,
+                observed_value=observed, baseline_value=baseline,
+                normalised_value=normalised, observed_metric=metric,
+                observed_unit=unit),
         ))
 
     rating_move = curr["internal_rating_numeric"] - prev["internal_rating_numeric"]
     if rating_move >= 1:
         band = 1 if rating_move == 1 else 2 if rating_move == 2 else 3 if rating_move == 3 else 5
-        add("rating_migration_downgrade", band)
+        add("rating_migration_downgrade", band,
+            observed=curr["internal_rating_numeric"],
+            baseline=prev["internal_rating_numeric"], normalised=rating_move,
+            metric="internal_rating_numeric", unit="notches downgraded")
 
     if prev["pd_12m"] > 0:
         pd_rel = 100.0 * (curr["pd_12m"] - prev["pd_12m"]) / prev["pd_12m"]
         if pd_rel >= 10:
             band = 1 if pd_rel < 25 else 2 if pd_rel < 50 else 3 if pd_rel < 100 else 4 if pd_rel < 200 else 5
-            add("pd_movement", band)
+            add("pd_movement", band, observed=curr["pd_12m"],
+                baseline=prev["pd_12m"], normalised=pd_rel,
+                metric="pd_12m", unit="% relative increase")
 
     if curr["stage"] > prev["stage"]:
         band = 2 if curr["stage"] == 2 else 5
-        add("stage_migration", band)
+        add("stage_migration", band, observed=curr["stage"],
+            baseline=prev["stage"], normalised=curr["stage"] - prev["stage"],
+            metric="ifrs9_stage", unit="stages migrated")
 
     if prev["ecl_coverage"] > 0:
         ecl_rel = 100.0 * (curr["ecl_coverage"] - prev["ecl_coverage"]) / prev["ecl_coverage"]
         if ecl_rel >= 10:
             band = 1 if ecl_rel < 25 else 2 if ecl_rel < 50 else 3 if ecl_rel < 100 else 4 if ecl_rel < 200 else 5
-            add("ecl_movement", band)
+            add("ecl_movement", band, observed=curr["ecl_coverage"],
+                baseline=prev["ecl_coverage"], normalised=ecl_rel,
+                metric="ecl_coverage", unit="% relative increase")
 
     if bool(curr.get("breach_flag")):
-        add("covenant_breach", 3 if not bool(prev.get("breach_flag")) else 4)
+        add("covenant_breach", 3 if not bool(prev.get("breach_flag")) else 4,
+            observed=1.0, baseline=float(bool(prev.get("breach_flag"))),
+            normalised=1.0, metric="covenant_breach_flag",
+            unit="breach in the period")
 
     if prev.get("ebitda_margin") and not pd.isna(prev.get("ebitda_margin")):
         margin_drop = prev["ebitda_margin"] - curr["ebitda_margin"]
         if margin_drop > 3:
             band = 1 if margin_drop < 6 else 2 if margin_drop < 10 else 3 if margin_drop < 15 else 4
-            add("financial_statement_deterioration", band)
+            add("financial_statement_deterioration", band,
+                observed=curr["ebitda_margin"], baseline=prev["ebitda_margin"],
+                normalised=margin_drop, metric="ebitda_margin",
+                unit="percentage points of margin lost")
 
     return fired
 
@@ -606,7 +683,11 @@ def l4_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
                 explanation=signal_explanation(
                     t, severity_band=band, trigger_score=trigger_score,
                     accel_input=accel_input, accel_result=result, decay=decay,
-                    state=state, month_idx=month_idx),
+                    state=state, month_idx=month_idx,
+                    observed_value=curr_network, baseline_value=prev_network,
+                    normalised_value=curr_network - prev_network,
+                    observed_metric="network_risk_score",
+                    observed_unit="DebtRank points, and the month-on-month rise"),
             ))
 
     return fired
@@ -635,7 +716,12 @@ def l3_event_signals(events_this_month: pd.DataFrame, month_idx: int,
                 t, severity_band=int(ev["severity_band"]), trigger_score=trigger_score,
                 accel_input=accel_input, accel_result=result, decay=decay,
                 state=state, month_idx=month_idx,
-                source_tier=int(ev["source_tier"])),
+                source_tier=int(ev["source_tier"]),
+                observed_value=float(ev["severity_band"]),
+                normalised_value=float(ev["severity_band"]),
+                observed_metric="external_event_severity",
+                observed_unit=("severity band assessed on the event, from a "
+                               "tier-%d source" % int(ev["source_tier"]))),
         ))
     return fired
 

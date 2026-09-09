@@ -40,15 +40,20 @@ from typing import Any
 
 from backend.early_warning import dictionary as dic
 from backend.early_warning import grain as grain_mod
+from backend.early_warning import signal_fields as sigf
 from backend.early_warning.conversation import plan as plan_mod
 from backend.early_warning.conversation import seam as seam_mod
 
 logger = logging.getLogger(__name__)
 
-#: How many field names the planner is shown in full. The whole dictionary is
-#: summarised by group; the relevant ones are named. A planner that cannot see
-#: a field it needs invents one, so this is generous on purpose.
+#: How many non-signal fields the planner is shown in full. There are about a
+#: hundred and fifty of them and the cap is above that, so in practice it sees
+#: all of them: a planner that cannot see a field it needs invents one.
 MAX_NAMED_FIELDS = 260
+
+#: How many sample rows travel with the prompt. Two is enough to see the
+#: shapes; three of two and a half thousand columns is a data export.
+SAMPLE_ROWS = 2
 
 SYSTEM = """You are the analysis planner of CreditProbe's Early Warning \
 product. You turn a credit officer's request into bounded analysis steps that a \
@@ -56,9 +61,20 @@ governed runtime will execute.
 
 WHAT YOU PLAN OVER
 One dataset: the Early Warning customer-month view, `early_warning`. One row is \
-one customer in one month. You are given its complete field dictionary, the \
-published periods, the groupings and three sample rows. You are NOT given the \
-data, and you must not ask for it.
+one customer in one month. You are given its fields, the published periods, the \
+groupings and two sample rows. You are NOT given the data, and you must not ask \
+for it.
+
+HOW THE SIGNAL COLUMNS ARE NAMED
+All 123 signals in the inventory are exposed at this grain, and their columns \
+are too many to list. They are named `<prefix>_<measure>`, where the prefix is \
+in the signal inventory you are given and the measure is one of the suffixes \
+listed beside it — so signal 42's score is \
+`sig042_covenant_breach_event_score`. Compose the column you need from those \
+two lists rather than guessing at one. A signal with no feed in this \
+deployment has columns that exist and are empty; the coverage tells you which, \
+and planning over an empty column produces an empty answer rather than an \
+error.
 
 THE RULE THAT DECIDES WHETHER THE ANSWER IS HONEST
 One step per part of the request. A request that asks why something \
@@ -172,6 +188,8 @@ def _context(request: Any, package: grain_mod.GrainPackage,
             "field_count": package.field_count,
         },
         "fields": _named_fields(package),
+        "signal_inventory": _signal_inventory(),
+        "signal_column_suffixes": _signal_suffixes(),
         "field_group_sizes": {
             group: len(members) for group, members
             in ((package.field_dictionary or {}).get("groups", {})).items()},
@@ -179,7 +197,7 @@ def _context(request: Any, package: grain_mod.GrainPackage,
         "groupings": dict(package.groupings),
         "analytical_grains": list(package.analytical_grains),
         "analysis_types": list(plan_mod.ANALYSIS_TYPES),
-        "sample_rows": list(package.sample_rows),
+        "sample_rows": list(package.sample_rows)[:SAMPLE_ROWS],
         "coverage": dict(package.coverage),
         "deterministic_plan": floor.to_dict(),
         "capabilities": list(package.capabilities or []),
@@ -187,36 +205,48 @@ def _context(request: Any, package: grain_mod.GrainPackage,
 
 
 def _named_fields(package: grain_mod.GrainPackage) -> list[dict[str, Any]]:
-    """The field list the planner is shown, most relevant first.
+    """Every field that is not one signal's own column, described.
 
-    The dictionary is far larger than a prompt should carry — every one of the
-    123 signals is exposed at customer-month grain, several columns each — so
-    the fields this request is about are named first and the rest follow until
-    the cap. The group sizes travel alongside, so a planner can see that the
-    list is a window rather than the whole universe and ask for a field by its
-    documented naming convention.
+    The signal columns are excluded and reached through the inventory and the
+    suffix list instead. Listing them here would be two thousand entries of
+    which the request needs at most a handful, and a prompt that spends its
+    attention on signals the question has nothing to do with is a prompt that
+    plans worse, not better.
     """
     groups = (package.field_dictionary or {}).get("groups", {}) or {}
-    relevant = [str(f.get("name") or "") for f in (package.top_fields or [])]
-    seen: set[str] = set()
-    ordered: list[dict[str, Any]] = []
-    flat = {str(f.get("name")): f for members in groups.values()
-            for f in members}
-    for name in relevant:
-        entry = flat.get(name)
-        if entry and name not in seen:
-            seen.add(name)
-            ordered.append(entry)
-    for members in groups.values():
+    out: list[dict[str, Any]] = []
+    for group, members in groups.items():
+        if group == dic.SIGNAL_SCORES:
+            continue
         for entry in members:
-            name = str(entry.get("name") or "")
-            if name and name not in seen:
-                seen.add(name)
-                ordered.append(entry)
-    return [{"name": e.get("name"), "label": e.get("label"),
-             "dtype": e.get("dtype"), "group": e.get("group"),
-             "definition": str(e.get("definition") or "")[:160]}
-            for e in ordered[:MAX_NAMED_FIELDS]]
+            out.append({
+                "name": entry.get("name"), "label": entry.get("label"),
+                "dtype": entry.get("type"), "group": group,
+                "unit": entry.get("unit"),
+                "definition": str(entry.get("definition") or "")[:150],
+                "missing_rate": (entry.get("coverage")
+                                 or {}).get("missing_rate"),
+            })
+    return out[:MAX_NAMED_FIELDS]
+
+
+def _signal_inventory() -> list[dict[str, Any]]:
+    """All 123 signals, with the prefix their columns are built from."""
+    return [{"num": entry.num, "prefix": entry.prefix, "name": entry.name,
+             "node": entry.code, "layer": entry.layer, "status": entry.status,
+             "measures": entry.what_is_measured,
+             "source_system": entry.source_system}
+            for entry in sigf.fields()]
+
+
+def _signal_suffixes() -> dict[str, list[dict[str, str]]]:
+    """Which measures each kind of inventory row carries."""
+    return {
+        "scored": [{"suffix": suffix, "label": label}
+                   for suffix, _, label, _ in sigf.SCORED_MEASURES],
+        "not_scored": [{"suffix": suffix, "label": label}
+                       for suffix, _, label, _ in sigf.INVENTORY_MEASURES],
+    }
 
 
 def plan(request: Any, package: grain_mod.GrainPackage,

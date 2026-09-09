@@ -24,6 +24,12 @@ book, is worse than no dictionary: it is the specific thing that makes a
 planner confident and wrong. `profile()` reads the published months and
 reports what it finds, so a field that stopped being populated in March says
 so.
+
+That matters most for the signal inventory. All 123 signals are described
+here, because all 123 are in the model — but this deployment has a feed for
+some of them and not for others, and the measured coverage is what says
+which. A shorter dictionary listing only the populated ones would tell a
+planner the rest do not exist, which is a different and worse untruth.
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from typing import Any
 import pandas as pd
 
 from backend.early_warning import reasons
+from backend.early_warning import signal_fields as sigf
 from backend.early_warning import v2_service as svc
 from backend.early_warning import wide
 
@@ -46,7 +53,7 @@ from backend.early_warning import wide
 
 CUSTOMER = "Customer"
 CORE_CREDIT = "Core Credit Inputs"
-SIGNAL_SCORES = "Signal Scores"
+SIGNAL_SCORES = "Signal Inventory"
 SUBCATEGORY = "Sub-categories"
 LAYER = "Layer / Dimension Outputs"
 MATRIX = "Matrix and Notches"
@@ -180,6 +187,85 @@ def _core_credit_fields() -> list[Field]:
     ]
 
 
+#: How each per-signal measure is described, beyond the shared definition on
+#: `signal_fields.SCORED_MEASURES`. Unit, whether high is bad, and the
+#: banded vocabulary where there is one.
+_SIGNAL_MEASURE_DETAIL: dict[str, dict[str, Any]] = {
+    "status": {"allowed_values": ("SCORED", "MERGED", "DROPPED", "REPLACED",
+                                   "MOVED"), "dtype": "category"},
+    "fired": {"dtype": "boolean", "higher_is_worse": True},
+    "observed_value": {"unit": "as observed"},
+    "baseline_value": {"unit": "as observed"},
+    "normalised_value": {"unit": "normalised", "higher_is_worse": True},
+    "trigger_severity_band": {"unit": "band 1-5", "higher_is_worse": True},
+    "trigger_score": {"unit": "score", "higher_is_worse": True},
+    "magnitude_band": {"unit": "band 1-5", "higher_is_worse": True},
+    "velocity_band": {"unit": "band 1-5", "higher_is_worse": True},
+    "persistence_band": {"unit": "band 1-5", "higher_is_worse": True},
+    "repetition_band": {"unit": "band 1-5", "higher_is_worse": True},
+    "corroboration_band": {"unit": "band 1-5", "higher_is_worse": True},
+    "accelerator_multiplier": {"unit": "multiplier", "higher_is_worse": True},
+    "decay_factor": {"unit": "multiplier"},
+    "score": {"unit": "score", "higher_is_worse": True},
+    "evidence_age_days": {"unit": "days", "higher_is_worse": True},
+    "freshness": {"dtype": "category",
+                   "allowed_values": ("fresh", "ageing", "stale")},
+}
+
+
+def _signal_fields() -> list[Field]:
+    """Every one of the 123 inventory rows, at customer-month grain.
+
+    Generated from the inventory itself rather than written out, so a
+    dictionary entry and the column it describes cannot drift apart: both
+    come from `signal_fields`, which reads the workbook's own catalogue.
+    """
+    out: list[Field] = []
+    for entry in sigf.fields():
+        dimension = ("T&A" if "T" in entry.tac_role.upper() else "Classifier")
+        for suffix, dtype, label, definition in entry.measures:
+            detail = _SIGNAL_MEASURE_DETAIL.get(suffix, {})
+            out.append(Field(
+                entry.column(suffix),
+                f"{entry.name} — {label}",
+                f"Signal {entry.num} of 123, {entry.name} ({entry.code}, "
+                f"layer {entry.layer}). {definition} What the signal "
+                f"measures: {entry.what_is_measured}. Updated "
+                f"{entry.update_frequency.lower()}.",
+                SIGNAL_SCORES,
+                dtype=str(detail.get("dtype", dtype)),
+                unit=str(detail.get("unit", "")),
+                higher_is_worse=detail.get("higher_is_worse"),
+                layer=entry.layer, dimension=dimension,
+                sub_category=entry.code,
+                allowed_values=tuple(detail.get("allowed_values", ())),
+                source=("early_warning_signal_observation"
+                        if suffix in ("observed_value", "baseline_value",
+                                       "normalised_value", "score",
+                                       "reason_code", "reason",
+                                       "evidence_age_days")
+                        else "early_warning_signal_inventory"),
+                derived=suffix in ("fired", "freshness")))
+    return out
+
+
+#: What each sub-category node exposes, and how to describe it.
+_SUBCATEGORY_MEASURE_DETAIL: tuple[tuple[str, str, str, str, str], ...] = (
+    ("score", "number", "score",
+     "score on the 0-100 scale. Formed worst-of within the node so one fired "
+     "variable is not diluted by two quiet ones.", "score"),
+    ("band", "category", "band",
+     "severity band, on the same cut points every band in this model uses: "
+     "under 20, 40, 60, 80, then above.", ""),
+    ("worst_signal", "string", "worst signal",
+     "the signal carrying this node for this obligor and month — the one a "
+     "reader would open first. Empty where nothing fired into the node.", ""),
+    ("reason", "string", "reason",
+     "the published reason for this node at the band it reached. The "
+     "workbook's own text, not a sentence composed at read time.", ""),
+)
+
+
 def _subcategory_fields() -> list[Field]:
     out: list[Field] = []
     for code in wide.SUBCATEGORY_CODES:
@@ -189,14 +275,18 @@ def _subcategory_fields() -> list[Field]:
             name = reasons.subcategory_name(code)
         except KeyError:
             name = code
-        out.append(Field(
-            wide.subcategory_column(code), f"{code} {name}",
-            f"The {name.lower()} sub-category score for this obligor and "
-            f"month, on the 0-100 scale. Formed worst-of within the node so "
-            f"one fired variable is not diluted by two quiet ones. "
-            f"{dimension} dimension, layer {layer}.",
-            SUBCATEGORY, unit="score", higher_is_worse=True,
-            layer=layer, dimension=dimension, sub_category=code))
+        for suffix, dtype, label, definition, unit in \
+                _SUBCATEGORY_MEASURE_DETAIL:
+            out.append(Field(
+                wide.subcategory_column(code, suffix),
+                f"{code} {name} — {label}",
+                f"The {name.lower()} sub-category {definition} "
+                f"{dimension} dimension, layer {layer}.",
+                SUBCATEGORY, dtype=dtype, unit=unit,
+                higher_is_worse=True if suffix == "score" else None,
+                layer=layer, dimension=dimension, sub_category=code,
+                allowed_values=BANDS if suffix == "band" else (),
+                derived=suffix in ("band", "worst_signal", "reason")))
     return out
 
 
@@ -257,6 +347,16 @@ def _matrix_fields() -> list[Field]:
               "The net notches expressed in score points, at eight points "
               "each. This is the amount by which the notches moved the score "
               "away from its anchor.", MATRIX, unit="score", derived=True),
+        Field("matrix_cell", "Matrix cell",
+              "Which cell of the published five-by-five matrix this obligor "
+              "reads from, as the T&A band against the classifier band. Two "
+              "obligors on the same anchor from different cells are not the "
+              "same case, and this is what tells them apart.",
+              MATRIX, dtype="string", derived=True),
+        Field("override_reasons", "Override reasons",
+              "Why each override applied, in the methodology's own words "
+              "rather than by code. Empty where none did.",
+              MATRIX, dtype="string", derived=True),
     ]
     explain = {
         "network_contagion": "deterioration reaching this obligor across the "
@@ -349,15 +449,119 @@ def _movement_fields() -> list[Field]:
                   f"The month {span} back that the change is measured "
                   f"against.", MOVEMENT, dtype="string", derived=True),
         ]
+    out += [
+        Field("direction_of_travel", "Direction of travel",
+              "Whether the obligor is deteriorating, improving or stable "
+              "over twelve months, from the score movement against a "
+              "threshold. A two-point drift is stable: putting a direction on "
+              "arithmetic is how a portfolio starts reporting recoveries it "
+              "did not have.",
+              MOVEMENT, dtype="category", derived=True,
+              allowed_values=("deteriorating", "stable", "improving",
+                              "unknown")),
+        Field("movement_is_notch_driven", "Notch-driven move",
+              "True where the score and the anchor moved in OPPOSITE "
+              "directions over twelve months. That means the notches moved "
+              "and the obligor's condition did not, so a fall here is not an "
+              "improvement and a rise is not deterioration.",
+              MOVEMENT, dtype="boolean", derived=True),
+    ]
     return out
+
+
+def _workflow_fields() -> list[Field]:
+    """The governed outputs, at the same grain as the position that produced
+    them.
+
+    The escalation route and the recommended action are deterministic
+    functions of fields already on the row — band and exposure for the
+    route, the dominant node for the action. Exposing them is exposing what
+    the product already decides. Without them, a planner asked "who owns the
+    high-risk names and by when" would have to reimplement the matrix, and a
+    reimplemented control is not the control.
+    """
+    return [
+        Field("escalation_rung", "Escalation rung",
+              "The ladder level the escalation matrix routes this obligor to, "
+              "from its band and its exposure tier. L0 to L5.",
+              WORKFLOW, dtype="string", derived=True,
+              source="early_warning_escalation_matrix"),
+        Field("escalation_role", "Escalation owner",
+              "The title behind that rung — who actually takes the decision. "
+              "A role, not a named person: the matrix routes to positions.",
+              WORKFLOW, dtype="string", derived=True,
+              source="early_warning_escalation_matrix"),
+        Field("escalation_notified", "Also notified",
+              "The roles informed alongside the deciding rung. Empty where "
+              "the matrix notifies nobody beyond the owner.",
+              WORKFLOW, dtype="string", derived=True,
+              source="early_warning_escalation_matrix"),
+        Field("escalation_exposure_tier", "Exposure tier",
+              "Which materiality tier this obligor's exposure falls in. "
+              "Severity decides urgency; materiality decides altitude.",
+              WORKFLOW, dtype="category", derived=True,
+              source="early_warning_escalation_matrix"),
+        Field("escalation_ack_sla_days", "Acknowledgement SLA",
+              "Working days the matrix allows for the escalation to be "
+              "acknowledged, from the band and the exposure tier.",
+              WORKFLOW, unit="days", derived=True,
+              source="early_warning_escalation_matrix"),
+        Field("escalation_decision_sla_days", "Decision SLA",
+              "Working days the matrix allows for a decision to be taken.",
+              WORKFLOW, unit="days", derived=True,
+              source="early_warning_escalation_matrix"),
+        Field("expected_action", "Expected action for the band",
+              "What the methodology expects at this final band, from routine "
+              "monitoring at the bottom to immediate escalation at the top.",
+              WORKFLOW, dtype="string", derived=True,
+              source="early_warning_methodology"),
+        Field("recommended_action", "Recommended action",
+              "The governed action the library holds for this obligor's "
+              "dominant sub-category. Empty where nothing fired. An action "
+              "invented at answer time is not a governed one, which is why "
+              "this is a field rather than a sentence.",
+              WORKFLOW, dtype="string", derived=True,
+              source="early_warning_action_library"),
+        Field("action_owner_role", "Action owner code",
+              "The ladder level or specialist route that owns the "
+              "recommended action.", WORKFLOW, dtype="string", derived=True,
+              source="early_warning_action_library"),
+        Field("action_owner", "Action owner",
+              "The title behind that code — the role that carries the "
+              "action.", WORKFLOW, dtype="string", derived=True,
+              source="early_warning_action_library"),
+        Field("action_timeframe_days", "Action timeframe",
+              "Working days the action library allows for the recommended "
+              "action. Zero means immediate; minus one means no action is "
+              "recommended because nothing fired.",
+              WORKFLOW, unit="days", derived=True,
+              source="early_warning_action_library"),
+        Field("evidence_to_close", "Evidence to close",
+              "What has to be produced for the recommended action to be "
+              "considered done. An action with no closing test is a note.",
+              WORKFLOW, dtype="string", derived=True,
+              source="early_warning_action_library"),
+        Field("action_reversibility_rank", "Action reversibility",
+              "How reversible the recommended action is, 1 to 5, where 1 "
+              "preserves the bank's position and closes nothing off. This "
+              "and cost are what answer 'if I only do one thing' — not the "
+              "score.", WORKFLOW, unit="rank 1-5", derived=True,
+              source="early_warning_action_library"),
+        Field("action_cost_rank", "Action cost",
+              "How expensive the recommended action is to take, 1 to 5, "
+              "where 1 is essentially free.",
+              WORKFLOW, unit="rank 1-5", derived=True,
+              source="early_warning_action_library"),
+    ]
 
 
 @functools.lru_cache(maxsize=1)
 def fields() -> tuple[Field, ...]:
     """Every analytical field, described. Cached: it is static per build."""
     return tuple(_customer_fields() + _core_credit_fields()
-                 + _subcategory_fields() + _layer_fields()
-                 + _matrix_fields() + _final_fields() + _movement_fields())
+                 + _signal_fields() + _subcategory_fields() + _layer_fields()
+                 + _matrix_fields() + _final_fields() + _movement_fields()
+                 + _workflow_fields())
 
 
 def by_name() -> dict[str, Field]:
@@ -376,6 +580,14 @@ def groups() -> dict[str, list[Field]]:
     return {g: v for g, v in out.items() if v}
 
 
+def reset() -> None:
+    """Forget the measured profile. Called when the domain is rebuilt."""
+    fields.cache_clear()
+    profile.cache_clear()
+    to_dict.cache_clear()
+
+
+@functools.lru_cache(maxsize=4)
 def profile(period: str | None = None) -> dict[str, dict[str, Any]]:
     """Coverage and missingness, measured from the published data.
 
@@ -430,6 +642,7 @@ def describe(name: str) -> dict[str, Any] | None:
     return found.to_dict() if found else None
 
 
+@functools.lru_cache(maxsize=4)
 def to_dict(period: str | None = None, *, with_profile: bool = True
              ) -> dict[str, Any]:
     """The whole dictionary, in the shape the context packet carries."""
@@ -449,4 +662,4 @@ def to_dict(period: str | None = None, *, with_profile: bool = True
 __all__ = ["BANDS", "CORE_CREDIT", "CUSTOMER", "FINAL", "GROUP_ORDER",
            "LAYER", "MATRIX", "MOVEMENT", "SIGNAL_SCORES", "SUBCATEGORY",
            "WORKFLOW", "Field", "by_name", "coverage_summary", "describe",
-           "fields", "groups", "names", "profile", "to_dict"]
+           "fields", "groups", "names", "profile", "reset", "to_dict"]

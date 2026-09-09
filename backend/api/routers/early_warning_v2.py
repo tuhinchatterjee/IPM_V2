@@ -548,15 +548,21 @@ def ews_models(principal: Principal = RequireEarlyWarningView) -> dict:
 
 
 @router.get("/grain", summary="The Early Warning data-grain package")
-def ews_grain(question: str = "",
+def ews_grain(question: str = "", group: str = "",
               principal: Principal = RequireEarlyWarningView) -> dict:
     """What a planner is given instead of the data.
 
     The grain, the published periods, every field with its definition and
     its MEASURED coverage, the groupings, and a bounded permission-scoped
-    sample. Not the rows: twenty months of three hundred obligors across
-    seventy-three columns is a bill rather than a context, and the values
-    come back through validated execution where they can be checked.
+    sample. Not the rows: twenty months of three hundred obligors across two
+    and a half thousand columns is a bill rather than a context, and the
+    values come back through validated execution where they can be checked.
+
+    `group` narrows the field dictionary to one group — the signal inventory
+    alone is two thousand three hundred entries, and a reader looking for the
+    matrix fields should not have to download it to find them. The counts and
+    the coverage always describe the whole domain, so a narrowed response
+    still says how much of it is being shown.
     """
     from backend.early_warning import grain as ews_grain_mod
 
@@ -565,7 +571,18 @@ def ews_grain(question: str = "",
             question, permissions={"role": principal.role})
     except EarlyWarningDataNotBuilt as exc:
         raise _not_built(exc)
-    return package.to_dict()
+    out = package.to_dict()
+    if group:
+        dictionary = dict(out.get("field_dictionary") or {})
+        groups = dictionary.get("groups") or {}
+        matched = {name: members for name, members in groups.items()
+                   if name.lower() == group.lower()}
+        dictionary["groups"] = matched
+        dictionary["showing_group"] = group
+        dictionary["group_sizes"] = {name: len(members)
+                                     for name, members in groups.items()}
+        out["field_dictionary"] = dictionary
+    return out
 
 
 @router.get("/functionality", summary="Which CreditProbe functionality owns what")

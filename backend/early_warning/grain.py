@@ -12,12 +12,18 @@ and a small sample of real rows so the shapes are concrete.
 
 What it deliberately does NOT contain
 -------------------------------------
-The data. Twenty months of three hundred obligors across seventy-three
-columns is four hundred and thirty-eight thousand values, and sending it
-would be both ruinous and pointless: the planner does not need the values, it
-needs to know what it may ask for. Values come back through validated
-execution, in the result packet, where they can be checked against what was
-actually run.
+The data. Twenty months of three hundred obligors across two and a half
+thousand columns is fifteen million values, and sending it would be both
+ruinous and pointless: the planner does not need the values, it needs to know
+what it may ask for. Values come back through validated execution, in the
+result packet, where they can be checked against what was actually run.
+
+The field dictionary is large for the same reason the domain is: every one of
+the 123 signals is exposed at this grain, several columns each. The package
+therefore carries the dictionary itself, the signal inventory with the prefix
+each signal's columns are built from, and the ten fields most relevant to THIS
+request — so a planner composes the column it needs from a naming convention
+rather than reading two thousand names looking for one.
 
 The sample is the exception, and it is bounded and permission-scoped for the
 same reason: a planner that has seen three rows writes better code than one
@@ -41,6 +47,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.early_warning import dictionary as dic
+from backend.early_warning import signal_fields as sigf
 from backend.early_warning import v2_service as svc
 from backend.early_warning import wide
 
@@ -197,12 +204,46 @@ _HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
+#: Words too common to identify a signal by. "Risk" matches ninety of the
+#: hundred and twenty-three, which is the same as matching none.
+_STOPWORDS = frozenset({
+    "and", "or", "of", "the", "in", "on", "to", "a", "an", "for", "by",
+    "with", "risk", "score", "signal", "change", "increase", "decrease",
+    "decline", "deterioration", "movement", "rate", "level", "new", "other",
+    "total", "high", "low", "per", "from", "against", "over", "under"})
+
+
+def _named_signals(text: str, limit: int = 4) -> list[str]:
+    """The inventory rows the request appears to name.
+
+    Matched on the distinctive words in a signal's own name, so "which names
+    have a covenant breach?" surfaces the covenant signal's own columns
+    rather than only the node it rolls into. Two shared words are required:
+    one is how "payment" matches nine unrelated signals.
+    """
+    words = set(re.findall(r"[a-z]{3,}", text)) - _STOPWORDS
+    if not words:
+        return []
+    hits: list[tuple[int, str]] = []
+    for entry in sigf.fields():
+        name_words = set(re.findall(
+            r"[a-z]{3,}", entry.name.lower())) - _STOPWORDS
+        shared = len(words & name_words)
+        if shared >= 2 or (shared == 1 and len(name_words) <= 2):
+            hits.append((shared, entry.prefix))
+    hits.sort(key=lambda h: -h[0])
+    return [prefix for _, prefix in hits[:limit]]
+
+
 def top_fields(request_text: str, limit: int = 10) -> list[dict[str, Any]]:
     """The fields most likely to matter to this request, best first.
 
     A hint for ordering, never a filter. The full dictionary travels with the
     package regardless, because a planner that cannot see the field it needs
-    invents one.
+    invents one. That matters more now than it did at seventy-three fields:
+    the dictionary is two and a half thousand entries, most of them one
+    signal's own columns, and a planner reading it end to end would spend its
+    attention on signals this request has nothing to do with.
     """
     text = (request_text or "").lower()
     catalogue = dic.by_name()
@@ -212,6 +253,14 @@ def top_fields(request_text: str, limit: int = 10) -> list[dict[str, Any]]:
             for rank, name in enumerate(names):
                 if name in catalogue:
                     scored[name] = scored.get(name, 0) + (10 - rank)
+
+    # A signal the request names by its own words brings its own columns:
+    # whether it fired, what it scored, and the reason it carries.
+    for rank, prefix in enumerate(_named_signals(text)):
+        for suffix, weight in (("fired", 12), ("score", 11), ("reason", 9)):
+            name = f"{prefix}_{suffix}"
+            if name in catalogue:
+                scored[name] = scored.get(name, 0) + weight - rank
     # The score and the band are what almost every Early Warning question is
     # ultimately about, so they are always in the running.
     for name in ("ews_score", "ews_band", "customer_name", "exposure"):
@@ -244,8 +293,43 @@ def sample(period: str | None = None, rows: int = SAMPLE_ROWS,
     for i in picks:
         row = ordered.iloc[i].to_dict()
         out.append({k: (None if _is_nan(v) else _plain(v))
-                    for k, v in row.items()})
+                    for k, v in _sampled_columns(row).items()})
     return out
+
+
+def _sampled_columns(row: dict[str, Any]) -> dict[str, Any]:
+    """One row, with only the signals that actually fired for it.
+
+    Every obligor-month carries a column for all 123 signals, and for most
+    obligors most of them are empty. A sample row printed in full would be
+    two and a half thousand values of which two thousand are nulls, which
+    teaches a planner nothing and costs the whole context window. So the
+    sample shows the position, and the signals behind THIS obligor's
+    position. The dictionary still describes every one of the rest.
+    """
+    fired = {entry.prefix for entry in sigf.scored_fields()
+             if bool(row.get(entry.column("fired")))}
+    out: dict[str, Any] = {}
+    for name, value in row.items():
+        prefix = _signal_prefix(name)
+        if prefix is None or prefix in fired:
+            out[name] = value
+    return out
+
+
+@functools.lru_cache(maxsize=1)
+def _prefixes() -> tuple[str, ...]:
+    return tuple(entry.prefix for entry in sigf.fields())
+
+
+def _signal_prefix(column: str) -> str | None:
+    """Which signal a column belongs to, or None if it is not a signal one."""
+    if not column.startswith("sig"):
+        return None
+    for prefix in _prefixes():
+        if column.startswith(prefix + "_"):
+            return prefix
+    return None
 
 
 def _is_nan(value: Any) -> bool:

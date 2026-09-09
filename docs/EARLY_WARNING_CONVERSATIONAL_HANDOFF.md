@@ -28,11 +28,12 @@ scoring contribution — asserted.
 dimension scores and bands, the anchor from the 5×5 matrix, all **5** notches,
 the override fields, and the final score and band.
 
-**Dictionary coverage:** 73 of 73 fields described, exactly matching the wide
-view in both directions. 71 fully populated; `dominant_subcategory` and
-`dominant_driver` are 71% missing and the dictionary **says so** — most obligors
-have no fired signal in a given month, and a dictionary claiming otherwise is
-what makes a planner confident and wrong.
+**Dictionary coverage:** superseded. The wide view at the time of this document
+carried 73 columns and did not expose the signal inventory at all. It now
+carries **2,521**, including all 123 signals at customer-month grain — see
+`docs/EARLY_WARNING_COMPLETION_HANDOFF.md` for the current figures. The
+contract is unchanged: every column described, every described field present,
+and coverage counted from the published data rather than declared.
 
 ### The twelve months nobody sees
 

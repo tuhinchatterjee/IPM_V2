@@ -13,14 +13,14 @@ USER QUESTION  + selected month + filters + thread + Standard/Deep
         ▼
 CREDITPROBE INIT          authenticate, authorise, ONE budget ledger
         ▼
-PASS 1 — LANGUAGE         spelling, transcription, translation
+PASS 1 — LANGUAGE         SONNET. spelling, transcription, translation
         │                 NOTHING resolved
         ▼
-PASS 2 — BUSINESS REQUEST what is being asked, thread and screen in view
+PASS 2 — BUSINESS REQUEST SONNET. what is being asked, thread and screen in view
         ▼
 EWS CONTEXT BUILDER       the domain, described — not the data
         ▼
-FUNCTIONALITY SELECTION   ◄── THE GATE. Before any plan exists.
+FUNCTIONALITY SELECTION   OPUS. ◄── THE GATE. Before any plan exists.
         │
         ├── another functionality owns it
         │       → explain, redirect, offer checked alternatives
@@ -32,7 +32,7 @@ FUNCTIONALITY SELECTION   ◄── THE GATE. Before any plan exists.
         │
         └── EARLY WARNING WINS
                 ▼
-        ANALYSIS PLAN         one step per part the request asked for
+        ANALYSIS PLAN         OPUS. one step per part the request asked for
                 ▼
         VALIDATOR             domain, access, schema, grain, time, safety
                 │
@@ -45,17 +45,17 @@ FUNCTIONALITY SELECTION   ◄── THE GATE. Before any plan exists.
                 ▼
         RESULT PACKET         the only source the prose may draw on
                 ▼
-        SUFFICIENCY REVIEW    did every part get evidence?
+        SUFFICIENCY REVIEW    OPUS. did every part get evidence?
                 │
                 ├── incomplete + affordable → one more bounded step
                 ├── incomplete + not → partial answer that SAYS it is partial
                 └── sufficient
                         ▼
-        INTERPRETATION        the composer whose reading answers THIS question
+        INTERPRETATION        OPUS. the reading that answers THIS question
                 ▼
 FINAL ANSWER
         ▼
-ROLLING SUMMARY UPDATE    once, from the supported answer
+ROLLING SUMMARY UPDATE    SONNET. once, from the supported answer
         ▼
 THREAD PERSISTED
 ```
@@ -63,6 +63,12 @@ THREAD PERSISTED
 Every stage is emitted as an event. `tests/early_warning/test_conversation_pipeline.py`
 asserts the sequence, because a pipeline whose order is documented but not
 observable is one whose order drifts.
+
+The stage names are the models that serve them, and where a provider is
+configured those models run — see **The model seam** below.
+`scripts/prove_early_warning_conversation.py` prints the whole trace for one
+turn: the stages in order, which model answered each, what it cost, and the
+single ledger they all spent from.
 
 ---
 
@@ -126,21 +132,58 @@ asserted: 2024-11 fires signals for 138 obligors against 2026-06's 87.
 
 ### The analytical view
 
-Seventy-three named columns, one row per obligor-month. Every nested structure
-the model carries is lifted out: the 22 sub-category scores, the six layer and
-dimension outputs, the five notches, the overrides. **Read from the published
-rows, never recomputed**, so the wide view cannot disagree with the model.
+**2,521 named columns**, one row per obligor-month. Every nested structure the
+model carries is lifted out, and so is every signal:
 
-The normalised model underneath is untouched — the signal catalogue, the
-observations, the lineage — because that is what makes the score auditable.
+| Group | Columns |
+|---|---|
+| Customer | 8 |
+| Core credit inputs | 7 |
+| **Signal inventory — all 123** | **2,364** |
+| Sub-categories — 22 nodes, each score, band, worst signal and reason | 88 |
+| Layer and dimension outputs, plus T&A and Classifier | 11 |
+| Matrix, the five notches and the overrides | 10 |
+| Final Early Warning and dominance | 11 |
+| Movement — one month, twelve months, direction of travel | 8 |
+| Workflow — the governed escalation route and action | 14 |
+| **Total** | **2,521** |
+
+The 105 scored signals each carry 22 columns: whether the trigger fired, the
+raw reading it saw, the baseline it was measured against, the normalised value
+and its unit, the severity band and score, all five accelerator dimension
+bands, the accelerator multiplier, the decay class and the decay actually
+applied, the final signal score, the reason code and reason text, the source
+system, the evidence age and its freshness. The 18 that are merged, dropped,
+replaced or moved carry status, status detail and lineage — a column for the
+accelerator bands of a dropped signal would be empty for a reason nobody could
+recover.
+
+**Read from the published rows, never recomputed**, so the wide view cannot
+disagree with the model. The normalised model underneath is untouched — the
+signal catalogue, the observations, the lineage — because that is what makes
+the score auditable.
+
+#### The signals with no feed
+
+All 123 are exposed, not only the ones this deployment populates. A dictionary
+listing only the fed ones would tell a planner the other seventy-four do not
+exist, when what is true is that they exist and there is no feed yet. The
+measured coverage says which is which, and an unfed signal's columns are
+**empty rather than zero** — a column of noughts would report that every
+obligor scores zero on a signal nobody can see, which reads as evidence of
+safety.
 
 ### The field dictionary
 
 An exact contract in both directions: every column described, every described
-field present. Each entry carries the business label, a real definition, the
-layer, the dimension, the unit, whether high is bad, the lineage, and — counted
-from the published data rather than declared — the coverage and the missing
-rate.
+field present, at 2,521 each way. Each entry carries the business label, a real
+definition, the layer, the dimension, the node, the unit, whether high is bad,
+the lineage, and — counted from the published data rather than declared — the
+coverage and the missing rate.
+
+The signal entries are generated from the workbook's own inventory rather than
+written out, so a column and its definition cannot drift apart: both come from
+the same catalogue.
 
 It reports that `dominant_driver` is missing for 71% of obligor-months, because
 most obligors have no fired signal in a given month. A dictionary that claimed
@@ -162,10 +205,18 @@ The **grain package**, not the data:
 - the methodology, read from the scoring modules themselves
 - the capabilities and permissions, and the remaining budget
 
-Twenty months of three hundred obligors across seventy-three columns is four
-hundred and thirty-eight thousand values. Sending it would be both ruinous and
-pointless: values come back through validated execution, in the result packet,
-where they can be checked against what was actually run.
+Twenty months of three hundred obligors across 2,521 columns is fifteen million
+values. Sending it would be both ruinous and pointless: values come back
+through validated execution, in the result packet, where they can be checked
+against what was actually run.
+
+The dictionary is too large to put in a prompt whole, so the planner is given
+the 157 fields that are not one signal's own column in full, the **signal
+inventory** — 123 rows carrying the prefix each signal's columns are built
+from — and the list of measure suffixes. It composes `sig042_covenant_breach_
+event_score` from those two lists rather than reading two thousand names
+looking for one. The sample rows show only the signals that actually fired for
+that obligor, because two thousand nulls teach a planner nothing.
 
 ---
 
@@ -297,22 +348,70 @@ rather than guessed at.
 
 ## The model seam
 
-Every stage has a deterministic implementation and a provider seam. Where a
-provider is configured, a stage may be produced by a model under the same
-contract, and the result is validated the same way — the structure is the
-contract, not its author.
+Seven stages reach a model. `backend/early_warning/conversation/seam.py` is the
+only place any of them may, and it reuses CreditProbe's own provider and role
+configuration — one place holds a key, one settings page, one answer to "which
+model served this".
 
-Where no provider is configured, the deterministic implementation runs and
-`engine` records `deterministic` on every stage. The budget counts only calls
-that were actually made.
+| Stage | Family | Role it is configured under |
+|---|---|---|
+| `sonnet_pass_1` | Sonnet | `translation` (falls back to `router`) |
+| `sonnet_pass_2` | Sonnet | `router` |
+| `opus_functionality_selection` | Opus | `complex_planner` |
+| `opus_analysis_plan` | Opus | `complex_planner` |
+| `opus_sufficiency_review` | Opus | `critic` |
+| `opus_final_interpretation` | Opus | `analyst` |
+| `sonnet_summary_update` | Sonnet | `router` |
 
-**Nothing here records a model call that did not happen.** A stage claiming
-`engine: model` with zero calls in the ledger would be the product lying about
-its own provenance, and there is a test that says so.
+`GET /early-warning/v2/models` resolves that table against the live
+configuration and reports which model each role actually holds — including,
+plainly, when one shared model serves an Opus stage. The routing decision is
+still made and recorded; the model that answers is whatever was configured, and
+a table claiming otherwise would have no evidential value.
 
-The intended production mapping, when a provider is configured: Sonnet for
-pass one, pass two and the rolling summary; Opus for functionality selection,
-the analysis plan, the sufficiency review and the final interpretation.
+Every stage keeps the same contract: **its own structured packet in**, never
+the data; **schema-validated output**, checked again on the way back rather
+than salvaged; **the same ledger**, so seven stages spend from one budget; and
+**real metadata** — provider, model, role, effort, latency, tokens, request id
+— taken off the call that happened.
+
+### The deterministic implementations are not stubs
+
+Each is the floor the model is merged onto, the fallback when no provider is
+configured or a call fails, the seam the tests drive, and the safety layer that
+decides what a model is allowed to change.
+
+**A model may tighten a control. It may never loosen one.**
+
+| It may | It may not |
+|---|---|
+| route a question OUT of Early Warning | route one INTO it against the gate |
+| name a part of the request as uncovered | declare an uncovered part answered |
+| improve the phrasing of the request | resolve an obligor, name an unpublished period, or invent a grouping field |
+| write the reading | write a figure the result packet does not carry |
+| propose one further analysis | skip the validator, in either direction |
+
+A plan naming another dataset is refused by the same validator that refuses a
+deterministic one — the schema permits the value precisely so the refusal is
+demonstrated rather than assumed — and the turn then falls back to the
+deterministic plan, which is validated in its turn.
+
+Prose carrying an ungrounded figure is **discarded**, not annotated. An
+interpretation with one invented sentence, shown under a warning, is still an
+interpretation somebody will paste into a credit paper.
+
+### Failure costs the stage, never the turn
+
+No provider, no budget left, a provider error, a timeout, a reply that does not
+conform: each produces the deterministic result with the reason recorded, and
+`engine` reads `deterministic`. A call that was made and then failed is still
+**spent** — a ledger that counted only successes would make a provider that
+fails expensively look free.
+
+**Nothing here records a model call that did not happen.** `engine: model` and
+the recorded call are written from the same object, and
+`tests/early_warning/test_model_seam.py` asserts they agree on every
+configuration — configured, offline, provider error and malformed reply.
 
 ---
 
