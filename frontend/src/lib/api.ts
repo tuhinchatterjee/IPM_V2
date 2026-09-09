@@ -11,6 +11,7 @@
  */
 
 import { filenameFrom } from "@/lib/downloads";
+import type { PlaybookStreamEvent } from "@/lib/stream";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -3855,6 +3856,15 @@ export interface PbWorkspace {
   messages: PbMessage[];
   sources: PbSource[];
   artifacts: PbArtifact[];
+  /**
+   * The generation this workspace has in flight, if any.
+   *
+   * Present so a browser that has just loaded — a refresh mid-generation, or a
+   * second tab — can attach to it. Without it the only way to discover a
+   * running job would be to send the message again, which is the one thing
+   * that must not happen.
+   */
+  running_job: PbJob | null;
 }
 
 export interface PbChangeItem {
@@ -3954,6 +3964,9 @@ export interface PbSendResult {
   version?: number;
   notes?: string[];
   message?: string;
+  /** Present on a streamed send: where to watch this generation. */
+  stream_url?: string;
+  idempotency_key?: string;
 }
 
 export interface PbExportRequest {
@@ -4475,6 +4488,63 @@ export const api = {
     ),
   playbookWorkspace: (id: number) =>
     request<PbWorkspace>(`/playbook/workspaces/${id}`),
+  /**
+   * Watch a running generation.
+   *
+   * `fetch` rather than `EventSource`, because `EventSource` cannot send the
+   * role header this deployment identifies callers with. The cost is that
+   * reconnection is ours to do; the benefit is that `Last-Event-ID` is ours to
+   * set, which is what makes a refresh resume rather than replay.
+   *
+   * No timeout: a generation legitimately takes minutes, and the server sends
+   * a keep-alive comment so a silent tool call is distinguishable from a dead
+   * connection.
+   */
+  playbookStream: async (
+    workspaceId: number,
+    jobId: number,
+    opts: {
+      after?: number;
+      signal?: AbortSignal;
+      onEvent: (event: PlaybookStreamEvent) => void;
+    },
+  ): Promise<void> => {
+    const { SSEParser, toPlaybookEvent } = await import("@/lib/stream");
+    const after = opts.after ?? 0;
+    const response = await fetch(
+      `${API_BASE_URL}${API_PREFIX}/playbook/workspaces/${workspaceId}` +
+        `/stream?job_id=${jobId}&after=${after}`,
+      {
+        credentials: "include",
+        signal: opts.signal,
+        headers: {
+          Accept: "text/event-stream",
+          "X-IPM-Role": activeRole,
+          ...(after ? { "Last-Event-ID": String(after) } : {}),
+        },
+      },
+    );
+    if (!response.ok || !response.body) {
+      throw new Error(
+        response.status === 404
+          ? "That generation could not be found."
+          : `The stream could not be opened (HTTP ${response.status}).`,
+      );
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const parser = new SSEParser();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      // `stream: true` matters: a multi-byte character split across two reads
+      // would otherwise decode as two replacement characters.
+      for (const raw of parser.push(decoder.decode(value, { stream: true }))) {
+        const event = toPlaybookEvent(raw);
+        if (event) opts.onEvent(event);
+      }
+    }
+  },
   playbookSource: (sourceId: number) =>
     request<PbSource>(`/playbook/sources/${sourceId}`),
   correctPlaybookSource: (
@@ -4485,6 +4555,11 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  retryPlaybookJob: (jobId: number) =>
+    request<{ idempotency_key: string; workspace_id: number; retry_of: number }>(
+      `/playbook/jobs/${jobId}/retry`,
+      { method: "POST" },
+    ),
   retryPlaybookSource: (sourceId: number) =>
     request<PbSource>(`/playbook/sources/${sourceId}/retry`, {
       method: "POST",
@@ -4586,6 +4661,12 @@ export const api = {
       task?: string;
       /** For `edit`: the part of the document that may change. */
       scope?: string;
+      /**
+       * Run in a worker and answer immediately with the job to watch, rather
+       * than holding the request open. The browser always sets this: it is
+       * what lets a refresh mid-generation reconnect instead of restarting.
+       */
+      stream?: boolean;
     },
   ) =>
     // Authoring a report is minutes of work, not seconds, so this carries the

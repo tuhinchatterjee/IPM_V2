@@ -14,6 +14,7 @@ import {
 import { AnalysisPicker } from "@/components/playbook/analysis-picker";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
 import { SourceCard } from "@/components/playbook/source-card";
+import { useGeneration } from "@/components/playbook/use-generation";
 import { VersionPreview } from "@/components/playbook/version-preview";
 import { Composer, type Attachment } from "@/components/playbook/composer";
 import { MarkdownView } from "@/components/playbook/markdown-view";
@@ -31,6 +32,7 @@ import {
   type PbWorkspace,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { stateLabel } from "@/lib/stream";
 import {
   composerState,
   currentVersion,
@@ -85,41 +87,23 @@ export default function PlaybookThreadPage({
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
-  const [running, setRunning] = React.useState<{ key: string; jobId: number | null }>(
-    { key: "", jobId: null },
-  );
   const [stopping, setStopping] = React.useState(false);
 
-  // The generation is synchronous, so the send request does not come back with
-  // a job id until the work is over. The key is minted here, before the send,
-  // and this looks up which job it became — which is what makes Stop a control
-  // that can act rather than a button that arrives too late to.
+  const generation = useGeneration(workspaceId, () =>
+    setRefresh((n) => n + 1),
+  );
+
+  // A refresh mid-generation lands here. The workspace says what is running,
+  // so the page attaches to it and the answer continues arriving — rather than
+  // showing a blank thread, or, far worse, offering to send again.
   React.useEffect(() => {
-    if (!running.key || running.jobId !== null) return;
-    let live = true;
-    const find = async () => {
-      try {
-        const job = await api.playbookJobByKey(running.key);
-        if (live && !job.finished) setRunning((r) => ({ ...r, jobId: job.id }));
-      } catch {
-        // Not started yet, or already gone. Either way there is nothing to
-        // stop, and a failed lookup is not something to put on screen.
-      }
-    };
-    void find();
-    const timer = setInterval(find, 1500);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, [running.key, running.jobId]);
+    generation.resume(workspace.data?.running_job);
+  }, [workspace.data?.running_job, generation]);
 
   const stop = async () => {
-    if (running.jobId === null) return;
     setStopping(true);
     try {
-      const result = await api.cancelPlaybookJob(running.jobId);
-      setError(result.message);
+      setError(await generation.stop());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -127,15 +111,30 @@ export default function PlaybookThreadPage({
     }
   };
 
+  const retry = async () => {
+    if (generation.jobId === null || !data) return;
+    setError("");
+    try {
+      const { idempotency_key } = await api.retryPlaybookJob(generation.jobId);
+      generation.release();
+      await send(idempotency_key);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const { canGenerate, note } = composerState(caps.data ?? null);
   const data = workspace.data;
 
-  const send = async () => {
+  const send = async (retryKey = "") => {
     if (!data) return;
     setBusy(true);
     setError("");
-    const key = `ws${data.id}:turn${data.messages.length}`;
-    setRunning({ key, jobId: null });
+    // Derived from the thread's own length, so pressing send twice or
+    // refreshing mid-flight resolves to one job rather than two. A retry
+    // carries the key the server derived for it, which stands for exactly one
+    // further attempt.
+    const key = retryKey || `ws${data.id}:turn${data.messages.length}`;
     try {
       const sourceIds: number[] = [];
       for (const file of pendingFiles) {
@@ -143,7 +142,7 @@ export default function PlaybookThreadPage({
         sourceIds.push(source.id);
       }
       const report = data.artifacts.find((a) => a.kind === "report");
-      await api.sendPlaybookMessage(data.id, {
+      const started = await api.sendPlaybookMessage(data.id, {
         text: prompt.trim(),
         source_ids: sourceIds,
         export_revision_ids: chosen.map((c) => c.revision_id),
@@ -151,21 +150,22 @@ export default function PlaybookThreadPage({
         scope: task.scope,
         artifact_id: report?.id ?? null,
         base_version_id: report?.current_version_id ?? null,
-        // Derived from the thread's own length, so pressing send twice or
-        // refreshing mid-flight resolves to one job rather than two.
         idempotency_key: key,
+        stream: true,
       });
       setPrompt("");
       setTask({ kind: "", scope: "" });
       setAttachments([]);
       setChosen([]);
       setPendingFiles([]);
+      // The question is on the server now; showing it is a reload of the
+      // thread, and the answer arrives over the stream.
       setRefresh((n) => n + 1);
+      generation.watch(started.job_id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
-      setRunning({ key: "", jobId: null });
     }
   };
 
@@ -262,6 +262,32 @@ export default function PlaybookThreadPage({
             </article>
           ))}
 
+          {(generation.running || generation.text) && !generation.done && (
+            <article className="space-y-2" data-testid="playbook-streaming">
+              <p className="meta">
+                Playbook
+                <span className="ml-2 text-text-muted">
+                  {stateLabel(generation.state, generation.detail)}
+                </span>
+              </p>
+              {generation.text ? (
+                <MarkdownView source={generation.text} />
+              ) : (
+                <p className="text-sm text-text-muted">
+                  Reading what was attached…
+                </p>
+              )}
+              <p className="text-[11px] text-text-muted">
+                Still being written. Nothing is saved until it finishes.
+              </p>
+            </article>
+          )}
+          {generation.cancelled && (
+            <p className="rounded-md border border-warning/40 bg-surface-warning p-3 text-sm text-text-primary">
+              {generation.error}
+            </p>
+          )}
+
           {shown && (
             <ChangeSetPanel
               key={shown.id}
@@ -353,19 +379,38 @@ export default function PlaybookThreadPage({
               disabledNote={canGenerate ? "" : note}
               placeholder="Ask for a change, a check, or another format…"
             />
-            {busy && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-text-muted">
-                  Working. Nothing is saved until it finishes.
+            {(busy || generation.running) && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span
+                  className="text-xs text-text-muted"
+                  data-testid="playbook-generation-state"
+                >
+                  {generation.state
+                    ? stateLabel(generation.state, generation.detail)
+                    : "Sending"}
+                  . Nothing is saved until it finishes.
                 </span>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={stop}
-                  disabled={running.jobId === null || stopping}
+                  disabled={generation.jobId === null || stopping}
                   data-testid="playbook-stop"
                 >
                   {stopping ? "Stopping…" : "Stop"}
+                </Button>
+              </div>
+            )}
+            {generation.error && !generation.cancelled && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <p className="text-xs text-negative">{generation.error}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={retry}
+                  data-testid="playbook-retry"
+                >
+                  Try again
                 </Button>
               </div>
             )}

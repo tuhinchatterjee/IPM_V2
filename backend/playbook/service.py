@@ -270,6 +270,7 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
                     task_kind: str = "",
                     task_scope: str = "",
                     on_milestone=None,
+                    on_delta=None,
                     is_cancelled=None) -> Outcome:
     """One complete authoring run, from instruction to persisted version.
 
@@ -304,6 +305,7 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
         messages=[{"role": "user", "content": user}],
         formats=formats,
         on_milestone=on_milestone,
+        on_delta=on_delta,
         is_cancelled=is_cancelled,
     )
     outcome.model_served = result.model_served
@@ -467,6 +469,7 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
                  task_scope: str = "",
                  calculations: list | None = None,
                  on_milestone=None,
+                 on_delta=None,
                  is_cancelled=None) -> dict:
     """One turn: persist what was asked, do it, persist what came back.
 
@@ -479,17 +482,53 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
     double-click or a retry after a dropped connection finds the job that is
     already running rather than starting a second billable one.
     """
+    started = begin_generation(
+        session, scope, workspace_id, text=text, source_ids=source_ids,
+        export_revision_ids=export_revision_ids,
+        idempotency_key=idempotency_key)
+    if started["duplicate"]:
+        return started
+
+    return run_generation(
+        session, scope, workspace_id, job_id=started["job_id"], text=text,
+        source_ids=source_ids, export_revision_ids=export_revision_ids,
+        formats=formats, artifact_id=artifact_id,
+        base_version_id=base_version_id, task_kind=task_kind,
+        task_scope=task_scope, calculations=calculations,
+        on_milestone=on_milestone, on_delta=on_delta,
+        is_cancelled=is_cancelled)
+
+
+def begin_generation(session, scope: repo.Scope, workspace_id: int, *,
+                     text: str,
+                     source_ids: list[int] | None = None,
+                     export_revision_ids: list[int] | None = None,
+                     idempotency_key: str = "") -> dict:
+    """Record the question and claim the job, before any work happens.
+
+    Separate from running it because the streamed path needs the job id in the
+    response it returns immediately, while the generation is still going. Both
+    paths go through here, so the idempotency guarantee is one piece of code
+    rather than two that must agree.
+
+    The user's message and its attachments are written FIRST and committed with
+    the job row. A generation that fails still leaves a thread showing what was
+    asked and what went wrong; a thread that loses the question when the answer
+    fails is a thread nobody can retry from. It is also what lets the stop
+    button and the stream, both in other requests, see the job at all.
+    """
     from backend.models.playbook import PlaybookJob
 
     ws = repo.get_workspace(session, scope, workspace_id)
-    formats = list(formats or DEFAULT_FORMATS)
     key = idempotency_key or f"ws{ws.id}:{repo.next_sequence(session, ws.id)}"
 
     existing = repo.jobs_by_key(session, key)
     if existing is not None:
+        # A double-click, a refresh, or a retry after a dropped connection.
+        # None of them is a second generation.
         return {"job_id": existing.id, "state": existing.state,
                 "duplicate": True,
-                "message": "This request is already running." }
+                "message": "This request is already running."}
 
     job = PlaybookJob(workspace_id=ws.id, tenant=scope.tenant,
                       idempotency_key=key, state="queued",
@@ -511,11 +550,38 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
         repo.attach(session, ws.id, message_id=user_message.id,
                     export_revision_id=revision.id,
                     position=len(source_ids or []) + position)
-
-    # Committed BEFORE the work starts, for two reasons. A generation that
-    # fails still leaves a thread showing what was asked. And the stop button
-    # reads this row from another request, which cannot see an uncommitted one.
     session.commit()
+    return {"job_id": job.id, "state": job.state, "duplicate": False,
+            "user_message_id": user_message.id, "idempotency_key": key}
+
+
+def run_generation(session, scope: repo.Scope, workspace_id: int, *,
+                   job_id: int,
+                   text: str,
+                   source_ids: list[int] | None = None,
+                   export_revision_ids: list[int] | None = None,
+                   formats: list[str] | None = None,
+                   artifact_id: int | None = None,
+                   base_version_id: int | None = None,
+                   task_kind: str = "",
+                   task_scope: str = "",
+                   calculations: list | None = None,
+                   on_milestone=None,
+                   on_delta=None,
+                   is_cancelled=None) -> dict:
+    """Do the work a claimed job stands for, and persist what came back.
+
+    Runs against a job that already exists, so the caller — a request, or a
+    worker thread the request started — has already been able to name it.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    ws = repo.get_workspace(session, scope, workspace_id)
+    formats = list(formats or DEFAULT_FORMATS)
+    job = session.get(PlaybookJob, job_id)
+    if job is None or job.workspace_id != ws.id:
+        raise repo.NotFound(f"No generation {job_id} in this workspace.")
+
     if is_cancelled is None:
         is_cancelled = cancellation_watcher(job.id)
 
@@ -537,7 +603,8 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
             title=ws.title, formats=formats, artifact_id=artifact_id,
             base_version_id=base_version_id,
             task_kind=task_kind, task_scope=task_scope,
-            on_milestone=milestone, is_cancelled=is_cancelled)
+            on_milestone=milestone, on_delta=on_delta,
+            is_cancelled=is_cancelled)
     except provider.Cancelled as exc:
         job.state = "cancelled"
         job.finished_at = _now()
@@ -581,7 +648,28 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
 
     return {"job_id": job.id, "state": "ready", "duplicate": False,
             "message_id": assistant.id, "artifact_id": outcome.artifact_id,
+            "version_id": outcome.version_id,
             "version": outcome.version, "notes": list(outcome.notes)}
+
+
+def mark_job_finished(session, job_id: int, *, state: str,
+                      error: str = "") -> None:
+    """Close a job from outside the run that owned it.
+
+    The worker needs this after its own session has been rolled back: the job
+    row must still say what happened, or a reader would find a generation that
+    is for ever "drafting". Already-finished jobs are left alone, so a stop
+    that arrives just after a success does not rewrite it as a failure.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    job = session.get(PlaybookJob, job_id)
+    if job is None or job.finished_at is not None:
+        return
+    job.state = state
+    job.error = error
+    job.finished_at = _now()
+    session.flush()
 
 
 def _now():
@@ -897,6 +985,63 @@ def job_status(session, scope: repo.Scope, job_id: int) -> dict:
         "model": job.model, "error": job.error,
         "finished": job.finished_at is not None,
     }
+
+
+def running_job(session, scope: repo.Scope, workspace_id: int) -> dict | None:
+    """The generation this workspace has in flight, if any.
+
+    Carried on the workspace payload so a browser that has just loaded — a
+    refresh mid-generation, or a second tab — knows there is something to
+    attach to without having to guess an idempotency key. Without it, the only
+    way to find a running job would be to send the message again, which is the
+    one thing that must not happen.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    ws = repo.get_workspace(session, scope, workspace_id)
+    job = session.execute(
+        select(PlaybookJob)
+        .where(PlaybookJob.workspace_id == ws.id,
+               PlaybookJob.finished_at.is_(None))
+        .order_by(PlaybookJob.id.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if job is None:
+        return None
+    return job_status(session, scope, job.id)
+
+
+def retry_generation(session, scope: repo.Scope, job_id: int) -> dict:
+    """Try a failed generation again, as a NEW job.
+
+    A new job with a derived key rather than a reset of the old one, and the
+    reason is idempotency: the old key stands for an attempt that happened and
+    failed, and reusing it would make the failed attempt unfindable. `:retry2`,
+    `:retry3` and so on each stand for exactly one attempt, so pressing retry
+    twice quickly still produces one generation per press and no more.
+
+    A job that succeeded is not retried. Its answer is in the thread; asking
+    again is a new message, not a retry.
+    """
+    from backend.models.playbook import PlaybookJob
+
+    job = session.get(PlaybookJob, job_id)
+    if job is None or job.tenant != scope.tenant:
+        raise repo.NotFound(f"No generation {job_id}.")
+    if job.state == "ready":
+        raise repo.Invalid(
+            "That generation succeeded. Its answer is already in the thread; "
+            "ask again to produce another.")
+    if job.finished_at is None:
+        raise repo.Invalid(
+            "That generation is still running. Stop it before trying again.")
+
+    base = job.idempotency_key.split(":retry")[0]
+    attempt = 2
+    while repo.jobs_by_key(session, f"{base}:retry{attempt}") is not None:
+        attempt += 1
+    return {"idempotency_key": f"{base}:retry{attempt}",
+            "workspace_id": job.workspace_id, "retry_of": job.id}
 
 
 def job_by_key(session, scope: repo.Scope, idempotency_key: str) -> dict:

@@ -290,6 +290,7 @@ def author(
     purpose: str = "playbook_authoring",
     container_id: str = "",
     on_milestone: Callable[[str, str], None] | None = None,
+    on_delta: Callable[[str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> AuthoringResult:
     """Run one authoring turn to completion, including its tool-use loop.
@@ -297,6 +298,12 @@ def author(
     Returns when the model stops, or raises. The loop is bounded by MAX_TURNS,
     checks for cancellation between turns, and downloads every produced file
     before returning so that nothing depends on a container that will expire.
+
+    `on_delta` receives the answer text as it arrives, and NOTHING else. The
+    provider's stream also carries reasoning blocks, tool inputs and the code
+    the sandbox is about to run; those are not forwarded — only `text_delta` on
+    a `text` block is. Cancellation is checked between deltas as well as
+    between turns, so stopping does not wait for a long reply to finish.
     """
     client = _client()
 
@@ -331,7 +338,8 @@ def author(
 
         response = _call(client, model=model, system=system, messages=convo,
                          tools=tools, container=container, purpose=purpose,
-                         role=role)
+                         role=role, on_delta=on_delta,
+                         is_cancelled=is_cancelled)
         result.turns = turn
 
         rid = getattr(response, "_request_id", "") or ""
@@ -394,10 +402,23 @@ def author(
 
 
 def _call(client: Any, *, model: str, system: str, messages: list[dict],
-          tools: list[dict], container: dict, purpose: str, role: Any) -> Any:
-    """One provider call, with bounded retries and honest telemetry."""
+          tools: list[dict], container: dict, purpose: str, role: Any,
+          on_delta: Callable[[str], None] | None = None,
+          is_cancelled: Callable[[], bool] | None = None) -> Any:
+    """One provider call, with bounded retries and honest telemetry.
+
+    Streamed, always. The completed message is still what the caller gets back —
+    stop reason, container, usage, file ids and all — so nothing downstream
+    changes; streaming adds the text arriving as it is written rather than
+    replacing the result with a pile of fragments.
+
+    A stream is never retried after the first delta has been forwarded. Retrying
+    then would replay text the user has already read, and a second copy of half
+    an answer is worse than the failure.
+    """
 
     last: Exception | None = None
+    emitted = False
     for attempt in range(1, MAX_ATTEMPTS + 1):
         began = time.time()
         try:
@@ -410,7 +431,10 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
             }
             if model:
                 kwargs["model"] = model
-            response = client.beta.messages.create(**kwargs)
+            response, streamed = _stream_once(
+                client, kwargs, on_delta=on_delta, is_cancelled=is_cancelled)
+            if streamed:
+                emitted = True
             telemetry.record_success(
                 provider="anthropic",
                 model=getattr(response, "model", "") or model,
@@ -424,6 +448,10 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
                                       "output_tokens", 0) or 0,
             )
             return response
+        except Cancelled:
+            # A stop is not a provider failure. It must not be classified,
+            # retried, or reported as an outage.
+            raise
         except Exception as exc:  # noqa: BLE001 — classified, then re-raised
             category = telemetry.classify(exc)
             telemetry.record_failure(
@@ -435,12 +463,53 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
             last = exc
             retryable = category in {"rate_limit", "overloaded", "server",
                                      "connection", "timeout"}
+            if emitted:
+                # Text has already reached the user. Starting again would show
+                # them a second beginning of the same answer.
+                retryable = False
             if not retryable or attempt == MAX_ATTEMPTS:
                 raise AuthoringError(
                     _message_for(category, exc), category=category
                 ) from exc
             time.sleep(min(2 ** attempt, 8))
     raise AuthoringError(str(last) if last else "authoring failed")  # pragma: no cover
+
+
+def _stream_once(client: Any, kwargs: dict, *,
+                 on_delta: Callable[[str], None] | None,
+                 is_cancelled: Callable[[], bool] | None) -> tuple[Any, bool]:
+    """One streamed call. Returns the finished message and whether text flowed.
+
+    The filter is the security boundary of this module, and it is deliberately
+    narrow: a delta is forwarded only when the event is a `content_block_delta`
+    AND the delta is a `text_delta`. Reasoning (`thinking_delta`), its signature,
+    and tool inputs (`input_json_delta` — which carries the code the sandbox is
+    about to run) all fail that test and never leave this function.
+    """
+    forwarded = False
+    with client.beta.messages.stream(**kwargs) as stream:
+        for event in stream:
+            if is_cancelled and is_cancelled():
+                # Close the connection rather than reading a reply nobody
+                # wants. `stream` is a context manager, so this releases it.
+                raise Cancelled("This generation was stopped.")
+            if getattr(event, "type", "") != "content_block_delta":
+                continue
+            delta = getattr(event, "delta", None)
+            if getattr(delta, "type", "") != "text_delta":
+                continue
+            text = getattr(delta, "text", "") or ""
+            if text and on_delta:
+                on_delta(text)
+                forwarded = True
+        message = stream.get_final_message()
+        rid = stream.request_id or ""
+    if rid and not getattr(message, "_request_id", ""):
+        try:
+            object.__setattr__(message, "_request_id", rid)
+        except Exception:  # noqa: BLE001 — a model that refuses the attribute
+            pass            # simply reports no request id, which is honest.
+    return message, forwarded
 
 
 def _message_for(category: str, exc: Exception) -> str:

@@ -64,6 +64,7 @@ These are pre-existing facts about the base commit, not defects introduced here.
 | M5 — demo completeness | complete |
 | M6 — verification and hardening | complete except the live suite |
 | M7 — handoff | complete; live verification remains **BLOCKED** |
+| M8 — streaming | complete; verified in a real browser |
 
 ## Baseline test run
 
@@ -103,13 +104,13 @@ re-checked against the provider's current documentation.
 
 | What | Result |
 |---|---|
-| `pytest tests/playbook` | 275 passed |
+| `pytest tests/playbook` | 318 passed |
 | `pytest tests/playbook tests/api tests/demo tests/services tests/exports tests/docs tests/proof tests/validation tests/llm` | 1373 passed, 8 skipped |
 | `pytest` (whole repository) | **9759 passed, 22 skipped, 0 failed** |
-| `npm test` | 444 passed |
+| `npm test` | 462 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
-| `scripts/acceptance/playbook_browser_acceptance.py` | 90 passed, 0 failed |
+| `scripts/acceptance/playbook_browser_acceptance.py` | 105 passed, 0 failed |
 | `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
 | `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
 
@@ -212,6 +213,52 @@ a guess nobody made. A failed or partial parse offers a retry that re-reads the
 stored bytes rather than asking for the file again — the bytes are already
 there, and a second upload would prove nothing the first did not.
 
+## Streaming, and why it needed a different shape
+
+The first pass reported real milestones and held the request open until the
+document was finished. That is not the streamed conversation the specification
+asks for, and the obvious fix — stream from inside the request that started the
+work — fails the requirements around it. A reload would kill the run, the user
+would see a blank thread, and pressing send again would start a second billable
+generation of the same turn.
+
+So the generation moved out of the request:
+
+* it runs in a **worker**, owned by the job rather than by any connection;
+* every event it produces is **appended to `playbook_job_events`** with a
+  monotonic `seq` (migration `0034`);
+* a connection is a **reader** of that log — it replays from the client's
+  cursor and then tails.
+
+A reload therefore reconnects to the same job and replays what it missed. The
+workspace payload carries `running_job` so a page that has just loaded knows
+what to attach to without having to send the message again to find out. Two
+browsers can watch the same generation. A dropped connection costs nothing, and
+the client reconnects from its cursor rather than replaying the answer.
+
+`EventSource` was not usable: it cannot send the `X-IPM-Role` header this
+deployment identifies callers with. The stream is read with `fetch` and a
+reader, and `src/lib/stream.ts` is the incremental parser — which is the part
+worth testing, because a parser that assumes one read is one event drops text
+at random under load and is perfect in a demonstration.
+
+**What is streamed, and what never is.** Only user-visible answer text and real
+job states. The provider's stream also carries reasoning blocks, tool inputs
+and the code the sandbox is about to run; the filter in `provider._stream_once`
+forwards a delta only when the event is a `content_block_delta` AND the delta is
+a `text_delta`, so none of that leaves the function. The system prompt and the
+evidence ledger stay on the server. A test asserts the log contains none of it.
+
+**An interrupted stream is not an answer.** The assistant's message and the
+artifact version are written when the run completes, so a partial stream lives
+in the event log and nowhere a user can act on: no message with a document, no
+version, no file to download. On failure the client discards the fragment
+rather than leaving half an answer on screen as though it were the answer.
+
+Cancel and retry stayed where they were and now have somewhere to bite. Retry
+derives a new key — `:retry2`, `:retry3` — so each press stands for exactly one
+attempt and the failed attempt remains findable.
+
 ## What is genuinely not done
 
 Stated here rather than left to be discovered.
@@ -223,10 +270,9 @@ Stated here rather than left to be discovered.
    scripted one; that is not live verification and is nowhere reported as
    though it were. `scripts/playbook_live_slice.py` runs the whole vertical
    slice the moment a key is present, and exits 2 rather than 0 without one.
-2. **Token streaming.** Generation is synchronous. It reports real milestones —
-   reviewing sources, drafting, rendering, validating — and it can be stopped,
-   but the text does not arrive a token at a time. There is no percentage
-   anywhere, because there is no honest basis for one.
+2. **Nothing about streaming.** Implemented end to end and verified in a real
+   browser. There is still no percentage anywhere, because there is still no
+   honest basis for one — the states are real steps, not a bar on a timer.
 3. **What If.** DEFERRED-INTEGRATION. No such module exists on this baseline.
    The adapter contract, a payload example, a contract test and six labelled
    fixture exports ship; `INTEGRATION_NOTES.md` names the hook a future branch

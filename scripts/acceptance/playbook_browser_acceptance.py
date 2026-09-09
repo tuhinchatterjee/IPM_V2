@@ -438,6 +438,175 @@ def _versioned_report() -> tuple[int, int]:
         return ws.id, artifact.id
 
 
+def _running_generation(title: str) -> tuple[int, int]:
+    """A workspace with a generation genuinely in flight.
+
+    Written through the repository rather than started with a provider,
+    because this run has no credential and the thing under test is the
+    TRANSPORT: that events written on the server appear in the browser as they
+    are written, not all at once at the end. The deltas are a fixture; the SSE
+    connection, the parser, the incremental rendering and the reconnect are
+    real. Live generation is verified separately and is not claimed here.
+    """
+    from backend.db.engine import get_session
+    from backend.models.playbook import PlaybookJob
+    from backend.playbook import repository as repo
+    from backend.playbook import stream
+
+    with get_session() as session:
+        ws = repo.create_workspace(
+            session, repo.Scope(tenant="default", user_id=None), title=title,
+            document_family="ifrs9_committee_report")
+        job = PlaybookJob(workspace_id=ws.id, tenant="default",
+                          idempotency_key=f"acceptance-stream-{ws.id}",
+                          state="drafting")
+        session.add(job)
+        session.flush()
+        writer = stream.Writer(session=session, job_id=job.id)
+        writer.state("reviewing_sources", "3 sources")
+        writer.delta("# IFRS 9 Committee Report\n\n## 1. Executive summary\n\n")
+        writer.flush()
+        session.commit()
+        return ws.id, job.id
+
+
+def _append(job_id: int, *, text: str = "", state: str = "",
+            finish: bool = False, fail: str = "") -> None:
+    """Write more of the generation, as the worker would."""
+    from backend.db.engine import get_session
+    from backend.playbook import service, stream
+
+    with get_session() as session:
+        writer = stream.Writer(session=session, job_id=job_id)
+        if state:
+            writer.state(state)
+        if text:
+            writer.delta(text)
+            writer.flush()
+        # The job row is closed alongside the terminal event, exactly as the
+        # worker does it — a stream that says "done" while the job still reads
+        # as running would leave every reloading browser re-attaching for ever.
+        if fail:
+            service.mark_job_finished(session, job_id, state="cancelled")
+            session.commit()
+            writer.error(fail, category="server")
+        if finish:
+            service.mark_job_finished(session, job_id, state="ready")
+            session.commit()
+            writer.done({"version": 1})
+        session.commit()
+
+
+async def streaming_journey(page) -> None:
+    """PB-038. The answer arrives while it is being written, and survives a
+    refresh."""
+    await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
+    workspace_id, job_id = _running_generation("Acceptance — streaming")
+    try:
+        # `domcontentloaded`, not `networkidle`: this page holds an open SSE
+        # connection for as long as the generation runs, so it never goes
+        # idle. Waiting for idle here would be waiting for streaming to stop.
+        await page.goto(f"{WEB}/playbook/{workspace_id}",
+                        wait_until="domcontentloaded")
+        await page.wait_for_timeout(1200)
+
+        bubble = page.locator('[data-testid="playbook-streaming"]')
+        check("a running generation is attached to on load",
+              await bubble.count() == 1)
+        first = await bubble.inner_text()
+        check("the answer so far is on screen before the run has finished",
+              "Executive summary" in first, first[:100])
+        check("the real state is named, not a percentage",
+              "Reading the sources" in await page.locator(
+                  '[data-testid="playbook-generation-state"]').inner_text())
+        check("Stop is offered while it runs",
+              await page.locator('[data-testid="playbook-stop"]').count() == 1)
+
+        # More of the answer is written on the server. Nothing is reloaded.
+        _append(job_id, state="drafting",
+                text="Weighted ECL rose to SAR 22.77 million.\n\n")
+        await page.wait_for_timeout(1500)
+        second = await bubble.inner_text()
+        check("text written after the page loaded appears without a reload",
+              "22.77" in second and "22.77" not in first, second[:120])
+        check("the state moved as the work moved",
+              "Writing" in await page.locator(
+                  '[data-testid="playbook-generation-state"]').inner_text())
+        check("markdown is rendered, not printed as source",
+              await bubble.locator("h2").count() > 0
+              and "## 1." not in second)
+
+        await page.screenshot(path=str(SHOTS / "streaming.png"), full_page=True)
+
+        # A refresh mid-generation. The one thing that must not happen is a
+        # second generation; the answer so far must still be there.
+        await page.reload(wait_until="domcontentloaded")
+        await page.wait_for_timeout(1500)
+        after = await page.locator(
+            '[data-testid="playbook-streaming"]').inner_text()
+        check("a refresh mid-generation keeps the answer so far",
+              "22.77" in after and "Executive summary" in after, after[:120])
+
+        jobs = await (await page.request.get(
+            f"{API}/api/v1/playbook/workspaces/{workspace_id}",
+            headers={"X-IPM-Role": "ADMIN"})).json()
+        check("a refresh started no second generation",
+              jobs["running_job"]["id"] == job_id,
+              str(jobs["running_job"]))
+        check("no answer is in the thread while the stream is unfinished",
+              all(m["role"] != "assistant" for m in jobs["messages"]),
+              f"{len(jobs['messages'])} message(s)")
+
+        _append(job_id, text="Nothing else changed.\n", finish=True)
+        await page.wait_for_timeout(2000)
+        check("the stream ends and the bubble goes with it",
+              await page.locator(
+                  '[data-testid="playbook-streaming"]').count() == 0)
+        settled = await (await page.request.get(
+            f"{API}/api/v1/playbook/workspaces/{workspace_id}",
+            headers={"X-IPM-Role": "ADMIN"})).json()
+        check("the finished generation is no longer offered to attach to",
+              settled["running_job"] is None)
+    finally:
+        _drop_workspace(workspace_id)
+
+
+async def stop_journey(page) -> None:
+    """PB-038. Stopping mid-stream, and what is left behind."""
+    await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
+    workspace_id, job_id = _running_generation("Acceptance — stopping")
+    try:
+        await page.goto(f"{WEB}/playbook/{workspace_id}",
+                        wait_until="domcontentloaded")
+        await page.wait_for_timeout(1200)
+        _append(job_id, text="Weighted ECL rose to SAR 22.77 million.")
+        await page.wait_for_timeout(1200)
+
+        await page.locator('[data-testid="playbook-stop"]').click()
+        await page.wait_for_timeout(900)
+        cancelled = await (await page.request.get(
+            f"{API}/api/v1/playbook/jobs/{job_id}",
+            headers={"X-IPM-Role": "ADMIN"})).json()
+        check("pressing Stop asks the running generation to stop",
+              cancelled["cancelled"] is True, str(cancelled["cancelled"]))
+
+        # The worker's own ending, as it would write it.
+        _append(job_id, fail="This generation was stopped. Nothing was saved.")
+        await page.wait_for_timeout(1800)
+        body = await page.locator("body").inner_text()
+        check("a stopped run says so rather than leaving half an answer",
+              "stopped" in body.lower() and "22.77" not in body,
+              body[:160].replace("\n", " "))
+
+        thread = await (await page.request.get(
+            f"{API}/api/v1/playbook/workspaces/{workspace_id}",
+            headers={"X-IPM-Role": "ADMIN"})).json()
+        check("a stopped run wrote no artifact version",
+              thread["artifacts"] == [])
+    finally:
+        _drop_workspace(workspace_id)
+
+
 async def source_journey(page) -> None:
     """PB-004 and PB-012. Correcting what the parser decided about a file."""
     await page.set_extra_http_headers({"X-IPM-Role": "ADMIN"})
@@ -668,6 +837,10 @@ async def main() -> int:
 
             context = await browser.new_context()
             page = await context.new_page()
+            print("\n-- Streaming " + "-" * 47)
+            await streaming_journey(page)
+            print("\n-- Stopping mid-stream " + "-" * 37)
+            await stop_journey(page)
             print("\n-- Correcting a source " + "-" * 37)
             await source_journey(page)
             print("\n-- Restoring a version " + "-" * 37)

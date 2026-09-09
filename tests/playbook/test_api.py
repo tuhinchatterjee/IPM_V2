@@ -613,3 +613,167 @@ class TestCorrectingASource:
             json={"source_role": "results"}).status_code == 404
         assert client.post(
             "/api/v1/playbook/sources/99999999/retry").status_code == 404
+
+
+class TestStreamingOverHTTP:
+    """PB-038 at the wire. The SSE contract, and what it refuses."""
+
+    @pytest.fixture
+    def streamed_job(self, client, workspace_id) -> int:
+        """A job with a committed event log, as a running generation has."""
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookJob
+        from backend.playbook import stream
+
+        with get_session() as session:
+            job = PlaybookJob(workspace_id=workspace_id, tenant="default",
+                              idempotency_key=f"ws{workspace_id}:sse",
+                              state="drafting")
+            session.add(job)
+            session.flush()
+            writer = stream.Writer(session=session, job_id=job.id)
+            writer.state("reviewing_sources", "3 sources")
+            # Flushed between the two, so the log holds them as separate
+            # events — which is what a reconnect resumes between.
+            writer.delta("Weighted ECL rose to ")
+            writer.flush()
+            writer.delta("SAR 22.77 million.")
+            writer.done({"version": 1, "artifact_id": None})
+            session.commit()
+            return job.id
+
+    def test_the_stream_replays_the_whole_run(self, client, workspace_id,
+                                              streamed_job):
+        with client.stream(
+                "GET",
+                f"/api/v1/playbook/workspaces/{workspace_id}/stream"
+                f"?job_id={streamed_job}") as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith(
+                "text/event-stream")
+            body = "".join(response.iter_text())
+
+        assert "event: state" in body
+        assert "event: delta" in body
+        assert "event: done" in body
+        assert "SAR 22.77 million." in body
+        # Every event carries its seq, which is what a reconnect resumes from.
+        assert "id: 1\n" in body
+
+    def test_a_reconnect_is_given_only_what_it_missed(self, client,
+                                                      workspace_id,
+                                                      streamed_job):
+        with client.stream(
+                "GET",
+                f"/api/v1/playbook/workspaces/{workspace_id}/stream"
+                f"?job_id={streamed_job}&after=2") as response:
+            body = "".join(response.iter_text())
+
+        assert "Weighted ECL rose to " not in body
+        assert "SAR 22.77 million." in body
+
+    def test_last_event_id_resumes_the_same_way(self, client, workspace_id,
+                                                streamed_job):
+        with client.stream(
+                "GET",
+                f"/api/v1/playbook/workspaces/{workspace_id}/stream"
+                f"?job_id={streamed_job}",
+                headers={"Last-Event-ID": "2"}) as response:
+            body = "".join(response.iter_text())
+        assert "Weighted ECL rose to " not in body
+        assert "SAR 22.77 million." in body
+
+    def test_a_generation_in_another_workspace_cannot_be_watched(
+            self, client, workspace_id, streamed_job):
+        other = client.post("/api/v1/playbook/workspaces",
+                            json={"title": "Somebody else's"}).json()["id"]
+        response = client.get(
+            f"/api/v1/playbook/workspaces/{other}/stream?job_id={streamed_job}")
+        assert response.status_code == 404
+
+    def test_a_generation_that_does_not_exist_cannot_be_watched(
+            self, client, workspace_id):
+        assert client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}"
+            f"/stream?job_id=99999999").status_code == 404
+
+    def test_the_workspace_says_what_there_is_to_attach_to(
+            self, client, workspace_id, streamed_job):
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookJob
+
+        body = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}").json()
+        assert body["running_job"]["id"] == streamed_job
+        assert body["running_job"]["state"] == "drafting"
+
+        with get_session() as session:
+            job = session.get(PlaybookJob, streamed_job)
+            job.state = "ready"
+            job.finished_at = __import__("datetime").datetime.now(
+                __import__("datetime").UTC)
+            session.commit()
+
+        after = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}").json()
+        assert after["running_job"] is None
+
+    def test_a_streamed_send_is_refused_without_a_provider(self, client,
+                                                           workspace_id):
+        """The refusal belongs in the response to Send, not thirty seconds
+        into a stream that was never going to produce anything."""
+        response = client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}/messages",
+            json={"text": "Write the report.", "stream": True,
+                  "idempotency_key": f"ws{workspace_id}:nostream"})
+        assert response.status_code == 503
+        assert response.json()["detail"]["error"] == "provider_not_configured"
+
+    def test_no_job_is_claimed_when_the_send_is_refused(self, client,
+                                                        workspace_id):
+        client.post(
+            f"/api/v1/playbook/workspaces/{workspace_id}/messages",
+            json={"text": "Write the report.", "stream": True,
+                  "idempotency_key": f"ws{workspace_id}:nojob"})
+        assert client.get(
+            f"/api/v1/playbook/jobs/by-key/ws{workspace_id}:nojob"
+        ).status_code == 404
+        # And the question was not recorded as asked.
+        thread = client.get(
+            f"/api/v1/playbook/workspaces/{workspace_id}").json()
+        assert thread["messages"] == []
+
+    def test_a_failed_generation_can_be_retried_under_a_new_key(
+            self, client, workspace_id):
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookJob
+        from backend.playbook import service
+
+        with get_session() as session:
+            job = PlaybookJob(workspace_id=workspace_id, tenant="default",
+                              idempotency_key=f"ws{workspace_id}:turn0",
+                              state="drafting")
+            session.add(job)
+            session.flush()
+            service.mark_job_finished(session, job.id, state="failed",
+                                      error="the provider went away")
+            session.commit()
+            job_id = job.id
+
+        response = client.post(f"/api/v1/playbook/jobs/{job_id}/retry")
+        assert response.status_code == 200, response.text
+        assert response.json()["idempotency_key"] == \
+            f"ws{workspace_id}:turn0:retry2"
+
+    def test_a_running_generation_is_not_retryable(self, client, workspace_id,
+                                                   streamed_job):
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookJob
+
+        with get_session() as session:
+            session.get(PlaybookJob, streamed_job).finished_at = None
+            session.commit()
+
+        response = client.post(f"/api/v1/playbook/jobs/{streamed_job}/retry")
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "not_retryable"

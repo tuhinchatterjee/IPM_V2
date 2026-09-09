@@ -10,7 +10,7 @@ check that could not run is `BLOCKED` rather than a pass.
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
 | Live Claude workflows | **BLOCKED** — no `ANTHROPIC_API_KEY` in this environment |
-| Browser and artifact UAT | **passed** — 90 browser checks, 62 artifact checks |
+| Browser and artifact UAT | **passed** — 105 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
@@ -44,10 +44,10 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **275 passed** |
+| Playbook backend | `pytest tests/playbook` | **318 passed** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
 | Full backend | `pytest -q` | **9759 passed, 22 skipped, 0 failed** |
-| Frontend units | `npm test` | **444 passed, 0 failed** |
+| Frontend units | `npm test` | **462 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
 | Frontend build | `next build` | succeeds; `/playbook`, `/playbook/[id]`, `/playbook/library` emitted |
@@ -56,7 +56,7 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 ## Browser acceptance
 
 `scripts/acceptance/playbook_browser_acceptance.py` — real Chromium, real front
-end, real backend, at 1366×768 and 1600×900. **90 passed, 0 failed.**
+end, real backend, at 1366×768 and 1600×900. **105 passed, 0 failed.**
 
 What it proved, rather than what it looked at:
 
@@ -79,6 +79,17 @@ What it proved, rather than what it looked at:
   where v3 came from, the downloaded file is byte-for-byte the file that was
   reviewed as v1 under a v3 filename, and restoring the version already current
   is refused.
+- The answer arrives while it is being written: a page attached to a running
+  generation shows what has been written so far, text written on the server
+  afterwards appears without a reload, the state moves from "Reading the
+  sources" to "Writing" as the work moves, and the Markdown is rendered rather
+  than printed as source.
+- A refresh mid-generation keeps the answer so far and starts no second
+  generation — the same job id is still the one running — and no answer is in
+  the thread while the stream is unfinished.
+- Stop mid-stream marks the running generation cancelled, the screen says it
+  was stopped rather than leaving the half sentence on display, and no artifact
+  version was written.
 - A source's kind is a control rather than a fixed label: correcting it is
   recorded as a person's decision, reaches the database, survives a reload, and
   a kind that is not one of the five is refused.
@@ -168,12 +179,26 @@ one held back**, and version 2 does not contain the held change.
 
 1. **Every live behaviour.** No `ANTHROPIC_API_KEY` in this environment.
    Six requirements BLOCKED on it and nothing else.
-2. **Token streaming.** Generation is synchronous. It reports real milestones
-   and can be stopped; the text does not arrive a token at a time. No
-   percentage anywhere, because there is no honest basis for one.
+2. **Nothing about streaming.** Implemented end to end and verified in a real
+   browser. Still no percentage anywhere, because there is still no honest
+   basis for one.
 3. **What If.** DEFERRED-INTEGRATION — the module does not exist here.
 4. **CI.** GitHub Actions has never run on this repository, before or after any
    push on this branch. Everything above was run locally.
+
+## What streaming is proven with, and what it is not
+
+The browser journey drives a real SSE connection, the real parser and the real
+incremental rendering, against events a fixture writes on the server. That
+proves the **transport** and everything around it — replay, reconnect, refresh
+safety, cancellation, the refusal to show a partial answer as an answer.
+
+It is not a live generation, and is not recorded as one. With no credential in
+this environment no model can be asked for anything; what a real provider adds
+to the path above is `text_delta` events instead of fixture ones. The filter
+that decides which of the provider's events may be forwarded is asserted
+directly in `tests/playbook/test_streaming.py`, and the live slice exercises the
+whole path the moment a key exists.
 
 ## Known limitation, stated rather than discovered later
 

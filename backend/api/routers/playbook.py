@@ -22,8 +22,17 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import Response
+from fastapi import (
+    APIRouter,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -136,6 +145,11 @@ class MessageIn(BaseModel):
     #: For `edit`: which part of the document may change. Everything else must
     #: come back unchanged.
     scope: str = Field(default="", max_length=200)
+    #: Run the generation in a worker and answer immediately with the job to
+    #: watch, rather than holding the request open until the document is
+    #: finished. The browser always sets this; the synchronous path remains for
+    #: callers that genuinely want one answer and one response.
+    stream: bool = False
 
 
 class DecisionIn(BaseModel):
@@ -286,6 +300,10 @@ def get_workspace(workspace_id: int,
                     _source_payload(s) for s in repo.sources(session, ws.id)
                 ],
                 "artifacts": artifacts,
+                # So a browser that has just loaded knows there is a generation
+                # to attach to, rather than having to send the message again to
+                # find out.
+                "running_job": service.running_job(session, scope, ws.id),
             }
     except repo.NotFound as exc:
         raise _not_found(exc) from exc
@@ -359,8 +377,55 @@ def send_message(workspace_id: int, body: MessageIn,
     caller rather than a change of contract.
     """
     from backend.playbook import provider
+    from backend.playbook import stream as streaming
 
     scope = _scope(principal)
+    if body.stream:
+        # Refused here rather than inside the worker: a deployment with no
+        # credential must say so in the response to Send, not as an error event
+        # thirty seconds into a stream that was never going to produce a
+        # document.
+        state = provider.status()
+        if not state.configured:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "provider_not_configured",
+                        "message": state.reason})
+        try:
+            with _session() as session:
+                started = service.begin_generation(
+                    session, scope, workspace_id,
+                    text=body.text,
+                    source_ids=body.source_ids or None,
+                    export_revision_ids=body.export_revision_ids or None,
+                    idempotency_key=body.idempotency_key)
+        except repo.NotFound as exc:
+            raise _not_found(exc) from exc
+        except repo.StorageUnavailable as exc:
+            raise _unavailable(exc) from exc
+
+        if not started["duplicate"]:
+            from backend.db.engine import get_session
+
+            streaming.start(
+                get_session, scope, workspace_id,
+                job_id=started["job_id"],
+                request={
+                    "job_id": started["job_id"],
+                    "text": body.text,
+                    "source_ids": body.source_ids or None,
+                    "export_revision_ids": body.export_revision_ids or None,
+                    "formats": body.formats or None,
+                    "artifact_id": body.artifact_id,
+                    "base_version_id": body.base_version_id,
+                    "task_kind": body.task,
+                    "task_scope": body.scope,
+                },
+                runner=service.run_generation)
+        return {**started,
+                "stream_url": f"/api/v1/playbook/workspaces/{workspace_id}"
+                              f"/stream?job_id={started['job_id']}"}
+
     try:
         with _session() as session:
             return service.send_message(
@@ -403,6 +468,63 @@ def send_message(workspace_id: int, body: MessageIn,
         ) from exc
     except repo.StorageUnavailable as exc:
         raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/stream")
+def stream_generation(workspace_id: int, request: Request,
+                      job_id: int = Query(...),
+                      after: int = Query(default=0, ge=0),
+                      principal: Principal = RequireAnalyst) -> Response:
+    """Watch a generation: the states it moves through and the answer arriving.
+
+    Server-sent events, and a reader rather than a runner — the generation is
+    already going in a worker, and this connection can be opened, dropped and
+    opened again without touching it. `after`, or a `Last-Event-ID` header,
+    replays exactly what a client missed, which is what makes a refresh
+    mid-generation continue rather than restart.
+
+    What travels: `state`, `milestone`, `delta`, `artifact`, `done`, `error`,
+    and keep-alive comments. `delta` carries answer text and nothing else — the
+    provider's own stream also carries reasoning and tool inputs, and those are
+    dropped before they reach this side of the wire.
+    """
+    from backend.db.engine import get_session
+    from backend.playbook import stream as streaming
+
+    scope = _scope(principal)
+    # Authorised BEFORE a single byte is streamed, and against the job's own
+    # workspace: a job id from another tenant is a 404 here exactly as it is
+    # everywhere else.
+    try:
+        with _session() as session:
+            job = service.job_status(session, scope, job_id)
+            if job["workspace_id"] != workspace_id:
+                raise repo.NotFound(f"No generation {job_id} in this workspace.")
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+    resume = after
+    header = request.headers.get("last-event-id", "")
+    if not resume and header.isdigit():
+        resume = int(header)
+
+    def events():
+        for event in streaming.follow(get_session, job_id, after=resume):
+            yield streaming.sse(event)
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-store",
+            # Nginx and friends buffer by default, which turns a stream into
+            # one long pause followed by everything at once.
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/workspaces/{workspace_id}/change-sets")
@@ -671,6 +793,27 @@ def job(job_id: int, principal: Principal = RequireAnalyst) -> dict:
     try:
         with _session() as session:
             return service.job_status(session, scope, job_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except repo.StorageUnavailable as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/jobs/{job_id}/retry")
+def retry_job(job_id: int, principal: Principal = RequireAnalyst) -> dict:
+    """The key a retry of this generation should use.
+
+    It hands back a key rather than starting the work, because a retry is the
+    same request again — the client already holds the text, the attachments and
+    the scope, and re-sending them under this key is one code path instead of a
+    second, subtly different one that would have to be kept in step.
+    """
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            return service.retry_generation(session, scope, job_id)
+    except repo.Invalid as exc:
+        raise _refused(exc, "not_retryable") from exc
     except repo.NotFound as exc:
         raise _not_found(exc) from exc
     except repo.StorageUnavailable as exc:

@@ -130,14 +130,47 @@ codebase does not have.
 
 ## Migration and rollout
 
-Two additive migrations, `0032` and `0033`, on top of head `0031`. They create
-thirteen tables and alter nothing existing, so `alembic upgrade head` is safe on
-a populated database and `downgrade` drops only what they created.
+Three additive migrations, `0032`, `0033` and `0034`, on top of head `0031`.
+They create fourteen tables and alter nothing existing, so `alembic upgrade
+head` is safe on a populated database and `downgrade` drops only what they
+created.
+
+`0034` adds `playbook_job_events`, the durable stream. It grows during a
+generation and is dead weight afterwards, so a deployment that runs for a long
+time will want to prune it — rows for jobs finished more than a few days ago
+can be deleted without touching anything else, because the answer itself lives
+in `playbook_messages` and `playbook_artifact_versions`, never here. No pruning
+job ships on this branch; the table is named here so that decision is taken
+deliberately rather than discovered.
 
 Seeding is bootstrap step **L** (`scripts/bootstrap_demo.py --step playbook`),
 idempotent, and makes no provider call. The Playbook tables are on the WORKSPACE
 side of `backend/demo/workspace.py`'s reset boundary, so a demo reset rebuilds
 them and never touches the governed platform.
+
+## Streaming, for whoever deploys this
+
+The generation runs in a background thread inside the API process, and the SSE
+endpoint reads a database table rather than that thread. Three consequences a
+deployment needs to know:
+
+* **It works behind more than one worker.** A connection served by process B
+  can follow a generation running in process A, because the log is in Postgres
+  and the in-process wake-up is only an optimisation. What does not survive is
+  the process itself: a restart mid-generation loses the run, and a reader is
+  told so rather than left hanging.
+* **Proxies must not buffer it.** The response sets `X-Accel-Buffering: no` and
+  `Cache-Control: no-store`. A proxy that buffers anyway turns streaming into
+  one long pause followed by everything at once — the feature will look broken
+  rather than absent.
+* **A connection is held open for the length of a generation.** Minutes, not
+  seconds. Idle timeouts on any intermediary need to exceed that; the server
+  sends a keep-alive comment every 15 seconds so a silent tool call is
+  distinguishable from a dead connection.
+
+Moving the work onto the existing durable agent queue (`backend/agentic/`) is a
+change of who calls `service.run_generation` and nothing else — the job row, its
+idempotency key and its event log are already what a queued worker would use.
 
 ## Running it
 

@@ -7,6 +7,7 @@ document nobody can regenerate is a test whose failure nobody can diagnose.
 from __future__ import annotations
 
 import io
+import time
 
 import pytest
 
@@ -213,14 +214,28 @@ def scripted_author(monkeypatch):
     """
     from backend.playbook import provider
 
-    state = {"text": "", "files": [], "model": "scripted-author"}
+    state = {"text": "", "files": [], "model": "scripted-author",
+             "chunk": 40, "pause": 0.0}
 
     def fake_author(*, system, messages, formats, purpose="playbook_authoring",
-                    container_id="", on_milestone=None, is_cancelled=None):
+                    container_id="", on_milestone=None, on_delta=None,
+                    is_cancelled=None):
         if is_cancelled and is_cancelled():
             raise provider.Cancelled("stopped")
         if on_milestone:
             on_milestone("drafting", "scripted")
+        # Delivered in pieces, like the real one. A stand-in that hands over
+        # the whole answer at once would let a streaming bug through every
+        # test that uses it.
+        if on_delta:
+            text = state["text"]
+            size = state.get("chunk", 40)
+            for i in range(0, len(text), size):
+                if is_cancelled and is_cancelled():
+                    raise provider.Cancelled("stopped")
+                on_delta(text[i:i + size])
+                if state.get("pause"):
+                    time.sleep(state["pause"])
         result = provider.AuthoringResult(
             text=state["text"],
             files=list(state["files"]),
@@ -236,10 +251,13 @@ def scripted_author(monkeypatch):
     monkeypatch.setattr(provider, "author", fake_author)
     monkeypatch.setattr("backend.playbook.service.provider.author", fake_author)
 
-    def configure(text: str, files=None, model: str = "scripted-author"):
+    def configure(text: str, files=None, model: str = "scripted-author",
+                  chunk: int = 40, pause: float = 0.0):
         state["text"] = text
         state["files"] = files or []
         state["model"] = model
+        state["chunk"] = chunk
+        state["pause"] = pause
         return state
 
     configure.state = state

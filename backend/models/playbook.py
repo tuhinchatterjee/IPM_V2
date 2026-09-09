@@ -729,3 +729,48 @@ class PlaybookJob(Base):
         UniqueConstraint("idempotency_key", name="uq_playbook_job_idempotency"),
         Index("ix_playbook_jobs_workspace", "workspace_id", "created_at"),
     )
+
+
+#: What a streamed generation can say. Kept small on purpose: a client that has
+#: to guess at an event kind is a client that will guess wrong.
+EVENT_KINDS = (
+    "state",       # the job moved to a named state
+    "milestone",   # a real step within a state, with its detail
+    "delta",       # user-visible answer text, as it arrives
+    "artifact",    # a version and its files were written
+    "done",        # the run finished; the thread now holds the answer
+    "error",       # the run failed or was stopped; nothing was saved
+)
+
+
+class PlaybookJobEvent(Base):
+    """One event a generation emitted, kept so a refresh does not lose it.
+
+    `seq` is monotonic per job and is the client's cursor: a browser that
+    reconnects replays from the last one it saw. That is what makes a refresh
+    mid-generation show the answer so far rather than a blank thread — and it
+    is also why the generation runs in a worker rather than inside the request,
+    because a run that dies with its connection cannot be reconnected to.
+
+    Only user-visible content is written here. Reasoning blocks, tool inputs,
+    internal prompts and credentials never reach this table, because the writer
+    forwards text deltas alone.
+    """
+
+    __tablename__ = "playbook_job_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("job_id", "seq", name="uq_playbook_job_event_seq"),
+        Index("ix_playbook_job_events_job", "job_id", "seq"),
+    )

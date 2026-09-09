@@ -100,6 +100,11 @@ export default function PlaybookHomePage() {
    * Starting a playbook is: make the workspace, put the evidence in it, then
    * send the question. Uploads happen before the send so the request cannot go
    * out referring to a file the backend has not read.
+   *
+   * The send is streamed and returns as soon as the job is claimed, so the
+   * navigation happens immediately and the answer arrives on the thread page —
+   * which attaches to the running job it finds rather than waiting here on a
+   * blank screen for a document that takes minutes.
    */
   const start = async () => {
     setStarting(true);
@@ -118,6 +123,7 @@ export default function PlaybookHomePage() {
         source_ids: sourceIds,
         export_revision_ids: chosen.map((c) => c.revision_id),
         idempotency_key: `start:${created.id}`,
+        stream: true,
       });
       router.push(`/playbook/${created.id}`);
     } catch (e) {
