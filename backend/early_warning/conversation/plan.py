@@ -111,11 +111,19 @@ class Plan:
     intent: str = ""
     engine: str = "deterministic"
     notes: list[str] = field(default_factory=list)
+    #: What served this plan. Empty when the deterministic planner ran alone.
+    model_call: dict[str, Any] = field(default_factory=dict)
+    #: The deterministic plan this one replaced, kept so a model plan the
+    #: validator refuses outright costs the reader a worse plan rather than
+    #: the whole turn. Never used to bypass validation: the fallback is
+    #: validated exactly as the model plan was.
+    fallback: "Plan | None" = None
 
     def to_dict(self) -> dict[str, Any]:
         return {"steps": [s.to_dict() for s in self.steps],
                 "output_grain": self.output_grain, "intent": self.intent,
-                "engine": self.engine, "notes": list(self.notes)}
+                "engine": self.engine, "notes": list(self.notes),
+                "model_call": dict(self.model_call)}
 
     @property
     def is_analytical(self) -> bool:
@@ -148,12 +156,28 @@ def _comparison(request: Any, package: grain_mod.GrainPackage,
     return periods[here - back] if here - back >= 0 else periods[0]
 
 
-def build(request: Any, package: grain_mod.GrainPackage) -> Plan:
+def build(request: Any, package: grain_mod.GrainPackage, *,
+          ledger: Any = None) -> Plan:
     """The plan for one business request.
 
-    Deterministic. A live planner returns the same structure and is validated
-    the same way — the contract is the structure, not who wrote it.
+    The deterministic planner runs first and always. Where Opus is configured
+    it is asked for the same structure from the same grain package, and what
+    comes back is validated exactly as the deterministic plan is — the
+    contract is the structure, not who wrote it. A model plan the validator
+    refuses outright falls back to the deterministic one rather than losing
+    the turn.
     """
+    floor = _build_deterministic(request, package)
+    if ledger is None:
+        return floor
+    from backend.early_warning.conversation import planner as planner_mod
+
+    return planner_mod.plan(request, package, floor, ledger=ledger)
+
+
+def _build_deterministic(request: Any,
+                         package: grain_mod.GrainPackage) -> Plan:
+    """The floor: one step per part the request asked for."""
     analysis = str(getattr(request, "requested_analysis", "") or "")
     # Every part the request asked for, not just the leading one. A question
     # that asks why AND whether it is systemic has two answers owed, and

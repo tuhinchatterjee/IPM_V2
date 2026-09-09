@@ -21,6 +21,15 @@ Because that is how a bounded turn becomes an unbounded loop. A revision is
 spent from the same ledger as everything else, and when the ledger will not
 carry another the honest outcome is a partial answer that says what is
 missing — not a smaller answer that pretends to be a whole one.
+
+The seam
+--------
+Where Opus is configured it reviews the same packet under the same schema, and
+its verdict may only TIGHTEN the deterministic one: it can name a part the
+coverage map counted as covered, and it cannot wave away one the coverage map
+found missing. A review that could talk itself into `complete` would be a
+review with no power at all, and it is the one stage where saying "yes" is
+free and wrong.
 """
 
 from __future__ import annotations
@@ -68,6 +77,7 @@ class Review:
     clarification: str = ""
     presentation: str = "narrative"
     engine: str = "deterministic"
+    model_call: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,6 +89,7 @@ class Review:
             "required_clarification": self.clarification,
             "presentation": self.presentation,
             "engine": self.engine,
+            "model_call": dict(self.model_call),
         }
 
 
@@ -96,8 +107,25 @@ def _presentation(request: Any, packet: packet_mod.ResultPacket) -> str:
 
 def review(request: Any, plan: plan_mod.Plan,
            packet: packet_mod.ResultPacket, *,
-           can_revise: bool = True) -> Review:
-    """Check every part of the request against what was executed."""
+           can_revise: bool = True, ledger: Any = None) -> Review:
+    """Check every part of the request against what was executed.
+
+    The coverage map is computed first and is the floor. Where Opus is
+    configured it reads the same packet and may add to what is uncovered; it
+    may not subtract.
+    """
+    floor = _review_deterministic(request, plan, packet,
+                                  can_revise=can_revise)
+    if ledger is None:
+        return floor
+    return _reviewed_by_model(request, packet, floor, can_revise=can_revise,
+                              ledger=ledger)
+
+
+def _review_deterministic(request: Any, plan: plan_mod.Plan,
+                          packet: packet_mod.ResultPacket, *,
+                          can_revise: bool = True) -> Review:
+    """The floor: every part the request named, against what actually ran."""
     asked = list(getattr(request, "requested_analyses", None) or [])
     if not asked:
         asked = [str(getattr(request, "requested_analysis", "") or "")] \
@@ -154,4 +182,144 @@ def _asks_for_names(text: str) -> bool:
         r"\bname the\b|\blist the\b", text or "", re.I))
 
 
-__all__ = ["COVERED_BY", "REPAIR_WITH", "Review", "review"]
+# ------------------------------------------------ the review, under Opus
+
+SYSTEM = """You are the sufficiency review of CreditProbe's Early Warning \
+product. A governed runtime has executed an analysis plan. Before any prose is \
+written, you decide whether the evidence actually answers what was asked.
+
+THE FAILURE YOU EXIST TO PREVENT
+"Why has Contracting deteriorated and is it broad across the segment?" is two \
+questions. Run the trend, get a number, write a paragraph, and the answer looks \
+complete — a figure, a movement, a confident tone — while the "why" was never \
+established and the "broad or concentrated" was never measured. Nobody \
+notices, because the shape of a complete answer and the shape of a third of one \
+are the same shape.
+
+WHAT YOU ARE GIVEN
+The request and its parts, the steps that ran, the figures they produced, and \
+a deterministic coverage map. You are NOT given the underlying data.
+
+RULES
+- You may name a part the coverage map counted as covered but which the \
+figures do not actually support. You may NOT declare covered a part the \
+coverage map found missing.
+- Name the claims the prose must not make because nothing supports them.
+- Propose at most ONE further analysis, and only if it would close a real gap.
+- Choose how the answer should be presented from the evidence's shape."""
+
+SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "complete": {
+            "type": "boolean",
+            "description": ("True only if every part of the request has "
+                            "evidence behind it."),
+        },
+        "uncovered": {
+            "type": "array", "items": {"type": "string"},
+            "description": "Parts of the request with no evidence behind them.",
+        },
+        "unsupported_claims": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("Claims the prose must not make, because nothing "
+                            "in the result supports them."),
+        },
+        "next_analysis": {
+            "type": "string",
+            "enum": list(plan_mod.ANALYSIS_TYPES) + [""],
+            "description": ("The one further analysis that would close the "
+                            "largest gap, or empty."),
+        },
+        "next_analysis_rationale": {"type": "string"},
+        "presentation": {
+            "type": "string", "enum": ["narrative", "table", "chart"],
+            "description": "How this evidence is best shown.",
+        },
+    },
+    "required": ["complete", "uncovered", "presentation"],
+}
+
+
+def _reviewed_by_model(request: Any, packet: packet_mod.ResultPacket,
+                       floor: Review, *, can_revise: bool,
+                       ledger: Any) -> Review:
+    import json
+
+    from backend.early_warning.conversation import seam as seam_mod
+
+    context = {
+        "request": {
+            "normalized": getattr(request, "normalized_business_request", ""),
+            "subquestions": list(getattr(request, "subquestions", []) or []),
+            "parts_asked_for": list(
+                getattr(request, "requested_analyses", []) or []),
+        },
+        "steps_that_ran": [
+            {"analysis": s.get("analysis"), "grain": s.get("grain"),
+             "rows": s.get("row_count"), "rationale": s.get("rationale")}
+            for s in packet.steps],
+        "figures": dict(packet.figures),
+        "row_count": len(packet.rows),
+        "coverage_map": floor.to_dict(),
+        "caveats": list(packet.caveats),
+        "revision_affordable": bool(can_revise),
+    }
+    outcome = seam_mod.call(
+        seam_mod.SUFFICIENCY, system=SYSTEM,
+        prompt=("Review whether this evidence answers the request.\n\n"
+                + json.dumps(context, indent=2, default=str)),
+        schema=SCHEMA, ledger=ledger)
+    if not outcome.used_model:
+        floor.model_call = outcome.to_dict()
+        return floor
+
+    data = outcome.data
+    # Tightening only. The union of what each found missing is what is
+    # missing; a model that dropped one would be deciding that a part of the
+    # request did not need answering.
+    uncovered = list(floor.uncovered)
+    for part in data.get("uncovered") or []:
+        part = str(part).strip()
+        if part and part not in uncovered:
+            uncovered.append(part)
+
+    unsupported = list(floor.unsupported)
+    for claim in data.get("unsupported_claims") or []:
+        claim = str(claim).strip()
+        if claim and claim not in unsupported:
+            unsupported.append(claim)
+
+    presentation = str(data.get("presentation") or "") or floor.presentation
+
+    next_step = floor.next_step
+    proposed = str(data.get("next_analysis") or "")
+    if can_revise and proposed in plan_mod.ANALYSIS_TYPES:
+        next_step = plan_mod.Step(
+            analysis=proposed,
+            period=packet.period,
+            comparison_period=packet.comparison_period,
+            filters=dict(packet.filters),
+            measures=list(plan_mod.BASE_MEASURES),
+            rationale=(str(data.get("next_analysis_rationale") or "").strip()
+                       or f"The review found the {proposed} missing."))
+    if not uncovered and not unsupported:
+        next_step = None
+
+    reviewed = Review(
+        complete=not uncovered and not unsupported and bool(floor.complete),
+        covered=dict(floor.covered),
+        uncovered=uncovered,
+        unsupported=unsupported,
+        next_step=next_step if (uncovered or unsupported) else None,
+        recommend_partial=bool(uncovered or unsupported) and (
+            next_step is None or not can_revise),
+        clarification=floor.clarification,
+        presentation=presentation,
+        engine=seam_mod.MODEL,
+        model_call=outcome.to_dict())
+    return reviewed
+
+
+__all__ = ["COVERED_BY", "REPAIR_WITH", "SCHEMA", "SYSTEM", "Review",
+           "review"]

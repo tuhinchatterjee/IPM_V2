@@ -508,6 +508,11 @@ def ask_early_warning(payload: AskRequest,
         "rolling_summary": (turn.rolling_summary.to_dict()
                              if turn.rolling_summary else {}),
         "request_id": turn.request_id,
+        # Which stage was served by a model and which by the deterministic
+        # implementation, and every call that was actually made. A trace that
+        # named the models without this could not be checked.
+        "engines": turn.engines,
+        "model_calls": [dict(c) for c in turn.model_calls],
         "result_packet": (
             {"diagnostics": packet.diagnostics,
              "provenance": packet.provenance,
@@ -515,6 +520,30 @@ def ask_early_warning(payload: AskRequest,
              "governed_actions": packet.governed_actions,
              "escalation": packet.escalation}
             if packet is not None else {}),
+    }
+
+
+@router.get("/models", summary="Which model serves which conversational stage")
+def ews_models(principal: Principal = RequireEarlyWarningView) -> dict:
+    """The stage-to-model routing, resolved against the live configuration.
+
+    Every row says which family the stage asks for, which configured role
+    carries it, which model that role currently resolves to and whether that
+    model is in the family the stage asked for. A deployment that configured
+    one shared model sees that here rather than reading a diagram that says
+    otherwise.
+    """
+    from backend.early_warning.conversation import seam as ews_seam
+    from backend.llm import public_health
+
+    del principal
+    return {
+        "provider_configured": ews_seam.provider_available(),
+        "provider": public_health(),
+        "stages": ews_seam.routing(),
+        "note": ("Where no provider is configured every stage is served by "
+                 "its deterministic implementation, the engine says so, and "
+                 "the turn's model-call count is zero."),
     }
 
 

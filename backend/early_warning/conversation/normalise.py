@@ -21,12 +21,13 @@ one when you cannot.
 The seam
 --------
 Each pass has a deterministic implementation and a provider seam. Where a
-provider is configured it may produce the structured output instead, under
-the same schema, and the result is checked before it is used — a pass that
-came back with entities the question does not contain is discarded and the
-deterministic reading stands. Where no provider is configured the
-deterministic reading is what runs, and `engine` says so. Nothing here ever
-records a model call that did not happen.
+provider is configured, Sonnet produces the structured output under the same
+schema and the deterministic reading becomes the floor it is merged onto: the
+model may improve the phrasing, split the subquestions better and notice a
+part the patterns missed, and it may not resolve an entity, change a period to
+one that was never published, or drop a part the patterns did find. Where no
+provider is configured the deterministic reading is what runs, and `engine`
+says so. Nothing here ever records a model call that did not happen.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.early_warning.conversation import budget as budget_mod
+from backend.early_warning.conversation import seam as seam_mod
 
 #: Transcription noise a voice interface leaves behind.
 _FILLERS = re.compile(
@@ -82,6 +84,9 @@ class Cleaned:
     uncertainties: list[str] = field(default_factory=list)
     transcription_uncertainties: list[str] = field(default_factory=list)
     engine: str = "deterministic"
+    #: What actually served this pass — provider, model, role, latency. Empty
+    #: when the deterministic implementation ran.
+    model_call: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -92,6 +97,7 @@ class Cleaned:
             "uncertainties": list(self.uncertainties),
             "transcription_uncertainties": list(self.transcription_uncertainties),
             "engine": self.engine,
+            "model_call": dict(self.model_call),
         }
 
 
@@ -118,6 +124,7 @@ class BusinessRequest:
     ambiguities: list[str] = field(default_factory=list)
     clarification_needed: bool = False
     engine: str = "deterministic"
+    model_call: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -139,6 +146,7 @@ class BusinessRequest:
             "ambiguities": list(self.ambiguities),
             "clarification_needed": self.clarification_needed,
             "engine": self.engine,
+            "model_call": dict(self.model_call),
         }
 
 
@@ -151,7 +159,26 @@ def _looks_non_english(text: str) -> bool:
 
 
 def clean(text: str, *, ledger: budget_mod.Ledger | None = None) -> Cleaned:
-    """Pass one. Language only — nothing is resolved and nothing is answered."""
+    """Pass one. Language only — nothing is resolved and nothing is answered.
+
+    The deterministic reading is computed first and always. Where Sonnet is
+    configured it is asked for the same structure and merged onto that floor
+    under the checks in `_merge_cleaned`, so a model that is unavailable,
+    slow, or wrong costs phrasing rather than the turn.
+    """
+    floor = _clean_deterministic(text)
+    outcome = seam_mod.call(
+        seam_mod.PASS_1, system=_PASS_1_SYSTEM,
+        prompt=_pass_1_prompt(text or ""), schema=_PASS_1_SCHEMA,
+        ledger=ledger)
+    if not outcome.used_model:
+        floor.model_call = outcome.to_dict()
+        return floor
+    return _merge_cleaned(floor, outcome)
+
+
+def _clean_deterministic(text: str) -> Cleaned:
+    """The floor: patterns only, and the same answer every time."""
     original = text or ""
     working = _FILLERS.sub(" ", original)
     noticed: list[str] = []
@@ -197,6 +224,154 @@ def clean(text: str, *, ledger: budget_mod.Ledger | None = None) -> Cleaned:
         uncertainties=uncertain,
         transcription_uncertainties=[f"corrected: {p}" for p in noticed[:5]],
         engine="deterministic",
+    )
+
+
+# ------------------------------------------------- pass one, under Sonnet
+
+_PASS_1_SYSTEM = """You are the language pass of CreditProbe's Early Warning \
+assistant. A credit officer has typed or dictated a question about early \
+warning signals on a corporate loan book.
+
+Your ONLY job is to return the same question in clean English.
+
+WHAT YOU DO
+- Fix spelling, typing slips and speech-to-text noise.
+- Translate into English if the question is in another language.
+- Remove fillers ("um", "you know") and repair the punctuation they leave.
+
+WHAT YOU MUST NOT DO
+- Do not resolve anything. "It", "that one", "the weakest" must come out of \
+this pass exactly as vague as they went in. Deciding what "it" refers to is a \
+judgement about the conversation, and you cannot see the conversation.
+- Do not answer, expand, summarise or add context.
+- Do not introduce any number, name, date or period that is not already in the \
+question.
+- Do not change tense. "Has deteriorated" and "is deteriorating" are different \
+questions.
+
+Keep it the same length and the same question. British English."""
+
+_PASS_1_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "cleaned_english": {
+            "type": "string",
+            "description": "The same question, spelled correctly, in English.",
+        },
+        "translation_applied": {
+            "type": "boolean",
+            "description": "True only if the question arrived in another language.",
+        },
+        "detected_entities": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("Names the question mentions, copied verbatim. "
+                            "Never resolved to an identifier."),
+        },
+        "uncertainties": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("Anything left deliberately unresolved, such as a "
+                            "pronoun pointing at earlier context."),
+        },
+        "transcription_uncertainties": {
+            "type": "array", "items": {"type": "string"},
+            "description": "Words corrected where the correction was a guess.",
+        },
+    },
+    "required": ["cleaned_english", "translation_applied"],
+}
+
+
+def _pass_1_prompt(text: str) -> str:
+    import json
+
+    return ("Return this question in clean English.\n\n"
+            + json.dumps({"question": text}, indent=2))
+
+
+_DIGITS = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def _invents_a_figure(original: str, rewritten: str) -> bool:
+    """Whether the rewrite carries a number the original does not.
+
+    A speller that adds a figure has stopped spelling. Cheap to check and the
+    one way a language pass can silently change what is being asked.
+    """
+    return bool(set(_DIGITS.findall(rewritten or ""))
+                - set(_DIGITS.findall(original or "")))
+
+
+_WORD = re.compile(r"[a-z]{3,}")
+
+
+def _is_the_same_question(original: str, rewritten: str) -> bool:
+    """Whether the rewrite is still the question that arrived.
+
+    A speller returns the same sentence spelled correctly. A pass that
+    returned a different sentence entirely — a summary, a generic
+    placeholder, an answer — would send every stage after it to work on
+    something the reader never asked, and nothing downstream could tell.
+
+    Only checked for a question that arrived in Latin script: a translation
+    legitimately shares no words with its original, and the check would
+    reject exactly the case pass one exists for.
+    """
+    if _looks_non_english(original):
+        return True
+    before = set(_WORD.findall((original or "").lower()))
+    if not before:
+        return True
+    after = set(_WORD.findall((rewritten or "").lower()))
+    return len(before & after) * 2 >= len(before)
+
+
+def _merge_cleaned(floor: Cleaned, outcome: seam_mod.Outcome) -> Cleaned:
+    """The model's phrasing on top of the deterministic reading.
+
+    The floor keeps everything that is a judgement rather than a phrasing:
+    the referential uncertainty is computed from the ORIGINAL text, so a model
+    that quietly resolved "it" cannot also erase the record that "it" was
+    there. An entity the original does not contain is dropped rather than
+    trusted — pass one detects names, it does not invent them.
+    """
+    data = outcome.data
+    rewritten = str(data.get("cleaned_english") or "").strip()
+    text = floor.cleaned_english
+    if (rewritten
+            and not _invents_a_figure(floor.original_text, rewritten)
+            and _is_the_same_question(floor.original_text, rewritten)):
+        text = rewritten
+
+    lowered = (floor.original_text or "").lower()
+    entities = list(floor.detected_entities)
+    for named in data.get("detected_entities") or []:
+        name = str(named).strip()
+        if name and name.lower() in lowered and name not in entities:
+            entities.append(name)
+
+    uncertain = list(floor.uncertainties)
+    for note in data.get("uncertainties") or []:
+        note = str(note).strip()
+        if note and note not in uncertain:
+            uncertain.append(note)
+
+    transcription = list(floor.transcription_uncertainties)
+    for note in data.get("transcription_uncertainties") or []:
+        note = str(note).strip()
+        if note and note not in transcription:
+            transcription.append(note)
+
+    return Cleaned(
+        original_text=floor.original_text,
+        cleaned_english=text,
+        translation_applied=bool(data.get("translation_applied"))
+        or floor.translation_applied,
+        detected_entities=entities[:8],
+        uncertainties=uncertain[:6],
+        transcription_uncertainties=transcription[:6],
+        engine=seam_mod.MODEL,
+        model_call=outcome.to_dict(),
     )
 
 
@@ -355,7 +530,31 @@ def read(cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
           rolling_summary: dict[str, Any] | None = None,
           recent: list[dict[str, Any]] | None = None,
           ledger: budget_mod.Ledger | None = None) -> BusinessRequest:
-    """Pass two. What is being asked, with the thread and the screen in view."""
+    """Pass two. What is being asked, with the thread and the screen in view.
+
+    The deterministic reading runs first and is what the model is merged onto.
+    Which obligor, which sector and which period stay the domain's answers —
+    they are resolved against the published data, and a model that named one
+    the data does not hold would be inventing the subject of the answer.
+    """
+    floor = _read_deterministic(cleaned, ui_state=ui_state,
+                               rolling_summary=rolling_summary, recent=recent)
+    outcome = seam_mod.call(
+        seam_mod.PASS_2, system=_PASS_2_SYSTEM,
+        prompt=_pass_2_prompt(cleaned, floor, ui_state, rolling_summary,
+                              recent),
+        schema=_PASS_2_SCHEMA, ledger=ledger)
+    if not outcome.used_model:
+        floor.model_call = outcome.to_dict()
+        return floor
+    return _merge_request(floor, outcome)
+
+
+def _read_deterministic(
+        cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
+        rolling_summary: dict[str, Any] | None = None,
+        recent: list[dict[str, Any]] | None = None) -> BusinessRequest:
+    """The floor: patterns, the screen and the thread."""
     text = cleaned.cleaned_english
     lowered = text.lower()
     ui = dict(ui_state or {})
@@ -473,6 +672,232 @@ def read(cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
         ambiguities=ambiguities,
         clarification_needed=bool(ambiguities),
         engine="deterministic",
+    )
+
+
+# ------------------------------------------------- pass two, under Sonnet
+
+_PASS_2_SYSTEM = """You are the request-reading pass of CreditProbe's Early \
+Warning assistant. A credit officer has asked a question about early warning \
+signals on a corporate loan book. A deterministic reader has already produced \
+a first reading; you are given it, the thread summary and the screen state.
+
+Your job is to say what is being asked — every part of it.
+
+WHAT MATTERS MOST
+A request that asks two things and is answered on one has not been answered; \
+it has been half-answered and reported as complete. "Why has Contracting \
+deteriorated and is it broad across the segment?" asks for a diagnosis AND a \
+concentration. List every part.
+
+RULES
+- Never drop a part the first reading found. You may add parts it missed.
+- Never resolve an entity. Which obligor "the weakest one" means is decided \
+against the published data, not by you. Leave `requested_entities` to the \
+first reading.
+- Only use a period that appears in the published periods you are given.
+- Only use a grouping field from the list you are given.
+- Say plainly what is genuinely unclear. A pronoun with nothing behind it is \
+an ambiguity, not something to guess at.
+- Do not answer the question."""
+
+#: What pass two may say a request asks for. Closed, because a label the
+#: planner has no step for is a part the sufficiency review would then report
+#: as permanently uncovered.
+_ANALYSIS_LABELS: tuple[str, ...] = (
+    "diagnosis", "movement", "comparison", "concentration", "methodology",
+    "evidence", "grouping", "ranking")
+_SCOPE_LABELS: tuple[str, ...] = (
+    "portfolio", "segment", "sector", "rating", "borrower", "group")
+_ACTION_LABELS: tuple[str, ...] = (
+    "escalate", "inform", "save_investigation", "report", "remediate")
+
+_PASS_2_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "normalized_business_request": {
+            "type": "string",
+            "description": ("The request in one plain sentence, with any "
+                            "pronoun replaced by what the thread says it "
+                            "refers to."),
+        },
+        "subquestions": {
+            "type": "array", "items": {"type": "string"},
+            "description": "Every distinct question the request contains.",
+        },
+        "requested_analyses": {
+            "type": "array",
+            "items": {"type": "string", "enum": list(_ANALYSIS_LABELS)},
+            "description": "Every kind of analysis the request asks for.",
+        },
+        "requested_scope": {
+            "type": "string", "enum": list(_SCOPE_LABELS) + [""],
+            "description": "The population the answer is about.",
+        },
+        "requested_actions": {
+            "type": "array",
+            "items": {"type": "string", "enum": list(_ACTION_LABELS)},
+        },
+        "requested_grouping": {
+            "type": "string",
+            "description": ("The field the answer should be cut by, or empty. "
+                            "Only a field from the grouping list."),
+        },
+        "requested_period": {
+            "type": "string",
+            "description": "A published period, or empty.",
+        },
+        "comparison_period": {
+            "type": "string",
+            "description": ("A published period or a relative offset such as "
+                            "-6m, or empty."),
+        },
+        "requested_evidence": {"type": "boolean"},
+        "ambiguities": {
+            "type": "array", "items": {"type": "string"},
+            "description": "What is genuinely unclear, in the reader's terms.",
+        },
+        "clarification_needed": {"type": "boolean"},
+    },
+    "required": ["normalized_business_request", "requested_analyses"],
+}
+
+_OFFSET = re.compile(r"^-\d{1,2}m$")
+
+
+def _published_periods() -> list[str]:
+    try:
+        from backend.early_warning import v2_service as svc
+
+        return [str(p) for p in svc.periods()]
+    except Exception:  # noqa: BLE001 - an unreadable domain offers none
+        return []
+
+
+def _grouping_fields() -> list[str]:
+    try:
+        from backend.early_warning import grain as grain_mod
+
+        return sorted(grain_mod.GROUPINGS)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _pass_2_prompt(cleaned: Cleaned, floor: BusinessRequest,
+                   ui_state: dict[str, Any] | None,
+                   rolling_summary: dict[str, Any] | None,
+                   recent: list[dict[str, Any]] | None) -> str:
+    """The stage's own inputs, and nothing else.
+
+    No data. Pass two decides what is being asked; the values come back later
+    through validated execution, where they can be checked against what was
+    actually run.
+    """
+    import json
+
+    periods = _published_periods()
+    context = {
+        "question": cleaned.cleaned_english,
+        "language_pass_uncertainties": list(cleaned.uncertainties),
+        "screen_state": dict(ui_state or {}),
+        "thread_summary": dict(rolling_summary or {}),
+        "recent_turns": [
+            {"question": str(t.get("question", ""))[:200],
+             "answer": str(t.get("answer", ""))[:280]}
+            for t in (recent or [])[-3:]],
+        "first_reading": floor.to_dict(),
+        "published_periods": periods[-24:],
+        "grouping_fields": _grouping_fields(),
+        "analysis_labels": list(_ANALYSIS_LABELS),
+    }
+    return ("Read this Early Warning request.\n\n"
+            + json.dumps(context, indent=2, default=str))
+
+
+def _merge_request(floor: BusinessRequest,
+                   outcome: seam_mod.Outcome) -> BusinessRequest:
+    """The model's reading on top of the deterministic one.
+
+    Union on the parts, because the failure this pass exists to prevent is a
+    dropped part; a validated allow-list on everything that names a field, a
+    period or an obligor, because those are facts about the domain rather than
+    readings of the sentence.
+    """
+    data = outcome.data
+    periods = set(_published_periods())
+    groupings = set(_grouping_fields())
+
+    analyses = list(floor.requested_analyses)
+    for label in data.get("requested_analyses") or []:
+        label = str(label)
+        if label in _ANALYSIS_LABELS and label not in analyses:
+            analyses.append(label)
+    analyses = analyses[:4]
+
+    actions = list(floor.requested_actions)
+    for label in data.get("requested_actions") or []:
+        label = str(label)
+        if label in _ACTION_LABELS and label not in actions:
+            actions.append(label)
+
+    subquestions = [str(q).strip() for q in (data.get("subquestions") or [])
+                    if str(q).strip()]
+    if len(subquestions) < len(floor.subquestions):
+        subquestions = list(floor.subquestions)
+
+    request_text = str(data.get("normalized_business_request") or "").strip()
+    if not request_text or _invents_a_figure(floor.normalized_business_request,
+                                             request_text):
+        request_text = floor.normalized_business_request
+
+    grouping = str(data.get("requested_grouping") or "").strip()
+    if grouping not in groupings:
+        grouping = floor.requested_grouping
+
+    period = str(data.get("requested_period") or "").strip()
+    if period not in periods:
+        period = floor.requested_period
+
+    comparison = str(data.get("comparison_period") or "").strip()
+    if comparison not in periods and not _OFFSET.match(comparison):
+        comparison = floor.comparison_period
+
+    scope = str(data.get("requested_scope") or "").strip()
+    if scope not in _SCOPE_LABELS:
+        scope = floor.requested_scope
+
+    ambiguities = list(floor.ambiguities)
+    for note in data.get("ambiguities") or []:
+        note = str(note).strip()
+        if note and note not in ambiguities:
+            ambiguities.append(note)
+
+    return BusinessRequest(
+        normalized_business_request=request_text,
+        subquestions=subquestions or list(floor.subquestions),
+        requested_actions=actions,
+        requested_scope=scope,
+        # Entity resolution is the domain's answer, never the model's.
+        requested_entities=list(floor.requested_entities),
+        requested_period=period,
+        comparison_period=comparison,
+        inherited_context=dict(floor.inherited_context),
+        requested_grouping=grouping,
+        requested_analysis=(analyses[0] if analyses
+                            else floor.requested_analysis),
+        requested_analyses=analyses,
+        requested_evidence=bool(data.get("requested_evidence"))
+        or floor.requested_evidence,
+        remediation_requested="remediate" in actions,
+        escalation_requested="escalate" in actions or "inform" in actions,
+        report_requested="report" in actions,
+        ambiguities=ambiguities[:6],
+        # Tightening only: the model may notice an ambiguity the patterns
+        # missed, and may not wave away one they found.
+        clarification_needed=bool(data.get("clarification_needed"))
+        or floor.clarification_needed,
+        engine=seam_mod.MODEL,
+        model_call=outcome.to_dict(),
     )
 
 

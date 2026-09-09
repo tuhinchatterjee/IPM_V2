@@ -232,6 +232,10 @@ class Selection:
     #: Set only when the deterministic path decided. A model seam records its
     #: own engine so the audit trail never implies a model that did not run.
     engine: str = "deterministic"
+    #: What served the decision — provider, model, role, latency — and, where
+    #: a model proposed something the gate refused, what it proposed and why
+    #: it was refused. Empty when the deterministic path ran alone.
+    model_call: dict[str, Any] = field(default_factory=dict)
 
     @property
     def name(self) -> str:
@@ -248,6 +252,7 @@ class Selection:
             "ambiguous": self.ambiguous,
             "required_clarification": self.clarification,
             "engine": self.engine,
+            "model_call": dict(self.model_call),
         }
 
 

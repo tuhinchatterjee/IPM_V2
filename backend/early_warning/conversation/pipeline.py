@@ -4,17 +4,17 @@ One Early Warning turn, from the question to the persisted thread.
 The order, and why it is the order
 -----------------------------------
     request_started
-    sonnet_pass_1_complete        language, nothing resolved
-    sonnet_pass_2_complete        the business request, thread in view
+    sonnet_pass_1                 language, nothing resolved
+    sonnet_pass_2                 the business request, thread in view
     ews_context_built             the domain, described
-    functionality_selected        WHO OWNS THIS — before any analysis exists
-    analysis_plan_created         only if Early Warning won
-    validation_passed
-    execution_complete
-    result_packet_created
-    sufficiency_complete
-    final_answer_created
-    sonnet_summary_updated
+    opus_functionality_selection  WHO OWNS THIS — before any analysis exists
+    opus_analysis_plan            only if Early Warning won
+    validation
+    execution
+    result_packet
+    opus_sufficiency_review
+    opus_final_interpretation
+    sonnet_summary_update
     thread_persisted
 
 The one that matters is the fifth. Ownership is decided before a plan
@@ -29,13 +29,20 @@ drifts.
 
 The provider seam
 -----------------
-Every stage has a deterministic implementation. Where a provider is
-configured, a stage may instead be produced by a model under the same
-contract, and the result is validated the same way — the structure is the
-contract, not its author. Where no provider is configured the deterministic
-implementation runs and `engine` says `deterministic` on every stage. Nothing
-here records a model call that did not happen, and the budget counts only
-calls that were actually made.
+The stages are named after the models that serve them, and where a provider is
+configured those models actually run: Sonnet for the two language passes and
+the rolling summary, Opus for functionality selection, the analysis plan, the
+sufficiency review and the final interpretation. See
+`backend.early_warning.conversation.seam`, which is the one place an Early
+Warning stage may reach a model and which reuses CreditProbe's own provider
+and role configuration.
+
+Every stage also has a deterministic implementation, and it is not a stub: it
+is the floor the model is merged onto, the fallback when no provider is
+configured or a call fails, the test seam, and the factual safety layer that
+decides what a model is allowed to change. Where the deterministic path ran,
+`engine` says `deterministic` and the ledger's model-call count says zero.
+Nothing here records a model call that did not happen.
 """
 
 from __future__ import annotations
@@ -57,6 +64,9 @@ from backend.early_warning.conversation import execute as ex
 from backend.early_warning.conversation import normalise as norm
 from backend.early_warning.conversation import packet as packet_mod
 from backend.early_warning.conversation import plan as plan_mod
+from backend.early_warning.conversation import reading as reading_mod
+from backend.early_warning.conversation import seam as seam_mod
+from backend.early_warning.conversation import select as select_mod
 from backend.early_warning.conversation import sufficiency as suff
 from backend.early_warning.conversation import summary as summary_mod
 from backend.early_warning.conversation import validate as val
@@ -66,24 +76,33 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------------ stages
 
 REQUEST_STARTED = "request_started"
-SONNET_PASS_1 = "sonnet_pass_1_complete"
-SONNET_PASS_2 = "sonnet_pass_2_complete"
+SONNET_PASS_1 = "sonnet_pass_1"
+SONNET_PASS_2 = "sonnet_pass_2"
 CONTEXT_BUILT = "ews_context_built"
-FUNCTIONALITY_SELECTED = "functionality_selected"
-PLAN_CREATED = "analysis_plan_created"
-VALIDATION_PASSED = "validation_passed"
+FUNCTIONALITY_SELECTED = "opus_functionality_selection"
+PLAN_CREATED = "opus_analysis_plan"
+VALIDATION_PASSED = "validation"
 VALIDATION_FAILED = "validation_failed"
 REPAIR_ATTEMPTED = "repair_attempted"
-EXECUTION_COMPLETE = "execution_complete"
-RESULT_PACKET = "result_packet_created"
-SUFFICIENCY_COMPLETE = "sufficiency_complete"
+EXECUTION_COMPLETE = "execution"
+RESULT_PACKET = "result_packet"
+SUFFICIENCY_COMPLETE = "opus_sufficiency_review"
 REVISION_EXECUTED = "revision_executed"
-FINAL_ANSWER = "final_answer_created"
+FINAL_ANSWER = "opus_final_interpretation"
 REDIRECT_ANSWER = "redirect_answer_created"
 CLARIFICATION_ANSWER = "clarification_answer_created"
 STOPPED_HONESTLY = "stopped_honestly"
-SUMMARY_UPDATED = "sonnet_summary_updated"
+SUMMARY_UPDATED = "sonnet_summary_update"
 THREAD_PERSISTED = "thread_persisted"
+
+#: The order the architecture specifies, for the trace a reader checks
+#: against. Not every turn emits every one — a redirect emits none of the
+#: analytical stages, which is the point of the gate.
+STAGE_ORDER: tuple[str, ...] = (
+    REQUEST_STARTED, SONNET_PASS_1, SONNET_PASS_2, CONTEXT_BUILT,
+    FUNCTIONALITY_SELECTED, PLAN_CREATED, VALIDATION_PASSED,
+    EXECUTION_COMPLETE, RESULT_PACKET, SUFFICIENCY_COMPLETE, FINAL_ANSWER,
+    SUMMARY_UPDATED, THREAD_PERSISTED)
 
 #: The stages that mean analytical data was reached. A redirect must emit
 #: none of them, and the tests assert exactly that.
@@ -116,10 +135,20 @@ class Turn:
     packet: packet_mod.ResultPacket | None = None
     rolling_summary: summary_mod.RollingSummary | None = None
     budget: dict[str, Any] = field(default_factory=dict)
+    #: Every model call this turn actually made, in stage order. Empty when
+    #: no provider is configured, which is not the same thing as a stage
+    #: having been skipped.
+    model_calls: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def stages(self) -> list[str]:
         return [e.stage for e in self.events]
+
+    @property
+    def engines(self) -> dict[str, str]:
+        """What actually served each stage — `model` or `deterministic`."""
+        return {e.stage: str(e.detail.get("engine", ""))
+                for e in self.events if e.detail.get("engine")}
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -133,6 +162,9 @@ class Turn:
             "rolling_summary": (self.rolling_summary.to_dict()
                                  if self.rolling_summary else {}),
             "budget": dict(self.budget),
+            "model_calls": [dict(c) for c in self.model_calls],
+            "engines": self.engines,
+            "provider_configured": seam_mod.provider_available(),
         }
 
 
@@ -217,6 +249,12 @@ def answer(question: str, *, thread_id: str = "",
     ledger = budget_mod.open_ledger(mode)
 
     def emit(stage: str, **detail: Any) -> None:
+        # A stage that reached a model records the call ON the turn, from the
+        # call's own metadata. This is the only way `model_calls` is ever
+        # populated, so a stage cannot claim `engine: model` without one.
+        call = detail.get("model_call")
+        if isinstance(call, dict) and call.get("engine") == seam_mod.MODEL:
+            turn.model_calls.append({"stage": stage, **call})
         turn.events.append(Event(
             stage=stage, detail=detail,
             at_ms=int((time.perf_counter() - started) * 1000)))
@@ -231,7 +269,8 @@ def answer(question: str, *, thread_id: str = "",
     emit(SONNET_PASS_1, engine=cleaned.engine,
          cleaned=cleaned.cleaned_english,
          translation_applied=cleaned.translation_applied,
-         uncertainties=len(cleaned.uncertainties))
+         uncertainties=len(cleaned.uncertainties),
+         model_call=dict(cleaned.model_call))
 
     # ---- pass two: the business request -------------------------------
     request = norm.read(cleaned, ui_state=ui_state,
@@ -241,7 +280,8 @@ def answer(question: str, *, thread_id: str = "",
          analyses=list(request.requested_analyses),
          scope=request.requested_scope,
          subquestions=len(request.subquestions),
-         clarification_needed=request.clarification_needed)
+         clarification_needed=request.clarification_needed,
+         model_call=dict(request.model_call))
 
     # ---- the domain, described ----------------------------------------
     package = grain_mod.build(
@@ -256,12 +296,14 @@ def answer(question: str, *, thread_id: str = "",
                               "f": package.field_count}))
 
     # ---- THE GATE: who owns this? -------------------------------------
-    selection = fn.select(request.normalized_business_request)
+    selection = select_mod.decide(request.normalized_business_request,
+                                  ledger=ledger)
     turn.selection = selection.to_dict()
     emit(FUNCTIONALITY_SELECTED, selected=selection.selected,
          confidence=round(selection.confidence, 3),
          ambiguous=selection.ambiguous, engine=selection.engine,
-         active_product_is_best=selection.active_product_is_best)
+         active_product_is_best=selection.active_product_is_best,
+         model_call=dict(selection.model_call))
 
     if selection.ambiguous and not selection.active_product_is_best:
         turn.answer = {
@@ -309,10 +351,11 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
              ui_state: dict[str, Any] | None,
              emit: Callable[..., None],
              compose: Callable[..., Any] | None) -> Turn:
-    plan = plan_mod.build(request, package)
+    plan = plan_mod.build(request, package, ledger=ledger)
     emit(PLAN_CREATED, steps=[s.analysis for s in plan.steps],
          output_grain=plan.output_grain, engine=plan.engine,
-         plan_hash=_hash(plan.to_dict()))
+         plan_hash=_hash(plan.to_dict()),
+         model_call=dict(plan.model_call))
 
     checked = val.check(plan, package,
                         permissions=package.permissions or None)
@@ -321,6 +364,22 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
              codes=[f.code for f in checked.failures],
              repairable=checked.repairable)
         if not checked.repairable:
+            if plan.fallback is not None:
+                # The model wrote a plan the validator refuses outright — a
+                # dataset this domain does not hold, most often. The refusal
+                # stands for that plan; the deterministic one is then
+                # validated in its turn rather than waved through.
+                emit(REPAIR_ATTEMPTED,
+                     codes=[f.code for f in checked.failures],
+                     fell_back_to="deterministic_plan",
+                     repairs_spent=ledger.repairs)
+                plan = plan.fallback
+                plan.notes = list(plan.notes) + [
+                    "The planned analysis was refused by the validator and "
+                    "the deterministic plan was used instead."]
+                checked = val.check(plan, package,
+                                    permissions=package.permissions or None)
+                continue
             turn.answer = _refused(checked, turn)
             emit(STOPPED_HONESTLY, reason="validation_not_repairable")
             return _finish(turn, request, prior, ledger, ui_state, emit)
@@ -362,10 +421,11 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
          packs=len(packet.packs), packet_hash=_hash(packet.figures))
 
     reviewed = suff.review(request, plan, packet,
-                           can_revise=ledger.can("revisions"))
+                           can_revise=ledger.can("revisions"), ledger=ledger)
     emit(SUFFICIENCY_COMPLETE, complete=reviewed.complete,
          uncovered=list(reviewed.uncovered),
-         presentation=reviewed.presentation, engine=reviewed.engine)
+         presentation=reviewed.presentation, engine=reviewed.engine,
+         model_call=dict(reviewed.model_call))
 
     while not reviewed.complete and reviewed.next_step is not None:
         ledger.revision()
@@ -385,15 +445,23 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
                                   package=package, budget=ledger.to_dict())
         turn.packet = packet
         reviewed = suff.review(request, plan, packet,
-                               can_revise=ledger.can("revisions"))
+                               can_revise=ledger.can("revisions"),
+                               ledger=ledger)
         emit(SUFFICIENCY_COMPLETE, complete=reviewed.complete,
              uncovered=list(reviewed.uncovered),
-             presentation=reviewed.presentation, engine=reviewed.engine)
+             presentation=reviewed.presentation, engine=reviewed.engine,
+             model_call=dict(reviewed.model_call))
 
-    turn.answer = _compose(turn, request, packet, reviewed, compose)
+    floor = _compose(turn, request, packet, reviewed, compose)
+    read = reading_mod.write(turn.question, packet, floor, reviewed,
+                             ledger=ledger)
+    turn.answer = read.answer
     emit(FINAL_ANSWER, scope=turn.answer.get("scope", ""),
          complete=reviewed.complete,
-         presentation=reviewed.presentation)
+         presentation=reviewed.presentation,
+         engine=read.engine,
+         ungrounded_figures=list(read.ungrounded),
+         model_call=dict(read.model_call))
     return _finish(turn, request, prior, ledger, ui_state, emit)
 
 
@@ -573,16 +641,18 @@ def _finish(turn: Turn, request: Any, prior: summary_mod.RollingSummary,
     """One summary update, then persistence. Always both, on every path."""
     turn.rolling_summary = summary_mod.update(
         prior, question=turn.question, request=request, answer=turn.answer,
-        packet=turn.packet, ui_state=ui_state)
+        packet=turn.packet, ui_state=ui_state, ledger=ledger)
     emit(SUMMARY_UPDATED, turns=turn.rolling_summary.turns,
-         engine=turn.rolling_summary.engine)
+         engine=turn.rolling_summary.engine,
+         model_call=dict(turn.rolling_summary.model_call))
     turn.budget = ledger.to_dict()
     emit(THREAD_PERSISTED, thread=turn.thread_id,
          summary_version=turn.rolling_summary.version)
     return turn
 
 
-__all__ = ["ANALYTICAL_STAGES", "CLARIFICATION_ANSWER", "CONTEXT_BUILT",
+__all__ = ["ANALYTICAL_STAGES", "STAGE_ORDER",
+           "CLARIFICATION_ANSWER", "CONTEXT_BUILT",
            "EXECUTION_COMPLETE", "Event", "FINAL_ANSWER",
            "FUNCTIONALITY_SELECTED", "PLAN_CREATED", "REDIRECT_ANSWER",
            "REPAIR_ATTEMPTED", "REQUEST_STARTED", "RESULT_PACKET",

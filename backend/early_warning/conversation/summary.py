@@ -22,6 +22,15 @@ State lives in two places on purpose
 This is the analytical context. The UI state — the filters, the selection,
 the URL — is navigation context and is kept separately, because rebuilding a
 screen from a prose summary is guesswork and the URL already knows.
+
+The seam
+--------
+Where Sonnet is configured it writes the NARRATIVE parts of this summary: what
+was established, what is still open, what to drill next. The structured
+state — which obligor, which period, which filters, which node, which case —
+stays deterministic, because it is what the next turn resolves "it" against
+and a summary that named an obligor the data does not hold would make the
+following turn answer about nobody.
 """
 
 from __future__ import annotations
@@ -68,6 +77,7 @@ class RollingSummary:
     unresolved: list[str] = field(default_factory=list)
     next_drills: list[str] = field(default_factory=list)
     engine: str = "deterministic"
+    model_call: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -91,6 +101,7 @@ class RollingSummary:
             "unresolved": list(self.unresolved),
             "next_drills": list(self.next_drills),
             "engine": self.engine,
+            "model_call": dict(self.model_call),
         }
 
 
@@ -109,9 +120,28 @@ def load(stored: dict[str, Any] | None) -> RollingSummary:
 
 def update(previous: RollingSummary | None, *, question: str,
            request: Any, answer: dict[str, Any],
-           packet: Any = None, ui_state: dict[str, Any] | None = None
-           ) -> RollingSummary:
-    """One update, from the supported final answer."""
+           packet: Any = None, ui_state: dict[str, Any] | None = None,
+           ledger: Any = None) -> RollingSummary:
+    """One update, from the supported final answer.
+
+    The structured state is written deterministically and always. Where Sonnet
+    is configured it then writes the narrative parts onto that.
+    """
+    out = _update_deterministic(previous, question=question, request=request,
+                                answer=answer, packet=packet,
+                                ui_state=ui_state)
+    if ledger is None:
+        return out
+    return _summarised_by_model(out, question=question, answer=answer,
+                                ledger=ledger)
+
+
+def _update_deterministic(previous: RollingSummary | None, *, question: str,
+                          request: Any, answer: dict[str, Any],
+                          packet: Any = None,
+                          ui_state: dict[str, Any] | None = None
+                          ) -> RollingSummary:
+    """The structured thread state. The part the next turn resolves against."""
     out = load(previous.to_dict() if previous else None)
     out.turns = (previous.turns if previous else 0) + 1
     ui = dict(ui_state or {})
@@ -169,5 +199,92 @@ def update(previous: RollingSummary | None, *, question: str,
     return out
 
 
-__all__ = ["RECENT_TURNS", "SUMMARY_VERSION", "RollingSummary", "load",
-           "update"]
+# ---------------------------------------------- the narrative, under Sonnet
+
+SYSTEM = """You maintain the rolling analytical summary of one Early Warning \
+conversation in CreditProbe, a credit-risk platform used by banks.
+
+The next turn will be a follow-up — "which names drive it?", "open the weakest \
+one", "why did its score move?" — and it will be read against what you write \
+here. Keep what a credit officer would need to make sense of that follow-up, \
+and nothing else.
+
+WHAT TO KEEP
+- What has been established, in short factual lines. No adjectives.
+- What is still open: a question asked and not answered, a part of the request \
+the turn could not cover, an ambiguity nobody resolved.
+- The next drills that follow naturally from where the conversation is.
+
+RULES
+- Only what the answer actually supports. You are not adding analysis.
+- Never introduce a figure, an obligor, a period or a node that is not in the \
+answer you were given.
+- Short. This is carried on every subsequent turn."""
+
+SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "confirmed": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("What this turn established, one short factual "
+                            "line each. At most three."),
+        },
+        "unresolved": {
+            "type": "array", "items": {"type": "string"},
+            "description": "What is still open after this turn.",
+        },
+        "next_drills": {
+            "type": "array", "items": {"type": "string"},
+            "description": ("The questions that follow naturally from here, "
+                            "each answerable by this product."),
+        },
+    },
+    "required": ["confirmed"],
+}
+
+
+def _summarised_by_model(out: RollingSummary, *, question: str,
+                         answer: dict[str, Any], ledger: Any
+                         ) -> RollingSummary:
+    import json
+
+    from backend.early_warning.conversation import seam as seam_mod
+
+    context = {
+        "question": question,
+        "answer": {k: answer.get(k) for k in
+                   ("direct", "interpretation", "points", "drivers",
+                    "follow_ups", "caveats", "answered", "scope", "complete")},
+        "thread_state": out.to_dict(),
+    }
+    outcome = seam_mod.call(
+        seam_mod.SUMMARY, system=SYSTEM,
+        prompt=("Update the rolling summary of this thread.\n\n"
+                + json.dumps(context, indent=2, default=str)),
+        schema=SCHEMA, ledger=ledger)
+    if not outcome.used_model:
+        out.model_call = outcome.to_dict()
+        return out
+
+    data = outcome.data
+    confirmed = [str(c).strip() for c in (data.get("confirmed") or [])
+                 if str(c).strip()][:RECENT_TURNS]
+    if confirmed:
+        out.confirmed = confirmed
+    drills = [str(d).strip() for d in (data.get("next_drills") or [])
+              if str(d).strip()][:4]
+    if drills:
+        out.next_drills = drills
+    # Unioned rather than replaced: an ambiguity the deterministic pass
+    # recorded is still unresolved whether or not the model repeated it.
+    for note in data.get("unresolved") or []:
+        note = str(note).strip()
+        if note and note not in out.unresolved:
+            out.unresolved.append(note)
+    out.engine = seam_mod.MODEL
+    out.model_call = outcome.to_dict()
+    return out
+
+
+__all__ = ["RECENT_TURNS", "SCHEMA", "SUMMARY_VERSION", "SYSTEM",
+           "RollingSummary", "load", "update"]
