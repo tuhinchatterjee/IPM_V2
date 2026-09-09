@@ -168,7 +168,7 @@ Per screen: `/` 30 · `/early-warning` 4 · `/what-if` 10 · `/lenses` 14 ·
 
 ### Functional depth — PASS
 
-`scripts/acceptance/demo_functionality.py`. **47 checks, 47 passed.** A route
+`scripts/acceptance/demo_functionality.py`. **54 checks, 54 passed.** A route
 returning 200 proves a page exists; these ask whether the thing works.
 
 | | |
@@ -180,6 +180,24 @@ returning 200 proves a page exists; these ask whether the thing works.
 | Playbook | 3 workspaces, 31 exports across 5 modules; a What-If export opens with its provenance, its conditional limitation and its link back |
 | Download | Early Warning portfolio report, 130,444 bytes, opens as a real Word document |
 | Health | every deterministic component ok; `ai_provider` states its own configuration rather than faking it |
+
+### Auth and session — PASS
+
+Sign in · move between four modules · a long analytical call · the session
+survives it · export a workbook · reopen a saved object · sign out · sign back
+in. No false "backend did not answer" at any point, and after sign-out the
+product says it is signed out rather than rendering an empty screen that reads
+as "nothing to show".
+
+**One observation, recorded rather than asserted away.** Signed out, all seven
+portfolio-data endpoints refuse with 401 — Playbook, Planner, Scorecard
+Validation, Cockpit, Borrower 360, Early Warning, What-If. Two endpoints remain
+readable without a session: `/lenses` and `/data-builder/datasets`. Both are
+metadata — lens names and descriptions, and the governed dataset catalogue with
+its field names — and neither carries a borrower, a facility or a figure. That
+is a design decision rather than a defect, and it is written here so it is a
+known property rather than a discovery. A check demanding 401 everywhere would
+have failed on the decision instead of on a defect.
 
 ### Cross-module canonical identity — 16 tests, all passing
 

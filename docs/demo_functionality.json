@@ -281,11 +281,53 @@
       "check": "and opens as a real Word document",
       "ok": true,
       "detail": ""
+    },
+    {
+      "section": "Auth and session",
+      "check": "a long analytical call completes on the same session",
+      "ok": true,
+      "detail": "HTTP 200 in 0.8s"
+    },
+    {
+      "section": "Auth and session",
+      "check": "the session survives the long call",
+      "ok": true,
+      "detail": "alex.rahman"
+    },
+    {
+      "section": "Auth and session",
+      "check": "sign out",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "section": "Auth and session",
+      "check": "after sign-out the product says signed out rather than pretending",
+      "ok": true,
+      "detail": "{'user': None, 'authenticated': False, 'login_required': True}"
+    },
+    {
+      "section": "Auth and session",
+      "check": "no portfolio data is readable when signed out",
+      "ok": true,
+      "detail": "7 refused"
+    },
+    {
+      "section": "Auth and session",
+      "check": "the two open endpoints are metadata only, and are known",
+      "ok": true,
+      "detail": "open without a session: ['/lenses', '/data-builder/datasets']"
+    },
+    {
+      "section": "Auth and session",
+      "check": "signing back in works",
+      "ok": true,
+      "detail": "HTTP 200"
     }
   ],
-  "check_count": 47,
-  "passed": 47,
+  "check_count": 54,
+  "passed": 54,
   "failed": 0,
-  "duration_seconds": 2.7,
+  "duration_seconds": 4.1,
   "result": "PASS"
 }

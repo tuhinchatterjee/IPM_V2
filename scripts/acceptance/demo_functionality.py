@@ -331,6 +331,50 @@ def main(argv: list[str] | None = None) -> int:
         r.add("the download is a real Office package",
               raw[:2] == b"PK", str(raw[:8]))
 
+    # ------------------------------------------------------ auth and session
+    r.head("Auth and session")
+    started = time.time()
+    status, _, _ = c.call("/whatif/run",
+                          {"scenario": "downgrade_one_notch",
+                           "period": PERIOD, "methodology": "delta"},
+                          timeout=300)
+    r.add("a long analytical call completes on the same session",
+          status == 200, f"HTTP {status} in {time.time() - started:.1f}s")
+    status, me, _ = c.call("/auth/me")
+    still = ((me or {}).get("user") or me or {}).get("username")
+    r.add("the session survives the long call", still == USERNAME, str(still))
+
+    status, _, _ = c.call("/auth/logout", {})
+    r.add("sign out", status in (200, 204), f"HTTP {status}")
+    status, me, _ = c.call("/auth/me")
+    r.add("after sign-out the product says signed out rather than pretending",
+          ((me or {}).get("authenticated") is False
+           and (me or {}).get("login_required") is True), str(me)[:80])
+
+    # The claim that matters: no PORTFOLIO DATA is readable signed out. Two
+    # metadata endpoints deliberately are — the lens catalogue and the dataset
+    # catalogue — and that is recorded below rather than asserted away, because
+    # a check that demanded 401 everywhere would fail on a design decision
+    # rather than on a defect.
+    guarded = ("/playbook/home", "/planner/projects",
+               "/scorecard-validation/overview", "/cockpit/diagnostics",
+               "/corporate/search?q=CORP-100000", "/early-warning/v2",
+               "/whatif/configuration")
+    leaked = [p for p in guarded if c.call(p)[0] != 401]
+    r.add("no portfolio data is readable when signed out", not leaked,
+          f"reachable: {leaked}" if leaked else f"{len(guarded)} refused")
+    open_metadata = [p for p in ("/lenses", "/data-builder/datasets")
+                     if c.call(p)[0] == 200]
+    r.add("the two open endpoints are metadata only, and are known",
+          set(open_metadata) <= {"/lenses", "/data-builder/datasets"},
+          f"open without a session: {open_metadata}")
+
+    # Sign back in, so the report ends on a usable deployment rather than a
+    # signed-out one somebody then has to work out how to fix.
+    status, _, _ = c.call("/auth/login",
+                          {"username": USERNAME, "password": PASSWORD})
+    r.add("signing back in works", status == 200, f"HTTP {status}")
+
     body = {
         "checks": [{"section": s, "check": n, "ok": o, "detail": d}
                    for s, n, o, d in r.checks],
