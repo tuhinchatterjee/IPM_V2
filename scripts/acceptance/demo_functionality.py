@@ -353,6 +353,34 @@ def main(argv: list[str] | None = None) -> int:
                    "early_warning_signal_observation"):
         r.add(f"{wanted} is catalogued", wanted in names)
 
+    status, domains_body, _ = c.call("/data-builder/domains")
+    domain_rows = (domains_body or {}).get("domains") or []
+    r.add("the business domains are installed", len(domain_rows) >= 10,
+          f"{len(domain_rows)} domain(s)")
+    status, relationships, _ = c.call("/data-builder/relationships")
+    rel_rows = ((relationships or {}).get("relationships")
+                or (relationships or {}).get("rows") or [])
+    r.add("governed relationships are declared", len(rel_rows) > 0,
+          f"{len(rel_rows)} relationship(s)")
+
+    # ------------------------------------------- Investigations and Studio
+    r.head("Investigations, Studio, Messages")
+    status, investigations, _ = c.call("/investigations")
+    rows = (investigations or {}).get("investigations") or []
+    r.add("investigations are listed", status == 200 and len(rows) > 0,
+          f"{len(rows)} investigation(s)")
+    if rows:
+        status, one, _ = c.call(f"/investigations/{rows[0]['id']}")
+        r.add("an investigation opens", status == 200 and bool(one),
+              str(rows[0].get("title", ""))[:50])
+    status, blueprints, _ = c.call("/intelligence/studio/blueprints")
+    r.add("Analysis Studio offers methods to run", status == 200,
+          f"HTTP {status}")
+    status, counts, _ = c.call("/messages/counts")
+    r.add("message counts answer", status == 200, str(counts)[:60])
+    status, inbox, _ = c.call("/workspace/workflow/inbox")
+    r.add("the workflow inbox answers", status == 200, f"HTTP {status}")
+
     # --------------------------------------------------------- Borrower 360
     r.head("Borrower 360")
     status, search, _ = c.call("/corporate/search?q=CORP-100000")

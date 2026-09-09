@@ -115,10 +115,10 @@ limitation and the link back. Proven in the browser: the library lists it.
 | **Project Planner** | Working | Seeded delivery plan opens with its workstreams and tasks |
 | **Scorecard Validation** | Working | All three scorecards offered; 48 governed tests published |
 | **Borrower 360** | Working | A canonical borrower is found by id |
-| **Data Builder** | Working | 84 governed datasets registered, including the three Early Warning ones and `corporate_ifrs9_facility` |
-| **Investigations** | Renders, navigable | Opens, renders content, controls live, survives refresh |
-| **Analysis Studio** | Renders, navigable | Same |
-| **Messages / Workflow** | Renders | Reachable from the shell; counts answer |
+| **Data Builder** | Working | 84 governed datasets registered — including the three Early Warning ones and `corporate_ifrs9_facility`; 10 business domains; governed relationships declared |
+| **Investigations** | Working | 47 investigations listed; one opens on its analysis |
+| **Analysis Studio** | Working | Offers methods to run; renders, navigable, survives refresh |
+| **Messages / Workflow** | Working | Counts answer (3 inbox, 3 unread); the workflow inbox answers |
 
 ---
 
@@ -168,7 +168,7 @@ Per screen: `/` 30 · `/early-warning` 4 · `/what-if` 10 · `/lenses` 14 ·
 
 ### Functional depth — PASS
 
-`scripts/acceptance/demo_functionality.py`. **63 checks, 63 passed.** A route
+`scripts/acceptance/demo_functionality.py`. **70 checks, 70 passed.** A route
 returning 200 proves a page exists; these ask whether the thing works.
 
 | | |

@@ -319,6 +319,48 @@
       "detail": ""
     },
     {
+      "section": "Data Builder",
+      "check": "the business domains are installed",
+      "ok": true,
+      "detail": "10 domain(s)"
+    },
+    {
+      "section": "Data Builder",
+      "check": "governed relationships are declared",
+      "ok": true,
+      "detail": "24 relationship(s)"
+    },
+    {
+      "section": "Investigations, Studio, Messages",
+      "check": "investigations are listed",
+      "ok": true,
+      "detail": "47 investigation(s)"
+    },
+    {
+      "section": "Investigations, Studio, Messages",
+      "check": "an investigation opens",
+      "ok": true,
+      "detail": "What is total EAD by sector in the latest quarter?"
+    },
+    {
+      "section": "Investigations, Studio, Messages",
+      "check": "Analysis Studio offers methods to run",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
+      "section": "Investigations, Studio, Messages",
+      "check": "message counts answer",
+      "ok": true,
+      "detail": "{'inbox': 3, 'unread': 3, 'archived': 0, 'sent': 0, 'drafts'"
+    },
+    {
+      "section": "Investigations, Studio, Messages",
+      "check": "the workflow inbox answers",
+      "ok": true,
+      "detail": "HTTP 200"
+    },
+    {
       "section": "Borrower 360",
       "check": "a canonical borrower is found by id",
       "ok": true,
@@ -379,9 +421,9 @@
       "detail": "HTTP 200"
     }
   ],
-  "check_count": 63,
-  "passed": 63,
+  "check_count": 70,
+  "passed": 70,
   "failed": 0,
-  "duration_seconds": 4.3,
+  "duration_seconds": 4.5,
   "result": "PASS"
 }
