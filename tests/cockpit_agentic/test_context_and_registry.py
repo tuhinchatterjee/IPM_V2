@@ -427,9 +427,22 @@ def test_the_packet_states_what_can_actually_be_executed(built):
     assert execution["sql"]["available"] is True
     assert "no ATTACH" in execution["sql"]["statement_rule"]
     assert "cannot widen what you see" in execution["sql"]["tenant_rule"]
-    # Section 10.2: report the capability limitation rather than downgrading.
-    assert execution["python"]["available"] is False
-    assert "unsafe in-process execution" in execution["python"]["reason"]
+    # Section 10.2: state the capability as it actually is on this host, and
+    # never downgrade a missing one. Both branches are asserted because both
+    # are real deployments -- the sandbox needs namespace privileges that a
+    # locked-down container may not grant.
+    from backend.cockpit_agentic import pysandbox as py_mod
+    python = execution["python"]
+    detected = py_mod.probe()
+    assert python["available"] is detected.available
+    if detected.available:
+        assert python["packages"] == ["numpy", "pandas", "the standard library"]
+        assert "not present" in python["package_rule"]
+        assert "no database connection" in python["input_rule"].lower()
+        assert "repair is yours" in python["failure_rule"]
+    else:
+        assert "downgraded to in-process execution" in python["reason"]
+        assert "no in-process substitute" in python["consequence"]
 
 
 def test_the_packet_carries_the_remaining_budget(built):

@@ -205,8 +205,18 @@ def test_the_diagnostics_say_what_this_build_is(api):
     assert body["cockpit_agentic_v3"] is True
     assert body["domain_id"] == "corporate_cockpit"
     assert body["functionality_routes"]["verified"] is True
-    assert body["python_execution"]["available"] is False
-    assert "not enabled" in body["python_execution"]["reason"]
+    # Whether the isolated sandbox is available depends on what namespaces the
+    # host grants, so the diagnostics must report what was MEASURED -- and an
+    # operator reading this badge must be able to see which it was.
+    from backend.cockpit_agentic import pysandbox as py_mod
+    python = body["python_execution"]
+    assert python["available"] is py_mod.probe().available
+    if python["available"]:
+        assert python["strategy"]
+        assert python["guarantees"]["network_denied"]
+        assert python["guarantees"]["privileges_dropped"]
+    else:
+        assert python["reason"]
 
 
 def test_the_diagnostics_report_which_guardrails_are_raised(api):

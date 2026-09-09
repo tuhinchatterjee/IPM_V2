@@ -29,6 +29,7 @@ from backend.cockpit_agentic import (DEEP, DOMAIN, MODES, STANDARD,
                                      default_mode, enabled)
 from backend.cockpit_agentic import ledger as ledger_mod
 from backend.cockpit_agentic import profile as profile_mod
+from backend.cockpit_agentic import pysandbox
 from backend.cockpit_agentic import registry, sonnet, sql, states, store, thread
 from backend.cockpit_agentic.contracts import Exchange, ThreadSummary
 from backend.cockpit_agentic.runtime import Outcome, Runtime
@@ -193,12 +194,7 @@ def diagnostics(principal: Any = None,
         "default_mode": default_mode(),
         "modes": list(MODES),
         "functionality_routes": registry.verify_routes(),
-        "python_execution": {
-            "available": False,
-            "reason": ("Isolated Python execution is not enabled in this "
-                       "runtime. Reported as a capability limitation rather "
-                       "than downgraded to unsafe in-process execution."),
-        },
+        "python_execution": pysandbox.probe().as_dict(),
     }
     for mode in MODES:
         body[f"{mode}_limits"] = ledger_mod.limits_for(mode).to_dict()

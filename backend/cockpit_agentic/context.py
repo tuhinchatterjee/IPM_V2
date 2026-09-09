@@ -48,6 +48,7 @@ from backend.cockpit_agentic import (CONTEXT_VERSION, DOMAIN, UNTRUSTED_NOTE,
                                      registry)
 from backend.cockpit_agentic import fields as F
 from backend.cockpit_agentic import profile as profile_mod
+from backend.cockpit_agentic import pysandbox as py_mod
 from backend.cockpit_agentic import sql as sql_mod
 from backend.cockpit_agentic.catalog import Catalog
 from backend.cockpit_agentic.contracts import (CleanedQuestion,
@@ -144,6 +145,48 @@ def floor(**kwargs: Any) -> dict[str, Any]:
     return {"tokens": reduced.estimated_tokens,
             "reductions_applied": list(reduced.reductions_applied),
             "breakdown": dict(reduced.breakdown)}
+
+
+def _python_section(limits) -> dict[str, Any]:
+    """What Python can and cannot do here, established by running the probe
+    rather than by asserting a policy."""
+    detected = py_mod.probe()
+    if not detected.available:
+        return {"available": False,
+                "reason": py_mod.unavailable_reason(),
+                "consequence": ("Express the analysis in SQL. There is no "
+                                "in-process substitute, so a Python step will "
+                                "be refused rather than approximated.")}
+    return {
+        "available": True,
+        "runtime": "Python 3.13, in a separate process with no network, no "
+                   "shell, no filesystem beyond its own workspace and no "
+                   "access to this application's data stores.",
+        "packages": ["numpy", "pandas", "the standard library"],
+        "package_rule": ("Nothing else is importable. The unapproved packages "
+                         "are not blocked by policy, they are not present."),
+        "input_rule": ("A Python step reads `inputs`: a dict keyed by the "
+                       "step_id of each step ALREADY EXECUTED IN THE SAME "
+                       "SUBMISSION, each of them "
+                       "`{'columns': [{'name','type'}], 'rows': [{column: "
+                       "value}], 'row_count': int, 'truncated': bool}` -- the "
+                       "same shape a SQL step returns, so "
+                       "`pandas.DataFrame(inputs['s1']['rows'])` is the whole "
+                       "of the setup. There is no database connection inside "
+                       "the sandbox, so a Python step cannot read anything a "
+                       "SQL step did not fetch first, and `truncated` is worth "
+                       "reading before you aggregate."),
+        "output_rule": ("Assign `result`. A pandas DataFrame or Series comes "
+                        "back as named columns and records; a list of dicts, a "
+                        "list, a dict or a scalar is shaped into the same "
+                        "thing. `print` output is returned as a warning on the "
+                        "step, not as the result."),
+        "wall_seconds_per_step": limits.step_wall_seconds,
+        "memory_mib": limits.python_memory_mib,
+        "failure_rule": ("If the step raises, the interpreter's traceback is "
+                         "returned to you unedited and the repair is yours. "
+                         "Nothing here rewrites your code."),
+    }
 
 
 def build(*, request_id: str, cleaned: CleanedQuestion,
@@ -284,12 +327,7 @@ def build(*, request_id: str, cleaned: CleanedQuestion,
                 "max_model_rows": sql_mod.MAX_MODEL_ROWS,
                 "wall_seconds_per_step": limits.step_wall_seconds,
             },
-            "python": {
-                "available": False,
-                "reason": ("Isolated Python execution is not enabled in this "
-                           "runtime. It is reported as unavailable rather than "
-                           "downgraded to unsafe in-process execution."),
-            },
+            "python": _python_section(limits),
             "charts": {
                 "max": limits.max_charts,
                 "kinds": ["bar", "line", "waterfall", "scatter"],

@@ -69,14 +69,66 @@ def test_the_package_never_imports_the_prescribed_factor_decomposition():
             path.name), f"{path.name} references the V2 attribution module"
 
 
+#: The one file in the package that executes model-authored code, and the
+#: reason it is allowed to. It never runs in this process: `pysandbox` starts
+#: it through `unshare`, and by the time it reaches its `exec` it is in fresh
+#: mount, network, PID, IPC and UTS namespaces, chrooted into a tmpfs jail,
+#: bounded by rlimits and running as an unprivileged user. The two tests below
+#: hold that separation in place -- the second is the one that matters, because
+#: an exemption by filename would be worthless if anything could import the
+#: file and call it here.
+BOOTSTRAP = "_pyjail_boot.py"
+
+
 def test_no_module_executes_generated_code_in_process():
     """Section 10.2: never quietly downgrade to unsafe in-process execution."""
     for path in modules():
+        if path.name == BOOTSTRAP:
+            continue
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 assert node.func.id not in ("exec", "eval", "compile"), (
                     f"{path.name} line {node.lineno} calls {node.func.id}()")
+
+
+def test_the_sandbox_bootstrap_is_never_imported_into_this_process():
+    """The exemption above is worth exactly this assertion.
+
+    `_pyjail_boot.py` may execute model-authored code because it only ever runs
+    on the far side of the isolation. If any module imported it, its `exec`
+    would become an in-process `exec` and the boundary would be gone. Nothing
+    imports it; `pysandbox` refers to it as a path handed to a subprocess.
+    """
+    for path in modules():
+        if path.name == BOOTSTRAP:
+            continue
+        names = imported_names(path)
+        assert not any("_pyjail_boot" in name for name in names), (
+            f"{path.name} imports the sandbox bootstrap; its exec() would then "
+            f"run inside the API process")
+        source = path.read_text()
+        if "_pyjail_boot" in source:
+            assert path.name == "pysandbox.py", (
+                f"{path.name} references the bootstrap; only the sandbox "
+                f"launcher may")
+            assert "BOOT = Path(__file__).with_name" in source
+
+
+def test_the_sandbox_never_offers_an_in_process_fallback():
+    """Section 10.2 again, at the other end: when isolation is unavailable the
+    answer is that Python is unavailable. There is no restricted `eval`, no AST
+    allowlist and no `RestrictedPython` standing in for a kernel boundary."""
+    source = (PACKAGE / "pysandbox.py").read_text()
+    for temptation in ("RestrictedPython", "asteval", "__builtins__ = ",
+                       "safe_globals", "ast.parse"):
+        assert temptation not in source, (
+            f"pysandbox.py contains {temptation!r}, which would be an "
+            f"in-process substitute for isolation")
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            assert node.func.id not in ("exec", "eval", "compile")
 
 
 def test_the_runtime_has_no_branch_that_authors_sql():

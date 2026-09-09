@@ -40,6 +40,7 @@ from backend.cockpit_agentic import context as context_mod
 from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import failure as failure_mod
 from backend.cockpit_agentic import opus as opus_mod
+from backend.cockpit_agentic import pysandbox as py_mod
 from backend.cockpit_agentic import scope as scope_mod
 from backend.cockpit_agentic import sonnet as sonnet_mod
 from backend.cockpit_agentic import sql as sql_mod
@@ -68,6 +69,7 @@ class Outcome:
     machine: dict[str, Any] = field(default_factory=dict)
     context: dict[str, Any] = field(default_factory=dict)
     tokens: dict[str, Any] = field(default_factory=dict)
+    python_audit: list[dict[str, Any]] = field(default_factory=list)
     exchange: K.Exchange | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -85,6 +87,7 @@ class Outcome:
             "states": dict(self.machine),
             "context": dict(self.context),
             "tokens": dict(self.tokens),
+            "python_execution": list(self.python_audit),
         }
 
 
@@ -131,6 +134,9 @@ class Runtime:
         self.completed_steps: list[str] = []
         self.context_packet: context_mod.CockpitContextPacket | None = None
         self.conversation: Any = None
+        #: One record per sandboxed Python step: what was run, under which
+        #: limits, with which guarantees, and how it ended. Never the data.
+        self.python_audit: list[dict[str, Any]] = []
 
     # -- progress -------------------------------------------------------
 
@@ -342,11 +348,14 @@ class Runtime:
                 self._advance(st.EXECUTING, f"running {step.step_id}") \
                     if self.machine.state == st.VALIDATING else None
                 try:
-                    result = sql_mod.execute(
-                        step.code, self.session,
-                        deadline_seconds=min(
-                            self.ledger.limits.step_wall_seconds,
-                            max(0.5, self.ledger.remaining_seconds)))
+                    if step.language == K.PYTHON:
+                        result = self._run_python(step, step_results)
+                    else:
+                        result = sql_mod.execute(
+                            step.code, self.session,
+                            deadline_seconds=min(
+                                self.ledger.limits.step_wall_seconds,
+                                max(0.5, self.ledger.remaining_seconds)))
                 except sql_mod.SqlRejected as e:
                     rejection = e
                 else:
@@ -359,6 +368,10 @@ class Runtime:
                         byte_size=len(str(result.rows)),
                         columns=result.columns))
                     self.completed_steps.append(step.step_id)
+                    warnings = list(result.warnings)
+                    stdout = getattr(result, "stdout", "")
+                    if stdout:
+                        warnings.append("The step printed: " + stdout[:2_000])
                     step_results.append(K.StepResult(
                         step_id=step.step_id,
                         status=("empty" if result.row_count == 0
@@ -367,7 +380,7 @@ class Runtime:
                         executed_code=step.code, parameters=step.parameters,
                         columns=result.columns, row_count=result.row_count,
                         artifact_id=artifact.artifact_id, rows=result.rows,
-                        truncated=result.truncated, warnings=result.warnings,
+                        truncated=result.truncated, warnings=warnings,
                         elapsed_seconds=result.elapsed_seconds))
                     continue
 
@@ -419,14 +432,41 @@ class Runtime:
             "", decision.gap_addressed
             or "The results do not support an answer to the question as asked.")
 
+    def _run_python(self, step: K.ExecutionStep,
+                    done: list[K.StepResult]) -> py_mod.SandboxResult:
+        """Run an Opus-authored Python step over the rows this submission has
+        already fetched. The sandbox reads nothing else: there is no database
+        handle inside it, so Python cannot widen the scope SQL was held to."""
+        inputs = {
+            earlier.step_id: {"columns": [dict(c) for c in earlier.columns],
+                              "rows": [dict(r) for r in earlier.rows],
+                              "row_count": earlier.row_count,
+                              "truncated": earlier.truncated}
+            for earlier in done}
+        result = py_mod.execute(
+            step.code, inputs=inputs,
+            limits=py_mod.SandboxLimits.from_ledger(self.ledger),
+            cancel=lambda: self.ledger.cancelled,
+            step_id=step.step_id, request_id=self.request_id)
+        self.python_audit.append(result.audit)
+        return result
+
     def _validate(self, step: K.ExecutionStep) -> sql_mod.SqlRejected | None:
+        if step.language == K.PYTHON:
+            # The only validation a Python step gets. There is no lint, no AST
+            # allowlist and no rewrite: the boundary is the kernel's, and
+            # inspecting the code for intent here would be the first step
+            # towards editing it.
+            if not py_mod.probe().available:
+                return py_mod.PythonRejected(
+                    K.SANDBOX_UNAVAILABLE, py_mod.unavailable_reason())
+            return None
         if step.language != K.SQL:
             return sql_mod.SqlRejected(
-                K.SANDBOX_UNAVAILABLE,
-                "Isolated Python execution is not enabled in this runtime, so "
-                "only SQL steps can be run. This is a capability limitation, "
-                "reported rather than downgraded to unsafe in-process "
-                "execution.")
+                K.UNSAFE_OPERATION,
+                f"`{step.language}` is not an executable language here. The "
+                f"runtime executes SQL and, where the isolated sandbox is "
+                f"available, Python.")
         try:
             sql_mod.check_structure(step.code)
             sql_mod.bind(step.code, self.session)
@@ -653,6 +693,7 @@ class Runtime:
                      "counts": list(self.conversation.counts),
                      "turns": list(self.conversation.turns)}
                     if self.conversation is not None else {}),
+            python_audit=list(self.python_audit),
             exchange=exchange)
 
 
