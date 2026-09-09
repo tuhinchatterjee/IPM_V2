@@ -1,0 +1,178 @@
+{
+  "counts": {
+    "VERIFIED": 27,
+    "PRESENT": 0,
+    "DEFERRED": 1,
+    "NOT CHECKABLE HERE": 0
+  },
+  "rows": [
+    {
+      "module": "Cockpit",
+      "issue": "the Cockpit's credential is its own, never the shared one",
+      "status": "VERIFIED",
+      "detail": "with every forbidden fallback set, the Cockpit reports MISSING"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "the provider never prints its API key",
+      "status": "VERIFIED",
+      "detail": "repr says PRESENT/MISSING"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "a What-If referral offers the live route, not /stress",
+      "status": "VERIFIED",
+      "detail": "registry says /what-if"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "STRICT_ROLES survived the role union",
+      "status": "VERIFIED",
+      "detail": "STRICT_ROLES=['cockpit_preprocess', 'cockpit_reasoning']"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "every active role has a cost routing class",
+      "status": "VERIFIED",
+      "detail": "10 roles all classified"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "the clarification caveat survives the Cockpit path",
+      "status": "VERIFIED",
+      "detail": "caveat at 16668, Cockpit short-circuit at 17585"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "scope and domain_lock both survived the hard merge",
+      "status": "VERIFIED",
+      "detail": "validate(plan, catalog, limits, archived_domains, scope, domain_lock)"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "the Cockpit answers over the canonical book",
+      "status": "VERIFIED",
+      "detail": "default release canonical-16q-v1, 3,800 borrowers"
+    },
+    {
+      "module": "Cockpit",
+      "issue": "the on-screen provenance sentence is true of the release",
+      "status": "VERIFIED",
+      "detail": "The canonical CreditProbe corporate book \u2014 the same borrowers, facilities and IFRS 9 measu"
+    },
+    {
+      "module": "Early Warning",
+      "issue": "canonical CORP- identity, not a private key",
+      "status": "VERIFIED",
+      "detail": "key column 'customer_id', 0 non-canonical"
+    },
+    {
+      "module": "Early Warning",
+      "issue": "no Early Warning borrower is an orphan",
+      "status": "VERIFIED",
+      "detail": "0 orphan(s)"
+    },
+    {
+      "module": "Early Warning",
+      "issue": "the retired signals route redirects",
+      "status": "VERIFIED",
+      "detail": "redirects"
+    },
+    {
+      "module": "What-If",
+      "issue": "one masterscale, 19 performing grades plus D",
+      "status": "VERIFIED",
+      "detail": "19 performing, ordinals 1..20, D at 20, v3.0.0"
+    },
+    {
+      "module": "What-If",
+      "issue": "Stage 3 applicable PD is 100%",
+      "status": "VERIFIED",
+      "detail": "0 of 1470 Stage 3 rows are not 100%"
+    },
+    {
+      "module": "What-If",
+      "issue": "the reported period set is 16 quarters",
+      "status": "VERIFIED",
+      "detail": "16 quarters, years [2022, 2023, 2024, 2025, 2026]"
+    },
+    {
+      "module": "What-If",
+      "issue": "a What-If result can be exported to Playbook",
+      "status": "VERIFIED",
+      "detail": "contract=True builder=True wired_into_the_thread=True"
+    },
+    {
+      "module": "What-If",
+      "issue": "XGBoost imports (the OpenMP defect)",
+      "status": "VERIFIED",
+      "detail": "xgboost 3.1.2"
+    },
+    {
+      "module": "Lenses",
+      "issue": "the shipped lenses are installed by the bootstrap",
+      "status": "VERIFIED",
+      "detail": "the bootstrap has a lenses step"
+    },
+    {
+      "module": "Lenses",
+      "issue": "scorecard domains stay out of reach of a Lens",
+      "status": "VERIFIED",
+      "detail": "7 restricted dataset(s)"
+    },
+    {
+      "module": "Playbook",
+      "issue": "both Playbooks mount at /playbook without collision",
+      "status": "VERIFIED",
+      "detail": "670 paths, 0 collisions, plural=[]"
+    },
+    {
+      "module": "Playbook",
+      "issue": "every call site binds the right Playbook service",
+      "status": "VERIFIED",
+      "detail": ""
+    },
+    {
+      "module": "Playbook",
+      "issue": "the bootstrap cannot call an empty Playbook ready",
+      "status": "VERIFIED",
+      "detail": "both halves have a readiness check"
+    },
+    {
+      "module": "Playbook",
+      "issue": "a pack block can pin an export revision",
+      "status": "VERIFIED",
+      "detail": "playbook_blocks is declared"
+    },
+    {
+      "module": "Project Planner",
+      "issue": "the delivery plan is seeded",
+      "status": "VERIFIED",
+      "detail": "the bootstrap has a planner step"
+    },
+    {
+      "module": "Scorecard Validation",
+      "issue": "the three populations stay disjoint",
+      "status": "VERIFIED",
+      "detail": "7 restricted datasets; kinds named: []"
+    },
+    {
+      "module": "Scorecard Validation",
+      "issue": "the SME model registry row",
+      "status": "DEFERRED",
+      "detail": "SME is still not seeded \u2014 recorded, post-demo"
+    },
+    {
+      "module": "Shared",
+      "issue": "exactly one Alembic head",
+      "status": "VERIFIED",
+      "detail": "0049 (head)"
+    },
+    {
+      "module": "Shared",
+      "issue": "every user-facing number goes through the display contract",
+      "status": "VERIFIED",
+      "detail": "OK  every user-facing number goes through the display contract"
+    }
+  ]
+}
