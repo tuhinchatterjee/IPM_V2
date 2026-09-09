@@ -436,6 +436,92 @@ class TestAStepIsNeededWheneverItsGateWouldFail:
         assert plan._review_needed() is True
 
 
+class TestTheAccountsProbeAsksForThePeopleByName:
+    """A row count is not the question, and a shared database proves it.
+
+    `_users_needed` counted the rows in `users`. Development and CI share one
+    database with the test suites, which leave `act-boss-...` fixture accounts
+    behind — 184 of them where this was found — so the count was satisfied
+    while not one of the six demonstration people existed.
+
+    What followed is the whole point. Step B said "already in place". The
+    Playbook seed then looked for a committee chair, found none, and skipped
+    all three committees recording its reason in `notes` rather than `error`,
+    so step O reported "0 committee(s) built, 0 already present" as a success.
+    The bootstrap printed "The deployment is ready" over an empty /playbook.
+
+    Two assertions, because the defect needed both halves to stay hidden: the
+    probe must ask for the accounts by name, and the Playbook step must refuse
+    to call an empty result a success.
+    """
+
+    def test_fixture_accounts_do_not_satisfy_the_probe(self, monkeypatch):
+        """Rows exist, the demonstration people do not, so the step is needed."""
+        from backend.bootstrap import plan
+
+        monkeypatch.setattr(plan, "_session", _fake_session)
+        monkeypatch.setattr(
+            _FakeSession, "execute",
+            lambda self, _stmt: _Scalars(["act-boss-3c3facbc"]),
+            raising=False)
+        assert plan._users_needed() is True
+
+    def test_the_probe_is_satisfied_only_by_the_demonstration_people(
+            self, monkeypatch):
+        from backend.bootstrap import plan
+        from backend.services.demo_users import DEMO_USERS
+
+        everyone = [str(spec["username"]) for spec in DEMO_USERS]
+        monkeypatch.setattr(plan, "_session", _fake_session)
+        monkeypatch.setattr(
+            _FakeSession, "execute",
+            lambda self, _stmt: _Scalars(everyone), raising=False)
+        assert plan._users_needed() is False
+
+        # One missing is still missing. A partially seeded directory is the
+        # state a count hides best.
+        monkeypatch.setattr(
+            _FakeSession, "execute",
+            lambda self, _stmt: _Scalars(everyone[:-1]), raising=False)
+        assert plan._users_needed() is True
+
+    def test_seeding_no_committee_at_all_is_an_error(self, monkeypatch):
+        """The builder refuses rather than inventing accounts, and says so in
+        `notes`. That refusal must not reach the operator as a success."""
+        from backend.bootstrap import plan
+
+        class _Report:
+            error = ""
+            built: list[str] = []
+            present: list[str] = []
+            notes = ["retail-credit-risk-committee: skipped. The "
+                     "demonstration users are not present."]
+
+        class _Builder:
+            @staticmethod
+            def build():
+                return _Report()
+
+        monkeypatch.setitem(
+            __import__("sys").modules, "scripts.seed_playbook_committees",
+            _Builder)
+        with pytest.raises(RuntimeError) as raised:
+            plan._seed_playbook()
+        # The reason travels with the refusal; "it did nothing" is not enough
+        # to act on.
+        assert "demonstration users are not present" in str(raised.value)
+
+
+class _Scalars:
+    """The two-call shape `session.execute(...).scalars()` expects."""
+
+    def __init__(self, values):
+        self._values = list(values)
+
+    def scalars(self):
+        return self._values
+
+
 class _FakeSession:
     def __enter__(self):
         return self

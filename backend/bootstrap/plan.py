@@ -220,13 +220,36 @@ def _run_migrations() -> str:
 
 
 def _users_needed() -> bool:
-    from sqlalchemy import func, select
+    """Whether any DEMONSTRATION account is missing.
+
+    This counted the accounts, which is a different question, and the
+    difference is not academic. A shared development database accumulates
+    accounts from the test suites — 184 of them on the machine where this was
+    found, every one an `act-boss-...` fixture — and a bare count is satisfied
+    by all of them while not one of the six people the demonstration needs
+    exists. The bootstrap then said "already in place"; the Playbook seed
+    found no committee chair to build against and skipped all three
+    committees without raising; and the deployment declared itself ready with
+    an empty /playbook.
+
+    That is the failure this module's own docstring was written about —
+    "Nothing failed. The API came up healthy and the product was empty" —
+    reaching the product through a probe rather than through a missing step.
+
+    So the probe asks for the accounts BY NAME. `demo_users.seed` is
+    idempotent per username, so re-running it costs nothing and repairs a
+    partially seeded directory rather than stepping over one.
+    """
+    from sqlalchemy import select
 
     from backend.db.models import User
+    from backend.services.demo_users import DEMO_USERS
 
+    wanted = {str(spec["username"]) for spec in DEMO_USERS}
     with _session() as session:
-        return not (session.execute(
-            select(func.count()).select_from(User)).scalar() or 0)
+        present = set(session.execute(
+            select(User.username).where(User.username.in_(wanted))).scalars())
+    return bool(wanted - present)
 
 
 def _seed_users() -> str:
@@ -495,12 +518,26 @@ def _playbook_needed() -> bool:
 
 
 def _seed_playbook() -> str:
+    """Seed the committees, and refuse to call an empty result a success.
+
+    The builder REFUSES rather than inventing accounts, which is right, and
+    records the refusal in `notes` rather than in `error`, which meant a run
+    that built nothing at all returned "0 committee(s) built, 0 already
+    present" and the bootstrap printed it as a performed step. A step that
+    reports success and leaves the product empty is the one thing this module
+    exists to prevent, so building nothing while nothing is present is an
+    error here even though it is not one to the builder.
+    """
     import scripts.seed_playbook_committees as builder
 
     report = builder.build()
     if report.error:
         raise RuntimeError(
             f"the committees could not be seeded: {report.error}")
+    if not report.built and not report.present:
+        detail = "; ".join(report.notes) or "the builder gave no reason"
+        raise RuntimeError(
+            f"no committee was seeded and none was already present: {detail}")
     return (f"{len(report.built)} committee(s) built, "
             f"{len(report.present)} already present")
 

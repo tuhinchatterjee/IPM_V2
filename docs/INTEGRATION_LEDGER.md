@@ -248,3 +248,73 @@ container's Python 3.11 (see the M1 entry). The toolchain here is an explicitly
 selected 3.12 interpreter, a local PostgreSQL 16 cluster on port 5433, and
 `npm ci` in `frontend/`. The database was created fresh, which is why the
 inherited `Test Domain` failures may legitimately not reproduce.
+
+## Integration defect I-1 — the bootstrap declared an empty product ready
+
+**Found at M1. Severity: material.** Fixed on this branch, with regression tests.
+
+### What happened
+
+`scripts/bootstrap_demo.py` completed every step, its readiness gate passed all
+sixteen checks, and it printed **"The deployment is ready."** The database
+behind it held **zero Playbook committees, zero packs and zero sections**, so
+`/playbook` would have been empty on a deployment reporting itself healthy.
+
+### The chain
+
+1. `_users_needed()` asked `SELECT count(*) FROM users` and treated any row as
+   "already in place".
+2. This database — like development and CI — is shared with the test suites,
+   which leave `act-boss-...` fixture accounts behind. There were **184 of
+   them, and not one of the six demonstration people**.
+3. Step B therefore reported "already in place" and never seeded
+   `alex.rahman`, `sara.qahtani`, `omar.nasser`, `layla.haddad`, `sarah.khan`
+   or `ahmed.saleh`.
+4. Step O's builder looked for a committee chair, found none, and **refused**
+   — correctly, since it will not invent accounts — recording the reason in
+   `report.notes`.
+5. `_seed_playbook()` inspected only `report.error`, which was empty, so it
+   returned `"0 committee(s) built, 0 already present"` **as a success**.
+6. The bootstrap printed that as a performed step and declared the deployment
+   ready.
+
+### Why the existing guard did not catch it
+
+This is the R-1 family — *"Nothing failed. The API came up healthy and the
+product was empty"* — but it defeats R-1's own regression test. That test asks
+the bootstrap plan **whether the `playbook` step exists**. It does. The step is
+wired in, runs, and reports success; the defect is in a *probe* and in an error
+that was never raised. A structural check for the step's presence cannot see it.
+
+### The fix
+
+* `_users_needed()` now asks for the demonstration accounts **by name**, and is
+  unsatisfied if any one is missing. `demo_users.seed` is already idempotent per
+  username, so re-running repairs a partially seeded directory instead of
+  stepping over it. A partially seeded directory is exactly the state a count
+  hides best.
+* `_seed_playbook()` now **raises** when it built nothing and nothing was
+  already present, carrying the builder's own notes so the operator gets the
+  reason rather than "it did nothing".
+
+### Verified
+
+Re-running the bootstrap against the same database: step B created **6
+accounts**, step O built **3 committees**, and the database now holds
+**3 committees, 6 packs, 22 sections** — the exact seeded state the integration
+rehearsal recorded.
+
+Regression tests in `tests/proof/test_bootstrap_marker.py`, in the class that
+already holds this doctrine (`TestAStepIsNeededWheneverItsGateWouldFail`):
+fixture accounts do not satisfy the probe; only the full demonstration cast
+does, and one missing is still missing; and a build that seeds no committee at
+all is an error. 26 of 26 pass in that file.
+
+### It compounds a defect the feature branches already named
+
+What-If and Project Planner both traced a failure to `tests/api/test_data_builder.py`
+leaving a `Test Domain` row behind in a shared database. This is the same
+shared-database pollution reaching a **different** surface: there it inflates a
+domain count, here its fixture accounts satisfied a user count. Both are
+arguments for the same fix — probes that ask for the thing rather than counting
+rows — and `Test Domain` itself is still outstanding.
