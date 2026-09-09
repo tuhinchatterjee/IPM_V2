@@ -32,11 +32,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import uuid
 from typing import Any
 
 from backend.cockpit_agentic import UNTRUSTED_NOTE
 from backend.cockpit_agentic import contracts as K
+from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic import tokens as tokens_mod
 from backend.cockpit_agentic.context import CockpitContextPacket
 from backend.cockpit_agentic.ledger import Ledger
@@ -365,9 +367,15 @@ class Conversation:
         that fails at the provider for size has spent latency and told the user
         nothing.
         """
-        from backend.llm import roles
-
-        role = roles.role(OPUS_ROLE)
+        # The reasoning model id, resolved fresh and refused if absent. Every
+        # analytical decision in this application is made here, so the one
+        # thing that must never happen is this call reaching the provider with
+        # an empty model and being served by whatever the SDK ships with.
+        resolved = models_mod.resolve()
+        model = models_mod.require(resolved.reasoning,
+                                   role=models_mod.REASONING_ROLE)
+        effort = (os.environ.get("AI_COCKPIT_REASONING_EFFORT")
+                  or "").strip().lower()
         limit = max_tokens or self.ledger.limits.max_opus_output_tokens
         system_blocks = self.system(contract)
 
@@ -402,8 +410,8 @@ class Conversation:
         try:
             result = self.provider.converse(
                 system=system_blocks, messages=self.messages, tools=[tool],
-                max_tokens=limit, model=role.model, purpose=purpose,
-                role=OPUS_ROLE, effort=role.effort,
+                max_tokens=limit, model=model, purpose=purpose,
+                role=OPUS_ROLE, effort=effort,
                 timeout=max(1.0, self.ledger.remaining_seconds))
         except Exception as e:                              # noqa: BLE001
             self.ledger.settle(reservation, output_tokens=0, error=str(e),

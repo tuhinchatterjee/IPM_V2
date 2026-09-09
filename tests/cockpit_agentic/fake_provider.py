@@ -70,7 +70,9 @@ class FakeProvider:
                  allow_retry: bool = True) -> ConverseResult:
         request = {"system": system, "messages": [dict(m) for m in messages],
                    "tools": tools, "purpose": purpose,
-                   "max_tokens": max_tokens}
+                   "max_tokens": max_tokens,
+                   # As above: the id on the wire, not the id in a log line.
+                   "model": model, "role": role, "effort": effort}
         self.requests.append(request)
         if self.raises is not None:
             raise self.raises
@@ -98,7 +100,10 @@ class FakeProvider:
                    cache_prefix: str = "") -> LLMResult:
         self.structured_requests.append(
             {"system": system, "prompt": prompt, "purpose": purpose,
-             "tool_name": tool_name})
+             "tool_name": tool_name,
+             # Recorded so a test can read WHICH MODEL this application asked
+             # for, rather than trusting a log that says which one it meant to.
+             "model": model, "role": role, "effort": effort})
         if self.raises is not None:
             raise self.raises
         if not self.structured_script:

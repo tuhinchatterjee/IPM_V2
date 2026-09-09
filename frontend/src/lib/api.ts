@@ -8292,6 +8292,16 @@ export type CockpitV3Diagnostics = {
                               unavailable_reason?: string }>;
   };
   python_execution: { available: boolean; reason: string };
+  cockpit_models: {
+    configured: boolean;
+    status: string;
+    reason?: string;
+    variables_to_set?: string[];
+    preprocess_model?: string;
+    reasoning_model?: string;
+    fallback_used?: boolean;
+    required: Record<string, string>;
+  };
   standard_limits: Record<string, number | string>;
   deep_limits: Record<string, number | string>;
   standard_overrides_in_force: Record<

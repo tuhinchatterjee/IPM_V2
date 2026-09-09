@@ -113,10 +113,21 @@ def test_a_configured_model_the_provider_lists_passes(env):
 
 def test_an_unconfigured_role_is_not_a_failure(env):
     """CreditProbe runs offline by design. A preflight that refused an
-    unconfigured deployment would be refusing the supported way to run it."""
+    unconfigured deployment would be refusing the supported way to run it.
+
+    The two Cockpit roles are the exception and report REQUIRED_UNSET: they do
+    not inherit, so nothing serves them. That still does not fail the
+    preflight — the Cockpit is off by default, and a server that would not
+    boot is one an administrator cannot reach the settings page on to fix.
+    """
     report = roles.preflight(_Provider())
     assert report["ok"]
-    assert {r["state"] for r in report["roles"]} == {roles.UNCONFIGURED}
+    states = {r["role"]: r["state"] for r in report["roles"]}
+    for name, state in states.items():
+        expected = (roles.REQUIRED_UNSET if name in roles.STRICT_ROLES
+                    else roles.UNCONFIGURED)
+        assert state == expected, name
+    assert set(states.values()) == {roles.UNCONFIGURED, roles.REQUIRED_UNSET}
 
 
 def test_a_provider_that_publishes_no_model_list_leaves_ids_unverified(env):

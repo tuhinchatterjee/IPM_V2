@@ -28,6 +28,7 @@ from typing import Any
 from backend.cockpit_agentic import (DEEP, DOMAIN, MODES, STANDARD,
                                      default_mode, enabled)
 from backend.cockpit_agentic import ledger as ledger_mod
+from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic import profile as profile_mod
 from backend.cockpit_agentic import pysandbox
 from backend.cockpit_agentic import registry, sonnet, sql, states, store, thread
@@ -195,6 +196,7 @@ def diagnostics(principal: Any = None,
         "modes": list(MODES),
         "functionality_routes": registry.verify_routes(),
         "python_execution": pysandbox.probe().as_dict(),
+        "cockpit_models": models_mod.status(),
     }
     for mode in MODES:
         body[f"{mode}_limits"] = ledger_mod.limits_for(mode).to_dict()

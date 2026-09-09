@@ -62,6 +62,14 @@ SANDBOX_UNAVAILABLE = "SANDBOX_UNAVAILABLE"
 INFRASTRUCTURE_ERROR = "INFRASTRUCTURE_ERROR"
 CONTEXT_TOO_LARGE = "CONTEXT_TOO_LARGE"
 
+#: Not in section 8.2's list, because 8.2 enumerates ways a SUBMISSION can
+#: fail and these are ways the RUNTIME cannot start. They are stop statuses
+#: rather than failure categories, and they are here so both vocabularies live
+#: in one file. The Cockpit has no deterministic reader, so an unconfigured or
+#: unserveable model is not a degraded mode -- it is the end of the request.
+MODEL_CONFIGURATION_MISSING = "MODEL_CONFIGURATION_MISSING"
+MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+
 ERROR_CATEGORIES = (
     SYNTAX_ERROR, UNRESOLVED_FIELD, UNRESOLVED_RELATION, INVALID_FILTER_VALUE,
     TYPE_MISMATCH, INPUT_SHAPE_MISMATCH, MISSING_SOURCE_DATA,
@@ -929,6 +937,7 @@ __all__ = [
     "INPUT_SHAPE_MISMATCH", "INVALID_FILTER_VALUE", "LANGUAGES",
     "MISSING_REASONS", "MISSING_SOURCE_DATA", "NEEDS_CLARIFICATION",
     "NormalizedQuestion", "OBSERVATION_STATUSES", "OUT_OF_SCOPE_ACCESS",
+    "MODEL_CONFIGURATION_MISSING", "MODEL_UNAVAILABLE",
     "PERMISSION_DENIED", "PROCEED_COCKPIT", "PYTHON", "REDIRECT",
     "RESOURCE_LIMIT", "REVIEW_DECISIONS", "REVISE_ANALYSIS", "RUNTIME_ERROR",
     "SANDBOX_UNAVAILABLE", "SQL", "SYNTAX_ERROR", "SYSTEM_ERROR", "StepResult",

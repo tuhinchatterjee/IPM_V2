@@ -41,13 +41,18 @@ Two roles, named for the job rather than a model family, because a role named
 after a model reads as though it were pinned to one:
 
 ```
-AI_COCKPIT_PREPROCESS_MODEL=   # cleanup, normalization, summary
-AI_COCKPIT_REASONING_MODEL=    # ownership, planning, authorship, repair, review
+AI_COCKPIT_PREPROCESS_MODEL=claude-sonnet-5   # cleanup, normalization, summary
+AI_COCKPIT_REASONING_MODEL=claude-opus-5      # ownership, planning, authorship,
+                                              # repair, review, interpretation
 ```
 
-**No model id is hard-coded anywhere.** Blank inherits the router and complex
-planner ids, then `AI_MODEL`, then the provider's own pinned default. Verify
-ids against the provider's current documentation before setting them.
+**No model id is hard-coded anywhere, and neither of these inherits.** Blank
+does not fall back to the router or complex-planner ids, to `AI_MODEL`, or to
+the provider's own default: it stops the request with
+`MODEL_CONFIGURATION_MISSING`. An id the provider will not serve stops it with
+`MODEL_UNAVAILABLE`. Neither stop is answered from a deterministic substitute,
+and every run records the two ids that served it. Verify ids against the
+provider's current documentation before setting them.
 
 ## The configuration this domain requires, and why
 
@@ -83,6 +88,20 @@ instruction to keep the cost ceilings and report evidence rather than raise
 them pre-emptively. **The five submissions, three analysis rounds and the 60
 and 120-second deadlines cannot be raised at any level.** See
 `CONTEXT_SIZING.md`.
+
+## The two model roles, which do NOT inherit
+
+```
+AI_COCKPIT_PREPROCESS_MODEL=claude-sonnet-5
+AI_COCKPIT_REASONING_MODEL=claude-opus-5
+```
+
+Unlike every other role, these two fail closed. Unset, blank or malformed
+stops the request with `MODEL_CONFIGURATION_MISSING`; an id the provider will
+not serve stops it with `MODEL_UNAVAILABLE`. There is no fallback to another
+role, to `AI_MODEL`, or to the provider SDK's own default, and no deterministic
+answer is substituted for either stop. Every run records the two ids that
+served it. See `docs/cockpit_v3/MODEL_CONFIGURATION.md`.
 
 ## Commands
 

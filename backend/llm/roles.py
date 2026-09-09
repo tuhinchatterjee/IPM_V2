@@ -120,12 +120,21 @@ _FALLBACK_ROLE: dict[str, str] = {
     # shared default and the routing would be a claim rather than a fact.
     INVESTIGATOR: PLANNER,
     ANALYST: COMPLEX_PLANNER,
-    # A deployment that has not configured the Cockpit roles falls back to the
-    # nearest legacy role rather than to the shared default, and reports that
-    # it did. No model id is invented anywhere in this module.
-    COCKPIT_PREPROCESS: ROUTER,
-    COCKPIT_REASONING: COMPLEX_PLANNER,
 }
+
+#: Roles that must be configured explicitly or not at all. No fallback to
+#: another role, none to AI_MODEL, none to the provider's default.
+#:
+#: The rest of CreditProbe runs unconfigured by design -- the deterministic
+#: reader does the reading, and a resolver that refused to find a model would
+#: be refusing a supported mode. The Cockpit has no deterministic reader: every
+#: answer it gives is authored by a model, so an id nobody chose produces an
+#: answer nobody can attribute. `backend/cockpit_agentic/models.py` is where
+#: that refusal is enforced at execution time; this set is here so the Settings
+#: page and the preflight report the same thing the runtime will do, instead of
+#: showing an inherited model for a role that will not use one.
+STRICT_ROLES: frozenset[str] = frozenset({COCKPIT_PREPROCESS,
+                                          COCKPIT_REASONING})
 
 #: What each role is for, shown in Settings so an administrator configuring
 #: four model ids knows which is which.
@@ -199,6 +208,12 @@ def role(name: str) -> Role:
 
     if configured:
         return Role(name=name, model=configured, effort=effort, inherited=False)
+
+    if name in STRICT_ROLES:
+        # Empty, and NOT "inherited": nothing was inherited. A role reported as
+        # inheriting a model an operator never chose is the failure this whole
+        # change is about.
+        return Role(name=name, model="", effort=effort, inherited=False)
 
     fallback = _FALLBACK_ROLE.get(name)
     if fallback:
@@ -275,6 +290,12 @@ def verify(provider: Any) -> list[str]:
     problems: list[str] = []
     supported = set(getattr(provider, "supported_models", None) or ())
     for configured in all_roles():
+        if configured.name in STRICT_ROLES and not configured.model:
+            problems.append(
+                f"{_ENV[configured.name][0]} is not set. The Cockpit will not "
+                f"run without it and will not borrow a model from another "
+                f"role, from AI_MODEL or from the provider's default.")
+            continue
         if configured.inherited or not configured.model:
             continue
         if supported and configured.model not in supported:
@@ -301,6 +322,12 @@ UNVERIFIED = "UNVERIFIED"
 #: refusing the supported way to run it. §29 validates the ids that ARE
 #: configured; it does not require any.
 UNCONFIGURED = "UNCONFIGURED"
+#: A role that must be configured explicitly and is not. Distinct from
+#: UNCONFIGURED, which means "the provider's default serves it": nothing serves
+#: this one. Reported rather than blocking, because the feature that needs it
+#: is off by default and a preflight that refused to start would leave an
+#: administrator unable to reach the page where they would fix it.
+REQUIRED_UNSET = "REQUIRED_UNSET"
 
 
 def preflight(provider: Any) -> dict[str, Any]:
@@ -324,7 +351,23 @@ def preflight(provider: Any) -> dict[str, Any]:
 
     rows: list[dict[str, Any]] = []
     for configured in all_roles(include_inactive=True):
-        if not configured.model:
+        if not configured.model and configured.name in STRICT_ROLES:
+            # Not the same UNCONFIGURED as the rest, and not UNAVAILABLE
+            # either. For every other role an empty id means the provider's
+            # default serves it; for these two it means nothing serves them
+            # and the Cockpit refuses to answer.
+            #
+            # It does NOT fail the preflight. The Cockpit is off by default
+            # and the rest of the product runs without it, so refusing to
+            # start would leave an administrator unable to reach the settings
+            # page on which they would fix this. The state is reported and the
+            # Cockpit enforces it where it matters: at its own first request.
+            state = REQUIRED_UNSET
+            note = (f"{_ENV[configured.name][0]} is not set, and this role does "
+                    "not inherit. The Cockpit stops every question with "
+                    "MODEL_CONFIGURATION_MISSING until it is set. Nothing else "
+                    "is affected.")
+        elif not configured.model:
             state = UNCONFIGURED
             note = ("Nothing is configured for this role, so the provider's "
                     "own default serves it.")
@@ -368,6 +411,8 @@ def preflight(provider: Any) -> dict[str, Any]:
 __all__ = [
     "ACTIVE_ROLES",
     "INHERITED",
+    "REQUIRED_UNSET",
+    "STRICT_ROLES",
     "OK",
     "UNAVAILABLE",
     "UNCONFIGURED",

@@ -40,6 +40,7 @@ from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import context as context_mod
 from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import failure as failure_mod
+from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic import opus as opus_mod
 from backend.cockpit_agentic import pysandbox as py_mod
 from backend.cockpit_agentic import scope as scope_mod
@@ -72,6 +73,7 @@ class Outcome:
     tokens: dict[str, Any] = field(default_factory=dict)
     python_audit: list[dict[str, Any]] = field(default_factory=list)
     repair_audits: list[dict[str, Any]] = field(default_factory=list)
+    models: dict[str, Any] = field(default_factory=dict)
     exchange: K.Exchange | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,6 +93,7 @@ class Outcome:
             "tokens": dict(self.tokens),
             "python_execution": list(self.python_audit),
             "repair_context_audits": list(self.repair_audits),
+            "models": dict(self.models),
         }
 
 
@@ -143,6 +146,17 @@ class Runtime:
         #: One record per repair dispatch: which of the sixteen required parts
         #: of the effective context were found in the ACTUAL outbound request.
         self.repair_audits: list[dict[str, Any]] = []
+        # Resolved at construction, so a misconfigured deployment is caught
+        # before any work is done -- but REPORTED through `run`, because a
+        # constructor that raises gives the caller an exception where the rest
+        # of this class gives it an honest outcome, and the API surface should
+        # not have two shapes for the same kind of stop.
+        self.models: models_mod.CockpitModels | None = None
+        self.model_error: models_mod.CockpitModelError | None = None
+        try:
+            self.models = models_mod.resolve()
+        except models_mod.CockpitModelError as e:
+            self.model_error = e
 
     # -- progress -------------------------------------------------------
 
@@ -181,6 +195,19 @@ class Runtime:
                     help_text=("This is an operator or configuration matter, "
                                "not something rephrasing the question can "
                                "fix.")))
+        except models_mod.CockpitModelError as e:
+            # Requirement, stated plainly: no deterministic answering fallback.
+            # An unconfigured or unserveable model role ends the request with a
+            # status an operator can act on.
+            return self._finish(
+                e.status,
+                _stop_envelope(
+                    reason=e.status, narrative=str(e), understood=question,
+                    help_text=(
+                        "Set " + " and ".join(e.variables)
+                        + " and restart the service."
+                        if e.variables else
+                        "This is an operator or configuration matter.")))
         except tokens_mod.TooLargeToSend as e:
             return self._finish(
                 st.CONTEXT_TOO_LARGE,
@@ -231,6 +258,17 @@ class Runtime:
 
     def _run(self, question: str, *, ui_filters, rolling_summary,
              recent_exchanges) -> Outcome:
+        # Before anything, including the first preprocessing call: if nobody
+        # has said which models serve this Cockpit, nothing runs.
+        if self.model_error is not None:
+            raise self.model_error
+        # And that the provider will actually serve what they name. Checked
+        # once per process against the token counter, so a configured-but-wrong
+        # id is reported as MODEL_UNAVAILABLE rather than surfacing later as a
+        # generic provider error with a different remedy.
+        assert self.models is not None
+        self.models = models_mod.ensure_available(self.provider, self.models)
+
         # ---- Sonnet pass 1 -------------------------------------------
         self._advance(st.NORMALIZING_1, "cleaning and translating")
         cleaned = sonnet_mod.clean(question, self.provider, self.ledger)
@@ -261,14 +299,12 @@ class Runtime:
             ui_filters=ui_filters, rolling_summary=rolling_summary,
             recent_exchanges=recent_exchanges)
 
-        from backend.llm import roles
-
         conversation = opus_mod.Conversation(
             provider=self.provider, ledger=self.ledger,
             packet=self.context_packet,
             # The exact id that will serve the request, so tokens are counted
             # against the tokenizer that will actually be used.
-            model=roles.role(opus_mod.OPUS_ROLE).model)
+            model=self.models.reasoning if self.models else "")
         self.conversation = conversation
 
         # ---- the gate ------------------------------------------------
@@ -740,6 +776,7 @@ class Runtime:
                     if self.conversation is not None else {}),
             python_audit=list(self.python_audit),
             repair_audits=list(self.repair_audits),
+            models=self.models.to_dict() if self.models else {},
             exchange=exchange)
 
 

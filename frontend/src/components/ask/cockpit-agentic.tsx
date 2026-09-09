@@ -83,6 +83,24 @@ export function CockpitV3Badge({ diagnostics }: {
         {!diagnostics.provider.configured && (
           <Pill label="provider" value="not configured" tone="red" />
         )}
+        {/* Which models answer is not a detail an operator should have to
+            read a log to discover. Two roles that fail closed are shown
+            either as the ids that will serve the request or as the reason
+            nothing will. */}
+        {diagnostics.cockpit_models?.configured ? (
+          <>
+            <Pill
+              label="preprocess"
+              value={diagnostics.cockpit_models.preprocess_model ?? "—"}
+            />
+            <Pill
+              label="reasoning"
+              value={diagnostics.cockpit_models.reasoning_model ?? "—"}
+            />
+          </>
+        ) : (
+          <Pill label="models" value="not configured" tone="red" />
+        )}
         {!diagnostics.cost_enforced && (
           <Pill label="spend" value="not enforced" tone="amber" />
         )}
@@ -102,6 +120,22 @@ export function CockpitV3Badge({ diagnostics }: {
           ))}
           . The five execution submissions and three analysis rounds are not
           configurable at any level.
+        </p>
+      )}
+
+      {/* Not a warning to be read past: with these unset the Cockpit answers
+          nothing at all, and says so rather than borrowing a model. */}
+      {diagnostics.cockpit_models && !diagnostics.cockpit_models.configured && (
+        <p className="text-[11px] leading-snug text-red-800">
+          <span className="font-semibold">
+            No model is configured for the Cockpit.
+          </span>{" "}
+          Set{" "}
+          {(diagnostics.cockpit_models.variables_to_set ?? []).join(" and ")}.
+          These roles do not inherit from AI_MODEL, from another role, or from
+          the provider&apos;s default: until they are set, every question stops
+          with {diagnostics.cockpit_models.status} and nothing is answered from
+          a substitute.
         </p>
       )}
 

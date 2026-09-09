@@ -27,6 +27,29 @@ class Principal:
     tenant_id = G.TENANT
 
 
+#: The ids these tests configure. Deliberately NOT the production ids: a test
+#: that set `claude-opus-5` would pass whether or not the code reads the
+#: variable, because the production default would give the same answer. These
+#: are unmistakable, so a test asserting them proves the configured id reached
+#: the wire.
+TEST_PREPROCESS_MODEL = "test-preprocess-model-not-a-real-id"
+TEST_REASONING_MODEL = "test-reasoning-model-not-a-real-id"
+
+
+@pytest.fixture(autouse=True)
+def cockpit_models(monkeypatch):
+    """Configure the two Cockpit model roles for every test in this package.
+
+    They fail closed now: unset means the Cockpit refuses to run. So the tests
+    must configure them, exactly as a deployment must -- which is itself worth
+    having, because a fixture that had to be added is a rule that is really
+    enforced.
+    """
+    monkeypatch.setenv("AI_COCKPIT_PREPROCESS_MODEL", TEST_PREPROCESS_MODEL)
+    monkeypatch.setenv("AI_COCKPIT_REASONING_MODEL", TEST_REASONING_MODEL)
+    yield
+
+
 @pytest.fixture(scope="session")
 def lake(tmp_path_factory):
     """A real published release in an isolated namespace, with a raised input

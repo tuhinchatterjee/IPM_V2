@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-09T01:13:31Z",
+  "generated_at": "2026-09-09T02:55:13Z",
   "credential_configured": false,
   "credential_value_recorded": false,
   "release": "demo-20q-v1",
@@ -23,7 +23,20 @@
       "separate_process": "a child process, never the API process"
     },
     "caveats": [],
-    "elapsed_seconds": 0.763
+    "elapsed_seconds": 0.399
+  },
+  "cockpit_models": {
+    "configured": false,
+    "status": "MODEL_CONFIGURATION_MISSING",
+    "reason": "The Cockpit cannot run because its model roles are not configured \u2014 not set: AI_COCKPIT_PREPROCESS_MODEL (for the two preprocessing passes and the rolling-summary update); AI_COCKPIT_REASONING_MODEL (for functionality selection, planning, every query and every repair, the sufficiency review and the final interpretation). Both must be set explicitly. There is no fallback to AI_MODEL, to another role, or to the provider's own default: an answer nobody can attribute to a named model is not an answer this application will give.",
+    "variables_to_set": [
+      "AI_COCKPIT_PREPROCESS_MODEL",
+      "AI_COCKPIT_REASONING_MODEL"
+    ],
+    "required": {
+      "AI_COCKPIT_PREPROCESS_MODEL": "the two preprocessing passes and the rolling-summary update",
+      "AI_COCKPIT_REASONING_MODEL": "functionality selection, planning, every query and every repair, the sufficiency review and the final interpretation"
+    }
   },
   "steps": [
     {
@@ -125,5 +138,5 @@
   ],
   "budget": null,
   "tokens": null,
-  "total_seconds": 0.76
+  "total_seconds": 0.4
 }

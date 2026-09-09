@@ -54,11 +54,19 @@ CONTEXT_TOO_LARGE = "CONTEXT_TOO_LARGE"
 TIMED_OUT = "TIMED_OUT"
 CANCELLED = "CANCELLED"
 PROVIDER_ERROR = "PROVIDER_ERROR"
+#: The Cockpit's model roles are not configured, or the provider will not
+#: serve what they name. Distinct from PROVIDER_ERROR because the remedy is
+#: different: PROVIDER_ERROR is "the provider did not answer", these two are
+#: "nobody has said which model should answer" and "the model named does not
+#: exist here". An operator needs to be told which.
+MODEL_CONFIGURATION_MISSING = "MODEL_CONFIGURATION_MISSING"
+MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
 
 TERMINAL: tuple[str, ...] = (
     COMPLETED, REDIRECTED, CLARIFICATION_REQUIRED, INSUFFICIENT_DATA,
     EXECUTION_FAILED, UNSUPPORTED, PARTIAL, BUDGET_EXCEEDED,
-    CONTEXT_TOO_LARGE, TIMED_OUT, CANCELLED, PROVIDER_ERROR)
+    CONTEXT_TOO_LARGE, TIMED_OUT, CANCELLED, PROVIDER_ERROR,
+    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE)
 
 ALL_STATES: tuple[str, ...] = WORKING + TERMINAL
 
@@ -67,13 +75,13 @@ ALL_STATES: tuple[str, ...] = WORKING + TERMINAL
 STOPPED_WITHOUT_ANSWER = frozenset({
     REDIRECTED, CLARIFICATION_REQUIRED, INSUFFICIENT_DATA, EXECUTION_FAILED,
     UNSUPPORTED, BUDGET_EXCEEDED, CONTEXT_TOO_LARGE, TIMED_OUT, CANCELLED,
-    PROVIDER_ERROR})
+    PROVIDER_ERROR, MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE})
 
 #: Every state may stop for one of these, because every one of them can happen
 #: at any point: the deadline expires, the user cancels, the provider fails,
 #: or a budget preflight refuses the next call.
 _ALWAYS = (BUDGET_EXCEEDED, TIMED_OUT, CANCELLED, PROVIDER_ERROR,
-           CONTEXT_TOO_LARGE)
+           CONTEXT_TOO_LARGE, MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE)
 
 #: The permitted edges. Read this as the specification's section 11 diagram.
 TRANSITIONS: dict[str, tuple[str, ...]] = {
@@ -181,7 +189,8 @@ __all__ = ["ALL_STATES", "ANSWERING", "BUDGET_EXCEEDED", "BUILDING_CONTEXT",
            "CANCELLED", "CLARIFICATION_REQUIRED", "COMPLETED",
            "CONTEXT_TOO_LARGE", "EXECUTING", "EXECUTION_FAILED",
            "FUNCTIONALITY_ASSESSMENT", "INSUFFICIENT_DATA",
-           "IllegalTransition", "Machine", "NORMALIZING_1", "NORMALIZING_2",
+           "IllegalTransition", "MODEL_CONFIGURATION_MISSING",
+           "MODEL_UNAVAILABLE", "Machine", "NORMALIZING_1", "NORMALIZING_2",
            "PARTIAL", "PLANNING", "PROGRESS", "PROVIDER_ERROR", "RECEIVED",
            "REDIRECTED", "REVIEWING", "STOPPED_WITHOUT_ANSWER", "SUMMARIZING",
            "TERMINAL", "TIMED_OUT", "TRANSITIONS", "UNSUPPORTED", "VALIDATING",

@@ -107,10 +107,10 @@ def main() -> int:
         "sectors drove the change?"))
     args = parser.parse_args()
 
+    from backend.cockpit_agentic import models as cockpit_models
     from backend.cockpit_agentic import pysandbox, service, store
     from backend.cockpit_agentic import ledger as ledger_mod
     from backend.config import settings
-    from backend.llm import roles
     from backend.llm.anthropic_provider import AnthropicProvider
 
     steps = {n: Step(n, name) for n, name in STEP_NAMES.items()}
@@ -144,41 +144,59 @@ def main() -> int:
     step.elapsed_seconds = time.monotonic() - mark
 
     # ---- 2 and 3. the exact model ids ------------------------------
-    preprocess = roles.role(roles.COCKPIT_PREPROCESS)
-    reasoning = roles.role(roles.COCKPIT_REASONING)
-    for number, role_obj, label in ((2, preprocess, "preprocessing"),
-                                    (3, reasoning, "reasoning")):
+    #
+    # Resolved strictly: these two roles do not inherit, so an id reported
+    # here was chosen by an operator and by nobody else.
+    try:
+        resolved = cockpit_models.resolve()
+    except cockpit_models.CockpitModelError as e:
+        for number in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+            steps[number].status = FAILED
+            steps[number].detail = _redact(e)
+        return _write(steps, configured=True, started=started, args=args)
+
+    for number, role_name, identifier, label in (
+            (2, cockpit_models.PREPROCESS_ROLE, resolved.preprocess,
+             "preprocessing"),
+            (3, cockpit_models.REASONING_ROLE, resolved.reasoning,
+             "reasoning")):
         step = steps[number]
-        step.status = PASSED if role_obj.model else FAILED
-        step.evidence = {"role": role_obj.name, "model": role_obj.model,
-                         "effort": role_obj.effort,
-                         "inherited": role_obj.inherited}
-        step.detail = (
-            f"The {label} role resolves to `{role_obj.model}`"
-            + (" by inheriting AI_MODEL, which is worth knowing: nothing was "
-               "configured for this role specifically."
-               if role_obj.inherited else " from its own configuration."))
+        step.status = PASSED
+        step.evidence = {"role": role_name, "model": identifier,
+                         "source": resolved.source.get(role_name),
+                         "inherited": False}
+        step.detail = (f"The {label} role is `{identifier}`, read from "
+                       f"{resolved.source.get(role_name)}. Nothing inherits "
+                       f"here: an id nobody set would have stopped the run.")
 
     # ---- 4. token counting against those exact models --------------
+    #
+    # This is also the availability check: a configured id the account cannot
+    # reach fails here exactly as it would on a real call, and costs no
+    # generation to find out.
     step = steps[4]
     mark = time.monotonic()
-    counts: dict[str, Any] = {}
-    for model in (preprocess.model, reasoning.model):
-        if not model:
-            continue
-        try:
-            counts[model] = provider.count_tokens(
-                system="You answer only from the authorized Cockpit domain.",
-                messages=[{"role": "user", "content": "How did ECL move?"}],
-                model=model)
-        except Exception as e:                               # noqa: BLE001
-            counts[model] = f"FAILED: {_redact(e)}"
-    step.evidence = counts
-    step.status = (PASSED if counts and all(isinstance(v, int)
-                                            for v in counts.values())
-                   else FAILED)
-    step.detail = ("The provider's own count, against the exact models "
-                   "configured -- not an estimate.")
+    try:
+        verified = cockpit_models.verify_live(provider, resolved)
+        step.status = PASSED if verified.verified else BLOCKED
+        step.evidence = verified.verification
+        step.detail = ("The provider's own count, against the exact ids "
+                       "configured -- not an estimate, and not a different "
+                       "model."
+                       if verified.verified else
+                       "The provider cannot count tokens, so the ids are "
+                       "UNVERIFIED. Reported as that rather than as a pass.")
+    except cockpit_models.ModelUnavailable as e:
+        step.status = FAILED
+        step.detail = _redact(e)
+        step.evidence = {"status": e.status, "variables": list(e.variables)}
+        for number in (5, 6, 7, 8, 9, 10, 11, 12):
+            steps[number].status = FAILED
+            steps[number].detail = ("Not run: the configured model is not "
+                                    "available, and no other model was "
+                                    "substituted for it.")
+        step.elapsed_seconds = time.monotonic() - mark
+        return _write(steps, configured=True, started=started, args=args)
     step.elapsed_seconds = time.monotonic() - mark
 
     # ---- 5 through 12: one real request, read stage by stage --------
@@ -297,6 +315,13 @@ def main() -> int:
                   tokens=body.get("tokens"))
 
 
+def _model_status() -> dict[str, Any]:
+    """The two ids, for the evidence file. Never a credential."""
+    from backend.cockpit_agentic import models as cockpit_models
+
+    return cockpit_models.status()
+
+
 class _Principal:
     user_id = 1
     tenant_id = "demo-tenant"
@@ -313,6 +338,7 @@ def _write(steps, *, configured, started, args, body=None, ledger=None,
         "release": args.release, "mode": args.mode,
         "question": args.question,
         "python_sandbox": pysandbox.probe().as_dict(),
+        "cockpit_models": _model_status(),
         "steps": [step.to_dict() for step in steps.values()],
         "budget": ledger, "tokens": tokens,
         "total_seconds": round(time.time() - started, 2),

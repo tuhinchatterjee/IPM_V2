@@ -29,6 +29,7 @@ the exchange as unsummarized for next time.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,7 @@ from backend.cockpit_agentic import PROMPT_VERSION, UNTRUSTED_NOTE
 from backend.cockpit_agentic.contracts import (CleanedQuestion, Exchange,
                                                NormalizedQuestion,
                                                ThreadSummary)
+from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic.ledger import BudgetExceeded, Ledger
 
 logger = logging.getLogger(__name__)
@@ -122,10 +124,18 @@ def _call(provider: Any, ledger: Ledger, *, system: str, user: str,
           schema: dict[str, Any], tool_name: str, description: str,
           purpose: str, max_tokens: int,
           finalization: bool = False) -> dict[str, Any]:
-    """One reserved, settled, schema-constrained Sonnet call."""
-    from backend.llm import roles
+    """One reserved, settled, schema-constrained preprocessing call.
 
-    role = roles.role(SONNET_ROLE)
+    The model id comes from `models.resolve()` and from nowhere else. The
+    shared role resolver would find something to run with -- another role,
+    AI_MODEL, the SDK's default -- and here that is precisely the wrong
+    behaviour: a preprocessing pass served by a model nobody chose produces a
+    business request nobody can attribute.
+    """
+    resolved = models_mod.resolve()
+    model = models_mod.require(resolved.preprocess,
+                               role=models_mod.PREPROCESS_ROLE)
+    effort = (os.environ.get("AI_COCKPIT_PREPROCESS_EFFORT") or "").strip().lower()
     estimated = int(len(system) + len(user)) // 4 + 1
     reservation = ledger.reserve(
         role=SONNET_ROLE, family=SONNET_FAMILY, purpose=purpose,
@@ -135,8 +145,8 @@ def _call(provider: Any, ledger: Ledger, *, system: str, user: str,
         result = provider.structured(
             system=system, prompt=user, schema=schema, tool_name=tool_name,
             tool_description=description, max_tokens=max_tokens,
-            purpose=purpose, model=role.model, role=SONNET_ROLE,
-            effort=role.effort)
+            purpose=purpose, model=model, role=SONNET_ROLE,
+            effort=effort)
     except Exception as e:                                  # noqa: BLE001
         ledger.settle(reservation, output_tokens=0, error=str(e),
                       uncertain=True)

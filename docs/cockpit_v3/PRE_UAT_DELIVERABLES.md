@@ -176,14 +176,19 @@ mechanism such a deployment needs and where the seam already is.
 
 | Role | Environment variable | Configured id in this container |
 |---|---|---|
-| `cockpit_preprocess` | `AI_COCKPIT_PREPROCESS_MODEL` | **empty** |
-| `cockpit_reasoning` | `AI_COCKPIT_REASONING_MODEL` | **empty** |
+| `cockpit_preprocess` | `AI_COCKPIT_PREPROCESS_MODEL` | **not set** |
+| `cockpit_reasoning` | `AI_COCKPIT_REASONING_MODEL` | **not set** |
 
-Nothing is set here, and `AI_MODEL` is empty too, so both roles would fall
-through to the provider SDK's own default rather than to an id anyone chose.
-**A deployment must set these two before UAT**, or the reasoning role will
-silently be whatever the SDK ships with — which is exactly the situation the
-`inherited` flag exists to make visible.
+**These two now fail closed.** Neither inherits from another role, from
+`AI_MODEL`, or from the provider SDK's default. Unset, blank or malformed
+stops the request with `MODEL_CONFIGURATION_MISSING`; configured but rejected
+by the provider stops it with `MODEL_UNAVAILABLE`. Neither is ever answered
+from a deterministic substitute.
+
+Before this correction both roles would have fallen through to the SDK's own
+pinned default, and a commissioning run would have measured a model nobody
+chose. `docs/cockpit_v3/MODEL_CONFIGURATION.md` records what changed and the
+tests that hold it.
 
 What a live provider would actually serve is **UNVERIFIED**.
 `scripts/cockpit_v3_live_validation.py` reports the ids and the provider's own
@@ -191,7 +196,7 @@ token counts against them the moment a credential exists.
 
 ## H. Cockpit V3 test results
 
-**360 tests, all passing.** Every one uses the labelled mock provider or no
+**397 tests, all passing.** Every one uses the labelled mock provider or no
 provider at all. They prove application properties — the gate runs first, a
 referral executes nothing, five submissions is five, the repair request
 carries the effective context, the sandbox boundary holds, CreditProbe authors
@@ -237,10 +242,10 @@ reports how much of the ceiling is left, in cents. Detail in
 
 ## J. Remaining blockers, exactly
 
-0. **Neither Cockpit model role has an id configured**, and `AI_MODEL` is
-   empty, so both would fall through to the provider SDK's default. Set
-   `AI_COCKPIT_PREPROCESS_MODEL` and `AI_COCKPIT_REASONING_MODEL` before the
-   live run, or the run will not be testing a model anyone chose.
+0. **Neither Cockpit model role has an id configured.** Nothing runs until
+   both are set — that is now enforced rather than warned about. Set
+   `AI_COCKPIT_PREPROCESS_MODEL=claude-sonnet-5` and
+   `AI_COCKPIT_REASONING_MODEL=claude-opus-5`.
 1. **No provider credential.** Everything that depends on a model is
    BLOCKED/UNVERIFIED: routing accuracy, translation fidelity, plan quality,
    repair quality, answer quality, latency, and real token and cost figures.
