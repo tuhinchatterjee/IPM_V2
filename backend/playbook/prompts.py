@@ -127,11 +127,20 @@ def artifact_contract(formats: list[str]) -> str:
 
 
 def system(*, formats: list[str] | None = None,
-           include_markdown_contract: bool = True) -> str:
+           include_markdown_contract: bool = True,
+           document_tools: bool = False) -> str:
+    """The system prompt for one authoring call.
+
+    `document_tools` decides whether the model is asked to produce the FILES as
+    well as the document. It is false by default, because the files are
+    rendered deterministically from the approved document afterwards — asking
+    for them here would tell the model to spend minutes in a sandbox writing
+    files that are then discarded and rebuilt locally.
+    """
     parts = [BASE]
     if include_markdown_contract:
         parts.append(MARKDOWN_CONTRACT)
-    if formats:
+    if formats and document_tools:
         parts.append(artifact_contract(formats))
     return "\n\n".join(parts)
 

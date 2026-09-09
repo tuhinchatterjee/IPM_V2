@@ -31,11 +31,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from dataclasses import dataclass, field
 
 from sqlalchemy import select
 
-from backend.playbook import capabilities, grounding, ingest, prompts, provider, render, store, validate
+from backend.playbook import capabilities, grounding, ingest, merge, prompts, provider, render, store, validate
 from backend.playbook import document as D
 from backend.playbook import evidence as ev
 from backend.playbook import repository as repo
@@ -60,6 +61,18 @@ class Outcome:
     validations: dict[str, validate.Validation] = field(default_factory=dict)
     grounding: grounding.GroundingResult | None = None
     renderer: str = ""
+    #: For a scoped edit: the heading that was actually revised, and any
+    #: sections the model changed without being asked. The merge discards
+    #: those; naming them is how the user learns it happened.
+    scoped_to: str = ""
+    rejected_sections: list[str] = field(default_factory=list)
+    #: Named separately so they are never confused. Authoring is the provider
+    #: call; rendering is deterministic and local.
+    authoring_ms: int = 0
+    render_ms: int = 0
+    provider_ms: int = 0
+    turns: int = 0
+    tool_calls: int = 0
     model_served: str = ""
     request_ids: list[str] = field(default_factory=list)
     milestones: list[dict] = field(default_factory=list)
@@ -333,7 +346,8 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     ws = repo.get_workspace(session, scope, workspace_id)
     outcome = Outcome(workspace_id=ws.id)
 
-    system = prompts.system(formats=formats)
+    system = prompts.system(formats=formats,
+                            document_tools=provider.SKILL_RENDERING)
     parts = [_framed(task_kind, instruction, task_scope, ws.document_family)]
     current = _current_document(session, artifact_id)
     if current is not None:
@@ -341,6 +355,11 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     parts.append(ledger.render())
     user = "\n\n".join(p for p in parts if p)
 
+    # Timed separately, and never added together into one number. Authoring is
+    # the provider call; rendering is deterministic, local and fast. Reporting
+    # them as one figure is what makes a slow generation impossible to
+    # diagnose.
+    authoring_began = time.monotonic()
     result = provider.author(
         system=system,
         messages=[{"role": "user", "content": user}],
@@ -349,6 +368,10 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
         on_delta=on_delta,
         is_cancelled=is_cancelled,
     )
+    outcome.authoring_ms = int((time.monotonic() - authoring_began) * 1000)
+    outcome.provider_ms = int(getattr(result, "provider_ms", 0) or 0)
+    outcome.turns = int(getattr(result, "turns", 0) or 0)
+    outcome.tool_calls = int(getattr(result, "tool_calls", 0) or 0)
     outcome.model_served = result.model_served
     outcome.request_ids = list(result.request_ids)
     outcome.milestones = list(result.milestones)
@@ -363,6 +386,27 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
         raise provider.AuthoringError(
             "The author returned no document. Nothing was saved and the "
             "previous version is unchanged.", category="empty_output")
+
+    # A scoped edit is scoped HERE, not by asking nicely. The model returns a
+    # whole document; only the section that was requested is taken from it, and
+    # every other section is carried forward from the approved version as the
+    # same object. That makes "nothing else changed" true by construction
+    # rather than true as far as anybody checked — and it means grounding only
+    # scrutinises the section that actually changed, so a revision cannot cause
+    # a figure to be stripped from a section it never touched.
+    if task_kind == "edit" and current is not None:
+        base_doc = D.parse(current[0], title=title)
+        if base_doc.sections:
+            try:
+                merged = merge.scoped_merge(base_doc, doc, task_scope)
+            except merge.ScopeNotFound as exc:
+                raise provider.AuthoringError(
+                    str(exc), category="scope_not_found") from exc
+            doc = merged.document
+            outcome.scoped_to = merged.target
+            outcome.rejected_sections = list(merged.rejected)
+            if merged.note():
+                outcome.notes.append(merged.note())
 
     ground = grounding.check(doc, ledger)
     outcome.grounding = ground
@@ -379,7 +423,9 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
             "were removed, so that every format states the same thing."
         )
 
+    render_began = time.monotonic()
     files, validations, renderer = _usable(skill_files, doc, formats)
+    outcome.render_ms = int((time.monotonic() - render_began) * 1000)
     outcome.files, outcome.validations, outcome.renderer = files, validations, renderer
 
     if any(not v.ok for v in validations.values()):

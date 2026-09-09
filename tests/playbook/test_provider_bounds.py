@@ -182,14 +182,29 @@ class TestAStalledStreamIsStopped:
                                   deadline=time.monotonic() - 10)
         assert stream.closed, "a timed-out stream must not hold the socket"
 
-    def test_a_timeout_names_what_it_was_doing(self):
+    def test_a_timeout_names_what_it_was_doing(self, monkeypatch):
+        monkeypatch.setattr(provider, "RUN_DEADLINE_SECONDS", 0.0)
         with pytest.raises(provider.AuthoringTimeout) as exc:
-            provider._check_clock(time.monotonic() - 10_000, "building the files")
+            provider._check_clock(time.monotonic(), "building the files")
         assert "building the files" in str(exc.value)
         assert "previous version is unchanged" in str(exc.value)
+        assert "elapsed" in str(exc.value), "it must report what it measured"
 
     def test_a_run_inside_its_deadline_is_left_alone(self):
         provider._check_clock(time.monotonic(), "writing")  # does not raise
+
+    def test_a_zero_origin_is_treated_as_unset_not_as_the_epoch(self):
+        """The telemetry defect, pinned.
+
+        0.0 is falsy but not None, so a `started is None` guard let it through
+        and the clock then measured `time.monotonic()` itself — container
+        uptime. Any process older than the deadline was declared timed out on
+        its first event, and the "latency" reported was the age of the process.
+        That is the shape of the 1636923 ms recorded against a 281s attempt.
+        """
+        provider._check_clock(0.0, "writing")     # must not raise
+        provider._check_clock(None, "writing")    # must not raise
+        provider._check_clock(-5.0, "writing")    # nor a nonsense origin
 
 
 class TestATimeoutIsNeverRetriedAutomatically:

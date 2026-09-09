@@ -129,6 +129,8 @@ codebase does not have.
 | `PLAYBOOK_TIMEOUT_SECONDS` | **Wall-clock deadline for one authoring run**, default 600. The bound that matters: a socket timeout limits inactivity between reads, not the operation, so a stream trickling one token a minute never trips one. Checked between stream events and between turns. Kept below `stream.IDLE_TIMEOUT_SECONDS` (900) so the worker reports the failure before the browser's reader gives up. |
 | `PLAYBOOK_CONNECT_TIMEOUT_SECONDS` (10), `PLAYBOOK_READ_TIMEOUT_SECONDS` (120), `PLAYBOOK_WRITE_TIMEOUT_SECONDS` (60), `PLAYBOOK_POOL_TIMEOUT_SECONDS` (30) | The four transport phases, separately. They are separate because passing one number sets all four — which is how a 900-second *connect* timeout shipped. |
 | `PLAYBOOK_LIVE_CHECK_TIMEOUT_SECONDS` | How long the live suite waits for one check before moving on, default 900. |
+| `PLAYBOOK_SKILL_RENDERING` | Off by default. When on, the authoring call also drives the provider's document Skills to write the files inside the same streamed run. That is a real capability and it is slow: while the sandbox works no text arrives, so the stream goes quiet for minutes — a live run failed at 281s exactly that way, and the files were then discarded and re-rendered locally because grounding had changed the document. With it off, authoring is text-only and `backend/playbook/render/` produces every format deterministically from the approved content. |
+| `PLAYBOOK_SKILL_READ_TIMEOUT_SECONDS` | The read timeout used only when Skills are on, default 420. Silence is expected there rather than a symptom. |
 | `UPLOAD_DIR` | Where sources and artifacts are stored, under `<upload_dir>/playbook`. |
 
 ## Migration and rollout
@@ -150,6 +152,22 @@ Seeding is bootstrap step **L** (`scripts/bootstrap_demo.py --step playbook`),
 idempotent, and makes no provider call. The Playbook tables are on the WORKSPACE
 side of `backend/demo/workspace.py`'s reset boundary, so a demo reset rebuilds
 them and never touches the governed platform.
+
+## Authoring and rendering are two steps, not one
+
+The provider writes the document. CreditProbe grounds it. `render.render()` then
+produces the DOCX, PDF, PPTX and XLSX from the approved content, locally and
+deterministically — no second model call, and no asking the model to rewrite the
+report once per format.
+
+That split is what makes a read timeout meaningful. With the document Skills on
+the critical path the same call authored *and* built files, and the minutes of
+silence during sandbox execution were indistinguishable from a dead connection.
+Off the critical path, silence on an authoring stream means what it says.
+
+The Skills path is retained behind `PLAYBOOK_SKILL_RENDERING=1` for a deployment
+that wants provider-generated files, with its own longer read timeout. It is a
+capability, not the default.
 
 ## Streaming, for whoever deploys this
 

@@ -541,3 +541,123 @@ class TestARevisionMayRestateWhatTheApprovedVersionSaid:
 
         assert second.grounding.ok is False
         assert "8.9 per cent" not in second.document.plain_text()
+
+
+class TestAScopedEditIsScopedByConstruction:
+    """PB-017, in the exact shape the live run failed.
+
+    The model returned a whole rewritten document: the requested section
+    revised, an unrelated section paraphrased, and a figure in that unrelated
+    section that is in no evidence. Before the merge that produced a version 2
+    with grounding findings and no way to see which section was at fault.
+    """
+
+    BASE_MD = ("# Report\n\n"
+               "## 1. Summary\n\n"
+               "Weighted ECL was SAR 22.77 million.\n\n"
+               "## 2. Limitations\n\n"
+               "Post-model adjustments are outside scope.\n")
+
+    def _v1(self, db, scope, workspace, ledger, scripted_author):
+        scripted_author(self.BASE_MD)
+        return service.author_document(
+            db, scope, workspace.id, instruction="Draft it.",
+            ledger=ledger, title="Report")
+
+    def _revise(self, db, scope, workspace, ledger, first, drafted):
+        return service.author_document(
+            db, scope, workspace.id, instruction="Sharpen the summary.",
+            ledger=ledger, title="Report", artifact_id=first.artifact_id,
+            base_version_id=first.version_id,
+            task_kind="edit", task_scope="1. Summary")
+
+    def test_an_unrelated_section_survives_a_whole_rewrite(
+            self, db, scope, workspace, ledger, scripted_author):
+        first = self._v1(db, scope, workspace, ledger, scripted_author)
+
+        scripted_author(
+            "# Report\n\n"
+            "## 1. Summary\n\n"
+            "ECL reached SAR 22.77 million.\n\n"
+            "## 2. Limitations\n\n"
+            "Adjustments beyond the model fall outside this paper's scope.\n")
+        second = self._revise(db, scope, workspace, ledger, first, None)
+
+        limitations = second.document.section("2. Limitations")
+        assert limitations.text == "Post-model adjustments are outside scope."
+        assert "ECL reached" in second.document.section("1. Summary").text
+
+    def test_a_figure_invented_outside_the_scope_never_reaches_the_document(
+            self, db, scope, workspace, ledger, scripted_author):
+        """The live failure. It is not removed by grounding — it never arrives,
+        so grounding has nothing to report and version 2 is clean."""
+        first = self._v1(db, scope, workspace, ledger, scripted_author)
+
+        scripted_author(
+            "# Report\n\n"
+            "## 1. Summary\n\n"
+            "ECL reached SAR 22.77 million.\n\n"
+            "## 2. Limitations\n\n"
+            "Post-model adjustments of SAR 4.10 million are outside scope.\n")
+        second = self._revise(db, scope, workspace, ledger, first, None)
+
+        assert "4.10" not in second.document.plain_text()
+        assert second.grounding.ok is True, second.grounding.note()
+
+    def test_the_user_is_told_the_model_drifted(
+            self, db, scope, workspace, ledger, scripted_author):
+        first = self._v1(db, scope, workspace, ledger, scripted_author)
+        scripted_author(
+            "# Report\n\n## 1. Summary\n\nECL reached SAR 22.77 million.\n\n"
+            "## 2. Limitations\n\nSomething else entirely.\n")
+        second = self._revise(db, scope, workspace, ledger, first, None)
+
+        assert second.scoped_to == "1. Summary"
+        assert second.rejected_sections == ["2. Limitations"]
+        assert any("without being asked" in n for n in second.notes)
+
+    def test_an_invented_figure_INSIDE_the_scope_is_still_removed(
+            self, db, scope, workspace, ledger, scripted_author):
+        """The merge bounds the blast radius; it does not lower the bar."""
+        first = self._v1(db, scope, workspace, ledger, scripted_author)
+        scripted_author(
+            "# Report\n\n## 1. Summary\n\n"
+            "ECL reached SAR 22.77 million against provisions of SAR 88.30 "
+            "million.\n\n"
+            "## 2. Limitations\n\nPost-model adjustments are outside scope.\n")
+        second = self._revise(db, scope, workspace, ledger, first, None)
+
+        assert second.grounding.ok is False
+        assert "88.30" not in second.document.plain_text()
+
+    def test_a_scope_that_matches_nothing_is_refused_not_ignored(
+            self, db, scope, workspace, ledger, scripted_author):
+        first = self._v1(db, scope, workspace, ledger, scripted_author)
+        scripted_author(self.BASE_MD)
+        with pytest.raises(provider.AuthoringError) as exc:
+            service.author_document(
+                db, scope, workspace.id, instruction="Sharpen it.",
+                ledger=ledger, title="Report", artifact_id=first.artifact_id,
+                base_version_id=first.version_id,
+                task_kind="edit", task_scope="the appendix")
+        assert exc.value.category == "scope_not_found"
+        assert len(repo.versions(db, first.artifact_id)) == 1
+
+    def test_a_first_draft_is_not_merged_against_anything(
+            self, db, scope, workspace, ledger, scripted_author):
+        scripted_author(self.BASE_MD)
+        first = _run(db, scope, workspace, ledger)
+        assert first.scoped_to == ""
+        assert first.rejected_sections == []
+
+
+class TestAuthoringAndRenderingAreTimedSeparately:
+    def test_both_are_measured_and_neither_is_the_other(
+            self, db, scope, workspace, ledger, scripted_author):
+        """PB-015's diagnosis needed these apart: one slow number that could be
+        either the model or the renderer is not a measurement."""
+        scripted_author(REPORT_MD)
+        outcome = _run(db, scope, workspace, ledger)
+        assert outcome.authoring_ms >= 0
+        assert outcome.render_ms >= 0
+        assert outcome.renderer == "local"

@@ -130,14 +130,23 @@ def _run_suite(live_playbook, only: list[str]) -> dict:
         detail = outcome.detail
         # Elapsed and request id on every line, so a failure can be taken
         # straight to the provider's logs.
-        detail += f"  [{outcome.latency_ms / 1000:.1f}s"
+        # Named spans, never one number. "281s" beside a provider log saying
+        # 1636923ms is what made the first failure unreadable.
+        detail += f"  [check {outcome.check_ms / 1000:.1f}s"
+        if outcome.authoring_ms:
+            detail += f", authoring {outcome.authoring_ms / 1000:.1f}s"
+        if outcome.render_ms:
+            detail += f", rendering {outcome.render_ms / 1000:.1f}s"
         if outcome.request_ids:
             detail += f", {outcome.request_ids[0]}"
         if outcome.model_served:
             detail += f", {outcome.model_served}"
+        if outcome.abandoned:
+            detail += ", ABANDONED"
         detail += "]"
         check(f"[{requirement}] {title}", outcome.passed, detail)
 
+    print(f"  suite total {suite.suite_ms / 1000:.1f}s")
     failed = [o.check for o in suite.outcomes if not o.passed]
     if failed:
         print()

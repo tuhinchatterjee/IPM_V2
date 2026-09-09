@@ -108,6 +108,45 @@ class TestTheSuiteCoversWhatItClaims:
                           on_progress=lambda stage, cid: seen.append((stage, cid)))
         assert seen == [("start", "author_model"), ("end", "author_model")]
 
+    def test_durations_are_named_separately_and_nest(self):
+        """The telemetry defect, pinned.
+
+        A live check reported 281.1s beside a provider log claiming 1636923ms.
+        They cannot both describe one attempt. Naming the spans separately is
+        the fix; asserting they nest is what stops them drifting apart again.
+        """
+        outcome = live_playbook.Outcome(
+            check="x", passed=True,
+            provider_ms=1000, authoring_ms=1200, render_ms=50, check_ms=1500)
+        assert outcome.provider_ms <= outcome.authoring_ms <= outcome.check_ms
+        # `latency_ms` is a reading of the check, not a fourth measurement.
+        assert outcome.latency_ms == outcome.check_ms
+        assert set(outcome.to_dict()) >= {
+            "provider_ms", "authoring_ms", "render_ms", "check_ms", "abandoned"}
+
+    def test_a_suite_total_exists_and_is_measured_not_summed(self,
+                                                             monkeypatch):
+        monkeypatch.setitem(
+            live_playbook.RUNNERS, "author_model",
+            lambda: live_playbook.Outcome(check="author_model", passed=True))
+        suite = live_playbook.run_some(["author_model"])
+        assert suite.suite_ms >= suite.outcomes[0].check_ms
+        assert suite.to_dict()["suite_ms"] == suite.suite_ms
+
+    def test_an_abandoned_check_reports_what_it_waited_not_the_ceiling(
+            self, monkeypatch):
+        """It used to report `CHECK_TIMEOUT_SECONDS * 1000` — a constant
+        presented as a measurement."""
+        import time as _time
+
+        monkeypatch.setattr(live_playbook, "CHECK_TIMEOUT_SECONDS", 0.2)
+        monkeypatch.setitem(live_playbook.RUNNERS, "author_model",
+                            lambda: _time.sleep(30))
+        outcome = live_playbook.run("author_model")
+        assert outcome.abandoned is True
+        assert outcome.check_ms < 5000, "the ceiling was reported verbatim"
+        assert "abandoned, not stopped" in outcome.detail
+
     def test_the_suite_works_in_its_own_tenant(self):
         """A live run must not be able to write into the demonstration or
         into a real user's workspace."""

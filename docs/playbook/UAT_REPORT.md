@@ -9,7 +9,7 @@ check that could not run is `BLOCKED` rather than a pass.
 |---|---|
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
-| Live Claude workflows | **BLOCKED** — first live run executed by the user found four defects, all fixed here; the re-run is outstanding and no key exists in this environment |
+| Live Claude workflows | **PB-030 PASS** (live, `claude-opus-5`, no downgrade). **PB-015 and PB-017 FAIL** — real live execution, root-caused and fixed here, re-run outstanding. PB-013, PB-029, PB-043 remain BLOCKED. |
 | Browser and artifact UAT | **passed** — 105 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off |
@@ -55,7 +55,7 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **365 passed, 8 live checks skipped** |
+| Playbook backend | `pytest tests/playbook` | **392 passed, 8 live checks skipped** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
 | Full backend | `pytest -q` | **9810 passed, 30 skipped, 0 failed** |
 | Frontend units | `npm test` | **462 passed, 0 failed** |

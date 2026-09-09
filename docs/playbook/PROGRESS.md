@@ -112,7 +112,7 @@ re-checked against the provider's current documentation.
 
 | What | Result |
 |---|---|
-| `pytest tests/playbook` | 365 passed, 8 live checks skipped |
+| `pytest tests/playbook` | 392 passed, 8 live checks skipped |
 | `pytest tests/playbook tests/api tests/demo tests/services tests/exports tests/docs tests/proof tests/validation tests/llm` | 1373 passed, 8 skipped |
 | `pytest` (whole repository) | **9810 passed, 30 skipped, 0 failed** |
 | `npm test` | 462 passed |
@@ -315,6 +315,43 @@ The comment claiming otherwise was simply wrong, and `.env.example` ships
 `AI_AUTHOR_MODEL=` blank, so the shipped example config reproduced the crash.
 `status()` now reports `AUTHOR_MODEL_NOT_CONFIGURED` and `author()` refuses
 before the client is built.
+
+## The targeted live re-run
+
+PB-030 **passed for real**: `claude-opus-5` requested and served, no downgrade, 76.5s, with a
+recorded request id. PB-017 and PB-015 failed, and the provider log carried a
+latency that could not describe the attempt beside it.
+
+**PB-017 — nothing structurally enforced the scope.** "Revise only the executive
+summary" was a sentence in a prompt plus two checks afterwards; whether the rest
+of the document survived was left to the model. The failing conjunct was
+`grounding.ok` — the only one that could be — and the check could not say so,
+because its detail string was built from a regex matching two-decimal figures
+only, which a re-rounded or integer invention never trips. Now the scope is
+enforced by construction: `merge.scoped_merge` takes only the requested section
+from the model's reply and carries every other section forward as the same
+object. Unrelated sections are identical because they were never replaced, and
+grounding only scrutinises what actually changed.
+
+**PB-015 — one call was doing two jobs.** The authoring run also drove the
+document Skills and server-side code execution, and while the sandbox builds a
+file no text deltas arrive; 281s is ~161s of streaming then the full 120s read
+timeout. Evidence size was ruled out by measurement — 26 chunks, 34 ledger
+items, ~2,517 prompt tokens, 0 omissions, 631 of 120,000 budget tokens. Nothing
+was truncated. Authoring is now text-only and bounded, the files are rendered
+deterministically from the approved document, and the document Skills are
+retained behind `PLAYBOOK_SKILL_RENDERING=1` with their own longer read timeout.
+
+**The timing inconsistency — two defects.** `_check_clock` guarded
+`if started is None`, so a `0.0` origin passed through and measured
+`time.monotonic()` itself: container uptime, which is what 1636923 ms is shaped
+like. And nothing could correlate the two numbers anyway — failures carried no
+request id, `Call` carries no run or check id, `Outcome.latency_ms` was written
+by three mechanisms on two clocks, `AuthoringTimeout` was re-raised with no
+telemetry at all, and abandoned workers kept writing to a process-global ledger
+after their check line had printed. Durations are now named separately —
+`provider_ms`, `authoring_ms`, `render_ms`, `check_ms`, `suite_ms` — measured on
+one clock, and a test asserts they nest.
 
 ## What is genuinely not done
 

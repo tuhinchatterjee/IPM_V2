@@ -64,7 +64,7 @@
     "the state moved as the work moved",
     "markdown is rendered, not printed as source",
     "a refresh mid-generation keeps the answer so far \u2014 PLAYBOOKWRITING\n\nIFRS 9 Committee Report\n1. Executive summary\n\nWeighted ECL rose to SAR 22.77 million.\n\nStill being writ",
-    "a refresh started no second generation \u2014 {'id': 1111, 'workspace_id': 5244, 'state': 'drafting', 'cancelled': False, 'milestones': [], 'model': '', 'error': '', 'finished': False}",
+    "a refresh started no second generation \u2014 {'id': 1497, 'workspace_id': 6561, 'state': 'drafting', 'cancelled': False, 'milestones': [], 'model': '', 'error': '', 'finished': False}",
     "no answer is in the thread while the stream is unfinished \u2014 0 message(s)",
     "the stream ends and the bubble goes with it",
     "the finished generation is no longer offered to attach to",

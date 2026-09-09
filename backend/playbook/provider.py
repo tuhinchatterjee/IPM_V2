@@ -101,6 +101,30 @@ MAX_ATTEMPTS = 3
 #: evidence does not accumulate there indefinitely; the durable copy is ours.
 SOURCE_FILE_TTL_SECONDS = 24 * 3600
 
+#: Whether the authoring call also asks the provider's document Skills to write
+#: the binary files, inside the same streamed run.
+#:
+#: OFF by default, and the reason is measured rather than aesthetic. With it on,
+#: one call authors the report AND drives server-side code execution to build
+#: the DOCX and PDF. While the sandbox runs there are no text deltas, so the
+#: stream goes silent for minutes and trips the read timeout — a live run failed
+#: at 281 seconds exactly that way. Worse, when grounding then removes a figure
+#: those files are discarded wholesale and re-rendered locally, so the wait was
+#: paid for and thrown away.
+#:
+#: With it off the authoring call is pure text, which is what makes a read
+#: timeout meaningful, and `backend/playbook/render/` produces every format
+#: deterministically from the approved document. The Skills path is kept because
+#: it is a real capability worth demonstrating — it is simply not on the path a
+#: user waits on.
+SKILL_RENDERING = (os.environ.get("PLAYBOOK_SKILL_RENDERING") or "").strip().lower() in {
+    "1", "true", "yes", "on"}
+
+#: The read timeout when document Skills ARE enabled. Longer, because silence
+#: during sandbox execution is expected there rather than a symptom.
+SKILL_READ_TIMEOUT_SECONDS = float(
+    os.environ.get("PLAYBOOK_SKILL_READ_TIMEOUT_SECONDS") or 420)
+
 
 class ProviderNotConfigured(RuntimeError):
     """No usable provider. The message is an instruction, not an apology."""
@@ -164,6 +188,13 @@ class AuthoringResult:
     output_tokens: int = 0
     milestones: list[dict] = field(default_factory=list)
     stop_reason: str = ""
+    #: Wall clock inside the provider — every attempt of every turn, summed.
+    #: Named for what it measures rather than "latency", because the authoring
+    #: run around it and the check around that are different spans.
+    provider_ms: int = 0
+    #: How many times the model asked to use a tool. Zero when the document
+    #: tools are off, which is the default and the whole point of the split.
+    tool_calls: int = 0
 
     @property
     def downgraded(self) -> bool:
@@ -276,6 +307,12 @@ def _client() -> Any:
     )
 
 
+#: Where `_stream_once` leaves the request id for the attempt it is running, so
+#: that a FAILURE can report it too. Read from the response alone, a failed
+#: attempt has no response and the ledger logged `request_id=-` for every one of
+#: them — which is most of what a request id is for.
+
+
 def _check_clock(started: float | None, doing: str) -> None:
     """Stop a run that has outlived its deadline, naming what it was doing.
 
@@ -283,14 +320,20 @@ def _check_clock(started: float | None, doing: str) -> None:
     message because "it timed out" sends somebody looking in the wrong place,
     and "it timed out while building the files" does not.
     """
-    if started is None:
+    # `not started` rather than `started is None`. 0.0 is falsy but not None,
+    # and a 0.0 origin would make this measure `time.monotonic()` itself —
+    # container uptime — so any process older than the deadline would be
+    # declared timed out on its first event, and the number reported as a
+    # provider latency would be the age of the process. That is exactly the
+    # shape of the 1636923 ms recorded against a 281-second attempt.
+    if not started or started <= 0:
         return
     elapsed = time.monotonic() - started
     if elapsed > RUN_DEADLINE_SECONDS:
         raise AuthoringTimeout(
             f"This generation passed its {RUN_DEADLINE_SECONDS:.0f}-second "
-            f"limit while {doing}, so it was stopped. Nothing was saved and "
-            "the previous version is unchanged."
+            f"limit while {doing} ({elapsed:.0f}s elapsed), so it was stopped. "
+            "Nothing was saved and the previous version is unchanged."
         )
 
 
@@ -308,6 +351,10 @@ def upload_source(filename: str, content: bytes, mime: str) -> str:
         extra_body={"expires_in_seconds": SOURCE_FILE_TTL_SECONDS},
     )
     return uploaded.id
+
+
+def stop_reason_of(response: Any) -> str:
+    return getattr(response, "stop_reason", "") or ""
 
 
 def _skills(formats: list[str]) -> list[dict]:
@@ -374,6 +421,7 @@ def author(
     on_milestone: Callable[[str, str], None] | None = None,
     on_delta: Callable[[str], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
+    document_tools: bool | None = None,
 ) -> AuthoringResult:
     """Run one authoring turn to completion, including its tool-use loop.
 
@@ -409,10 +457,18 @@ def author(
     client = _client()
     started = time.monotonic()
 
-    tools = [{"type": CODE_EXECUTION_TOOL, "name": "code_execution"}]
-    container: dict[str, Any] = {"skills": _skills(formats)}
-    if container_id:
-        container["id"] = container_id
+    # Document tools are off unless a deployment asks for them. See
+    # SKILL_RENDERING: with them on, this one call both writes the report and
+    # builds the files, and the silence while the sandbox works is what trips
+    # the read timeout.
+    with_tools = SKILL_RENDERING if document_tools is None else document_tools
+    tools: list[dict] = []
+    container: dict[str, Any] = {}
+    if with_tools:
+        tools = [{"type": CODE_EXECUTION_TOOL, "name": "code_execution"}]
+        container = {"skills": _skills(formats)}
+        if container_id:
+            container["id"] = container_id
 
     result = AuthoringResult(model_requested=model)
     convo = list(messages)
@@ -436,7 +492,8 @@ def author(
         response = _call(client, model=model, system=system, messages=convo,
                          tools=tools, container=container, purpose=purpose,
                          role=role, on_delta=on_delta,
-                         is_cancelled=is_cancelled, deadline=started)
+                         is_cancelled=is_cancelled, deadline=started,
+                         with_tools=with_tools)
         result.turns = turn
 
         rid = getattr(response, "_request_id", "") or ""
@@ -454,6 +511,8 @@ def author(
             result.container_id = cont.id
             container["id"] = cont.id
 
+        if stop_reason_of(response) == "tool_use":
+            result.tool_calls += 1
         for fid in _file_ids(response):
             if fid not in {f.file_id for f in result.files}:
                 milestone("rendering", fid)
@@ -490,6 +549,7 @@ def author(
             f"Authoring did not finish within {MAX_TURNS} turns. Nothing was "
             "marked complete.", category="budget")
 
+    result.provider_ms = int((time.monotonic() - started) * 1000)
     milestone("validating")
     if result.downgraded:
         logger.warning(
@@ -502,7 +562,8 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
           tools: list[dict], container: dict, purpose: str, role: Any,
           on_delta: Callable[[str], None] | None = None,
           is_cancelled: Callable[[], bool] | None = None,
-          deadline: float | None = None) -> Any:
+          deadline: float | None = None,
+          with_tools: bool = False) -> Any:
     """One provider call, with bounded retries and honest telemetry.
 
     Streamed, always. The completed message is still what the caller gets back —
@@ -518,27 +579,36 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
     last: Exception | None = None
     emitted = False
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        began = time.time()
+        # Monotonic, like every other duration on this path. An epoch clock
+        # that steps backwards mid-call produces a negative latency, and one
+        # that steps forwards produces a fictional outage.
+        began = time.monotonic()
+        seen: dict = {"request_id": ""}
         try:
             kwargs: dict[str, Any] = {
                 "max_tokens": MAX_OUTPUT_TOKENS,
                 "messages": messages,
                 "system": system,
-                "tools": tools,
-                "container": container,
             }
+            # Omitted entirely rather than sent empty: an empty tools list is
+            # still a request to consider tools, and a container with no skills
+            # is a sandbox nobody asked to start.
+            if with_tools and tools:
+                kwargs["tools"] = tools
+            if with_tools and container:
+                kwargs["container"] = container
             if model:
                 kwargs["model"] = model
             response, streamed = _stream_once(
                 client, kwargs, on_delta=on_delta, is_cancelled=is_cancelled,
-                deadline=deadline)
+                deadline=deadline, with_tools=with_tools, seen=seen)
             if streamed:
                 emitted = True
             telemetry.record_success(
                 provider="anthropic",
                 model=getattr(response, "model", "") or model,
                 purpose=purpose, role=role_config.AUTHOR, effort=role.effort,
-                latency_ms=int((time.time() - began) * 1000),
+                latency_ms=int((time.monotonic() - began) * 1000),
                 request_id=getattr(response, "_request_id", "") or "",
                 attempts=attempt,
                 input_tokens=getattr(getattr(response, "usage", None),
@@ -551,18 +621,32 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
             # A stop is not a provider failure. It must not be classified,
             # retried, or reported as an outage.
             raise
-        except AuthoringTimeout:
-            # The run is out of time. Retrying inside it would spend the
-            # deadline it has already exceeded, and spend tokens again for a
-            # generation nobody is still waiting for.
+        except AuthoringTimeout as exc:
+            # Recorded before it is re-raised. Left unrecorded, the product's
+            # own deadline breach — the likeliest timeout on this path — was
+            # invisible to the ledger, so the only `timeout` rows anybody could
+            # see came from elsewhere and were read as this.
+            telemetry.record_failure(
+                provider="anthropic", model=model, purpose=purpose,
+                role=role_config.AUTHOR, effort=role.effort,
+                latency_ms=int((time.monotonic() - began) * 1000),
+                error=exc, category="timeout", attempts=attempt,
+                request_id=seen["request_id"],
+            )
+            # Retrying would spend the deadline it has already exceeded, and
+            # spend tokens again for a generation nobody is still waiting for.
             raise
         except Exception as exc:  # noqa: BLE001 — classified, then re-raised
             category = telemetry.classify(exc)
             telemetry.record_failure(
                 provider="anthropic", model=model, purpose=purpose,
                 role=role_config.AUTHOR, effort=role.effort,
-                latency_ms=int((time.time() - began) * 1000),
+                latency_ms=int((time.monotonic() - began) * 1000),
                 error=exc, category=category, attempts=attempt,
+                # Without this the ledger logged `request_id=-` for every
+                # failure, so a failed attempt could not be taken to the
+                # provider's own logs. anthropic_provider.py already does it.
+                request_id=seen["request_id"],
             )
             last = exc
             # `timeout` is deliberately NOT here. A socket timeout means the
@@ -588,7 +672,9 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
 def _stream_once(client: Any, kwargs: dict, *,
                  on_delta: Callable[[str], None] | None,
                  is_cancelled: Callable[[], bool] | None,
-                 deadline: float | None = None) -> tuple[Any, bool]:
+                 deadline: float | None = None,
+                 with_tools: bool = False,
+                 seen: dict | None = None) -> tuple[Any, bool]:
     """One streamed call. Returns the finished message and whether text flowed.
 
     The filter is the security boundary of this module, and it is deliberately
@@ -598,7 +684,15 @@ def _stream_once(client: Any, kwargs: dict, *,
     about to run) all fail that test and never leave this function.
     """
     forwarded = False
+    if with_tools:
+        # Silence is expected while the sandbox builds a file, so the per-read
+        # ceiling is raised for this call only rather than globally.
+        kwargs = {**kwargs, "timeout": SKILL_READ_TIMEOUT_SECONDS}
     with client.beta.messages.stream(**kwargs) as stream:
+        # Captured as soon as the connection exists, before anything can go
+        # wrong, so a failure mid-stream still knows which request it was.
+        if seen is not None and stream.request_id:
+            seen["request_id"] = stream.request_id
         for event in stream:
             # Checked per event, because this is the only place that can catch
             # a stream which is alive but going nowhere. A read timeout never

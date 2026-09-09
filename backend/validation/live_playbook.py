@@ -80,8 +80,24 @@ class Outcome:
     request_ids: list[str] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
-    latency_ms: int = 0
+    #: Durations, named separately and never added together. They nest:
+    #: provider_ms (one attempt) <= authoring_ms (all attempts and turns)
+    #: <= check_ms <= the suite's own total. A single "latency" field written
+    #: by three different clocks is how a 281-second check came to sit beside a
+    #: 1636923 ms provider log describing a different attempt entirely.
+    provider_ms: int = 0
+    authoring_ms: int = 0
+    render_ms: int = 0
+    check_ms: int = 0
+    #: True when the suite stopped WAITING for a check rather than the check
+    #: finishing. Its duration is then the wait, not a measurement of the work.
+    abandoned: bool = False
     error_category: str = ""
+
+    @property
+    def latency_ms(self) -> int:
+        """What a reader means by "how long did this take". The whole check."""
+        return self.check_ms
 
     def to_dict(self) -> dict[str, Any]:
         return {"check": self.check, "passed": self.passed,
@@ -91,7 +107,11 @@ class Outcome:
                 "request_ids": list(self.request_ids),
                 "input_tokens": self.input_tokens,
                 "output_tokens": self.output_tokens,
-                "latency_ms": self.latency_ms,
+                "provider_ms": self.provider_ms,
+                "authoring_ms": self.authoring_ms,
+                "render_ms": self.render_ms,
+                "check_ms": self.check_ms,
+                "abandoned": self.abandoned,
                 "error_category": self.error_category}
 
 
@@ -168,7 +188,11 @@ def _record(outcome: Outcome, result: Any, began: float) -> Outcome:
     outcome.model_served = getattr(result, "model_served", "") or ""
     outcome.model_requested = getattr(result, "model_requested", "") or ""
     outcome.request_ids = list(getattr(result, "request_ids", []) or [])
-    outcome.latency_ms = int((time.time() - began) * 1000)
+    outcome.check_ms = int((time.monotonic() - began) * 1000)
+    # Carried up from the authoring run, so the report can say how much of the
+    # check was the model and how much was everything else.
+    outcome.authoring_ms = int(getattr(result, "authoring_ms", 0) or 0)
+    outcome.render_ms = int(getattr(result, "render_ms", 0) or 0)
     usage = result.usage() if callable(getattr(result, "usage", None)) else {}
     outcome.input_tokens = int((usage or {}).get("input_tokens", 0) or 0)
     outcome.output_tokens = int((usage or {}).get("output_tokens", 0) or 0)
@@ -190,7 +214,7 @@ def author_serves_the_configured_model() -> Outcome:
     from backend.db.engine import get_session
     from backend.playbook import service
 
-    began = time.time()
+    began = time.monotonic()
     try:
         with get_session() as session:
             ws = _workspace(session, "Live check — model")
@@ -214,7 +238,7 @@ def author_serves_the_configured_model() -> Outcome:
         model_requested=requested or "(provider default)",
         model_served=served,
         request_ids=list(outcome.request_ids),
-        latency_ms=int((time.time() - began) * 1000),
+        check_ms=int((time.monotonic() - began) * 1000),
         detail=(f"requested {requested or '(provider default)'}, served {served}"
                 + ("  DOWNGRADED" if downgraded else "")))
     return result
@@ -230,7 +254,7 @@ def text_streams_before_the_answer_is_finished() -> Outcome:
     from backend.db.engine import get_session
     from backend.playbook import service
 
-    began = time.time()
+    began = time.monotonic()
     pieces: list[str] = []
     try:
         with get_session() as session:
@@ -265,15 +289,22 @@ def a_report_is_written_without_a_template() -> Outcome:
     The assertion that matters is the negative one: the evidence contains no
     backtest, so a report claiming one was performed has failed even if it
     reads beautifully.
+
+    Reported with its measurements, because the first live run failed this on
+    time and "it timed out" said nothing about where the time went. Authoring
+    and rendering are timed separately: the model writes the document, and the
+    files are produced deterministically afterwards.
     """
     from backend.db.engine import get_session
-    from backend.playbook import service
+    from backend.playbook import provider, service
 
-    began = time.time()
+    began = time.monotonic()
     try:
         with get_session() as session:
             ws = _workspace(session, "Live check — no template")
             ledger, _ = _evidence(session, _scope(), ws.id)
+            evidence_chars = len(ledger.render())
+            evidence_items = len(ledger.items)
             outcome = service.author_document(
                 session, _scope(), ws.id,
                 instruction=("Write the Q2 2026 IFRS 9 committee report from "
@@ -298,9 +329,18 @@ def a_report_is_written_without_a_template() -> Outcome:
                 and set(outcome.files) == {"docx", "pdf"}
                 and not invented),
         calls=2,
-        detail=(f"{len(headings)} sections; "
-                f"grounding {'held' if outcome.grounding and outcome.grounding.ok else 'FAILED'}"
-                + (f"; INVENTED {invented}" if invented else "")))
+        detail=(
+            f"{len(headings)} sections; "
+            f"grounding {'held' if outcome.grounding and outcome.grounding.ok else 'FAILED'}"
+            + (f"; INVENTED {invented}" if invented else "")
+            + f"\n      evidence: {evidence_items} items, {evidence_chars} chars"
+            f" (~{evidence_chars // 4} tokens)"
+            + f"\n      provider: {outcome.turns} turn(s), "
+            f"{outcome.tool_calls} tool call(s), "
+            f"skills={'on' if provider.SKILL_RENDERING else 'off'}"
+            + f"\n      authoring {outcome.authoring_ms / 1000:.1f}s, "
+            f"rendering {outcome.render_ms / 1000:.1f}s "
+            f"({outcome.renderer})"))
     return _record(result, outcome, began)
 
 
@@ -315,7 +355,7 @@ def a_methodology_is_checked_without_editing_anything() -> Outcome:
     from backend.playbook import repository as repo
     from backend.playbook import service
 
-    began = time.time()
+    began = time.monotonic()
     try:
         with get_session() as session:
             ws = _workspace(session, "Live check — coverage")
@@ -352,59 +392,116 @@ def a_methodology_is_checked_without_editing_anything() -> Outcome:
 
 
 def a_scoped_edit_changes_only_its_scope() -> Outcome:
-    """PB-017. One section revised; the figures elsewhere unchanged; v1 intact.
+    """PB-017. One section revised; everything else identical; v1 intact.
 
-    Costs two calls because the thing under test is the SECOND one: a revision
-    needs a document to revise.
+    The first live run failed this and could say only "v1 intact, v2 written",
+    because the detail was built from a two-decimal regex that a re-rounded or
+    integer figure never trips. It now reports the named invariant that failed,
+    the sections that differ, and both sides of the text.
     """
     from backend.db.engine import get_session
+    from backend.playbook import document as D
+    from backend.playbook import merge, service, validate
     from backend.playbook import repository as repo
-    from backend.playbook import service
 
-    began = time.time()
+    began = time.monotonic()
     try:
         with get_session() as session:
             ws = _workspace(session, "Live check — scoped edit")
-            ledger, _ = _evidence(session, _scope(), ws.id)
+            ledger, ids = _evidence(session, _scope(), ws.id)
             first = service.author_document(
                 session, _scope(), ws.id,
                 instruction="Write the Q2 2026 committee report.",
                 ledger=ledger, title="IFRS 9 Committee Report — Q2 2026",
                 formats=["docx"], task_kind="create")
             v1_hash = first.document.content_hash() if first.document else ""
+            v1_doc = D.Document.from_dict(first.document.as_dict())
+
+            # Rebuilt WITH artifact_id, so the approved version is admissible
+            # evidence for its own revision. Reusing the first ledger — which
+            # is what this check used to do — leaves that fix unreachable.
+            revision_ledger = service.ledger_for(
+                session, _scope(), ws.id, source_ids=ids,
+                calculations=list(_calculations()),
+                artifact_id=first.artifact_id)
 
             second = service.author_document(
                 session, _scope(), ws.id,
                 instruction=("Make it more concise and more direct, in a "
                              "formal committee register."),
-                ledger=ledger, title="IFRS 9 Committee Report — Q2 2026",
+                ledger=revision_ledger,
+                title="IFRS 9 Committee Report — Q2 2026",
                 formats=["docx"], task_kind="edit",
                 task_scope="the executive summary",
                 artifact_id=first.artifact_id,
                 base_version_id=first.version_id,
                 change_summary="Sharpened the executive summary.")
             versions = repo.versions(session, first.artifact_id)
-            v2_text = second.document.plain_text() if second.document else ""
-            v1_text = first.document.plain_text() if first.document else ""
+            v2_doc = second.document
             _cleanup(session, ws.id)
     except Exception as exc:  # noqa: BLE001
         return _fail("scoped_edit", exc, calls=3)
 
-    import re
-    figures = set(re.findall(r"\d+\.\d{2}", v1_text))
-    lost = sorted(f for f in figures if f not in v2_text)
-    result = Outcome(
-        check="scoped_edit",
-        passed=(second.version == 2
-                and len(versions) == 2
-                and versions[0].content_hash == v1_hash
-                and versions[1].content_hash != v1_hash
-                and not lost
-                and second.grounding is not None and second.grounding.ok),
-        calls=3,
-        detail=("v1 intact, v2 written"
-                + (f"; LOST FIGURES {lost}" if lost else "")))
+    scope_name = second.scoped_to or "the executive summary"
+    target = v1_doc.section(scope_name)
+    target_heading = target.heading if target else scope_name
+
+    # Every invariant named, so a failure says which one rather than "it
+    # failed". Compared with validate.figures(), the same rule grounding uses.
+    drifted = merge.unchanged_outside(v1_doc, v2_doc, scope_name)
+    v1_figures = validate.figures(v1_doc.plain_text())
+    v2_figures = validate.figures(v2_doc.plain_text())
+    target_before = target.text if target else ""
+    target_after = (v2_doc.section(target_heading).text
+                    if v2_doc.section(target_heading) else "")
+
+    invariants = {
+        "version 2 was written": second.version == 2,
+        "exactly two versions exist": len(versions) == 2,
+        "version 1 is byte-identical": versions[0].content_hash == v1_hash,
+        "version 2 genuinely differs": versions[1].content_hash != v1_hash,
+        "the requested section changed": target_after != target_before,
+        "no unrelated section changed": not drifted,
+        "no figure was lost": not (v1_figures - v2_figures),
+        "no unsupported figure appeared": (
+            second.grounding is not None and second.grounding.ok),
+    }
+    broken = [name for name, held in invariants.items() if not held]
+
+    detail = f"scope={target_heading!r}"
+    if broken:
+        detail += "; FAILED: " + "; ".join(broken)
+        if drifted:
+            for entry in merge.diff_sections(v1_doc, v2_doc):
+                if entry["section"] == target_heading:
+                    continue
+                detail += (f"\n      {entry['section']} ({entry['change']})"
+                           f"\n        before: {entry['before'][:160]}"
+                           f"\n        after:  {entry['after'][:160]}")
+        lost = sorted(v1_figures - v2_figures)
+        if lost:
+            detail += f"\n      figures lost: {lost}"
+        if second.grounding is not None and not second.grounding.ok:
+            detail += f"\n      grounding: {second.grounding.note()}"
+            for finding in getattr(second.grounding, "findings", [])[:5]:
+                detail += f"\n        {finding}"
+        detail += (f"\n      target before: {target_before[:200]}"
+                   f"\n      target after:  {target_after[:200]}")
+    else:
+        detail += f"; v1 intact, v2 written, {len(v2_figures)} figures traced"
+    if second.rejected_sections:
+        detail += (f"\n      the model also rewrote "
+                   f"{second.rejected_sections}; discarded by the scoped merge")
+
+    result = Outcome(check="scoped_edit", passed=not broken, calls=3,
+                     detail=detail)
     return _record(result, second, began)
+
+
+def _calculations():
+    from backend.playbook.fixtures import ecl_oracle as oracle
+
+    return list(oracle.headline().values())
 
 
 def a_seeded_thread_continues_live() -> Outcome:
@@ -418,7 +515,7 @@ def a_seeded_thread_continues_live() -> Outcome:
     from backend.playbook import repository as repo
     from backend.playbook import seed, service
 
-    began = time.time()
+    began = time.monotonic()
     try:
         with get_session() as session:
             default = repo.Scope(tenant="default")
@@ -452,7 +549,7 @@ def a_seeded_thread_continues_live() -> Outcome:
         calls=1,
         model_served=answer.model or "",
         request_ids=list(answer.request_ids or []),
-        latency_ms=int((time.time() - began) * 1000),
+        check_ms=int((time.monotonic() - began) * 1000),
         detail=f"origin={answer.origin}, requests={len(answer.request_ids or [])}"
                f", job={result.get('job_id')}")
 
@@ -466,7 +563,7 @@ def a_fresh_prompt_is_genuinely_answered() -> Outcome:
     from backend.db.engine import get_session
     from backend.playbook import service
 
-    began = time.time()
+    began = time.monotonic()
     question = ("Summarise, in exactly three sentences, what a credit "
                 "committee should ask about the movement in the attached "
                 "evidence. Do not state any figure you cannot support.")
@@ -501,7 +598,7 @@ def every_format_is_produced_and_reopens() -> Outcome:
     from backend.playbook import repository as repo
     from backend.playbook import service, store, validate
 
-    began = time.time()
+    began = time.monotonic()
     try:
         with get_session() as session:
             ws = _workspace(session, "Live check — formats")
@@ -602,6 +699,8 @@ ESTIMATED_CALLS = sum(c.calls for c in CHECKS)
 @dataclass
 class Suite:
     outcomes: list[Outcome] = field(default_factory=list)
+    #: The whole run, measured on the same clock as every check inside it.
+    suite_ms: int = 0
 
     @property
     def passed(self) -> bool:
@@ -613,6 +712,7 @@ class Suite:
 
     def to_dict(self) -> dict[str, Any]:
         return {"passed": self.passed, "calls": self.calls,
+                "suite_ms": self.suite_ms,
                 "outcomes": [o.to_dict() for o in self.outcomes]}
 
 
@@ -648,8 +748,11 @@ def run(check_id: str, *, on_progress: Callable[[str, str], None] | None = None
         on_progress("start", check_id)
     began = time.monotonic()
     outcome = _run_bounded(check_id, runner)
-    if not outcome.latency_ms:
-        outcome.latency_ms = int((time.monotonic() - began) * 1000)
+    # Only fills what the check itself did not measure. One clock, so this can
+    # never disagree with the check's own figure by more than the overhead
+    # between them.
+    if not outcome.check_ms:
+        outcome.check_ms = int((time.monotonic() - began) * 1000)
     if on_progress:
         on_progress("end", check_id)
     return outcome
@@ -668,6 +771,7 @@ def _run_bounded(check_id: str, runner: Callable[[], Outcome]) -> Outcome:
     """
     import threading
 
+    began = time.monotonic()
     box: dict[str, Outcome] = {}
 
     def work() -> None:
@@ -682,12 +786,15 @@ def _run_bounded(check_id: str, runner: Callable[[], Outcome]) -> Outcome:
     worker.start()
     worker.join(CHECK_TIMEOUT_SECONDS)
     if worker.is_alive():
+        # The REAL wait, not the constant. Reporting the ceiling as though it
+        # were a measurement is how a fabricated duration gets into a report.
+        waited = int((time.monotonic() - began) * 1000)
         return Outcome(
             check=check_id, passed=False, error_category="timeout",
-            latency_ms=int(CHECK_TIMEOUT_SECONDS * 1000),
-            detail=(f"still running after {CHECK_TIMEOUT_SECONDS:.0f}s, so the "
-                    "suite stopped waiting for it and carried on. It is not "
-                    "counted as a pass."))
+            check_ms=waited, abandoned=True,
+            detail=(f"still running after {waited / 1000:.1f}s, so the suite "
+                    "stopped waiting for it and carried on. The worker was "
+                    "abandoned, not stopped. It is not counted as a pass."))
     return box.get("outcome") or Outcome(
         check=check_id, passed=False,
         detail="the check returned nothing at all")
@@ -703,19 +810,23 @@ def run_some(check_ids: list[str], *,
     a typo that quietly runs nothing would read as success.
     """
     suite = Suite()
+    began = time.monotonic()
     for check_id in check_ids:
         suite.outcomes.append(run(check_id, on_progress=on_progress))
+    suite.suite_ms = int((time.monotonic() - began) * 1000)
     return suite
 
 
 def run_all(stop_early: bool = False, *,
             on_progress: Callable[[str, str], None] | None = None) -> Suite:
     suite = Suite()
+    began = time.monotonic()
     for check in CHECKS:
         outcome = run(check.id, on_progress=on_progress)
         suite.outcomes.append(outcome)
         if stop_early and not outcome.passed:
             break
+    suite.suite_ms = int((time.monotonic() - began) * 1000)
     return suite
 
 
