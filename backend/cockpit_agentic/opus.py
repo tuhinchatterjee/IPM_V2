@@ -253,6 +253,11 @@ class Conversation:
         self.messages: list[dict[str, Any]] = []
         self.turns: list[dict[str, Any]] = []
         self.counts: list[dict[str, Any]] = []
+        #: A hook the runtime sets for a repair turn: it is handed the fully
+        #: assembled request and may refuse it. Nothing else reads the outbound
+        #: request, and nothing may modify it -- this is an inspection point,
+        #: not an editing point.
+        self.before_dispatch: Any = None
         self._pending = ""
         self.counter = tokens_mod.Counter(provider=provider, model=model)
 
@@ -374,6 +379,13 @@ class Conversation:
         pending = self.messages + [{"role": "user", "content": user}]
         tool = {"name": tool_name, "description": description,
                 "input_schema": schema}
+
+        # Section 8.1: read the request that is about to go out, not a log of
+        # what was intended. A missing part of the effective context stops the
+        # dispatch -- asking Opus to repair code it cannot see would produce
+        # something shaped like a repair and arrived at by guessing.
+        if self.before_dispatch is not None:
+            self.before_dispatch(system_blocks, pending, [tool])
 
         counted = self.counter.fits(
             system=system_blocks, messages=pending, tools=[tool],

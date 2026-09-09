@@ -221,4 +221,134 @@ def summarize_attempt(step: ExecutionStep, error: sql_mod.SqlRejected
     }
 
 
-__all__ = ["REQUIRED_CONTEXT", "build", "summarize_attempt"]
+# ===================================================================
+# The outbound audit: sixteen things the repair request must contain
+# ===================================================================
+#
+# Section 8.1 says to inspect the SERIALIZED API request and prove the model
+# really receives the context, and the owner's pre-UAT instruction lists what
+# "the context" means item by item. Naming them in a document is not proof and
+# neither is naming them in `context_attached`, which is CreditProbe asserting
+# its own compliance. So the assembled request is read here, immediately before
+# it is dispatched, and a missing item stops the request.
+#
+# Each item is checked by looking for content that could only be there if the
+# item is there: the question's own words, a field name from the far end of the
+# dictionary, the failed code itself. A reference, an id or a hash does not
+# satisfy any of them -- which is the point.
+
+
+class IncompleteRepairContext(RuntimeError):
+    """The assembled repair request is missing part of the effective context.
+
+    Raised before dispatch rather than after. Sending a repair request without
+    the catalogue, or without the code that failed, asks Opus to author a fix
+    for something it cannot see -- and whatever came back would look like a
+    repair while being a guess.
+    """
+
+    def __init__(self, missing: list[str]) -> None:
+        self.missing = list(missing)
+        super().__init__(
+            "The outbound repair request does not carry: "
+            + ", ".join(f"{k} ({OUTBOUND_ITEMS[k]})" for k in missing))
+
+
+#: The sixteen, in the order they were specified.
+OUTBOUND_ITEMS: dict[str, str] = {
+    "original_question": "the question exactly as the user asked it",
+    "cleaned_question": "the faithful business request Sonnet produced",
+    "thread_context": "the rolling summary and recent exchanges",
+    "scope_and_filters": "the effective scope and the filters in force",
+    "field_dictionary_and_grain": "the complete authorized catalogue, with "
+                                  "grains",
+    "coverage_and_missingness": "the measured coverage of the release",
+    "functionality_decision": "the approved ownership decision",
+    "analysis_plan": "the plan currently being executed",
+    "failed_code": "the exact SQL or Python that failed",
+    "bound_parameters": "the parameters it was bound with",
+    "diagnostics": "the validator's or the runtime's own error",
+    "completed_results": "the intermediate results already obtained",
+    "previous_approaches": "what has already been tried and failed",
+    "submissions_remaining": "how many execution submissions are left",
+    "rounds_remaining": "how many analysis rounds are left",
+    "budgets_remaining": "the remaining calls, time, tokens and spend",
+}
+
+
+def outbound_expectations(*, packet: ExecutionFailurePacket,
+                          step: ExecutionStep,
+                          context_payload: dict[str, Any]) -> dict[
+                              str, list[str]]:
+    """What must be findable in the serialized request, and for which item.
+
+    Every probe is content, never a label. `"grain"` appearing as a key would
+    satisfy nothing; the grain of a specific relation appearing does.
+    """
+    request = context_payload.get("A_request") or {}
+    scope = context_payload.get("B_scope") or {}
+    thread = context_payload.get("C_thread") or {}
+    catalogue = context_payload.get("D_E_catalogue") or {}
+    coverage = context_payload.get("F_coverage") or {}
+
+    original = str(request.get("original_question") or "")
+    cleaned = str(request.get("business_request")
+                  or request.get("english_text") or "")
+
+    expectations: dict[str, list[str]] = {
+        "original_question": [original[:80]] if original else [],
+        "cleaned_question": [cleaned[:60]] if cleaned else [],
+        # A thread with nothing in it still has to be REPORTED as empty, or the
+        # continuation cannot tell "no history" from "history withheld".
+        "thread_context": [str(thread.get("rolling_summary")
+                               or thread.get("status") or "thread")[:60]],
+        "scope_and_filters": [str(scope.get("dataset_release_id") or "")],
+        # Two fields from opposite ends of the dictionary, and a grain. A hash
+        # of the catalogue satisfies none of them.
+        "field_dictionary_and_grain": ["pd_ttc_lifetime", "total_haircut",
+                                       F.GRAIN[F.FACILITY_QUARTER][:40]],
+        "coverage_and_missingness": [str(coverage.get("dataset_release_id")
+                                         or "coverage")[:40]],
+        "functionality_decision": [str(packet.plan_id)],
+        "analysis_plan": [str(packet.plan_id)],
+        "failed_code": [" ".join(str(step.code).split())[:120]],
+        "bound_parameters": ["parameters"],
+        "diagnostics": [str(packet.category), str(packet.message)[:60]],
+        "completed_results": ["completed_steps"],
+        "previous_approaches": ["previous_failed_approaches"],
+        "submissions_remaining": ["submissions_remaining"],
+        "rounds_remaining": ["analysis_rounds_remaining"],
+        "budgets_remaining": ["model_requests_remaining", "seconds_remaining",
+                              "tokens_remaining", "spend"],
+    }
+    return {key: [p for p in probes if p]
+            for key, probes in expectations.items()}
+
+
+def _comparable(text: Any) -> str:
+    """Collapse whitespace and drop escaping.
+
+    The failure packet is a JSON string nested inside the request's own JSON,
+    so a database error carrying double quotes arrives twice-escaped. Matching
+    on the raw bytes would report the diagnostic as absent while it is sitting
+    there in the request, which is the wrong kind of false alarm: it would
+    stop a repair that had everything it needed.
+    """
+    return " ".join(str(text).replace("\\", "").split())
+
+
+def audit_outbound(serialized: str,
+                   expectations: dict[str, list[str]]) -> list[str]:
+    """Which of the sixteen the request does not carry. Empty is the pass."""
+    flattened = _comparable(serialized)
+    missing: list[str] = []
+    for key in OUTBOUND_ITEMS:
+        probes = expectations.get(key) or []
+        if not probes or not all(_comparable(p) in flattened for p in probes):
+            missing.append(key)
+    return missing
+
+
+__all__ = ["IncompleteRepairContext", "OUTBOUND_ITEMS", "REQUIRED_CONTEXT",
+           "audit_outbound", "build", "outbound_expectations",
+           "summarize_attempt"]

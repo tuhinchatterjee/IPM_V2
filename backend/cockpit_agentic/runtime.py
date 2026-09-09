@@ -29,6 +29,7 @@ canned decomposition standing in for an unavailable model (sections 17 and 18).
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from dataclasses import dataclass, field
@@ -70,6 +71,7 @@ class Outcome:
     context: dict[str, Any] = field(default_factory=dict)
     tokens: dict[str, Any] = field(default_factory=dict)
     python_audit: list[dict[str, Any]] = field(default_factory=list)
+    repair_audits: list[dict[str, Any]] = field(default_factory=list)
     exchange: K.Exchange | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -88,6 +90,7 @@ class Outcome:
             "context": dict(self.context),
             "tokens": dict(self.tokens),
             "python_execution": list(self.python_audit),
+            "repair_context_audits": list(self.repair_audits),
         }
 
 
@@ -137,6 +140,9 @@ class Runtime:
         #: One record per sandboxed Python step: what was run, under which
         #: limits, with which guarantees, and how it ended. Never the data.
         self.python_audit: list[dict[str, Any]] = []
+        #: One record per repair dispatch: which of the sixteen required parts
+        #: of the effective context were found in the ACTUAL outbound request.
+        self.repair_audits: list[dict[str, Any]] = []
 
     # -- progress -------------------------------------------------------
 
@@ -504,8 +510,47 @@ class Runtime:
 
         # Back to PLANNING: only Opus may author the next candidate.
         self._advance(st.PLANNING, "returning the failure to the analyst")
-        response = opus_mod.repair(conversation, packet, plan=self.plan,
-                                   analysis_round=self.ledger.analysis_rounds)
+        expectations = failure_mod.outbound_expectations(
+            packet=packet, step=step,
+            context_payload=(self.context_packet.payload
+                             if self.context_packet else {}))
+        self.repair_audits.append({"submission": submission.submission_number,
+                                   "step_id": step.step_id,
+                                   "verified": [], "missing": []})
+
+        def inspect(system_blocks, messages, tools):
+            """Read the assembled request. Refuse it if the effective context
+            is not in it. This does not edit the request and cannot: it is
+            handed the assembled blocks and returns nothing."""
+            serialized = json.dumps(
+                {"system": system_blocks, "messages": messages,
+                 "tools": tools}, default=str)
+            missing = failure_mod.audit_outbound(serialized, expectations)
+            record = self.repair_audits[-1]
+            record["missing"] = missing
+            record["verified"] = [k for k in failure_mod.OUTBOUND_ITEMS
+                                  if k not in missing]
+            record["serialized_bytes"] = len(serialized)
+            if missing:
+                raise failure_mod.IncompleteRepairContext(missing)
+
+        conversation.before_dispatch = inspect
+        try:
+            response = opus_mod.repair(
+                conversation, packet, plan=self.plan,
+                analysis_round=self.ledger.analysis_rounds)
+        except failure_mod.IncompleteRepairContext as e:
+            # An application defect, and it stops the request. Continuing
+            # would send Opus a repair task without the material to do it,
+            # and take the answer that came back as if it were informed.
+            logger.error("Cockpit repair context incomplete: %s", e)
+            return self._failed(
+                "The analysis stopped because this application could not "
+                "assemble the complete context the failure needed. That is a "
+                "defect here, not a limit of the data or of the question.",
+                reason=K.INFRASTRUCTURE_ERROR)
+        finally:
+            conversation.before_dispatch = None
         self.plan = response["plan"] or self.plan
 
         if response["action"] == "ask_a_targeted_clarification":
@@ -694,6 +739,7 @@ class Runtime:
                      "turns": list(self.conversation.turns)}
                     if self.conversation is not None else {}),
             python_audit=list(self.python_audit),
+            repair_audits=list(self.repair_audits),
             exchange=exchange)
 
 
