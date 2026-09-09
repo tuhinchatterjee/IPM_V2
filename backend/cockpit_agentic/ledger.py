@@ -599,10 +599,18 @@ class Ledger:
                                     output_tokens=max_output_tokens)
             if cost is not None:
                 if self.spend_committed + cost > self.limits.spend_ceiling_usd:
+                    # Cents, like every other figure a person reads. The
+                    # sub-cent precision this used to print was real -- model
+                    # calls cost fractions of a cent -- but it bought nothing:
+                    # what an operator needs to know is that the ceiling is
+                    # reached, and by how much the remaining allowance falls
+                    # short of one more call.
                     self.stop(STOP_SPEND,
-                              f"the next call would commit "
-                              f"${self.spend_committed + cost:.4f} against a "
-                              f"${self.limits.spend_ceiling_usd:.2f} ceiling")
+                              f"the next call needs about "
+                              f"${cost:.2f} and only "
+                              f"${max(0.0, self.limits.spend_ceiling_usd - self.spend_committed):.2f} "
+                              f"of the ${self.limits.spend_ceiling_usd:.2f} "
+                              f"ceiling is left")
                     raise BudgetExceeded(STOP_SPEND, self.stop_detail)
 
             call_id = f"call-{len(self.calls) + 1:02d}"
