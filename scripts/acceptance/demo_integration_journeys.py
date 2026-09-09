@@ -208,8 +208,46 @@ SHELL = ("/", "/workspace", "/messages", "/projects", "/investigations",
          "/agent-operations", "/ai-studio", "/engine-builder")
 
 
+#: What a click could visibly do, as one value to compare before and after.
+#: URL and rendered text are the obvious two. Form VALUES are the one that was
+#: missing and mattered: a suggestion chip that writes the question into the
+#: composer changes no text and navigates nowhere, and is the most common kind
+#: of button on this product's screens. `html` catches a panel that opens with
+#: no text of its own.
+_EFFECT = """() => JSON.stringify({
+  values: [...document.querySelectorAll('input,textarea,select')]
+            .map(e => (e.value || '').slice(0, 80)),
+  html: document.body.innerHTML.length,
+  dialogs: document.querySelectorAll('[role=dialog],dialog[open]').length,
+})"""
+
+
+#: Every governed API call the page has made since the browser opened. A
+#: Refresh button is the case this exists for: it re-reads
+#: `GET /whatif/landing`, the figures come back the same because nothing has
+#: changed, and the rendered page is character-for-character what it was. It
+#: did its job. Judging it on the DOM alone calls it dead.
+_CALLS: list[str] = []
+
+
+def watch_calls(page: Any) -> None:
+    """Record the API calls the page makes, once per browser page."""
+    page.on("request",
+            lambda r: _CALLS.append(r.url) if "/api/" in r.url else None)
+
+
+def _effect_of(page: Any) -> tuple[str, str, str, int]:
+    """(url, rendered text, form-and-shape fingerprint, API calls made)."""
+    try:
+        shape = page.evaluate(_EFFECT)
+    except Exception:                                           # noqa: BLE001
+        shape = ""
+    return page.url, text_of(page), shape, len(_CALLS)
+
+
 def audit_controls(page: Any, report: Report, *, journey: str, path: str,
-                   seen_shell: set[str]) -> tuple[int, int, int]:
+                   seen_shell: set[str],
+                   shell_queue: list[tuple[str, str]]) -> tuple[int, int, dict]:
     """Prove the controls on this screen are wired to something.
 
     Two kinds, judged two ways, because they fail differently.
@@ -221,13 +259,22 @@ def audit_controls(page: Any, report: Report, *, journey: str, path: str,
 
     A BUTTON has to be pressed — there is no way to see from the outside
     whether a handler exists. So buttons are pressed, and one is DEAD when
-    pressing it changes nothing a user could see: no navigation, no dialog,
-    no change in the rendered text. Weaker than "does the right thing";
-    much stronger than "renders"; and it is the definition that catches a
-    control wired to nothing, which is what a demonstration trips over.
+    pressing it changes nothing a user could see. What counts as "seen" is
+    `_effect_of` below, and getting that wrong is how an audit reports a
+    working control as broken: the first version compared the rendered TEXT
+    and the URL, and five prompt buttons that fill the composer — on What-If,
+    Lenses and the Playbook — came back dead, because an input's value is
+    neither of those things.
     """
     goto(page, path)
-    wired = dead = skipped = 0
+    wired = dead = 0
+    # Skips are counted BY REASON. A single "skipped" total hides the one
+    # category that is not benign: a button whose click raised. "Disabled" and
+    # "destructive" are decisions; "the click threw" is a control that may not
+    # work, and lumping the three together is how it stays invisible.
+    why: dict[str, int] = {"disabled": 0, "destructive": 0, "unnamed": 0,
+                           "long_label": 0, "needs_panel": 0,
+                           "already_selected": 0, "click_failed": 0}
 
     for link in page.locator("a[href]:visible").all():
         try:
@@ -249,43 +296,214 @@ def audit_controls(page: Any, report: Report, *, journey: str, path: str,
             continue
         wired += 1
 
-    for button in page.locator("button:visible").all():
+    buttons = page.locator("button:visible")
+    for index in range(buttons.count()):
+        button = buttons.nth(index)
         try:
             if not button.is_enabled():
-                skipped += 1
+                why["disabled"] += 1
                 continue
             label = (button.inner_text(timeout=1_500) or "").strip()
+            if not label:
+                # An icon-only control still has a name — that is what
+                # `aria-label` is for, and a screen reader reads it. Skipping
+                # every button without visible TEXT left 151 controls on the
+                # demo path unexercised, most of them the icon buttons on
+                # Investigations and Scorecard Validation.
+                label = (button.get_attribute("aria-label")
+                         or button.get_attribute("title") or "").strip()
         except Exception:                                       # noqa: BLE001
-            skipped += 1
+            why["unnamed"] += 1
             continue
-        if not label or len(label) > 48:
-            skipped += 1
+        if not label:
+            why["unnamed"] += 1
+            continue
+        if len(label) > 48:
+            # A whole card rendered as a button. Its accessible name is a
+            # paragraph, which no locator can match on the clean-load recheck,
+            # so it is counted apart rather than folded into "unnamed".
+            why["long_label"] += 1
             continue
         if any(word in label.lower() for word in DESTRUCTIVE):
-            skipped += 1
+            why["destructive"] += 1
             continue
-        before_url, before_text = page.url, text_of(page)
+        try:
+            shell_id = (button.get_attribute("aria-label") or "").strip()
+        except Exception:                                       # noqa: BLE001
+            shell_id = ""
+        if shell_id:
+            # The shell renders on every screen, so its controls would
+            # otherwise be pressed eleven times each. The notifications bell
+            # is a TOGGLE: press it on the second screen and it closes the
+            # panel the first screen opened, landing back on the fingerprint
+            # it started from, and the audit calls a working control dead.
+            # Shell LINKS have been audited once since this file was written;
+            # shell buttons are the same problem.
+            # Keyed on the name up to its first comma, because the rest of a
+            # shell control's accessible name is STATE. The bell is called
+            # "Notifications, 1 unread" on the first screen; pressing it marks
+            # the notification read, and on the next screen it is called
+            # "Notifications". Key on the whole string and the rule that
+            # exists to audit a shell control once audits it eleven times —
+            # the second press closing the panel the first one opened.
+            key = "button::" + shell_id.split(",")[0].strip().lower()
+            if key not in seen_shell:
+                seen_shell.add(key)
+                shell_queue.append((path, label))
+            # Pressed at the END of the audit, never here. "Collapse
+            # navigation" is a shell control like any other and it works —
+            # but pressing it while auditing the first screen leaves every
+            # LATER screen being audited with the sidebar collapsed, and in
+            # that layout the notifications bell is unreachable. A control
+            # that changes the shell has to be exercised where its effect
+            # cannot be inherited by the next page.
+            continue
+        try:
+            if (button.get_attribute("aria-selected") == "true"
+                    or button.get_attribute("aria-pressed") == "true"):
+                # The tab already open, the sort already applied. Clicking it
+                # changes nothing BECAUSE it is already in that state, which
+                # is correct behaviour and not a dead control. Verified by
+                # hand on `/` ("All", role=tab, aria-selected=true) and
+                # `/borrower-360` ("Highest PD"): press a sibling and the
+                # same control responds.
+                why["already_selected"] += 1
+                continue
+        except Exception:                                       # noqa: BLE001
+            pass
+        before = _effect_of(page)
         try:
             button.click(timeout=3_000)
-            page.wait_for_timeout(400)
+            page.wait_for_timeout(600)
         except Exception:                                       # noqa: BLE001
-            skipped += 1
-            continue
-        after_url, after_text = page.url, text_of(page)
-        if after_url != before_url:
+            # An audit CHANGES the page as it goes: a click two buttons ago
+            # opened a panel or a popover, and it is now over this control.
+            # A timeout in that state says nothing about the control, so
+            # recover in two steps. First dismiss whatever is on top and try
+            # again WHERE IT STANDS — that keeps controls that only exist
+            # inside an opened panel reachable.
+            recovered = False
+            try:
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(400)
+                before = _effect_of(page)
+                button.click(timeout=10_000)
+                page.wait_for_timeout(600)
+                recovered = True
+            except Exception:                                   # noqa: BLE001
+                recovered = False
+            if not recovered:
+                # Then, and only then, from a clean load, found by its own
+                # name rather than by where it used to sit. A control that a
+                # fresh load does not SHOW lives inside a panel this audit
+                # had opened; it cannot be judged from here, and saying so is
+                # better than timing out against a hidden element for fifteen
+                # seconds and calling that a defect.
+                goto(page, path)
+                found = page.get_by_role("button", name=label, exact=True)
+                if not found.count() or not found.first.is_visible():
+                    why["needs_panel"] += 1
+                    continue
+                try:
+                    button = found.first
+                    before = _effect_of(page)
+                    button.click(timeout=15_000)
+                    page.wait_for_timeout(600)
+                except Exception as e:                          # noqa: BLE001
+                    why["click_failed"] += 1
+                    report.add(journey, f"button {label!r} accepts a click",
+                               False,
+                               f"{type(e).__name__}: "
+                               f"{str(e).splitlines()[0][:120]}")
+                    continue
+        after = _effect_of(page)
+        if after[0] != before[0]:
             wired += 1
             goto(page, path)
             continue
-        if after_text == before_text:
-            dead += 1
-            report.add(journey, f"button {label!r} does something", False,
-                       "nothing changed: no navigation, no dialog, no text")
-        else:
+        if after != before:
             wired += 1
+            continue
 
+        # Looked dead. Do not report it from here: this pass walks the page's
+        # buttons BY POSITION and every click it makes moves them, so by the
+        # time it reaches a toggle the toggle may already be open — pressing
+        # it then closes it and lands back on exactly the fingerprint it
+        # started from. That is how the notifications bell, which opens a
+        # panel of 1,600 characters, was reported dead on four screens.
+        #
+        # So a dead verdict is only ever recorded after the control has been
+        # pressed once more from a CLEAN load of the page, found by its own
+        # label rather than by where it used to sit.
+        try:
+            goto(page, path)
+            again = page.get_by_role("button", name=label, exact=True)
+            if not again.count() or not again.first.is_visible():
+                why["needs_panel"] += 1
+                continue
+            control = again.first
+            clean_before = _effect_of(page)
+            control.click(timeout=15_000)
+            page.wait_for_timeout(900)
+            clean_after = _effect_of(page)
+        except Exception as e:                                  # noqa: BLE001
+            why["click_failed"] += 1
+            report.add(journey, f"button {label!r} accepts a click", False,
+                       f"{type(e).__name__}: {str(e).splitlines()[0][:120]}")
+            continue
+        if clean_after != clean_before:
+            wired += 1
+            goto(page, path)
+            continue
+
+        # Still nothing. One more question before calling it dead: is it the
+        # option that is ALREADY chosen? A sort chip or a filter tab that is
+        # currently applied does nothing when pressed, correctly, and most of
+        # them say so only in a CSS class that no attribute exposes. So press
+        # a sibling in the same group and press this one again. A control
+        # that answers THAT is a selected control, not a dead one.
+        try:
+            siblings = [t for t in control.evaluate(
+                """e => [...(e.parentElement ? e.parentElement.children : [])]
+                         .filter(c => c.tagName === 'BUTTON')
+                         .map(c => (c.textContent || '').trim())""")
+                if t and t != label]
+            revived = False
+            for other in siblings[:3]:
+                found = page.get_by_role("button", name=other, exact=True)
+                if not found.count():
+                    continue
+                found.first.click(timeout=10_000)
+                page.wait_for_timeout(900)
+                back = page.get_by_role("button", name=label, exact=True)
+                if not back.count():
+                    continue
+                middle = _effect_of(page)
+                back.first.click(timeout=10_000)
+                page.wait_for_timeout(900)
+                if _effect_of(page) != middle:
+                    revived = True
+                    break
+        except Exception:                                       # noqa: BLE001
+            revived = False
+        if revived:
+            why["already_selected"] += 1
+            goto(page, path)
+            continue
+
+        dead += 1
+        report.add(journey, f"button {label!r} does something", False,
+                   "pressed from a clean load and again after a sibling in "
+                   "its own group: no navigation, no text, no form value, no "
+                   "dialog, no API call, no change in the rendered DOM")
+        goto(page, path)
+
+    skipped = sum(why.values())
     report.add(journey, f"{path}: {wired} control(s) wired, {dead} dead, "
-               f"{skipped} skipped (destructive or not clickable)", dead == 0)
-    return wired, dead, skipped
+               f"{skipped} skipped ("
+               + ", ".join(f"{n} {k}" for k, n in why.items() if n) + ")",
+               dead == 0 and why["click_failed"] == 0)
+    return wired, dead, why
 
 
 # ------------------------------------------------------------------ journeys
@@ -444,6 +662,7 @@ def main(argv: list[str] | None = None) -> int:
         context = browser.new_context(viewport={"width": 1440, "height": 900})
         page = context.new_page()
         page.set_default_timeout(NORMAL_MS)
+        watch_calls(page)
         try:
             if not journey_sign_in(page, report, shots):
                 print("\nFAIL  sign in did not succeed; nothing else was run.")
@@ -479,21 +698,60 @@ def main(argv: list[str] | None = None) -> int:
             journey_module(page, report, shots, name="Analysis Studio",
                            path="/studio", expect=[], shot="13-studio")
             report.journeys.append("control audit")
-            totals = [0, 0, 0]
+            wired = dead = 0
+            why: dict[str, int] = {"disabled": 0, "destructive": 0,
+                                   "unnamed": 0, "long_label": 0,
+                                   "needs_panel": 0, "already_selected": 0,
+                                   "click_failed": 0}
             seen_shell: set[str] = set()
+            shell_queue: list[tuple[str, str]] = []
             for path in ("/", "/early-warning", "/what-if", "/lenses",
                          "/playbook", "/projects", "/scorecard-validation",
                          "/borrower-360", "/data-builder", "/investigations",
                          "/studio"):
-                counts = audit_controls(page, report,
-                                        journey="control audit", path=path,
-                                        seen_shell=seen_shell)
-                totals = [a + b for a, b in zip(totals, counts, strict=True)]
+                page_wired, page_dead, page_why = audit_controls(
+                    page, report, journey="control audit", path=path,
+                    seen_shell=seen_shell, shell_queue=shell_queue)
+                wired += page_wired
+                dead += page_dead
+                for reason, n in page_why.items():
+                    why[reason] += n
+            # The shell's own controls, each pressed once, each from a
+            # fresh load of the screen it was found on.
+            for path, label in shell_queue:
+                goto(page, path)
+                found = page.get_by_role("button", name=label, exact=True)
+                if not found.count():
+                    why["long_label"] += 1
+                    continue
+                before = _effect_of(page)
+                try:
+                    found.first.click(timeout=15_000)
+                    page.wait_for_timeout(900)
+                except Exception as e:                          # noqa: BLE001
+                    why["click_failed"] += 1
+                    report.add("control audit",
+                               f"shell button {label!r} accepts a click",
+                               False, f"{type(e).__name__}: "
+                                      f"{str(e).splitlines()[0][:120]}")
+                    continue
+                if _effect_of(page) != before:
+                    wired += 1
+                else:
+                    dead += 1
+                    report.add("control audit",
+                               f"shell button {label!r} does something", False,
+                               "pressed from a clean load of the screen it "
+                               "appears on: nothing changed")
+
+            skipped = sum(why.values())
             report.add("control audit",
-                       f"TOTAL {totals[0]} control(s) wired, {totals[1]} "
-                       f"dead, {totals[2]} skipped", totals[1] == 0)
-            report.controls = {"wired": totals[0], "dead": totals[1],
-                               "skipped": totals[2]}
+                       f"TOTAL {wired} control(s) wired, {dead} dead, "
+                       f"{skipped} skipped ("
+                       + ", ".join(f"{n} {k}" for k, n in why.items() if n)
+                       + ")", dead == 0 and why["click_failed"] == 0)
+            report.controls = {"wired": wired, "dead": dead,
+                               "skipped": skipped, "skipped_by_reason": why}
 
             journey_playbook_export(page, report, shots)
             journey_redirects(page, report)

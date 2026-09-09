@@ -37,11 +37,20 @@
     "docs/demo_screenshots/09-playbook-library.png"
   ],
   "control_audit": {
-    "wired": 414,
+    "wired": 467,
     "dead": 0,
-    "skipped": 210
+    "skipped": 110,
+    "skipped_by_reason": {
+      "disabled": 3,
+      "destructive": 1,
+      "unnamed": 5,
+      "long_label": 99,
+      "needs_panel": 0,
+      "already_selected": 2,
+      "click_failed": 0
+    }
   },
-  "duration_seconds": 258.9,
+  "duration_seconds": 355.9,
   "result": "PASS",
   "failures": []
 }
