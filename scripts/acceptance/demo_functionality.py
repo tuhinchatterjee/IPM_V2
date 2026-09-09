@@ -340,6 +340,18 @@ def main(argv: list[str] | None = None) -> int:
     catalogue = (tests or {}).get("tests") or []
     r.add("the governed test catalogue is published", len(catalogue) > 0,
           f"{len(catalogue)} test(s)")
+    # Each of the three, opened. SME included: the model registry ROW is
+    # missing (the one deferred carry-forward item) and that does not stop
+    # SME validation, which is worth knowing before somebody assumes it does.
+    for model in ((overview or {}).get("scorecards") or []):
+        mid = model["model_id"]
+        status, opened, _ = c.call(f"/scorecard-validation/models/{mid}")
+        _, periods, _ = c.call(f"/scorecard-validation/models/{mid}/periods")
+        r.add(f"{model['scorecard_type']} opens with its specification "
+              f"and periods",
+              status == 200 and bool((opened or {}).get("binned_variables")),
+              f"{model['name']}, "
+              f"{len((periods or {}).get('periods') or [])} period(s)")
 
     # ---------------------------------------------------------- Data Builder
     r.head("Data Builder")

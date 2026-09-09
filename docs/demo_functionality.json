@@ -283,6 +283,24 @@
       "detail": "48 test(s)"
     },
     {
+      "section": "Scorecard Validation",
+      "check": "APPLICATION opens with its specification and periods",
+      "ok": true,
+      "detail": "Retail Application Scorecard, 31 period(s)"
+    },
+    {
+      "section": "Scorecard Validation",
+      "check": "BEHAVIORAL opens with its specification and periods",
+      "ok": true,
+      "detail": "Retail Behaviour Scorecard, 31 period(s)"
+    },
+    {
+      "section": "Scorecard Validation",
+      "check": "SME opens with its specification and periods",
+      "ok": true,
+      "detail": "Saudi SME Scorecard, 36 period(s)"
+    },
+    {
       "section": "Data Builder",
       "check": "the governed catalogue is registered",
       "ok": true,
@@ -370,7 +388,7 @@
       "section": "Downloads",
       "check": "the Early Warning portfolio workbook downloads",
       "ok": true,
-      "detail": "130,444 bytes"
+      "detail": "130,443 bytes"
     },
     {
       "section": "Downloads",
@@ -421,9 +439,9 @@
       "detail": "HTTP 200"
     }
   ],
-  "check_count": 70,
-  "passed": 70,
+  "check_count": 73,
+  "passed": 73,
   "failed": 0,
-  "duration_seconds": 4.5,
+  "duration_seconds": 4.9,
   "result": "PASS"
 }

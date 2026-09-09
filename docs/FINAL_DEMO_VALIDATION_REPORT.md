@@ -113,7 +113,7 @@ limitation and the link back. Proven in the browser: the library lists it.
 | **Lenses** | Working | 9 lenses installed; a lens opens with its definition |
 | **Playbook** | Working, both halves | 3 seeded workspaces; export library with all five modules; committee half answers; one route tree, zero path collisions |
 | **Project Planner** | Working | Seeded delivery plan opens with its workstreams and tasks |
-| **Scorecard Validation** | Working | All three scorecards offered; 48 governed tests published |
+| **Scorecard Validation** | Working, all three | 48 governed tests published; Application (31 periods), Behavioral (31) and **SME (36)** each open with their specification and binned variables |
 | **Borrower 360** | Working | A canonical borrower is found by id |
 | **Data Builder** | Working | 84 governed datasets registered — including the three Early Warning ones and `corporate_ifrs9_facility`; 10 business domains; governed relationships declared |
 | **Investigations** | Working | 47 investigations listed; one opens on its analysis |
@@ -168,7 +168,7 @@ Per screen: `/` 30 · `/early-warning` 4 · `/what-if` 10 · `/lenses` 14 ·
 
 ### Functional depth — PASS
 
-`scripts/acceptance/demo_functionality.py`. **70 checks, 70 passed.** A route
+`scripts/acceptance/demo_functionality.py`. **73 checks, 73 passed.** A route
 returning 200 proves a page exists; these ask whether the thing works.
 
 | | |
@@ -266,6 +266,12 @@ false-ready bootstrap; one Alembic head; the display contract.
 `registry.seed()` loops over `(APPLICATION, BEHAVIORAL)` while `models.py`
 points at `registry_key="SME"`. It is on the feature branch's own defect list
 and is post-demo work under the scope control.
+
+**It does not block SME validation, and that was checked rather than assumed.**
+`sme_champion` opens over HTTP with its approved specification, its binned
+variables and 36 validation periods, and is offered beside the two retail
+scorecards in the overview. The missing row is a governance-registry gap, not a
+broken module — worth knowing before somebody assumes SME is unusable.
 
 ---
 
