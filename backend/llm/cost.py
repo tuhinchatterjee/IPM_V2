@@ -230,6 +230,21 @@ ROLE_CLASS: dict[str, str] = {
     "investigator": "C_COMPLEX",
     "analyst": "C_COMPLEX",
     "critic": "D_CRITIC",
+    # The three roles the feature branches added. None of them edited this
+    # file, so each arrived in the catalogue with no class and would have had
+    # its cost land wherever the default happened to be — which is the exact
+    # quiet reclassification the comment above forbids. Each is placed by the
+    # branch's own stated intent rather than by guess:
+    #   author            falls back to ANALYST in roles.py, because writing a
+    #                     committee paper is closer to credit judgement than to
+    #                     routing. It belongs in the analyst's class.
+    #   cockpit_preprocess is documented as "a fast, cheap model does this
+    #                     well" — it normalises a request and computes nothing.
+    #   cockpit_reasoning  owns the plan, the method, every repair and the
+    #                     final interpretation: "the job worth paying for".
+    "author": "C_COMPLEX",
+    "cockpit_preprocess": "B_ROUTINE",
+    "cockpit_reasoning": "C_COMPLEX",
 }
 
 

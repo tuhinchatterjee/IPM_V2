@@ -136,11 +136,13 @@ _FALLBACK_ROLE: dict[str, str] = {
     # AI_TRANSLATION_MODEL blank should get that model rather than the shared
     # default, which on a differentiated configuration is usually the
     # expensive one.
-    TRANSLATION: ROUTER,    # A deployment that has not configured an authoring model gets the one
+    TRANSLATION: ROUTER,
+    # A deployment that has not configured an authoring model gets the one
     # already trusted with credit judgement rather than the shared default,
     # because writing a committee paper is closer to that job than to
     # routing. Recorded as inherited, so Settings shows it was not chosen.
-    AUTHOR: ANALYST,}
+    AUTHOR: ANALYST,
+}
 
 #: Roles that must be configured explicitly or not at all. No fallback to
 #: another role, none to AI_MODEL, none to the provider's default.
@@ -182,9 +184,11 @@ PURPOSE: dict[str, str] = {
                        "the question at all, then owns the analysis plan, the "
                        "method, every query candidate including every repair, "
                        "the sufficiency review and the final interpretation. "
-                       "The job worth paying for.",    AUTHOR: "Writes and revises Playbook's reports and presentations from "
+                       "The job worth paying for.",
+    AUTHOR: "Writes and revises Playbook's reports and presentations from "
             "chosen evidence, and drives the document tools that render them. "
-            "It supplies the words, never the figures.",}
+            "It supplies the words, never the figures.",
+}
 
 #: Effort levels a provider may be asked for. Ordered.
 EFFORTS: tuple[str, ...] = ("low", "medium", "high")
