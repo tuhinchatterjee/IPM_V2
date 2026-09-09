@@ -21,6 +21,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 
+import { ExportToPlaybook } from "@/components/exports/export-to-playbook";
 import { BackLink } from "@/components/layout/back-link";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ import type {
   WhatIfState,
   WhatIfAnalysis,
 } from "@/lib/api";
+import { fromWhatIfResult } from "@/lib/playbook-export";
 import { api } from "@/lib/api";
 import { AnalysisAnswer } from "@/components/whatif/analysis-table";
 
@@ -1094,6 +1096,15 @@ export default function WhatIfThreadPage() {
               >
                 Change ECL methodology
               </Button>
+              {/* A What-If result is a COMPARISON, so the export carries the
+                  baseline beside the scenario, the shocks that produced it and
+                  the methodology that measured it. A pack quoting the stressed
+                  figure alone would be indistinguishable from a reported one,
+                  which is the confusion the payload is built to prevent. */}
+              <ExportToPlaybook
+                compact
+                build={() => fromWhatIfResult({ result: last.result })}
+              />
               <span className="text-[11px] text-text-muted">
                 Baseline {money(last.result.context?.baseline_ecl)} → What-If{" "}
                 {money(last.result.context?.whatif_ecl)} ({signed(last.result.context?.percentage_change)})

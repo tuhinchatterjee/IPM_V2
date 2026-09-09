@@ -409,3 +409,226 @@ export function fromScorecardValidation(input: {
     insight: input.narrative.split(/(?<=[.!?])\s+/)[0] ?? "",
   };
 }
+
+/**
+ * A completed What-If result, as a Playbook export.
+ *
+ * The one thing this builder is careful about: a What-If result is a
+ * COMPARISON, and an export carrying only the stressed figure would be
+ * indistinguishable in a committee pack from a reported one. So every amount
+ * goes out as a labelled pair — baseline beside scenario beside the movement —
+ * the narrative says which is which in words, and the limitation saying it is
+ * conditional is not optional and not removable.
+ *
+ * The scenario definition travels with it for the same reason. "ECL rises to
+ * SAR 1.2bn" without what was assumed is a figure nobody can check, so the
+ * shocks, the population they were applied to, the staging criteria, the ECL
+ * methodology and the model version are all part of the claim rather than
+ * decoration around it.
+ */
+export function fromWhatIfResult(input: {
+  result: {
+    state?: { scenario?: string; methodology?: string | null;
+      // `interpreted` is the phrase the product showed the user for this
+      // step, which is what a pack should carry — not the raw instruction
+      // they typed and not the machine `kind`.
+      steps?: { label?: string; kind?: string; interpreted?: string;
+        enabled?: boolean }[] };
+    context?: {
+      period?: string; currency?: string; scenario?: string;
+      population?: string; population_count?: number; dataset?: string;
+      grain?: string; staging_version?: string; staging_note?: string;
+    };
+    summary?: Record<string, number | string>;
+    steps?: { step: string; detail: string; affected: number }[];
+    // The attribution BRIDGE: which driver moved the ECL and by how much,
+    // plus the part the drivers do not explain. Carried whole, because a
+    // bridge missing its residual does not add up and a pack reader will try.
+    attribution?: {
+      available?: boolean; why?: string; method?: string; currency?: string;
+      drivers?: { key: string; label: string; effect: number;
+        share_pct: number; borrowers_moved: number }[];
+      model_adjustment?: { label: string; effect: number; note?: string;
+        material?: boolean };
+    } | null;
+    by_rating?: Record<string, unknown>[];
+    rating_movement?: { moved: number; note: string } | null;
+    stage_movement?: { moved: number; deteriorated: number;
+      cured: number } | null;
+    interpretation?: { headline?: string; statement?: string;
+      paragraphs?: string[]; findings?: string[];
+      written_by?: string; verified?: boolean } | null;
+    ml?: { model_version?: string } | null;
+    warnings?: string[];
+    notes?: string[];
+    run_id?: string;
+    run_version?: string;
+  };
+  excelUrl?: string;
+}): PbExportRequest {
+  const r = input.result;
+  const s = r.summary ?? {};
+  const context = r.context ?? {};
+  const currency = String(context.currency || s.currency || "SAR");
+  const period = String(context.period || s.period || "");
+  const scenario = String(context.scenario || s.scenario
+    || r.state?.scenario || "Scenario");
+  const methodology = r.state?.methodology === "ml"
+    ? "ML model (XGBoost)" : "Delta model";
+
+  const num = (key: string): number => {
+    const value = s[key];
+    return typeof value === "number" ? value : Number(value ?? 0);
+  };
+  const money = (n: number) =>
+    `${currency} ${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+
+  const baseline = num("baseline_ecl");
+  const stressed = num("stressed_ecl");
+  const delta = num("incremental_ecl");
+  const deltaPct = num("incremental_ecl_pct");
+
+  const shocks = (r.state?.steps ?? [])
+    .filter((x) => x.enabled !== false)
+    .map((x) => x.interpreted || x.label || x.kind || "")
+    .filter(Boolean);
+
+  const reading = r.interpretation;
+  const narrative = [
+    `${scenario} applied to ${context.population || "the whole book"} at `
+    + `${period}, over `
+    + `${Number(context.population_count ?? num("borrowers")).toLocaleString()}`
+    + ` borrower(s), measured with the ${methodology}.`,
+    `ECL moves from ${money(baseline)} baseline to ${money(stressed)} under `
+    + `the scenario — ${delta >= 0 ? "an increase" : "a decrease"} of `
+    + `${money(Math.abs(delta))}, ${deltaPct.toFixed(2)}%. Coverage moves `
+    + `from ${num("baseline_coverage_pct").toFixed(2)}% to `
+    + `${num("stressed_coverage_pct").toFixed(2)}%.`,
+    `${num("stage_2_migrations").toLocaleString()} borrower(s) migrate into `
+    + `Stage 2 and ${num("stage_3_migrations").toLocaleString()} into Stage 3; `
+    + `${num("downgraded").toLocaleString()} are downgraded.`,
+    shocks.length ? `Shocks applied: ${shocks.join("; ")}.` : "",
+    reading?.headline ?? "",
+    ...(reading?.paragraphs ?? []),
+    reading?.statement ?? "",
+    // The sentence that stops a scenario being read as a reported figure.
+    "This is a What-If measurement against a stated scenario. The baseline is "
+    + "the reported book; every other figure here is conditional on the "
+    + "assumptions above and is not a reported IFRS 9 outcome.",
+  ].filter(Boolean).join("\n\n");
+
+  const tables: PbTable[] = [
+    {
+      id: "whatif_movement",
+      title: "Baseline against scenario",
+      columns: ["Measure", "Baseline", "Scenario", "Change"],
+      rows: [
+        ["ECL", baseline, stressed, delta],
+        ["EAD", num("baseline_ead"), num("stressed_ead"),
+          num("stressed_ead") - num("baseline_ead")],
+        ["Coverage %", num("baseline_coverage_pct"),
+          num("stressed_coverage_pct"),
+          num("stressed_coverage_pct") - num("baseline_coverage_pct")],
+      ],
+      units: { Baseline: currency, Scenario: currency, Change: currency },
+      precision: {},
+    },
+    {
+      id: "whatif_impacts",
+      title: "Stage, rating and exposure impacts",
+      columns: ["Impact", "Borrowers"],
+      rows: [
+        ["Migrated to Stage 2", num("stage_2_migrations")],
+        ["Migrated to Stage 3", num("stage_3_migrations")],
+        ["Downgraded", num("downgraded")],
+        ["Higher ECL", num("borrowers_with_higher_ecl")],
+        ["Collateral shortfalls", num("collateral_shortfalls")],
+        ["Covenant breaches", num("covenant_breaches")],
+      ],
+      units: {},
+      precision: {},
+    },
+  ];
+
+  const drivers = r.attribution?.drivers ?? [];
+  if (r.attribution?.available && drivers.length) {
+    const rows: unknown[][] = drivers.map((d) =>
+      [d.label, d.effect, d.share_pct, d.borrowers_moved]);
+    // The residual belongs in the same table as the drivers or the bridge
+    // does not reconcile on the page it is read on.
+    const residual = r.attribution.model_adjustment;
+    if (residual) {
+      rows.push([residual.label, residual.effect, null, null]);
+    }
+    tables.push({
+      id: "whatif_attribution",
+      title: "What the movement is made of",
+      columns: ["Driver", "Effect", "Share %", "Borrowers moved"],
+      rows,
+      units: { Effect: r.attribution.currency || currency },
+      precision: {},
+    });
+  }
+  if (r.steps?.length) {
+    tables.push({
+      id: "whatif_steps",
+      title: "How the scenario was applied",
+      columns: ["Step", "Detail", "Affected"],
+      rows: r.steps.map((x) => [x.step, x.detail, x.affected]),
+      units: {},
+      precision: {},
+    });
+  }
+
+  return {
+    source_module: "what_if",
+    title: `What-If: ${scenario} — ${period}`.slice(0, 200),
+    question: `What happens to ECL under ${scenario} at ${period}?`,
+    narrative,
+    tables,
+    scope: {
+      reporting_period: period,
+      scenario,
+      shocks,
+      population: context.population ?? "",
+      population_count: Number(context.population_count ?? num("borrowers")),
+      dataset: context.dataset ?? "",
+      grain: context.grain ?? "",
+      staging_version: context.staging_version ?? "",
+      methodology,
+      model_version: r.ml?.model_version ?? "",
+      run_version: r.run_version ?? "",
+      currency,
+      baseline_ecl: baseline,
+      scenario_ecl: stressed,
+      incremental_ecl: delta,
+      incremental_ecl_pct: deltaPct,
+      stage_2_migrations: num("stage_2_migrations"),
+      stage_3_migrations: num("stage_3_migrations"),
+      downgraded: num("downgraded"),
+      interpretation_written_by: reading?.written_by ?? "",
+      interpretation_verified: Boolean(reading?.verified),
+    },
+    limitations: [
+      "A What-If result is conditional on its scenario. It is not a reported "
+      + "IFRS 9 outcome and must not be presented as one.",
+      ...(context.staging_note ? [String(context.staging_note)] : []),
+      ...(r.warnings ?? []),
+      ...(r.notes ?? []),
+    ],
+    source_ref: {
+      run_id: r.run_id ?? "",
+      run_version: r.run_version ?? "",
+      scenario,
+      methodology,
+      model_version: r.ml?.model_version ?? "",
+      link: "/what-if/thread",
+      ...(input.excelUrl ? { detailed_excel: input.excelUrl } : {}),
+    },
+    reporting_period: period,
+    report_family: "what_if_scenario",
+    insight:
+      `${scenario}: ECL ${delta >= 0 ? "up" : "down"} `
+      + `${money(Math.abs(delta))} (${deltaPct.toFixed(2)}%) at ${period}.`,
+  };
+}

@@ -51,12 +51,13 @@ SOURCE_MODULES: tuple[str, ...] = (
     COCKPIT, EARLY_WARNING, WHAT_IF, SCORECARD_VALIDATION, LENSES,
 )
 
-#: Modules with a producing surface on this baseline. `what_if` is not one of
-#: them — see docs/playbook/INTEGRATION_NOTES.md. Kept separate from
-#: SOURCE_MODULES so the contract can describe a module it cannot yet serve,
-#: which is the honest shape of a deferred integration.
+#: Modules with a producing surface. Kept separate from SOURCE_MODULES so the
+#: contract CAN describe a module it cannot yet serve — which is the honest
+#: shape of a deferred integration, and was true of `what_if` until the
+#: integration wired `fromWhatIfRun` into the What-If thread. All five now
+#: have a button a user can press.
 IMPLEMENTED_MODULES: tuple[str, ...] = (
-    COCKPIT, EARLY_WARNING, SCORECARD_VALIDATION, LENSES,
+    COCKPIT, EARLY_WARNING, WHAT_IF, SCORECARD_VALIDATION, LENSES,
 )
 
 #: Export scope. The default is one analysis; anything wider is chosen, never
