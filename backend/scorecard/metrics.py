@@ -78,30 +78,87 @@ def evidence_for(events: int, observations: int) -> str:
     return HIGH_EVIDENCE
 
 
-def require_matured(frame: pd.DataFrame, *, what: str) -> None:
-    """§7's gate. Refuse rather than compute on an unrealised outcome."""
-    if "matured_flag" in frame.columns and not bool(
-            frame["matured_flag"].fillna(False).all()):
-        ends = (frame.get("performance_window_end", pd.Series(["?"])).iloc[0]
-                if len(frame) else "?")
-        raise ImmatureCohortError(
-            f"{what} compares predicted against actual, and this cohort's "
-            f"performance window has not closed (it closes {ends}). There is "
-            "no realised outcome to compare against — not a zero, not an "
-            "optimistic estimate, none. Stability metrics do not need "
-            "outcomes and remain available.")
-    if "actual_default" in frame.columns and \
-            frame["actual_default"].isna().any():
-        raise ImmatureCohortError(
-            f"{what} needs a realised outcome and "
-            f"{int(frame['actual_default'].isna().sum()):,} row(s) have "
-            "none.")
+#: The column names that carry "has this cohort's window closed?" and "what
+#: happened?". Two vocabularies rather than one because the retail universe
+#: and the Saudi SME universe were built by different builders, and renaming
+#: a written column is a lake migration.
+#:
+#: Recognising both is not cosmetic. This gate is the only thing standing
+#: between an immature cohort and a metric computed on it, and a gate that
+#: knows one naming convention silently passes everything written in the
+#: other. The SME datasets carry `is_matured` and `actual_default_12m`; on
+#: the first draft of this module they went straight through, and an
+#: unrealised outcome would have been reported as a real one.
+MATURITY_COLUMNS: tuple[str, ...] = ("matured_flag", "is_matured")
+OUTCOME_COLUMNS: tuple[str, ...] = ("actual_default", "actual_default_12m")
+
+
+def require_matured(frame: pd.DataFrame, *, what: str,
+                    maturity_column: str = "",
+                    outcome_column: str = "") -> None:
+    """§7's gate. Refuse rather than compute on an unrealised outcome.
+
+    The two column arguments let a caller name the fields explicitly. Left
+    empty, every known naming convention present on the frame is checked,
+    which is the safe default: an unrecognised convention should mean "check
+    everything I know" rather than "check nothing".
+    """
+    maturity = ([maturity_column] if maturity_column
+                else [c for c in MATURITY_COLUMNS if c in frame.columns])
+    outcomes = ([outcome_column] if outcome_column
+                else [c for c in OUTCOME_COLUMNS if c in frame.columns])
+
+    for column in maturity:
+        if column in frame.columns and not bool(
+                frame[column].fillna(False).all()):
+            ends = (frame.get("performance_window_end",
+                              pd.Series(["?"])).iloc[0]
+                    if len(frame) else "?")
+            raise ImmatureCohortError(
+                f"{what} compares predicted against actual, and this "
+                f"cohort's performance window has not closed (it closes "
+                f"{ends}). There is no realised outcome to compare against — "
+                "not a zero, not an optimistic estimate, none. Stability "
+                "metrics do not need outcomes and remain available.")
+
+    for column in outcomes:
+        if column in frame.columns and frame[column].isna().any():
+            raise ImmatureCohortError(
+                f"{what} needs a realised outcome and "
+                f"{int(frame[column].isna().sum()):,} row(s) have none.")
 
 
 def _clean(y: pd.Series, x: pd.Series) -> tuple[np.ndarray, np.ndarray]:
     frame = pd.DataFrame({"y": y, "x": x}).dropna()
     return (frame["y"].to_numpy(dtype=float),
             frame["x"].to_numpy(dtype=float))
+
+
+def _midranks(values: np.ndarray) -> np.ndarray:
+    """Ranks that share the average position across ties.
+
+    Two reasons, and the second is the one that matters here. The first is
+    that midranks are the standard treatment of ties in the Mann-Whitney
+    statistic, so the AUC this produces is the AUC everyone else's tooling
+    produces. The second is reproducibility: ordinal ranks break a tie by
+    whichever row came first, so a scorecard with 6,673 distinct scores across
+    19,000 accounts would give a slightly different Gini every time the rows
+    arrived in a different order. §11 says the same question gets the same
+    answer.
+    """
+    order = np.argsort(values, kind="mergesort")
+    ordered = values[order]
+    positions = np.arange(1, len(values) + 1, dtype=float)
+
+    ranks = np.empty(len(values), dtype=float)
+    start = 0
+    while start < len(ordered):
+        stop = start
+        while stop + 1 < len(ordered) and ordered[stop + 1] == ordered[start]:
+            stop += 1
+        ranks[order[start:stop + 1]] = (positions[start] + positions[stop]) / 2.0
+        start = stop + 1
+    return ranks
 
 
 def _risk_ordered(x: np.ndarray, score_direction: str) -> np.ndarray:
@@ -112,7 +169,15 @@ def _risk_ordered(x: np.ndarray, score_direction: str) -> np.ndarray:
     """
     if score_direction == equation_mod.HIGHER_SCORE_IS_BETTER:
         return -x
-    return x
+    if score_direction == equation_mod.LOWER_SCORE_IS_BETTER:
+        return x
+    # Neither. Defaulting would silently pick a convention, and picking the
+    # wrong one does not fail — it returns a Gini of the right magnitude and
+    # the wrong sign, which reads as a scorecard that ranks backwards.
+    raise MetricError(
+        f"'{score_direction}' is not a score direction. It is one of: "
+        f"{', '.join(equation_mod.SCORE_DIRECTIONS)}. Without it there is no "
+        "way to know whether a high score is a good customer or a bad one.")
 
 
 # ------------------------------------------------------------ §23 discrimination
@@ -211,17 +276,30 @@ def discrimination(frame: pd.DataFrame, *, score: str, target: str,
             "sample has only one.")
 
     risk = _risk_ordered(raw, score_direction)
-    ranks = np.argsort(np.argsort(risk)) + 1.0
+    ranks = _midranks(risk)
     negatives = len(y) - events
     auc = float((ranks[y == 1].sum() - events * (events + 1) / 2)
                 / (events * negatives))
     gini = 2.0 * auc - 1.0
 
-    order = np.argsort(risk)
+    order = np.argsort(risk, kind="mergesort")
     bad_cumulative = np.cumsum(y[order]) / events
     good_cumulative = np.cumsum(1 - y[order]) / negatives
     gaps = np.abs(bad_cumulative - good_cumulative)
-    peak = int(np.argmax(gaps))
+
+    # KS is the largest gap between the two cumulative distributions at a
+    # SCORE, and the cumulative counts above step once per row. Inside a block
+    # of rows sharing one score those intermediate positions are not points of
+    # the score domain — they are an artefact of the order the ties happened
+    # to be read in — and taking the maximum among them reports a separation
+    # the score cannot actually make. On the retail behavioural book that
+    # overstated KS by 0.0004; on a coarsely banded scorecard it would be
+    # much worse. The gap is measured only where the next row's score
+    # differs, which is where the distributions have finished stepping.
+    sorted_risk = risk[order]
+    at_a_distinct_score = np.ones(len(y), dtype=bool)
+    at_a_distinct_score[:-1] = sorted_risk[1:] != sorted_risk[:-1]
+    peak = int(np.argmax(np.where(at_a_distinct_score, gaps, -1.0)))
     ks = float(gaps[peak])
     ks_at = float(raw[order][peak])
 
@@ -766,3 +844,174 @@ def replicate(frame: pd.DataFrame, equation: equation_mod.Equation, *,
         mismatch_count=int((logit_gap > tolerance).sum()),
         bin_mismatch_count=0,
         tolerance=tolerance, label=label)
+
+
+# ------------------------------------------------- §40 bootstrap confidence
+
+
+@dataclass
+class Interval:
+    """A percentile confidence interval, and everything needed to redraw it.
+
+    The resample count and seed are fields rather than arguments the caller
+    remembers, because a confidence interval that cannot be reproduced is not
+    evidence — it is a number that was true once.
+    """
+
+    statistic: str
+    point: float
+    lower: float
+    upper: float
+    confidence: float
+    resamples: int
+    seed: int
+    observations: int
+    events: int
+    draws: list[float] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "metrics_version": METRICS_VERSION,
+            "statistic": self.statistic, "point": self.point,
+            "lower": round(self.lower, 6), "upper": round(self.upper, 6),
+            "confidence": self.confidence, "resamples": self.resamples,
+            "seed": self.seed, "observations": self.observations,
+            "events": self.events,
+            "method": "percentile bootstrap, resampling rows with replacement",
+        }
+
+
+#: Above this many distinct score values the count-based path stops being
+#: the faster one, and the plain resample is used instead. Both compute the
+#: same statistic; see `bootstrap_auc`.
+DISTINCT_SCORE_LIMIT = 50_000
+
+
+def bootstrap_auc(frame: pd.DataFrame, *, score: str, target: str,
+                  score_direction: str, resamples: int = 500,
+                  seed: int = 0, confidence: float = 0.95) -> Interval:
+    """A percentile confidence interval for the AUC.
+
+    Why this is a kernel and not a loop in a caller
+    -----------------------------------------------
+    A bootstrap is a statistical method, so it lives with the other
+    statistical methods. A caller that resampled a DataFrame five hundred
+    times and called `discrimination` on each would get the right answer at
+    roughly two hundred milliseconds a draw — a minute and a half on a book
+    of a third of a million rows, which is long enough that somebody would
+    eventually make the interval optional, and an optional confidence
+    interval is one nobody has.
+
+    How it stays exact while being fast
+    -----------------------------------
+    The AUC is a Mann-Whitney statistic: it depends on the score's *ordering*
+    and on how many goods and bads sit at each distinct score, not on the
+    scores themselves. A scorecard has a few hundred distinct scores across
+    hundreds of thousands of accounts, so the whole sample compresses to a
+    table of (distinct score, goods, bads) with a few hundred rows.
+
+    Resampling rows with replacement is then exactly a multinomial draw over
+    the cells of that table, and the statistic is a cumulative sum across it.
+    That makes a draw O(cells) rather than O(n log n), and the result is not
+    an approximation of the row-resampling bootstrap — it is the same thing,
+    counted rather than enumerated. A test asserts that the degenerate draw
+    (the observed counts) reproduces `discrimination(...).auc` exactly.
+
+    Where the compression stops helping — a continuous PD with a distinct
+    value per row — the plain resample is used instead. Same statistic,
+    slower, and it says so in neither case because the caller does not need
+    to know which path ran to trust the number.
+    """
+    require_matured(frame, what="A bootstrap confidence interval")
+    y, raw = _clean(frame[target], frame[score])
+    if len(y) == 0:
+        raise MetricError("nothing to measure: every row was missing")
+    events = int(y.sum())
+    negatives = len(y) - events
+    if events == 0 or negatives == 0:
+        raise MetricError(
+            f"the sample has {events} default(s) out of {len(y):,}. An "
+            "interval around a statistic that cannot be computed is not a "
+            "wider version of it.")
+    if resamples < 2:
+        raise MetricError("a bootstrap needs at least two resamples")
+
+    risk = _risk_ordered(raw, score_direction)
+    point = discrimination(frame, score=score, target=target,
+                           score_direction=score_direction).auc
+
+    values, index = np.unique(risk, return_inverse=True)
+    rng = np.random.default_rng(seed)
+    if len(values) <= DISTINCT_SCORE_LIMIT:
+        draws = _bootstrap_counted(y, index, len(values), resamples, rng)
+    else:
+        draws = _bootstrap_resampled(y, risk, resamples, rng)
+
+    if not draws:
+        raise MetricError(
+            "no resample produced a measurable statistic, which means almost "
+            "every draw came back with one outcome class")
+    tail = (1.0 - confidence) / 2.0 * 100.0
+    return Interval(
+        statistic="AUC", point=point,
+        lower=float(np.percentile(draws, tail)),
+        upper=float(np.percentile(draws, 100.0 - tail)),
+        confidence=confidence, resamples=len(draws), seed=seed,
+        observations=len(y), events=events,
+        draws=[round(float(d), 6) for d in draws])
+
+
+def _bootstrap_counted(y: np.ndarray, index: np.ndarray, distinct: int,
+                       resamples: int,
+                       rng: np.random.Generator) -> list[float]:
+    """Draws taken over the (score, outcome) count table. See `bootstrap_auc`."""
+    bad = np.bincount(index, weights=y, minlength=distinct)
+    good = np.bincount(index, minlength=distinct) - bad
+    cells = np.concatenate([good, bad])
+    share = cells / cells.sum()
+    rows = len(y)
+
+    out: list[float] = []
+    for counts in rng.multinomial(rows, share, size=resamples):
+        drawn = auc_from_counts(counts[:distinct].astype(float),
+                                counts[distinct:].astype(float))
+        if drawn is not None:
+            out.append(drawn)
+    return out
+
+
+def auc_from_counts(good: np.ndarray, bad: np.ndarray) -> float | None:
+    """The AUC of a (risk-ordered) count table. None where it is undefined.
+
+    The Mann-Whitney statistic with midranks, read off counts rather than
+    rows: every bad at a given risk beats every good below it and ties with
+    the goods beside it, and a tie is worth half a comparison. That is the
+    same tie treatment `_midranks` applies, which is what lets the two paths
+    in `bootstrap_auc` produce the same number — a test asserts it.
+
+    Public because the assertion is worth making from outside: it is the one
+    place where a faster path could silently drift from the slow one.
+    """
+    goods, bads = float(good.sum()), float(bad.sum())
+    if goods == 0 or bads == 0:
+        return None
+    below = np.concatenate([[0.0], np.cumsum(good)[:-1]])
+    return float((bad * (below + good / 2.0)).sum() / (goods * bads))
+
+
+def _bootstrap_resampled(y: np.ndarray, risk: np.ndarray, resamples: int,
+                         rng: np.random.Generator) -> list[float]:
+    """The plain resample, for a score with no useful repetition in it."""
+    rows = len(y)
+    out: list[float] = []
+    for _ in range(resamples):
+        at = rng.integers(0, rows, rows)
+        drawn_y, drawn_risk = y[at], risk[at]
+        events = drawn_y.sum()
+        negatives = rows - events
+        if events == 0 or negatives == 0:
+            continue
+        ranks = _midranks(drawn_risk)
+        out.append(float((ranks[drawn_y == 1].sum()
+                          - events * (events + 1) / 2) / (events * negatives)))
+    return out

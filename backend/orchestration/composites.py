@@ -75,8 +75,9 @@ ABOVE = "above"          # field >= value
 BELOW = "below"          # field < value
 TRUE = "true"            # a boolean flag is set
 ROSE_BY = "rose_by"      # field - `against` >= value
+EQUALS = "equals"        # a governed enumeration takes this value
 
-TESTS: frozenset[str] = frozenset({ABOVE, BELOW, TRUE, ROSE_BY})
+TESTS: frozenset[str] = frozenset({ABOVE, BELOW, TRUE, ROSE_BY, EQUALS})
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,10 @@ class Signal:
                 f"holding the prior value.")
         if self.test in (ABOVE, BELOW, ROSE_BY) and self.value is None:
             raise ValueError(f"{self.key}: {self.test} needs a threshold.")
+        if self.test == EQUALS and not isinstance(self.value, str):
+            raise ValueError(
+                f"{self.key}: an equals signal needs the governed value it "
+                f"tests for, as it is spelled in the column.")
 
     @property
     def columns(self) -> tuple[str, ...]:
@@ -128,6 +133,8 @@ class Signal:
             return f"{self.label} — {self.field} at or above {self.value}"
         if self.test == BELOW:
             return f"{self.label} — {self.field} below {self.value}"
+        if self.test == EQUALS:
+            return f"{self.label} — {self.field} is “{self.value}”"
         return (f"{self.label} — {self.field} at least {self.value} above "
                 f"{self.against}")
 
@@ -155,7 +162,12 @@ class Composite:
     means: str = ""
 
     def matches(self, text: str) -> bool:
-        return bool(re.search(self.pattern, text or "", re.IGNORECASE))
+        return self.found_in(text) is not None
+
+    def found_in(self, text: str) -> str | None:
+        """The words that named this composite, or None."""
+        match = re.search(self.pattern, text or "", re.IGNORECASE)
+        return match.group(0).strip() if match else None
 
 
 LIQUIDITY_STRESS = Composite(
@@ -217,6 +229,87 @@ LIQUIDITY_STRESS = Composite(
 )
 
 
+# A measure word immediately after the deterioration verb means the sentence
+# named WHAT deteriorated, and that is an ordinary movement question about
+# that measure — "which borrowers had deteriorating DSCR?" must stay a DSCR
+# comparison. The composite is for the question that names no measure at all.
+_NAMED_MEASURE = (
+    # Up to two words may sit between the verb and the measure — "weakening
+    # INTEREST coverage", "deteriorating in their debt service" — and the
+    # measure is still what deteriorated.
+    r"(?![\s,]*(?:\w+\s+){0,2}?"
+    r"\b(?:ecl|pd|ead|lgd|dscr|leverage|coverage|utilisation|utilization|"
+    r"rating|ratings|grade|grades|stage|exposure|exposures?\s+at\s+default|"
+    r"provision|provisions|impairment|score|scores|headroom|margin|"
+    r"cover|dpd|arrears|collateral|covenant)\b)")
+
+DETERIORATION = Composite(
+    key="deterioration",
+    label="deterioration",
+    # "Which exposures have deteriorated this quarter?", "which names are
+    # weakening?", "what has got worse?". The question a Deputy CRO opens
+    # with, and it names no measure — which is why it came back as "which
+    # figure should CreditProbe measure?" of a reader who was asking exactly
+    # the question the early-warning columns exist to answer.
+    pattern=(
+        r"\b(?:which|what|any|show(?:\s+me)?|list|identify)\b"
+        r"(?:\s+\w+){0,4}?\s+"
+        r"\b(?:exposures?|borrowers?|customers?|clients?|names?|accounts?|"
+        r"counterpart(?:y|ies)|obligors?|credits?|facilities|groups?)\b"
+        r"[^?.!]{0,24}?"
+        rf"\b(?:deteriorat\w+|weaken\w+|worsen\w+|slipp\w+|"
+        rf"(?:go(?:ne|ing)?|get(?:ting|s)?|got(?:ten)?|went)"
+        rf"\s+(?:backwards|worse))"
+        rf"\b{_NAMED_MEASURE}"
+        rf"|\bwhat(?:'s|\s+has|\s+have)?\s+"
+        rf"(?:deteriorat\w+|weaken\w+|worsen\w+)\b{_NAMED_MEASURE}"
+        rf"|\b(?:where|which\s+parts?)\b[^?.!]{{0,30}}?"
+        rf"\b(?:deteriorat\w+|weaken\w+|worsen\w+)\b{_NAMED_MEASURE}"),
+    means=("Evidence published in the book that a facility has got worse: "
+           "the bank's own deterioration trend and early-warning trigger, a "
+           "significant increase in credit risk, a risk-appetite breach, "
+           "utilisation drawn further down, arrears, and an IFRS 9 stage "
+           "worse than 1."),
+    signals=(
+        Signal(key="trend_deteriorating", dimension="published risk trend",
+               label="The book's own trend flag reads Deteriorating",
+               dataset="portfolio_facility", field="trend",
+               test=EQUALS, value="Deteriorating"),
+        Signal(key="sicr", dimension="significant increase in credit risk",
+               label="A significant increase in credit risk was triggered",
+               dataset="portfolio_facility", field="sicr_trigger", test=TRUE),
+        Signal(key="pd_trigger", dimension="early-warning trigger",
+               label="The early-warning trigger reads PD deterioration",
+               dataset="portfolio_facility", field="trigger_type",
+               test=EQUALS, value="PD deterioration"),
+        Signal(key="appetite_breach", dimension="risk appetite",
+               label="Outside risk appetite",
+               dataset="portfolio_facility", field="appetite_breach",
+               test=TRUE),
+        Signal(key="utilisation_rose", dimension="utilisation movement",
+               label="Utilisation rose 5 points or more since the prior period",
+               dataset="portfolio_facility", field="utilisation_pct",
+               test=ROSE_BY, value=5.0, against="prev_utilisation_pct"),
+        Signal(key="arrears", dimension="delinquency / arrears",
+               label="In arrears",
+               dataset="portfolio_facility", field="dpd_days",
+               test=ABOVE, value=1),
+        Signal(key="stage_2_or_worse", dimension="IFRS 9 stage",
+               label="In Stage 2 or Stage 3",
+               dataset="portfolio_facility", field="ifrs9_stage",
+               test=ABOVE, value=2),
+    ),
+    # The internal rating is carried at both ends — `risk_rating` and
+    # `prev_risk_rating` — but as a grade CODE rather than an ordinal, so the
+    # movement between them is not a comparison a single-dataset signal can
+    # make. Named here rather than left out silently: the bank's own PD
+    # deterioration trigger stands in its place above, and it is not the
+    # same thing.
+    absent=("movement in the internal rating between the two dates",
+            "external rating actions", "financial-statement deterioration"),
+)
+
+
 CREDIT_CONCERN = Composite(
     key="credit_concern",
     label="credit concern",
@@ -243,7 +336,22 @@ CREDIT_CONCERN = Composite(
         r"|\bmost\s+(?:at\s+risk|worrying|concerning|troubl\w+)\b"
         r"|\bwho\s+(?:are\s+)?(?:the\s+)?(?:bad|weak|troubled|problem)\s+"
         r"(?:ones?|names?|credits?|borrowers?)\b"
-        r"|\bdeteriorat\w+\s+(?:names?|borrowers?|credits?)\b"),
+        r"|\bdeteriorat\w+\s+(?:names?|borrowers?|credits?)\b"
+        # "Where are multiple warning signals appearing together?" is this
+        # ranking in the words an early-warning conversation uses: it asks
+        # which names carry several signals at once, which is exactly what
+        # counting breadth of evidence answers. Without it the question was
+        # refused as something the governed universe holds nothing about,
+        # while the columns that answer it were three lines below.
+        r"|\b(?:multiple|several|many|more\s+than\s+one|two\s+or\s+more|"
+        r"combinations?\s+of|clusters?\s+of|overlapping|co-?occurring)\s+"
+        r"(?:\w+\s+){0,2}?(?:warning\s+)?"
+        r"(?:signals?|flags?|indicators?|triggers?|red\s+flags?|"
+        r"early\s+warnings?)\b"
+        r"|\b(?:warning\s+)?(?:signals?|flags?|indicators?|triggers?)\b"
+        r"[^?.!]{0,30}?\b(?:together|at\s+once|at\s+the\s+same\s+time|"
+        r"in\s+combination|side\s+by\s+side|stacking\s+up|pile\s+up|"
+        r"piling\s+up)\b"),
     means=("The borrowers carrying the most governed evidence of credit "
            "difficulty at once: arrears, a stretched limit, weak debt "
            "service, thin covenant headroom, a watchlist flag, a "
@@ -288,7 +396,11 @@ CREDIT_CONCERN = Composite(
 # Order matters: `find` returns the FIRST match, and a question naming
 # liquidity specifically wants the liquidity reading rather than the
 # general one, even though "liquidity problems" satisfies both patterns.
-COMPOSITES: tuple[Composite, ...] = (LIQUIDITY_STRESS, CREDIT_CONCERN)
+# Deterioration sits between them for the same reason: "which names are
+# weakening?" asks what has GOT WORSE, which is a narrower claim than the
+# general concern ranking and reads different columns.
+COMPOSITES: tuple[Composite, ...] = (LIQUIDITY_STRESS, DETERIORATION,
+                                     CREDIT_CONCERN)
 
 
 @dataclass(frozen=True)
@@ -296,12 +408,15 @@ class Resolved:
     """A composite, narrowed to what this installation actually carries."""
 
     composite: Composite
+    #: The words in the question that named it. Carried so the answer and the
+    #: coverage gate can both refer to the phrase the reader actually wrote.
+    matched: str = ""
     #: Signals whose every column exists in the catalogue.
-    available: tuple[Signal, ...]
+    available: tuple[Signal, ...] = ()
     #: Signals declared for the composite whose columns this installation does
     #: not have. Distinct from `absent`: these are a deployment gap, not a
     #: catalogue-wide one.
-    missing: tuple[Signal, ...]
+    missing: tuple[Signal, ...] = ()
 
     @property
     def usable(self) -> bool:
@@ -345,6 +460,7 @@ class Resolved:
         return {
             "version": COMPOSITE_VERSION,
             "key": self.composite.key,
+            "matched": self.matched,
             "label": self.composite.label,
             "means": self.composite.means,
             "dataset": self.dataset,
@@ -367,17 +483,87 @@ def find(text: str, catalogue: Any = None) -> Resolved | None:
     the right answer and this must get out of the way.
     """
     for composite in COMPOSITES:
-        if not composite.matches(text):
+        named = composite.found_in(text)
+        if named is None:
             continue
         available, missing = _split(composite, catalogue)
-        found = Resolved(composite=composite, available=tuple(available),
-                         missing=tuple(missing))
+        found = Resolved(composite=composite, matched=named,
+                         available=tuple(available), missing=tuple(missing))
         if not found.usable:
             return None
         if len({s.dataset for s in found.available}) > 1:
             return None
         return found
     return None
+
+
+#: A governed boolean the sentence can exclude, and the words that exclude it.
+#:
+#: "Which borrowers are weakening but are NOT YET on the watchlist?" is the
+#: highest-value early-warning question there is: show me the evidence before
+#: the formal flag. Read as a plain cohort it compiled a predicate against a
+#: column that only exists at one end of a movement and the governed runtime
+#: refused the plan outright — so the question came back withheld, with a
+#: validator message in place of an answer.
+#:
+#: It is not a filter on a measure and it is not one of the composite's own
+#: signals being negated; it is a restriction of the POPULATION to the names
+#: that have not yet been formally marked. So it is read here, beside the
+#: composite it qualifies, and applied where the composite reads its rows.
+EXCLUSIONS: tuple[tuple[str, str], ...] = (
+    ("watchlist",
+     r"\b(?:not|aren'?t|are\s+not|is\s+not|isn'?t|without|excluding|"
+     r"other\s+than|but\s+not|outside)\s+"
+     r"(?:yet\s+)?(?:on|in|flagged\s+(?:on|in)|marked\s+(?:on|in)|part\s+of)?"
+     r"\s*(?:the\s+)?watch\s?list"
+     r"|\bnot\s+(?:yet\s+)?watch\s?listed\b"
+     r"|\bnon-?watch\s?listed\b"
+     r"|\boff\s+(?:the\s+)?watch\s?list\b"),
+    ("npl",
+     r"\b(?:not|aren'?t|are\s+not|is\s+not|isn'?t|without|excluding|"
+     r"but\s+not)\s+(?:yet\s+)?(?:classified\s+)?non-?performing\b"
+     r"|\bstill\s+performing\b|\bperforming\s+only\b"),
+)
+
+
+@dataclass(frozen=True)
+class Exclusion:
+    """A governed flag the question asked to leave out."""
+
+    field: str
+    #: The words in the question that did it, so the answer can quote them.
+    phrase: str
+
+    @property
+    def says(self) -> str:
+        return (f"The question excludes names where {self.field} is set, so "
+                f"they are removed from the population before the evidence is "
+                f"counted.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"field": self.field, "phrase": self.phrase, "says": self.says}
+
+
+def excluded(text: str, available: Any = None) -> tuple[Exclusion, ...]:
+    """Governed flags the question asked to leave out.
+
+    `available` is the set of columns the composite's dataset actually has; a
+    flag this installation does not carry produces nothing rather than a
+    predicate the runtime would reject.
+    """
+    said = str(text or "")
+    if not said:
+        return ()
+    have = set(available or ())
+    found: list[Exclusion] = []
+    for field_name, pattern in EXCLUSIONS:
+        if have and field_name not in have:
+            continue
+        match = re.search(pattern, said, re.IGNORECASE)
+        if match:
+            found.append(Exclusion(field=field_name,
+                                   phrase=match.group(0).strip()))
+    return tuple(found)
 
 
 def _split(composite: Composite,
@@ -405,5 +591,6 @@ def _split(composite: Composite,
 
 
 __all__ = ["ABOVE", "BELOW", "COMPOSITES", "COMPOSITE_VERSION",
-           "CREDIT_CONCERN", "Composite", "LIQUIDITY_STRESS", "ROSE_BY",
-           "Resolved", "Signal", "TRUE", "find"]
+           "CREDIT_CONCERN", "Composite", "DETERIORATION", "EQUALS",
+           "EXCLUSIONS", "Exclusion", "LIQUIDITY_STRESS", "ROSE_BY",
+           "Resolved", "Signal", "TRUE", "excluded", "find"]

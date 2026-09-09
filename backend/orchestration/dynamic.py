@@ -67,7 +67,14 @@ class Condition:
     """
 
     field: str
-    kind: str          # change_pct | change_abs | level | order
+    #: change_pct | change_abs | level | level_open | level_close | order
+    #:
+    #: `level_open` and `level_close` are the two halves of a THRESHOLD
+    #: CROSSING — "headroom fell below 15%" is a claim about where the measure
+    #: was and where it now is. They need two dates, like a movement, but they
+    #: compare LEVELS rather than a distance, and the closing one is the value
+    #: that qualifies the row and must be shown.
+    kind: str
     op: str            # gt | gte | lt | lte | eq
     #: A number for a measure, a string for a category. Typed loosely on
     #: purpose: "sentiment is negative" is a governed category and forcing it
@@ -82,6 +89,12 @@ class Condition:
         return {"change_pct": f"{self.field}_change_pct",
                 "change_abs": f"{self.field}_change",
                 "level": self.field,
+                # In a two-period frame the bare field IS the opening value and
+                # the closing one carries the prefix. That is the existing
+                # convention of the cohort builder, and a crossing has to speak
+                # it rather than invent a third spelling.
+                "level_open": self.field,
+                "level_close": f"closing_{self.field}",
                 # An ordering binding filters on nothing; it names the column
                 # the answer is sorted by.
                 "order": self.field}[self.kind]
@@ -112,11 +125,19 @@ class Condition:
             return f"{self.label} is {self.value}"
         if self.kind == "order":
             return f"ranked by {self.label}"
-        if self.kind == "level":
+        if self.kind in ("level", "level_open", "level_close"):
             word = {"gt": "above", "gte": "at or above",
                     "lt": "below", "lte": "at or below",
                     "eq": "exactly"}.get(self.op, self.op)
-            return f"{self.label} {word} {self.value:g}{unit}"
+            said = f"{self.label} {word} {self.value:g}{unit}"
+            # A crossing reads back as the transition it is. Saying only the
+            # closing half would be indistinguishable from a level test, which
+            # is the confusion this whole reading exists to end.
+            if self.kind == "level_open":
+                return f"{said} at the opening date"
+            if self.kind == "level_close":
+                return f"{said} at the closing date"
+            return said
 
         if self.value == 0 and self.op == "eq":
             return f"{self.label} was unchanged"
@@ -251,8 +272,15 @@ MEASURES: list[tuple[str, str, bool]] = [
     (r"\blgd\b|loss given default", "lgd_pct", True),
     (r"rating|grade|notch", "internal_grade", True),
     (r"days past due|\bdpd\b|arrears", "dpd_days", True),
+    # Longest match wins in `_measure_for`, so "collateral coverage" takes
+    # precedence over "collateral" without needing to be ordered before it.
+    # They are different questions: one is a ratio to exposure, the other is an
+    # amount, and answering a coverage question with a value is a silent
+    # change of subject.
+    (r"collateral coverage", "collateral_coverage_pct", False),
     (r"collateral", "collateral_value", False),
     (r"covenant headroom|headroom", "covenant_headroom_pct", False),
+    (r"interest coverage|interest cover|\bicr\b", "interest_coverage", False),
     (r"\bdscr\b|debt service", "dscr", False),
     (r"\braroc\b|return on capital", "raroc_pct", False),
     (r"stage", "ifrs9_stage", True),
@@ -498,6 +526,31 @@ def read_conditions(question: str, *, resolver: Any = None
         # refuses.
         if saw_direction and not found_here:
             unread.append(clause.strip())
+
+    # Thresholds, which this reader on its own cannot see. Everything above
+    # looks for a movement and then for its SIZE, so "headroom below 15%" —
+    # which states no movement at all — produced nothing and the restriction
+    # was silently dropped, and "headroom fell below 15%" had its bound read as
+    # a distance. Both are read properly in `thresholds`, and merged here so
+    # that every caller of this function gets them without asking.
+    from backend.orchestration import thresholds as th
+
+    bounded, bound_unread = th.read(question, resolver=resolver)
+    for condition in bounded:
+        key = (condition.field, condition.kind)
+        if key in seen:
+            continue
+        # A crossing supersedes a magnitude on the same measure: "fell below
+        # 15%" is one claim, and reading it as both a crossing and a 15-point
+        # fall would AND two different questions together.
+        if condition.kind in ("level_open", "level_close"):
+            conditions = [c for c in conditions
+                          if not (c.field == condition.field
+                                  and c.kind in ("change_pct", "change_abs"))]
+            unread = [u for u in unread if u != condition.phrase]
+        seen.add(key)
+        conditions.append(condition)
+    unread.extend(u for u in bound_unread if u not in unread)
 
     return conditions, unread
 

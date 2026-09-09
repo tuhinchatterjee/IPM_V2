@@ -134,16 +134,32 @@ def classifying(build: Any) -> str:
     named = [m for m in (getattr(build, "matches", None) or [])]
     fields = {str(getattr(m, "field", "")) for m in named}
 
-    # A membership filter the planner recorded as a value restriction.
-    for filter_field, _value in (getattr(build, "filters", None) or []):
-        if str(filter_field) in fields:
-            return str(filter_field)
-
-    # A level condition on a named concept — "headroom below 15%".
+    # A LEVEL CONDITION FIRST, where the plan carries one.
+    #
+    # A question restricts a population twice over, and the two halves are not
+    # interchangeable. "Which Stage 3 borrowers are not on the watchlist?"
+    # names its SUBJECT with the stage — that is who the question is about —
+    # and applies its TEST with the watchlist. Removing the subject asks a
+    # different question, and the answer said so out loud: "None of Stage 3
+    # customers is in IFRS 9 stage 3; all 2,138 are in stage 1", a sentence
+    # that contradicts its own first clause and counts a population nobody
+    # asked about.
+    #
+    # So where a question states both, the test is what is worth removing:
+    # "where do the borrowers the question was about actually sit?" is a
+    # question about the test, not about the subject.
     for condition in (getattr(build, "conditions", None) or []):
         if str(getattr(condition, "kind", "")) == "level" \
                 and str(getattr(condition, "field", "")) in fields:
             return str(getattr(condition, "field", ""))
+
+    # A membership filter the planner recorded as a value restriction. Where
+    # the question stated no separate test — "which of these five are Stage 2
+    # or Stage 3" — the value restriction IS the classification being asked
+    # about, and removing it is what shows the reader where the five sit.
+    for filter_field, _value in (getattr(build, "filters", None) or []):
+        if str(filter_field) in fields:
+            return str(filter_field)
     return ""
 
 

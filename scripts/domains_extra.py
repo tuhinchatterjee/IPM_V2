@@ -118,7 +118,7 @@ COVENANTS = [
     ("Net Leverage", "x", 3.5, "max"),
     ("Debt Service Coverage", "x", 1.20, "min"),
     ("Interest Cover", "x", 2.00, "min"),
-    ("Tangible Net Worth", "USD mn", 5.0, "min"),
+    ("Tangible Net Worth", "SAR mn", 5.0, "min"),
 ]
 
 

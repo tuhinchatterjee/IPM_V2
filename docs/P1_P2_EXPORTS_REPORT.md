@@ -141,11 +141,11 @@ the browser acceptance.
 * Reads `ifrs9_staging` at Q2 2026, joins `portfolio_facility` on
   `account_id` (inner, one-to-one), then as-of joins `customer_ratings` on
   `customer_id` with `latest_on_or_before`, so no future rating is used.
-* Ten internal grades. Total exported EAD **125,258.721 USD mn**.
+* Ten internal grades. Total exported EAD **125,258.721 SAR mn**.
 * The source profile's own `ead` total for `ifrs9_staging` at Q2 2026 is
-  **125,258.721 USD mn**. The parts sum to the whole exactly — difference 0.000,
+  **125,258.721 SAR mn**. The parts sum to the whole exactly — difference 0.000,
   well inside tolerance.
-* The measure is labelled *Exposure at default (USD mn)*, not the generic
+* The measure is labelled *Exposure at default (SAR mn)*, not the generic
   "Exposure": §32's requirement.
 
 **This question did not work when the phase began**, and fixing it was
@@ -493,7 +493,7 @@ required pack sections; the SQL that ran; FINAL RESULTS last; the rating-wise
 total reconciling to the source profile; and no secrets in either file.
 
 **On units.** The interface renders exposure as `usd bn` and shows `22.4`; the
-workbook carries the governed unit `USD mn` and the figure `22,373.572`. Both
+workbook carries the governed unit `SAR mn` and the figure `22,373.572`. Both
 are labelled and both are right — the screen is for reading, the workbook is the
 record — so the acceptance script puts them in the same unit before comparing
 rather than pretending the rounded figure is the exact one.

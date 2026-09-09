@@ -36,9 +36,12 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from typing import Any
 
 from backend.orchestration import conversation as cv
+from backend.orchestration import movement as mv
+from backend.orchestration import nth
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +132,13 @@ _CONTINUE: tuple[str, ...] = (
     r"^\s*split (?:that|this|it)\b", r"^\s*group (?:that|this|it)\b",
     r"\beach one'?s?\b", r"\bper (?:one|each)\b", r"\bfor (?:each|every) one\b",
     r"^\s*(?:ok(?:ay)?|right|good)[,.]?\s+(?:now|then)\b",
+    # "What moved?", "What has changed?" — a change question with nothing else
+    # in it. The measure is not missing; it is the one the conversation is
+    # already about, and asking which figure to measure asks the reader to
+    # repeat what they said one sentence ago. Anchored at both ends in
+    # `movement.SUBJECTLESS`: "what changed in Real Estate?" names a population
+    # of its own and stays a fresh request.
+    mv.SUBJECTLESS.pattern,
 )
 
 #: A change to how the previous result is *shown*, with no new arithmetic.
@@ -270,10 +280,14 @@ class Reference:
     changes: list[str] = field(default_factory=list)
     #: Why this reading. Shown when the model and this reader disagreed.
     because: str = ""
+    #: A reference to ONE row of the previous result — "the second one".
+    #: Read here and bound to an identity in `_finish`, where the state is.
+    ordinal: nth.Nth | None = None
 
     @property
     def refers_back(self) -> bool:
-        return bool(self.population) or self.action != cv.NEW_REQUEST
+        return (bool(self.population) or self.ordinal is not None
+                or self.action != cv.NEW_REQUEST)
 
 
 #: A sentence that points at what is already on the table.
@@ -307,7 +321,30 @@ def read(question: str) -> Reference:
     resolved is a separate question from whether one was *made*, and conflating
     them produced the worst possible behaviour: a follow-up with nothing to
     resolve was silently answered as a fresh question about the whole book.
+
+    An ordinal reference — "the second one" — is read alongside the rest rather
+    than instead of it. "Show the second one as a chart" is still a
+    presentation change; what the ordinal adds is WHICH row, and that is
+    carried on the reading for `_finish` to bind against the stored order.
     """
+    reference = _read(question)
+    pointer = nth.read(question)
+    if pointer is None:
+        return reference
+    if reference.action == cv.NEW_REQUEST:
+        # "Why does the second one worry you?" is not a new question about the
+        # book. It names a row of the answer already on the screen, and read as
+        # a fresh request it becomes a ranking of everything — which is the
+        # defect this reading exists to close.
+        reference = replace(
+            reference, action=cv.CONTINUE,
+            because=(f"the question points at {pointer.phrase!r} in the "
+                     "answer already on the table"))
+    return replace(reference, ordinal=pointer)
+
+
+def _read(question: str) -> Reference:
+    """The reading from the sentence's own words. See `read`."""
     text = " " + " ".join((question or "").lower().split()) + " "
 
     # Checked before everything else, including the new-subject patterns: a
@@ -438,6 +475,64 @@ _STATES_ITS_OWN_SCOPE: tuple[str, ...] = (
 )
 
 
+#: A sentence that names a governed dimension value AND NOTHING ELSE.
+#:
+#: "Why Shipping?", "And Contracting?", "What about Stage 2?", "Shipping?" —
+#: the whole sentence, once the interrogative and the politeness are removed,
+#: is one value from the governed vocabulary. Deliberately anchored at both
+#: ends: a value that appears inside a longer sentence is part of a question
+#: that says its own measure, and narrowing that one would be inventing a
+#: reference nobody made.
+_ONLY_A_SCOPE = re.compile(
+    r"^\s*(?:so|and|but|ok|okay|right|now|hmm)?[,\s]*"
+    # Longest first: "why is it" must not be consumed by the bare "why",
+    # which would leave "is it Shipping" as the value and match nothing.
+    r"(?:why\s+(?:is|are|was|were|does|do|did)(?:\s+it)?|"
+    r"and\s+what\s+about|what\s+about|how\s+about|what\s+of|why)?\s*"
+    r"(?:the\s+)?(?P<value>[a-z0-9&'\u2019 .\-]+?)"
+    r"(?:\s+(?:specifically|in\s+particular|then|though|instead))?"
+    r"\s*[?.!]*\s*$", re.IGNORECASE)
+
+#: How many words a sentence may hold and still be "a value and nothing else".
+_SCOPE_WORDS = 6
+
+
+def names_only_a_scope(question: str,
+                       vocabulary: Any = None) -> tuple[str, str] | None:
+    """The governed dimension value this sentence names, when it names only one.
+
+    Returns `(dimension, value)` — ("sector", "Shipping") — or None. The value
+    is returned in the governed vocabulary's own spelling, never the reader's,
+    so what reaches the plan is a value the catalogue holds.
+    """
+    text = " ".join(str(question or "").split())
+    if not text or len(text.split()) > _SCOPE_WORDS:
+        return None
+    match = _ONLY_A_SCOPE.match(text)
+    if match is None:
+        return None
+    spoken = " ".join(match.group("value").split()).strip(" ?.!,")
+    if len(spoken) < 3:
+        return None
+    if vocabulary is None:
+        try:
+            from backend.orchestration.vocabulary import get_vocabulary
+
+            vocabulary = get_vocabulary()
+        except Exception:  # noqa: BLE001 - without a vocabulary, do not guess
+            return None
+    values = getattr(vocabulary, "dimensions", vocabulary) or {}
+    lowered = spoken.lower()
+    try:
+        for dimension, known in values.items():
+            for value in known:
+                if str(value).lower() == lowered:
+                    return (str(dimension), str(value))
+    except Exception:  # noqa: BLE001 - a broken vocabulary names no scope
+        return None
+    return None
+
+
 def states_its_own_scope(text: str, dimensions: Any = None) -> bool:
     """Whether this sentence says which population it is about. §6.
 
@@ -553,11 +648,103 @@ def resolve(question: str, state: cv.ConversationState, *,
                     ", ".join(f"{k} = {v}" for k, v in state.filter_pairs())
                     or "the previous scope", question[:70])
 
+    if action == cv.NEW_REQUEST and _continues_the_measure(question, state):
+        # §11. The thread settled a measure and this sentence points back at
+        # it without naming one. Not `scope_only`: what is being inherited IS
+        # the measure, and marking it scope-only is what left the planner with
+        # nothing to compute.
+        carried = _finish(
+            question, read_back, cv.CONTINUE, state,
+            "the question points back at the previous answer and names no "
+            "measure of its own, so it continues the one the conversation "
+            "settled")
+        carried.inherited["measure"] = ", ".join(
+            state.metrics or state.concepts) or state.plan_summary
+        return carried
+
     if action == cv.NEW_REQUEST:
+        narrowed = names_only_a_scope(question)
+        if narrowed and state.has_analysis:
+            # "Why Shipping?" — §5. The sentence names a governed dimension
+            # value and nothing else, so it settles WHICH BOOK and settles
+            # nothing about which figure. Read as a new request it named no
+            # measure at all and the planner quite correctly asked for one,
+            # which is the product asking the reader to restate the analysis it
+            # had just run.
+            dimension, value = narrowed
+            carried = _finish(
+                question, read_back, cv.NARROW_SCOPE, state,
+                f"the question names {value} and no measure, so it narrows the "
+                f"analysis that just ran to that {dimension.replace('_', ' ')}")
+            carried.inherited["scope"] = (
+                f"{dimension.replace('_', ' ')} = {value}, replacing whatever "
+                f"the conversation had settled for that dimension")
+            carried.changes.append(
+                f"narrow the previous analysis to {value}")
+            return carried
         return cv.Continuation(action=cv.NEW_REQUEST,
                                because=read_back.because or "a new request")
 
     return _finish(question, read_back, action, state, because)
+
+
+@lru_cache(maxsize=512)
+def names_a_measure(question: str) -> bool:
+    """Whether this sentence names a governed measure of its own.
+
+    Resolved against the catalogue rather than a word list, because the answer
+    has to be the same one the planner will reach: a sentence this said named
+    a measure and the planner then could not resolve would inherit nothing and
+    clarify, which is the failure being closed.
+
+    Returns True when it cannot tell. Not inheriting is the safe direction —
+    it costs a clarification; inheriting a measure onto a question that named
+    its own answers something nobody asked.
+    """
+    try:
+        from backend.data_access import get_catalog
+        from backend.orchestration import concepts as cx
+        from backend.orchestration import context as governed_context
+
+        known = {d.name: {f["name"] for f in d.fields}
+                 for d in governed_context.all_datasets()}
+        resolved = cx.read_concepts(question, known=known,
+                                    catalogue=get_catalog())
+    except Exception:  # noqa: BLE001 - an unreadable catalogue inherits nothing
+        return True
+    return bool(resolved.matches)
+
+
+def _continues_the_measure(question: str,
+                           state: cv.ConversationState) -> bool:
+    """Whether a sentence that names no measure means the settled one.
+
+        "Expected credit loss fell from 6,000 to 5,313 SAR mn."
+        "Which borrowers drove that?"
+
+    The second sentence names no figure, so every reader called it a new
+    request, the planner found no governed measure and asked which one to
+    compute — the product asking the reader to name the figure it had just
+    reported. It points back with "that", and what it points at is the measure.
+
+    Three conditions, all required. There must BE a settled analysis; the
+    sentence must point back at it; and the sentence must name no measure of
+    its own, because "show total ECL by sector" mid-thread means ECL and
+    adding the previous measure on top answers with two.
+    """
+    if not state.has_analysis:
+        return False
+    if not _POINTS_BACK.search(" " + " ".join(question.lower().split()) + " "):
+        return False
+    try:
+        from backend.orchestration import capability as cap
+
+        intent, _, _ = cap.recognise(question)
+        if intent != cap.Capability.ANALYSIS:
+            return False
+    except Exception:  # noqa: BLE001 - without it, do not guess
+        return False
+    return not names_a_measure(question)
 
 
 def _stays_in_the_population(question: str,
@@ -632,6 +819,13 @@ def _finish(question: str, read_back: Reference, action: str,
         continuation.inherited["population"] = (
             f"{len(continuation.entity_ids)} {state.result.entity_key} "
             f"from the previous result")
+    elif action == cv.NARROW_SCOPE:
+        # Deliberately no population. "Why Shipping?" asks about the Shipping
+        # book, not about the intersection of Shipping with whichever rows the
+        # previous ranking returned — and intersecting silently would answer a
+        # much narrower question under a much broader sentence.
+        continuation.inherited["population"] = (
+            "none — the named scope replaces the previous result's rows")
     elif action in (cv.CONTINUE, cv.ENRICH_PREVIOUS, *cv.MODIFICATIONS) \
             and state.result.has_population:
         # "Add their latest internal rating", "show me the ten largest" and
@@ -645,6 +839,45 @@ def _finish(question: str, read_back: Reference, action: str,
         continuation.entity_labels = dict(state.result.entity_labels)
         continuation.inherited["population"] = (
             f"the {len(continuation.entity_ids)} rows already on screen")
+
+    # An ordinal reference is bound LAST, because it narrows whatever
+    # population the branches above carried down to the single row it names.
+    # "The second one" after "which of those have rising PD?" is one borrower,
+    # not twenty-three, and a continuation that carried all twenty-three would
+    # answer a question about one name with a table of every name.
+    if read_back.ordinal is not None:
+        bound = nth.resolve(read_back.ordinal, state)
+        continuation.ordinal = {
+            "phrase": bound.phrase or read_back.ordinal.phrase,
+            "resolved": bound.resolved,
+            "entity_key": bound.entity_key, "entity_id": bound.entity_id,
+            "label": bound.label, "position": bound.position, "of": bound.of,
+            "because": bound.because,
+        }
+        if bound.resolved:
+            continuation.entity_key = bound.entity_key
+            continuation.entity_ids = [bound.entity_id]
+            continuation.entity_labels = {bound.entity_id: bound.label}
+            continuation.referent = bound.phrase
+            continuation.inherited["ordinal"] = (
+                f"{bound.phrase} is {bound.label} — row {bound.position} of "
+                f"the {bound.of} the previous answer returned, taken from that "
+                f"order and not re-ranked")
+        else:
+            # No fallback to the whole population. A sentence that says "the
+            # ninth one" is about one row; answering it over every row the
+            # previous turn returned is a confident answer to a question
+            # nobody asked, and it is the exact shape of the failure the
+            # ordinal reading exists to close. The rows are dropped here and
+            # `unresolved` asks which row was meant.
+            continuation.entity_key = ""
+            continuation.entity_ids = []
+            continuation.entity_labels = {}
+            continuation.inherited.pop("population", None)
+            continuation.inherited["ordinal"] = (
+                f"{bound.phrase} could not be bound: {bound.because}")
+            logger.info("An ordinal reference did not bind for %r: %s",
+                        question[:70], bound.because)
 
     return continuation
 
@@ -681,6 +914,14 @@ def unresolved(question: str, state: cv.ConversationState) -> str:
     conversation, not an error.
     """
     read_back = read(question)
+    if read_back.ordinal is not None:
+        # "The ninth one" when eight rows came back. Asked, never rounded down
+        # to the last row and never widened to all of them: both would answer
+        # about a different borrower under the reader's own sentence.
+        bound = nth.resolve(read_back.ordinal, state)
+        if not bound.resolved:
+            return nth.clarification(bound)
+        return ""
     if not read_back.population or state.result.has_population:
         return ""
     if _self_referential(question, read_back.population):
@@ -698,4 +939,5 @@ def unresolved(question: str, state: cv.ConversationState) -> str:
         "question that produces the list — and I will take it from there.")
 
 
-__all__ = ["Reference", "read", "resolve", "unresolved", "wants"]
+__all__ = ["Reference", "names_a_measure", "names_only_a_scope",
+           "read", "resolve", "unresolved", "wants"]

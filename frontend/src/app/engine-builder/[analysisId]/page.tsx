@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Unavailable } from "@/components/ui/unavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -53,9 +54,14 @@ export default function AnalysisDetailPage({
       <BackLink href="/engine-builder" label="Analysis Library" />
 
       {detail.loading && <Skeleton className="h-64 w-full" />}
-      {detail.error && (
-        <Card className="border-negative/40 p-4 text-sm text-negative">{detail.error}</Card>
-      )}
+      {/*
+        A link into a definition that is not registered — a saved analysis
+        whose definition was withdrawn, or a stale deep link — lands here.
+        The server's sentence names what was asked for and what exists, and
+        the Back link above is the way out; this only puts the two in the
+        same shape as every other panel that could not be shown.
+      */}
+      <Unavailable state={detail} what="this analysis definition" />
 
       {a && (
         <>

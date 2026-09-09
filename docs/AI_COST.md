@@ -1,121 +1,94 @@
-# What a question costs, and why
+# What the thinking cost
 
-R2 §16 asks for the cause of the AI cost to be **instrumented before it is
-guessed at**. This document records what the instrumentation found, what was
-changed as a result, and what the numbers were before and after.
+**Part 14.** AI cost, rolled up by the class that decided the routing.
 
-The measurement harness is `scripts/measure_ai_cost.py`. It runs a
-representative question set through the real router, the real catalogue, the
-real governed tools and the real evidence ledger, against a local stand-in
-provider that consumes nothing and reports the tokens of the prompts this
-deployment actually builds. **No live provider call is made and no credits are
-consumed.**
+## The defect
 
+`routing.Decision` published a `cost_estimate`. Nothing ever set it, so every
+turn reported that its AI cost was **zero**.
+
+A figure that is always zero is worse than no figure. It looks like an answer,
+it reconciles with nothing, and the first person to add it up gets a total that
+is wrong in the direction that flatters.
+
+## The four classes
+
+| | | |
+| --- | --- | --- |
+| **A** | Deterministic | Answered from governed data with no model call at all. |
+| **B** | Routine | One pass through the standard planner. |
+| **C** | Complex | The harder planner, and any repair it needed. |
+| **D** | Critic | An independent check on top of the answer. |
+
+Class A carries no calls **by definition** — it is the class where no model was
+asked anything — so it is published with zeros rather than omitted. A rollup
+that leaves it out cannot show how much of the traffic was answered for
+nothing, which is the whole argument for routing.
+
+Every configured role maps to exactly one class, and the mapping is written
+down (`cost.ROLE_CLASS`) rather than inferred, so a rollup cannot quietly
+reclassify a call into a cheaper bucket. A build-time test asserts that no
+configured role is missing from it — a role with no class would land wherever
+the default happens to be, which flatters the total.
+
+## Prices are configured, never assumed
+
+**There is no built-in price list.** A tariff nobody entered is reported as
+`NOT_PRICED`, and a turn served by an unpriced model contributes to the token
+counts and to nothing else.
+
+Inventing a price and presenting the product of two guesses as a cost is
+exactly the fabrication the rest of this system exists to prevent, and it is
+the easiest one to get away with because nobody checks a number that small.
+
+Configure with `CREDITPROBE_AI_TARIFF`, as JSON, in currency per million
+tokens:
+
+```json
+{"<model>": {"input": 3.00, "output": 15.00,
+             "cache_write": 3.75, "cache_read": 0.30}}
 ```
-.venv/bin/python scripts/measure_ai_cost.py --out docs/AI_COST_BASELINE.json
-```
 
----
+Every field is optional. A missing cache price falls back to the **input**
+price, which is the conservative reading: a cache token priced as a plain input
+token cannot understate the bill.
 
-## What the meter records
+### Partial coverage says so
 
-`backend/analyst/cost.py` holds one `Meter` per question. Per question it
-records the model calls, the role and model that served each of them, input /
-output / cache-read / cache-write tokens, how much of the input was catalogue
-and how much was gathered evidence, tool calls and how many repeated an
-earlier call, loop steps, provider retries, whether the answer came from the
-run-key store, and wall-clock. `GET /api/v1/ask/cost` returns the recent
-questions and the summary by class; it is administrator-only and carries no
-prompt text, no tool arguments and no borrower identifiers.
+A window where some calls used a model the tariff does not cover publishes the
+cost it *can* compute, the count of calls it could not, and a sentence saying
+the total covers part of the traffic rather than all of it.
 
-Cost is reported in **cost units**, not currency. §22 asks for budgets in
-tokens and calls rather than money, and a currency figure would need a price
-list that goes stale. A cost unit is a declared weighting: output tokens
-weigh five times input tokens, a cache-read token a tenth, a cache-write
-token slightly more than a fresh one, and the whole call is multiplied by its
-tier — light 1, standard 4, deep 16. The ratios are conservative, so a saving
-computed with them understates rather than flatters.
+## The arithmetic
 
----
+From the tokens the telemetry already records — including the cache read/write
+split, which is the whole reason the telemetry records them separately, since
+a cache read costs a fraction of a fresh input token and a cache write costs
+more than one.
 
-## What the measurement found
+    cost = (input × input_price
+          + output × output_price
+          + cache_write × write_price
+          + cache_read × read_price) ÷ 1,000,000
 
-Sixteen questions across four families, measured against the architecture at
-commit `2ef58c3`:
+## Where it surfaces
 
-| Family | Questions | Model calls / question | Input tokens / question | Cost units / question |
-|---|---:|---:|---:|---:|
-| Data and metadata | 6 | 4.00 | 14,731 | 247.1 |
-| Data query | 4 | 4.00 | 14,740 | 247.3 |
-| Orchestration | 2 | 4.00 | 14,753 | 247.5 |
-| Judgement | 4 | 4.00 | 14,737 | 247.2 |
+`GET /api/v1/ai/cost` — not behind ADMIN, because a class is a statement about
+how hard the question was rather than about who serves it. The tariff's keys
+are model identifiers and therefore name a vendor, so §12 keeps them off this
+surface: the endpoint publishes the *count* of priced models, and the identity
+stays on `/status/audit` where it already lived.
 
-**Every question cost the same**, and that is the finding. "How many data
-domains are there?" — a question the governed catalogue answers exactly, with
-no query to run — consumed four deep-tier model calls and 14,731 input tokens,
-the same as "Why did Shipping deteriorate this quarter?".
+## Per turn
 
-The first run of this table reported 61.8 units per question rather than
-247.2. That was a bug in the meter, not in the architecture: `record_call`
-defaulted an unnamed tier to *standard*, so the analyst's deep-tier calls were
-priced at a quarter of what they cost. The tier is now derived from the role,
-and the baseline above was re-measured with the corrected meter — an
-optimisation measured against an under-priced baseline looks like a
-regression, and this one would have.
+`routing.Decision` now reports:
 
-Four distinct causes, in the order they matter:
+* `cost_estimate` — **`null`**, not `0.0`, where nothing was measured;
+* `cost_measured` — whether anything was actually recorded, so a deterministic
+  turn that genuinely cost nothing is distinguishable from a turn nobody
+  instrumented;
+* `unpriced_calls` — calls whose tokens are known and whose money is not.
 
-### 1. There was no class A path at all
-
-`backend/analyst/route.py` sent every question to the analyst loop. The
-deterministic metadata answerer (`backend/metadata/`) existed and was correct,
-but it was reached only from inside `backend/orchestration/orchestrator.py`;
-the analyst path did not consult it. A catalogue question therefore paid a
-full investigation to rediscover an answer already held.
-
-Worse, `POST /ask` ran **both** paths for every question: the whole
-deterministic orchestrator — which itself calls a model to read the request
-and again to write the interpretation — and then, unconditionally, the whole
-analyst loop. §16's "no automatic expensive final synthesis when the
-deterministic answer already satisfies the question" was being violated on
-every single turn.
-
-### 2. The catalogue was re-sent on every turn
-
-7,676 of the ~14,700 input tokens per question were the system prompt and the
-tool catalogue — **identical on every one of the four turns**, and sent as
-part of the varying user prompt, where no provider cache can reach it. The
-prompt-caching module (`backend/llm/caching.py`) existed, correct and unused
-by this path.
-
-### 3. The evidence ledger was re-rendered whole, every turn
-
-6,972 tokens per question of accumulated evidence. Turn four re-sent turns one
-to three. The growth is quadratic in the number of turns, so the fourth turn
-of an eight-turn investigation is not four times the first — it is far more.
-
-### 4. Nothing detected a repeated tool call
-
-The loop had no memory of what it had already run, so the same query could be
-issued twice and paid for twice, in tokens on the way out and in evidence
-tokens on every subsequent turn.
-
----
-
-## What was changed
-
-Six changes, and the measured result of each: `docs/AI_COST_AFTER.md`.
-
-In one line: 64 model calls became 24, and 3,955.9 cost units became 523.8.
-A catalogue question now costs nothing at all.
-
----
-
-## What the figures are, and are not
-
-Token counts are measured from the prompts this deployment actually builds,
-at a four-characters-to-a-token estimate rather than the provider's own
-tokeniser. The number of turns is what the harness scripts, not what a live
-model would choose. The figures are therefore sound for comparing one
-architecture with another — which is what they are for — and are **not** a
-forecast of a bill.
+`routing.record_call(decision, call)` folds one recorded call in, so the
+per-turn figure is a sum of calls that actually happened rather than an
+estimate nobody can reconcile.

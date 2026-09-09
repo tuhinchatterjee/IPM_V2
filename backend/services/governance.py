@@ -116,6 +116,32 @@ def _ensure_domain(session: Session, name: str) -> None:
     session.flush()
 
 
+def _bundled_domain(name: str) -> str:
+    """The catalogue's own domain for a dataset, read from the bundle.
+
+    Needed because `install_business_domains` writes the *business* domain
+    over the catalogue one. That is the right thing for the screen and it
+    makes the function's own repair path one-way: a dataset filed as
+    UNPLACED has lost the field the map places it by, so re-running the
+    repair after fixing the map would leave it exactly where it was.
+    """
+    import json
+
+    from backend.config import settings
+
+    path = settings.metadata_dir / "catalog.json"
+    if not path.exists():
+        return ""
+    try:
+        catalogue = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):  # a missing or broken bundle is a real state
+        return ""
+    for entry in catalogue.get("datasets") or []:
+        if str(entry.get("name") or "") == name:
+            return str(entry.get("domain") or "")
+    return ""
+
+
 def install_business_domains(session: Session) -> dict[str, Any]:
     """Create the seven Data Builder domains and file every dataset in one.
 
@@ -137,8 +163,16 @@ def install_business_domains(session: Session) -> dict[str, Any]:
         if dataset.origin == DatasetOrigin.CLIENT.value:
             # A steward's own dataset keeps the domain the steward chose.
             continue
+        # The stored domain is what a previous run of this function wrote,
+        # so for a dataset already filed as UNPLACED it carries no
+        # information — and reading it back would make that filing
+        # permanent. Fall back to the bundled catalogue's own domain, which
+        # is what the map was written against.
+        catalogue_domain = dataset.domain
+        if catalogue_domain == data_domains.UNPLACED:
+            catalogue_domain = _bundled_domain(dataset.name)
         where = data_domains.business_domain(dataset=dataset.name,
-                                             catalogue_domain=dataset.domain)
+                                             catalogue_domain=catalogue_domain)
         if where == data_domains.UNPLACED:
             unplaced.append(dataset.name)
             continue

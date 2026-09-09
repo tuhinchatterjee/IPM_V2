@@ -105,6 +105,84 @@ def _guard(viewer: ac.Viewer, row: st.StoredRecord) -> ac.Decision:
     return decision
 
 
+#: What the caller is told when the thread exists, they may read it, and
+#: nothing has been assured on it yet. Distinct from NOT_FOUND above, because
+#: it is a distinct fact about the world and the reader acts on it differently.
+#: A thread the caller can see and whose assurance they may not read. Said
+#: plainly, because they already know the Investigation exists.
+NOT_YOURS = {"error": "forbidden",
+             "message": ("You do not have access to this Investigation's "
+                         "assurance. It is visible to the people who ran it, "
+                         "to its project, and to reviewers.")}
+
+NOT_YET = ("Nothing on this Investigation has been assured yet. Assurance is "
+           "recorded when CreditProbe answers a question, so the first answer "
+           "in this thread will produce it.")
+
+
+#: What `_visible` found. Three states, because the endpoint's answer differs
+#: for each and the old code had one answer for all three.
+GONE = "GONE"          # no such Investigation, or an id that names nothing
+REFUSED = "REFUSED"    # it exists, and this caller may not read its assurance
+OPEN = "OPEN"          # it exists and the caller may read it
+
+
+def _visible(viewer: ac.Viewer, investigation_id: str) -> str:
+    """Whether the caller may see the INVESTIGATION, records aside.
+
+    NOT_FOUND deliberately says one thing for "no such record" and for "not
+    yours", so that probing RECORD addresses discloses nothing. Applied to a
+    whole thread it answered 404 for three different things, and two of them
+    do not belong there.
+
+    The thread exists and nothing has been assured on it yet. Every
+    Investigation is in that state until its first answer, so every
+    Investigation page fetched a 404, logged a console error, and showed the
+    reader "No assurance record is available at that address" — a broken link
+    where the truth was "not yet".
+
+    The thread exists and this caller may not read its assurance. That is a
+    refusal, and saying so here discloses nothing: the caller is looking at
+    the Investigation, so they already know it exists. The single 404 protects
+    a record id somebody guessed, which is a different thing, and it still
+    covers that case below.
+
+    The same policy decides all of it — `may_read`, asked about the
+    Investigation's own project, owner and tenant rather than about a record
+    that does not exist — so a caller who could not have read its records
+    cannot read this either.
+    """
+    from backend.config import settings
+
+    if not settings.has_database or not investigation_id:
+        return GONE
+    try:
+        numeric = int(investigation_id)
+    except (TypeError, ValueError):
+        return GONE
+    try:
+        from backend.db.engine import get_session
+        from backend.models.platform import Investigation
+
+        with get_session() as session:
+            found = session.get(Investigation, numeric)
+            if found is None:
+                return GONE
+            allowed = ac.may_read(viewer, ac.Subject(
+                investigation_id=investigation_id,
+                project_id=(str(found.project_id)
+                            if found.project_id is not None else None),
+                owner_user_id=found.owner_id)).allowed
+            return OPEN if allowed else REFUSED
+    except Exception as e:  # noqa: BLE001 - the database went away
+        # An Investigation that could not be read is not one that is not
+        # there, but nothing can be shown either way, and GONE is the
+        # answer that discloses least.
+        logger.warning("Could not read Investigation %s: %s",
+                       investigation_id, e)
+        return GONE
+
+
 def _thread(viewer: ac.Viewer, investigation_id: str) -> list[st.StoredRecord]:
     rows = st.for_investigation(investigation_id)
     return [r for r in rows
@@ -127,6 +205,16 @@ def investigation_assurance(investigation_id: str,
     viewer = viewer_for(principal)
     rows = _thread(viewer, investigation_id)
     if not rows:
+        seen = _visible(viewer, investigation_id)
+        # A thread the caller may read, with nothing assured on it yet, is an
+        # empty state and not a missing address.
+        if seen == OPEN:
+            return {"investigation_id": investigation_id,
+                    "assured": False, "statement": NOT_YET}
+        # A thread they may NOT read is a refusal, and it reads as one.
+        if seen == REFUSED:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail=NOT_YOURS)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=NOT_FOUND)
     latest = rows[-1]

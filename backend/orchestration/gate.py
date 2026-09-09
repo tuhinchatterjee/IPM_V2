@@ -279,11 +279,20 @@ def _has(tree: pr.Node | None, kind: str) -> bool:
 
 def dropped_structure(text: str, enforcement: Any, tree: pr.Node | None,
                       matches: list[Any], conditions: list[Any],
-                      filters: list[tuple[str, str]]) -> list[str]:
+                      filters: list[tuple[str, str]],
+                      covered: list[str] | None = None) -> list[str]:
     """Everything the question asked for that the plan does not contain.
 
     Reported in the person's own words, because that is what they will check
     the answer against — "worsening liquidity", not `liquidity_ratio_change`.
+
+    `covered` names what the plan's reading accounts for WITHOUT a predicate.
+    Not every reading of a question is a filter: a composite reads "weakening"
+    as seven governed signals counted per borrower, and an exclusion reads
+    "not yet on the watchlist" as a restriction applied before the count. Both
+    are on the screen; neither is a predicate this gate can see. Without the
+    exemption CreditProbe told the reader it could not apply the very
+    conditions the caveat above said it had applied.
     """
     from backend.orchestration import semantics as sm
 
@@ -295,6 +304,9 @@ def dropped_structure(text: str, enforcement: Any, tree: pr.Node | None,
     settled |= {f for f, _ in filters}
     placed = {str(getattr(m, "phrase", "") or "").lower()
               for m in matches if str(getattr(m, "phrase", "") or "")}
+    placed |= {str(phrase).lower() for phrase in (covered or []) if phrase}
+    accounted = {str(phrase).lower().strip(" ,.?!")
+                 for phrase in (covered or []) if phrase}
 
     for clause in sm.clauses(said):
         if any(phrase and phrase in clause.lower() for phrase in placed):
@@ -310,7 +322,9 @@ def dropped_structure(text: str, enforcement: Any, tree: pr.Node | None,
         if trimmed:
             found.append(trimmed)
 
-    if _EXPLICIT_NOT.search(lowered) and not _has(tree, pr.NOT):
+    if (_EXPLICIT_NOT.search(lowered) and not _has(tree, pr.NOT)
+            and not any("not" in phrase or "exclu" in phrase
+                        for phrase in accounted)):
         found.append("the exclusion the question stated")
     if _EXPLICIT_OR.search(lowered) and not _has(tree, pr.OR):
         found.append("the either/or the question stated")
@@ -326,7 +340,11 @@ def dropped_structure(text: str, enforcement: Any, tree: pr.Node | None,
             continue
         found.append(phrase)
 
-    return list(dict.fromkeys(f for f in found if f))
+    return list(dict.fromkeys(
+        f for f in found
+        if f and f.lower().strip(" ,.?!") not in accounted
+        and not any(f.lower() in phrase or phrase in f.lower()
+                    for phrase in accounted)))
 
 
 #: Words that carry no subject, so a clause trimmed to its subject reads as the

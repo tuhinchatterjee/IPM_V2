@@ -5,7 +5,8 @@ import * as React from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
+import { Unavailable } from "@/components/ui/unavailable";
+import { ApiError, api } from "@/lib/api";
 import type {
   BrainConflictList,
   BrainMergePreview,
@@ -197,7 +198,15 @@ function Panel({ tab }: { tab: TabId }) {
     installations?: BrainInstallationList;
     security?: BrainSecurity;
   } | null>(null);
-  const [failed, setFailed] = React.useState("");
+  // Status alongside the sentence: a 403 here is Brain Center refusing a
+  // role, which reads differently from a panel that broke. Same shape as
+  // Regulatory Intelligence, and for the same reason.
+  const [failed, setFailed] = React.useState<{
+    message: string;
+    refused: boolean;
+    /** Which tab failed, so a refusal does not outlive the tab it belongs to. */
+    tab: TabId;
+  } | null>(null);
 
   React.useEffect(() => {
     let live = true;
@@ -226,12 +235,19 @@ function Panel({ tab }: { tab: TabId }) {
     };
 
     load()
-      .then((found) => live && setState(found ?? {}))
+      .then((found) => {
+        if (!live) return;
+        setFailed(null);
+        setState(found ?? {});
+      })
       .catch((error: unknown) => {
         if (!live) return;
-        setFailed(
-          error instanceof Error ? error.message : "That did not load.",
-        );
+        setFailed({
+          message:
+            error instanceof Error ? error.message : "That did not load.",
+          refused: error instanceof ApiError && error.isForbidden,
+          tab,
+        });
         setState({});
       });
     return () => {
@@ -240,7 +256,13 @@ function Panel({ tab }: { tab: TabId }) {
   }, [tab]);
 
   if (state === null) return <Skeleton className="h-48 w-full" />;
-  if (failed) return <Empty>{failed}</Empty>;
+  if (failed && failed.tab === tab)
+    return (
+      <Unavailable
+        state={{ error: failed.message, refused: failed.refused, loading: false }}
+        what="this part of Brain Center"
+      />
+    );
 
   if (tab === "current" && state.overview)
     return <Current data={state.overview} />;

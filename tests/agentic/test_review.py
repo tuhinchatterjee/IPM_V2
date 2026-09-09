@@ -74,7 +74,7 @@ def _clear(s) -> None:
 class _Metric:
     label: str = "ECL"
     value: float = 41.2
-    unit: str = "USD mn"
+    unit: str = "SAR mn"
 
 
 @dataclass

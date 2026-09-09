@@ -25,7 +25,7 @@ behind every one of them enforces permission whatever the sidebar shows.
 
 ---
 
-## CORE DEMO — eight capabilities
+## CORE DEMO — nine capabilities
 
 | Screen | Why it is core |
 |---|---|
@@ -37,20 +37,20 @@ behind every one of them enforces permission whatever the sidebar shows.
 | **Data Builder** (`/data-builder`) | Governed datasets, relationships, publication state. |
 | **Trace & Lineage** (`/trace`) | How an answer was produced. The heart of the demonstration. |
 | **Workflow** (`/workflow`) | Send, review, approve, with an append-only history. |
+| **Playbook** (`/playbook`) | The governance argument in one area: a committee pack, a figure's working, and a finding with the rule that raised it. |
 
 Each one is `status: "live"` and each was visited by the route crawl for
 ADMIN, ANALYST and VIEWER.
 
 ---
 
-## OPTIONAL DEMO — four
+## OPTIONAL DEMO — three
 
 | Screen | Show it when | What not to promise |
 |---|---|---|
 | **Lenses** (`/lenses`) | There is time and the audience asks about dashboards. | Nothing; it is real. One published Lens is seeded. |
 | **Stress Testing** (`/stress`) | The audience asks about scenarios. | — |
 | **Early Warning** (`/early-warning`) | The audience asks about predictive signals. | **Read the label out.** It is a prototype signal fitted on synthetic data and is not a validated model. |
-| **Playbooks** (`/playbooks`) | The audience asks about standing instructions. | **Do not promise scheduling.** Manual and on-publication triggers run; scheduled ones are not wired to a scheduler. |
 
 ---
 

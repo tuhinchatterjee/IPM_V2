@@ -10,6 +10,7 @@ import { AuthProvider } from "@/components/system/auth";
 import { DemoModeProvider } from "@/components/system/demo-mode";
 import { AppShell } from "@/components/layout/app-shell";
 import { RoleProvider } from "@/components/system/role-switcher";
+import { PersonalisationProvider } from "@/components/system/personalisation";
 import { ThemeProvider, ThemeScript } from "@/components/system/theme-provider";
 
 import "./globals.css";
@@ -87,7 +88,13 @@ export default function RootLayout({
           <AuthProvider>
             <RoleProvider>
               <DemoModeProvider>
-                <AppShell>{children}</AppShell>
+                {/* Inside Auth, because a preference belongs to an account;
+                    outside the shell, because the header control and the
+                    Cockpit heading read the same state and must update
+                    together. */}
+                <PersonalisationProvider>
+                  <AppShell>{children}</AppShell>
+                </PersonalisationProvider>
               </DemoModeProvider>
             </RoleProvider>
           </AuthProvider>

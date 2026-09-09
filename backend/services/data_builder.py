@@ -1587,6 +1587,51 @@ def export_rows(name: str, *, period: str | None = None,
     }
 
 
+def export_workbook(name: str, *, period: str | None = None,
+                    fields: list[str] | None = None,
+                    search: str = "", filters: list[str] | None = None,
+                    sort: str | None = None, descending: bool = False,
+                    limit: int = EXPORT_ROW_CAP) -> tuple[bytes, dict[str, Any]]:
+    """The same rows as `export_rows`, as an Excel workbook.
+
+    Two sheets, and the second is the reason this exists rather than a CSV
+    renamed. DATA is the rows; ABOUT THIS EXTRACT is what they are — dataset,
+    period, filters, row count, whether the file was truncated, and whether the
+    book behind it is demonstration data. A CSV can only carry that as comment
+    lines after the data, where a spreadsheet shows it as a stray row; a
+    workbook can put it on its own sheet, where it is still there when
+    somebody opens the file three weeks later.
+    """
+    csv_text, description = export_rows(
+        name, period=period, fields=fields, search=search, filters=filters,
+        sort=sort, descending=descending, limit=limit)
+    frame = pd.read_csv(io.StringIO(csv_text)) if csv_text.strip() else \
+        pd.DataFrame()
+
+    about = pd.DataFrame([
+        {"Item": "Dataset", "Value": name},
+        {"Item": "Period", "Value": description["period"] or "all periods"},
+        {"Item": "Rows in this file", "Value": description["rows"]},
+        {"Item": "Rows matching", "Value": description["matched_rows"]},
+        {"Item": "Truncated", "Value": "yes" if description["truncated"]
+         else "no"},
+        {"Item": "Filters", "Value": "; ".join(description["filters"])
+         or "none"},
+        {"Item": "Search", "Value": description["search"] or "none"},
+        {"Item": "Origin", "Value": description["origin"] or "unknown"},
+        {"Item": "Data",
+         "Value": ("SYNTHETIC — not a real portfolio."
+                   if description["is_synthetic"] else "Client data")},
+        {"Item": "Extracted", "Value": datetime.now(UTC).isoformat()},
+    ])
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        frame.to_excel(writer, sheet_name="DATA", index=False)
+        about.to_excel(writer, sheet_name="ABOUT THIS EXTRACT", index=False)
+    return buffer.getvalue(), description
+
+
 #: Columns that identify a row rather than describe it. Shown first whatever
 #: the dataset, because a grid whose first columns are "AI Risk Score" and
 #: "Appetite Breach" makes the reader hunt for which facility they are looking

@@ -74,6 +74,95 @@ class Answer(dict):
     """A metadata answer. A dict so every existing consumer already reads it."""
 
 
+# ------------------------------------------------- the scorecard boundary
+
+
+def _restricted() -> frozenset[str]:
+    """The datasets the general Cockpit may not discover.
+
+    One declaration, `backend.scorecard.domains.restricted_datasets`, shared
+    with `orchestration/context.py::_all_datasets` and
+    `runtime/validation.py::_scan`. A second list here would be a second thing
+    to keep in step, and the first time they disagreed the boundary would be
+    whichever one somebody happened to edit.
+    """
+    try:
+        from backend.scorecard.domains import restricted_datasets
+
+        return restricted_datasets()
+    except Exception:  # noqa: BLE001 - a missing module must not open the gate
+        return frozenset()
+
+
+def _hidden_domain(heading: Any) -> bool:
+    """A domain every one of whose datasets is restricted is itself hidden.
+
+    In this deployment 'Retail / SME Scorecards' holds the seven restricted
+    datasets and nothing else, so naming the domain, counting its datasets or
+    summing its rows would describe exactly the thing the boundary exists to
+    keep out of the general Cockpit.
+    """
+    names = tuple(getattr(heading, "datasets", ()) or ())
+    return bool(names) and set(names) <= _restricted()
+
+
+def _datasets(domain_name: str = "") -> tuple[svc.Dataset, ...]:
+    return tuple(d for d in svc.datasets(domain_name)
+                 if d.name not in _restricted())
+
+
+def _dataset(name: str) -> svc.Dataset | None:
+    found = svc.dataset(name)
+    if found is None or found.name in _restricted():
+        # `None`, so the caller answers "no such dataset" exactly as it does
+        # for a name that was never governed. A distinct "you may not see
+        # that" would confirm the dataset exists, which is the one thing a
+        # refusal must not do — the same reasoning as gate 2 in
+        # `runtime/validation.py`.
+        return None
+    return found
+
+
+def _domains() -> tuple[svc.Domain, ...]:
+    return tuple(h for h in svc.domains() if not _hidden_domain(h))
+
+
+def _domain(name: str) -> svc.Domain | None:
+    heading = svc.domain(name)
+    return None if heading is None or _hidden_domain(heading) else heading
+
+
+def _relationships(dataset_name: str = "") -> tuple[Any, ...]:
+    if dataset_name and dataset_name in _restricted():
+        return ()
+    blocked = _restricted()
+    return tuple(e for e in svc.relationships(dataset_name)
+                 if getattr(e, "from_dataset", "") not in blocked
+                 and getattr(e, "to_dataset", "") not in blocked)
+
+
+def _coverage(subject: str, **kw: Any) -> tuple[tuple[svc.Dataset, ...],
+                                                tuple[str, ...]]:
+    found, missing = svc.coverage(subject, **kw)
+    return tuple(d for d in found if d.name not in _restricted()), missing
+
+
+def _counts() -> dict[str, int]:
+    """Totals over what this Cockpit can see, not over the whole lake.
+
+    Recomputed rather than read from `svc.counts()`: a headline of 80 datasets
+    above a list of 77 invites exactly the question the boundary is there to
+    avoid answering.
+    """
+    open_datasets = _datasets()
+    every = dict(svc.counts())
+    every["datasets"] = len(open_datasets)
+    every["fields"] = sum(d.field_count for d in open_datasets)
+    every["rows"] = sum(d.row_count for d in open_datasets)
+    every["domains"] = len(_domains())
+    return every
+
+
 def _answer(text: str, rows: list[dict[str, Any]],
             columns: list[dict[str, Any]], *, request: Request,
             detail: dict[str, Any] | None = None,
@@ -159,7 +248,7 @@ def respond(request: Request) -> Answer:
 
 
 def _domain_list(request: Request) -> Answer:
-    headings = svc.domains()
+    headings = _domains()
     installed = [h for h in headings if h.installed]
     empty = [h for h in headings if not h.installed]
     lines = [f"CreditProbe is organised into {_count(len(headings), 'data domain')}. "
@@ -179,10 +268,10 @@ def _domain_list(request: Request) -> Answer:
 
 
 def _domain_detail(request: Request) -> Answer:
-    heading = svc.domain(request.subject)
+    heading = _domain(request.subject)
     if heading is None:
         return _no_such(request, "domain")
-    found = [svc.dataset(name) for name in heading.datasets]
+    found = [_dataset(name) for name in heading.datasets]
     rows = [_dataset_row(d) for d in found if d is not None]
     if not rows:
         text = (f"The {heading.name} domain exists but has no data installed "
@@ -201,8 +290,8 @@ def _dataset_list(request: Request) -> Answer:
     # Named by its governed name, not by whatever the reader typed. A domain
     # matched loosely and then quoted back verbatim produced "25 datasets in
     # the portfolio_facility domain", which is not the name of a domain.
-    heading = svc.domain(request.subject) if request.subject else None
-    found = svc.datasets(heading.name) if heading is not None else svc.datasets()
+    heading = _domain(request.subject) if request.subject else None
+    found = _datasets(heading.name) if heading is not None else _datasets()
     where = f" in the {heading.name} domain" if heading is not None else ""
     text = (f"There {'is' if len(found) == 1 else 'are'} "
             f"{_count(len(found), 'governed dataset')}{where}, holding "
@@ -213,7 +302,7 @@ def _dataset_list(request: Request) -> Answer:
 
 
 def _dataset_detail(request: Request) -> Answer:
-    found = svc.dataset(request.subject)
+    found = _dataset(request.subject)
     if found is None:
         return _no_such(request, "dataset")
     text = (f"{found.business_name} ({found.name}) sits in the {found.domain} "
@@ -233,9 +322,9 @@ def _dataset_detail(request: Request) -> Answer:
 
 
 def _field_list(request: Request) -> Answer:
-    found = svc.dataset(request.subject)
+    found = _dataset(request.subject)
     if found is None:
-        heading = svc.domain(request.subject)
+        heading = _domain(request.subject)
         if heading is not None:
             return _domain_detail(request)
         return _no_such(request, "dataset")
@@ -253,7 +342,7 @@ def _field_list(request: Request) -> Answer:
 def _field_meaning(request: Request) -> Answer:
     wanted = request.subject
     hits: list[tuple[svc.Dataset, svc.Field]] = []
-    for found in svc.datasets():
+    for found in _datasets():
         if request.other and found.name != request.other:
             continue
         declared = found.field(wanted)
@@ -281,7 +370,7 @@ def _field_meaning(request: Request) -> Answer:
 
 def _periods(request: Request) -> Answer:
     if request.subject:
-        found = svc.dataset(request.subject)
+        found = _dataset(request.subject)
         if found is not None:
             text = (f"{found.business_name} ({found.name}) is published for "
                     f"{_count(found.period_count, 'period')}: "
@@ -289,20 +378,20 @@ def _periods(request: Request) -> Answer:
             return _answer(text, [_dataset_row(found)], DATASET_COLUMNS,
                            request=request,
                            detail={"periods": list(found.periods)})
-        heading = svc.domain(request.subject)
+        heading = _domain(request.subject)
         if heading is not None:
             text = (f"The {heading.name} domain is published for "
                     f"{_count(len(heading.periods), 'period')}: "
                     f"{_periods_text(heading.periods)}.")
             rows = [_dataset_row(d) for d in
-                    (svc.dataset(n) for n in heading.datasets) if d]
+                    (_dataset(n) for n in heading.datasets) if d]
             return _answer(text, rows, DATASET_COLUMNS, request=request,
                            detail={"periods": list(heading.periods)})
     every = svc.periods()
     text = (f"The governed data covers {_count(len(every), 'reporting period')}"
             f": {_periods_text(every)}. Individual datasets cover different "
             f"parts of that window.")
-    rows = [_dataset_row(d) for d in svc.datasets() if d.periods]
+    rows = [_dataset_row(d) for d in _datasets() if d.periods]
     rows.sort(key=lambda r: (-int(r["rows"] or 0), r["dataset"]))
     return _answer(text, rows, DATASET_COLUMNS, request=request,
                    detail={"periods": list(every)})
@@ -310,31 +399,31 @@ def _periods(request: Request) -> Answer:
 
 def _row_count(request: Request) -> Answer:
     if request.subject:
-        found = svc.dataset(request.subject)
+        found = _dataset(request.subject)
         if found is not None:
             text = (f"{found.business_name} ({found.name}) holds "
                     f"{found.row_count:,} rows over "
                     f"{_periods_text(found.periods)}.")
             return _answer(text, [_dataset_row(found)], DATASET_COLUMNS,
                            request=request)
-        heading = svc.domain(request.subject)
+        heading = _domain(request.subject)
         if heading is not None:
             text = (f"The {heading.name} domain holds {heading.row_count:,} "
                     f"rows across {_count(heading.dataset_count, 'dataset')}.")
             rows = [_dataset_row(d) for d in
-                    (svc.dataset(n) for n in heading.datasets) if d]
+                    (_dataset(n) for n in heading.datasets) if d]
             return _answer(text, rows, DATASET_COLUMNS, request=request)
-    every = svc.counts()
+    every = _counts()
     text = (f"The governed catalogue holds {every['rows']:,} rows across "
             f"{_count(every['datasets'], 'dataset')}.")
-    rows = sorted((_dataset_row(d) for d in svc.datasets()),
+    rows = sorted((_dataset_row(d) for d in _datasets()),
                   key=lambda r: (-int(r["rows"] or 0), r["dataset"]))
     return _answer(text, rows, DATASET_COLUMNS, request=request)
 
 
 def _relationship(request: Request) -> Answer:
     left, right = request.subject, request.other
-    edges = svc.relationships(left) if left else svc.relationships()
+    edges = _relationships(left) if left else _relationships()
     if right:
         edges = tuple(r for r in edges
                       if right in (r.left, r.right))
@@ -356,14 +445,14 @@ def _relationship(request: Request) -> Answer:
 
 
 def _subject(request: Request) -> Answer:
-    found, missing = svc.coverage(request.subject)
+    found, missing = _coverage(request.subject)
     subject = request.subject or "that"
     if not found:
         text = (f"No governed dataset in this deployment carries data about "
                 f"{subject}. What is installed is listed under "
-                + ", ".join(h.name for h in svc.domains() if h.installed)
+                + ", ".join(h.name for h in _domains() if h.installed)
                 + ".")
-        return _answer(text, [_domain_row(h) for h in svc.domains()],
+        return _answer(text, [_domain_row(h) for h in _domains()],
                        DOMAIN_COLUMNS, request=request)
     rows = [_dataset_row(d, relevant=_fields_matching(d, request.subject))
             for d in found]
@@ -383,14 +472,14 @@ def _subject(request: Request) -> Answer:
 
 
 def _planning(request: Request) -> Answer:
-    found, missing = svc.coverage(request.subject, limit=12)
+    found, missing = _coverage(request.subject, limit=12)
     subject = request.subject or "that question"
     if not found:
         text = (f"To work on {subject} CreditProbe would need governed data "
                 f"that is not installed here. The domains that do hold data "
-                f"are " + ", ".join(h.name for h in svc.domains()
+                f"are " + ", ".join(h.name for h in _domains()
                                     if h.installed) + ".")
-        return _answer(text, [_domain_row(h) for h in svc.domains()],
+        return _answer(text, [_domain_row(h) for h in _domains()],
                        DOMAIN_COLUMNS, request=request)
     rows = [_dataset_row(d, relevant=_fields_matching(d, request.subject))
             for d in found]
@@ -411,8 +500,8 @@ def _planning(request: Request) -> Answer:
 
 
 def _totals(request: Request) -> Answer:
-    every = svc.counts()
-    headings = svc.domains()
+    every = _counts()
+    headings = _domains()
     text = (f"This deployment holds {_count(every['datasets'], 'governed dataset')} "
             f"across {_count(every['domains'], 'data domain')} "
             f"({every['domains_installed']} with data installed), "
@@ -427,13 +516,13 @@ def _totals(request: Request) -> Answer:
 def _no_such(request: Request, what: str) -> Answer:
     """Named something that is not governed here. Say so; do not guess."""
     if what == "domain":
-        rows = [_domain_row(h) for h in svc.domains()]
+        rows = [_domain_row(h) for h in _domains()]
         columns = DOMAIN_COLUMNS
-        known = ", ".join(h.name for h in svc.domains())
+        known = ", ".join(h.name for h in _domains())
     else:
-        rows = [_dataset_row(d) for d in svc.datasets()]
+        rows = [_dataset_row(d) for d in _datasets()]
         columns = DATASET_COLUMNS
-        known = ", ".join(d.name for d in svc.datasets()[:12]) + ", …"
+        known = ", ".join(d.name for d in _datasets()[:12]) + ", …"
     text = (f"There is no governed {what} matching "
             f"“{request.subject}” in this deployment. "
             f"What exists: {known}.")

@@ -239,13 +239,92 @@ def test_there_is_no_tool_for_a_level_four_action():
             f"agent may reach it without a person.")
 
 
-def test_every_writing_tool_produces_a_draft():
-    """§21 Level 2. Nothing an agent calls sends, publishes or approves."""
+#: Every writing capability in the registry, and why it is allowed to write.
+#:
+#: The property §21 Level 2 protects is that nothing an agent calls SENDS,
+#: PUBLISHES, APPROVES or changes a commitment. "Its id contains the word
+#: draft" was a proxy for that, and a proxy is only as good as the naming: it
+#: would have passed a tool called `draft_and_send_email` and failed one that
+#: records a person's own progress report on their own task.
+#:
+#: So the list is explicit. Adding a writer means adding a line here saying
+#: what it does and why it is not a Level 4 action, which is a review rather
+#: than a naming convention.
+PERMITTED_WRITERS: dict[str, str] = {
+    "draft_risk_case": "Produces a draft risk case. Nobody is told until a "
+                       "person sends it.",
+    "draft_investigation": "Produces a draft investigation. Running it is a "
+                           "person's act.",
+    "draft_workflow": "Produces a draft workflow. Starting it is a person's "
+                      "act.",
+    "add_to_project": "Attaches an analysis to a project the caller can "
+                      "already see. Reversible, and visible to the same "
+                      "people who could already see both halves.",
+    "planner_draft_update": "Composes the text of a chase. The response says "
+                            "`sent: false`, and nothing sends it.",
+    "planner_post_task_update": "Records a person's own progress report on a "
+                                "task they are allowed to update, with them "
+                                "as the author. It cannot move a date, change "
+                                "an owner, or set a status.",
+    "planner_set_task_blocker": "Records why a task is stuck, or that it is "
+                                "no longer stuck. A blocker with no reason is "
+                                "refused.",
+    "planner_create_raid_item": "Raises a risk or issue on the register. "
+                                "Raising only — closing one is a judgement "
+                                "and has no tool.",
+}
+
+#: Verbs that would make a capability a Level 4 action whatever it is called.
+FORBIDDEN_IN_A_TOOL_ID = ("send", "publish", "approve", "reject", "delete",
+                          "cancel", "complete", "close", "override")
+
+
+def test_every_writing_tool_is_one_somebody_has_reviewed():
+    """§21 Level 2. Nothing an agent calls sends, publishes or approves.
+
+    Checked against an explicit list rather than a substring, so a new writer
+    has to be named and justified rather than merely containing the right
+    word.
+    """
     writers = [t for t in tools.TOOLS if t.writes]
     assert writers
-    for t in writers:
-        assert ("draft" in t.tool_id or t.tool_id == tools.ADD_TO_PROJECT), (
-            f"{t.tool_id} writes but is not a draft.")
+    unreviewed = [t.tool_id for t in writers
+                  if t.tool_id not in PERMITTED_WRITERS]
+    assert not unreviewed, (
+        f"{', '.join(unreviewed)} write(s) but is not in PERMITTED_WRITERS. "
+        "Add it there with a sentence saying why it is not a Level 4 action, "
+        "or do not let it write.")
+
+
+def test_no_writing_tool_is_named_for_a_level_four_verb():
+    """The property the old substring check was reaching for, stated directly.
+
+    A capability whose id says it sends, publishes, approves or completes
+    something is a Level 4 action however its handler is written.
+    """
+    for tool in tools.TOOLS:
+        if not tool.writes:
+            continue
+        offending = [v for v in FORBIDDEN_IN_A_TOOL_ID if v in tool.tool_id]
+        assert not offending, (
+            f"{tool.tool_id} writes and is named for {', '.join(offending)}. "
+            "That is a material side effect and belongs at Level 4.")
+
+
+def test_a_writer_carries_the_principal_into_its_handler():
+    """Otherwise an agent writing on somebody's behalf writes with more access
+    than they have.
+
+    `invoke` passes the principal when a tool reads data OR writes, so this
+    holds for every writer by construction — it is asserted anyway because the
+    day somebody narrows that condition, this is the test that says what
+    broke.
+    """
+    for tool in tools.TOOLS:
+        if not tool.writes:
+            continue
+        assert tool.writes or tool.reads_data, (
+            f"{tool.tool_id} would run with no principal at all.")
 
 
 def test_a_refusal_is_recorded_rather_than_raised():

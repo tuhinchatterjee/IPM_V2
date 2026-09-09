@@ -52,7 +52,7 @@ BORROWER_DATASET = "borrower_financials"
 # Source column -> governed field name.
 #
 # Governed names are lower_snake_case, unit-free and stable. The unit lives in
-# the catalogue, not in the name, so a later switch from USD mn to AED mn is a
+# the catalogue, not in the name, so a later switch from SAR mn to AED mn is a
 # metadata change rather than a rename across the whole codebase.
 # --------------------------------------------------------------------------
 
@@ -144,12 +144,12 @@ EXTRA_DEFINITIONS = {
         "Below 1.0x the borrower cannot cover its obligations from earnings.",
     ),
     "Model ECL (USD mn)": (
-        "USD mn",
+        "SAR mn",
         "Expected credit loss produced by the IFRS 9 model, before any management "
         "or macroeconomic overlay is applied.",
     ),
     "Macro Overlay (USD mn)": (
-        "USD mn",
+        "SAR mn",
         "Management/macroeconomic overlay added to the model ECL to reflect "
         "conditions the model does not yet capture.",
     ),
@@ -181,7 +181,7 @@ CONFIDENTIAL_FIELDS = {"borrower_name", "customer_id", "account_id", "obligor_gr
 TYPE_MAP: dict[str, tuple[str, str | None]] = {
     "Date": ("date", None),
     "Text": ("string", None),
-    "USD mn": ("number", "USD mn"),
+    "SAR mn": ("number", "SAR mn"),
     "%": ("number", "%"),
     "days": ("integer", "days"),
     "x": ("number", "x"),

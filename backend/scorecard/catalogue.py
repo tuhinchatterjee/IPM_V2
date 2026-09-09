@@ -24,12 +24,15 @@ share a `customer_id` column name and mean entirely different things by it.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from backend.scorecard import build as build_mod
 from backend.scorecard import synthetic as synth
 from backend.scorecard import variables as vars_mod
+
+logger = logging.getLogger(__name__)
 
 CATALOGUE_VERSION = "1.0.0"
 
@@ -253,6 +256,51 @@ RELATIONSHIPS: tuple[dict[str, Any], ...] = (
 )
 
 
+def _only_what_was_built(entry: dict[str, Any]) -> dict[str, Any]:
+    """Drop declared columns the build did not actually write.
+
+    The variable list proposes bin and weight-of-evidence columns for every
+    model variable; variable selection then drops some of those variables, and
+    the writer does not emit columns for them. A catalogue that declares one
+    of those anyway is not a small inaccuracy — the compiler selects every
+    declared column, so a single phantom field makes the whole dataset
+    unqueryable with a binder error, which is how both retail application
+    datasets came to be unreadable.
+
+    So the declaration is reconciled against the artefact. What is on disk
+    wins, and what was dropped is logged by name.
+    """
+    from backend.config import settings
+
+    root = settings.analytics_dir / entry["name"]
+    if not root.exists():
+        return entry
+    partitions = sorted(p for p in root.iterdir() if p.is_dir())
+    if not partitions:
+        return entry
+
+    import duckdb
+
+    pattern = str(partitions[-1] / "*.parquet")
+    try:
+        with duckdb.connect(database=":memory:") as conn:
+            built = {row[0] for row in conn.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{pattern}')").fetchall()}
+    except Exception:  # noqa: BLE001 - unreadable data declares nothing
+        return entry
+
+    kept = [f for f in entry.get("fields", []) if f["name"] in built]
+    dropped = [f["name"] for f in entry.get("fields", [])
+               if f["name"] not in built]
+    if dropped:
+        logger.warning(
+            "%s: %s declared but not written by the build; left out of the "
+            "catalogue: %s", entry["name"], len(dropped), ", ".join(dropped))
+    entry = dict(entry)
+    entry["fields"] = kept
+    return entry
+
+
 def merge_into_catalogue(path: Path | None = None) -> dict[str, Any]:
     """Add the scorecard datasets to the governed catalogue, in place.
 
@@ -266,7 +314,7 @@ def merge_into_catalogue(path: Path | None = None) -> dict[str, Any]:
         json.loads(target.read_text("utf-8")) if target.exists()
         else {"version": "1.0.0", "datasets": []})
 
-    ours = datasets()
+    ours = [_only_what_was_built(d) for d in datasets()]
     names = {d["name"] for d in ours}
     kept = [d for d in catalogue.get("datasets", [])
             if d.get("name") not in names]

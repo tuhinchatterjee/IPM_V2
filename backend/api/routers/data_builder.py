@@ -32,8 +32,10 @@ from sqlalchemy.orm import Session
 from backend.api.permissions import Principal, RequireDataSteward, RequirePublisher
 from backend.config import settings
 from backend.db.engine import SessionLocal
-from backend.services import assistant, governance, harmonisation, inbox
+from backend.models.platform import DatasetDefinition
+from backend.services import assistant, collaboration, governance, harmonisation, inbox
 from backend.services import data_builder as db_service
+from backend.services import data_periods as periods_service
 from backend.services.data_builder import DataBuilderError
 
 logger = logging.getLogger(__name__)
@@ -188,6 +190,73 @@ def _dataset_out(dataset, session: Session) -> dict[str, Any]:
     }
 
 
+def _coverage_out(name: str, dataset, session: Session) -> dict[str, Any]:
+    """What periods this dataset actually holds, and how often they arrive.
+
+    The definition says a dataset has a period field. It does not say which
+    periods are in the lake, how many there are, or whether they come every
+    month or every quarter — and those are the first three things a steward
+    looks for before deciding whether the next one is missing. They are read
+    from the governed catalogue rather than from the definition, so a period
+    published a minute ago is here.
+    """
+    from backend.metadata import frequency as freq
+    from backend.metadata import service as catalogue
+
+    # What the version actually is, said once.
+    #
+    # A dataset shipped with the platform has no `published_version`: nobody
+    # ever pressed Publish on it, because it was there from the start. The page
+    # used to render that as "not published" beside a badge reading "published"
+    # and a banner reading "available to the engine", which is two of the three
+    # being wrong. So the answer comes from what is on the record: a
+    # dataset-wide publication if there was one, otherwise the newest published
+    # period release, otherwise the honest statement that it arrived with the
+    # platform.
+    release = _latest_release(dataset, session)
+    if dataset.published_version:
+        version = f"v{dataset.published_version}"
+    elif release is not None:
+        version = f"{release.period} v{release.version}"
+    else:
+        version = ("shipped with the platform"
+                   if dataset.lifecycle == "published" else "not published")
+
+    found = catalogue.dataset(name)
+    if found is None:
+        return {"periods": [], "period_count": 0, "frequency": "",
+                "coverage": "", "earliest": "", "latest": "", "rows": 0,
+                "field_count": 0, "version": version,
+                "released_at": None, "released_period": ""}
+    ordered = list(found.periods)
+    return {
+        "periods": ordered,
+        "period_count": len(ordered),
+        "frequency": freq.of(tuple(ordered)),
+        "coverage": freq.coverage(tuple(ordered)),
+        "earliest": freq.earliest_of(ordered),
+        "latest": freq.latest_of(ordered),
+        "rows": found.row_count,
+        "field_count": found.field_count,
+        "version": version,
+        "released_period": release.period if release is not None else "",
+        "released_at": (
+            release.published_at.isoformat()
+            if release is not None and release.published_at
+            else (dataset.published_at.isoformat()
+                  if dataset.published_at else None)),
+    }
+
+
+def _latest_release(dataset, session: Session):
+    """The newest period of this dataset that somebody published."""
+    from backend.models.platform import PERIOD_PUBLISHED, DataPeriodRelease
+
+    return session.query(DataPeriodRelease).filter_by(
+        dataset_id=dataset.id, state=PERIOD_PUBLISHED,
+    ).order_by(DataPeriodRelease.published_at.desc()).first()
+
+
 def _mapping_out(m) -> dict[str, Any]:
     return {
         "source_column": m.source_column,
@@ -330,6 +399,7 @@ def get_dataset(name: str, session: Session = Depends(get_db)) -> dict:
     upload = db_service.latest_upload(session, dataset)
     return {
         **_dataset_out(dataset, session),
+        "coverage": _coverage_out(dataset.name, dataset, session),
         "latest_upload": _upload_out(upload) if upload else None,
         "mappings": [_mapping_out(m) for m in db_service.get_mappings(session, dataset)],
         "fields": [
@@ -1024,6 +1094,246 @@ def dataset_export(
             "X-CreditProbe-Synthetic": str(description["is_synthetic"]).lower(),
         },
     )
+
+
+@router.get("/datasets/{name}/workbook",
+            summary="Export the current view as an Excel workbook")
+def dataset_workbook(
+    name: str,
+    period: str | None = None,
+    sort: str | None = None,
+    descending: bool = False,
+    q: str = Query(default="", max_length=200),
+    filter: list[str] = Query(default=[]),  # noqa: A002
+    fields: str | None = Query(default=None),
+    limit: int = Query(default=db_service.EXPORT_ROW_CAP, ge=1),
+    principal: Principal = RequireDataSteward,
+) -> Response:
+    """The same rows as the CSV, with a sheet saying what they are.
+
+    A CSV can only carry its provenance as comment lines after the data, where
+    a spreadsheet shows them as a stray row. A workbook puts them on their own
+    sheet, where they are still there when somebody opens the file three weeks
+    later and cannot remember which period it was.
+    """
+    try:
+        payload, description = db_service.export_workbook(
+            name, period=period, sort=sort, descending=descending,
+            search=q, filters=list(filter), limit=limit,
+            fields=[f.strip() for f in fields.split(",")] if fields else None,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "invalid_request", "message": str(e)},
+        ) from e
+
+    logger.info(
+        "Dataset workbook: %s period=%s rows=%s by user=%s role=%s",
+        name, description["period"], description["rows"],
+        principal.user_id, principal.role.value,
+    )
+    period_tag = (description["period"] or "all").replace(" ", "-")
+    synthetic_tag = "_SYNTHETIC" if description["is_synthetic"] else ""
+    return Response(
+        content=payload,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".spreadsheetml.sheet"),
+        headers={
+            "Content-Disposition":
+                f'attachment; filename="{name}_{period_tag}'
+                f'{synthetic_tag}.xlsx"',
+            "X-CreditProbe-Rows": str(description["rows"]),
+            "X-CreditProbe-Truncated": str(description["truncated"]).lower(),
+            "X-CreditProbe-Synthetic": str(description["is_synthetic"]).lower(),
+        },
+    )
+
+
+# ============================================================ a period arrives
+#
+# Publishing a dataset used to rewrite every period of it. That is right when a
+# book is loaded in full and catastrophic when a steward sends the next
+# quarter, so these endpoints are period-scoped: one period in, one partition
+# written, every other period untouched.
+#
+# Nothing here publishes as a side effect of an upload. A file that arrives is
+# staged and checked; a person reads it, locks it, and publishes it, and each
+# of those is a separate call by somebody with the right to make it.
+
+
+@router.post("/datasets/{name}/periods/upload",
+             summary="Upload one reporting period")
+async def upload_period(
+    name: str,
+    period: str = Form(...),
+    mode: str = Form(default="NEW_PERIOD"),
+    sheet: str | None = Form(default=None),
+    file: UploadFile = File(...),
+    session: Session = Depends(get_db),
+    principal: Principal = RequireDataSteward,
+) -> dict:
+    """A file arrives for one period. It is read, staged and validated.
+
+    It is NOT published. The release comes back VALIDATED or FAILED and a
+    person moves it on from there.
+    """
+    content = await file.read()
+    # The same cap every other upload route applies. This one did not, and an
+    # upload route without one is a way to take the process down with a single
+    # request.
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail={"error": "file_too_large",
+                    "message": f"The file is larger than the "
+                               f"{settings.max_upload_mb} MB limit."},
+        )
+    try:
+        release = periods_service.stage(
+            session, name, content=content, filename=file.filename or "upload",
+            period=period, mode=mode, uploaded_by=principal.user_id,
+            sheet_name=sheet)
+    except DataBuilderError as e:
+        raise _fail(e) from e
+    session.commit()
+    return {"dataset": name, "release": periods_service.describe(release)}
+
+
+@router.get("/datasets/{name}/periods",
+            summary="Every release of every period, newest first")
+def period_history(name: str, period: str = "",
+                   session: Session = Depends(get_db),
+                   principal: Principal = RequireDataSteward) -> dict:
+    # Every other route on this router names who may call it. This one did
+    # not, and answered an unauthenticated caller with the release history:
+    # source filenames, checksums, who uploaded and reviewed each version,
+    # and what the checks found. That is operational detail about the bank's
+    # own data, and it sat behind no session at all.
+    try:
+        releases = periods_service.history(session, name, period=period)
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_404_NOT_FOUND) from e
+    return {"dataset": name, "period": period, "count": len(releases),
+            "releases": [periods_service.describe(r) for r in releases]}
+
+
+class ReleaseNoteIn(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
+@router.post("/periods/{release_id}/review",
+             summary="Send a validated period to be read")
+def period_to_review(release_id: int, payload: ReleaseNoteIn | None = None,
+                     session: Session = Depends(get_db),
+                     principal: Principal = RequireDataSteward) -> dict:
+    try:
+        release = periods_service.send_to_review(
+            session, release_id, note=(payload.note if payload else ""))
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_409_CONFLICT) from e
+    session.commit()
+    return {"release": periods_service.describe(release)}
+
+
+@router.post("/periods/{release_id}/lock",
+             summary="Somebody has read it; it may now be published")
+def period_lock(release_id: int, payload: ReleaseNoteIn | None = None,
+                session: Session = Depends(get_db),
+                principal: Principal = RequireDataSteward) -> dict:
+    try:
+        release = periods_service.lock(
+            session, release_id, reviewed_by=principal.user_id,
+            note=(payload.note if payload else ""))
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_409_CONFLICT) from e
+    session.commit()
+    return {"release": periods_service.describe(release)}
+
+
+@router.post("/periods/{release_id}/discard",
+             summary="Throw a staged period away")
+def period_discard(release_id: int, payload: ReleaseNoteIn | None = None,
+                   session: Session = Depends(get_db),
+                   principal: Principal = RequireDataSteward) -> dict:
+    try:
+        release = periods_service.discard(
+            session, release_id, note=(payload.note if payload else ""))
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_409_CONFLICT) from e
+    session.commit()
+    return {"release": periods_service.describe(release)}
+
+
+@router.post("/periods/{release_id}/publish",
+             summary="Publish one locked period")
+def period_publish(release_id: int, session: Session = Depends(get_db),
+                   principal: Principal = RequirePublisher) -> dict:
+    """One partition written, the catalogue refreshed, the bank told.
+
+    The order matters. The partition is durable before the catalogue is
+    refreshed, and the catalogue is refreshed before anybody is told, so a
+    reader who follows the message straight to the data finds it there.
+    """
+    try:
+        release = periods_service.publish(session, release_id,
+                                          published_by=principal.user_id)
+    except DataBuilderError as e:
+        raise _fail(e, status.HTTP_409_CONFLICT) from e
+
+    dataset = session.get(DatasetDefinition, release.dataset_id)
+    label = (getattr(dataset, "business_name", "") or release.period)
+
+    # Who published which period of what, when — inside the same transaction
+    # as the publication itself, so the log cannot say it happened when it did
+    # not. Publishing a period changes what every later answer is computed
+    # from; it is the most consequential thing anybody does on this screen and
+    # it was the one thing on it that left no record.
+    collaboration.audit(
+        session, "DATA_PERIOD_PUBLISHED", actor_id=principal.user_id,
+        object_type="data_period_release", object_id=str(release.id),
+        dataset=getattr(dataset, "name", ""), period=release.period,
+        version=release.version, mode=release.mode,
+        rows=release.row_count, fields=release.field_count,
+        source_filename=release.source_filename,
+        source_sha256=release.source_sha256,
+        validated=bool((release.validation or {}).get("passed")),
+    )
+    session.commit()
+
+    # The analytical engine cannot see a period it has not been told about.
+    db_service.refresh_governed_catalog()
+
+    announcement: dict = {}
+    try:
+        announcement = collaboration.publish_data_release_event(
+            session,
+            dataset=getattr(dataset, "name", ""),
+            dataset_label=label,
+            domain=getattr(dataset, "domain", "") or "",
+            period=release.period,
+            previous_period=periods_service._previous_period(
+                dataset, release.period) if dataset is not None else "",
+            version=f"v{release.version}",
+            row_count=release.row_count,
+            published_at=(release.published_at.isoformat()
+                          if release.published_at else ""),
+            published_by_id=principal.user_id,
+            validated=bool((release.validation or {}).get("passed")),
+        )
+        session.commit()
+    except Exception as e:  # noqa: BLE001 - the data is live either way
+        session.rollback()
+        logger.exception("Published %s %s but could not announce it",
+                         getattr(dataset, "name", "?"), release.period)
+        announcement = {"error": str(e)}
+
+    return {
+        "release": periods_service.describe(release),
+        "announcement": announcement,
+        "message": (f"{label} {release.period} v{release.version} is "
+                    "published and available to the analytical engine."),
+    }
 
 
 @router.get("/datasets/{name}/grid-preferences",

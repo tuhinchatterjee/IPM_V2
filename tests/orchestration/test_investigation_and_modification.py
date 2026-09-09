@@ -51,9 +51,18 @@ def investigation():
 def unreadable():
     """A question the composer cannot read and no methodology is named for.
 
-    "What deteriorated this period?" names no governed measure at all.
+    "How did the book do this period?" names no governed measure at all — no
+    figure, and no credit judgement with governed evidence behind it either.
+
+    The example used to be "What deteriorated this period?", and that is now a
+    question CreditProbe answers: `composites.DETERIORATION` reads it as the
+    seven published deterioration signals counted per borrower, which is a
+    governed reading and not a substitution. Changing the example rather than
+    the assertion is the point — the guarantee below is that a question the
+    composer CANNOT read is asked about instead of answered with something
+    else, and it is unchanged. See docs/COCKPIT_SUGGESTIONS.md.
     """
-    return run_investigation("What deteriorated this period?", persist=False)
+    return run_investigation("How did the book do this period?", persist=False)
 
 
 def test_an_investigation_runs_real_analyses(investigation):

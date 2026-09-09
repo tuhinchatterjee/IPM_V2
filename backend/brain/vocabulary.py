@@ -173,6 +173,29 @@ _MEASURES: tuple[tuple[str, str, str, str], ...] = (
     ("retail_behavioral_scorecard_development_reference", "utilisation_pct", "utilisation", "rate"),
     ("retail_behavioral_scorecard_development_reference", "credit_limit", "credit limit", "money"),
     ("retail_behavioral_scorecard_development_reference", "max_dpd_6m", "worst days past due over six months", "count"),
+    # Saudi SME. Registered dataset by dataset for the same reason as the
+    # retail scorecards above: an unregistered dataset is one the Teaching
+    # Factory silently skips, and a governed dataset nobody can ask a
+    # question about is a dataset that does not exist as far as the Brain is
+    # concerned. The decisions file carries the score and the PD but none of
+    # the financial characteristics, so it is registered on what it has.
+    ("sme_scorecard_monthly_validation", "champion_score", "champion score", "score"),
+    ("sme_scorecard_monthly_validation", "champion_pd_12m", "champion twelve-month PD", "rate"),
+    ("sme_scorecard_monthly_validation", "challenger_score", "challenger score", "score"),
+    ("sme_scorecard_monthly_validation", "challenger_pd_12m", "challenger twelve-month PD", "rate"),
+    ("sme_scorecard_monthly_validation", "annual_revenue_sar", "annual revenue", "money"),
+    ("sme_scorecard_monthly_validation", "dscr", "debt service coverage ratio", "ratio"),
+    ("sme_scorecard_monthly_validation", "debt_to_ebitda", "debt to EBITDA", "ratio"),
+    ("sme_scorecard_monthly_validation", "max_dpd_12m", "worst days past due over twelve months", "count"),
+    ("sme_scorecard_development_reference", "champion_score", "champion score", "score"),
+    ("sme_scorecard_development_reference", "champion_pd_12m", "champion twelve-month PD", "rate"),
+    ("sme_scorecard_development_reference", "challenger_score", "challenger score", "score"),
+    ("sme_scorecard_development_reference", "annual_revenue_sar", "annual revenue", "money"),
+    ("sme_scorecard_development_reference", "dscr", "debt service coverage ratio", "ratio"),
+    ("sme_scorecard_development_reference", "debt_to_ebitda", "debt to EBITDA", "ratio"),
+    ("sme_scorecard_decisions", "champion_score", "champion score", "score"),
+    ("sme_scorecard_decisions", "champion_pd_12m", "champion twelve-month PD", "rate"),
+    ("sme_scorecard_decisions", "override_flag", "override", "count"),
     # portfolio_facility - the book itself
     ("portfolio_facility", "exposure", "exposure", "money"),
     ("portfolio_facility", "ead", "EAD", "money"),
@@ -411,6 +434,13 @@ _MEASURES: tuple[tuple[str, str, str, str], ...] = (
 )
 
 _DIMENSIONS: tuple[tuple[str, str, str], ...] = (
+    ("sme_scorecard_monthly_validation", "enterprise_size_class_proxy", "enterprise size"),
+    ("sme_scorecard_monthly_validation", "economic_sector", "sector"),
+    ("sme_scorecard_monthly_validation", "region", "region"),
+    ("sme_scorecard_development_reference", "enterprise_size_class_proxy", "enterprise size"),
+    ("sme_scorecard_development_reference", "economic_sector", "sector"),
+    ("sme_scorecard_decisions", "enterprise_size_class_proxy", "enterprise size"),
+    ("sme_scorecard_decisions", "economic_sector", "sector"),
     ("borrower_cash_flow", "sector", "sector"),
     ("borrower_cash_flow", "region", "region"),
     ("working_capital_position", "sector", "sector"),

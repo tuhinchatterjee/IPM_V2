@@ -128,6 +128,14 @@ class Table:
         return {"caption": self.caption, "columns": list(self.columns),
                 "rows": [list(r) for r in self.rows], "note": self.note}
 
+    @classmethod
+    def from_dict(cls, body: dict[str, Any]) -> Table:
+        return cls(caption=str(body.get("caption") or ""),
+                   columns=[str(c) for c in body.get("columns") or []],
+                   rows=[[str(c) for c in row]
+                         for row in body.get("rows") or []],
+                   note=str(body.get("note") or ""))
+
 
 @dataclass
 class Section:
@@ -154,6 +162,18 @@ class Section:
                 "level": self.level, "narrative": self.narrative,
                 "tables": [t.to_dict() for t in self.tables],
                 "unavailable": self.unavailable}
+
+    @classmethod
+    def from_dict(cls, body: dict[str, Any]) -> Section:
+        """`level` is deliberately not read back: it is derived from
+        `number`, and accepting it would let a stored row disagree with
+        itself about its own depth."""
+        return cls(number=str(body.get("number") or ""),
+                   title=str(body.get("title") or ""),
+                   narrative=str(body.get("narrative") or ""),
+                   tables=[Table.from_dict(t)
+                           for t in body.get("tables") or []],
+                   unavailable=str(body.get("unavailable") or ""))
 
 
 @dataclass
@@ -184,6 +204,23 @@ class Evidence:
             "data_version": self.data_version,
             "workbook_sheet": self.workbook_sheet,
         }
+
+    @classmethod
+    def from_dict(cls, body: dict[str, Any]) -> Evidence:
+        raw = body.get("value")
+        return cls(
+            section=str(body.get("section") or ""),
+            label=str(body.get("label") or ""),
+            metric=str(body.get("metric") or ""),
+            value_text=str(body.get("value_text") or ""),
+            method=str(body.get("method") or ""),
+            period=str(body.get("period") or ""),
+            model_version=str(body.get("model_version") or ""),
+            validation_state=str(body.get("validation_state") or ""),
+            analysis_run_id=str(body.get("analysis_run_id") or ""),
+            data_version=str(body.get("data_version") or ""),
+            value=None if raw is None else float(raw),
+            workbook_sheet=str(body.get("workbook_sheet") or ""))
 
 
 @dataclass
@@ -259,6 +296,44 @@ class Report:
             "origin": self.origin,
             "not_client_data": SYNTHETIC_NOTICE,
         }
+
+    @classmethod
+    def from_dict(cls, body: dict[str, Any]) -> Report:
+        """Rebuild a report from its stored content.
+
+        This is what makes a signed report reproducible rather than merely
+        archived. The stored row holds the content, not the .docx, and this
+        turns the content back into the object the writer renders — so the
+        file a reader downloads next year is generated from the same words
+        and figures their signer approved.
+
+        `content_hash` and `evidence_count` are NOT read back. Both are
+        derived, and accepting them from the row would let a stored hash
+        certify content it no longer matches, which is the one thing the
+        hash exists to catch.
+        """
+        return cls(
+            report_id=str(body.get("report_id") or ""),
+            model_id=str(body.get("model_id") or ""),
+            model_version=str(body.get("model_version") or ""),
+            model_name=str(body.get("model_name") or ""),
+            scorecard_type=str(body.get("scorecard_type") or ""),
+            model_kind=str(body.get("model_kind") or ""),
+            period=str(body.get("period") or ""),
+            title=str(body.get("title") or ""),
+            structure_version=str(body.get("structure_version") or ""),
+            generated_at=str(body.get("generated_at") or ""),
+            generated_by=str(body.get("generated_by") or ""),
+            opinion=str(body.get("opinion") or ""),
+            document_control=[(str(pair[0]), str(pair[1]))
+                              for pair in body.get("document_control") or []
+                              if len(pair) == 2],
+            sections=[Section.from_dict(x)
+                      for x in body.get("sections") or []],
+            evidence=[Evidence.from_dict(x)
+                      for x in body.get("evidence") or []],
+            disclaimer=str(body.get("disclaimer") or DISCLAIMER),
+            origin=str(body.get("origin") or synth.ORIGIN))
 
 
 # ------------------------------------------------------------ §89 coverage

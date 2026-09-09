@@ -8,7 +8,6 @@
  * digits line up.
  */
 
-/** Money in USD millions — the unit the whole portfolio is denominated in. */
 /**
  * The most decimal places any user-facing figure may carry. P0.12.
  *
@@ -84,7 +83,7 @@ export function byUnit(value: unknown, unit?: string | null): string {
       return percent(value);
     case "pp":
       return `${value.toFixed(2)}pp`;
-    case "USD mn":
+    case "SAR mn":
       // Thousands of millions do not need a decimal; a single facility does.
       return money(value, Math.abs(value) >= 1000 ? 0 : 1);
     case "days":
@@ -279,7 +278,7 @@ export function humanise(key: string): string {
 /**
  * The unit as it should appear beside a figure, not inside it.
  *
- * A KPI tile shows "48,600" in the display size and "USD mn" small beside it —
+ * A KPI tile shows "48,600" in the display size and "SAR mn" small beside it —
  * repeating the unit at full size on four tiles in a row is noise, and dropping
  * it altogether leaves the reader guessing between millions and billions.
  */
@@ -304,7 +303,7 @@ export function titleCase(value: string): string {
  * and a chart tooltip cannot disagree about what "12,261" means. The unit is
  * returned separately rather than glued on, because a table puts it in the
  * column header once and a tile sets it small beside the value — and a column
- * that repeats "USD mn" on all twenty-five rows is twenty-four wasted
+ * that repeats "SAR mn" on all twenty-five rows is twenty-four wasted
  * repetitions of the one fact that does not change.
  */
 export interface Figure {
@@ -312,7 +311,7 @@ export interface Figure {
   text: string;
   /** The unit as it should be shown, or "" when the format already implies it. */
   unit: string;
-  /** True when the value was scaled — 12,261 USD mn shown as 12.3, unit "bn". */
+  /** True when the value was scaled — 12,261 SAR mn shown as 12.3, unit "bn". */
   scaled: boolean;
 }
 
@@ -364,7 +363,7 @@ export function scaleMoney(
 /**
  * One value as a figure plus a unit, following the column's contract.
  *
- * This is `byContract` split in two. The old one returned "12,261 USD mn" as a
+ * This is `byContract` split in two. The old one returned "12,261 SAR mn" as a
  * single string, which is correct and unreadable in a column of twenty-five,
  * and gave a table no way to lift the unit into its header.
  */
@@ -385,7 +384,7 @@ export function figure(value: unknown, column?: ColumnSpec | null): Figure {
   // and it reached the interface because this formatter trusted the metadata.
   const declared = Math.min(MAX_DECIMALS, Math.max(0, column?.decimals ?? 2));
 
-  if (semantic === "money" || unit === "USD mn" || unit === "SAR mn") {
+  if (semantic === "money" || unit === "SAR mn" || unit === "SAR mn") {
     const [currency, scale] = unit.split(" ");
     return scaleMoney(value, column?.currency ?? currency ?? "USD", scale ?? "mn");
   }

@@ -1,4 +1,4 @@
-"""The fourteen things that have to happen before a demonstration exists.
+"""The sixteen things that have to happen before a demonstration exists.
 
 Before this file, demonstration setup was scattered across five scripts, a
 Docker entrypoint that ran three of them, a README that named three more, and
@@ -239,6 +239,43 @@ def _seed_users() -> str:
             f"{len(result.kept)} already present")
 
 
+def _workflow_needed() -> bool:
+    """Whether the example conversations are absent.
+
+    Probed on the threads themselves rather than on a marker row: a marker can
+    say "done" about a database somebody has since reset, and the seed is
+    cheap enough to re-probe honestly.
+    """
+    from sqlalchemy import func, select
+
+    from backend.models.collaboration import MessageThread
+
+    with _session() as session:
+        return not (session.execute(
+            select(func.count()).select_from(MessageThread)).scalar() or 0)
+
+
+def _seed_workflow() -> str:
+    from backend.services import demo_workflow
+
+    with _session() as session:
+        conversations = demo_workflow.seed(session)
+        session.commit()
+    with _session() as session:
+        release = demo_workflow.seed_data_release(session)
+        session.commit()
+    said = (f"{len(conversations.created)} conversation(s) created, "
+            f"{len(conversations.kept)} already present")
+    if release.get("created"):
+        said += "; one data-release notification"
+    elif release.get("reason"):
+        # Said rather than swallowed. "No governed release to describe" is a
+        # fact about this deployment, and hiding it would make the absent
+        # message look like a bug in the messaging feature.
+        said += f"; no data-release notification ({release['reason']})"
+    return said
+
+
 def _portfolio_needed() -> bool:
     return not _lake_has(*readiness.PORTFOLIO_DATASETS)
 
@@ -389,6 +426,85 @@ def _seed_workspace() -> str:
         or "workspace objects"
 
 
+def _lenses_needed() -> bool:
+    """Whether any shipped lens is missing from the catalogue.
+
+    Asks for each declared slug rather than counting rows: the workspace step
+    seeds a demonstration lens of its own, so a count would report "installed"
+    on a deployment where none of the three shipped lenses exists.
+    """
+    from backend.metrics import lenses as shipped
+    from backend.services import lenses as service
+
+    with _session():
+        for spec in shipped.ALL:
+            try:
+                service.by_slug(spec.slug)
+            except service.LensNotFound:
+                return True
+    return False
+
+
+def _install_lenses() -> str:
+    from backend.metrics import lenses as shipped
+
+    done = shipped.install()
+    made = [row["slug"] for row in done if row.get("action") != "kept"]
+    kept = [row["slug"] for row in done if row.get("action") == "kept"]
+    return (f"{len(made)} lens(es) installed, {len(kept)} already present "
+            f"of {len(shipped.ALL)} shipped")
+
+
+def _planner_needed() -> bool:
+    """Whether the Project Planner has no delivery plan.
+
+    Probed on the projects themselves, like the workflow step above: the seed
+    is idempotent and cheap to re-probe, and a marker row can claim "done"
+    about a database somebody has since reset.
+    """
+    from sqlalchemy import func, select
+
+    from backend.models.planner import PlannerProject
+
+    with _session() as session:
+        return not (session.execute(
+            select(func.count()).select_from(PlannerProject)).scalar() or 0)
+
+
+def _seed_planner() -> str:
+    import scripts.seed_planner as builder
+
+    report = builder.build()
+    if report.error:
+        raise RuntimeError(
+            f"the delivery plan could not be seeded: {report.error}")
+    counts = report.counts
+    return (f"{counts.get('tasks', 0)} task(s) across "
+            f"{counts.get('workstreams', 0)} workstream(s)")
+
+
+def _playbook_needed() -> bool:
+    """Whether no committee exists to open a pack against."""
+    from sqlalchemy import func, select
+
+    from backend.models.playbook import PlaybookCommittee
+
+    with _session() as session:
+        return not (session.execute(
+            select(func.count()).select_from(PlaybookCommittee)).scalar() or 0)
+
+
+def _seed_playbook() -> str:
+    import scripts.seed_playbook_committees as builder
+
+    report = builder.build()
+    if report.error:
+        raise RuntimeError(
+            f"the committees could not be seeded: {report.error}")
+    return (f"{len(report.built)} committee(s) built, "
+            f"{len(report.present)} already present")
+
+
 def _review_needed() -> bool:
     """Needed whenever the readiness gate would not pass, not merely when no
     run row exists.
@@ -424,7 +540,7 @@ def _run_review() -> str:
 
 
 def steps() -> tuple[Step, ...]:
-    """A to N, in the only order that works."""
+    """A to P, in the only order that works."""
     return (
         Step("migrations", "A", "Apply database migrations",
              _migrations_needed, _run_migrations, needs_database=True),
@@ -455,7 +571,33 @@ def steps() -> tuple[Step, ...]:
              _relationships_needed, _seed_relationships, needs_database=True),
         Step("workspace", "K", "Seed the workspace",
              _workspace_needed, _seed_workspace, needs_database=True),
-        Step("review", "L", f"Run the {readiness.PERIOD} portfolio review",
+        # After the workspace, because it attaches REAL investigations and
+        # analyses and describes a REAL data release: seeded before those exist
+        # it would have nothing to point at, and an example workflow whose
+        # attachment cards open onto nothing is worse than none. Before the
+        # review, because the review must stay last — it is the step that reads
+        # the finished book and reports on it, and anything that runs after it
+        # is something the review did not see.
+        Step("workflow", "L", "Seed the example internal workflow",
+             _workflow_needed, _seed_workflow, needs_database=True),
+        # The two features that arrived on their own branches, each with a
+        # seed script nobody wired into this list. Both branches verified
+        # themselves by running their seed BY HAND before their journeys, so
+        # neither noticed; the integration rehearsal started the container
+        # from an empty volume and found Delivery and Playbook empty on a
+        # deployment whose health check was green. That is the failure this
+        # module's docstring was written about, repeated on two new features.
+        # `lenses.install()` says in its own docstring that it is "called
+        # from the demo bootstrap". It was not called from anywhere. A
+        # container therefore came up with the Retail Risk, Retail Analytics
+        # and Corporate IFRS 9 lenses absent and the Lens catalogue empty.
+        Step("lenses", "M", "Install the shipped lenses",
+             _lenses_needed, _install_lenses, needs_database=True),
+        Step("planner", "N", "Seed the Project Planner delivery plan",
+             _planner_needed, _seed_planner, needs_database=True),
+        Step("playbook", "O", "Seed the Playbook committees",
+             _playbook_needed, _seed_playbook, needs_database=True),
+        Step("review", "P", f"Run the {readiness.PERIOD} portfolio review",
              _review_needed, _run_review, needs_database=True),
     )
 

@@ -210,7 +210,7 @@ FACTORS: tuple[FactorDef, ...] = (
         "exposure_size", "structure", "Exposure size",
         "Exposure at default on a log scale, so a facility ten times larger "
         "counts as one step rather than ten.",
-        ("ead",), "up-is-worse", "log USD mn", clip=(-3.0, 8.0), derived=True,
+        ("ead",), "up-is-worse", "log SAR mn", clip=(-3.0, 8.0), derived=True,
     ),
     # ------------------------------------------------------------- sentiment
     FactorDef(

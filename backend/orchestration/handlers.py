@@ -60,6 +60,33 @@ class HandlerResult:
     #: the judgment bridge, the Assurance collector and the proof probe, all
     #: of which want the object rather than a rendering of it. §3.
     composition: Any = None
+    #: What to call this answer's own table. Empty means the capability's
+    #: label, which is right for a catalogue lookup and wrong for a dataset
+    #: profile: "What data is available" over a table of twenty-nine field
+    #: profiles describes the question rather than the block.
+    title: str = ""
+    #: Further tables this answer carries, each one its own block. Used where
+    #: an answer is genuinely several tables rather than one — a dataset
+    #: overview is a profile AND the first twenty actual rows, and folding
+    #: them into one table would mean showing neither properly.
+    #:
+    #: Each entry is `{"title", "because", "rows", "columns"}`. Unlike
+    #: `analyses` these carry no build and no runtime, because nothing was
+    #: computed: they are governed metadata and published rows, and the Trace
+    #: says so rather than implying an analysis ran.
+    tables: list[dict[str, Any]] = field(default_factory=list)
+    #: The sub-analyses THEMSELVES, when this answer was composed out of
+    #: several. Each entry is `{"title", "asked", "because", "finding",
+    #: "answered"}` and the `answered` carries a real build and runtime.
+    #:
+    #: Before this field existed a composed answer had nowhere to put its
+    #: parts: four governed analyses over a sector produced four tables of
+    #: real rows, and the response contract could only return one result, so
+    #: the composition flattened them into four sentences and discarded the
+    #: rows. The sentences are still the synthesis; these are the analyses.
+    #: Not serialized by `to_dict` for the same reason `composition` is not —
+    #: the assembler wants the objects.
+    analyses: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {

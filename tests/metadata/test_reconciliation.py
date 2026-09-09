@@ -113,15 +113,42 @@ class TestTheSurfacesAgree:
         assert domains["count"] == md.counts()["domains"]
 
     def test_the_user_facing_answer_and_the_service_agree(self):
-        """The sentence a person reads quotes the same numbers. §12."""
+        """The sentence a person reads quotes the same numbers. §12.
+
+        "The same numbers" became audience-relative when the scorecard
+        validation boundary arrived: the Data Builder is entitled to all
+        eighty governed datasets and the general Cockpit is not entitled to
+        the seven behind that boundary. So the sentence must quote the
+        service's numbers MINUS the restricted set — not the service's raw
+        totals, which would mean the boundary had failed, and not whatever
+        the answer happens to say, which would assert nothing.
+
+        The expectation is recomputed here from the service and the one
+        governed declaration of what is restricted, so it stays exact and
+        stays independent of the code that produces the sentence.
+        """
         from backend.orchestration import orchestrator as orc
+        from backend.scorecard.domains import restricted_datasets
+
+        blocked = restricted_datasets()
+        open_datasets = [d for d in md.datasets() if d.name not in blocked]
+        open_domains = {d.domain for d in open_datasets}
+        every_domain = {d.domain for d in md.datasets()}
 
         answered = orc.answer("How many data domains do you have?")
         said = answered.result.answer
         counts = md.counts()
-        assert f"{counts['domains']:,} data domains" in said
-        assert f"{counts['datasets']:,} datasets" in said
-        assert f"{counts['rows']:,} rows" in said
+
+        # One whole domain holds the restricted datasets and nothing else, so
+        # the Cockpit sees one domain fewer than the catalogue defines.
+        assert len(every_domain - open_domains) == 1
+        expected_domains = counts["domains"] - 1
+        assert f"{expected_domains:,} data domains" in said
+        assert f"{len(open_datasets):,} datasets" in said
+        assert f"{sum(d.row_count for d in open_datasets):,} rows" in said
+
+        # And the boundary really is the whole of the difference.
+        assert counts["datasets"] - len(open_datasets) == len(blocked)
 
     @db
     def test_a_domain_holds_the_same_datasets_everywhere(self):

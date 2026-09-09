@@ -75,10 +75,24 @@ EXPECTED: dict[str, str] = {
     "pd_rose": tx.PERCENT,
     "ecl_rose": tx.PERCENT,
     "sicr_flagged": tx.FLAG,
+    # external and macro (layer 4)
+    #
+    # These are the units the layer-4 signals forced into existence. Five of
+    # the six fell through to COUNT when they were first configured, and
+    # `debtrank_impact` came out as MONEY because "debt" is a substring of
+    # "debtrank" — which would have put SAR in front of 0.0003 on a screen.
+    "outlook_negative": tx.CATEGORY,
+    "external_rating_lost": tx.CATEGORY,
+    "sector_concentrated": tx.RATIO,
+    # group and network
+    "network_risk_high": tx.SCORE,
+    "group_large": tx.ENTITIES,
+    "contagion_material": tx.SHARE,
 }
 
 UNITS = frozenset({tx.MONEY, tx.PERCENT, tx.RATIO, tx.DAYS, tx.NOTCHES,
-                   tx.STAGE, tx.FLAG, tx.COUNT})
+                   tx.STAGE, tx.FLAG, tx.COUNT, tx.SCORE, tx.SHARE,
+                   tx.ENTITIES, tx.CATEGORY})
 
 
 class TestTheTable:
@@ -98,6 +112,27 @@ class TestTheTable:
 
 
 class TestTheDerivation:
+    def test_a_share_is_not_a_percentage(self):
+        """`debtrank_impact` is a fraction of one, around 0.00002 on this
+        book. Rendering it as a percentage understates it by a hundred; the
+        two units exist so nothing has to guess which scale it is on."""
+        assert tx.unit_for("debtrank_impact", tx.ABOVE) == tx.SHARE
+        assert tx.SHARE != tx.PERCENT
+
+    def test_a_money_word_inside_another_word_is_not_money(self):
+        """"debt" is a substring of "debtrank_impact". Matching on substrings
+        put a currency in front of a modelled transmission share."""
+        assert tx.unit_for("debtrank_impact", tx.ABOVE) != tx.MONEY
+        assert tx.unit_for("total_debt", tx.ABOVE) == tx.MONEY
+
+    def test_a_rating_label_is_not_a_number(self):
+        assert tx.unit_for("rating_outlook", tx.EQUALS) == tx.CATEGORY
+        assert tx.unit_for("external_rating", tx.CHANGED) == tx.CATEGORY
+
+    def test_a_score_says_it_is_a_score(self):
+        assert tx.unit_for("network_risk_score", tx.ABOVE) == tx.SCORE
+
+
     def test_a_ratio_test_is_a_percentage_whatever_it_divides(self):
         """`cash / drawn_exposure` is money over money and the answer is a
         percentage. The unit belongs to the TEST, not to the column."""

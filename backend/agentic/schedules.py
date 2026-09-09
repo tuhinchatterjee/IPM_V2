@@ -49,13 +49,18 @@ MONTHLY = "monthly"
 QUARTERLY = "quarterly"
 DAILY = "daily"
 WEEKLY = "weekly"
+#: Cheap, deterministic work that has to notice a date turning over during a
+#: working day. A portfolio review would never carry this trigger; a check of
+#: which commitments have just fallen due is exactly what it is for.
+HOURLY = "hourly"
 MANUAL = "manual"
 
 TRIGGERS: tuple[str, ...] = (ON_PUBLISH, MONTHLY, QUARTERLY, DAILY, WEEKLY,
-                             MANUAL)
+                             HOURLY, MANUAL)
 
 TRIGGER_LABELS: dict[str, str] = {
     ON_PUBLISH: "When a dataset is published",
+    HOURLY: "Hourly",
     MONTHLY: "Monthly",
     QUARTERLY: "Quarterly",
     DAILY: "Daily",
@@ -64,11 +69,18 @@ TRIGGER_LABELS: dict[str, str] = {
 }
 
 INTERVALS: dict[str, timedelta] = {
+    HOURLY: timedelta(hours=1),
     DAILY: timedelta(days=1),
     WEEKLY: timedelta(days=7),
     MONTHLY: timedelta(days=30),
     QUARTERLY: timedelta(days=91),
 }
+
+#: The scope that means "the Project Planner's own commitments", not the credit
+#: book. A schedule carrying it enqueues a planner sweep rather than a
+#: portfolio review: different work, different queue kind, same governance —
+#: one table an operator can see, enable and disable.
+PLANNER_SCOPE = "planner_projects"
 
 #: What a schedule may do with what it finds.
 DRAFT_ONLY = "draft_only"
@@ -118,6 +130,24 @@ SEEDS: tuple[dict[str, Any], ...] = (
         "agents": ["workflow_coordinator"],
         "approval_policy": DRAFT_ONLY,
         "enabled": False,
+    },
+    {
+        "name": "Project Planner commitment sweep",
+        "description": ("Checks every open project's tasks, milestones and "
+                        "health, and tells the people responsible what has "
+                        "moved. Deterministic and cheap: no model is asked "
+                        "whether a task is late."),
+        "trigger": HOURLY,
+        "scope": PLANNER_SCOPE,
+        "agents": [],
+        "approval_policy": DRAFT_ONLY,
+        # The one seed that ships enabled alongside the publication review.
+        # The others are portfolio analysis, which is expensive and which an
+        # operator should choose to start. This one reads ten planner tables,
+        # sends only to project participants who have notifications on, and is
+        # the entire promise of the feature: a planner that only knows what
+        # somebody typed into it is a filing cabinet.
+        "enabled": True,
     },
     {
         "name": "Weekly watchlist review",
@@ -188,8 +218,16 @@ def due(session: Any, *, at: datetime | None = None) -> list[AgentSchedule]:
     return found
 
 
-def tick(session: Any, *, at: datetime | None = None) -> list[int]:
-    """Enqueue every schedule that is due. Returns the job ids."""
+def tick(session: Any, *, at: datetime | None = None,
+         scopes: tuple[str, ...] | None = None) -> list[int]:
+    """Enqueue every schedule that is due. Returns the job ids.
+
+    `scopes`, when given, restricts the tick to schedules with those scopes.
+    Demo Mode uses it to keep the cheap deterministic planner sweep running
+    while portfolio reviews stay suppressed — the suppression exists because a
+    review competes for the database during a demonstration, and a sweep of
+    ten planner tables does not.
+    """
     from backend.agentic import events
 
     started: list[int] = []
@@ -197,6 +235,17 @@ def tick(session: Any, *, at: datetime | None = None) -> list[int]:
     period = events.latest_period()
 
     for schedule in due(session, at=when):
+        if scopes is not None and schedule.scope not in scopes:
+            continue
+        if schedule.scope == PLANNER_SCOPE:
+            # Planner work reads the planner's own tables, so a published
+            # credit period is irrelevant to it and requiring one would keep
+            # it from ever firing on a deployment with no data lake.
+            job_id, created = _fire_planner(session, when)
+            schedule.last_run_at = when
+            if created:
+                started.append(job_id)
+            continue
         if not _data_ready(schedule, period):
             logger.info("schedule '%s' skipped: required data is not "
                         "published for %s", schedule.name, period or "—")
@@ -215,6 +264,13 @@ def tick(session: Any, *, at: datetime | None = None) -> list[int]:
     if started:
         session.flush()
     return started
+
+
+def _fire_planner(session: Any, when: datetime) -> tuple[int, bool]:
+    """Enqueue the Project Planner's sweep for the schedule's day."""
+    from backend.planner import monitor as planner_monitor
+
+    return planner_monitor.schedule(session, today=when.date())
 
 
 def _data_ready(schedule: AgentSchedule, period: str) -> bool:

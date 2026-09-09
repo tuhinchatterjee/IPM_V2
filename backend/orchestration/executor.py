@@ -182,6 +182,13 @@ class Investigation:
     #: the governed semantic guardrail made of the live reading, and whether the
     #: live path was available. Rendered on the Trace.
     conversation: dict[str, Any] = field(default_factory=dict)
+    #: The Investigation Response Package: which blocks this answer carries,
+    #: what each one is (a figure, a table, a picture, a matrix, a bridge),
+    #: and why. Computed from the executed steps rather than declared, so a
+    #: package can never promise a block the answer does not have. One block
+    #: for an ordinary question; several for a review that ran several
+    #: governed analyses. See backend/orchestration/package.py.
+    package: dict[str, Any] = field(default_factory=dict)
     #: §11, §12, §35-§40. What the message was read as asking, which analyses
     #: were considered and chosen, how the answer was sized, and what every
     #: objective ended up as. Present on every turn, not only compound ones:
@@ -212,8 +219,26 @@ class Investigation:
             "mode": self.mode,
             "conversation": self.conversation,
             "compound": self.compound,
+            "package": self.package or _package_for(self),
             "stages": STAGES,
         }
+
+
+def _package_for(investigation: Investigation) -> dict[str, Any]:
+    """The response package for an assembled answer.
+
+    Derived here rather than stored, so it cannot describe blocks the steps do
+    not contain. A stored package that drifted from its steps would be worse
+    than none: the reader would be told there is a stage distribution and find
+    an empty panel where it should be.
+    """
+    from backend.orchestration import package as pk
+
+    try:
+        return pk.build(investigation.steps).to_dict()
+    except Exception as e:  # noqa: BLE001 - a package must never lose an answer
+        logger.warning("Could not build the response package: %s", e)
+        return {}
 
 
 # ------------------------------------------------------------- the reasoning map
@@ -1207,6 +1232,24 @@ def _settle_caveats(investigation: Investigation) -> None:
     investigation.narrative.caveats = kept
 
 
+def _declared_dimension(found: Any, question: str) -> str | None:
+    """A grain the certified contract reports at without being parameterised."""
+    from backend.orchestration import certified as cert
+
+    return cert.declared_dimension(found.analysis_id, question) or None
+
+
+def _certified_dimension(params: dict[str, Any]) -> str | None:
+    """The breakdown a certified run was parameterised with, if any."""
+    from backend.orchestration import certified as cert
+
+    for name in cert.GROUPING_PARAMS:
+        value = str(params.get(name) or "")
+        if value and value != "none":
+            return value
+    return None
+
+
 def _run_certified(question: str, answered: Any, mode_now: dict[str, Any],
                    started: float, *, user_id: int | None) -> Investigation | None:
     """Run the bank's approved analysis for a methodology asked for by name.
@@ -1219,7 +1262,13 @@ def _run_certified(question: str, answered: Any, mode_now: dict[str, Any],
     plan = AnalysisPlan(
         question=question,
         intent=f"{found.name} — the bank's certified methodology.",
+        # The grain the certified run was asked for, declared on the Scope so
+        # the answer states what one row is. A run parameterised by sector
+        # that reported no dimension read as a portfolio answer everywhere
+        # downstream, including the grain contract.
         scope=Scope(focus=found.name, output="table",
+                    dimension=(_certified_dimension(answered.certified_params)
+                               or _declared_dimension(found, question)),
                     period_requirement=str(found.period_requirement),
                     period_specified=bool(answered.certified_params)),
         steps=[PlanStep(analysis_id=found.analysis_id, title=found.name,

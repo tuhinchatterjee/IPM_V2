@@ -177,7 +177,7 @@ class Draft:
     why: str = ""
     about: str = ""
     exposure: float | None = None
-    exposure_unit: str = "USD mn"
+    exposure_unit: str = "SAR mn"
     metrics: list[dict[str, Any]] = field(default_factory=list)
     signals: list[str] = field(default_factory=list)
     evidence: dict[str, Any] = field(default_factory=dict)

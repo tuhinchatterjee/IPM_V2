@@ -6,7 +6,9 @@ import * as React from "react";
 import { PanelLeft } from "lucide-react";
 
 import { AiPowerControl } from "@/components/system/ai-power";
+import { UnreadMessages } from "@/components/messages/badge";
 import { NotificationCentre } from "@/components/collaboration/notifications";
+import { PersonaliseControl } from "@/components/system/personalisation";
 import { BackendStatusIndicator } from "@/components/system/backend-status";
 import { DemoBadge } from "@/components/system/demo-mode";
 import { RoleSwitcher } from "@/components/system/role-switcher";
@@ -79,7 +81,9 @@ export function Header() {
         {/* §48: reachable from the screen you are on, not from a screen you
             have to go to — and deliberately out of the Cockpit, whose whole
             claim is that it opens on a question rather than on everything. */}
+        <UnreadMessages />
         <NotificationCentre />
+        <PersonaliseControl />
         <ThemeMenu />
         <RoleSwitcher />
         <BackendStatusIndicator />

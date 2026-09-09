@@ -31,6 +31,18 @@ export const NOTCHES = "notches";
 export const STAGE = "stage";
 export const FLAG = "flag";
 export const COUNT = "count";
+/** A model output on its own scale. Not a percentage, not an amount. */
+export const SCORE = "score";
+/**
+ * A fraction of one, NOT already multiplied by a hundred. Distinct from
+ * PERCENT because the modelled contagion figures sit around 0.00002, and
+ * treating one as the other misstates it by two orders of magnitude.
+ */
+export const SHARE = "share";
+/** A number of named counterparties. */
+export const ENTITIES = "entities";
+/** A label from a controlled vocabulary — a rating grade, an outlook. */
+export const CATEGORY = "category";
 
 /** Nothing to show. Never "0", which is a value. */
 export const NOTHING = "—";
@@ -87,6 +99,12 @@ export function showValue(
     }
     return String(value);
   }
+  if (unit === CATEGORY) {
+    // A rating grade is a label. Coercing "AA" to a number gives NaN, and
+    // coercing a numeric-looking grade would put a decimal place on it.
+    const said = String(value).trim();
+    return said || NOTHING;
+  }
   const number = typeof value === "number" ? value : Number(value);
   if (!Number.isFinite(number)) return String(value);
 
@@ -103,6 +121,16 @@ export function showValue(
       return plural(Math.round(number), "notch", "notches");
     case STAGE:
       return `Stage ${Math.round(number)}`;
+    case SCORE:
+      return fixed(number, 1);
+    case SHARE:
+      // Three significant figures rather than two decimals: a share of
+      // 0.00002 shown to two decimals is "0", which reads as nothing there.
+      return number === 0
+        ? "0"
+        : number.toLocaleString("en-US", { maximumSignificantDigits: 3 });
+    case ENTITIES:
+      return plural(Math.round(number), "entity", "entities");
     default:
       return number.toLocaleString("en-US", { maximumFractionDigits: 2 });
   }

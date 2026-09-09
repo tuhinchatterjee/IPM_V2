@@ -26,6 +26,8 @@ DEMO_USERS: list[dict[str, str]] = [
         "email": "alex.rahman@example-bank.com",
         "role": "ADMIN",
         "team": "Credit Risk Analytics",
+        "job_title": "Head of Credit Risk Analytics",
+        "department": "Credit Risk",
     },
     {
         "username": "sara.qahtani",
@@ -35,6 +37,8 @@ DEMO_USERS: list[dict[str, str]] = [
         "email": "sara.qahtani@example-bank.com",
         "role": "DATA_STEWARD",
         "team": "Risk Data Management",
+        "job_title": "Data Steward",
+        "department": "Risk Data",
     },
     {
         "username": "omar.nasser",
@@ -44,6 +48,8 @@ DEMO_USERS: list[dict[str, str]] = [
         "email": "omar.nasser@example-bank.com",
         "role": "ANALYST",
         "team": "Portfolio Management",
+        "job_title": "Portfolio Risk Manager",
+        "department": "Credit Risk",
     },
     {
         "username": "layla.haddad",
@@ -53,6 +59,33 @@ DEMO_USERS: list[dict[str, str]] = [
         "email": "layla.haddad@example-bank.com",
         "role": "VIEWER",
         "team": "Board Risk Committee",
+        "job_title": "Board Risk Committee Member",
+        "department": "Governance",
+    },
+    # Two more so the example workflow is a TEAM rather than a pair. A
+    # messaging feature demonstrated with two accounts cannot show the thing
+    # that makes it worth having: that a thread is private to the people in it.
+    {
+        "username": "sarah.khan",
+        "password": "creditprobe-demo",
+        "first_name": "Sarah",
+        "last_name": "Khan",
+        "email": "sarah.khan@example-bank.com",
+        "role": "ANALYST",
+        "team": "Corporate Credit",
+        "job_title": "Corporate Credit Manager",
+        "department": "Credit Risk",
+    },
+    {
+        "username": "ahmed.saleh",
+        "password": "creditprobe-demo",
+        "first_name": "Ahmed",
+        "last_name": "Saleh",
+        "email": "ahmed.saleh@example-bank.com",
+        "role": "ANALYST",
+        "team": "Impairment",
+        "job_title": "IFRS 9 Manager",
+        "department": "Credit Risk",
     },
 ]
 
@@ -84,7 +117,8 @@ def seed(session: Any) -> Seeded:
         if existing is not None:
             # Fill in only what is genuinely missing. A password is never
             # touched: overwriting one would be a published back door.
-            for attribute in ("first_name", "last_name", "email", "team"):
+            for attribute in ("first_name", "last_name", "email", "team",
+                              "job_title", "department"):
                 if not getattr(existing, attribute, ""):
                     setattr(existing, attribute, spec[attribute])
             result.kept.append(spec["username"])
@@ -98,6 +132,8 @@ def seed(session: Any) -> Seeded:
             email=spec["email"],
             role=spec["role"],
             team=spec["team"],
+            job_title=spec.get("job_title", ""),
+            department=spec.get("department", ""),
             is_active=True,
         ))
         result.created.append(spec["username"])

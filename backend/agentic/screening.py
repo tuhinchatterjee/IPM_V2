@@ -406,8 +406,8 @@ def _portfolio(dal: Any, screen: Screen, now: Any, before: Any) -> None:
         prior.get("_rows", 0))
 
     for key, label, unit, worse in (
-        ("ead", "Exposure at default", "USD mn", False),
-        ("ecl", "Expected credit loss", "USD mn", True),
+        ("ead", "Exposure at default", "SAR mn", False),
+        ("ecl", "Expected credit loss", "SAR mn", True),
         ("ecl_coverage", "ECL coverage", "%", True),
         ("stage2_share", "Stage 2 share of exposure", "%", True),
         ("stage3_share", "Stage 3 share of exposure", "%", True),
@@ -529,11 +529,11 @@ def _segments(dal: Any, screen: Screen, now: Any, before: Any) -> None:
             exposure=figures.get("ead"),
             share_of_book=round(float(figures.get("ead") or 0) / book, 4))
         for key, label, unit, worse in (
-            ("ecl", "Expected credit loss", "USD mn", True),
+            ("ecl", "Expected credit loss", "SAR mn", True),
             ("ecl_coverage", "ECL coverage", "%", True),
             ("stage2_share", "Stage 2 share", "%", True),
             ("npl_ratio", "NPL ratio", "%", True),
-            ("ead", "Exposure at default", "USD mn", False),
+            ("ead", "Exposure at default", "SAR mn", False),
         ):
             segment.indicators.append(Indicator(
                 key=key, label=label, unit=unit, now=figures.get(key),

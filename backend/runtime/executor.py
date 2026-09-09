@@ -155,12 +155,18 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
             question: str = "",
             intent: str = "",
             source: Any = None,
-            population_steps: list[str] | None = None) -> RuntimeResult:
+            population_steps: list[str] | None = None,
+            scope: str = "GENERAL") -> RuntimeResult:
     """Validate, compile and run one plan.
 
     The single entry point. Every caller — Ask CreditProbe, a saved method, a
     Trace modification, a test — comes through here, so the checks cannot be
     bypassed by adding a caller.
+
+    `scope` says which governed boundary the caller is inside, and reaches
+    `validate` unchanged. It defaults to GENERAL, so the scorecard validation
+    domains are refused unless a caller has said, in its own code, that it is
+    one of the two things allowed to read them.
     """
     started = time.perf_counter()
     run_id = uuid.uuid4().hex[:16]
@@ -168,7 +174,7 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     if isinstance(plan, dict):
         plan = AnalyticalPlan.from_dict(plan)
 
-    report = validate(plan, limits=limits).raise_if_bad()
+    report = validate(plan, limits=limits, scope=scope).raise_if_bad()
     query = compile_plan(plan, report, limits=limits, source=source)
 
     graph = TraceGraph()
@@ -180,8 +186,15 @@ def execute(plan: AnalyticalPlan | dict[str, Any], *,
     reconciliation = _reconcile(graph, sql_node, plan, query, population_steps,
                                 limits)
 
+    # Every compiled query carries `LIMIT max_output_rows`, so a kernel can be
+    # handed a frame that is the first N rows of a larger population without
+    # anything saying so. A correlation on a truncated frame is misleading; a
+    # Gini on one is simply wrong. The kernel is told, and decides.
+    truncated = len(frame) >= int(limits.max_output_rows)
     for operation in query.kernel_steps:
-        frame, cursor = _run_kernel_step(graph, cursor, operation, frame)
+        frame, cursor = _run_kernel_step(graph, cursor, operation, frame,
+                                         truncated=truncated,
+                                         row_limit=int(limits.max_output_rows))
 
     duration_ms = int((time.perf_counter() - started) * 1000)
     result = _shape(run_id, plan, frame, query, report, certification, duration_ms)
@@ -462,6 +475,13 @@ def _reconcile(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
     Best-effort by design: a diagnostic that fails must not lose an answer the
     user already has.
     """
+    # A caller that names the steps has decided this plan's population is worth
+    # counting. Two datasets is the rule of thumb for when it is worth it
+    # UNASKED — a join is where a book quietly loses a fifth of itself — and it
+    # is not a reason to refuse a caller who asked. A single-dataset entity
+    # list is counted because the answer shows ten of it and the reader needs
+    # to know ten of what.
+    asked = bool(steps)
     wanted = list(steps or [])
     if not wanted:
         wanted = [op.id for op in plan.operations
@@ -469,7 +489,7 @@ def _reconcile(graph: TraceGraph, parent: str, plan: AnalyticalPlan,
                                     "RECONCILE_GRAIN", "AGGREGATE_BEFORE_JOIN",
                                     "TEMPORAL_ALIGN", "DERIVE", "FILTER",
                                     "LIMIT")]
-    if len(plan.datasets()) < 2 or not wanted:
+    if not wanted or (len(plan.datasets()) < 2 and not asked):
         return []
 
     names = [query.steps[s] for s in wanted if s in query.steps]
@@ -654,7 +674,8 @@ def _node(node_id: str, node_type: NodeType, label: str,
 
 
 def _run_kernel_step(graph: TraceGraph, parent: str, op: Operation,
-                     frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+                     frame: pd.DataFrame, *, truncated: bool = False,
+                     row_limit: int = 0) -> tuple[pd.DataFrame, str]:
     """Run one allowlisted numerical operation on the query's result."""
     kernel = kernel_for(op)
     node = graph.add_node(TraceNode(
@@ -673,11 +694,18 @@ def _run_kernel_step(graph: TraceGraph, parent: str, op: Operation,
     node.rows_in = int(len(frame))
     node.mark_started()
 
+    params = dict(op.params)
+    params["_truncated"] = bool(truncated)
+    params["_row_limit"] = int(row_limit)
     try:
-        out = run_kernel(kernel, frame, op.params)
+        out = run_kernel(kernel, frame, params)
     except PlanError as e:
         node.mark_failed(str(e))
         raise
+    if truncated:
+        node.warnings.append(
+            f"The query returned the maximum {row_limit:,} rows, so this was "
+            "computed on part of the population rather than all of it.")
 
     node.output_summary = {"columns": list(out.columns), "kernel": kernel.name}
     node.mark_ok(rows_out=int(len(out)))

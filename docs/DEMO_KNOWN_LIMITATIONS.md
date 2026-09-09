@@ -29,8 +29,8 @@ Studio, Data Builder, Trace and Lineage, Workflow, the Excel exports,
 Requires Attention, Assurance and the feedback prompt.
 
 **Available but not on the walkthrough:** Lenses, Stress Testing, Early
-Warning, Playbooks, Agent Operations, the AI Intelligence Studio, Users &
-Teams and Settings. All real; ask and they can be shown.
+Warning, Agent Operations, the AI Intelligence Studio, Users & Teams and
+Settings. All real; ask and they can be shown.
 
 **Backend only — no screen in this build:**
 
@@ -47,8 +47,6 @@ Teams and Settings. All real; ask and they can be shown.
 * **Document authoring** — the Documents screen is a placeholder and is hidden
   during the demonstration rather than shown as though it worked.
 * **Shadow Mode.**
-* **Scheduled Playbooks** — manual and on-publication triggers run; scheduled
-  ones are not wired to a scheduler.
 * **A Project risk summary** — asked "review unresolved risks in this
   Project", CreditProbe asks which figure to measure rather than summarising
   the Project's open Risk Cases. The clarification is correct behaviour for a

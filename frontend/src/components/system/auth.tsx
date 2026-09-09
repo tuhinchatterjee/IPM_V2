@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { api, type SignedInUser } from "@/lib/api";
+import { api, onSessionExpired, type SignedInUser } from "@/lib/api";
 
 /**
  * Who is signed in.
@@ -89,6 +89,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, [nonce]);
+
+  // The backend's own word that this session no longer exists, from whatever
+  // call happened to notice it first — a Lens save, an ask, a preview, any
+  // mutating request anywhere in the product. Reacting immediately rather
+  // than waiting for the next `/auth/me` poll (there isn't one) is the fix
+  // for the exact defect this exists to close: the top navigation asserting
+  // "signed in" after the backend has already stopped agreeing, because the
+  // one place that remembered "signed in" was never told otherwise.
+  //
+  // Set directly rather than routed through `refresh()`: a full refetch
+  // would ask the same dead session's cookie whether it is still dead, which
+  // it reliably is, so it is not more correct, only slower. `AuthGate` reads
+  // `status` on every render, so this one assignment is what swaps the whole
+  // application over to the real sign-in screen — nothing Lens-specific, and
+  // nothing that had to know Lens exists.
+  React.useEffect(
+    () =>
+      onSessionExpired(() => {
+        setUser(null);
+        setStatus("anonymous");
+      }),
+    [],
+  );
 
   const signIn = React.useCallback(async (username: string, password: string) => {
     const body = await api.signIn(username, password);

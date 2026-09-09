@@ -202,31 +202,76 @@ def _over_time(build: Any) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def opening(context: Any) -> list[str]:
-    """Three things to ask when nothing has been asked yet.
+#: How many the Cockpit shows at once. Three fits under the composer without
+#: wrapping, and three is enough to say what kind of product this is without
+#: turning the opening screen into a menu.
+COCKPIT_AT_ONCE = 3
 
-    Built from the catalogue that is actually loaded rather than from a fixed
-    list, so an installation with different data gets different suggestions and
-    a demonstration does not offer a question about a dataset nobody has.
+#: The questions approved for the Cockpit, and the governed datasets each one
+#: needs before it may be offered.
+#:
+#: A closed list, on purpose. A suggestion is a PROMISE: the reader did not
+#: choose it, the product offered it, and an offered question that comes back
+#: as "which figure should CreditProbe measure?" is worse than no suggestion at
+#: all — the user did exactly what they were told and the product asked them
+#: what they meant. Every one of these has been run through the real Ask path
+#: and answers; `tests/api/test_cockpit_suggestions.py` runs them again.
+#:
+#: `needs` is checked against the catalogue that is actually installed, so a
+#: deployment without a dataset offers the question that does not need it
+#: rather than a question it cannot answer.
+COCKPIT: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Where is risk building across the bank?",
+     ("portfolio_facility",)),
+    ("Which exposures have deteriorated this quarter?",
+     ("portfolio_facility",)),
+    ("What is driving Stage 2 and ECL growth?",
+     ("portfolio_facility", "ifrs9_staging")),
+    ("Which borrowers are weakening but are not yet on the watchlist?",
+     ("portfolio_facility",)),
+    ("Where are multiple warning signals appearing together?",
+     ("portfolio_facility",)),
+)
+
+
+def _rotation(on: Any = None) -> int:
+    """Which of the approved questions the Cockpit starts from today.
+
+    Rotated by the DATE rather than at random. A random three would change
+    under the reader between one page load and the next — including in the
+    middle of a sentence someone was reading — and would make the opening
+    screen impossible to describe to a colleague. By the date it is stable all
+    day, different tomorrow, and reproducible: the same day gives the same
+    three, which is what lets a test assert on it.
+    """
+    from datetime import date
+
+    day = on or date.today()
+    return day.toordinal() % max(len(COCKPIT), 1)
+
+
+def opening(context: Any, *, on: Any = None) -> list[str]:
+    """Exactly three things to ask when nothing has been asked yet.
+
+    Three of the approved five, rotated by the day, and only the ones the
+    installed catalogue can actually answer.
     """
     try:
         datasets = list(getattr(context, "datasets", None) or [])
         names = {str(getattr(d, "name", "")).lower() for d in datasets}
-        out: list[str] = []
-        if "portfolio_facility" in names:
-            out.append("What is total exposure at default by sector in the "
-                       "latest quarter?")
-        if "ifrs9_staging" in names:
-            out.append("Which sectors saw the largest increase in Stage 2 "
-                       "exposure over the latest year?")
-        if "customer_ratings" in names:
-            out.append("Which customers were downgraded and had expected "
-                       "credit loss rise?")
-        if not out and datasets:
+        answerable = [question for question, needs in COCKPIT
+                      if all(n in names for n in needs)]
+        if not answerable:
+            # Nothing governed to ask about. Offering a question anyway would
+            # be advertising a capability this installation does not have.
+            if not datasets:
+                return []
             first = getattr(datasets[0], "business_name", "") or getattr(
                 datasets[0], "name", "")
-            out.append(f"What data do you have in {first}?")
-        return _tidy(out)[:3]
+            return _tidy([f"What data do you have in {first}?"])
+        start = _rotation(on) % len(answerable)
+        rotated = answerable[start:] + answerable[:start]
+        return _tidy(rotated)[:COCKPIT_AT_ONCE]
     except Exception as e:  # noqa: BLE001 - an empty composer is not a failure
         logger.warning("Could not build opening suggestions: %s", e)
         return []

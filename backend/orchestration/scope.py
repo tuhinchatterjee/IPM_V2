@@ -60,6 +60,78 @@ DELTAS: tuple[str, ...] = (
 MATERIAL_WIDENING = 10
 
 
+# ---------------------------------------------------------------------------
+# Saying a filter out loud
+# ---------------------------------------------------------------------------
+
+#: A governed field whose VALUE is meaningless without the field's own name.
+#: "Shipping" is a sector and says so; "2" is a stage and says nothing, and
+#: "Together these 10 hold 11.50% of 2 exposure at default" is the sentence a
+#: bare value produces. Sector, country and rating are names already and are
+#: left alone — "Real Estate exposure" needs no prefix, and "sector Real
+#: Estate exposure" is worse English than the value on its own.
+NEEDS_ITS_NAME: dict[str, str] = {
+    "ifrs9_stage": "Stage", "internal_grade": "grade",
+    "dpd_bucket": "DPD bucket", "charge_rank": "charge rank",
+}
+
+#: How a widened restriction reads. "Stage 2" and "Stage 2 or worse" are
+#: different populations, and an answer that says the first over the rows of
+#: the second has misdescribed what the reader is looking at.
+WIDENED_SAYS: dict[str, str] = {"gte": "or worse", "lte": "or better"}
+
+
+def say(field_name: str, value: Any, widened_op: str = "") -> str:
+    """One filter, as a credit officer would say it.
+
+    A coded value is named by its field; a value that is already a name is
+    said as it is. This is the ONE place that rule lives: the answer's first
+    sentence, the share finding, the interpretation, the formula gloss and the
+    scope line above the table all read the same restriction, and when each of
+    them joined the raw values itself four surfaces disagreed about what the
+    population was called.
+    """
+    said = str(value)
+    prefix = NEEDS_ITS_NAME.get(field_name)
+    if prefix is None and said.replace(".", "").replace("-", "").isdigit():
+        # An unmapped field with a numeric value is still unreadable bare, so
+        # it falls back to its own name rather than to the digit alone.
+        prefix = str(field_name).replace("_", " ")
+    if prefix:
+        said = f"{prefix} {said}"
+    tail = WIDENED_SAYS.get(widened_op or "", "")
+    return f"{said} {tail}" if tail else said
+
+
+def phrase(filters: Any, widened: Any = None) -> str:
+    """Every filter on a population, as one readable phrase.
+
+    `filters` may be pairs — ``[("ifrs9_stage", "2")]`` — or the mapping form
+    the frame stores, ``[{"field": ..., "value": ...}]``. Both are the same
+    fact written down twice, and refusing one of them here would only push the
+    conversion out to every caller.
+    """
+    widened_ops: dict[tuple[str, str], str] = {
+        (getattr(q, "field", ""), str(getattr(q, "value", ""))):
+            getattr(q, "op", "") for q in (widened or [])
+    }
+    parts: list[str] = []
+    for entry in (filters or []):
+        stored_op = ""
+        if isinstance(entry, dict):
+            field_name, value = str(entry.get("field", "")), entry.get("value")
+            # A frame carries the qualifier WITH the restriction, because the
+            # frame is what survives into the next turn and into the payload.
+            # Without it the line above the table said "Stage 2" over rows the
+            # sentence below correctly called "Stage 2 or worse".
+            stored_op = str(entry.get("op", "") or "")
+        else:
+            field_name, value = str(entry[0]), entry[1]
+        op = widened_ops.get((field_name, str(value)), "") or stored_op
+        parts.append(say(field_name, value, op))
+    return ", ".join(p for p in parts if p)
+
+
 @dataclass
 class ScopeFrame:
     """What the current answer covers.
@@ -122,7 +194,10 @@ class ScopeFrame:
                          f"{(self.entity_key or 'row').replace('_id', '')}s "
                          "carried from the previous answer")
         elif self.filters:
-            parts.append(", ".join(f["value"] for f in self.filters))
+            # Through the shared reader, not by joining the raw values: the
+            # line above the table has to name the same population the answer
+            # names, and "2 · Q2 2026 · exposure at default" names none.
+            parts.append(phrase(self.filters))
         else:
             parts.append("the whole portfolio")
 
@@ -213,6 +288,27 @@ class Delta:
 # ---------------------------------------------------------------------------
 
 
+def _frame_filters(build: Any) -> list[dict[str, str]]:
+    """The build's restrictions, each carrying how it was compiled.
+
+    `widened` is the plan's own record that "Stage 2" ran as ``stage >= 2``.
+    Recording it beside the value is what lets the scope line say "Stage 2 or
+    worse" without re-reading the question — the phrase on the screen and the
+    predicate that ran stay the same fact.
+    """
+    widened = {(getattr(q, "field", ""), str(getattr(q, "value", ""))):
+               str(getattr(q, "op", "") or "")
+               for q in (getattr(build, "widened", None) or [])}
+    out: list[dict[str, str]] = []
+    for f, v in (getattr(build, "filters", None) or []):
+        entry = {"field": str(f), "value": str(v)}
+        op = widened.get((str(f), str(v)), "")
+        if op:
+            entry["op"] = op
+        out.append(entry)
+    return out
+
+
 def frame_of(build: Any, continuation: Any = None,
              presentation: str = "") -> ScopeFrame:
     """The scope one answer covers, read from the plan that produced it."""
@@ -225,8 +321,7 @@ def frame_of(build: Any, continuation: Any = None,
         entity_key=str(getattr(continuation, "entity_key", "") or ""),
         entity_ids=entity_ids,
         datasets=list(((build.plan.get("meta") or {}).get("datasets")) or []),
-        filters=[{"field": f, "value": v}
-                 for f, v in (getattr(build, "filters", None) or [])],
+        filters=_frame_filters(build),
         metrics=[m.concept.label for m in (getattr(build, "matches", None) or [])],
         dimension=str(getattr(build, "dimension", "") or ""),
         period=str(getattr(build, "period", "") or ""),

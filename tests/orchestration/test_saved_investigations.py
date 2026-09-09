@@ -122,11 +122,11 @@ def test_archiving_stops_it_being_current_without_deleting_its_history(saved):
 
 def test_comparison_only_reports_metrics_present_on_both_sides():
     before = {"metrics": [
-        {"label": "Total ECL", "value": 100.0, "unit": "USD mn", "direction": "up-is-bad"},
+        {"label": "Total ECL", "value": 100.0, "unit": "SAR mn", "direction": "up-is-bad"},
         {"label": "Gone", "value": 5.0, "unit": "%", "direction": "up-is-bad"},
     ]}
     after = {"metrics": [
-        {"label": "Total ECL", "value": 130.0, "unit": "USD mn", "direction": "up-is-bad"},
+        {"label": "Total ECL", "value": 130.0, "unit": "SAR mn", "direction": "up-is-bad"},
         {"label": "New", "value": 9.0, "unit": "%", "direction": "up-is-bad"},
     ]}
     changes = {c.label: c for c in inv.compare(before, after)}
@@ -136,7 +136,7 @@ def test_comparison_only_reports_metrics_present_on_both_sides():
 
 
 def test_a_metric_that_did_not_move_is_recorded_as_not_moved():
-    same = {"metrics": [{"label": "Total EAD", "value": 48600.0, "unit": "USD mn"}]}
+    same = {"metrics": [{"label": "Total EAD", "value": 48600.0, "unit": "SAR mn"}]}
     change = inv.compare(same, same)[0]
     assert change.change == 0
     assert not change.moved
@@ -144,16 +144,16 @@ def test_a_metric_that_did_not_move_is_recorded_as_not_moved():
 
 def test_the_narrative_names_the_largest_movement():
     before = {"metrics": [
-        {"label": "Total ECL", "value": 100.0, "unit": "USD mn", "direction": "up-is-bad"},
+        {"label": "Total ECL", "value": 100.0, "unit": "SAR mn", "direction": "up-is-bad"},
         {"label": "NPL ratio", "value": 4.0, "unit": "%", "direction": "up-is-bad"},
     ]}
     after = {"metrics": [
-        {"label": "Total ECL", "value": 160.0, "unit": "USD mn", "direction": "up-is-bad"},
+        {"label": "Total ECL", "value": 160.0, "unit": "SAR mn", "direction": "up-is-bad"},
         {"label": "NPL ratio", "value": 4.1, "unit": "%", "direction": "up-is-bad"},
     ]}
     story = inv.change_narrative(
         inv.compare(before, after), from_label="Q4 2025", to_label="Q1 2026"
     )
     assert "Total ECL" in story
-    assert "+60.0 USD mn" in story
+    assert "+60.0 SAR mn" in story
     assert "adverse" in story

@@ -186,7 +186,7 @@ STAGE_MIG_FIELDS = ["account_id", "customer_id", "ead", "total_ecl", "ifrs9_stag
     outputs=[
         OutputField("from", "Opening IFRS 9 stage.", "string"),
         OutputField("to", "Closing IFRS 9 stage.", "string"),
-        OutputField("value", "Exposure (or facility count) that made the move.", "number", unit="USD mn", precision=2),
+        OutputField("value", "Exposure (or facility count) that made the move.", "number", unit="SAR mn", precision=2),
         OutputField("row_pct", "Share of the opening stage that moved this way.", "number", unit="%", precision=2),
         OutputField("facility_count", "Number of facilities that made the move.", "integer"),
     ],
@@ -234,7 +234,7 @@ def stage_migration(ctx: ExecutionContext) -> AnalysisResult:
         values={"from_period": from_period, "to_period": to_period, "basis": basis,
                 "opening_totals": totals, "coverage": coverage, "movement": split,
                 "periods_available": available},
-        units={"value": "USD mn" if basis == "ead" else "facilities", "row_pct": "%"},
+        units={"value": "SAR mn" if basis == "ead" else "facilities", "row_pct": "%"},
         input_row_count=coverage["matched"],
         warnings=ctx.warnings,
         meta={"grain": "One row per (opening stage, closing stage) pair.",
@@ -279,7 +279,7 @@ DPD_FIELDS = ["account_id", "customer_id", "ead", "dpd_days", "ifrs9_stage"]
     outputs=[
         OutputField("from", "Opening delinquency bucket.", "string"),
         OutputField("to", "Closing delinquency bucket.", "string"),
-        OutputField("value", "Exposure (or facility count) that made the move.", "number", unit="USD mn", precision=2),
+        OutputField("value", "Exposure (or facility count) that made the move.", "number", unit="SAR mn", precision=2),
         OutputField("row_pct", "Share of the opening bucket that moved this way.", "number", unit="%", precision=2),
     ],
     validation_rules=[
@@ -333,7 +333,7 @@ def dpd_migration(ctx: ExecutionContext) -> AnalysisResult:
         values={"from_period": from_period, "to_period": to_period, "basis": basis,
                 "buckets": DPD_BUCKETS, "opening_totals": totals,
                 "coverage": coverage, "movement": split, "periods_available": available},
-        units={"value": "USD mn" if basis == "ead" else "facilities", "row_pct": "%"},
+        units={"value": "SAR mn" if basis == "ead" else "facilities", "row_pct": "%"},
         input_row_count=coverage["matched"],
         warnings=ctx.warnings,
         meta={"grain": "One row per (opening bucket, closing bucket) pair.",
@@ -379,7 +379,7 @@ RATING_FIELDS = ["account_id", "customer_id", "ead", "risk_rating", "rating_buck
     outputs=[
         OutputField("from", "Opening rating grade.", "string"),
         OutputField("to", "Closing rating grade.", "string"),
-        OutputField("value", "Exposure (or facility count) that made the move.", "number", unit="USD mn", precision=2),
+        OutputField("value", "Exposure (or facility count) that made the move.", "number", unit="SAR mn", precision=2),
         OutputField("row_pct", "Transition probability from the opening grade.", "number", unit="%", precision=2),
     ],
     validation_rules=[
@@ -440,7 +440,7 @@ def rating_transition_matrix(ctx: ExecutionContext) -> AnalysisResult:
                 "grades": grades, "opening_totals": totals, "coverage": coverage,
                 "movement": split, "interval": interval, "annualised": False,
                 "periods_available": available},
-        units={"value": "USD mn" if basis == "ead" else "facilities", "row_pct": "%"},
+        units={"value": "SAR mn" if basis == "ead" else "facilities", "row_pct": "%"},
         input_row_count=coverage["matched"],
         warnings=ctx.warnings,
         meta={"grain": "One row per (opening grade, closing grade) pair.",
@@ -464,6 +464,8 @@ ECL_FIELDS = ["account_id", "customer_id", "borrower_name", "ead", "total_ecl", 
     ),
     trigger_questions=[
         "How has ECL changed?",
+        "How has ECL moved?",
+        "How has the impairment moved?",
         "Which sectors deteriorated the most?",
         "What drove the impairment charge?",
     ],
@@ -490,7 +492,7 @@ ECL_FIELDS = ["account_id", "customer_id", "borrower_name", "ead", "total_ecl", 
     ],
     outputs=[
         OutputField("component", "Movement component.", "string"),
-        OutputField("value", "Contribution to the change in ECL.", "number", unit="USD mn", precision=3),
+        OutputField("value", "Contribution to the change in ECL.", "number", unit="SAR mn", precision=3),
     ],
     validation_rules=[
         ValidationRule("bridge_reconciles",
@@ -577,7 +579,7 @@ def ecl_movement(ctx: ExecutionContext) -> AnalysisResult:
     reconciled = opening_ecl + new_stage3 + migration + overlay + remeasurement + new_business + exited
     difference = closing_ecl - reconciled
     if abs(difference) > 0.01:
-        ctx.warn(f"ECL bridge does not reconcile: off by {difference:,.4f} USD mn.")
+        ctx.warn(f"ECL bridge does not reconcile: off by {difference:,.4f} SAR mn.")
     ctx.step(NodeType.CALCULATION, "Reconcile the bridge",
              config={"check": "opening + components == closing"},
              summary={"opening": rounded(opening_ecl, 3), "closing": rounded(closing_ecl, 3),
@@ -593,18 +595,30 @@ def ecl_movement(ctx: ExecutionContext) -> AnalysisResult:
             ctx.step(NodeType.AGGREGATION, f"Attribute by {group_by}",
                      config={"group_by": [group_by]}, rows_out=len(breakdown))
 
+    # The rows follow the grain the request asked for. A question naming
+    # sectors — "which sectors deteriorated most this quarter?" — was answered
+    # with the portfolio bridge in the table and the sectors only in the
+    # sentence, so the reader's eye landed on an opening balance under a
+    # heading about seventeen sectors. The arithmetic is untouched: this is
+    # the same attribution, already computed above, put where the answer is.
+    reported = breakdown if breakdown else components
+    grain = (f"One row per {group_by}." if breakdown
+             else "One row per bridge component.")
     return AnalysisResult(
-        rows=components,
+        rows=reported,
         values={"from_period": from_period, "to_period": to_period,
                 "opening_ecl": rounded(opening_ecl, 3), "closing_ecl": rounded(closing_ecl, 3),
                 "net_change": rounded(closing_ecl - opening_ecl, 3),
                 "reconciliation_difference": rounded(difference, 4),
                 "breakdown": breakdown, "group_by": group_by,
+                # The bridge itself, kept whatever the rows are reporting, so
+                # the reconciliation is inspectable from either shape.
+                "components": components,
                 "periods_available": available},
-        units={"value": "USD mn"},
+        units={"value": "SAR mn", "ecl_change": "SAR mn"},
         input_row_count=int(len(opening) + len(closing)),
         warnings=ctx.warnings,
-        meta={"grain": "One row per bridge component.",
+        meta={"grain": grain,
               "weighting": "Absolute ECL amounts; no weighting applied."},
     )
 
@@ -651,14 +665,14 @@ DETERIORATION_FIELDS = [
         Parameter("top_n", ParamType.INTEGER, "How many borrowers to return.",
                   default=10, minimum=1, maximum=100),
         Parameter("min_ead", ParamType.NUMBER,
-                  "Ignore borrowers whose closing exposure is below this, in USD mn.",
+                  "Ignore borrowers whose closing exposure is below this, in SAR mn.",
                   default=0.0, minimum=0.0),
     ],
     outputs=[
         OutputField("customer_id", "Borrower identifier.", "string"),
         OutputField("borrower_name", "Borrower name.", "string"),
-        OutputField("ead", "Closing exposure at default.", "number", unit="USD mn", precision=1),
-        OutputField("ecl_change", "Increase in ECL over the interval.", "number", unit="USD mn", precision=3),
+        OutputField("ead", "Closing exposure at default.", "number", unit="SAR mn", precision=1),
+        OutputField("ecl_change", "Increase in ECL over the interval.", "number", unit="SAR mn", precision=3),
         OutputField("stage_change", "Change in IFRS 9 stage (positive is worse).", "integer"),
         OutputField("notch_change", "Rating notches moved (positive is worse).", "integer"),
         OutputField("reasons", "Why this borrower is flagged.", "string"),
@@ -701,7 +715,7 @@ def top_deteriorating_borrowers(ctx: ExecutionContext) -> AnalysisResult:
     if min_ead > 0:
         before = len(merged)
         merged = merged[merged["ead_to"] >= min_ead]
-        ctx.step(NodeType.FILTER, f"Closing exposure at least {min_ead} USD mn",
+        ctx.step(NodeType.FILTER, f"Closing exposure at least {min_ead} SAR mn",
                  config={"field": "ead", "operator": ">=", "value": min_ead},
                  rows_in=before, rows_out=int(len(merged)))
 
@@ -727,7 +741,7 @@ def top_deteriorating_borrowers(ctx: ExecutionContext) -> AnalysisResult:
                 "borrowers_compared": int(len(merged)),
                 "total_ecl_increase": rounded(float(scored["ecl_change"].sum()) if len(scored) else 0.0, 3),
                 "periods_available": available},
-        units={"ead": "USD mn", "ecl_change": "USD mn", "pd_change": "%"},
+        units={"ead": "SAR mn", "ecl_change": "SAR mn", "pd_change": "%"},
         input_row_count=int(len(opening) + len(closing)),
         warnings=ctx.warnings,
         meta={"grain": "One row per borrower.",
@@ -818,7 +832,7 @@ def _reasons(row) -> str:
     if row["notch_change"] > 0:
         reasons.append(f"Downgraded {row['risk_rating_from']} to {row['risk_rating_to']}")
     if row["ecl_change"] > 0:
-        reasons.append(f"ECL up {row['ecl_change']:.2f} USD mn")
+        reasons.append(f"ECL up {row['ecl_change']:.2f} SAR mn")
     if row["dpd_change"] > 0:
         reasons.append(f"DPD up {int(row['dpd_change'])} days")
     if row["pd_change"] > 0.01:

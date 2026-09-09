@@ -215,18 +215,15 @@ backtesting and an administrator-only Model Lab. Documented in
 including four IFRS 9 staging analyses, three rating and macro analyses, and four
 concentration and behaviour analyses reading the new governed datasets.
 
-**Lenses and Playbooks.** Lenses are live dashboards built and revised by asking.
-Playbooks replaced Blueprints: a standing instruction that runs, rather than a
-template you fill in.
+**Lenses.** Live dashboards built and revised by asking.
 
 **The dataset viewer.** Navigate domain to family to dataset to period and read
 the governed rows, with each column's definition and classification beside it —
 through the Data Access Layer, so it is a viewer and not a query surface.
 
 **Still not built, on purpose.** Full Document authoring; production identity and
-access management; a scheduler for scheduled Playbooks; and independent
-validation of the Forward Risk Signal, without which it remains — and is
-described as — a prototype.
+access management; and independent validation of the Forward Risk Signal,
+without which it remains — and is described as — a prototype.
 
 ## 4. If only one working day is available
 

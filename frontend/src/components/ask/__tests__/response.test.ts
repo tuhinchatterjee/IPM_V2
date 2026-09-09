@@ -125,8 +125,8 @@ test("named contributors become an implication, in the engine's own order", () =
   const run = response({
     narrative: {
       drivers: [
-        { name: "Contracting", value: 12, unit: "USD mn", measure: "the ECL increase", step: 0 },
-        { name: "Retail", value: 4, unit: "USD mn", measure: "the ECL increase", step: 0 },
+        { name: "Contracting", value: 12, unit: "SAR mn", measure: "the ECL increase", step: 0 },
+        { name: "Retail", value: 4, unit: "SAR mn", measure: "the ECL increase", step: 0 },
       ],
     },
   } as unknown as Partial<InvestigationResponse>);
@@ -179,6 +179,25 @@ test("a result with figures but no rows is not a negative finding", () => {
         certification: "certified",
         status: "succeeded",
         result: { rows: [], values: { total_ead: 125259 }, units: {}, warnings: [] },
+      },
+    ],
+  } as unknown as Partial<InvestigationResponse>);
+  assert.equal(foundNothing(run), false);
+});
+
+test("an answer that ran no analysis has not 'found nothing'", () => {
+  // A product-knowledge or catalogue answer carries no rows because it queried
+  // nothing. Treating it as an empty result rendered the whole composed answer
+  // a second time as one unbroken paragraph, under the structured one.
+  const run = response({
+    steps: [
+      {
+        index: 0,
+        role: "primary",
+        analysis_id: "capability_data_discovery",
+        certification: "metadata",
+        status: "succeeded",
+        result: { rows: [], values: {}, units: {}, warnings: [] },
       },
     ],
   } as unknown as Partial<InvestigationResponse>);

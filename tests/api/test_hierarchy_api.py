@@ -33,6 +33,11 @@ def client():
     return TestClient(app)
 
 
+#: The two accounts `people` creates. Named here so the sweeper below and the
+#: fixture cannot drift apart.
+ACCOUNTS = ("hier_author", "hier_reviewer")
+
+
 @pytest.fixture(scope="module")
 def people() -> tuple[int, int]:
     """An author and a reviewer, both real rows."""
@@ -41,7 +46,7 @@ def people() -> tuple[int, int]:
 
     with get_session() as session:
         ids = []
-        for username in ("hier_author", "hier_reviewer"):
+        for username in ACCOUNTS:
             user = session.query(User).filter_by(username=username).first()
             if user is None:
                 user = User(username=username, role="analyst", password_hash="not-a-login")
@@ -58,6 +63,101 @@ def _as(user_id: int) -> dict[str, str]:
 
 def _steward(user_id: int) -> dict[str, str]:
     return {"X-IPM-User-Id": str(user_id), "X-IPM-Role": "DATA_STEWARD"}
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _leave_nothing_behind():
+    """Remove the Projects and Investigations this module creates.
+
+    This file creates Projects and Investigations in fixtures AND in a couple
+    of dozen inline POSTs, against a real database, and cleaned up none of it.
+    A survey of the local acceptance database found 3,311 Projects with six
+    distinct names between them — 2,973 of them this module's
+    "Contracting concentration review" — and 5,985 Investigations, 868 of
+    which had no message at all. That is not a test problem that stays in the
+    tests: it is what the product's Projects list shows a reader.
+
+    A sweeper rather than a cleanup in each fixture, because the inline POSTs
+    outnumber the fixtures and every one of them would have to remember. This
+    records what existed before the module ran and removes what did not.
+
+    Deliberately id-based and not name-based: the demo workspace seeds a
+    Project called "Contracting concentration review" too, and deleting by
+    name would take the real one with it.
+    """
+    from backend.config import settings
+
+    if not settings.has_database:
+        yield
+        return
+
+    from backend.db.engine import get_session
+    from backend.db.models import User
+    from backend.models.platform import (
+        Investigation,
+        InvestigationMessage,
+        Project,
+        SavedAnalysis,
+    )
+
+    with get_session() as session:
+        before_projects = {p.id for p in session.query(Project.id).all()}
+        before_threads = {t.id for t in session.query(Investigation.id).all()}
+        before_users = {u.id for u in session.query(User.id).all()}
+
+    yield
+
+    with get_session() as session:
+        mine_p = [p.id for p in session.query(Project.id).all()
+                  if p.id not in before_projects]
+        mine_t = [t.id for t in session.query(Investigation.id).all()
+                  if t.id not in before_threads]
+        # Children first: a message and a saved analysis both point at a
+        # thread, and a thread points at a project.
+        if mine_t:
+            session.query(InvestigationMessage).filter(
+                InvestigationMessage.investigation_id.in_(mine_t)
+            ).delete(synchronize_session=False)
+            session.query(SavedAnalysis).filter(
+                SavedAnalysis.investigation_id.in_(mine_t)
+            ).delete(synchronize_session=False)
+            session.query(Investigation).filter(
+                Investigation.id.in_(mine_t)
+            ).delete(synchronize_session=False)
+        mine_u = [u.id for u in session.query(User.id).all()
+                  if u.id not in before_users]
+        if mine_p:
+            session.query(SavedAnalysis).filter(
+                SavedAnalysis.project_id.in_(mine_p)
+            ).delete(synchronize_session=False)
+            session.query(Project).filter(
+                Project.id.in_(mine_p)
+            ).delete(synchronize_session=False)
+        session.commit()
+
+    # The accounts, last and on their own. `users` is referenced by
+    # projects.created_by, investigation_messages.created_by,
+    # analysis_runs.user_id, the workflow tables, comments and notifications,
+    # and this sweeper owns only the first two. Attempting the delete inside
+    # the transaction above raised a foreign-key violation that rolled the
+    # whole teardown back — Projects included — which is worse than the leak
+    # it was trying to fix.
+    #
+    # So it is tried separately and allowed to fail: when nothing else
+    # references them the accounts go, and when something does they stay and
+    # `demo.workspace.residue()` reports them for
+    # `reset(include_users=True)`, which empties every referencing table first
+    # and is the governed tool for accounts.
+    if mine_u:
+        from backend.db.models import User
+
+        try:
+            with get_session() as session:
+                session.query(User).filter(
+                    User.id.in_(mine_u)).delete(synchronize_session=False)
+                session.commit()
+        except Exception:  # noqa: BLE001 - rows this module does not own
+            pass
 
 
 @pytest.fixture
@@ -354,7 +454,20 @@ def test_an_unknown_analysis_is_saved_as_draft_not_as_certified(client, people):
         json={"analysis_id": "not_a_registered_analysis", "result": {}},
         headers=_as(author),
     ).json()
-    assert body["certification"] == "draft"
+    try:
+        assert body["certification"] == "draft"
+    finally:
+        # This row outlives the test, and it is the one row in the suite that
+        # nobody can open: `/engine-builder/not_a_registered_analysis` 404s
+        # because that is the whole point of the case. A route crawl found it
+        # in the Analyses list of the local acceptance database, followed the
+        # link the product had published for it, and reported a broken route —
+        # correctly, on data a test had left lying in the product.
+        #
+        # Deleted here rather than left for a database reset, because a test
+        # that plants an unopenable object in a browsable list has not
+        # finished when its assertion passes.
+        client.delete(f"/api/v1/analyses/{body['id']}", headers=_as(author))
 
 
 def test_analyses_can_be_listed_by_project_and_by_investigation(
@@ -428,12 +541,21 @@ def test_saving_from_an_answer_keeps_each_certified_step(client, people, thread)
         headers=_as(author),
     ).json()
 
-    # Only the step that succeeded: a failed step produced no figure to keep.
-    assert body["count"] == 1
-    kept = body["analyses"][0]
-    assert kept["analysis_id"] == "step_one"
-    assert kept["result"] == {"top": "Contracting"}
-    assert kept["period"]["from_period"] == "2025Q4"
+    try:
+        # Only the step that succeeded: a failed step produced no figure to
+        # keep.
+        assert body["count"] == 1
+        kept = body["analyses"][0]
+        assert kept["analysis_id"] == "step_one"
+        assert kept["result"] == {"top": "Contracting"}
+        assert kept["period"]["from_period"] == "2025Q4"
+    finally:
+        # "step_one" names no registered analysis, so the row this leaves is
+        # one the product lists and cannot open. See the note on the unknown-
+        # analysis test above: a run of the suite used to add two of these,
+        # and the local acceptance database had collected 213 of them.
+        for one in body.get("analyses", []):
+            client.delete(f"/api/v1/analyses/{one['id']}", headers=_as(author))
 
 
 # ================================================================ contents

@@ -88,7 +88,7 @@ class Receiver:
                 "ask", "investigations", "projects", "data-builder",
                 "studio", "engine", "agentic", "assurance", "feedback",
                 "learning", "regulatory", "early-warning", "stress",
-                "lenses", "playbooks", "exports", "workflow",
+                "lenses", "playbook", "exports", "workflow",
                 # §A8. Registered here rather than in a second mechanism: a
                 # package that needs the Retail Scorecard module and lands
                 # somewhere without it produces MISSING MODULE like any

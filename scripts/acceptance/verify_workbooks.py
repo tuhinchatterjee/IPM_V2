@@ -39,7 +39,7 @@ check("4. row count matches the interface",
 
 #: How the interface scales a figure for reading, against the governed unit
 #: the workbook carries. The screen says "usd bn" and shows 22.4; the workbook
-#: says "USD mn" and carries 22,373.572. Both are labelled and both are right —
+#: says "SAR mn" and carries 22,373.572. Both are labelled and both are right —
 #: the screen is for reading, the workbook is the record — so the comparison
 #: is made after putting them in the same unit rather than by pretending the
 #: rounded figure is the exact one.

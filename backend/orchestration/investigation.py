@@ -113,9 +113,20 @@ class Request:
 
 
 def wants_investigation(question: str) -> bool:
-    """Whether this asks to be looked into rather than computed."""
+    """Whether this asks to be looked into rather than computed.
+
+    "Shipping has deteriorated. Show me everything." names no measure and is
+    plainly a request to go and look, but none of the shapes above match it —
+    so it went to the composer, which read "everything" as nothing in
+    particular and asked which figure was wanted. The complete-review shapes
+    are the same intent stated as a conclusion rather than as a question, and
+    they belong here.
+    """
+    from backend.orchestration import deterioration as dr
+
     text = " ".join((question or "").lower().split())
-    return any(re.search(pattern, text) for pattern in _INVESTIGATE)
+    return (any(re.search(pattern, text) for pattern in _INVESTIGATE)
+            or dr.wants_complete_review(question))
 
 
 #: The whole portfolio, as a population an investigation can run over.
@@ -147,11 +158,23 @@ def read(question: str, context: Any) -> Request:
                                        governed concepts is the product
                                        refusing to do its job.
     """
-    if not wants_investigation(question):
+    from backend.orchestration import deterioration as dr
+
+    complete = dr.wants_complete_review(question)
+    if not complete and not wants_investigation(question):
         return Request()
 
     subject, kind = _population(question, context)
     if subject:
+        # "Shipping has deteriorated. Show me everything." is not five probes.
+        # A complete segment deterioration review is a named set of analyses
+        # — exposure, three PDs, LGD, ECL, coverage, stage by balance AND by
+        # account count, grade slippage, and the borrowers behind it — and
+        # cutting it to the five highest-scoring makes it a review that is
+        # missing the four lines somebody asked for by name. The blueprint
+        # chooses the set; the planner's job here is done.
+        if complete and kind in dr.DIMENSIONS:
+            return _blueprint(question, subject, kind)
         probes, chosen = _plan_probes(question, subject, kind, context)
         return Request(subject=subject, subject_kind=kind, probes=probes,
                        portfolio=chosen)
@@ -160,6 +183,24 @@ def read(question: str, context: Any) -> Request:
     probes, chosen = _plan_probes(question, "", "portfolio", context)
     return Request(subject=WHOLE_BOOK, subject_kind="portfolio",
                    probes=probes, portfolio=chosen)
+
+
+def _blueprint(question: str, subject: str, kind: str) -> Request:
+    """The complete segment deterioration review, as probes.
+
+    Every entry is an ordinary governed question, so the blueprint's analyses
+    go through exactly the path a user's own question goes through and every
+    figure in the review reconciles like any other answer.
+    """
+    from backend.orchestration import deterioration as dr
+
+    window = dr.read_window(question)
+    asked = dr.questions(subject, dimension=kind, window=window)
+    return Request(
+        subject=subject, subject_kind=kind,
+        probes=[Probe(concept_id=item["key"], label=item["label"],
+                      question=item["question"], because=item["because"])
+                for item in asked])
 
 
 def _population(question: str, context: Any) -> tuple[str, str]:
@@ -557,6 +598,7 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
 
     rows: list[dict[str, Any]] = []
     notes: list[str] = []
+    analyses: list[dict[str, Any]] = []
     composed = Composition()
     for probe in request.probes:
         composed.attempted += 1
@@ -579,6 +621,19 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
             "question": probe.question,
             "because": probe.because,
         })
+        # The analysis itself, not only a sentence about it. A probe that
+        # computed a stage distribution has a stage distribution; the reader
+        # was being shown the sentence "4,917 SAR mn across 3 stages" and not
+        # the three stages.
+        if getattr(answered, "runtime", None) is not None \
+                and getattr(answered, "build", None) is not None:
+            analyses.append({
+                "title": probe.label,
+                "asked": probe.question,
+                "because": probe.because,
+                "finding": finding,
+                "answered": answered,
+            })
 
     if not rows:
         # Every probe failed. The caller needs to know that this is different
@@ -608,6 +663,7 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
         warnings=notes,
         follow_ups=[r["question"] for r in rows[:4]],
         composition=composed,
+        analyses=analyses,
         # A review that ran governed analyses did not look anything up in a
         # catalogue. Reported as `metadata`, the Trace consistency contract
         # concluded nothing was calculated and the flow classifier filed a

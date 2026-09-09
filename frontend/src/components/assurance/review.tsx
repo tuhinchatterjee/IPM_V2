@@ -4,7 +4,14 @@ import * as React from "react";
 
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type AssuranceReview } from "@/lib/api";
+import { Unavailable } from "@/components/ui/unavailable";
+import {
+  ApiError,
+  api,
+  isNotYetAssured,
+  type AssuranceNotYet,
+  type AssuranceReview,
+} from "@/lib/api";
 
 import { AssuranceFigure, DimensionStrip } from "./dimensions";
 import { referenceText } from "./present";
@@ -37,8 +44,13 @@ export function HowCreditProbePerformed({
   investigationId: string;
   recordId?: string;
 }) {
-  const [data, setData] = React.useState<AssuranceReview | null>(null);
-  const [error, setError] = React.useState("");
+  const [data, setData] = React.useState<
+    AssuranceReview | AssuranceNotYet | null
+  >(null);
+  const [error, setError] = React.useState<{
+    message: string;
+    refused: boolean;
+  } | null>(null);
 
   React.useEffect(() => {
     let live = true;
@@ -47,15 +59,19 @@ export function HowCreditProbePerformed({
       : api.investigationAssurance(investigationId);
     load
       .then((body) => live && setData(body))
-      .catch(
-        (e: unknown) =>
-          live &&
-          setError(
+      .catch((e: unknown) => {
+        if (!live) return;
+        setError({
+          message:
             e instanceof Error
               ? e.message
               : "No assurance record is available for this Investigation.",
-          ),
-      );
+          // An Investigation whose assurance belongs to someone else is
+          // refused, not broken. It used to arrive as a 404 and read as a
+          // wrong address.
+          refused: e instanceof ApiError && e.isForbidden,
+        });
+      });
     return () => {
       live = false;
     };
@@ -63,12 +79,24 @@ export function HowCreditProbePerformed({
 
   if (error) {
     return (
-      <Card className="p-5">
-        <p className="text-sm text-text-secondary">{error}</p>
-      </Card>
+      <Unavailable
+        state={{ error: error.message, refused: error.refused, loading: false }}
+        what="this Investigation's assurance"
+      />
     );
   }
   if (!data) return <Skeleton className="h-64 w-full" />;
+
+  // Not yet assured is not a failure, and it is where every thread starts.
+  if (isNotYetAssured(data)) {
+    return (
+      <Card className="p-5">
+        <p className="text-sm leading-relaxed text-text-secondary">
+          {data.statement}
+        </p>
+      </Card>
+    );
+  }
 
   const head = data.header;
 

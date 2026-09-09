@@ -185,7 +185,6 @@ def test_children_are_emptied_before_their_parents():
         ("workflow_events", "workflow_items"),
         ("workflow_recipients", "workflow_items"),
         ("lens_revisions", "lenses"),
-        ("playbook_runs", "playbooks"),
         ("agent_tasks", "agent_runs"),
     ):
         assert order.index(child) < order.index(parent), f"{child} vs {parent}"

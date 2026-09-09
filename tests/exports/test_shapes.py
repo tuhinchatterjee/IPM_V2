@@ -193,7 +193,7 @@ class TestResultsFidelity:
             str(ws.cell(row=header, column=i + 1).value or "")
             for i in range(len(pack.visible_columns()))
         ]
-        assert any("USD mn" in h for h in headers)
+        assert any("SAR mn" in h for h in headers)
         first = ws.cell(row=header + 1, column=2).value
         assert isinstance(first, int | float), "a figure was written as text"
 

@@ -179,14 +179,22 @@ class Requested:
 
 
 def requested(text: str, *, dimension: str = "", population_grain: str = "",
-              dataset_grain: str = "", rows_requested: bool = False
-              ) -> Requested:
+              dataset_grain: str = "", rows_requested: bool = False,
+              dimension_is_head: bool = False) -> Requested:
     """Infer the output grain from the objective. See the docstring's order.
 
     `rows_requested` is set when the question named a number of rows — "the
     five largest", "top 10". Asking for five of something is asking for five
     rows, so a portfolio reading is wrong however many portfolio nouns the
     sentence carries, and the request falls through to the source's own grain.
+
+    `dimension_is_head` says the dimension IS what the question asked for —
+    "which SECTORS have borrowers with rising PD?" — rather than how it asked
+    for the answer to be grouped. That outranks an entity noun appearing later
+    in the sentence, which is otherwise read first and turns a question about
+    sectors into a list of borrowers. A breakdown does not outrank it: "the
+    ten largest customers by sector" is a question about customers however it
+    is grouped.
     """
     sentence = text or ""
 
@@ -195,6 +203,14 @@ def requested(text: str, *, dimension: str = "", population_grain: str = "",
             grain=population_grain, explicit=True, source="population",
             because=("the conversation is carrying a population at this grain, "
                      "so the answer is one row per member of it"))
+
+    if dimension and dimension_is_head:
+        return Requested(
+            grain=SEGMENT, explicit=True, source="dimension",
+            dimension=dimension,
+            because=(f"the question asks for "
+                     f"{dimension.replace('_', ' ')}s, so each row is one "
+                     f"{dimension.replace('_', ' ')}"))
 
     if _FACILITY_WORDS.search(sentence):
         return Requested(

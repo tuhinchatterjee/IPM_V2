@@ -29,7 +29,7 @@ Both exit non-zero on a failure, so they can be chained in a shell or a job.
 ## Units, and why the comparison scales
 
 The interface renders exposure as `usd bn` and shows `22.4`; the workbook
-carries the governed unit `USD mn` and the figure `22,373.572`. Both are
+carries the governed unit `SAR mn` and the figure `22,373.572`. Both are
 labelled and both are right — the screen is for reading and the workbook is the
 record — so `verify_workbooks.py` puts them in the same unit before comparing
 rather than pretending the rounded figure is the exact one.

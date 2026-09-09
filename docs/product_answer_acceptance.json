@@ -1,0 +1,255 @@
+{
+  "started": "2026-09-01T17:14:11+0000",
+  "viewport": {
+    "width": 1366,
+    "height": 900
+  },
+  "questions": [
+    {
+      "key": "overview",
+      "question": "What is CreditProbe AI?",
+      "checks": [
+        {
+          "name": "renders_headings",
+          "passed": true,
+          "detail": "4 heading elements"
+        },
+        {
+          "name": "headings_are_not_shouted",
+          "passed": true,
+          "detail": "[]"
+        },
+        {
+          "name": "renders_bullets",
+          "passed": true,
+          "detail": "112 list items"
+        },
+        {
+          "name": "no_wall_of_prose",
+          "passed": true,
+          "detail": "longest rendered paragraph is 226 characters"
+        },
+        {
+          "name": "no_sideways_scroll",
+          "passed": true,
+          "detail": "the page scrolls horizontally at 1366 wide"
+        },
+        {
+          "name": "no_chart",
+          "passed": true,
+          "detail": "0 chart surfaces"
+        },
+        {
+          "name": "the_answer_rendered",
+          "passed": true,
+          "detail": "the page never showed 'AI Risk Officer'"
+        },
+        {
+          "name": "no_error_state",
+          "passed": true,
+          "detail": "the page rendered an error instead of an answer"
+        }
+      ],
+      "screenshot": "docs/screenshots/product_answer_overview.png",
+      "headings": [
+        "What that means day to day",
+        "Where the numbers come from",
+        "What data is available",
+        "How CreditProbe performed"
+      ],
+      "bullets": 112,
+      "longest_paragraph": 226
+    },
+    {
+      "key": "capabilities",
+      "question": "What can CreditProbe do?",
+      "checks": [
+        {
+          "name": "renders_headings",
+          "passed": true,
+          "detail": "22 heading elements"
+        },
+        {
+          "name": "headings_are_not_shouted",
+          "passed": true,
+          "detail": "[]"
+        },
+        {
+          "name": "renders_bullets",
+          "passed": true,
+          "detail": "100 list items"
+        },
+        {
+          "name": "no_wall_of_prose",
+          "passed": true,
+          "detail": "longest rendered paragraph is 176 characters"
+        },
+        {
+          "name": "no_sideways_scroll",
+          "passed": true,
+          "detail": "the page scrolls horizontally at 1366 wide"
+        },
+        {
+          "name": "no_chart",
+          "passed": true,
+          "detail": "0 chart surfaces"
+        },
+        {
+          "name": "the_answer_rendered",
+          "passed": true,
+          "detail": "the page never showed 'CreditProbe at a glance'"
+        },
+        {
+          "name": "no_error_state",
+          "passed": true,
+          "detail": "the page rendered an error instead of an answer"
+        }
+      ],
+      "screenshot": "docs/screenshots/product_answer_capabilities.png",
+      "headings": [
+        "CreditProbe at a glance",
+        "Corporate portfolio intelligence",
+        "Borrower 360",
+        "Early Warning",
+        "IFRS 9 and ECL intelligence",
+        "Corporate ratings and migration",
+        "Covenant intelligence",
+        "Collateral intelligence",
+        "Liquidity and cash-flow intelligence",
+        "Connected counterparty and group risk",
+        "External and macro intelligence",
+        "Stress testing",
+        "Scorecard validation and model risk",
+        "Data Builder",
+        "Analysis Studio",
+        "Workflow and Risk Cases",
+        "Trace and lineage",
+        "Ask CreditProbe",
+        "AI intelligence and learning governance",
+        "How you reach them",
+        "What data is available",
+        "How CreditProbe performed"
+      ],
+      "bullets": 100,
+      "longest_paragraph": 176
+    },
+    {
+      "key": "ai_role",
+      "question": "What is the role of AI in CreditProbe?",
+      "checks": [
+        {
+          "name": "renders_headings",
+          "passed": true,
+          "detail": "6 heading elements"
+        },
+        {
+          "name": "headings_are_not_shouted",
+          "passed": true,
+          "detail": "[]"
+        },
+        {
+          "name": "renders_bullets",
+          "passed": true,
+          "detail": "126 list items"
+        },
+        {
+          "name": "no_wall_of_prose",
+          "passed": true,
+          "detail": "longest rendered paragraph is 251 characters"
+        },
+        {
+          "name": "no_sideways_scroll",
+          "passed": true,
+          "detail": "the page scrolls horizontally at 1366 wide"
+        },
+        {
+          "name": "no_chart",
+          "passed": true,
+          "detail": "0 chart surfaces"
+        },
+        {
+          "name": "the_answer_rendered",
+          "passed": true,
+          "detail": "the page never showed 'AI does the thinking'"
+        },
+        {
+          "name": "no_error_state",
+          "passed": true,
+          "detail": "the page rendered an error instead of an answer"
+        }
+      ],
+      "screenshot": "docs/screenshots/product_answer_ai_role.png",
+      "headings": [
+        "AI does the thinking",
+        "Agentic AI does the investigating",
+        "The CreditProbe engine protects the truth",
+        "Why the line is drawn there",
+        "What data is available",
+        "How CreditProbe performed"
+      ],
+      "bullets": 126,
+      "longest_paragraph": 251
+    },
+    {
+      "key": "early_warning",
+      "question": "What is the Early Warning methodology?",
+      "checks": [
+        {
+          "name": "renders_headings",
+          "passed": true,
+          "detail": "7 heading elements"
+        },
+        {
+          "name": "headings_are_not_shouted",
+          "passed": true,
+          "detail": "[]"
+        },
+        {
+          "name": "renders_bullets",
+          "passed": true,
+          "detail": "109 list items"
+        },
+        {
+          "name": "no_wall_of_prose",
+          "passed": true,
+          "detail": "longest rendered paragraph is 268 characters"
+        },
+        {
+          "name": "no_sideways_scroll",
+          "passed": true,
+          "detail": "the page scrolls horizontally at 1366 wide"
+        },
+        {
+          "name": "no_chart",
+          "passed": true,
+          "detail": "0 chart surfaces"
+        },
+        {
+          "name": "the_answer_rendered",
+          "passed": true,
+          "detail": "the page never showed 'Four layers'"
+        },
+        {
+          "name": "no_error_state",
+          "passed": true,
+          "detail": "the page rendered an error instead of an answer"
+        }
+      ],
+      "screenshot": "docs/screenshots/product_answer_early_warning.png",
+      "headings": [
+        "What it is for",
+        "Four layers",
+        "How a signal becomes something you act on",
+        "What a warning is telling you",
+        "Severity and ownership",
+        "What data is available",
+        "How CreditProbe performed"
+      ],
+      "bullets": 109,
+      "longest_paragraph": 268
+    }
+  ],
+  "total": 32,
+  "passed": 32,
+  "failures": []
+}

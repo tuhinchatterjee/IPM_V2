@@ -31,13 +31,15 @@ import re as _re
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.orchestration import collapse, fidelity, gate, multi, ordinal
 from backend.orchestration import composites as cmp
 from backend.orchestration import concepts as cx
 from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
-from backend.orchestration import gate, multi
+from backend.orchestration import dimensions as dm
 from backend.orchestration import grain as gr
 from backend.orchestration import ordering as od
+from backend.orchestration import predicates as pr
 from backend.orchestration import semantics as sm
 from backend.orchestration.capability import Reading
 from backend.orchestration.context import GovernedContext
@@ -76,10 +78,16 @@ MAX_TOP_N = 200
 #: instead of becoming a special case in eight places.
 COUNT_CONCEPT = "population_count"
 
+#: The governed measure a distribution is reported in when the question names
+#: none. Exposure at default rather than "exposure", because the bare word is
+#: ambiguous between three governed amounts and a default must not resolve an
+#: ambiguity the product otherwise asks about.
+DISTRIBUTION_MEASURE = "exposure at default"
+
 #: Aggregations by what the measure IS. Summing a percentage is meaningless and
 #: averaging an exposure hides the book, so neither is left to a default.
 _ROLLUP: dict[str, str] = {
-    "USD mn": "sum", "%": "avg", "x": "avg", "days": "max",
+    "SAR mn": "sum", "%": "avg", "x": "avg", "days": "max",
     "grade": "max", "notches": "sum",
 }
 
@@ -131,6 +139,36 @@ class AnalysisBuild:
     #: answer cannot claim a condition the plan does not apply. None on the
     #: shapes that set no conditions at all.
     enforcement: Any = None
+    #: Whether the finished analysis is the same KIND of answer the question
+    #: asked for. The planner may change implementation; it may not change
+    #: objective, and this is what says so.
+    fidelity: Any = None
+    #: Movements this plan cannot measure, because both ends of the comparison
+    #: read the same source cycle. Part 12.
+    collapsed: Any = None
+    #: True when the answer IS a list of governed entities — the head noun said
+    #: what one row is, and the columns are that entity's governed profile
+    #: rather than a figure the question named. The reconciliation counts the
+    #: population for one of these, because "the 10 largest" is a cut and a
+    #: reader of a population question needs to know what it was cut from.
+    entity_list: bool = False
+
+    #: Words of the question this build's reading ALREADY accounts for, which
+    #: no predicate will show. A composite is the whole point of the example:
+    #: "which borrowers are weakening but are not yet on the watchlist?" has
+    #: no `weakening` column and no NOT node, and the coverage gate — which
+    #: reads predicates — reported both as conditions CreditProbe could not
+    #: apply, on the same screen as the caveat saying the watchlist had been
+    #: removed. Two sentences, contradicting each other, both from CreditProbe.
+    covered: list[str] = field(default_factory=list)
+
+    #: Value restrictions the SENTENCE widened — "stage 2 or worse" is a range,
+    #: not an equality. Recorded once, where the predicate is compiled, so the
+    #: promise checked against the rows and the phrase shown to the reader come
+    #: from the same reading as the filter that ran. Three modules re-reading
+    #: the question is three chances for them to disagree, and the one that
+    #: disagreed withheld correct answers.
+    widened: list[Any] = field(default_factory=list)
 
     @property
     def output_grain(self) -> str:
@@ -180,6 +218,11 @@ class AnalysisBuild:
             "warnings": list(self.warnings),
             "enforcement": (self.enforcement.to_dict()
                             if self.enforcement is not None else None),
+            "fidelity": (self.fidelity.to_dict()
+                         if self.fidelity is not None else None),
+            "collapsed": (self.collapsed.to_dict()
+                          if self.collapsed is not None
+                          and self.collapsed.any else None),
         }
 
 
@@ -224,7 +267,8 @@ def plan(reading: Reading, context: GovernedContext, *,
          question: str = "",
          period: tuple[str, str] | None = None,
          state: cv.ConversationState | None = None,
-         continuation: cv.Continuation | None = None) -> AnalysisBuild:
+         continuation: cv.Continuation | None = None,
+         thread_datasets: list[str] | None = None) -> AnalysisBuild:
     """Build the plan, then check it answers the question that was asked.
 
     The check is here, wrapping every shape, rather than inside the one builder
@@ -233,13 +277,47 @@ def plan(reading: Reading, context: GovernedContext, *,
     that silently ignored a conjunct — and a gate that only guards the path
     where the defect was found guards nothing.
     """
+    contract = fidelity.read(question or reading.objective,
+                             reading=reading, state=state)
     build = _plan(reading, context, question=question, period=period,
-                  state=state, continuation=continuation)
+                  state=state, continuation=continuation,
+                  thread_datasets=thread_datasets)
     text = question or reading.objective
+
+    # Which value restrictions the sentence WIDENED. Recorded on the build, on
+    # the one path every shape returns through, so the promise checked against
+    # the rows and the phrase shown to the reader are the same reading as the
+    # predicate that ran. Reading the question separately in each consumer is
+    # how the invariant came to demand `= 2` of rows the plan had correctly
+    # selected at `>= 2`, and withheld a right answer for it.
+    build.widened = [q for q in (ordinal.read(text, name, value)
+                                 for name, value in build.filters)
+                     if q is not None]
     dropped = gate.dropped_structure(
         text, getattr(build, "enforcement", None),
         multi.predicate_tree_of(build.plan),
-        list(build.matches), build.conditions, build.filters)
+        list(build.matches), build.conditions, build.filters,
+        covered=list(build.covered))
+    # Whether this is the same KIND of answer the question asked for. The
+    # coverage gate compares predicates, and a plan that abandoned the question
+    # outright has no predicates to be missing — which is how "which Shipping
+    # borrowers have rising utilisation, worsening liquidity and increasing PD"
+    # came back as an exposure movement for Transport & Logistics.
+    build.fidelity = fidelity.compare(contract, build,
+                                      enforcement=build.enforcement)
+    if not build.fidelity.faithful:
+        build.warnings.append(build.fidelity.sentence)
+
+    # Part 12. A condition can reach the FILTER, run, and still be incapable of
+    # holding: a change measured between two quarters that both read the same
+    # annual cycle is zero for every borrower by construction. Nothing about
+    # that looks like a failure from the inside — the plan is faithful, the
+    # query succeeds — and the empty result reads as a finding. Said here,
+    # before the query runs, so an empty answer can say why it is empty.
+    build.collapsed = collapse.inspect(build.plan)
+    if build.collapsed.any:
+        build.warnings.append(build.collapsed.sentence())
+
     if dropped:
         # Repair is attempted upstream, where a condition is read. By the time
         # a plan exists, an unenforced condition is a limitation, and the one
@@ -264,7 +342,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
           question: str = "",
           period: tuple[str, str] | None = None,
           state: cv.ConversationState | None = None,
-          continuation: cv.Continuation | None = None) -> AnalysisBuild:
+          continuation: cv.Continuation | None = None,
+          thread_datasets: list[str] | None = None) -> AnalysisBuild:
     """Build the IR one reading implies, or say what is missing.
 
     Never guesses a threshold or a dimension the reading did not carry. A
@@ -306,6 +385,24 @@ def _plan(reading: Reading, context: GovernedContext, *,
     carrying = bool(continuation and continuation.carries_context and state
                     and state.has_analysis)
 
+    # "Why Shipping?" names a book and no measure at all. §5.
+    #
+    # The analytical half of such a turn — which figure, which shape, which
+    # composite — is the one the previous question settled; only the SCOPE
+    # comes from the sentence in front of us. Reading both halves from three
+    # words is what produced "which figure should CreditProbe measure?", the
+    # product asking the reader to restate the analysis it had just run and
+    # then losing the thread for every turn after it.
+    #
+    # `settled_text` is the previous question, used ONLY where this sentence
+    # resolves nothing. A narrowing that named its own measure keeps it.
+    narrowing = bool(continuation is not None and state is not None
+                     and continuation.action == cv.NARROW_SCOPE)
+    settled_text = ""
+    if narrowing and state is not None:
+        settled_text = (state.result.question
+                        or (state.turns[-1].question if state.turns else ""))
+
     # Carrying a POPULATION is not the same as carrying a PLAN, and the two
     # were gated on one flag. `has_analysis` asks whether an analysis has run,
     # which is the right precondition for a modification — "show only the five
@@ -333,23 +430,38 @@ def _plan(reading: Reading, context: GovernedContext, *,
                       and "scope_only" in getattr(continuation, "inherited", {}))
     inherited_metrics = (list(state.metrics or state.concepts)
                          if carrying and not scope_only else [])
-    resolved = cx.read_concepts(text, known=known, catalogue=catalogue)
+    # The books this thread is on, so a concept that lives in several of them
+    # resolves to the one the reader is looking at. See `_preferred_datasets`
+    # and `cx.resolve_concept`: it settles a choice between fields that all
+    # carry the concept, and is ranked below both an explicit qualifier and a
+    # steward's declaration of authority.
+    reading_order = _preferred_datasets(state, carrying, thread_datasets)
+    resolved = cx.read_concepts(text, known=known, catalogue=catalogue,
+                                preferred_datasets=reading_order)
+    if not resolved.matches and settled_text:
+        # The narrowing sentence named no concept, so the measure is the one
+        # the settled question named. Re-read rather than recalled: what
+        # reaches the plan is a governed concept resolved against the
+        # catalogue, never a label copied out of the conversation.
+        resolved = cx.read_concepts(settled_text, known=known,
+                                    catalogue=catalogue,
+                                    preferred_datasets=reading_order)
     matches = list(resolved.matches)
     carried_concepts: list[str] = []
     if carrying and inherited_metrics:
-        named = {m.concept.label for m in matches}
+        named = {m.label for m in matches}
         extra = [label for label in inherited_metrics if label not in named]
         if extra:
             more = cx.read_concepts(" ".join(extra), known=known,
                                     catalogue=catalogue)
-            fresh = [m for m in more.matches if m.concept.label not in named]
+            fresh = [m for m in more.matches if m.label not in named]
             if continuation and continuation.action == cv.MODIFY_PREVIOUS \
                     and matches:
                 # "Rank those by ECL instead" REPLACES the measure. Carrying the
                 # old one as well would answer a question with two orderings.
                 fresh = []
             matches.extend(fresh)
-            carried_concepts = [m.concept.label for m in fresh]
+            carried_concepts = [m.label for m in fresh]
 
     matches = _drop_explanation_only(text, matches)
 
@@ -368,6 +480,28 @@ def _plan(reading: Reading, context: GovernedContext, *,
         matches = []
         carried_concepts = []
 
+    # What the answer has one row of, read before anything else looks at the
+    # measures. §D1/§D2: the noun the question asks for decides the grain, and
+    # resolving it after the measure is how "which sectors concern you most?"
+    # became a list of borrowers and "show rating distribution" became one
+    # number.
+    grouping = _dimension(reading, context, text)
+    if grouping.conflicts:
+        raise CannotPlan(
+            f"The question asks for {grouping.entity_phrase} and also asks to "
+            f"group by {grouping.phrase}.",
+            clarification=dm.clarification(grouping))
+
+    # A concept cannot be both the measure and the breakdown. §D2.
+    #
+    # "Show rating distribution" resolved `internal_grade` as the FIGURE and
+    # then grouped by it, so the plan asked for the average rating of each
+    # rating and returned one scalar — 10.00 notches of internal rating. The
+    # noun names what the answer has one row of; it is not what the answer
+    # measures.
+    if grouping.found:
+        matches = [m for m in matches if m.field != grouping.dimension]
+
     # A composite risk concept, before anything else looks at the measures.
     #
     # "Which borrowers have the strongest evidence of liquidity stress?" names
@@ -379,6 +513,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # starts choosing between measures, because by then the question has
     # already been reduced to one.
     composite = cmp.find(text, catalogue)
+    if composite is None and settled_text:
+        composite = cmp.find(settled_text, catalogue)
     if composite is not None:
         # Within the population the conversation has already settled. §6.
         #
@@ -397,12 +533,51 @@ def _plan(reading: Reading, context: GovernedContext, *,
             composite, reading, context, text,
             composite_filters, catalogue,
             top_n=_explicit_top_n(text),
+            # "Which SECTORS concern you most?" is the same governed
+            # methodology asked at a different grain. The evidence is still
+            # read per borrower — a sector does not have arrears — and then
+            # aggregated to the sector, which is what makes the answer about
+            # sectors rather than a borrower ranking with a sector heading.
+            dimension=(grouping.dimension if grouping.is_head else ""),
+            # Only when the sentence POINTED at the previous rows — "which of
+            # those", "the second one". A composite ranking that silently
+            # pinned itself to whatever the last turn returned would answer
+            # "which borrowers are the real issues?" over the previous
+            # ranking's rows rather than over the book the conversation has
+            # settled, which is a narrower question than the one asked.
+            population=(continuation if continuation is not None
+                        and continuation.referent else None),
             period=(period[1] if period else ""))
         if continuation is not None:
             build.continuation = continuation
         return build
 
-    if not matches and not count_grain:
+    distribution_default = ""
+    if (not matches and not count_grain and grouping.found
+            and grouping.rule in ("named", "breakdown")):
+        # §D2, the distribution contract. "Show sector distribution" names a
+        # governed dimension and no figure, and it has an unambiguous answer:
+        # how the book is spread across those categories. Asking which figure
+        # to measure is asking the reader to specify something the question
+        # already implies, and it is why a distribution question came back as
+        # a clarification rather than a table.
+        #
+        # Stated, never silent: the default reaches the answer's caveats the
+        # same way the governed default period does.
+        more = cx.read_concepts(DISTRIBUTION_MEASURE, known=known,
+                                catalogue=catalogue)
+        if more.matches:
+            matches = list(more.matches)
+            distribution_default = DISTRIBUTION_MEASURE
+
+    # An entity question is not refused here. "Which borrowers are in
+    # Shipping?" names no figure and does not need one: the head noun says
+    # what the answer has one row of, and a list of borrowers IS an analytical
+    # answer. The decision is deferred until the restrictions are read, below,
+    # because a profile is only worth building over a population that has been
+    # narrowed — and refused there if none can be.
+    lists_entities = grouping.entity in ("customer", "facility")
+    if not matches and not count_grain and not lists_entities:
         raise CannotPlan(
             "No governed measure was named.",
             clarification=(
@@ -422,6 +597,42 @@ def _plan(reading: Reading, context: GovernedContext, *,
     if carrying or carrying_population:
         filters = _inherit_filters(filters, state, context, continuation,
                                     text)
+    # A field the question CONSTRAINS is not the field it measures. "Which
+    # sectors have the highest Stage 2 exposure at default?" resolved
+    # `ifrs9_stage` as a measure as well as a filter, so the answer led with
+    # "34.00 IFRS 9 stage in Stage 2" — the sum of a constant, quoted as the
+    # finding. Every row inside the filter carries the same value; there is
+    # nothing there to measure.
+    #
+    # Only where something else survives. A question that names one governed
+    # field and constrains it — "how many are in Stage 2?" — still has that
+    # field as its subject.
+    # Narrow on purpose: only where the question also asks for a BREAKDOWN, and
+    # only where a real measure survives. "How many borrowers are in Stage 2?"
+    # names one governed field and constrains it, and the field is still what
+    # the question is about — dropping it there leaves the plan with nothing to
+    # anchor a dataset on.
+    #
+    # KNOWN GAP. Without a breakdown the rule does not fire, so "show exposure
+    # at default for Stage 2 borrowers" is still ranked by the stage column
+    # rather than by exposure. Widening the guard fixes that ranking and breaks
+    # two other things: "how many borrowers are in Stage 2?" re-anchors on the
+    # connected-group book, which carries no stage, and the two-period cohort
+    # path stops applying the stage at the grain it reconciles on. The fix is
+    # to keep the constrained field available for anchoring and reading while
+    # excluding it from the MEASURE role, which is a change to how `matches`
+    # carries roles rather than to this condition. Left as it is rather than
+    # traded for a worse defect. See docs/ANSWER_GRAIN.md.
+    constrained = {field_name for field_name, _ in filters}
+    survivors = [m for m in matches
+                 if m.field not in constrained
+                 and m.concept.id != COUNT_CONCEPT]
+    if grouping.found and constrained and survivors and len(survivors) < len(matches):
+        dropped = [m for m in matches if m.field in constrained]
+        matches = [m for m in matches if m.field not in constrained]
+        logger.info("Dropped %s as a measure: the question constrains it.",
+                    ", ".join(m.label for m in dropped))
+
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
                        else 0)
     # Governed values are masked out before movement detection. "Contracting"
@@ -442,12 +653,56 @@ def _plan(reading: Reading, context: GovernedContext, *,
         # different one. Dropping the conditions here would quietly turn "the
         # Contracting names that were downgraded" into "every Contracting name".
         conditions = _restore_conditions(state.conditions, matches)
-    dimension = _dimension(reading, context, text)
+    dimension = grouping.dimension
+    if distribution_default:
+        planning_notes.append(
+            f"The question named no figure, so this distribution is measured "
+            f"by {DISTRIBUTION_MEASURE}.")
     if not dimension and carrying and state.dimensions:
         first = state.dimensions[0]
         if first in context.dimensions:
             dimension = first
     shape = _shape(reading, conditions, dimension, text)
+
+    # The governed profile of the entities this question selects.
+    #
+    # Placed after the shape, and only for a SINGLE-PERIOD one. "Which
+    # borrowers moved from Stage 1 to Stage 2?" is a transition and "which
+    # borrowers were downgraded?" is a movement; both name an entity as their
+    # head noun, and neither is answered by a snapshot of that entity's
+    # governed columns. Attaching a profile to them replaced a migration
+    # analysis with a portfolio total carrying seven borrower columns.
+    #
+    # Built from ONE governed source so that no borrower can be lost to a join,
+    # and only over a population the question NARROWED: what makes an entity
+    # list an answer is that it has been restricted, and "show borrowers" over
+    # the whole book is a question the reader should narrow rather than one
+    # four thousand rows improve on.
+    entity_list = False
+    if lists_entities and shape not in (COHORT, MOVEMENT):
+        from backend.data_access import get_catalog
+
+        carries = {d.name: set(d.fields) for d in get_catalog().all()}
+        profile, described_by = _entity_profile(
+            matches, filters, conditions, carries,
+            gr.KEY_OF.get(gr.CUSTOMER if grouping.entity == "customer"
+                          else gr.FACILITY, "customer_id"))
+        if profile:
+            matches = profile
+            entity_list = True
+            planning_notes.append(
+                f"The question asked for "
+                f"{grouping.entity_phrase or 'borrowers'} and named no figure, "
+                f"so the answer carries the governed profile CreditProbe holds "
+                f"for them in {described_by}: "
+                + _list_of(m.label for m in profile) + ".")
+    if lists_entities and not matches and not count_grain:
+        raise CannotPlan(
+            "An entity list needs a population to list.",
+            clarification=(
+                "Which borrowers? Name a sector, a stage, a rating or another "
+                "governed restriction — CreditProbe will list them with their "
+                "exposure, stage, rating and impairment."))
 
     # What one row of the answer is, decided from the objective before the plan
     # is built rather than read off whatever the source happened to be keyed
@@ -465,7 +720,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
     wants_grain = gr.requested(
         text, dimension=dimension,
         population_grain=gr.GRAIN_OF_KEY.get(carried_key, ""),
-        rows_requested=bool(_explicit_top_n(text) or inherited_top_n))
+        rows_requested=bool(_explicit_top_n(text) or inherited_top_n),
+        dimension_is_head=grouping.is_head)
     if wants_grain.grain == gr.PORTFOLIO and shape == RANKING:
         shape = AGGREGATE
 
@@ -511,14 +767,173 @@ def _plan(reading: Reading, context: GovernedContext, *,
             inherited_count_of=(str((state.ir.get("meta") or {}).get("count_of")
                                     or "") if carrying else ""),
             fallback_dataset=_fallback_dataset(state if carrying else None),
-            preferred_datasets=list(state.datasets) if carrying else None,
+            # Which book the thread is already reading.
+            #
+            # `state.datasets` is filled by the previous ANALYSIS, so a thread
+            # that established its dataset by asking about it — "Show me the
+            # Facility IFRS 9 dataset", then "which sectors have the highest
+            # Stage 2 exposure?" — carried nothing, and the second question
+            # resolved a dataset of its own. The reader is looking at one book
+            # and being answered from another, with nothing on screen saying so.
+            #
+            # It stays a TIE-BREAK. `_base_dataset` ranks calendar first, then
+            # how much of the question's scope the source can express, and only
+            # then this: a dataset the thread named but which cannot carry the
+            # filter still loses, which is what stops a carried name from
+            # quietly narrowing an answer.
+            preferred_datasets=reading_order,
+            # A distribution the reader asked for without naming a figure
+            # reports how many borrowers sit in each category as well as how
+            # much money does. §D2.
+            count_members=("customer_id" if distribution_default else ""),
+            # Level tests reach this shape now. They restrict the population at
+            # one reporting date — which is what makes a single-period plan the
+            # right one for them — and the build records them so the coverage
+            # gate, the invariants and the fidelity contract all see the same
+            # conditions the FILTER applied.
+            conditions=conditions,
             wants_grain=wants_grain)
+        build.entity_list = entity_list
+
+    # A cohort asked for at a dimension's grain. §D1.
+    #
+    # "Which SECTORS have borrowers with rising 12-month PD?" selects
+    # borrowers — a sector has no PD — and then has to say which sectors they
+    # are in. Without this the cohort was reported as five hundred customer
+    # rows under a question about seventeen sectors, and the borrowers named
+    # in the sentence are the CONDITION, not the answer's grain.
+    # `build.dimension` is set when the shape ALREADY groups by it — an
+    # aggregate does. `build.grain` is the source's key grain and stays
+    # `facility` even then, so testing it here rolled a by-sector aggregate up
+    # a second time and asked for a column the first grouping had consumed.
+    if (grouping.is_head and grouping.dimension
+            and not build.dimension and build.grain != gr.SEGMENT):
+        build = _roll_up_to_dimension(build, grouping.dimension, text)
 
     if carried_concepts:
         build.carried_concepts = carried_concepts
     if continuation is not None:
         build.continuation = continuation
     build.warnings.extend(planning_notes)
+    return build
+
+
+#: What a rolled-up cohort calls its count of qualifying members.
+COHORT_MEMBERS = "borrowers"
+
+#: Columns that are rates or ratios rather than amounts. Averaged when rolled
+#: up, because a sum of percentages is a number with no unit.
+_RATE_COLUMN = _re.compile(
+    r"(?:_pct|_percent|_ratio|_rate|_pct_change|_coverage|_margin)$"
+    r"|(?:^|_)(?:dscr|utilisation|coverage|pd|lgd|ccf)(?:_|$)")
+
+
+def _is_rate(column: str) -> bool:
+    return bool(_RATE_COLUMN.search(str(column or "").lower()))
+
+
+def _roll_up_to_dimension(build: AnalysisBuild, dimension: str,
+                          text: str) -> AnalysisBuild:
+    """Aggregate an entity-grain result to one row per dimension.
+
+    Appended to the plan the shape already produced rather than composing a
+    different one: the population is selected exactly as it was, and what
+    changes is only what the answer has one row of. So the sectors reported
+    here are the sectors of precisely the borrowers the cohort selected, and
+    the two can never disagree.
+
+    Returns the build unchanged when the plan does not end in the sort-limit
+    tail this can attach to, or when the dimension is not in the frame. A
+    silent partial roll-up would be worse than reporting the entity grain and
+    saying so.
+    """
+    operations = [dict(op) for op in (build.plan or {}).get("operations") or []]
+    sort_at = next((i for i in range(len(operations) - 1, -1, -1)
+                    if str(operations[i].get("op")).upper() == "SORT"), -1)
+    if sort_at < 1:
+        return build
+
+    key = gr.KEY_OF.get(build.grain, "customer_id")
+    try:
+        from backend.data_access import get_catalog
+
+        carries = {d.name: set(d.fields) for d in get_catalog().all()}
+    except Exception:  # noqa: BLE001 - without a catalogue, roll nothing up
+        return build
+    # The frame's own base, which a multi-dataset cohort does not put on the
+    # build: it reads several sources and the first SCAN is the one every
+    # other step joins onto.
+    base = build.dataset or next(
+        (str((op.get("params") or {}).get("dataset") or "")
+         for op in operations if str(op.get("op")).upper() == "SCAN"), "")
+    if dimension not in carries.get(base, set()):
+        logger.info("%s does not carry %r, so the answer stays at %s grain.",
+                    base or "the frame", dimension, build.grain)
+        return build
+
+    # The frame has to READ the column before it can group by it. The scans
+    # were composed for the measures the question named, and a dimension that
+    # is the answer's grain is not one of those.
+    reads = {c for op in operations
+             for c in ((op.get("params") or {}).get("fields") or [])}
+    if dimension not in reads:
+        for index, op in enumerate(operations):
+            params = dict(op.get("params") or {})
+            if (str(op.get("op")).upper() != "SCAN"
+                    or params.get("dataset") != base):
+                continue
+            fields = list(params.get("fields") or [])
+            if dimension not in fields:
+                params["fields"] = sorted({*fields, dimension})
+                operations[index] = {**op, "params": params}
+
+    feeder = (operations[sort_at].get("inputs") or [""])[0]
+    order = list((operations[sort_at].get("params") or {}).get("by") or [])
+
+    aggregates: list[dict[str, Any]] = [
+        {"function": "count_distinct", "column": key, "as": COHORT_MEMBERS}]
+    seen = {COHORT_MEMBERS}
+    for entry in order:
+        column = str(entry.get("column") or "")
+        if column and column not in seen and column != dimension:
+            # A rate does not add up. Summing every borrower's PD movement
+            # produces a number with no unit anyone can name; summing every
+            # borrower's EAD movement is the sector's EAD movement. So the
+            # function follows what the column IS.
+            function = "avg" if _is_rate(column) else "sum"
+            aggregates.append({"function": function, "column": column,
+                               "as": column})
+            seen.add(column)
+    readable = dimension.replace("_", " ")
+    operations.insert(sort_at, {
+        "id": "per_dimension", "op": "GROUP", "inputs": [feeder],
+        "params": {"by": [dimension], "aggregates": aggregates},
+        "label": (f"Aggregate the selected {gr.MEANS.get(build.grain, 'rows')} "
+                  f"to one row per {readable}"),
+    })
+    operations[sort_at + 1] = {**operations[sort_at + 1],
+                               "inputs": ["per_dimension"]}
+    if not order:
+        operations[sort_at + 1] = {
+            **operations[sort_at + 1],
+            "params": {"by": [{"column": COHORT_MEMBERS, "direction": "desc"}]}}
+
+    plan = dict(build.plan or {})
+    plan["operations"] = operations
+    plan["meta"] = {**(plan.get("meta") or {}), "rolled_up_to": dimension}
+    build.plan = plan
+    build.dimension = dimension
+    build.grain = gr.SEGMENT
+    build.grain_contract = gr.Contract(
+        want=gr.requested(text, dimension=dimension, dimension_is_head=True),
+        got=gr.SEGMENT, source_grain=build.grain_contract.source_grain
+        if build.grain_contract else gr.FACILITY,
+        keys=(dimension,),
+        aggregated=[f"Aggregate to one row per {readable}"],
+        pre_aggregated=[])
+    build.summary = (f"{readable.capitalize()}s containing "
+                     f"{build.summary[0].lower() + build.summary[1:]}"
+                     if build.summary else build.summary)
     return build
 
 
@@ -598,6 +1013,21 @@ def _note_unresolved_dimensions(text: str, matches: list[cx.ConceptMatch],
         f"governed catalogue holds no measure for "
         f"{'those' if len(missing) > 1 else 'that'}. This answer is composed "
         f"on {kept or 'the measures it could resolve'} alone.")
+
+
+def _preferred_datasets(state: cv.ConversationState | None, carrying: bool,
+                        thread: list[str] | None) -> list[str] | None:
+    """The sources this thread has on the table, most recent first.
+
+    The analysis that ran is the stronger signal, so it leads; the datasets the
+    conversation merely looked at follow it. Either way this is a preference,
+    never a restriction — see the note at the call site.
+    """
+    order: list[str] = []
+    if carrying and state is not None:
+        order.extend(str(name) for name in state.datasets)
+    order.extend(str(name) for name in (thread or []))
+    return list(dict.fromkeys(order)) or None
 
 
 def _fallback_dataset(state: cv.ConversationState | None) -> str:
@@ -739,18 +1169,63 @@ def _inherit_filters(filters: list[tuple[str, str]],
 # --------------------------------------------------------------- the pieces
 
 
+#: The condition kinds that genuinely need both ends of a comparison. A
+#: `change_pct` or `change_abs` test asks how a measure MOVED, and no single
+#: reporting date can answer that.
+MOVEMENT_KINDS: frozenset[str] = frozenset({"change_pct", "change_abs"})
+
+#: The two halves of a THRESHOLD CROSSING. Not movements — they compare levels
+#: rather than distances — but they need the same two-period frame, because
+#: "headroom fell below 15%" is a claim about where the measure WAS as well as
+#: where it now is.
+CROSSING_KINDS: frozenset[str] = frozenset({"level_open", "level_close"})
+
+#: Everything that cannot be answered from one reporting date.
+TWO_PERIOD_KINDS: frozenset[str] = MOVEMENT_KINDS | CROSSING_KINDS
+
+
+def asserts_movement(conditions: list[Condition]) -> bool:
+    """Whether any condition compares a measure across two dates."""
+    return any(str(getattr(c, "kind", "")) in TWO_PERIOD_KINDS
+               for c in conditions)
+
+
 def _shape(reading: Reading, conditions: list[Condition],
            dimension: str, text: str) -> str:
-    """Which of the four shapes this reading is.
+    """Which of the shapes this reading is.
 
-    Order matters. A question with movement conditions is a cohort even if it
-    also names a dimension, because the conditions are what select the
-    population and the dimension is only how it is displayed.
+    A CONDITION IS NOT A COMPARISON
+    -------------------------------
+    This read any condition at all as a cohort, and every cohort is built from
+    two periods — an opening scan, a closing scan, a join, and a DERIVE of the
+    movements. So
+
+        "Which Stage 2 or worse borrowers are on watchlist?"
+
+    which compares nothing across two dates, was planned with an empty DERIVE
+    the governed runtime refused outright, and the reader got a validator
+    message where the answer belonged. "Which watchlist borrowers are Stage 2?"
+    survived the same treatment only by accident, and announced itself
+    "between Q2 2025 and Q2 2026" — two periods quoted at a question about one.
+
+    `Condition.kind` already separates the two. A **movement** test asks how a
+    measure changed between two dates and needs both of them. A **level** test —
+    "on the watchlist", "headroom below 15%", "in Stage 3" — is true or false
+    at ONE date, and is a restriction on the population rather than a
+    comparison. So a question whose conditions are all level tests is a
+    single-period population question, and is planned as one.
+
+    Order still matters among the rest: a question with movement conditions is
+    a cohort even if it also names a dimension, because the conditions are what
+    select the population and the dimension is only how it is displayed.
     """
-    if conditions:
+    if conditions and asserts_movement(conditions):
         return COHORT
     if reading.period_requirement == "two_period":
-        return MOVEMENT
+        # The sentence named two dates or a change. A level test inside such a
+        # question still belongs to the cohort — "which names were watchlisted
+        # and had rising ECL" is one population read at both ends.
+        return COHORT if conditions else MOVEMENT
     if reading.operation == "rank" or _explicit_top_n(text):
         # "The five largest sectors" is a grouped total that has been cut to
         # five, not a ranking of five rows at the record grain. Keeping it an
@@ -982,9 +1457,25 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
     under a heading promising below 15% — a contradiction visible in the
     answer's own table.
     """
+    from backend.orchestration import thresholds as th
+
     out: list[Condition] = []
     for match in matches:
         movement = sm.movement_near(text, match.phrase)
+        # A movement whose number is introduced by a POSITIONAL word states a
+        # crossing, not a distance. "headroom fell below 15%" is a line that
+        # was crossed; "headroom fell by 15%" is how far it moved. Read first,
+        # because `condition_for` below has no way to tell them apart and
+        # resolves the bound against the direction as though it qualified the
+        # size — which turned "crossed under fifteen" into "fell by more than
+        # fifteen" and admitted borrowers whose headroom had risen.
+        if movement is not None:
+            crossing = th.crossing_for(
+                match.field, match.concept.higher_is_worse,
+                movement.phrase or "")
+            if crossing:
+                out.extend(crossing)
+                continue
         condition = sm.condition_for(match, movement)
         if condition is not None:
             out.append(condition)
@@ -1005,12 +1496,50 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
     return out
 
 
-def _dimension(reading: Reading, context: GovernedContext, text: str) -> str:
+def _dimension(reading: Reading, context: GovernedContext,
+               text: str) -> dm.Resolved:
+    """What the answer has one row of, and which rule decided.
+
+    `dimensions.read` is asked first because it reads the NOUN THE QUESTION
+    ASKS FOR — "which sectors", "rating distribution" — which the loops below
+    never did: they saw only an explicit "by X" or a superlative, so a question
+    whose dimension is its subject arrived with no dimension at all and fell
+    through to the source dataset's own grain.
+    """
+    found = dm.read(text, context)
+    if found.found:
+        return found
+
+    # The semantic reader's own dimension, when this one saw none. Kept
+    # SECOND, not first: the reader reports a dimension it recognised in the
+    # sentence and cannot tell a head noun from a breakdown, so consulting it
+    # first threw away the conflict between "the five largest borrowers" and
+    # "grouped by sector" and answered with five sectors.
     if reading.dimensions:
         first = reading.dimensions[0]
         if first in context.dimensions:
-            return first
+            return dm.Resolved(
+                dimension=first, phrase=first.replace("_", " "),
+                rule="breakdown", entity=found.entity,
+                entity_phrase=found.entity_phrase,
+                because="the reading named this dimension")
 
+    legacy = _legacy_dimension(context, text)
+    if legacy:
+        return dm.Resolved(dimension=legacy, phrase=legacy.replace("_", " "),
+                           rule="breakdown", entity=found.entity,
+                           entity_phrase=found.entity_phrase,
+                           because="the sentence names this breakdown")
+    return found
+
+
+def _legacy_dimension(context: GovernedContext, text: str) -> str:
+    """The original phrase matching, kept as the floor under `dimensions`.
+
+    Narrower and older, and it still resolves a handful of shapes the newer
+    reader deliberately does not attempt. Nothing here overrides a governed
+    reading; it only runs when there was none.
+    """
     lowered = text.lower()
     for name in context.dimensions:
         # Both spellings. A governed dimension is `ifrs9_stage`; a person
@@ -1237,23 +1766,61 @@ def _period_for(reading: Reading, context: GovernedContext,
 # ------------------------------------------------------- single-period plans
 
 
-def _predicates(filters: list[tuple[str, str]]) -> list[dict[str, Any]]:
+#: Which IR operator a widened ordinal restriction compiles to.
+_ORDINAL_OP = {"gte": ">=", "lte": "<="}
+
+#: A condition's operator, as the runtime spells it. `Condition.op` is named
+#: for the comparison rather than for SQL, and the two vocabularies have to
+#: meet somewhere; here, once, rather than at each call site.
+_CONDITION_OP = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "=",
+                 "ne": "!="}
+
+
+def _level_predicate(condition: Condition) -> dict[str, Any]:
+    """One level test, as a flat IR predicate.
+
+    The FILTER above is compiled from the Boolean TREE, which is the only form
+    that can carry a negation or an either/or. This is the single-leaf shape,
+    kept for the callers that hold one condition and no structure.
+    """
+    if str(getattr(condition, "kind", "")) in MOVEMENT_KINDS:
+        raise CannotPlan(
+            f"{condition.field} asks how a measure moved, which one reporting "
+            "date cannot answer.")
+    return {"column": condition.column,
+            "op": _CONDITION_OP.get(str(condition.op), "="),
+            "value": condition.value}
+
+
+def _predicates(filters: list[tuple[str, str]],
+                question: str = "") -> list[dict[str, Any]]:
     """Governed filters as IR predicates, with same-field values grouped.
 
     "Which of these are Stage 2 or Stage 3?" resolves two entities on the same
     dimension. Emitting them as two `=` predicates ANDs them together and
     selects nothing at all — a wrong answer that looks like a correct empty
     one, which is the worst shape a defect can take here.
+
+    "…at stage 2 or worse" resolves ONE value and means a range. Emitting it as
+    `= 2` excluded the stage 3 borrowers — the ones the question was reaching
+    for — from a population that claimed to include them. Part 12. The
+    qualifier is read from the question against the measure's own direction,
+    because "worse" is not a direction until you know which way the scale runs.
     """
     grouped: dict[str, list[str]] = {}
     for field_name, value in filters:
         grouped.setdefault(field_name, []).append(value)
     out: list[dict[str, Any]] = []
     for field_name, values in grouped.items():
-        if len(values) == 1:
-            out.append({"column": field_name, "op": "=", "value": values[0]})
-        else:
+        if len(values) != 1:
             out.append({"column": field_name, "op": "in", "values": values})
+            continue
+        widened = ordinal.read(question, field_name, values[0])
+        if widened is not None:
+            out.append({"column": field_name,
+                        "op": _ORDINAL_OP[widened.op], "value": values[0]})
+        else:
+            out.append({"column": field_name, "op": "=", "value": values[0]})
     return out
 
 
@@ -1423,6 +1990,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                    inherited_count_of: str = "",
                    fallback_dataset: str = "",
                    preferred_datasets: list[str] | None = None,
+                   count_members: str = "",
+                   conditions: list[Condition] | None = None,
                    wants_grain: Any = None) -> AnalysisBuild:
     """AGGREGATE and RANKING: read one period, scope it, group, order, cut.
 
@@ -1448,7 +2017,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     fields_of = {d.name: set(d.fields) for d in catalogue.all()}
     base = (_base_dataset(by_dataset, fields_of, filters, dimension, population,
                           preferred=preferred_datasets,
-                          period=_asked_period(reading, context))
+                          period=_asked_period(reading, context),
+                          conditions=conditions)
             or fallback_dataset)
     if not base:
         raise CannotPlan(
@@ -1489,6 +2059,29 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             counted, count_key = grain, key
 
     warnings: list[str] = []
+    # Level tests the question stated — "on the watchlist", "headroom below
+    # 15%". They restrict the population at ONE date, which is why this shape
+    # can carry them at all; a movement test never reaches here.
+    applied: pr.Node | None = None
+    level = [c for c in (conditions or [])
+             if str(getattr(c, "kind", "")) not in TWO_PERIOD_KINDS]
+    testable = [c for c in level if c.column in available]
+    for condition in level:
+        if condition.column not in available:
+            # A condition that cannot be tested is not a caveat, it is a
+            # different question — the same rule the dropped filter below
+            # follows, and for the same reason.
+            raise CannotPlan(
+                f"{base} does not carry {condition.column}.",
+                clarification=(
+                    f"CreditProbe cannot restrict this answer to "
+                    f"{condition.describe()}: the governed data behind it "
+                    f"({base}) does not carry "
+                    f"{condition.column.replace('_', ' ')}, and no active "
+                    "relationship brings it in. Ask without that restriction, "
+                    "or ask a data steward to relate the two datasets in Data "
+                    "Builder."))
+    condition_fields = [c.column for c in testable]
     filter_fields = [f for f, _ in filters if f in available]
     dropped = sorted({f for f, _ in filters if f not in available})
     if dropped:
@@ -1547,13 +2140,20 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         # resolves a path to its dataset.
         for name, fields in fields_of.items():
             if name != base and deferred_dimension in fields:
-                for match in by_dataset.get(name, []):
-                    if match.field == deferred_dimension:
-                        extras.setdefault(name, []).append(match)
+                found = [m for m in by_dataset.get(name, [])
+                         if m.field == deferred_dimension]
+                # The dimension may have been resolved from the SENTENCE
+                # rather than from a concept — "by internal rating" names a
+                # governed dimension without naming a measure — in which case
+                # there is no match to hop on and the breakdown was silently
+                # dropped. The column is governed either way, so one is stood
+                # up for it here.
+                extras.setdefault(name, []).extend(
+                    found or [_dimension_match(name, deferred_dimension)])
                 break
     enrichment = _resolve_enrichment(base, extras)
     for name in enrichment.unreachable:
-        labels = ", ".join(m.concept.label for m in extras[name])
+        labels = ", ".join(m.label for m in extras[name])
         warnings.append(
             f"{labels} could not be brought in: no active relationship "
             f"connects {name} to {base}. A data steward can declare one in "
@@ -1570,7 +2170,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             f"{base} does not carry, so this answer covers the whole "
             "population rather than only those rows.")
 
-    wanted_fields = {key, *filter_fields, *([dimension] if dimension else []),
+    wanted_fields = {key, *filter_fields, *condition_fields,
+                     *([dimension] if dimension else []),
                      *([population.entity_key] if scoped else []),
                      *([count_key] if count_key else []),
                      *[m.field for m in base_measures]}
@@ -1605,10 +2206,32 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     if filters:
         operations.append({
             "id": "scoped", "op": "FILTER", "inputs": [current],
-            "params": {"where": _predicates(filters)},
+            "params": {"where": _predicates(filters, text)},
             "label": "Restrict to " + _filter_label(filters),
         })
         current = "scoped"
+
+    if testable:
+        # Compiled through the SAME Boolean reader the two-period cohort uses,
+        # not a second one written here. "Which Stage 3 borrowers are NOT on
+        # the watchlist?" carries its negation in the sentence's structure
+        # rather than in the leaf — `state_condition` says so in as many words —
+        # so a path that reads the leaves alone silently answers the opposite
+        # question. It did: the plan compiled `watchlist = true`.
+        applied = pr.read(text, [
+            pr.Test(field=c.column, op=str(c.op), value=c.value,
+                    kind=pr.LEVEL, dataset=base,
+                    phrase=str(getattr(c, "phrase", "") or ""),
+                    label=c.describe())
+            for c in testable])
+        tree = applied
+        operations.append({
+            "id": "tested", "op": "FILTER", "inputs": [current],
+            "params": pr.compile_filter(tree, lambda t: t.field),
+            "label": "Keep only rows where "
+                     + _list_of(c.describe() for c in testable),
+        })
+        current = "tested"
 
     current, joined_columns, joins = _apply_enrichment(
         operations, current, enrichment=enrichment, base=base, period=period,
@@ -1675,6 +2298,15 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     elif shape == AGGREGATE and dimension:
         group_by = [dimension]
         label = f"Total by {dimension}"
+    elif count_grain and dimension and not want.explicit:
+        # "How many facilities are in each IFRS 9 stage?" is one row per
+        # STAGE. Grouping by the entity key as well made the count a column of
+        # ones and the answer six hundred and fourteen rows long — one per
+        # facility, headed by a question about three stages. The thing being
+        # counted is already carried in `count_key`; putting it in the
+        # grouping too counts each group member against itself.
+        group_by = [dimension]
+        label = f"Count by {dimension}"
     elif shape == RANKING:
         group_by = ([key] if key else []) + ([dimension] if dimension else [])
         label = f"Aggregate to one row per {grain}"
@@ -1717,7 +2349,29 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # `any_value` is exact here rather than arbitrary: every row inside the
     # group satisfied the equality before the aggregation ran, so they all
     # carry the same value.
+    # How many BORROWERS sit in each category, alongside the amount. §D2's
+    # distribution contract: a reader looking at exposure by rating grade
+    # wants to know whether a grade is one very large name or four hundred
+    # small ones, and the amount alone cannot say.
+    if (count_members and dimension and group_by
+            and count_members in available
+            and count_members not in group_by
+            and not any(a["as"] == COHORT_MEMBERS for a in aggregates)):
+        aggregates.append({"function": "count_distinct",
+                           "column": count_members, "as": COHORT_MEMBERS})
+        if count_members not in read_fields:
+            operations[0]["params"]["fields"] = sorted(
+                set(read_fields) | {count_members})
+
     carried = {a["as"] for a in aggregates} | set(group_by)
+    # QF-3: every predicate on the heading must be checkable in the rows. A
+    # watchlist restriction that aggregates the watchlist column away leaves
+    # the invariant that proves the heading with nothing to read.
+    for field_name in condition_fields:
+        if field_name not in carried and field_name in available:
+            aggregates.append({"function": "max", "column": field_name,
+                               "as": field_name})
+            carried.add(field_name)
     for field_name in filter_fields:
         if field_name not in carried and field_name in available:
             aggregates.append({"function": "any_value", "column": field_name,
@@ -1762,7 +2416,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "id": "denominator", "op": "WINDOW", "inputs": [current],
             "params": {"function": "sum", "column": order_column,
                        "as": f"{order_column}_population"},
-            "label": ("Total " + (ordered_by.concept.label if ordered_by
+            "label": ("Total " + (ordered_by.label if ordered_by
                                   else "count")
                       + (" across " + _filter_label(filters) if filters
                          else " across the population")),
@@ -1783,7 +2437,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "params": {"by": [{"column": order_column,
                                "direction": "desc" if descending else "asc"}]},
             "label": ("Order by "
-                      + (ordered_by.concept.label if ordered_by
+                      + (ordered_by.label if ordered_by
                          else f"number of {grain}s")
                       + (", largest first" if descending else ", smallest first")),
         })
@@ -1795,7 +2449,18 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # silently puts the other ten sectors back on screen.
     stated = _explicit_top_n(text)
     top_n = 0
-    if shape == RANKING:
+    # A ranking is cut to a default ten because "which customers are worst" has
+    # to stop somewhere. A ranking whose population is already DEFINED by a
+    # level test is a different question: the threshold has selected the
+    # population, and cutting it to ten answers "the ten largest under the
+    # line" instead of "the ones under the line".
+    #
+    # That was the defect. "Which customers have covenant headroom below 15%?"
+    # returned ten rows and described them as "the 10 largest customers by
+    # covenant headroom" — a true sentence about a question nobody asked, when
+    # 1,209 customers qualified.
+    defines_population = bool(testable)
+    if shape == RANKING and not defines_population:
         top_n = stated or inherited_top_n or DEFAULT_TOP_N
     elif stated or inherited_top_n:
         top_n = stated or inherited_top_n
@@ -1878,9 +2543,25 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "explanation": summary,
         },
     }
+    # What this plan ENFORCED, from the tree it compiled — the same record the
+    # two-period cohort keeps. Without it the answer read the conditions'
+    # leaves and lost the sentence's negation: an empty "which Stage 3
+    # borrowers are NOT on the watchlist?" was explained as "None of Stage 3
+    # customers is in IFRS 9 stage 3; all 2,138 are in stage 1", which
+    # contradicts itself and quotes a figure from a population the question
+    # never asked about.
+    enforcement = (gate.inspect(applied, plan_doc)
+                   if applied is not None and not applied.empty else None)
+
     return AnalysisBuild(
         plan=plan_doc, shape=shape, reading=reading, matches=used,
-        conditions=[], filters=filters, dataset=base, grain=grain,
+        enforcement=enforcement,
+        # The level tests this plan actually applied. Recorded rather than
+        # left empty: the invariant that proves the heading against the rows,
+        # the coverage gate and the fidelity contract all read `conditions`,
+        # and a restriction the plan enforced but the build does not admit to
+        # is a restriction nothing downstream can check.
+        conditions=list(testable), filters=filters, dataset=base, grain=grain,
         period=period, dimension=dimension, top_n=top_n, warnings=warnings,
         summary=summary, joins=joins, grain_contract=contract,
     )
@@ -1893,12 +2574,136 @@ def _period_field(catalogue: Any, dataset: str) -> str:
         return "period"
 
 
+def _dimension_match(dataset: str, field: str) -> cx.ConceptMatch:
+    """A ConceptMatch standing for a governed dimension nothing else named.
+
+    The enrichment resolver works in matches, because a measure joined in from
+    another dataset is one. A breakdown column reached the same way is not a
+    measure and may have no concept behind it — the field name IS what the
+    question asked for. This wraps it so the same hop machinery can bring it,
+    without pretending it is a concept the reader recognised: the confidence
+    is zero and the reason says where it came from.
+    """
+    label = field.replace("_", " ")
+    candidate = cx.Candidate(dataset=dataset, field=field,
+                             definition=f"{label} on {dataset}")
+    concept = cx.Concept(id=field, label=label, pattern=label,
+                         candidates=(candidate,), is_categorical=True)
+    return cx.ConceptMatch(
+        concept=concept, candidate=candidate, phrase=label, confidence=0.0,
+        reason=("the question asked for a breakdown by this governed "
+                "dimension, which the base dataset does not carry"))
+
+
+#: What a borrower list is worth showing, in the order a credit officer reads
+#: it. Governed concepts, not columns: each resolves through the catalogue, so
+#: an installation that carries fewer of them shows fewer rather than failing,
+#: and the rule for aggregating each one to the borrower is the concept's own
+#: (`_rollup_for`) rather than a second opinion invented here.
+#:
+#: Exposure leads because a borrower population is read largest-first, and the
+#: first measure is what the ranking orders by.
+#:
+#: The IFRS 9 stage is an ordinal whose higher value is the worse one, so a
+#: borrower drawn from a facility book carries the WORST stage across its
+#: facilities. That is the borrower-stage semantics the rest of the product
+#: already uses; it is inherited here rather than restated.
+PROFILE_CONCEPTS: tuple[str, ...] = (
+    "ead", "ecl", "stage", "rating", "pd_12m", "dpd", "watchlist",
+)
+
+
+def _concept(concept_id: str) -> Any:
+    return next((c for c in cx.CONCEPTS if c.id == concept_id), None)
+
+
+def _profile_matches(dataset: str, fields: set[str]) -> list[cx.ConceptMatch]:
+    """The governed profile of an entity, as concept matches on one dataset.
+
+    One dataset on purpose. A borrower list assembled across four sources is
+    four joins, each of them a place to lose a borrower, and losing borrowers
+    from a population question is the failure that matters most here.
+    """
+    out: list[cx.ConceptMatch] = []
+    for concept_id in PROFILE_CONCEPTS:
+        concept = _concept(concept_id)
+        if concept is None:
+            continue
+        candidate = next((c for c in concept.candidates
+                          if c.dataset == dataset and c.field in fields), None)
+        if candidate is None:
+            continue
+        out.append(cx.ConceptMatch(
+            concept=concept, candidate=candidate, phrase="", confidence=1.0,
+            reason=(f"{dataset}.{candidate.field} describes the borrowers this "
+                    f"question selects; the question named no figure of its "
+                    f"own.")))
+    return out
+
+
+def _profile_dataset(fields_of: dict[str, set[str]], needed: set[str],
+                     key: str) -> str:
+    """The one dataset that can both RESTRICT and DESCRIBE the population.
+
+    It must carry the entity key and every column the question restricts on —
+    a source that cannot test "on the watchlist" cannot answer a question that
+    says it. Among those, the one that describes the borrower best wins.
+    """
+    best, best_score = "", (-1, -1)
+    for name, fields in sorted(fields_of.items()):
+        if key not in fields or not needed <= fields:
+            continue
+        described = len(_profile_matches(name, fields))
+        score = (described, -len(fields))
+        if score > best_score:
+            best, best_score = name, score
+    return best
+
+
+def _entity_profile(matches: list[cx.ConceptMatch],
+                    filters: list[tuple[str, str]],
+                    conditions: list[Condition],
+                    fields_of: dict[str, set[str]],
+                    key: str) -> tuple[list[cx.ConceptMatch], str]:
+    """The governed columns for a question whose answer is a list of entities.
+
+    "Show Stage 2 borrowers." names a population and no figure. Every path
+    below reasons from resolved MEASURES, so the question was reduced to "no
+    governed measure was named" and came back asking the reader which figure to
+    measure — of a sentence whose head noun already said what the answer has
+    one row of. An entity listing IS an analytical answer.
+
+    Where the sentence DID name a measure it constrains — "Stage 2 borrowers"
+    resolves the stage — that measure is not what the answer is about either.
+    Every row inside the restriction carries the same value, so ranking by it
+    orders the table by a constant and the heading promised "the 10 largest
+    customers by IFRS 9 stage".
+
+    Returns ([], "") and changes nothing when the question named a measure of
+    its own, when no single governed source can both restrict and describe the
+    population, or when there is nothing to restrict by — "show borrowers" over
+    the whole book is a question the reader should narrow, and answering it
+    with four thousand rows is not an improvement on asking.
+    """
+    if not filters and not conditions:
+        return ([], "")
+    pinned = {f for f, _ in filters} | {c.column for c in conditions}
+    if any(m.field not in pinned for m in matches):
+        return ([], "")
+    dataset = _profile_dataset(fields_of, pinned, key)
+    if not dataset:
+        return ([], "")
+    found = _profile_matches(dataset, fields_of.get(dataset, set()))
+    return (found, dataset) if found else ([], "")
+
+
 def _base_dataset(by_dataset: dict[str, list[cx.ConceptMatch]],
                   fields_of: dict[str, set[str]],
                   filters: list[tuple[str, str]], dimension: str,
                   population: cv.Continuation | None,
                   preferred: list[str] | None = None,
-                  period: str = "") -> str:
+                  period: str = "",
+                  conditions: list[Condition] | None = None) -> str:
     """Which dataset the frame is built from.
 
     The one that can express the question's scope, preferred over the one that
@@ -1912,6 +2717,11 @@ def _base_dataset(by_dataset: dict[str, list[cx.ConceptMatch]],
     building from it forced an as-of chain through two hops that lost every row.
     """
     wanted = {f for f, _ in filters} | ({dimension} if dimension else set())
+    # A level test is scope too. Without this, "which Stage 2 or worse
+    # borrowers are on watchlist?" chose the impairment run — which carries the
+    # stage and not the watchlist — and the answer was refused for a column the
+    # facility book has had all along.
+    wanted |= {c.column for c in (conditions or [])}
     if population and population.has_population:
         wanted.add(population.entity_key)
 
@@ -2045,7 +2855,7 @@ def _rolled_up_before_join(operations: list[dict[str, Any]]) -> list[str]:
 def _summary(shape: str, measures: list[cx.ConceptMatch],
              filters: list[tuple[str, str]], dimension: str, period: str,
              grain: str, top_n: int, *, output_grain: str = "") -> str:
-    names = ", ".join(m.concept.label for m in measures)
+    names = ", ".join(m.label for m in measures)
     where = " for " + ", ".join(v for _, v in filters) if filters else ""
     if output_grain == gr.PORTFOLIO:
         # Said explicitly, because "ECL at Q4 2025" reads as a figure about
@@ -2067,12 +2877,23 @@ def _summary(shape: str, measures: list[cx.ConceptMatch],
 COMPOSITE_ROWS = 25
 
 
+#: How each governed exclusion flag reads in a sentence a credit officer would
+#: write. Named rather than derived from the column, because "not npl
+#: borrowers" is not a sentence.
+_EXCLUSION_SAYS: dict[str, str] = {
+    "watchlist": "yet on the watchlist",
+    "npl": "classified non-performing",
+}
+
+
 def _composite_ranking(found: cmp.Resolved, reading: Reading,
                        context: GovernedContext, text: str,
                        filters: list[tuple[str, str]], catalogue: Any, *,
                        top_n: int = 0,
+                       population: cv.Continuation | None = None,
+                       dimension: str = "",
                        period: str = "") -> AnalysisBuild:
-    """Rank borrowers by how much governed evidence of a composite they carry.
+    """Rank by how much governed evidence of a composite is carried.
 
     One row per borrower, ordered by how many of the composite's signals
     fired, then by exposure. Every signal counts once and none is weighted —
@@ -2082,6 +2903,14 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     every condition at once, and eight conditions over this book leave nobody:
     a true answer to a question nobody asked. "Strongest evidence" ranks the
     population; it does not filter it.
+
+    **`dimension` moves the ANSWER's grain, not the evidence's.** "Which
+    sectors concern you most?" is the same governed methodology asked about a
+    different thing: a sector has no arrears and no covenant headroom, so the
+    signals are still read per facility and reduced per borrower exactly as
+    they are for a borrower ranking, and only then aggregated to the sector.
+    Ranking sectors by anything computed straight off facility rows would
+    weight a sector by how many facilities it happens to be split across.
     """
     dataset = found.dataset
     fields_of = {d.name: set(d.fields) for d in catalogue.all()}
@@ -2102,9 +2931,49 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     size = next((c for c in ("ead", "exposure", "limit_amount")
                  if c in available), "")
 
+    # The identities the conversation is carrying, when it carries any. A
+    # composite ranking used to build its population from the sentence alone,
+    # so "why does the second one worry you?" — which names exactly one
+    # borrower — came back as a ranking of the whole book. Every other shape in
+    # this planner already restricts to the carried rows; this one did not.
+    scoped_to = (list(population.entity_ids)
+                 if population is not None and population.has_population
+                 and str(population.entity_key or "") == key else [])
+    if population is not None and population.has_population and not scoped_to:
+        logger.info("The carried population is keyed by %r, which this "
+                    "composite ranking reports by %r, so it was not applied.",
+                    population.entity_key, key)
+
+    # The dimension the answer is at, when the question asked for one. A
+    # dimension the composite's governed source does not carry is refused
+    # rather than approximated from somewhere else: a concern ranking joined
+    # across datasets to reach its grouping column is a different analysis.
+    grouping = dimension if dimension and dimension in available else ""
+    if dimension and not grouping:
+        raise CannotPlan(
+            f"{dataset} does not carry {dimension}, so the "
+            f"{found.composite.label} evidence cannot be reported by it.",
+            clarification=(
+                f"CreditProbe reads {found.composite.label} evidence from "
+                f"{dataset}, which does not hold "
+                f"{dimension.replace('_', ' ')}. Ask for the borrowers and "
+                f"their {dimension.replace('_', ' ')} instead, or ask by a "
+                f"dimension that source carries."))
+
+    # Governed flags the question asked to leave out. "Which borrowers are
+    # weakening but are NOT YET on the watchlist?" restricts the population to
+    # the names that have not been formally marked — the early-warning question
+    # the columns exist to answer, and one the ordinary cohort path compiled
+    # into a predicate the runtime refused outright.
+    exclusions = cmp.excluded(text, available)
+
     read = {key, *([name] if name else []), *([size] if size else [])}
+    if grouping:
+        read.add(grouping)
     for signal in found.available:
         read.update(signal.columns)
+    for exclusion in exclusions:
+        read.add(exclusion.field)
     for field_name, _ in filters:
         if field_name in available:
             read.add(field_name)
@@ -2124,10 +2993,30 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     if filters:
         operations.append({
             "id": "scoped", "op": "FILTER", "inputs": [current],
-            "params": {"where": _predicates(filters)},
+            "params": {"where": _predicates(filters, text)},
             "label": "Restrict to " + _filter_label(filters),
         })
         current = "scoped"
+
+    if scoped_to:
+        operations.append({
+            "id": "population", "op": "FILTER", "inputs": [current],
+            "params": {"where": [{"column": key, "op": "in",
+                                  "values": list(scoped_to)}]},
+            "label": (f"Restrict to the {len(scoped_to)} {key} the "
+                      f"conversation is about"),
+        })
+        current = "population"
+
+    if exclusions:
+        operations.append({
+            "id": "excluded", "op": "FILTER", "inputs": [current],
+            "params": {"where": [{"column": e.field, "op": "=",
+                                  "value": False} for e in exclusions]},
+            "label": ("Leave out " + _list_of(
+                f"names where {e.field} is set" for e in exclusions)),
+        })
+        current = "excluded"
 
     # One 0/1 column per signal, at the grain the source is keyed on.
     flags = [f"signal_{s.key}" for s in found.available]
@@ -2149,7 +3038,7 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                   for flag in flags]
     if size:
         aggregates.append({"function": "sum", "column": size, "as": size})
-    group_by = [key] + ([name] if name else [])
+    group_by = [key] + ([name] if name else []) + ([grouping] if grouping else [])
     operations.append({
         "id": "per_borrower", "op": "GROUP", "inputs": [current],
         "params": {"by": group_by, "aggregates": aggregates},
@@ -2166,28 +3055,39 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     })
     current = "breadth"
 
-    order = [{"column": score, "direction": "desc"}]
-    if size:
-        order.append({"column": size, "direction": "desc"})
+    if grouping:
+        current, order, columns = _composite_by_dimension(
+            operations, current, found, grouping, key, size, flags, score)
+        cut = min(top_n or MAX_TOP_N, MAX_TOP_N)
+    else:
+        order = [{"column": score, "direction": "desc"}]
+        if size:
+            order.append({"column": size, "direction": "desc"})
+        columns = []
+        cut = min(top_n or COMPOSITE_ROWS, MAX_TOP_N)
+
     operations.append({
         "id": "ranked", "op": "SORT", "inputs": [current],
         "params": {"by": order},
         "label": ("Order by weight of evidence, then by exposure"
                   if size else "Order by weight of evidence"),
     })
-    cut = min(top_n or COMPOSITE_ROWS, MAX_TOP_N)
     operations.append({
         "id": "result", "op": "LIMIT", "inputs": ["ranked"],
         "params": {"n": cut},
         "label": f"The {cut} with the most evidence",
     })
 
-    want = gr.requested(text, dataset_grain=gr.CUSTOMER)
-    got = gr.declared(group_by, key=key)
+    want = gr.requested(text, dimension=grouping,
+                        dimension_is_head=bool(grouping),
+                        dataset_grain=gr.CUSTOMER)
+    got = gr.declared([grouping] if grouping else group_by,
+                      key="" if grouping else key,
+                      dimension=grouping)
     contract = gr.Contract(
         want=want, got=got,
         source_grain=multi.DATASET_GRAIN.get(dataset, gr.FACILITY),
-        keys=_grain_keys(got, group_by, ""),
+        keys=_grain_keys(got, [grouping] if grouping else group_by, grouping),
         aggregated=[f"Aggregate to one row per {gr.MEANS.get(got, got)}"],
         pre_aggregated=[])
     if not contract.ok:  # pragma: no cover - the grouping is built to match
@@ -2199,6 +3099,11 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
                 "question asked for."))
 
     warnings: list[str] = []
+    for exclusion in exclusions:
+        warnings.append(
+            f"The question said “{exclusion.phrase}”, so borrowers where "
+            f"{exclusion.field} is set were removed before the evidence was "
+            f"counted. This is not the whole book.")
     if found.unavailable:
         warnings.append(
             f"The governed catalogue holds no measure for "
@@ -2206,18 +3111,156 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
             f"{len(found.available)} signals it does carry: "
             f"{_list_of(found.dimensions)}.")
 
+    # The population the ranking was built over, in the summary rather than
+    # only in the Trace. A narrowed answer that reads exactly like the
+    # unnarrowed one leaves the reader no way to tell that "Why Shipping?"
+    # was heard, and the whole point of carrying scope forward is that the
+    # answer shows it.
+    named = ", ".join(value for _, value in filters)
+    subject = f"{named} borrowers" if named else "Borrowers"
+    if scoped_to:
+        subject = (f"The {len(scoped_to)} {'borrower' if len(scoped_to) == 1 else 'borrowers'} "
+                   f"the conversation is about")
+    # An exclusion changes WHICH borrowers are on the screen, and a ranking
+    # that reads exactly like the unrestricted one leaves the reader no way to
+    # tell. The name at the top of the whole book carries six of seven signals;
+    # with the watchlist left out the top carries two, and without this
+    # sentence that difference looks like a different portfolio.
+    left_out = ""
+    if exclusions:
+        left_out = " not " + _list_of(
+            _EXCLUSION_SAYS.get(e.field, f"flagged {e.field}")
+            for e in exclusions)
     summary = (
-        f"Borrowers ranked by how many of {len(found.available)} governed "
-        f"{found.composite.label} signals they show at {at}.")
+        f"{subject}{left_out} ranked by how many of {len(found.available)} "
+        f"governed {found.composite.label} signals they show at {at}.")
+    if grouping:
+        readable = grouping.replace("_", " ")
+        where = f" in {named}" if named else ""
+        summary = (
+            f"{readable.capitalize()}s{where} ranked by the share of exposure "
+            f"carried by borrowers{left_out} showing governed "
+            f"{found.composite.label} evidence at {at}.")
 
     return AnalysisBuild(
         plan={"dataset": dataset, "period": at, "operations": operations,
               "meta": {"composite": found.to_dict(),
-                       "signal_columns": flags, "score_column": score}},
-        shape=RANKING, reading=reading, matches=[], conditions=[],
-        filters=filters, dataset=dataset, grain=gr.CUSTOMER, period=at,
-        dimension="", top_n=cut, warnings=warnings, summary=summary,
-        grain_contract=contract)
+                       "signal_columns": flags, "score_column": score,
+                       "dimension": grouping,
+                       "dimension_columns": columns}},
+        shape=AGGREGATE if grouping else RANKING,
+        reading=reading, matches=[], conditions=[],
+        filters=filters, dataset=dataset,
+        grain=gr.SEGMENT if grouping else gr.CUSTOMER, period=at,
+        dimension=grouping, top_n=0 if grouping else cut, warnings=warnings,
+        # What this reading accounts for without a predicate: the composite
+        # phrase itself, and every exclusion applied above. The coverage gate
+        # reads predicates and would otherwise report both as conditions
+        # CreditProbe could not apply, contradicting the caveats it just wrote.
+        covered=([found.matched] if found.matched else [])
+                + [e.phrase for e in exclusions],
+        summary=summary, grain_contract=contract)
+
+
+#: What a dimension-grain concern answer reports, and in this order. Every one
+#: is counted or summed from the same governed signal flags the borrower
+#: ranking uses; none is weighted and none is invented.
+CONCERN_AT_RISK = "borrowers_with_concern_evidence"
+CONCERN_EXPOSURE = "exposure_with_concern_evidence"
+CONCERN_SHARE = "concern_exposure_pct"
+CONCERN_BORROWER_SHARE = "concern_borrower_pct"
+CONCERN_DEPTH = "avg_signals_per_affected_borrower"
+
+
+def _composite_by_dimension(operations: list[dict[str, Any]], current: str,
+                            found: cmp.Resolved, grouping: str, key: str,
+                            size: str, flags: list[str], score: str
+                            ) -> tuple[str, list[dict[str, str]], list[str]]:
+    """Aggregate per-borrower concern evidence up to one row per dimension.
+
+    Ranked by the SHARE OF EXPOSURE carried by borrowers showing at least one
+    governed signal, not by a count of borrowers. A sector of two hundred
+    small names with one arrear each is not the sector a credit committee
+    should look at first, and a count would put it top.
+
+    Every column is a sum or a count over the flags already derived, plus two
+    ratios of those sums. Nothing here reaches back to the source, so the
+    dimension figures and the borrower figures cannot disagree.
+    """
+    affected = {"type": "case",
+                "whens": [{"when": {"type": "function", "function": "gte",
+                                    "args": [{"type": "column", "name": score},
+                                             {"type": "literal", "value": 1}]},
+                           "then": {"type": "literal", "value": 1}}],
+                "otherwise": {"type": "literal", "value": 0}}
+    derived = [{"as": "shows_concern", "expression": affected}]
+    if size:
+        derived.append({
+            "as": CONCERN_EXPOSURE,
+            "expression": {"type": "function", "function": "multiply",
+                           "args": [{"type": "column", "name": size},
+                                    affected]}})
+    operations.append({
+        "id": "affected", "op": "DERIVE", "inputs": [current],
+        "params": {"columns": derived},
+        "label": "Mark each borrower that shows any governed signal",
+    })
+
+    readable = grouping.replace("_", " ")
+    aggregates: list[dict[str, Any]] = [
+        {"function": "count_distinct", "column": key, "as": "borrowers"},
+        {"function": "sum", "column": "shows_concern", "as": CONCERN_AT_RISK},
+        {"function": "sum", "column": score, "as": "signals_shown"},
+    ]
+    if size:
+        aggregates.append({"function": "sum", "column": size, "as": size})
+        aggregates.append({"function": "sum", "column": CONCERN_EXPOSURE,
+                           "as": CONCERN_EXPOSURE})
+    # One column per signal, so the reader can see WHICH evidence a dimension
+    # carries rather than only how much. A score nobody can decompose is the
+    # thing this layer refuses to produce.
+    aggregates += [{"function": "sum", "column": flag, "as": flag}
+                   for flag in flags]
+    operations.append({
+        "id": "per_dimension", "op": "GROUP", "inputs": ["affected"],
+        "params": {"by": [grouping], "aggregates": aggregates},
+        "label": f"Aggregate to one row per {readable}",
+    })
+
+    shares = [{
+        "as": CONCERN_BORROWER_SHARE,
+        "expression": {"type": "function", "function": "multiply",
+                       "args": [{"type": "function", "function": "safe_divide",
+                                 "args": [{"type": "column", "name": CONCERN_AT_RISK},
+                                          {"type": "column", "name": "borrowers"}]},
+                                {"type": "literal", "value": 100}]}}, {
+        "as": CONCERN_DEPTH,
+        "expression": {"type": "function", "function": "safe_divide",
+                       "args": [{"type": "column", "name": "signals_shown"},
+                                {"type": "column", "name": CONCERN_AT_RISK}]}}]
+    if size:
+        shares.insert(0, {
+            "as": CONCERN_SHARE,
+            "expression": {"type": "function", "function": "multiply",
+                           "args": [{"type": "function", "function": "safe_divide",
+                                     "args": [{"type": "column", "name": CONCERN_EXPOSURE},
+                                              {"type": "column", "name": size}]},
+                                    {"type": "literal", "value": 100}]}})
+    operations.append({
+        "id": "shares", "op": "DERIVE", "inputs": ["per_dimension"],
+        "params": {"columns": shares},
+        "label": (f"How much of each {readable}'s exposure and how many of "
+                  f"its borrowers carry the evidence"),
+    })
+
+    lead = CONCERN_SHARE if size else CONCERN_BORROWER_SHARE
+    order = [{"column": lead, "direction": "desc"}]
+    order.append({"column": CONCERN_EXPOSURE if size else CONCERN_AT_RISK,
+                  "direction": "desc"})
+    columns = [grouping, "borrowers", CONCERN_AT_RISK,
+               *( [size, CONCERN_EXPOSURE, CONCERN_SHARE] if size else []),
+               CONCERN_BORROWER_SHARE, CONCERN_DEPTH, *flags]
+    return ("shares", order, columns)
 
 
 def _signal_expression(signal: cmp.Signal) -> dict[str, Any]:
@@ -2235,6 +3278,9 @@ def _signal_expression(signal: cmp.Signal) -> dict[str, Any]:
                 "args": [column, {"type": "literal", "value": signal.value}]}
     elif signal.test == cmp.BELOW:
         when = {"type": "function", "function": "lt",
+                "args": [column, {"type": "literal", "value": signal.value}]}
+    elif signal.test == cmp.EQUALS:
+        when = {"type": "function", "function": "eq",
                 "args": [column, {"type": "literal", "value": signal.value}]}
     else:  # ROSE_BY
         when = {"type": "function", "function": "gte",
@@ -2344,10 +3390,10 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
     operations.append({
         "id": "result", "op": "SORT", "inputs": ["totals"],
         "params": {"by": [{"column": measures[0].field, "direction": "desc"}]},
-        "label": f"Largest {measures[0].concept.label} first",
+        "label": f"Largest {measures[0].label} first",
     })
 
-    label = measures[0].concept.label
+    label = measures[0].label
     summary = (f"How {label} moved between {opening} and {closing}"
                + (f", by {dimension}" if dimension else "") + ".")
     warnings: list[str] = []
@@ -2415,7 +3461,7 @@ def _qualifier(text: str, matches: list[cx.ConceptMatch],
             continue
         raw = found.group(1)
         value: Any = float(raw) if "." in raw else int(raw)
-        return match.field, value, f"{match.concept.label} {raw}"
+        return match.field, value, f"{match.label} {raw}"
     return None
 
 
@@ -2520,7 +3566,7 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
                 conditional("closing_qualified", closing, True),
                 conditional("closing_total", closing, False),
             ]},
-        "label": (f"{label} and total {measure.concept.label} at each date"
+        "label": (f"{label} and total {measure.label} at each date"
                   + (f", by {dimension}" if dimension else "")),
     })
     def share_of(numerator: str, denominator: str) -> dict[str, Any]:
@@ -2566,7 +3612,7 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
         "label": "Largest increase in the share first",
     })
 
-    summary = (f"{label} as a share of total {measure.concept.label}"
+    summary = (f"{label} as a share of total {measure.label}"
                + (f", by {dimension}" if dimension else "")
                + f", between {opening} and {closing}, ranked by the largest "
                "increase.")
@@ -2675,6 +3721,13 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
                     if scoped and population else None),
         summary=_two_period_summary(conditions, filters, opening, closing, grain),
         confidence={"reading": reading.confidence},
+        # A stated count is a predicate, not a rendering preference. "Show me
+        # the top ten customers with an increase in ECL" came back with a
+        # hundred and six of them, because the cohort builder cut at its
+        # display limit and nothing carried the ten this far. It does not
+        # invent one: a question that states no count still gets its whole
+        # population, which is what the covenant-headroom cohort depends on.
+        top_n=_explicit_top_n(text),
     )
     built = multi.build_plan(request, catalogue=catalogue)
 
@@ -2825,6 +3878,16 @@ def _two_periods(reading: Reading, context: GovernedContext, text: str, *,
     return default.from_period, default.to_period, "", True
 
 
+def _plural_grain(grain: str) -> str:
+    """A grain word in the plural, spelled the way English spells it."""
+    word = (grain or "row").strip()
+    if word.endswith("y") and not word.endswith(("ay", "ey", "oy", "uy")):
+        return word[:-1] + "ies"
+    if word.endswith(("s", "x", "z", "ch", "sh")):
+        return word + "es"
+    return word + "s"
+
+
 def _two_period_summary(conditions: list[Condition],
                         filters: list[tuple[str, str]],
                         opening: str, closing: str, grain: str,
@@ -2836,8 +3899,15 @@ def _two_period_summary(conditions: list[Condition],
     question said — so "Stage 2 borrowers NOT on watchlist" was headed "where
     on the watchlist" over rows that were not.
     """
-    where = " ".join(v for _, v in filters)
-    subject = f"{where} {grain}s" if where else f"{grain}s"
+    # Through the scope frame, which is where "stage 2" rather than bare "2"
+    # lives. This headline printed the filter VALUE with no dimension name in
+    # front of it, so a question about Stage 2 came back headed "All 2
+    # facilitys" — a number that reads as a count, on a plural nobody writes.
+    from backend.orchestration import scope as sc
+
+    where = sc.phrase(filters) if filters else ""
+    subject = f"{where} {_plural_grain(grain)}" if where \
+        else _plural_grain(grain)
     if not conditions:
         return f"How {subject} moved between {opening} and {closing}."
     stated = logic or ", ".join(c.describe() for c in conditions)

@@ -62,7 +62,8 @@ percent percentage share ratio total sum average mean count number amount value
 increase decrease increased decreased rose fell rising falling worsening
 improving deteriorating deteriorate deteriorated worsen worsened improve
 improved decline declined declining rise fall grow grew shrink shrank
-change changed movement growth trend trends compare comparison versus vs
+change changed movement movements moved moves shift shifted shifts
+growth trend trends compare comparison versus vs
 """.split())
 
 #: How many unrecognised content words it takes to conclude the request is

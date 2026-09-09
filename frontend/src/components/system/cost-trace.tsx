@@ -2,8 +2,10 @@
 
 import * as React from "react";
 
+import { useRole } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Unavailable } from "@/components/ui/unavailable";
 import { api, type CostTrace as Trace } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
@@ -143,7 +145,14 @@ function Questions({ trace }: { trace: Trace }) {
 }
 
 export function CostTracePanel() {
-  const trace = useAsync(() => api.askCost(50), []);
+  // Administrator-only at the backend (ask.cost_trace carries RequireAdmin).
+  // Asking anyway produced a 403 on every Analyst and Viewer who opened
+  // Settings — a refusal the panel then paraphrased in its own words. Not
+  // asking is both quieter and more honest: the sentence below is the same
+  // one either way, and now nothing was refused to produce it.
+  const { role, settled } = useRole();
+  const permitted = settled && role === "ADMIN";
+  const trace = useAsync(() => api.askCost(50), [], { enabled: permitted });
 
   return (
     <Card>
@@ -164,11 +173,13 @@ export function CostTracePanel() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        {trace.error ? (
+        {!permitted && settled ? (
           <p className="text-xs text-text-secondary">
-            The cost trace could not be read. It is available to administrators only.
+            The cost trace is available to administrators only. Your role does
+            not open it, and nothing here failed to load.
           </p>
         ) : null}
+        <Unavailable state={trace} what="the cost trace" />
         {trace.loading && !trace.data ? (
           <p className="text-xs text-text-secondary">Reading the cost trace…</p>
         ) : null}

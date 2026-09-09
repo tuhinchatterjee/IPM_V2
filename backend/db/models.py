@@ -101,8 +101,33 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     #: Free text: "Credit Risk Analytics", "IFRS 9 Committee".
     team: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    #: What this person DOES — "Corporate Credit Manager", "IFRS 9 Manager".
+    #: Distinct from `role`, which is what they may do. A directory that shows
+    #: four people all labelled ANALYST tells a sender nothing about which of
+    #: them owns the shipping book, and picking the wrong reviewer is a real
+    #: cost of collapsing the two.
+    job_title: Mapped[str] = mapped_column(
+        String(120), nullable=False, default="", server_default=""
+    )
+    #: The organisational unit. `team` is the working group; this is the part
+    #: of the bank it sits in, and a directory is searched by both.
+    department: Mapped[str] = mapped_column(
+        String(120), nullable=False, default="", server_default=""
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, onupdate=func.now()
+    )
+    #: When and by whom the account was suspended. Kept rather than inferred
+    #: from `is_active` alone: "deactivated" is an event somebody performed,
+    #: and reactivating must not erase that it happened.
+    deactivated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deactivated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

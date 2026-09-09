@@ -325,6 +325,97 @@ def _scenario(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     return out
 
 
+
+# ------------------------------------------------------------- discrimination
+
+
+def _discrimination(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
+    """Gini, AUC, KS or the calibration ratio, on the rows the plan selected.
+
+    A kernel rather than SQL because none of these is an aggregate: a Gini is a
+    property of how the score RANKS the population, and there is no sum that
+    recovers it. It has to see every row.
+
+    It delegates to `backend.scorecard.metrics`, which computes these for the
+    model validation module. Two implementations of one statistic is how a
+    validation report and a dashboard come to disagree about the same
+    scorecard, and neither can say which is right.
+    """
+    from backend.scorecard import metrics as scorecard
+
+    if params.get("_truncated"):
+        raise PlanError(
+            f"This statistic reads every row, and the query returned the "
+            f"maximum {int(params.get('_row_limit') or 0):,} rows — so it "
+            "would be measured on part of the population. Narrow the period "
+            "or the scope so the whole population fits.")
+
+    statistic = str(params.get("statistic") or "gini").lower()
+    target = str(params.get("target") or "")
+    if not target:
+        raise PlanError("Discrimination needs an outcome column to measure "
+                        "against.")
+
+    try:
+        if statistic == "calibration_ratio":
+            predicted = str(params.get("pd_column") or "")
+            if not predicted:
+                raise PlanError(
+                    "A calibration ratio needs the column holding the "
+                    "predicted probability of default.")
+            found = scorecard.calibration(frame, pd_column=predicted,
+                                          target=target)
+            if not found.observed:
+                raise PlanError(
+                    "The observed default rate is zero for these rows, so a "
+                    "predicted-over-observed ratio has no value.")
+            return pd.DataFrame([{
+                "statistic": statistic,
+                "value": float(found.predicted / found.observed),
+                "observations": int(found.observations),
+                "events": int(round(found.observed * found.observations)),
+                "score_direction": "",
+                "evidence": found.evidence,
+                "note": (f"Predicted {found.predicted:.4%} against observed "
+                         f"{found.observed:.4%}."),
+            }])
+
+        score = str(params.get("score") or "")
+        if not score:
+            raise PlanError("Discrimination needs a score column to rank on.")
+        if statistic not in ("gini", "auc", "ks"):
+            raise PlanError(
+                f"'{statistic}' is not a discrimination statistic CreditProbe "
+                "computes. It provides: gini, auc, ks, calibration_ratio.")
+        direction = str(params.get("direction") or "")
+        if not direction:
+            raise PlanError(
+                "Discrimination needs to be told which way the score runs. "
+                "Without it a Gini comes back with the right magnitude and "
+                "possibly the wrong sign.")
+        found = scorecard.discrimination(
+            frame, score=score, target=target, score_direction=direction)
+        value = {"gini": found.gini, "auc": found.auc, "ks": found.ks}[statistic]
+        return pd.DataFrame([{
+            "statistic": statistic,
+            "value": float(value),
+            "observations": int(found.observations),
+            "events": int(found.events),
+            "score_direction": found.score_direction,
+            "evidence": found.evidence,
+            # The sample size, and only the sample size. The AUC belongs in
+            # the answer, not in the caveat beside it — and the display
+            # contract governs figures a reader sees, which this is.
+            "note": (f"{found.events:,} defaults in "
+                     f"{found.observations:,} rows."),
+        }])
+    except scorecard.MetricError as e:
+        # An immature cohort, or a sample with no defaults in it. Both are
+        # facts about the data, and both must reach the reader as sentences
+        # rather than as a number computed some other way.
+        raise PlanError(str(e)) from e
+
+
 KERNELS: dict[str, Kernel] = {
     "correlation": Kernel(
         "correlation", "Association between two numeric columns.",
@@ -368,6 +459,16 @@ KERNELS: dict[str, Kernel] = {
         "Applies the shock stated and nothing else. No behavioural response, no "
         "second-round effect, no model.",
     ),
+    "discrimination": Kernel(
+        "discrimination",
+        "Gini, AUC, KS or the predicted-over-observed calibration ratio.",
+        ("statistic", "value", "observations", "events", "score_direction",
+         "evidence", "note"),
+        _discrimination,
+        "Measured on the rows given, which must have a realised outcome. It "
+        "says how well the score ranks, not whether the predicted level is "
+        "right — that is the calibration ratio, and they can disagree.",
+    ),
 }
 
 
@@ -379,6 +480,7 @@ _DEFAULT_KERNEL: dict[OpType, str] = {
     OpType.OUTLIER: "outlier",
     OpType.STAT_TEST: "stat_test",
     OpType.SCENARIO: "scenario",
+    OpType.DISCRIMINATION: "discrimination",
 }
 
 

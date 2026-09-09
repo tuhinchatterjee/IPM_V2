@@ -74,6 +74,8 @@ def load_version(run_id: int, version: int | None = None) -> dict[str, Any]:
             )
 
         stored = row.result if isinstance(row.result, dict) else {}
+        steps = (stored.get("steps")
+                 or (run.result or {}).get("steps") or [])
         # Version 1 of a single-analysis run predates the investigation shape and
         # stores only the engine result, so the plan is recovered from the run.
         plan_payload = stored.get("plan") or run.plan or {}
@@ -91,13 +93,30 @@ def load_version(run_id: int, version: int | None = None) -> dict[str, Any]:
             "graph": row.graph or {},
             "node_hashes": row.node_hashes or {},
             "plan": plan_payload,
-            "steps": stored.get("steps") or (run.result or {}).get("steps") or [],
+            "steps": steps,
+            # Derived from the steps that were stored, never stored beside
+            # them. A saved investigation opened by somebody else has to
+            # arrive with the same blocks its author saw — a five-analysis
+            # review that reads back as one table and a collapsed drawer is
+            # the sharing defect, not a rendering preference.
+            "package": _package_of(steps),
             "narrative": stored.get("narrative") or {},
             "follow_ups": run.follow_ups or [],
             "available_versions": _versions_for(session, run_id),
             "model_provider": run.model_provider,
             "model_name": run.model_name,
         }
+
+
+def _package_of(steps: list[Any]) -> dict[str, Any]:
+    """The response package for a stored investigation, from its own steps."""
+    from backend.orchestration import package as pk
+
+    try:
+        return pk.build([ExecutedStep.from_dict(s) for s in steps]).to_dict()
+    except Exception as e:  # noqa: BLE001 - never lose a saved answer to this
+        logger.warning("Could not rebuild the response package: %s", e)
+        return {}
 
 
 def plan_of(payload: dict[str, Any]) -> AnalysisPlan:

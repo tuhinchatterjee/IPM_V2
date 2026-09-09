@@ -472,10 +472,10 @@ def _borrower_case(session: Any, run_row: Any, review: Review,
 
     conclusion = (
         f"{borrower.name}: expected credit loss rose "
-        f"{borrower.ecl_change:,.2f} USD mn"
+        f"{borrower.ecl_change:,.2f} SAR mn"
         + (f" ({borrower.ecl_relative:+.0%})" if borrower.ecl_relative
            else "")
-        + f" on {borrower.exposure:,.0f} USD mn of exposure."
+        + f" on {borrower.exposure:,.0f} SAR mn of exposure."
         if borrower.ecl_change and borrower.exposure else
         f"{borrower.name} contributed to the {borrower.sector} movement.")
 
@@ -492,9 +492,9 @@ def _borrower_case(session: Any, run_row: Any, review: Review,
                 if borrower.signals else ".")),
         exposure=borrower.exposure,
         metrics=[{"key": "ecl_change", "label": "ECL change",
-                  "unit": "USD mn", "now": borrower.ecl_change},
+                  "unit": "SAR mn", "now": borrower.ecl_change},
                  {"key": "ead", "label": "Exposure at default",
-                  "unit": "USD mn", "now": borrower.exposure}],
+                  "unit": "SAR mn", "now": borrower.exposure}],
         signals=list(borrower.signals),
         evidence={"borrower": borrower.to_dict(),
                   "segment": borrower.sector,

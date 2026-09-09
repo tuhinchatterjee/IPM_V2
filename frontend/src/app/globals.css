@@ -799,3 +799,50 @@ table th {
   0%   { transform: translateX(-120%); }
   100% { transform: translateX(520%); }
 }
+
+/* ------------------------------------------------------------------ */
+/* Lens edit mode.                                                      */
+/*                                                                      */
+/* The wiggle is a state, not decoration: it says "this card is movable */
+/* and nothing here is saved yet", which is the one thing a person in   */
+/* this mode needs to know. Small and slow — a card carrying a real     */
+/* figure has to stay readable while it moves, so the rotation is under */
+/* a degree and the period is long enough not to blur the number.       */
+/*                                                                      */
+/* Each card is offset so the board does not pulse in unison, which     */
+/* reads as an error state rather than as an editable one.              */
+
+@keyframes lens-wiggle {
+  0%, 100% { transform: rotate(-0.35deg); }
+  50%      { transform: rotate(0.35deg); }
+}
+
+.lens-wiggle {
+  animation: lens-wiggle 0.42s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+
+/* The offset between cards is set per card, in the component, from its
+   position on the board — the wiggling element is an only child of the
+   draggable one, so nth-child here would put every card in lockstep. */
+
+/* Stop the WHOLE board the moment the pointer is over it, not just the card
+   under it. Somebody reaching for a card is aiming at a target that is still
+   moving, and pausing only the one they have already reached is pausing after
+   the hard part. Grabbability is handled structurally instead: the draggable
+   element is the parent of the wiggling one, so its own box never moves. */
+.lens-board:hover .lens-wiggle,
+.lens-board:focus-within .lens-wiggle,
+.lens-wiggle:hover,
+.lens-wiggle:focus-within {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The outline and the drag handle carry the same fact without moving.
+     Somebody who has asked the system not to animate has asked for that
+     everywhere, and an edit mode is not an exception. */
+  .lens-wiggle {
+    animation: none;
+  }
+}

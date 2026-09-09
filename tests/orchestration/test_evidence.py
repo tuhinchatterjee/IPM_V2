@@ -51,7 +51,7 @@ def package() -> ev.Package:
 
 def test_a_sentence_quoting_the_result_is_grounded():
     grounding = ev.check(
-        "Ghat Holding 1771 carries 0.35 USD mn of expected credit loss at "
+        "Ghat Holding 1771 carries 0.35 SAR mn of expected credit loss at "
         "Q2 2026.", package())
 
     assert grounding.ok, grounding.problems
@@ -59,7 +59,7 @@ def test_a_sentence_quoting_the_result_is_grounded():
 
 def test_a_rounded_figure_is_the_same_fact():
     """Prose rounds. 8.9883 quoted as 9.0 is the same number."""
-    assert ev.check("The largest is 9.0 USD mn.", package()).ok
+    assert ev.check("The largest is 9.0 SAR mn.", package()).ok
 
 
 def test_a_name_the_result_carries_in_a_longer_form_is_accepted():
@@ -101,7 +101,7 @@ def test_the_fragment_test_is_word_wise_not_character_wise():
 
 def test_a_portfolio_sentence_naming_nobody_is_grounded():
     assert ev.check(
-        "Expected credit loss across the three names is 10.08 USD mn.",
+        "Expected credit loss across the three names is 10.08 SAR mn.",
         package()).ok
 
 
@@ -113,7 +113,7 @@ def test_a_sentence_starting_with_a_capital_is_not_a_borrower():
 
 
 def test_an_invented_figure_is_caught():
-    grounding = ev.check("Total expected credit loss is 42.7 USD mn.",
+    grounding = ev.check("Total expected credit loss is 42.7 SAR mn.",
                          package())
 
     assert not grounding.ok
@@ -122,7 +122,7 @@ def test_an_invented_figure_is_caught():
 
 def test_a_borrower_who_is_not_in_the_result_is_caught():
     """The failure a numeric check misses entirely."""
-    grounding = ev.check("Northwind Trading carries 0.35 USD mn.", package())
+    grounding = ev.check("Northwind Trading carries 0.35 SAR mn.", package())
 
     assert not grounding.ok
     assert "Northwind Trading" in grounding.unknown_entities
@@ -174,7 +174,7 @@ def test_the_package_names_its_sources():
 
 
 def test_the_withheld_sentence_says_what_was_wrong_and_what_still_stands():
-    grounding = ev.check("Northwind Trading carries 42.7 USD mn.", package())
+    grounding = ev.check("Northwind Trading carries 42.7 SAR mn.", package())
 
     sentence = ev.withheld(grounding)
 

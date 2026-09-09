@@ -14,6 +14,8 @@ import {
 
 import { LifecycleBadge } from "@/app/data-builder/page";
 import { ResultTable } from "@/components/analytics/primitives";
+import { DataGrid } from "@/components/data-builder/data-grid";
+import { PeriodReleases } from "@/components/data-builder/period-releases";
 import { PageHeader } from "@/components/layout/page-header";
 import { ReadOnlyNotice, useCanEditData } from "@/components/system/role-switcher";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +36,8 @@ const LIFECYCLE: Lifecycle[] = ["draft", "mapped", "validated", "published"];
 /** Tab ids a URL may ask for. Anything else falls back to the overview. */
 const TABS = new Set([
   "overview",
+  "data",
+  "periods",
   "dictionary",
   "mappings",
   "relationships",
@@ -190,6 +194,12 @@ function DatasetView({ name }: { name: string }) {
             onChange={chooseTab}
             tabs={[
               { id: "overview", label: "Overview" },
+              { id: "data", label: "Data" },
+              {
+                id: "periods",
+                label: "Periods",
+                count: dataset.coverage?.period_count ?? 0,
+              },
               { id: "dictionary", label: "Dictionary", count: dataset.fields.length },
               { id: "mappings", label: "Mappings", count: dataset.mappings.length },
               { id: "relationships", label: "Relationships", count: dataset.relationships.length },
@@ -200,6 +210,35 @@ function DatasetView({ name }: { name: string }) {
 
           {tab === "overview" && (
             <div className="grid gap-4 md:grid-cols-2">
+              {/* What it holds comes before what it was declared to be. A
+                  steward opening this page is deciding whether the next period
+                  is late, and the answer is here, not in the definition. */}
+              <Card className="p-5">
+                <h3 className="mb-3 text-sm font-semibold text-text-primary">In service</h3>
+                {dataset.coverage && dataset.coverage.period_count > 0 ? (
+                  <dl className="space-y-2 text-sm">
+                    <Row label="Frequency" value={dataset.coverage.frequency || "—"} />
+                    <Row label="Periods held" value={String(dataset.coverage.period_count)} />
+                    <Row label="Earliest" value={dataset.coverage.earliest || "—"} />
+                    <Row label="Latest" value={dataset.coverage.latest || "—"} />
+                    <Row label="Rows" value={dataset.coverage.rows.toLocaleString()} />
+                    <Row label="Fields" value={String(dataset.coverage.field_count)} />
+                    <Row label="Version" value={dataset.coverage.version} />
+                    <Row
+                      label="Last published"
+                      value={
+                        (dataset.coverage.released_at ?? dataset.published_at)
+                          ?.slice(0, 19)
+                          .replace("T", " ") ?? "—"
+                      }
+                    />
+                  </dl>
+                ) : (
+                  <p className="text-sm text-text-muted">
+                    No period of this dataset is in service yet.
+                  </p>
+                )}
+              </Card>
               <Card className="p-5">
                 <h3 className="mb-3 text-sm font-semibold text-text-primary">Definition</h3>
                 <dl className="space-y-2 text-sm">
@@ -235,6 +274,24 @@ function DatasetView({ name }: { name: string }) {
                 )}
               </Card>
             </div>
+          )}
+
+          {tab === "data" && (
+            <div className="space-y-3">
+              <DataGrid dataset={dataset.name} />
+            </div>
+          )}
+
+          {tab === "periods" && (
+            <PeriodReleases
+              dataset={dataset.name}
+              coverage={dataset.coverage}
+              canEdit={canEdit}
+              onPublished={() => {
+                detail.reload();
+                versions.reload();
+              }}
+            />
           )}
 
           {tab === "dictionary" && (

@@ -786,9 +786,9 @@ def _accuracy_cases() -> list[Case]:
     from backend.agentic import screening
 
     def indicator_direction() -> tuple[bool, str]:
-        rose = screening.Indicator("ecl", "ECL", "USD mn", now=110, before=100,
+        rose = screening.Indicator("ecl", "ECL", "SAR mn", now=110, before=100,
                                    higher_is_worse=True)
-        fell = screening.Indicator("ecl", "ECL", "USD mn", now=90, before=100,
+        fell = screening.Indicator("ecl", "ECL", "SAR mn", now=90, before=100,
                                    higher_is_worse=True)
         good = screening.Indicator("dscr", "DSCR", "x", now=0.9, before=1.2,
                                    higher_is_worse=False)
@@ -798,11 +798,11 @@ def _accuracy_cases() -> list[Case]:
     def segment_needs_size() -> tuple[bool, str]:
         tiny = screening.Segment(
             "Tiny", share_of_book=0.001,
-            indicators=[screening.Indicator("ecl", "ECL", "USD mn", now=200,
+            indicators=[screening.Indicator("ecl", "ECL", "SAR mn", now=200,
                                             before=100)])
         real = screening.Segment(
             "Real", share_of_book=0.10,
-            indicators=[screening.Indicator("ecl", "ECL", "USD mn", now=200,
+            indicators=[screening.Indicator("ecl", "ECL", "SAR mn", now=200,
                                             before=100)])
         return (not tiny.material and real.material,
                 f"tiny={tiny.material} real={real.material}")

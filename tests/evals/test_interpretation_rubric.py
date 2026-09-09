@@ -102,8 +102,8 @@ def test_a_reading_that_invents_a_figure_is_caught():
     from backend.orchestration import rubric
 
     class _Narrative:
-        direct_answer = "Total exposure is 125,259 USD mn across 15 sectors."
-        interpretation = "Contracting rose to 91,400 USD mn because of the "\
+        direct_answer = "Total exposure is 125,259 SAR mn across 15 sectors."
+        interpretation = "Contracting rose to 91,400 SAR mn because of the "\
                          "construction cycle."
         findings: list = []
         caveats: list = []

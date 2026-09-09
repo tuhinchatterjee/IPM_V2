@@ -76,6 +76,19 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "validator reads. Same reasoning as metrics.py: the deterioration "
         "being diagnosed is usually smaller than 0.01."),
     Allowed(
+        "backend/scorecard/validation/",
+        "The Scorecard Validation Intelligence engine: the same statistics "
+        "as metrics.py, rendered into the sentence a validator reads on the "
+        "screen and in the .docx. Extending the exemption rather than "
+        "loosening it — an AUC of 0.6547 against a 0.65 limit is a WARNING "
+        "and at two decimals reads 0.65, which is the limit exactly, so the "
+        "sentence stops saying whether the model cleared it. A retention "
+        "ratio of 0.71 and an information value of 0.0193 are the same "
+        "point: the finding lives below the second decimal. Money, counts "
+        "and percentages in this package go through the contract as "
+        "everywhere else — `report.percent` renders every rate, and "
+        "`report.stat` every statistic that reaches the report."),
+    Allowed(
         "backend/corporate/graphmath.py",
         "The spectral radius of an ownership component, in the refusal "
         "message that explains why effective ownership was not computed. "
@@ -114,6 +127,19 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "technical calibration appendix. Verified out of the user path: the "
         "package has no API router, no frontend route and no navigation "
         "entry, so none of these numbers reaches a reader as a figure."),
+    Allowed(
+        "frontend/src/components/lenses/formula-builder.tsx",
+        "The two sides of the metric approval card, and only those. This "
+        "card is not a tile reporting a figure - it is the working shown to "
+        "somebody who has to approve arithmetic before it becomes a governed "
+        "metric, and the sentence directly under the two rows is written by "
+        "`_fmt` in backend/metrics/execution.py at the same precision. Round "
+        "the rows to two decimals and the card contradicts itself: the "
+        "reader is asked to check that 74,017.56 over 74,352.67 gives "
+        "-0.4507 when the engine divided 74,017.555. Every other number in "
+        "this component - and every figure this metric later produces on a "
+        "Lens - goes through the contract as everywhere else.",
+        lines=(828, 833)),
     Allowed(
         "frontend/src/lib/scorecard-format.ts",
         "Fitted scorecard coefficients, and nothing else. A coefficient is "

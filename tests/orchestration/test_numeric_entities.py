@@ -27,7 +27,7 @@ def _matched(question: str) -> list[str]:
 @pytest.mark.parametrize("question", [
     "Which borrowers have a DSCR below 1.2?",
     "Show customers with an interest cover under 1.35x.",
-    "Exposure above 1,200 USD mn",
+    "Exposure above 1,200 SAR mn",
     "Which facilities have an LTV over 0.85?",
 ])
 def test_a_digit_inside_a_number_is_not_a_stage(question):

@@ -296,8 +296,8 @@ read off the answer, so the check exercises the rule and not the output.
    as `collateral_value / ead` would answer it properly and is not in this
    change.
 
-3. **Monetary figures are labelled `USD mn`, not SAR.** The concept units
-   declare `USD mn` throughout, and `customer_ratings` carries an explicit
+3. **Monetary figures are labelled `SAR mn`, not SAR.** The concept units
+   declare `SAR mn` throughout, and `customer_ratings` carries an explicit
    `revenue_usd_mn` column, so the reporting currency looks deliberate — while
    the book is Saudi and `corporate/universe.py` gives facilities a currency mix
    of 78% SAR. Which is the reporting currency is a data-model decision, not a
