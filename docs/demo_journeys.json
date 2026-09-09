@@ -12,13 +12,14 @@
     "Data Builder",
     "Investigations",
     "Analysis Studio",
+    "control audit",
     "Playbook export",
     "retired routes",
     "navigation"
   ],
-  "journey_count": 15,
-  "check_count": 68,
-  "passed": 68,
+  "journey_count": 16,
+  "check_count": 80,
+  "passed": 80,
   "failed": 0,
   "screenshots": [
     "docs/demo_screenshots/01-cockpit.png",
@@ -35,7 +36,12 @@
     "docs/demo_screenshots/13-studio.png",
     "docs/demo_screenshots/09-playbook-library.png"
   ],
-  "duration_seconds": 69.0,
+  "control_audit": {
+    "wired": 412,
+    "dead": 0,
+    "skipped": 212
+  },
+  "duration_seconds": 254.9,
   "result": "PASS",
   "failures": []
 }

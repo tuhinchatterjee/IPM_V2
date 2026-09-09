@@ -98,6 +98,7 @@ class Report:
     checks: list[Check] = field(default_factory=list)
     journeys: list[str] = field(default_factory=list)
     shots: list[str] = field(default_factory=list)
+    controls: dict[str, int] = field(default_factory=dict)
     started: float = field(default_factory=time.time)
 
     def add(self, journey: str, name: str, ok: bool, detail: str = "") -> bool:
@@ -117,6 +118,7 @@ class Report:
             "passed": len(self.checks) - len(self.failed),
             "failed": len(self.failed),
             "screenshots": self.shots,
+            "control_audit": self.controls,
             "duration_seconds": round(time.time() - self.started, 1),
             "result": "PASS" if not self.failed else "FAIL",
             "failures": [{"journey": c.journey, "check": c.name,
@@ -185,6 +187,105 @@ def controls(page: Any) -> list[Any]:
             except Exception:                                   # noqa: BLE001
                 continue
     return found
+
+
+
+
+#: Controls that leave the demonstration somewhere it cannot be driven back
+#: from, or that change state a later journey depends on. Skipped by NAME and
+#: counted, so "not pressed" is a number in the report rather than a silence.
+DESTRUCTIVE = ("sign out", "log out", "delete", "remove", "archive", "reset",
+               "discard", "revoke", "retire", "supersede", "approve",
+               "publish", "submit")
+
+#: The shell's own navigation. Identical on every screen, so auditing it once
+#: is a fact and auditing it eleven times is eleven copies of a fact.
+SHELL = ("/", "/workspace", "/messages", "/projects", "/investigations",
+         "/analyses", "/documents", "/playbook", "/lenses", "/metrics",
+         "/early-warning", "/what-if", "/borrower-360",
+         "/scorecard-validation", "/studio", "/data-builder", "/trace",
+         "/reviews", "/workflow", "/settings", "/users", "/delivery",
+         "/agent-operations", "/ai-studio", "/engine-builder")
+
+
+def audit_controls(page: Any, report: Report, *, journey: str, path: str,
+                   seen_shell: set[str]) -> tuple[int, int, int]:
+    """Prove the controls on this screen are wired to something.
+
+    Two kinds, judged two ways, because they fail differently.
+
+    A LINK is wired when its href resolves to a route this application
+    serves. That is checkable without navigating, which matters: a first
+    version clicked every control and returned, took a minute per screen,
+    and told us nothing a resolved href does not.
+
+    A BUTTON has to be pressed — there is no way to see from the outside
+    whether a handler exists. So buttons are pressed, and one is DEAD when
+    pressing it changes nothing a user could see: no navigation, no dialog,
+    no change in the rendered text. Weaker than "does the right thing";
+    much stronger than "renders"; and it is the definition that catches a
+    control wired to nothing, which is what a demonstration trips over.
+    """
+    goto(page, path)
+    wired = dead = skipped = 0
+
+    for link in page.locator("a[href]:visible").all():
+        try:
+            href = (link.get_attribute("href") or "").strip()
+            label = (link.inner_text(timeout=1_500) or "").strip()
+        except Exception:                                       # noqa: BLE001
+            continue
+        if not href or href.startswith(("mailto:", "tel:")):
+            continue
+        route = href.split("?")[0].split("#")[0].rstrip("/") or "/"
+        if route in SHELL:
+            if route in seen_shell:
+                continue
+            seen_shell.add(route)
+        if href in ("#", "javascript:void(0)"):
+            dead += 1
+            report.add(journey, f"link {label!r} goes somewhere", False,
+                       f"href={href!r}")
+            continue
+        wired += 1
+
+    for button in page.locator("button:visible").all():
+        try:
+            if not button.is_enabled():
+                skipped += 1
+                continue
+            label = (button.inner_text(timeout=1_500) or "").strip()
+        except Exception:                                       # noqa: BLE001
+            skipped += 1
+            continue
+        if not label or len(label) > 48:
+            skipped += 1
+            continue
+        if any(word in label.lower() for word in DESTRUCTIVE):
+            skipped += 1
+            continue
+        before_url, before_text = page.url, text_of(page)
+        try:
+            button.click(timeout=3_000)
+            page.wait_for_timeout(400)
+        except Exception:                                       # noqa: BLE001
+            skipped += 1
+            continue
+        after_url, after_text = page.url, text_of(page)
+        if after_url != before_url:
+            wired += 1
+            goto(page, path)
+            continue
+        if after_text == before_text:
+            dead += 1
+            report.add(journey, f"button {label!r} does something", False,
+                       "nothing changed: no navigation, no dialog, no text")
+        else:
+            wired += 1
+
+    report.add(journey, f"{path}: {wired} control(s) wired, {dead} dead, "
+               f"{skipped} skipped (destructive or not clickable)", dead == 0)
+    return wired, dead, skipped
 
 
 # ------------------------------------------------------------------ journeys
@@ -377,6 +478,23 @@ def main(argv: list[str] | None = None) -> int:
                            shot="12-investigations")
             journey_module(page, report, shots, name="Analysis Studio",
                            path="/studio", expect=[], shot="13-studio")
+            report.journeys.append("control audit")
+            totals = [0, 0, 0]
+            seen_shell: set[str] = set()
+            for path in ("/", "/early-warning", "/what-if", "/lenses",
+                         "/playbook", "/projects", "/scorecard-validation",
+                         "/borrower-360", "/data-builder", "/investigations",
+                         "/studio"):
+                counts = audit_controls(page, report,
+                                        journey="control audit", path=path,
+                                        seen_shell=seen_shell)
+                totals = [a + b for a, b in zip(totals, counts, strict=True)]
+            report.add("control audit",
+                       f"TOTAL {totals[0]} control(s) wired, {totals[1]} "
+                       f"dead, {totals[2]} skipped", totals[1] == 0)
+            report.controls = {"wired": totals[0], "dead": totals[1],
+                               "skipped": totals[2]}
+
             journey_playbook_export(page, report, shots)
             journey_redirects(page, report)
             journey_navigation(page, report)
