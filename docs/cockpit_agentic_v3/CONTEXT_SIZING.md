@@ -11,15 +11,26 @@ Measured by `context.build` and `context.floor` and written to
 
 | Packet section | Tokens |
 |---|---:|
-| D/E — the complete field dictionary, grains, joins, enumerations, calendar | **22,074** |
-| F — measured field coverage, unbounded | 6,150 |
+| D/E — the complete field dictionary, grains, joins, enumerations, calendar | **22,079** |
+| F — measured field coverage, unbounded | 6,152 |
 | H — functionality registry | 2,330 |
 | G — sample rows | 922 |
-| B — server-confirmed scope | 574 |
-| I — execution capabilities | 392 |
-| A, C, J — question, thread, budget | ~550 combined |
-| **Whole packet, no reduction** | **32,991** |
+| I — execution capabilities, SQL and the Python sandbox | 729 |
+| B — server-confirmed scope | 620 |
+| A, C, J — question, thread, budget | ~450 combined |
+| **Whole packet, no reduction** | **33,388** |
+| **Required core**, the parts the guardrail forbids reducing | **26,114** |
 | **Measured floor**, every rung of the ladder spent | **28,105** |
+
+Section I grew from 392 to 729 tokens when the Python sandbox became
+available: it now carries the dependency surface, the input and output
+contracts and the bounds, because a capability Opus is told it has and cannot
+use costs an execution submission to discover.
+
+The catalogue's size moves by a few tokens between releases, because it
+enumerates the filter values each release actually contains — 22,074 on the
+demo release, 22,079 on the test release. Nothing here depends on the exact
+figure and no document should be read as pinning one.
 
 Estimated locally at 3.4 characters per token — deliberately conservative,
 because over-counting refuses work that would have fitted and under-counting
@@ -87,7 +98,7 @@ ceiling has been used. `test_the_spend_ceiling_binds_before_the_token_ceiling_at
 asserts exactly this, so if the ceiling is ever raised the change is loud.
 
 **Prompt caching is what decides whether that matters.** The cached prefix is
-the catalogue — 22,074 of the 28,105 tokens, 79% of the packet. On a cache hit
+the catalogue — 22,079 of the 28,105 tokens, 79% of the packet. On a cache hit
 those tokens are billed at the provider's cache-read rate rather than the full
 input rate, which changes the cost of a repair turn by roughly an order of
 magnitude while leaving the logical token count identical. The ledger counts

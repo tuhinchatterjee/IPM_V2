@@ -565,7 +565,8 @@ def render(*, release, calendar, manifest, rows, families, published,
         "macro_factors": len(F.MACRO_FACTORS),
         "reporting_quarters": len(calendar),
     }
-    (Path("docs/cockpit_agentic_v3/evidence") / "field_audit.json").write_text(
+    (OUT / "evidence").mkdir(parents=True, exist_ok=True)
+    (OUT / "evidence" / "field_audit.json").write_text(
         json.dumps(summary, indent=2))
 
     print(f"{path}  ({len(rows)} addressable columns, {'PASS' if passed else 'FAIL'})")

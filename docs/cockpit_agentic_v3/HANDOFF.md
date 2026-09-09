@@ -51,7 +51,7 @@ ids against the provider's current documentation before setting them.
 
 ## The configuration this domain requires, and why
 
-The complete field dictionary is **22,078 tokens**; the whole context packet is
+The complete field dictionary is **about 22,100 tokens**; the whole packet is
 **~28,000** after every permitted reduction. The specification's own per-call
 input cap is 12,000 (Standard) and its cumulative ceiling 35,000 — so its
 numbers cannot hold its own catalogue.
@@ -59,7 +59,7 @@ numbers cannot hold its own catalogue.
 §7.4 names this case and says to fix the serialization or the configuration.
 Both were done, neither quietly:
 
-- Serialization: 29,600 → 22,078 tokens with **no field lost**, verified by a
+- Serialization: 29,600 → about 22,100 tokens with **no field lost**, verified by a
   test that reconstructs the field set from the compact form.
 - Configuration: the owner set the UAT budgets — Standard 64,000 per call and
   250,000 cumulative, Deep 96,000 and 500,000 — and those are now the shipped
