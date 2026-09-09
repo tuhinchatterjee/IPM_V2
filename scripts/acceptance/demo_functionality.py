@@ -131,6 +131,22 @@ def main(argv: list[str] | None = None) -> int:
           parts.get("ai_provider") in {"ok", "not_configured", "offline"},
           f"ai_provider={parts.get('ai_provider')}")
 
+    # The first screen. Three approved questions, not a fallback: this is what
+    # the reader sees before anything has been asked, and it broke silently
+    # once because registering three datasets changed which eight a ranking
+    # returned for an EMPTY question. A count is not enough — the fallback
+    # "What data do you have in ...?" is also one question — so each has to be
+    # one of the approved five.
+    from backend.orchestration import suggestions as sg
+
+    approved = {question for question, _ in sg.COCKPIT}
+    status, opening, _ = c.call("/ask/suggestions")
+    offered = [q.get("question") for q in (opening or {}).get("questions") or []]
+    r.add("the opening screen offers three approved questions",
+          status == 200 and len(offered) == sg.COCKPIT_AT_ONCE
+          and all(q in approved for q in offered),
+          f"{len(offered)}: {offered}")
+
     # ------------------------------------------------------------ Cockpit
     r.head("Cockpit")
     status, diag, _ = c.call("/cockpit/diagnostics")

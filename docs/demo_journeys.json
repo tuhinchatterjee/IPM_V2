@@ -37,11 +37,11 @@
     "docs/demo_screenshots/09-playbook-library.png"
   ],
   "control_audit": {
-    "wired": 412,
+    "wired": 414,
     "dead": 0,
-    "skipped": 212
+    "skipped": 210
   },
-  "duration_seconds": 254.9,
+  "duration_seconds": 258.9,
   "result": "PASS",
   "failures": []
 }

@@ -25,6 +25,12 @@
       "detail": "ai_provider=not_configured"
     },
     {
+      "section": "Session",
+      "check": "the opening screen offers three approved questions",
+      "ok": true,
+      "detail": "3: ['Which borrowers are weakening but are not yet on the watchlist?', 'Where are multiple warning signals appearing together?', 'Where is risk building across the bank?']"
+    },
+    {
       "section": "Cockpit",
       "check": "the Cockpit is available",
       "ok": true,
@@ -388,7 +394,7 @@
       "section": "Downloads",
       "check": "the Early Warning portfolio workbook downloads",
       "ok": true,
-      "detail": "130,443 bytes"
+      "detail": "130,445 bytes"
     },
     {
       "section": "Downloads",
@@ -439,9 +445,9 @@
       "detail": "HTTP 200"
     }
   ],
-  "check_count": 73,
-  "passed": 73,
+  "check_count": 74,
+  "passed": 74,
   "failed": 0,
-  "duration_seconds": 4.9,
+  "duration_seconds": 4.7,
   "result": "PASS"
 }
