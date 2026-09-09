@@ -112,7 +112,7 @@ re-checked against the provider's current documentation.
 
 | What | Result |
 |---|---|
-| `pytest tests/playbook` | 326 passed, 8 live checks skipped |
+| `pytest tests/playbook` | 365 passed, 8 live checks skipped |
 | `pytest tests/playbook tests/api tests/demo tests/services tests/exports tests/docs tests/proof tests/validation tests/llm` | 1373 passed, 8 skipped |
 | `pytest` (whole repository) | **9810 passed, 30 skipped, 0 failed** |
 | `npm test` | 462 passed |
@@ -266,6 +266,55 @@ rather than leaving half an answer on screen as though it were the answer.
 Cancel and retry stayed where they were and now have somewhere to bite. Retry
 derives a new key — `:retry2`, `:retry3` — so each press stands for exactly one
 attempt and the failed attempt remains findable.
+
+## What the first live run found
+
+`claude-opus-5` served, with no downgrade. Parsing, the ledger, versioning,
+DOCX and PDF generation, validation, persisted bytes, reopening, version 1
+preserved, version 2 genuinely different and 22.77 carried across — all held on
+the first real provider run. Four things did not, and each was a real defect
+rather than a flaky assertion.
+
+**19.20 — the assertion was wrong, twice.** `19.20` is
+`DECLARED["base_ecl"]["current"]`: a scenario INPUT to the probability-weighted
+ECL, not a reported result. The fixture workbook writes it as a Python float, so
+openpyxl stores 19.2 and `sheets.py` renders `str(19.2)` — the string "19.20"
+appears nowhere in the evidence the model is given. Meanwhile `validate.figures()`
+strips trailing zeros, so grounding treats 19.2 and 19.20 as one figure and could
+never have enforced the difference. The check demanded a formatting choice using
+a rule the product does not apply. It now compares with the system's own rule:
+every figure in the generated file must trace to the evidence, and the reported
+weighted ECL must be present. Separately and on its own merits, the authoring
+prompt now asks for money at two decimal places, matching the repository's
+existing two-decimal display contract — 20.90 beside 19.2 in a board paper reads
+as sloppy.
+
+**The "invented" figure in the scoped revision — two causes.** A revision was
+judged against the sources alone, so restating a figure the approved version
+already carried read as inventing it; `service.add_current_version` now admits
+the approved version as evidence, which is sound because version 1's own figures
+were grounded when version 1 was written. And matching is exact-token, so a model
+told to be "more concise" re-rounds 8.95 to 8.9 and is caught — correctly, since
+a committee paper saying 9 per cent where the calculation says 8.95 has
+misstated the result. The prompt now forbids re-rounding in as many words.
+Grounding itself is untouched: no tolerance was added, and a test pins that.
+
+**The hang.** `anthropic.Anthropic(timeout=900.0)` — a bare float, which httpx
+collapses to all four phases, so connect waited fifteen minutes and so did every
+read. Worse, a read timeout bounds inactivity between reads, not the operation:
+a stream trickling one token a minute never trips one and runs until somebody
+presses Ctrl+C, which is exactly what happened. Now four separate transport
+timeouts, plus the bound that actually matters — a wall-clock deadline for the
+whole run, checked between stream events and between turns. A timeout is never
+retried automatically; the user has a retry button, and the product does not
+spend money on its own initiative.
+
+**The missing model.** `if model: kwargs["model"] = model` — and the Messages API
+has no server-side default, so omitting the field is an error, not a fallback.
+The comment claiming otherwise was simply wrong, and `.env.example` ships
+`AI_AUTHOR_MODEL=` blank, so the shipped example config reproduced the crash.
+`status()` now reports `AUTHOR_MODEL_NOT_CONFIGURED` and `author()` refuses
+before the client is built.
 
 ## What is genuinely not done
 

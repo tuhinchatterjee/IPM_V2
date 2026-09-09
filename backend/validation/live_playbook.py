@@ -33,6 +33,7 @@ provider.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -43,6 +44,13 @@ logger = logging.getLogger(__name__)
 #: The tenant these checks work in. Separate from `default`, so a live run can
 #: never write into the seeded demonstration or a real user's workspace.
 TENANT = "live-playbook"
+
+#: How long the suite waits for one check before giving up on it and moving on.
+#: Generous, because the most expensive check makes three provider calls and a
+#: real report takes minutes — but finite, because the whole reason this suite
+#: was revised is that a run with no ceiling sat there until somebody noticed.
+CHECK_TIMEOUT_SECONDS = float(
+    os.environ.get("PLAYBOOK_LIVE_CHECK_TIMEOUT_SECONDS") or 900)
 
 
 @dataclass(frozen=True)
@@ -622,22 +630,89 @@ def available() -> tuple[bool, str]:
     return True, ""
 
 
-def run(check_id: str) -> Outcome:
+def run(check_id: str, *, on_progress: Callable[[str, str], None] | None = None
+        ) -> Outcome:
+    """One check, bounded and reported as it goes.
+
+    `on_progress(stage, detail)` is called with `start` before and `end` after,
+    so a caller can print which check is running rather than showing nothing
+    for two minutes. A check that raises becomes a failed Outcome: the other
+    seven still need to run, and an exception is a poor carrier for a request
+    id.
+    """
     runner = RUNNERS.get(check_id)
     if runner is None:
         return Outcome(check=check_id, passed=False,
                        detail=f"no such check: {check_id}")
-    try:
-        return runner()
-    except Exception as exc:  # noqa: BLE001 — a check never takes the run down
-        logger.exception("Live Playbook check %s raised.", check_id)
-        return _fail(check_id, exc)
+    if on_progress:
+        on_progress("start", check_id)
+    began = time.monotonic()
+    outcome = _run_bounded(check_id, runner)
+    if not outcome.latency_ms:
+        outcome.latency_ms = int((time.monotonic() - began) * 1000)
+    if on_progress:
+        on_progress("end", check_id)
+    return outcome
 
 
-def run_all(stop_early: bool = False) -> Suite:
+def _run_bounded(check_id: str, runner: Callable[[], Outcome]) -> Outcome:
+    """Run one check, and stop WAITING for it after CHECK_TIMEOUT_SECONDS.
+
+    Said precisely, because the distinction matters: Python cannot kill a
+    thread, so this bounds the suite's wait, not the check's execution. The
+    abandoned worker is a daemon and is itself bounded — every provider call it
+    can still be inside is capped by `provider.RUN_DEADLINE_SECONDS`, which is
+    the fix that stopped the hang in the first place. This is the second line
+    of defence: if a check wedges somewhere the provider deadline does not
+    reach, the remaining seven still run and the report still comes out.
+    """
+    import threading
+
+    box: dict[str, Outcome] = {}
+
+    def work() -> None:
+        try:
+            box["outcome"] = runner()
+        except Exception as exc:  # noqa: BLE001 — never takes the run down
+            logger.exception("Live Playbook check %s raised.", check_id)
+            box["outcome"] = _fail(check_id, exc)
+
+    worker = threading.Thread(target=work, name=f"live-check-{check_id}",
+                              daemon=True)
+    worker.start()
+    worker.join(CHECK_TIMEOUT_SECONDS)
+    if worker.is_alive():
+        return Outcome(
+            check=check_id, passed=False, error_category="timeout",
+            latency_ms=int(CHECK_TIMEOUT_SECONDS * 1000),
+            detail=(f"still running after {CHECK_TIMEOUT_SECONDS:.0f}s, so the "
+                    "suite stopped waiting for it and carried on. It is not "
+                    "counted as a pass."))
+    return box.get("outcome") or Outcome(
+        check=check_id, passed=False,
+        detail="the check returned nothing at all")
+
+
+def run_some(check_ids: list[str], *,
+             on_progress: Callable[[str, str], None] | None = None) -> Suite:
+    """Re-run named checks and nothing else.
+
+    The reason this exists: after the first live run, three checks failed and
+    re-testing them cost all twelve provider calls. Naming them costs what they
+    cost. Unknown ids are reported as failures rather than silently skipped —
+    a typo that quietly runs nothing would read as success.
+    """
+    suite = Suite()
+    for check_id in check_ids:
+        suite.outcomes.append(run(check_id, on_progress=on_progress))
+    return suite
+
+
+def run_all(stop_early: bool = False, *,
+            on_progress: Callable[[str, str], None] | None = None) -> Suite:
     suite = Suite()
     for check in CHECKS:
-        outcome = run(check.id)
+        outcome = run(check.id, on_progress=on_progress)
         suite.outcomes.append(outcome)
         if stop_early and not outcome.passed:
             break

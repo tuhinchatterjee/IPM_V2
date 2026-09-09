@@ -537,3 +537,147 @@ class TestTheWireFormat:
                            "data": {"text": "## Heading\n\nBody"}})
         assert line.count("\n\n") == 1
         assert "\\n\\n" in line
+
+
+class TestATimeoutLeavesNothingBehind:
+    """The first live run hung until Ctrl+C. Now it stops itself — and what it
+    leaves behind has to be exactly what a failure leaves behind."""
+
+    def _times_out(self, monkeypatch):
+        """Make the authoring call raise the real timeout, mid-stream.
+
+        Returns a callable that puts back whatever was patched in before, so a
+        test can time out and then succeed on the retry.
+        """
+        previous = provider.author
+
+        def _slow(*, system, messages, formats, purpose="playbook_authoring",
+                  container_id="", on_milestone=None, on_delta=None,
+                  is_cancelled=None):
+            if on_delta:
+                on_delta("Weighted ECL rose to ")
+            raise provider.AuthoringTimeout(
+                "This generation passed its 600-second limit while waiting "
+                "for the model to finish writing, so it was stopped. Nothing "
+                "was saved and the previous version is unchanged.")
+
+        monkeypatch.setattr(provider, "author", _slow)
+        monkeypatch.setattr("backend.playbook.service.provider.author", _slow)
+
+        def restore():
+            monkeypatch.setattr(provider, "author", previous)
+            monkeypatch.setattr("backend.playbook.service.provider.author",
+                                previous)
+
+        return restore
+
+    def test_a_timeout_writes_no_version_and_no_file(
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+        self._times_out(monkeypatch)
+        with pytest.raises(provider.AuthoringTimeout):
+            service.run_generation(
+                db, scope, workspace.id, job_id=job, text="Write the report.",
+                calculations=ledger_calcs)
+
+        assert repo.artifacts(db, workspace.id) == []
+        assert _files_in(db, workspace.id) == []
+
+    def test_a_timeout_leaves_the_previous_version_current(
+            self, db, scope, workspace, ledger_calcs, scripted_author,
+            monkeypatch):
+        first = service.begin_generation(
+            db, scope, workspace.id, text="Draft it.",
+            idempotency_key=f"ws{workspace.id}:t1")
+        scripted_author(REPORT_MD, chunk=30)
+        good = service.run_generation(
+            db, scope, workspace.id, job_id=first["job_id"], text="Draft it.",
+            calculations=ledger_calcs)
+
+        second = service.begin_generation(
+            db, scope, workspace.id, text="Revise it.",
+            idempotency_key=f"ws{workspace.id}:t2")
+        self._times_out(monkeypatch)
+        with pytest.raises(provider.AuthoringTimeout):
+            service.run_generation(
+                db, scope, workspace.id, job_id=second["job_id"],
+                text="Revise it.", calculations=ledger_calcs,
+                artifact_id=good["artifact_id"],
+                base_version_id=good["version_id"])
+
+        from backend.models.playbook import PlaybookArtifact
+        artifact = db.get(PlaybookArtifact, good["artifact_id"])
+        assert artifact.current_version_id == good["version_id"]
+        assert len(repo.versions(db, good["artifact_id"])) == 1
+
+    def test_the_partial_text_is_not_committed_as_the_answer(
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+        self._times_out(monkeypatch)
+        writer = stream.Writer(session=db, job_id=job)
+        with pytest.raises(provider.AuthoringTimeout):
+            service.run_generation(
+                db, scope, workspace.id, job_id=job, text="Write the report.",
+                calculations=ledger_calcs, on_delta=writer.delta)
+
+        assistant = [m for m in repo.messages(db, workspace.id)
+                     if m.role == "assistant"]
+        assert len(assistant) == 1
+        assert assistant[0].content.get("failed") is True
+        assert "markdown" not in assistant[0].content
+
+    def test_the_browser_is_told_the_truth_about_it(
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+        """And the half sentence is discarded rather than left on screen as
+        though it were the answer — the `error` event carries no text."""
+        self._times_out(monkeypatch)
+        writer = stream.Writer(session=db, job_id=job)
+        try:
+            service.run_generation(
+                db, scope, workspace.id, job_id=job, text="Write the report.",
+                calculations=ledger_calcs, on_delta=writer.delta)
+        except provider.AuthoringTimeout as exc:
+            writer.error(str(exc), category="timeout")
+
+        events = _events(db, job)
+        assert [e.kind for e in events][-1] == "error"
+        assert events[-1].data["category"] == "timeout"
+        assert "was stopped" in events[-1].data["message"]
+        assert stream.replay_text(events) == ""
+
+    def test_a_timed_out_generation_is_retryable(
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch):
+        self._times_out(monkeypatch)
+        with pytest.raises(provider.AuthoringTimeout):
+            service.run_generation(
+                db, scope, workspace.id, job_id=job, text="Write the report.",
+                calculations=ledger_calcs)
+        service.mark_job_finished(db, job, state="failed", error="timed out")
+
+        retry = service.retry_generation(db, scope, job)
+        assert retry["idempotency_key"].endswith(":retry2")
+
+    def test_the_retry_makes_one_more_generation_not_two(
+            self, db, scope, workspace, ledger_calcs, job, monkeypatch,
+            scripted_author):
+        scripted_author(REPORT_MD, chunk=30)
+        restore = self._times_out(monkeypatch)
+        with pytest.raises(provider.AuthoringTimeout):
+            service.run_generation(
+                db, scope, workspace.id, job_id=job, text="Write the report.",
+                calculations=ledger_calcs)
+        service.mark_job_finished(db, job, state="failed", error="timed out")
+        key = service.retry_generation(db, scope, job)["idempotency_key"]
+
+        restore()
+        again = service.begin_generation(
+            db, scope, workspace.id, text="Write the report.",
+            idempotency_key=key)
+        assert again["duplicate"] is False
+        result = service.run_generation(
+            db, scope, workspace.id, job_id=again["job_id"],
+            text="Write the report.", calculations=ledger_calcs)
+        assert result["version"] == 1
+
+        # One document, one version — the timed-out attempt left nothing to
+        # collide with, and the retry did not produce a second copy.
+        assert len(repo.artifacts(db, workspace.id)) == 1
+        assert len(repo.versions(db, result["artifact_id"])) == 1

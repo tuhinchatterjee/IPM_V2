@@ -125,7 +125,10 @@ codebase does not have.
 | `AI_AUTHOR_EFFORT` | `low` / `medium` / `high`, where the provider supports it. |
 | `AI_TIER_AUTHOR` | Cost-report weighting only. Defaults to `deep`. |
 | `AI_PROVIDER=offline` | Turns generation off entirely; the demonstration stays browseable. |
-| `PLAYBOOK_MAX_TURNS`, `PLAYBOOK_MAX_OUTPUT_TOKENS`, `PLAYBOOK_TIMEOUT_SECONDS` | Bounds on one authoring run. |
+| `PLAYBOOK_MAX_TURNS`, `PLAYBOOK_MAX_OUTPUT_TOKENS` | Bounds on one authoring run. |
+| `PLAYBOOK_TIMEOUT_SECONDS` | **Wall-clock deadline for one authoring run**, default 600. The bound that matters: a socket timeout limits inactivity between reads, not the operation, so a stream trickling one token a minute never trips one. Checked between stream events and between turns. Kept below `stream.IDLE_TIMEOUT_SECONDS` (900) so the worker reports the failure before the browser's reader gives up. |
+| `PLAYBOOK_CONNECT_TIMEOUT_SECONDS` (10), `PLAYBOOK_READ_TIMEOUT_SECONDS` (120), `PLAYBOOK_WRITE_TIMEOUT_SECONDS` (60), `PLAYBOOK_POOL_TIMEOUT_SECONDS` (30) | The four transport phases, separately. They are separate because passing one number sets all four — which is how a 900-second *connect* timeout shipped. |
+| `PLAYBOOK_LIVE_CHECK_TIMEOUT_SECONDS` | How long the live suite waits for one check before moving on, default 900. |
 | `UPLOAD_DIR` | Where sources and artifacts are stored, under `<upload_dir>/playbook`. |
 
 ## Migration and rollout

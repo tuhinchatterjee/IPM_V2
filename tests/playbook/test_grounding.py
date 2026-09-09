@@ -110,3 +110,74 @@ class TestEvidenceIsDataNotInstruction:
         assert "evidence-gaps" in led.render()
         assert "Working" in led.render()
         assert led.complete is False
+
+
+class TestReRoundingIsInvention:
+    """The exact shape of the first live run's third failure.
+
+    A model asked to make a summary "more concise and more direct" rounds by
+    nature. Grounding matches figures as exact tokens, so a re-rounded figure
+    is a different figure — and that is the correct reading, not a false
+    positive: a committee paper that says 9 per cent where the calculation says
+    8.95 per cent has misstated the result.
+
+    These pin the behaviour so nobody later "fixes" it by adding a tolerance.
+    """
+
+    def test_a_re_rounded_percentage_does_not_survive(self):
+        doc = D.parse("## 1. Summary\n\nWeighted ECL rose 8.9 per cent.")
+        result = grounding.check(doc, _ledger())
+        assert result.ok is False
+        assert "8.9" not in doc.plain_text()
+
+    def test_the_exact_percentage_survives(self):
+        doc = D.parse("## 1. Summary\n\nWeighted ECL rose 8.95 per cent.")
+        assert grounding.check(doc, _ledger()).ok is True
+
+    def test_a_rounded_money_figure_does_not_survive(self):
+        doc = D.parse("## 1. Summary\n\nThe movement was SAR 1.9 million.")
+        assert grounding.check(doc, _ledger()).ok is False
+        assert "1.9 million" not in doc.plain_text()
+
+    def test_trailing_zeros_are_the_same_figure_not_a_new_one(self):
+        """19.2 and 19.20 are one number written two ways. The house style is
+        two decimals for money, and that must not read as invention."""
+        led = evidence.Ledger()
+        led.add(evidence.Item("xlsx://ECL!B2", "sheet_range", "Base 19.2 0.6"))
+        doc = D.parse("## 1. Summary\n\nThe base scenario is SAR 19.20 million.")
+        assert grounding.check(doc, led).ok is True
+        assert "19.20" in doc.plain_text()
+
+
+class TestAnApprovedVersionIsEvidenceForItsRevision:
+    """The second cause of that same failure.
+
+    A revision was judged against the sources alone, so restating a figure the
+    approved version already carried read as inventing it.
+    """
+
+    def test_a_figure_only_version_one_carried_is_unsupported_without_it(self):
+        doc = D.parse("## 1. Summary\n\nThe Stage 2 population was 41.50.")
+        assert grounding.check(doc, _ledger()).ok is False
+
+    def test_and_is_supported_once_the_version_is_admitted(self):
+        led = _ledger()
+        led.add(evidence.Item(
+            "version://7/1", "paragraph",
+            "The Stage 2 population was 41.50.",
+            origin="version", label="Approved version 1 of this document"))
+        doc = D.parse("## 1. Summary\n\nThe Stage 2 population was 41.50.")
+        assert grounding.check(doc, led).ok is True
+        assert "41.50" in doc.plain_text()
+
+    def test_admitting_a_version_does_not_excuse_a_brand_new_figure(self):
+        """The point is restatement, not laundering. A figure in neither the
+        sources nor the approved version is still invented."""
+        led = _ledger()
+        led.add(evidence.Item(
+            "version://7/1", "paragraph",
+            "The Stage 2 population was 41.50.",
+            origin="version", label="Approved version 1 of this document"))
+        doc = D.parse("## 1. Summary\n\nProvisions of SAR 88.30 million.")
+        assert grounding.check(doc, led).ok is False
+        assert "88.30" not in doc.plain_text()

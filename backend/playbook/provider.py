@@ -64,7 +64,35 @@ WORKDIR = "/tmp/outputs"
 #: prompt asking the model to be brief.
 MAX_TURNS = int(os.environ.get("PLAYBOOK_MAX_TURNS") or 24)
 MAX_OUTPUT_TOKENS = int(os.environ.get("PLAYBOOK_MAX_OUTPUT_TOKENS") or 16000)
-REQUEST_TIMEOUT_SECONDS = float(os.environ.get("PLAYBOOK_TIMEOUT_SECONDS") or 900)
+
+#: The wall-clock ceiling on ONE authoring run, across every turn it takes.
+#:
+#: This is the bound that actually matters, and the one that was missing. A
+#: socket timeout bounds *inactivity between reads*, not the operation: a stream
+#: that produces one token every two minutes never trips a read timeout and runs
+#: until somebody presses Ctrl+C. That is exactly what happened on the first
+#: live run. This deadline is checked between stream events and between turns,
+#: so a slow-but-alive generation is stopped like any other.
+#:
+#: Deliberately below `stream.IDLE_TIMEOUT_SECONDS` (900), so the worker always
+#: reports the failure before the reader watching it gives up.
+RUN_DEADLINE_SECONDS = float(os.environ.get("PLAYBOOK_TIMEOUT_SECONDS") or 600)
+
+#: The four transport phases, separately. Passing a bare float here sets all
+#: four to that number — which is how a 900-second CONNECT timeout got shipped.
+#: Named individually so each one means what it says.
+CONNECT_TIMEOUT_SECONDS = float(
+    os.environ.get("PLAYBOOK_CONNECT_TIMEOUT_SECONDS") or 10)
+#: Silence on an open stream. Long enough for a slow tool call to think, short
+#: enough that a dead connection is noticed in minutes rather than a quarter of
+#: an hour.
+READ_TIMEOUT_SECONDS = float(
+    os.environ.get("PLAYBOOK_READ_TIMEOUT_SECONDS") or 120)
+WRITE_TIMEOUT_SECONDS = float(
+    os.environ.get("PLAYBOOK_WRITE_TIMEOUT_SECONDS") or 60)
+POOL_TIMEOUT_SECONDS = float(
+    os.environ.get("PLAYBOOK_POOL_TIMEOUT_SECONDS") or 30)
+
 #: Retries cover a transport hiccup and an overloaded provider. Nothing else is
 #: retried: a provider that retries a refusal turns one problem into three.
 MAX_ATTEMPTS = 3
@@ -84,6 +112,19 @@ class AuthoringError(RuntimeError):
     def __init__(self, message: str, *, category: str = "") -> None:
         super().__init__(message)
         self.category = category
+
+
+class AuthoringTimeout(AuthoringError):
+    """The run exceeded its wall-clock deadline and was stopped.
+
+    A subclass rather than a bare category so a caller can catch it precisely.
+    It is never retried automatically: a timed-out generation has already spent
+    its tokens, and trying again on the product's own initiative spends them a
+    second time without anybody asking. The user has a retry button.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, category="timeout")
 
 
 class Cancelled(RuntimeError):
@@ -192,6 +233,19 @@ def status() -> Status:
             "sources and files stay readable without it.",
             provider, author.model, author.inherited,
         )
+    if not (author.model or "").strip():
+        # A key with no model is not a working configuration. The Messages API
+        # has no server-side default, so this used to report CONFIGURED and
+        # then fail inside the SDK on the first call. Reported here instead,
+        # where an administrator can act on it.
+        return Status(
+            False,
+            "AUTHOR_MODEL_NOT_CONFIGURED: no authoring model is configured. "
+            "Set AI_AUTHOR_MODEL, or AI_ANALYST_MODEL or AI_MODEL for it to "
+            "inherit from. Existing workspaces, sources and files stay "
+            "readable without one.",
+            provider, author.model, author.inherited,
+        )
     return Status(True, "", provider, author.model, author.inherited)
 
 
@@ -205,11 +259,39 @@ def _client() -> Any:
         import anthropic
     except ImportError as exc:  # pragma: no cover - declared dependency
         raise ProviderNotConfigured("The anthropic SDK is not installed.") from exc
+    import httpx
+
     return anthropic.Anthropic(
         api_key=settings.anthropic_api_key,
-        timeout=REQUEST_TIMEOUT_SECONDS,
+        # Four phases, separately. A bare float sets all four to the same
+        # number, which is how this shipped with a 900-second connect timeout:
+        # httpx collapses `timeout=900.0` to `Timeout(timeout=900.0)`.
+        timeout=httpx.Timeout(
+            connect=CONNECT_TIMEOUT_SECONDS,
+            read=READ_TIMEOUT_SECONDS,
+            write=WRITE_TIMEOUT_SECONDS,
+            pool=POOL_TIMEOUT_SECONDS,
+        ),
         max_retries=0,  # retries are handled here, where they can be recorded
     )
+
+
+def _check_clock(started: float | None, doing: str) -> None:
+    """Stop a run that has outlived its deadline, naming what it was doing.
+
+    Follows `backend/exports/service.py`'s `_check_clock`: the phase is in the
+    message because "it timed out" sends somebody looking in the wrong place,
+    and "it timed out while building the files" does not.
+    """
+    if started is None:
+        return
+    elapsed = time.monotonic() - started
+    if elapsed > RUN_DEADLINE_SECONDS:
+        raise AuthoringTimeout(
+            f"This generation passed its {RUN_DEADLINE_SECONDS:.0f}-second "
+            f"limit while {doing}, so it was stopped. Nothing was saved and "
+            "the previous version is unchanged."
+        )
 
 
 def upload_source(filename: str, content: bytes, mime: str) -> str:
@@ -304,15 +386,28 @@ def author(
     the sandbox is about to run; those are not forwarded — only `text_delta` on
     a `text` block is. Cancellation is checked between deltas as well as
     between turns, so stopping does not wait for a long reply to finish.
-    """
-    client = _client()
 
+    The whole run is bounded by `RUN_DEADLINE_SECONDS` of wall-clock, checked
+    between stream events and between turns.
+    """
     role = role_config.role(role_config.AUTHOR)
     model = role.model or ""
     if not model:
-        # There is no id to fall back to that would not be a guess. The
-        # provider's own default is the honest choice, and it is recorded.
-        logger.info("No AI_AUTHOR_MODEL configured; using the provider default.")
+        # Checked BEFORE the client is built, so no call is ever made without
+        # one. The Messages API has no server-side default model — omitting the
+        # field is an error, not a fallback — so the comment that used to sit
+        # here, claiming "the provider's own default", was simply wrong, and the
+        # SDK raised `missing 1 required keyword-only argument: 'model'` at the
+        # worst possible moment instead.
+        raise ProviderNotConfigured(
+            "AUTHOR_MODEL_NOT_CONFIGURED: no authoring model is configured. "
+            "Set AI_AUTHOR_MODEL (or AI_ANALYST_MODEL, or AI_MODEL, which it "
+            "inherits from in that order). Existing workspaces, sources and "
+            "generated files stay readable without one."
+        )
+
+    client = _client()
+    started = time.monotonic()
 
     tools = [{"type": CODE_EXECUTION_TOOL, "name": "code_execution"}]
     container: dict[str, Any] = {"skills": _skills(formats)}
@@ -321,11 +416,12 @@ def author(
 
     result = AuthoringResult(model_requested=model)
     convo = list(messages)
-    started = time.time()
 
     def milestone(state: str, detail: str = "") -> None:
+        # Monotonic, not wall clock: a machine that adjusts its time mid-run
+        # must not produce a milestone that happened before the one before it.
         entry = {"state": state, "detail": detail,
-                 "at": round(time.time() - started, 3)}
+                 "at": round(time.monotonic() - started, 3)}
         result.milestones.append(entry)
         if on_milestone:
             on_milestone(state, detail)
@@ -335,11 +431,12 @@ def author(
     for turn in range(1, MAX_TURNS + 1):
         if is_cancelled and is_cancelled():
             raise Cancelled("This generation was stopped.")
+        _check_clock(started, f"starting turn {turn}")
 
         response = _call(client, model=model, system=system, messages=convo,
                          tools=tools, container=container, purpose=purpose,
                          role=role, on_delta=on_delta,
-                         is_cancelled=is_cancelled)
+                         is_cancelled=is_cancelled, deadline=started)
         result.turns = turn
 
         rid = getattr(response, "_request_id", "") or ""
@@ -404,7 +501,8 @@ def author(
 def _call(client: Any, *, model: str, system: str, messages: list[dict],
           tools: list[dict], container: dict, purpose: str, role: Any,
           on_delta: Callable[[str], None] | None = None,
-          is_cancelled: Callable[[], bool] | None = None) -> Any:
+          is_cancelled: Callable[[], bool] | None = None,
+          deadline: float | None = None) -> Any:
     """One provider call, with bounded retries and honest telemetry.
 
     Streamed, always. The completed message is still what the caller gets back —
@@ -432,7 +530,8 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
             if model:
                 kwargs["model"] = model
             response, streamed = _stream_once(
-                client, kwargs, on_delta=on_delta, is_cancelled=is_cancelled)
+                client, kwargs, on_delta=on_delta, is_cancelled=is_cancelled,
+                deadline=deadline)
             if streamed:
                 emitted = True
             telemetry.record_success(
@@ -452,6 +551,11 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
             # A stop is not a provider failure. It must not be classified,
             # retried, or reported as an outage.
             raise
+        except AuthoringTimeout:
+            # The run is out of time. Retrying inside it would spend the
+            # deadline it has already exceeded, and spend tokens again for a
+            # generation nobody is still waiting for.
+            raise
         except Exception as exc:  # noqa: BLE001 — classified, then re-raised
             category = telemetry.classify(exc)
             telemetry.record_failure(
@@ -461,8 +565,14 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
                 error=exc, category=category, attempts=attempt,
             )
             last = exc
+            # `timeout` is deliberately NOT here. A socket timeout means the
+            # request was accepted and is being worked on somewhere; retrying
+            # buys a second billable generation of the same turn on the chance
+            # the first was merely slow. `connection` stays, because it fires
+            # before any tokens are spent. The user has a retry button for the
+            # rest — the product does not spend money on its own initiative.
             retryable = category in {"rate_limit", "overloaded", "server",
-                                     "connection", "timeout"}
+                                     "connection"}
             if emitted:
                 # Text has already reached the user. Starting again would show
                 # them a second beginning of the same answer.
@@ -477,7 +587,8 @@ def _call(client: Any, *, model: str, system: str, messages: list[dict],
 
 def _stream_once(client: Any, kwargs: dict, *,
                  on_delta: Callable[[str], None] | None,
-                 is_cancelled: Callable[[], bool] | None) -> tuple[Any, bool]:
+                 is_cancelled: Callable[[], bool] | None,
+                 deadline: float | None = None) -> tuple[Any, bool]:
     """One streamed call. Returns the finished message and whether text flowed.
 
     The filter is the security boundary of this module, and it is deliberately
@@ -489,6 +600,10 @@ def _stream_once(client: Any, kwargs: dict, *,
     forwarded = False
     with client.beta.messages.stream(**kwargs) as stream:
         for event in stream:
+            # Checked per event, because this is the only place that can catch
+            # a stream which is alive but going nowhere. A read timeout never
+            # fires on one: every chunk resets it.
+            _check_clock(deadline, "waiting for the model to finish writing")
             if is_cancelled and is_cancelled():
                 # Close the connection rather than reading a reply nobody
                 # wants. `stream` is a context manager, so this releases it.
@@ -526,4 +641,7 @@ def _message_for(category: str, exc: Exception) -> str:
                       "attempts. Nothing was generated; try again shortly.",
         "timeout": "The provider did not respond in time. Nothing was "
                    "generated and the previous version is unchanged.",
+        "connection": "Playbook could not reach the provider. Nothing was "
+                      "generated and the previous version is unchanged; check "
+                      "network access from this deployment and try again.",
     }.get(category, telemetry.sanitise(str(exc)) or "The authoring call failed.")

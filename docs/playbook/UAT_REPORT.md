@@ -9,7 +9,7 @@ check that could not run is `BLOCKED` rather than a pass.
 |---|---|
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
-| Live Claude workflows | **BLOCKED** — no `ANTHROPIC_API_KEY` in this environment |
+| Live Claude workflows | **BLOCKED** — first live run executed by the user found four defects, all fixed here; the re-run is outstanding and no key exists in this environment |
 | Browser and artifact UAT | **passed** — 105 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off |
@@ -55,7 +55,7 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **326 passed, 8 live checks skipped** |
+| Playbook backend | `pytest tests/playbook` | **365 passed, 8 live checks skipped** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
 | Full backend | `pytest -q` | **9810 passed, 30 skipped, 0 failed** |
 | Frontend units | `npm test` | **462 passed, 0 failed** |
@@ -185,6 +185,22 @@ one held back**, and version 2 does not contain the held change.
    label a user sees is "Synthetic data" — the check was asserting the copy the
    repository bans. Fixed to assert both the badge and the per-message note that
    the reply was not written by a model.
+
+## The first live run, and what it found
+
+A real provider run happened locally against `713f99a`. `claude-opus-5` served
+with no downgrade, and parsing, the ledger, versioning, DOCX and PDF generation,
+validation, persisted bytes, reopening, version 1 preserved, version 2 genuinely
+different and 22.77 carried across all held. Four things did not:
+
+| Finding | Root cause | Status |
+|---|---|---|
+| Word and PDF did not state 19.20 | The assertion was wrong twice over: 19.20 is a scenario INPUT, not a reported result, and the fixture stores it as a float so the evidence carries "19.2". Grounding normalises trailing zeros, so it could never have enforced the difference. | Assertion replaced with the system's own comparison; money now formatted to two decimals on its own merits |
+| Scoped revision introduced an unsupported figure | A revision was judged against the sources alone, so restating an approved version-1 figure read as invention; and exact-token matching correctly catches re-rounding (8.95 → 8.9) | Approved version admitted as evidence; prompt forbids re-rounding; grounding untouched |
+| The suite hung in the streaming iterator | `timeout=900.0` as a bare float set all four transport phases to 900s, and a read timeout bounds inactivity, not the operation | Four separate transport timeouts plus an enforced wall-clock run deadline |
+| `Messages.stream() missing 'model'` | The Messages API has no server-side default model; the code assumed one | `AUTHOR_MODEL_NOT_CONFIGURED` before the client is built |
+
+None of these are counted as passes. The live re-run is outstanding.
 
 ## What is genuinely not done
 

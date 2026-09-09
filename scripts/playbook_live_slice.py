@@ -99,14 +99,104 @@ def _results_workbook() -> bytes:
     return buf.getvalue()
 
 
+def _run_suite(live_playbook, only: list[str]) -> dict:
+    """Run the suite, saying what is happening while it happens.
+
+    A live run costs money and minutes. Showing nothing until the end is how a
+    hang goes unnoticed, which is exactly what happened the first time.
+    """
+    import time
+
+    checks = only or [c.id for c in live_playbook.CHECKS]
+    cost = sum(c.calls for c in live_playbook.CHECKS if c.id in checks)
+    print("-" * 72)
+    print(f"Live suite: {len(checks)} check(s), about {cost} provider call(s)")
+
+    started: dict[str, float] = {}
+
+    def progress(stage: str, check_id: str) -> None:
+        if stage == "start":
+            started[check_id] = time.monotonic()
+            print(f"  ....  {check_id} …", flush=True)
+
+    suite = (live_playbook.run_some(checks, on_progress=progress)
+             if only else live_playbook.run_all(on_progress=progress))
+
+    by_id = {c.id: c for c in live_playbook.CHECKS}
+    for outcome in suite.outcomes:
+        which = by_id.get(outcome.check)
+        title = which.title if which else outcome.check
+        requirement = which.requirement if which else "?"
+        detail = outcome.detail
+        # Elapsed and request id on every line, so a failure can be taken
+        # straight to the provider's logs.
+        detail += f"  [{outcome.latency_ms / 1000:.1f}s"
+        if outcome.request_ids:
+            detail += f", {outcome.request_ids[0]}"
+        if outcome.model_served:
+            detail += f", {outcome.model_served}"
+        detail += "]"
+        check(f"[{requirement}] {title}", outcome.passed, detail)
+
+    failed = [o.check for o in suite.outcomes if not o.passed]
+    if failed:
+        print()
+        print("Re-run only what failed, without paying for the rest:")
+        print("  .venv/bin/python scripts/playbook_live_slice.py "
+              + " ".join(f"--check {c}" for c in failed))
+    return suite.to_dict()
+
+
+def _suite_only(args, live_playbook) -> int:
+    """The suite without the vertical slice, for re-running named checks."""
+    record = {"ran_at": datetime.now(UTC).isoformat(),
+              "live_suite": _run_suite(live_playbook, args.check)}
+    print("-" * 72)
+    print(f"{len(ok)} passed, {len(bad)} failed.")
+    for line in bad:
+        print(f"  FAILED: {line}")
+    del record
+    return 1 if bad else 0
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="The Playbook vertical slice and live acceptance suite.")
     parser.add_argument("--keep", action="store_true",
                         help="leave the workspace in the database afterwards")
+    parser.add_argument("--list", action="store_true",
+                        help="list the suite's checks and their cost, and exit")
+    parser.add_argument(
+        "--check", action="append", default=[], metavar="ID",
+        help="run only this suite check; repeatable. Re-running one failed "
+             "check should not cost the other eleven provider calls.")
+    parser.add_argument(
+        "--only", choices=("slice", "suite"), default=None,
+        help="run only the vertical slice, or only the suite")
     args = parser.parse_args()
 
     from backend.config import settings
     from backend.playbook import provider
+    from backend.validation import live_playbook
+
+    if args.list:
+        print("Playbook live checks")
+        print("=" * 72)
+        for entry in live_playbook.describe():
+            print(f"  {entry['id']:<22} {entry['requirement']:<18} "
+                  f"{entry['calls']} call(s)")
+            print(f"  {'':<22} {entry['title']}")
+        print(f"\nWhole suite: about {live_playbook.ESTIMATED_CALLS} calls.")
+        return 0
+
+    unknown = [c for c in args.check if c not in live_playbook.RUNNERS]
+    if unknown:
+        print(f"No such check: {', '.join(unknown)}")
+        print(f"Known: {', '.join(sorted(live_playbook.RUNNERS))}")
+        return 2
+
+    run_slice = args.only != "suite" and not args.check
+    run_suite = args.only != "slice"
 
     state = provider.status()
     print("Playbook live vertical slice")
@@ -119,10 +209,14 @@ def main() -> int:
         print("CANNOT RUN: no platform database is configured.")
         return 2
 
-    print(f"provider={state.provider}  configured_model="
-          f"{state.model or '(provider default)'}"
+    print(f"provider={state.provider}  configured_model={state.model}"
           f"{'  (inherited)' if state.inherited else ''}")
+    if args.check:
+        print(f"running only: {', '.join(args.check)}")
     print("-" * 72)
+
+    if not run_slice:
+        return _suite_only(args, live_playbook)
 
     from backend.db.engine import get_session
     from backend.playbook import repository as repo
@@ -196,9 +290,38 @@ def main() -> int:
             for c in docx_reader.read(outcome.files["docx"]).chunks)
         pdf_text = " ".join(c.text for c in
                             pdf_reader.read(outcome.files["pdf"]).chunks)
-        for figure in ("22.77", "19.20"):
-            check(f"the Word file states {figure}", figure in docx_text)
-            check(f"the PDF states {figure}", figure in pdf_text)
+        # Compared with the system's OWN rule, `validate.figures()`, not with a
+        # raw substring test.
+        #
+        # The first live run failed here, asserting `"19.20" in docx_text`. That
+        # was the assertion's bug, twice over. 19.20 is DECLARED["base_ecl"]
+        # ["current"] — a scenario INPUT to the weighted ECL, not a reported
+        # result — and the workbook writes it as the float 19.20, which openpyxl
+        # stores and `sheets.py` renders as "19.2". So the string "19.20" is in
+        # no evidence the model was ever given. Meanwhile `figures()` strips
+        # trailing zeros, so grounding treats 19.2 and 19.20 as one figure and
+        # could never have enforced the difference. The check demanded a
+        # formatting choice using a rule the product does not apply.
+        #
+        # What is worth asserting is what grounding actually means: every figure
+        # in the generated file traces to the evidence, and the REPORTED figure
+        # — the probability-weighted ECL — is present.
+        from backend.playbook import validate as _validate
+
+        supported = ledger.figures()
+        for name, text in (("Word", docx_text), ("PDF", pdf_text)):
+            stated = _validate.figures(text)
+            invented = sorted(stated - supported)
+            check(f"every figure in the {name} file traces to the evidence",
+                  not invented, f"untraceable: {invented}" if invented else "")
+        check("the Word file states the weighted ECL",
+              "22.77" in _validate.figures(docx_text))
+        check("the PDF states the weighted ECL",
+              "22.77" in _validate.figures(pdf_text))
+        check("the base scenario input is available to the model as evidence",
+              "19.2" in supported,
+              "xlsx://ECL!B2, stored as 19.2 — the report is not required to "
+              "restate a scenario input")
         check("no figure was invented",
               outcome.grounding is not None and outcome.grounding.ok,
               outcome.grounding.note() if outcome.grounding else "")
@@ -224,9 +347,12 @@ def main() -> int:
 
     # ------------------------------------------------------ scoped revision
     with get_session() as session:
+        # artifact_id admits the approved version 1 as evidence, so restating a
+        # figure it already carried is traceable rather than "invented".
         ledger = service.ledger_for(session, scope, workspace_id,
                                     source_ids=source_ids,
-                                    calculations=list(oracle.headline().values()))
+                                    calculations=list(oracle.headline().values()),
+                                    artifact_id=artifact_id)
         from backend.playbook import prompts
 
         revision = service.author_document(
@@ -275,17 +401,8 @@ def main() -> int:
     # The slice above is one vertical journey. These are the remaining
     # acceptance criteria that need a provider, defined in production code so
     # a deployment can run them too.
-    from backend.validation import live_playbook
-
-    print("-" * 72)
-    print(f"Live suite: {len(live_playbook.CHECKS)} checks, "
-          f"about {live_playbook.ESTIMATED_CALLS} provider calls")
-    suite = live_playbook.run_all()
-    for outcome in suite.outcomes:
-        which = next(c for c in live_playbook.CHECKS if c.id == outcome.check)
-        check(f"[{which.requirement}] {which.title}", outcome.passed,
-              outcome.detail)
-    record["live_suite"] = suite.to_dict()
+    if run_suite:
+        record["live_suite"] = _run_suite(live_playbook, args.check)
 
     record["checks_passed"] = len(ok)
     record["checks_failed"] = len(bad)

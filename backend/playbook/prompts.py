@@ -55,6 +55,15 @@ Preserve units exactly as the evidence states them. A percentage, a \
 percentage-point change and a basis-point change are three different things, \
 and so are SAR and SAR million.
 
+State every figure at the precision the evidence gives it. Do not re-round, \
+do not approximate, and do not say "about" or "roughly" in front of a number \
+that is stated exactly: 8.95 per cent is not 8.9 per cent and not "around 9 \
+per cent", and rewriting it as either is treated as a figure you made up. The \
+one presentational exception is trailing zeros on money, which carry no \
+information: a currency amount is written to two decimal places, so evidence \
+of 19.2 is written SAR 19.20 million. That is the same number, formatted; it \
+is not permission to add precision the evidence does not have.
+
 WHAT YOU MUST NOT DO
 Do not describe a test, analysis or review as having been performed unless the \
 evidence shows it was. Do not soften a negative finding into a positive one. Do \
@@ -187,6 +196,12 @@ Everything else in the document must be returned byte-for-byte unchanged. \
 Preserve every figure, every caveat, every risk conclusion and every \
 recommendation, including inside the part you are revising — this is a change \
 of expression, not of substance. Never soften a negative finding.
+
+Being concise is not a licence to round. Carry every figure across exactly as \
+the current document states it: shortening "an increase of 8.95 per cent" to \
+"an increase of about 9 per cent" changes the number, and a changed number is \
+removed from the document as unsupported. Shorten the words around a figure, \
+never the figure.
 
 Return the COMPLETE document, not just the revised part."""
 

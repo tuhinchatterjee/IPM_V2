@@ -63,6 +63,51 @@ class TestTheSuiteCoversWhatItClaims:
         assert outcome.passed is False
         assert "no such check" in outcome.detail
 
+    def test_one_check_can_be_re_run_without_paying_for_the_rest(self):
+        """After the first live run, three checks failed and re-testing them
+        cost all twelve provider calls."""
+        suite = live_playbook.run_some(["not-a-check"])
+        assert len(suite.outcomes) == 1
+        assert suite.passed is False
+
+    def test_an_unknown_id_in_a_re_run_fails_rather_than_running_nothing(self):
+        """A typo that quietly ran nothing would read as success."""
+        assert live_playbook.run_some(["typo"]).outcomes[0].passed is False
+
+    def test_every_check_is_bounded(self):
+        """The first live run hung until Ctrl+C. The provider deadline is the
+        real fix; this is the backstop that keeps the suite reportable."""
+        assert live_playbook.CHECK_TIMEOUT_SECONDS > 0
+        from backend.playbook import provider
+        assert (live_playbook.CHECK_TIMEOUT_SECONDS
+                >= provider.RUN_DEADLINE_SECONDS), (
+            "a check must not be abandoned before the provider call inside it "
+            "has had its own chance to time out and report properly")
+
+    def test_a_check_that_wedges_is_reported_and_the_run_continues(self,
+                                                                   monkeypatch):
+        import time as _time
+
+        monkeypatch.setattr(live_playbook, "CHECK_TIMEOUT_SECONDS", 0.2)
+        monkeypatch.setitem(live_playbook.RUNNERS, "author_model",
+                            lambda: _time.sleep(30))
+        outcome = live_playbook.run("author_model")
+        assert outcome.passed is False
+        assert outcome.error_category == "timeout"
+        assert "not counted as a pass" in outcome.detail
+
+    def test_progress_is_reported_before_and_after_each_check(self,
+                                                              monkeypatch):
+        """So a run that costs minutes shows what it is doing while it does
+        it, rather than nothing until the end."""
+        seen = []
+        monkeypatch.setitem(
+            live_playbook.RUNNERS, "author_model",
+            lambda: live_playbook.Outcome(check="author_model", passed=True))
+        live_playbook.run("author_model",
+                          on_progress=lambda stage, cid: seen.append((stage, cid)))
+        assert seen == [("start", "author_model"), ("end", "author_model")]
+
     def test_the_suite_works_in_its_own_tenant(self):
         """A live run must not be able to write into the demonstration or
         into a real user's workspace."""

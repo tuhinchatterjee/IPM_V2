@@ -196,12 +196,18 @@ def retry_source(session, scope: repo.Scope, source_id: int):
 def ledger_for(session, scope: repo.Scope, workspace_id: int, *,
                source_ids: list[int] | None = None,
                export_revision_ids: list[int] | None = None,
-               calculations: list | None = None) -> ev.Ledger:
+               calculations: list | None = None,
+               artifact_id: int | None = None) -> ev.Ledger:
     """Assemble the evidence for one request from what was explicitly chosen.
 
     Nothing is included by being nearby. An empty selection produces an empty
     ledger, and the caller is expected to say so rather than quietly widening
     the search.
+
+    `artifact_id` is the one exception, and it is not "nearby": it is the
+    document the request is about. Passing it admits the approved current
+    version as evidence, so a revision may restate what that version already
+    said. See `add_current_version`.
     """
     ledger = ev.Ledger()
     for source in repo.sources(session, workspace_id):
@@ -232,6 +238,41 @@ def ledger_for(session, scope: repo.Scope, workspace_id: int, *,
 
     if calculations:
         ev.add_calculations(ledger, calculations)
+    if artifact_id:
+        add_current_version(session, ledger, artifact_id)
+    return ledger
+
+
+def add_current_version(session, ledger: ev.Ledger, artifact_id: int) -> ev.Ledger:
+    """Make the version being revised admissible evidence for its revision.
+
+    Without this, a revision is judged against the sources alone, so restating
+    a figure the APPROVED previous version already carried reads as inventing
+    it — and grounding strips a figure the user explicitly asked to keep.
+
+    This is not a loophole. Version 1's own figures were themselves reconciled
+    against the evidence when version 1 was written, so the chain of custody
+    holds: nothing becomes quotable here that was not quotable then. What it
+    does not do is excuse a NEW figure — anything the model adds still has to
+    trace to a source, an export, a calculation, or to this.
+    """
+    from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
+
+    artifact = session.get(PlaybookArtifact, artifact_id)
+    if artifact is None or artifact.current_version_id is None:
+        return ledger
+    version = session.get(PlaybookArtifactVersion, artifact.current_version_id)
+    if version is None:
+        return ledger
+
+    doc = D.Document.from_dict(version.content or {})
+    ledger.add(ev.Item(
+        locator=f"version://{artifact_id}/{version.version}",
+        kind="paragraph",
+        text=doc.plain_text(),
+        origin="version",
+        label=f"Approved version {version.version} of this document",
+    ))
     return ledger
 
 
@@ -587,7 +628,7 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
 
     ledger = ledger_for(session, scope, ws.id, source_ids=source_ids,
                         export_revision_ids=export_revision_ids,
-                        calculations=calculations)
+                        calculations=calculations, artifact_id=artifact_id)
 
     def milestone(state: str, detail: str = "") -> None:
         job.state = state if state in {"reviewing_sources", "drafting",

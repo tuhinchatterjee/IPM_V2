@@ -419,3 +419,125 @@ class TestTheInstructionIsFramedForTheJob:
         state = scripted_author(REPORT_MD)
         _run(db, scope, workspace, ledger)
         assert "CURRENT DOCUMENT" not in state["last_user"]
+
+
+class TestARevisionMayRestateWhatTheApprovedVersionSaid:
+    """PB-017, from the first live run's third failure.
+
+    A revision was judged against the sources alone. When the evidence attached
+    to the revision turn is narrower than the evidence version 1 was written
+    from — the ordinary case, since a user revising a summary rarely re-attaches
+    the whole workbook — every figure version 1 legitimately carried became
+    unsupported, and grounding stripped figures the user had explicitly asked
+    to keep.
+
+    Version 1's figures were themselves grounded when version 1 was written, so
+    admitting the approved version as evidence launders nothing.
+    """
+
+    DRAFT = ("# Report\n\n## 1. Summary\n\n"
+             "Weighted ECL was SAR 22.77 million and the Stage 2 population "
+             "was SAR 41.50 million.\n")
+
+    def _with_stage_2(self):
+        """The evidence version 1 is written from: the calculations, plus a
+        source stating the Stage 2 population."""
+        from backend.playbook import evidence as ev
+
+        led = ev.Ledger()
+        ev.add_calculations(led, list(oracle.headline().values()))
+        led.add(ev.Item("xlsx://Staging!B4", "sheet_range",
+                        "Stage 2 exposure 41.50"))
+        return led
+
+    def test_the_approved_version_is_in_the_ledger_for_its_revision(
+            self, db, scope, workspace, scripted_author):
+        scripted_author(self.DRAFT)
+        first = service.author_document(
+            db, scope, workspace.id, instruction="Draft it.",
+            ledger=self._with_stage_2(), title="Report")
+        assert first.grounding.ok is True
+
+        revised = service.ledger_for(
+            db, scope, workspace.id, artifact_id=first.artifact_id)
+        locators = [i.locator for i in revised.items]
+        assert f"version://{first.artifact_id}/1" in locators
+        assert "41.50" in revised.render()
+
+    def test_a_first_draft_admits_no_version_because_there_is_none(
+            self, db, scope, workspace):
+        led = service.ledger_for(db, scope, workspace.id, artifact_id=None)
+        assert not [i for i in led.items if i.origin == "version"]
+
+    def test_restating_a_version_one_figure_survives_a_narrower_revision(
+            self, db, scope, workspace, scripted_author):
+        """The live failure, reproduced: the workbook is not re-attached to the
+        revision turn, so 41.50 is traceable only to the approved version."""
+        scripted_author(self.DRAFT)
+        first = service.author_document(
+            db, scope, workspace.id, instruction="Draft it.",
+            ledger=self._with_stage_2(), title="Report")
+        assert "41.50" in first.document.plain_text()
+
+        scripted_author(
+            "# Report\n\n## 1. Summary\n\n"
+            "Weighted ECL reached SAR 22.77 million. The Stage 2 population "
+            "was SAR 41.50 million.\n")
+        second = service.author_document(
+            db, scope, workspace.id, instruction="Sharpen the summary.",
+            ledger=service.ledger_for(
+                db, scope, workspace.id, artifact_id=first.artifact_id,
+                calculations=list(oracle.headline().values())),
+            title="Report", artifact_id=first.artifact_id,
+            base_version_id=first.version_id,
+            task_kind="edit", task_scope="1. Summary")
+
+        assert second.grounding.ok is True, second.grounding.note()
+        assert "41.50" in second.document.plain_text()
+
+    def test_a_revision_still_cannot_introduce_a_new_figure(
+            self, db, scope, workspace, scripted_author):
+        scripted_author(self.DRAFT)
+        first = service.author_document(
+            db, scope, workspace.id, instruction="Draft it.",
+            ledger=self._with_stage_2(), title="Report")
+
+        scripted_author(
+            "# Report\n\n## 1. Summary\n\n"
+            "Weighted ECL was SAR 22.77 million. Provisions were SAR 88.30 "
+            "million.\n")
+        second = service.author_document(
+            db, scope, workspace.id, instruction="Sharpen the summary.",
+            ledger=service.ledger_for(
+                db, scope, workspace.id, artifact_id=first.artifact_id,
+                calculations=list(oracle.headline().values())),
+            title="Report", artifact_id=first.artifact_id,
+            base_version_id=first.version_id,
+            task_kind="edit", task_scope="1. Summary")
+
+        assert second.grounding.ok is False
+        assert "88.30" not in second.document.plain_text()
+
+    def test_a_revision_that_re_rounds_is_still_caught(
+            self, db, scope, workspace, scripted_author):
+        """Admitting the version must not smuggle in a tolerance: 8.95 stated
+        as 8.9 is a different number and is still removed."""
+        scripted_author(self.DRAFT)
+        first = service.author_document(
+            db, scope, workspace.id, instruction="Draft it.",
+            ledger=self._with_stage_2(), title="Report")
+
+        scripted_author(
+            "# Report\n\n## 1. Summary\n\n"
+            "Weighted ECL rose about 8.9 per cent.\n")
+        second = service.author_document(
+            db, scope, workspace.id, instruction="Sharpen the summary.",
+            ledger=service.ledger_for(
+                db, scope, workspace.id, artifact_id=first.artifact_id,
+                calculations=list(oracle.headline().values())),
+            title="Report", artifact_id=first.artifact_id,
+            base_version_id=first.version_id,
+            task_kind="edit", task_scope="1. Summary")
+
+        assert second.grounding.ok is False
+        assert "8.9 per cent" not in second.document.plain_text()
