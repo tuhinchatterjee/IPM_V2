@@ -70,6 +70,7 @@ PASS_1 = "sonnet_pass_1"
 PASS_2 = "sonnet_pass_2"
 FUNCTIONALITY = "opus_functionality_selection"
 PLAN = "opus_analysis_plan"
+REPAIR = "opus_plan_repair"
 SUFFICIENCY = "opus_sufficiency_review"
 INTERPRETATION = "opus_final_interpretation"
 SUMMARY = "sonnet_summary_update"
@@ -145,6 +146,14 @@ STAGES: dict[str, Stage] = {
         # max_tokens arrives as a partial object and reads downstream as a
         # malformed reply, which is a confusing way to discover a budget.
         max_tokens=4000),
+    REPAIR: Stage(
+        key=REPAIR, family=OPUS, role="critic",
+        purpose="early_warning_repair",
+        tool_name="repair_the_plan",
+        tool_description=(
+            "Fix the steps the validator refused, told exactly what was "
+            "wrong and what the domain offers instead."),
+        max_tokens=2500),
     SUFFICIENCY: Stage(
         key=SUFFICIENCY, family=OPUS, role="critic",
         purpose="early_warning_sufficiency",
@@ -532,8 +541,8 @@ def _settle(ledger: budget_mod.Ledger | None, stage: Stage,
 
 
 __all__ = ["DETERMINISTIC", "FUNCTIONALITY", "INTERPRETATION", "MODEL",
-           "OPUS", "Outcome", "PASS_1", "PASS_2", "PLAN", "SONNET", "STAGES",
-           "SUFFICIENCY", "SUMMARY", "Stage", "call", "family_of",
+           "OPUS", "Outcome", "PASS_1", "PASS_2", "PLAN", "REPAIR", "SONNET",
+           "STAGES", "SUFFICIENCY", "SUMMARY", "Stage", "call", "family_of",
            "provider_available", "routing"]
 
 #: Exposed for the tests: the generic coercion is the part most likely to be

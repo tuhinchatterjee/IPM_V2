@@ -226,7 +226,13 @@ def test_a_failure_packet_carries_what_a_repair_needs():
     found = val.failure_packet(plan, result, package, question="q",
                                remaining={"executions": 3})
     assert found["available_periods"], "no periods offered"
-    assert found["available_fields"], "no fields offered"
+    assert found["allowed_groupings"], "no groupings offered"
+    # The whole field list is two and a half thousand names and would be most
+    # of the repair prompt. What the failure itself offered goes in; the size
+    # of the domain is stated rather than enumerated.
+    assert found["field_count"] > 2000
+    assert found["unsupported"], "the failure is not described as unsupported"
+    assert found["unsupported"][0]["status"] == "unsupported"
     assert found["domain"] == grain_mod.DOMAIN_ID
     assert found["remaining_budget"] == {"executions": 3}
 

@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.early_warning import dictionary as dic
+from backend.early_warning import executable as ex
 from backend.early_warning import grain as grain_mod
 
 #: What an analysis step is FOR. Each maps to a governed executor.
@@ -344,27 +345,19 @@ def _population_filters(inherited: dict[str, Any], scope: str
 
 
 def _resolve_grouping(asked: str, package: grain_mod.GrainPackage) -> str:
-    """Which real field a grouping word names, or nothing."""
+    """Which real field a grouping word names, or nothing.
+
+    Through the one governed alias map, and no further. The substring rule
+    that used to sit here — "if the word appears anywhere in a field name,
+    take that field" — matched `band` to `classifier_band` as readily as to
+    `ews_band` and `sub` to `dominant_subcategory` as readily as to nothing,
+    which is a grouping chosen by alphabetical accident. An unrecognised word
+    now resolves to nothing, and the reader is asked.
+    """
     if not asked:
         return ""
-    text = asked.strip().lower()
-    if text in package.groupings:
-        return text
-    aliases = {
-        "grade": "internal_rating", "rating": "internal_rating",
-        "internal grade": "internal_rating", "stage": "ifrs9_stage",
-        "ifrs 9 stage": "ifrs9_stage", "band": "ews_band",
-        "severity": "ews_band", "layer": "dominant_layer",
-        "industry": "sector", "rm": "relationship_manager",
-        "branch": "region", "geography": "region",
-    }
-    resolved = aliases.get(text, "")
-    if resolved in package.groupings:
-        return resolved
-    for name in package.groupings:
-        if text in name or name in text:
-            return name
-    return ""
+    resolved = ex.normalise(asked, role=ex.GROUP_BY)
+    return resolved if resolved in package.groupings else ""
 
 
 def field_is_known(name: str) -> bool:

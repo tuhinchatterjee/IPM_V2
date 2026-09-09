@@ -426,12 +426,12 @@ Backend, `tests/early_warning/` + `tests/evals/test_early_warning_brain.py` +
 `tests/api/`, with PostgreSQL running:
 
 ```
-30 failed, 2343 passed, 66 skipped, 8 errors in 369.51s
+30 failed, 2384 passed, 66 skipped, 8 errors in 376.33s
 ```
 
 | | |
 |---|---|
-| Passed | **2,343** |
+| Passed | **2,384** |
 | Non-passing identifiers | **38** (30 failed + 8 errors) |
 | — Forward Risk Signal (Early Warning) | 5 — 2 failed, 3 errors, all pre-existing |
 | — credit-book API fixtures | 33 — 28 failed, 5 errors, all pre-existing |
@@ -453,6 +453,7 @@ Suites that matter here, run individually:
 | `test_model_seam.py` | 26 passed |
 | `test_opus_plan_contract.py` | 31 passed |
 | `test_closing_reserve.py` | 17 passed |
+| `test_executable_contract.py` | 41 passed |
 | `test_signal_universe.py` | 22 passed |
 | `test_conversation_routing.py` | 76 passed, 1 skipped |
 | `test_conversation_pipeline.py` | 21 passed |
@@ -596,12 +597,91 @@ closing stages running past the soft deadline, the hard deadline still stopping
 them, the revision being declined rather than the answer, the reserve not being
 extra budget, and the ledger reconciling.
 
+### Defect 3 — an unsupported grouping escaped validation
+
+The second live run reached the real Opus planner and then crashed:
+
+```
+pipeline._analyse → execute.run(step) → facts.level(step.group_by, step.period)
+KeyError: 'dominant_subcategory'
+```
+
+**What `dominant_subcategory` is.** A real field. It is on the borrower-month
+row, in the wide view, in the dictionary, and it was advertised by the grain
+package as one of the eleven groupings a planner might use. Opus did not invent
+it, and it is a legitimate partition of the book — it is exactly what "which
+sub-category is driving the high-risk population?" needs. So of the three
+outcomes the brief names, this is the third: a legitimate derived grouping that
+should be supported, and now is.
+
+**What actually broke.** There were two registries. `grain.GROUPINGS` told the
+planner what it could group by; `facts.LEVEL_FIELDS` decided what execution
+would accept. They agreed on most entries and disagreed on four, and nothing
+checked. That is not a missing string — it is what two sources of truth for one
+capability always eventually produce.
+
+`backend/early_warning/executable.py` is now the only one. `facts.LEVEL_FIELDS`
+is built from it, the grain package advertises it, the validator checks against
+it, and the planner is shown it. All **twelve** groupings execute, and a test
+runs every one of them rather than checking that a name is in a list.
+
+| | |
+|---|---|
+| Groupings, all executable | segment, sector, region, relationship manager, internal grade, IFRS 9 stage, Early Warning band, T&A band, Classifier band, dominant layer, **dominant sub-category**, utilisation band |
+| Newly executable | `dominant_subcategory`, `ta_band`, `classifier_band` |
+| Newly advertised | `utilisation_band` (it was executable and unadvertised) |
+
+**Being described is not being executable.** The dictionary describes 2,521
+columns; twelve are partitions of the book. Grouping by
+`sig042_covenant_breach_event_score` gives three hundred groups of one, and so
+does `customer_name`. Capability is now recorded per **role**, and the validator
+checks `group_by`, every measure, every filter field and the sort field against
+the rule for that role — plus the subject each analysis needs, so a borrower
+step with no obligor is refused rather than failing in the executor.
+
+**No rows are lost.** `dominant_subcategory` is empty for any obligor with no
+fired signal — most of them in a quiet month — and a `groupby` drops null rows
+silently. It is filled with `none`, and a test asserts every grouping accounts
+for all 300 obligors.
+
+**One governed alias map**, exact and curated: `grade` → `internal_rating`,
+`stage` → `ifrs9_stage`, `sub_category` → `dominant_subcategory`, `ead` →
+`exposure`. Role-aware, because "group by utilisation" means the band and "show
+utilisation" means the percentage. **No fuzzy matching** — the substring rule
+that used to sit in the planner matched `band` to whichever of `ews_band` and
+`classifier_band` sorted first. An unknown name now comes through unchanged, so
+the refusal names what the planner wrote.
+
+**The repair packet** carries what the brief specifies —
+`requested_grouping`, `status: unsupported`, `allowed_groupings`,
+`relevant_available_fields` — and goes back to Opus as a new
+`opus_plan_repair` stage under the `critic` role, spending from the same
+ledger. Once: a second failed correction is repaired deterministically, which
+terminates.
+
+**Nothing raw escapes.** Every failure leaves the executor as an
+`ExecutionError` with a code and what the domain offers instead; the turn has an
+outer boundary that turns anything unexpected into a stated limitation with the
+thread persisted. `facts.level` raises a named `UnsupportedLevel` (still a
+`KeyError` subclass, so nothing that caught one stops catching it) whose message
+lists the twelve.
+
+`tests/early_warning/test_executable_contract.py`: **41 passed** — the exact
+live question through every stage, the crashing grouping validating and running,
+the one-registry invariant, every grouping executed and reconciled to 300
+obligors, role-separated validation, the alias map, the repair packet shape, and
+seven adversarial plans (a nonexistent grouping, an aliased real field, a
+nonexistent measure, a valid field that is the wrong type for grouping, a
+measure used as a partition, a source-domain field not materialised here, and an
+aliased measure) each normalised or repaired before execution.
+
 ### What was NOT changed
 
 The What-If journey, the functionality gate, the domain locks, the 20-month
 domain, the 2,521-field universe, the 123/105/18 reconciliation, the scoring
-engine, Rawabi at 56 MEDIUM, the action and escalation workflow, Messages,
-Investigations, the reports and the thread semantics.
+engine, Rawabi at 56 MEDIUM, the Sonnet/Opus assignments, the closing reserve,
+the action and escalation workflow, Messages, Investigations, the reports and
+the thread semantics.
 
 ---
 

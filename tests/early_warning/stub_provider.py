@@ -203,7 +203,30 @@ def _summarise(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
             "unresolved": [], "next_drills": []}
 
 
+def _repair_plan(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
+    """A repair that does what a good one does: fix what was named.
+
+    Drops any step the packet reports as unsupported and leaves the rest, so
+    a test asserting "the repair happened" is asserting the seam rather than
+    the stub's cleverness.
+    """
+    del behaviour
+    refused = {int(u.get("step", -1))
+               for u in (packet.get("unsupported") or [])}
+    steps = [dict(s) for i, s in enumerate(
+        (packet.get("plan") or {}).get("steps") or []) if i not in refused]
+    if not steps:
+        steps = [{"analysis": "population", "domain": "early_warning",
+                  "rationale": "the position, after the refused steps went"}]
+    return {"steps": steps,
+            "output_grain": (packet.get("plan") or {}).get("output_grain")
+            or "population_month",
+            "intent": (packet.get("plan") or {}).get("intent") or "",
+            "notes": []}
+
+
 _ANSWERS = {
+    "repair_the_plan": _repair_plan,
     "clean_the_question": _clean,
     "read_the_business_request": _read,
     "select_functionality": _select,

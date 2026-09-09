@@ -50,6 +50,7 @@ import pandas as pd
 
 from backend.early_warning import aggregation as agg
 from backend.early_warning import classifiers_v2 as clf
+from backend.early_warning import executable as ex
 from backend.early_warning import reasons
 from backend.early_warning import v2_service as svc
 
@@ -89,17 +90,15 @@ TA_LAYER_WEIGHTS = agg.TA_LAYER_WEIGHTS
 #: The columns that can partition the book into a level. The deck is explicit
 #: that the grouping field is not fixed: any obligor attribute or classifier
 #: can become the level the screen renders at.
-LEVEL_FIELDS: dict[str, str] = {
-    "segment": "Corporate segment",
-    "sector": "Sector",
-    "internal_rating": "Internal grade",
-    "ifrs9_stage": "IFRS 9 stage",
-    "region": "Region",
-    "relationship_manager": "Relationship manager",
-    "ews_band": "Early warning severity",
-    "dominant_layer": "Dominant layer",
-    "utilisation_band": "Utilisation band",
-}
+#: The levels the book can be cut by, read from the one capability registry.
+#:
+#: This used to be a second list beside `grain.GROUPINGS`, and the two
+#: disagreed on four entries. Nothing checked, so a plan grouping by
+#: `dominant_subcategory` — advertised there, absent here — passed validation
+#: and raised KeyError in `level()`, taking the whole turn with it. Both now
+#: read `executable.GROUPINGS`, so a level that cannot be executed cannot be
+#: advertised either.
+LEVEL_FIELDS: dict[str, str] = dict(ex.GROUPINGS)
 
 LAYER_NAMES = {
     "L1": "Layer 1, internal behavioural",
@@ -107,6 +106,27 @@ LAYER_NAMES = {
     "L3": "Layer 3, external intelligence",
     "L4": "Layer 4, network",
 }
+
+
+class UnsupportedLevel(KeyError):
+    """A level this domain cannot partition the book by.
+
+    A KeyError subclass so nothing that already caught KeyError stops
+    catching it, and a named type so the conversational executor can turn it
+    into a repair packet rather than letting it end the turn. The message is
+    written for the person reading the trace.
+    """
+
+    def __init__(self, field_name: str, message: str = "") -> None:
+        self.field_name = field_name
+        self.message = message or (
+            f"{field_name!r} is not a level the Early Warning book can be "
+            f"partitioned by. The levels are: "
+            f"{', '.join(sorted(ex.GROUPINGS))}.")
+        super().__init__(self.message)
+
+    def __str__(self) -> str:  # KeyError repr quotes its argument
+        return self.message
 
 
 @dataclass
@@ -233,16 +253,32 @@ def _dominant_layer(layer_scores: dict[str, float]) -> str | None:
 
 
 def _with_derived(frame: pd.DataFrame) -> pd.DataFrame:
-    """Add the level columns that are derived rather than stored."""
+    """Add the level columns that are derived, and fill the ones that are
+    absent for part of the book.
+
+    Both halves matter. A derived level nobody derives is a KeyError; a
+    nullable level nobody fills is worse, because `groupby` drops those rows
+    silently and the answer reports a partition of the book that is not the
+    book. Most obligors have no fired signal in a quiet month, so
+    `dominant_subcategory` is empty for most of them, and a table that
+    quietly excluded them would understate the population it claims to
+    describe.
+    """
     out = frame.copy()
     if "layer_dimension_scores" in out.columns:
         out["dominant_layer"] = out["layer_dimension_scores"].apply(
-            lambda s: _dominant_layer(s or {}) or "none")
+            lambda s: _dominant_layer(s or {}) or ex.NO_VALUE)
     if "utilisation_pct" in out.columns:
         out["utilisation_band"] = pd.cut(
             out["utilisation_pct"], bins=[-0.01, 50, 75, 90, 100, 1e9],
             labels=["under 50%", "50-75%", "75-90%", "90-100%", "over limit"])
         out["utilisation_band"] = out["utilisation_band"].astype(str)
+    for column in ex.NULLABLE_GROUPINGS:
+        if column in out.columns:
+            filled = out[column].astype("object").where(
+                out[column].notna(), ex.NO_VALUE)
+            out[column] = [ex.NO_VALUE if str(v).strip() in ("", "nan")
+                           else str(v) for v in filled]
     return out
 
 
@@ -503,8 +539,17 @@ def level(field_name: str, period: str | None = None) -> FactPack:
     """
     period = period or svc.latest_period()
     if field_name not in LEVEL_FIELDS:
-        raise KeyError(field_name)
+        raise UnsupportedLevel(field_name)
     bm = _with_derived(svc.borrower_month(period))
+    if field_name not in bm.columns:
+        # The registry says this level exists and the frame does not have it.
+        # That is a build or a derivation problem rather than a bad request,
+        # and it is worth saying so plainly rather than raising a KeyError a
+        # caller will read as "the planner asked for something silly".
+        raise UnsupportedLevel(
+            field_name,
+            f"{field_name!r} is a governed level but the published rows do "
+            f"not carry it. The domain may need rebuilding.")
     rows = []
     for value, group in bm.groupby(field_name):
         stats = _population_figures(group)

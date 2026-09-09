@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.early_warning import dictionary as dic
+from backend.early_warning import executable as ex
 from backend.early_warning import grain as grain_mod
 from backend.early_warning.conversation import plan as plan_mod
 
@@ -76,11 +77,23 @@ class Failure:
     #: What the domain actually offers, where the failure is about a name.
     offered: list[str] = field(default_factory=list)
     repairable: bool = True
+    #: The name that failed, and what it was being used AS. A repair that
+    #: knows only "unknown field" has to guess which of a step's four field
+    #: slots to touch; one that knows the role fixes the right one, and an
+    #: unhonourable FILTER is a different problem from a mistyped measure —
+    #: dropping the filter would quietly widen the population.
+    field_name: str = ""
+    role: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {"code": self.code, "message": self.message,
-                "step_index": self.step_index, "offered": list(self.offered),
-                "repairable": self.repairable}
+        out = {"code": self.code, "message": self.message,
+               "step_index": self.step_index, "offered": list(self.offered),
+               "repairable": self.repairable}
+        if self.field_name:
+            out["field"] = self.field_name
+        if self.role:
+            out["role"] = self.role
+        return out
 
 
 @dataclass
@@ -90,6 +103,10 @@ class Result:
     ok: bool = True
     failures: list[Failure] = field(default_factory=list)
     checked: list[str] = field(default_factory=list)
+    #: Every name the governed alias map rewrote, so the trace shows what was
+    #: run rather than only what was asked for. A silent rename is a plan the
+    #: reader cannot reconcile against their own question.
+    normalised: list[dict[str, str]] = field(default_factory=list)
 
     @property
     def repairable(self) -> bool:
@@ -97,7 +114,37 @@ class Result:
 
     def to_dict(self) -> dict[str, Any]:
         return {"ok": self.ok, "checked": list(self.checked),
+                "normalised": [dict(n) for n in self.normalised],
                 "failures": [f.to_dict() for f in self.failures]}
+
+
+def _normalise_step(step: plan_mod.Step, index: int) -> list[dict[str, str]]:
+    """Rewrite the step's field names through the one governed alias map.
+
+    In place, before any check, and recorded. Role-aware: "utilisation" as a
+    partition means the band, because grouping three hundred obligors by a
+    percentage produces three hundred groups of one; as a measure it means the
+    percentage. One word, two right answers, decided by what it is being used
+    for rather than by which map was consulted first.
+    """
+    changed: list[dict[str, str]] = []
+
+    def rename(before: str, role: str) -> str:
+        after = ex.normalise(before, role=role)
+        if after != before:
+            changed.append({"step": str(index), "role": role,
+                            "from": before, "to": after})
+        return after
+
+    if step.group_by:
+        step.group_by = rename(step.group_by, ex.GROUP_BY)
+    if step.order_by:
+        step.order_by = rename(step.order_by, ex.ORDER_BY)
+    step.measures = [rename(m, ex.MEASURE) for m in step.measures]
+    if step.filters:
+        step.filters = {rename(k, ex.FILTER): v
+                        for k, v in step.filters.items()}
+    return changed
 
 
 def _near(name: str, known: list[str], limit: int = 4) -> list[str]:
@@ -163,6 +210,16 @@ def check(plan: plan_mod.Plan, package: grain_mod.GrainPackage, *,
             repairable=True))
 
     for index, step in enumerate(plan.steps):
+        # ---- one governed semantic mapping, before anything is checked ---
+        #
+        # A planner that wrote "grade" meant `internal_rating`, and refusing
+        # it would be refusing a correct request over a synonym. The map is
+        # exact and curated — see `executable.FIELD_ALIASES` — so a name it
+        # does not know comes through untouched and is refused BY THE NAME
+        # THE PLANNER WROTE, which is the name the repair packet has to
+        # carry for the repair to mean anything.
+        result.normalised.extend(_normalise_step(step, index))
+
         # ---- domain -----------------------------------------------------
         named = str(step.domain or "").strip().lower()
         if named != ALLOWED_DOMAIN:
@@ -191,22 +248,79 @@ def check(plan: plan_mod.Plan, package: grain_mod.GrainPackage, *,
                 step_index=index,
                 offered=list(plan_mod.ANALYSIS_TYPES)))
 
-        # ---- schema -----------------------------------------------------
-        for name in step.referenced_fields:
-            if name not in dic.names():
-                result.failures.append(Failure(
-                    code="unknown_field",
-                    message=(f"Step {index} references {name!r}, which is not "
-                             f"a field in the Early Warning domain."),
-                    step_index=index, offered=_near(name, known)))
+        # ---- schema, by the role each field is used in -------------------
+        #
+        # Checked per role rather than once against the dictionary, because
+        # the dictionary is not the answer to every question about a field.
+        # `exposure` is a fine measure and a meaningless partition of the
+        # book; `sig042_covenant_breach_event_score` is a readable column and
+        # would produce three hundred groups of one. Being DESCRIBED is not
+        # being EXECUTABLE, and conflating the two is what let a plan pass
+        # validation and then raise inside the fact builder.
+        for role, names in (
+                (ex.MEASURE, list(step.measures)),
+                (ex.FILTER, list(step.filters)),
+                (ex.ORDER_BY, [step.order_by] if step.order_by else [])):
+            for name in names:
+                if not ex.supports(name, role=role):
+                    result.failures.append(Failure(
+                        code="unknown_field",
+                        message=(f"Step {index} uses {name!r} as a {role}, "
+                                 f"and it is not a field this domain can "
+                                 f"read."),
+                        step_index=index, field_name=name, role=role,
+                        offered=ex.alternatives(name, role=role)))
 
         # ---- grain ------------------------------------------------------
-        if step.group_by and step.group_by not in package.groupings:
+        if step.group_by and not ex.supports(step.group_by, role=ex.GROUP_BY):
             result.failures.append(Failure(
                 code="ungroupable",
-                message=(f"Step {index} groups by {step.group_by!r}, which is "
-                         f"not a field the book can be partitioned by."),
-                step_index=index, offered=sorted(package.groupings)))
+                message=(f"Step {index} groups by {step.group_by!r}. The book "
+                         f"can be partitioned by "
+                         f"{', '.join(sorted(ex.GROUPINGS))} and by nothing "
+                         f"else — a field being readable does not make it a "
+                         f"level."),
+                step_index=index, field_name=step.group_by,
+                role=ex.GROUP_BY, offered=sorted(ex.GROUPINGS)))
+
+        if step.analysis == plan_mod.GROUPING and not step.group_by:
+            result.failures.append(Failure(
+                code="ungroupable",
+                message=(f"Step {index} is a grouping and names no field to "
+                         f"group by."),
+                step_index=index, offered=sorted(ex.GROUPINGS)))
+
+        # ---- the subject each analysis needs ------------------------------
+        #
+        # A borrower step with no obligor and an evidence step with no
+        # obligor are both unexecutable, and both used to reach the executor
+        # and fail there. What an analysis needs is part of whether the plan
+        # is valid.
+        if step.analysis in (plan_mod.BORROWER, plan_mod.EVIDENCE) \
+                and not step.customer_id:
+            result.failures.append(Failure(
+                code="missing_subject",
+                message=(f"Step {index} is a {step.analysis} and names no "
+                         f"obligor. Which obligor is a question for the "
+                         f"reader, not something to pick."),
+                step_index=index, offered=[], repairable=False))
+
+        if step.analysis == plan_mod.LAYER and step.layer \
+                and step.layer.upper() not in ("L1", "L2", "L3", "L4"):
+            result.failures.append(Failure(
+                code="unknown_layer",
+                message=(f"Step {index} asks for layer {step.layer!r}. The "
+                         f"model has four."),
+                step_index=index, offered=["L1", "L2", "L3", "L4"]))
+
+        if step.analysis == plan_mod.MOVEMENT and not step.comparison_period:
+            result.failures.append(Failure(
+                code="missing_comparison",
+                message=(f"Step {index} is a movement and names nothing to "
+                         f"measure the movement against."),
+                step_index=index,
+                offered=[p for p in package.periods
+                         if not step.period or p < step.period][-3:]))
 
         if step.analysis in (plan_mod.POPULATION, plan_mod.GROUPING) and \
                 "exposure" in step.measures and not step.period:
@@ -266,16 +380,54 @@ def failure_packet(plan: plan_mod.Plan, result: Result,
     again; one told which fields exist fixes it, which is the difference
     between a repair loop that converges and one that burns the budget.
     """
+    # Per-failure detail in the shape a repair can act on directly: what was
+    # asked for, that it is unsupported, and what the domain offers instead.
+    # A planner told "invalid field" guesses again.
+    unsupported: list[dict[str, Any]] = []
+    for failure in result.failures:
+        if failure.code not in ("ungroupable", "unknown_field",
+                                "unknown_analysis", "unknown_period",
+                                "unknown_layer", "future_leakage",
+                                "missing_comparison"):
+            continue
+        step = (plan.steps[failure.step_index]
+                if 0 <= failure.step_index < len(plan.steps) else None)
+        entry: dict[str, Any] = {
+            "step": failure.step_index,
+            "status": "unsupported",
+            "reason": failure.code,
+            "message": failure.message,
+        }
+        if failure.code == "ungroupable" and step is not None:
+            entry["requested_grouping"] = step.group_by
+            entry["allowed_groupings"] = sorted(ex.GROUPINGS)
+            entry["relevant_available_fields"] = sorted(package.groupings)
+        else:
+            entry["offered"] = list(failure.offered)
+        unsupported.append(entry)
+
+    # The full field list is two and a half thousand names and would be most
+    # of the repair prompt. The groupings are twelve and go in whole; the
+    # fields are represented by what this plan actually needs.
+    relevant: list[str] = []
+    for failure in result.failures:
+        for name in failure.offered:
+            if name not in relevant:
+                relevant.append(name)
+
     return {
         "question": question,
         "plan": plan.to_dict(),
         "failures": [f.to_dict() for f in result.failures],
+        "unsupported": unsupported,
         "repairable": result.repairable,
         "domain": ALLOWED_DOMAIN,
+        "normalised": [dict(n) for n in result.normalised],
         "available_periods": list(package.periods),
-        "available_fields": sorted(dic.names()),
-        "available_groupings": sorted(package.groupings),
+        "allowed_groupings": sorted(ex.GROUPINGS),
+        "relevant_available_fields": relevant[:40],
         "available_analyses": list(plan_mod.ANALYSIS_TYPES),
+        "field_count": len(dic.names()),
         "remaining_budget": dict(remaining or {}),
     }
 

@@ -19,21 +19,34 @@ What comes back
 Exact executed results, with the row count, the grain and the statements
 that produced them. A result nobody can check against what was run is a
 result the prose can quietly exceed.
+
+Nothing raw escapes
+-------------------
+Every failure leaves this module as an `ExecutionError` carrying a code and
+what the domain offers instead, because the pipeline already knows how to
+turn that into a repair or an honest limitation. An unexpected exception
+escaping here would end the conversational turn — no answer, no partial
+answer, no explanation — for a reader who asked an ordinary question. That
+is what a governed runtime is for.
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
 
+from backend.early_warning import executable as ex
 from backend.early_warning import facts as ff
 from backend.early_warning import grain as grain_mod
 from backend.early_warning import v2_service as svc
 from backend.early_warning import wide
 from backend.early_warning.conversation import plan as plan_mod
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionError(RuntimeError):
@@ -140,7 +153,49 @@ def _plain(value: Any) -> Any:
 
 
 def run(step: plan_mod.Step) -> Executed:
-    """Execute one validated step."""
+    """Execute one validated step, or fail in a way the turn can survive.
+
+    The last boundary. Validation is meant to catch everything this module
+    cannot run, and for the case that started this — a grouping the validator
+    approved and the fact builder could not perform — it now does. But a
+    control whose only guarantee is that the check upstream is complete is a
+    control that ends a conversation the day the check is not.
+
+    So anything unexpected in here becomes an `ExecutionError`, which the
+    pipeline already handles as a repair-or-say-so path. A KeyError escaping
+    to the caller takes the whole turn with it: no answer, no partial answer,
+    no explanation — a 500 where the reader asked a question.
+    """
+    try:
+        return _run(step)
+    except ExecutionError:
+        raise
+    except ff.UnsupportedLevel as failure:
+        raise ExecutionError(
+            str(failure), code="ungroupable",
+            offered=sorted(ex.GROUPINGS)) from failure
+    except KeyError as failure:
+        # A field the executor reached for and did not find. Named, because
+        # `KeyError('dominant_subcategory')` in a log is a better clue than
+        # anything a generic message would say.
+        missing = str(failure).strip("'\"")
+        logger.warning("An Early Warning %s step reached for %r and did not "
+                       "find it.", step.analysis, missing)
+        raise ExecutionError(
+            f"The {step.analysis} step reached for {missing!r}, which this "
+            f"domain does not carry where it was looked for.",
+            code="unknown_field",
+            offered=ex.alternatives(missing, role=ex.MEASURE)) from failure
+    except Exception as failure:  # noqa: BLE001 - a turn must survive this
+        logger.exception("An Early Warning %s step failed.", step.analysis)
+        raise ExecutionError(
+            f"The {step.analysis} step could not be completed: "
+            f"{type(failure).__name__}: {failure}",
+            code="execution_failed") from failure
+
+
+def _run(step: plan_mod.Step) -> Executed:
+    """The step itself."""
     started = time.perf_counter()
     analysis = step.analysis
 

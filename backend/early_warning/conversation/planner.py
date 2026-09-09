@@ -454,10 +454,72 @@ def _steps(data: dict[str, Any]) -> list[plan_mod.Step]:
     return out
 
 
+REPAIR_SYSTEM = """You are repairing an Early Warning analysis plan that the \
+governed validator refused. You are told exactly what it refused and what the \
+domain offers instead.
+
+Return the WHOLE plan, corrected. Keep every step whose purpose still stands \
+and change only what the failures name.
+
+WHAT USUALLY NEEDS FIXING
+- A grouping the book cannot be partitioned by. The allowed groupings are \
+given in full; there are twelve of them and one of them is almost always what \
+was meant. A field being readable does not make it a level: grouping by a \
+customer name or a score gives one group per obligor.
+- A field that does not exist under that name. The nearest real names are \
+given.
+- A period that was never published, or a comparison period that is not \
+earlier than the period.
+
+IF NOTHING FITS
+Drop the step rather than substituting a different question. A step that \
+answers something nobody asked is worse than a part of the request the answer \
+says it could not cover."""
+
+
+def repair(request: Any, package: grain_mod.GrainPackage,
+           refused: plan_mod.Plan, packet: dict[str, Any],
+           fallback: plan_mod.Plan, *, ledger: Any = None) -> plan_mod.Plan:
+    """The plan Opus corrected, or the deterministic repair and why.
+
+    Spends from the same ledger as everything else — a repair loop that
+    started fresh each time is the specific failure the one-ledger design
+    exists to prevent — and falls back to the deterministic repair when the
+    model is unavailable or its correction is unusable.
+    """
+    outcome = seam_mod.call(
+        seam_mod.REPAIR, system=REPAIR_SYSTEM,
+        prompt=("Repair this Early Warning plan.\n\n"
+                + json.dumps(packet, indent=2, default=str)),
+        schema=SCHEMA, ledger=ledger, tidy=tidy)
+    if not outcome.used_model:
+        fallback.model_call = outcome.to_dict()
+        return fallback
+
+    steps = _steps(outcome.data)
+    if not steps:
+        fallback.model_call = dict(
+            outcome.to_dict(), engine=seam_mod.DETERMINISTIC,
+            fallback_reason="the repair named no usable step")
+        return fallback
+
+    del request, package
+    return plan_mod.Plan(
+        steps=steps,
+        output_grain=str(outcome.data.get("output_grain")
+                         or refused.output_grain),
+        intent=str(outcome.data.get("intent") or refused.intent),
+        engine="model-repair",
+        notes=list(refused.notes) + [
+            str(n) for n in (outcome.data.get("notes") or [])][:3],
+        model_call=outcome.to_dict(),
+        fallback=fallback)
+
+
 def known_fields() -> frozenset[str]:
     """The allow-list the planner is held to, and the validator enforces."""
     return dic.names()
 
 
-__all__ = ["MAX_NAMED_FIELDS", "SAMPLE_ROWS", "SCHEMA", "SYSTEM",
-           "known_fields", "plan", "tidy"]
+__all__ = ["MAX_NAMED_FIELDS", "REPAIR_SYSTEM", "SAMPLE_ROWS", "SCHEMA",
+           "SYSTEM", "known_fields", "plan", "repair", "tidy"]

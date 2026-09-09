@@ -47,6 +47,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.early_warning import dictionary as dic
+from backend.early_warning import executable as ex
 from backend.early_warning import signal_fields as sigf
 from backend.early_warning import v2_service as svc
 from backend.early_warning import wide
@@ -65,19 +66,14 @@ GRAIN = ("customer_id", "snapshot_month")
 SAMPLE_ROWS = 3
 
 #: Every field a caller may group by, with the label a reader would use.
-GROUPINGS: dict[str, str] = {
-    "segment": "Segment",
-    "sector": "Sector",
-    "region": "Region",
-    "relationship_manager": "Relationship manager",
-    "internal_rating": "Internal grade",
-    "ifrs9_stage": "IFRS 9 stage",
-    "ews_band": "Early Warning band",
-    "ta_band": "T&A band",
-    "classifier_band": "Classifier band",
-    "dominant_layer": "Dominant layer",
-    "dominant_subcategory": "Dominant sub-category",
-}
+#: What the book can be cut by, read from the one capability registry.
+#:
+#: This used to be its own list, and it advertised four levels the execution
+#: layer could not run. A planner given a grouping the executor refuses is a
+#: planner being set up to fail, and the failure landed as a KeyError in the
+#: middle of a turn. Both this and `facts.LEVEL_FIELDS` now read
+#: `executable.GROUPINGS`.
+GROUPINGS: dict[str, str] = dict(ex.GROUPINGS)
 
 #: The analytical grains a question can legitimately ask for. Anything
 #: finer than the domain's own grain does not exist.

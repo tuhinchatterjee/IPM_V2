@@ -220,6 +220,94 @@ that obligor, because two thousand nulls teach a planner nothing.
 
 ---
 
+## One registry for what this domain can do
+
+There were two. `grain.GROUPINGS` told a planner which fields the book could be
+partitioned by; `facts.LEVEL_FIELDS` decided which ones the execution layer
+would accept. They agreed on most entries and disagreed on four, and nothing
+checked — so a plan grouping by `dominant_subcategory`, a real field advertised
+as a grouping, passed validation and raised `KeyError` inside the fact builder,
+taking the whole turn with it.
+
+That is not a missing string. It is what two sources of truth for one
+capability always eventually produce.
+
+`backend/early_warning/executable.py` is now the only one. `facts.LEVEL_FIELDS`
+is built from it, the grain package advertises it, the validator checks against
+it and the planner is shown it. A grouping added there becomes executable,
+advertised and validated in the same commit; one that cannot be executed cannot
+be advertised, because there is nowhere left to advertise it from.
+
+### Being described is not being executable
+
+The dictionary describes 2,521 columns and almost all of them can be read as a
+measure, a filter or a sort key. **Twelve** are partitions of the book. Grouping
+three hundred obligors by `sig042_covenant_breach_event_score` gives three
+hundred groups of one, and grouping by `customer_name` gives the same. So
+capability is recorded per **role** — what a field may be used AS — and the
+validator checks each of `group_by`, the measures, the filters and the sort key
+against the rule for that role rather than against one flat list of names.
+
+The twelve: segment, sector, region, relationship manager, internal grade,
+IFRS 9 stage, Early Warning band, T&A band, Classifier band, dominant layer,
+dominant sub-category, utilisation band. Two are derived at read time and one —
+dominant sub-category — is absent for any obligor with no fired signal, which is
+most of them in a quiet month. That value is filled rather than left null,
+because `groupby` drops null rows silently and the resulting table describes a
+partition of the book that is not the book.
+
+### One governed alias map
+
+`grade` means `internal_rating`. `stage` means `ifrs9_stage`. `sub_category`
+means `dominant_subcategory`. Each entry is a name a credit officer or a planner
+genuinely uses, and each maps to exactly one canonical field.
+
+There is no fuzzy matching. The substring rule that used to sit in the planner —
+"if the word appears anywhere in a field name, take that field" — matched `band`
+to whichever of `ews_band` and `classifier_band` sorted first, which is a
+grouping chosen by alphabetical accident. A name the map does not know now comes
+through **unchanged**, so the refusal names what the planner actually wrote,
+which is the name the repair packet has to carry for the repair to mean
+anything.
+
+The map is role-aware, because one word can have two right answers: "group by
+utilisation" means the band, and "show utilisation" means the percentage.
+
+### The repair packet, and who repairs
+
+A refusal returns what was asked for, that it is unsupported, and what the
+domain offers instead:
+
+```json
+{"requested_grouping": "customer_name",
+ "status": "unsupported",
+ "allowed_groupings": ["classifier_band", "dominant_layer", …],
+ "relevant_available_fields": [...]}
+```
+
+That goes back to the planner as `opus_plan_repair`, under the `critic` role —
+the role whose whole description is repairing a plan the validator rejected,
+told what was wrong. It spends from the same ledger as everything else.
+
+**Once.** A planner that could not fix it when told exactly what was wrong will
+not fix it on the second telling, and a repair loop that keeps asking spends the
+model calls the ANSWER needs on a correction that is not converging. The second
+repair is deterministic, which terminates.
+
+### Nothing raw escapes
+
+Validation is meant to catch everything the executor cannot run, and now does.
+But a control whose only guarantee is that the check upstream is complete is a
+control that ends a conversation the day the check is not.
+
+So every failure leaves the executor as an `ExecutionError` carrying a code and
+what the domain offers instead, and the turn itself has an outer boundary that
+turns anything unexpected into a stated limitation with the thread intact. A
+reader who asked an ordinary question gets an answer or a reason — never a stack
+trace.
+
+---
+
 ## Six controls on the domain boundary
 
 Not one of them is a prompt instruction.

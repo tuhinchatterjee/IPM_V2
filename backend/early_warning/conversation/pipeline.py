@@ -83,7 +83,7 @@ FUNCTIONALITY_SELECTED = "opus_functionality_selection"
 PLAN_CREATED = "opus_analysis_plan"
 VALIDATION_PASSED = "validation"
 VALIDATION_FAILED = "validation_failed"
-REPAIR_ATTEMPTED = "repair_attempted"
+REPAIR_ATTEMPTED = "opus_plan_repair"
 EXECUTION_COMPLETE = "execution"
 RESULT_PACKET = "result_packet"
 SUFFICIENCY_COMPLETE = "opus_sufficiency_review"
@@ -351,6 +351,17 @@ def answer(question: str, *, thread_id: str = "",
         turn.answer = _stopped(str(stop), turn)
         emit(STOPPED_HONESTLY, reason=str(stop))
         return _finish(turn, request, prior, ledger, ui_state, emit)
+    except Exception as failure:  # noqa: BLE001 - the turn must not 500
+        # The outermost boundary. Everything below it is meant to fail into a
+        # repair or an honest limitation, and this is what makes that a
+        # guarantee rather than a hope: a reader who asked an ordinary
+        # question gets a stated limitation and a persisted thread, not a
+        # stack trace.
+        logger.exception("An Early Warning turn failed unexpectedly.")
+        turn.answer = _broke(failure, turn)
+        emit(STOPPED_HONESTLY, reason=f"{type(failure).__name__}: {failure}",
+             unexpected=True)
+        return _finish(turn, request, prior, ledger, ui_state, emit)
 
 
 def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
@@ -393,13 +404,30 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
         # A repair spends from the SAME ledger. That is what stops a
         # repeatedly-failing plan from being affordable forever.
         ledger.repair()
-        packet_for_repair = val.failure_packet(
+        failure_packet = val.failure_packet(
             plan, checked, package,
             question=turn.question, remaining=ledger.remaining())
+        # The packet goes back to the planner that wrote the plan: what was
+        # refused, why, and what the domain offers instead. A planner told
+        # "invalid field" guesses again; one told which twelve groupings
+        # exist fixes it. Where no model is available the deterministic
+        # repair does the same job from the same packet.
+        #
+        # ONCE. A planner that could not fix it when told exactly what was
+        # wrong will not fix it on the second telling, and a repair loop that
+        # keeps asking is how a bounded turn becomes an unbounded one — it
+        # spends the model calls the ANSWER needs on a correction that is not
+        # converging. The second repair is deterministic, which terminates.
+        repaired = (_repair_with_model(plan, package, failure_packet, checked,
+                                       ledger)
+                    if ledger.repairs == 1
+                    else _repair(plan, checked, package))
         emit(REPAIR_ATTEMPTED, codes=[f.code for f in checked.failures],
-             repairs_spent=ledger.repairs)
-        plan = _repair(plan, checked, package)
-        del packet_for_repair
+             repairs_spent=ledger.repairs, engine=repaired.engine,
+             unsupported=[u.get("reason") for u in
+                          failure_packet.get("unsupported", [])],
+             model_call=dict(repaired.model_call))
+        plan = repaired
         checked = val.check(plan, package,
                             permissions=package.permissions or None)
 
@@ -412,12 +440,26 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
         try:
             executed.append(ex.run(step))
         except ex.ExecutionError as failure:
+            # The last boundary held: the executor refused rather than
+            # raising, and the refusal carries what the domain offers
+            # instead. One bounded correction, then the step is left out and
+            # the sufficiency review names the part it could not cover.
             emit(VALIDATION_FAILED, codes=[failure.code],
-                 repairable=True, at_step=step.analysis)
+                 repairable=True, at_step=step.analysis,
+                 detail=str(failure), offered=list(failure.offered)[:8])
             ledger.repair()
+            corrected = _corrected(step, failure)
             emit(REPAIR_ATTEMPTED, codes=[failure.code],
-                 repairs_spent=ledger.repairs)
-            continue
+                 repairs_spent=ledger.repairs,
+                 engine="deterministic-step-repair",
+                 corrected=corrected is not None)
+            if corrected is None or not ledger.can("executions"):
+                continue
+            ledger.execution()
+            try:
+                executed.append(ex.run(corrected))
+            except ex.ExecutionError:
+                continue
     emit(EXECUTION_COMPLETE, steps=len(executed),
          rows=sum(e.row_count for e in executed))
 
@@ -485,6 +527,55 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
     return _finish(turn, request, prior, ledger, ui_state, emit)
 
 
+def _repair_with_model(plan: plan_mod.Plan, package: grain_mod.GrainPackage,
+                       packet: dict[str, Any], checked: val.Result,
+                       ledger: budget_mod.Ledger) -> plan_mod.Plan:
+    """The refused plan, corrected — by the planner where one is configured.
+
+    The deterministic repair is computed first and is what the model is
+    merged onto, so a provider that is unavailable or unhelpful costs the
+    quality of the correction rather than the turn.
+    """
+    from backend.early_warning.conversation import planner as planner_mod
+
+    floor = _repair(plan, checked, package)
+    try:
+        return planner_mod.repair(None, package, plan, packet, floor,
+                                  ledger=ledger)
+    except Exception as failure:  # noqa: BLE001 - a repair must not lose a turn
+        logger.warning("The Early Warning repair seam failed: %s", failure)
+        return floor
+
+
+def _corrected(step: plan_mod.Step,
+               failure: ex.ExecutionError) -> plan_mod.Step | None:
+    """One bounded correction to a step the executor refused.
+
+    Uses only what the refusal itself offered. Nothing is invented, and a
+    refusal that offered nothing gets no correction — the part is dropped and
+    the answer says which one, which is better than running something else
+    and reporting it as what was asked.
+    """
+    import copy
+
+    offered = list(failure.offered or [])
+    if not offered:
+        return None
+    fixed = copy.deepcopy(step)
+    if failure.code == "ungroupable":
+        fixed.group_by = offered[0]
+    elif failure.code == "unknown_field":
+        fixed.measures = [m for m in fixed.measures if m != fixed.order_by]
+        fixed.measures = list(plan_mod.BASE_MEASURES)
+        fixed.order_by = "ews_score"
+        fixed.filters = {}
+    elif failure.code == "no_data":
+        fixed.period = offered[-1]
+    else:
+        return None
+    return fixed if fixed.to_dict() != step.to_dict() else None
+
+
 def _repair(plan: plan_mod.Plan, checked: val.Result,
             package: grain_mod.GrainPackage) -> plan_mod.Plan:
     """Fix what the failure packet named, in place, within the same plan.
@@ -493,19 +584,41 @@ def _repair(plan: plan_mod.Plan, checked: val.Result,
     one the validator offered, an unknown period by the nearest published
     one. A live planner repairs the same structure from the same packet.
     """
+    from backend.early_warning import executable as ex_mod
+
     steps = list(plan.steps)
+    dropped: set[int] = set()
+    notes = list(plan.notes)
     for failure in checked.failures:
         if failure.step_index < 0 or failure.step_index >= len(steps):
             continue
         step = steps[failure.step_index]
         offered = failure.offered
-        if failure.code == "unknown_field" and offered:
-            bad = [m for m in step.measures if m not in offered
-                   and m not in package.groupings]
+        if failure.code == "unknown_field":
+            if failure.role == ex_mod.FILTER:
+                # A condition nobody can honour. Dropping just the filter
+                # would silently widen the population the step reports on,
+                # which is the same answer to a different question — so the
+                # step goes, and the sufficiency review names the part of the
+                # request it could not cover.
+                dropped.add(failure.step_index)
+                notes.append(
+                    f"A step was dropped: it filtered on "
+                    f"{failure.field_name!r}, which this domain does not "
+                    f"hold, and running it unfiltered would have answered a "
+                    f"wider question than the one asked.")
+                continue
+            if failure.role == ex_mod.ORDER_BY:
+                step.order_by = "ews_score"
+                continue
+            bad = {failure.field_name} if failure.field_name else set()
             step.measures = [m for m in step.measures if m not in bad]
-            step.measures.append(offered[0])
-            if step.order_by not in step.measures and step.measures:
-                step.order_by = step.measures[0]
+            if offered:
+                step.measures.append(offered[0])
+            if not step.measures:
+                step.measures = list(plan_mod.BASE_MEASURES)
+            if step.order_by not in step.measures:
+                step.order_by = "ews_score"
         elif failure.code in ("unknown_period", "future_leakage") and offered:
             if failure.code == "future_leakage":
                 step.comparison_period = offered[-1]
@@ -513,13 +626,26 @@ def _repair(plan: plan_mod.Plan, checked: val.Result,
                 step.period = offered[-1]
         elif failure.code == "ungroupable" and offered:
             step.group_by = offered[0]
+        elif failure.code == "missing_comparison" and offered:
+            step.comparison_period = offered[0]
+        elif failure.code == "unknown_layer" and offered:
+            step.layer = offered[0]
         elif failure.code == "unbounded":
             step.limit = val.MAX_ROWS
         elif failure.code == "grain_unsafe" and offered:
             step.period = offered[-1]
-    return plan_mod.Plan(steps=steps[:val.MAX_STEPS],
+    kept = [step for i, step in enumerate(steps) if i not in dropped]
+    if not kept:
+        # Every step was unhonourable. The deterministic plan the model
+        # replaced is a better answer than no analysis at all, and it is
+        # validated in its turn like everything else.
+        kept = list((plan.fallback or plan).steps) or steps
+        notes.append("Every planned step was refused, so the deterministic "
+                     "plan was used instead.")
+    return plan_mod.Plan(steps=kept[:val.MAX_STEPS],
                          output_grain=plan.output_grain, intent=plan.intent,
-                         engine="deterministic-repair", notes=plan.notes)
+                         engine="deterministic-repair", notes=notes,
+                         fallback=plan.fallback)
 
 
 def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
@@ -652,6 +778,24 @@ def _stopped(reason: str, turn: Turn) -> dict[str, Any]:
             "worse than one that stops."),
         "follow_ups": ["Ask the same question in Deep mode."],
         "caveats": [], "request_id": turn.request_id,
+    }
+
+
+def _broke(failure: Exception, turn: Turn) -> dict[str, Any]:
+    """An unexpected failure, said plainly rather than thrown."""
+    return {
+        "answered": False, "scope": "stopped",
+        "direct": ("This turn could not be completed, and nothing partial is "
+                   "being reported as though it were an answer."),
+        "interpretation": (
+            f"The analysis stopped on an unexpected {type(failure).__name__}. "
+            f"What ran before it is on the trace, and the thread is intact — "
+            f"the same question can be asked again. Nothing was invented to "
+            f"fill the gap."),
+        "follow_ups": ["Ask the same question again.",
+                       "Ask for the portfolio position for this month."],
+        "caveats": ["The failure is recorded against this request id."],
+        "request_id": turn.request_id,
     }
 
 
