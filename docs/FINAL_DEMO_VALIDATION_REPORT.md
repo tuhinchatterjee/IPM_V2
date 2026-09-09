@@ -168,7 +168,7 @@ Per screen: `/` 30 · `/early-warning` 4 · `/what-if` 10 · `/lenses` 14 ·
 
 ### Functional depth — PASS
 
-`scripts/acceptance/demo_functionality.py`. **54 checks, 54 passed.** A route
+`scripts/acceptance/demo_functionality.py`. **60 checks, 60 passed.** A route
 returning 200 proves a page exists; these ask whether the thing works.
 
 | | |
@@ -178,6 +178,8 @@ returning 200 proves a page exists; these ask whether the thing works.
 | Early Warning | portfolio score 8.36, 300 borrowers, 5 segments, methodology published |
 | Cockpit | `canonical-16q-v1`, SAR millions, 16 populated quarters; a question answers or refuses honestly |
 | Playbook | 3 workspaces, 31 exports across 5 modules; a What-If export opens with its provenance, its conditional limitation and its link back |
+| Rating migration | the full **20 x 20** — 19 grades plus D as a state — row-normalised, and every one of the 17 populated rows sums to **100.00%** on both the account and exposure views. AAA and C sum to zero because no borrower STARTED the period on them, which is the honest answer and not a break |
+| Stage migration | 4 x 4, denominator stated as "the origin Stage's own total" |
 | Download | Early Warning portfolio report, 130,444 bytes, opens as a real Word document |
 | Health | every deterministic component ok; `ai_provider` states its own configuration rather than faking it |
 

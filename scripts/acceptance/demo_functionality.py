@@ -219,6 +219,39 @@ def main(argv: list[str] | None = None) -> int:
             r.add("it names the population it ran over",
                   bool(s.get("borrowers")), f"{s.get('borrowers')} borrowers")
 
+    # The migration matrices, which the demonstration reads aloud.
+    status, migration, _ = c.call(
+        f"/whatif/migration/rating?period={PERIOD.replace(' ', '%20')}")
+    r.add("the rating migration matrix answers", status == 200)
+    r.add("it is the full 20 x 20 — 19 grades plus D as a state",
+          (migration or {}).get("displayed_shape") == "20 x 20",
+          str((migration or {}).get("displayed_shape")))
+    r.add("it is row-normalised, and says what a row reads as",
+          (migration or {}).get("normalisation") == "row"
+          and bool((migration or {}).get("reads_as")),
+          str((migration or {}).get("reads_as"))[:70])
+    for key, what in (("row_normalised", "account"),
+                      ("row_normalised_exposure", "exposure")):
+        rows = (migration or {}).get(key) or []
+        # A grade nobody STARTED the period on has nothing to normalise, so
+        # its row sums to zero rather than to a hundred. That is the honest
+        # answer and not a break: on this book AAA and C are both empty.
+        populated = [x for x in rows if float(x.get("total") or 0) > 0]
+        off = [x["label"] for x in populated
+               if abs(sum(v for v in x["cells"] if isinstance(v, (int, float)))
+                      - 100.0) > 0.51]
+        r.add(f"every populated {what} row sums to 100%", not off,
+              f"{len(populated)} populated of {len(rows)}; "
+              f"empty grades {[x['label'] for x in rows if x not in populated]}"
+              + (f"; OFF: {off}" if off else ""))
+
+    status, stage_migration, _ = c.call(
+        f"/whatif/migration/stage?period={PERIOD.replace(' ', '%20')}")
+    r.add("the stage migration answers with a shape and a denominator",
+          status == 200 and bool((stage_migration or {}).get("displayed_shape")),
+          f"{(stage_migration or {}).get('displayed_shape')}, "
+          f"denominator: {(stage_migration or {}).get('denominator')}")
+
     # -------------------------------------------------------------- Lenses
     r.head("Lenses")
     status, lenses, _ = c.call("/lenses")

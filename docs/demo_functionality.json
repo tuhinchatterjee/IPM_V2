@@ -133,6 +133,42 @@
       "detail": "3241 borrowers"
     },
     {
+      "section": "What-If",
+      "check": "the rating migration matrix answers",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "section": "What-If",
+      "check": "it is the full 20 x 20 \u2014 19 grades plus D as a state",
+      "ok": true,
+      "detail": "20 x 20"
+    },
+    {
+      "section": "What-If",
+      "check": "it is row-normalised, and says what a row reads as",
+      "ok": true,
+      "detail": "% of the borrowers that STARTED the period on this grade"
+    },
+    {
+      "section": "What-If",
+      "check": "every populated account row sums to 100%",
+      "ok": true,
+      "detail": "17 populated of 19; empty grades ['AAA', 'C']"
+    },
+    {
+      "section": "What-If",
+      "check": "every populated exposure row sums to 100%",
+      "ok": true,
+      "detail": "17 populated of 19; empty grades ['AAA', 'C']"
+    },
+    {
+      "section": "What-If",
+      "check": "the stage migration answers with a shape and a denominator",
+      "ok": true,
+      "detail": "4 x 4, denominator: the origin Stage's own total"
+    },
+    {
       "section": "Lenses",
       "check": "the shipped lenses are installed",
       "ok": true,
@@ -286,7 +322,7 @@
       "section": "Auth and session",
       "check": "a long analytical call completes on the same session",
       "ok": true,
-      "detail": "HTTP 200 in 0.8s"
+      "detail": "HTTP 200 in 0.7s"
     },
     {
       "section": "Auth and session",
@@ -325,9 +361,9 @@
       "detail": "HTTP 200"
     }
   ],
-  "check_count": 54,
-  "passed": 54,
+  "check_count": 60,
+  "passed": 60,
   "failed": 0,
-  "duration_seconds": 4.1,
+  "duration_seconds": 4.2,
   "result": "PASS"
 }
