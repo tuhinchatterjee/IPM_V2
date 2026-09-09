@@ -126,12 +126,17 @@ class Answer:
     thread_id: str
     history: dict[str, Any] = field(default_factory=dict)
     summary_updated: bool = False
+    #: What, if anything, had to be repaired in this thread's stored summary
+    #: before it was used. Reported rather than absorbed: a thread that lost a
+    #: settled definition is a fact about the answer above it.
+    summary_repair: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         body = self.outcome.to_dict()
         body["thread_id"] = self.thread_id
         body["history"] = dict(self.history)
         body["summary_updated"] = self.summary_updated
+        body["summary_repair"] = dict(self.summary_repair)
         return body
 
 
@@ -214,7 +219,9 @@ def ask(question: str, principal: Any, *, provider: Any = None,
             logger.info("The Cockpit thread summary was not updated: %s", e)
 
     return Answer(outcome=outcome, thread_id=state.thread_id,
-                  history=selection.to_dict(), summary_updated=summary_updated)
+                  history=selection.to_dict(), summary_updated=summary_updated,
+                  summary_repair=(state.last_repair.to_dict()
+                                  if state.last_repair.occurred else {}))
 
 
 def _resolve_provider() -> Any:

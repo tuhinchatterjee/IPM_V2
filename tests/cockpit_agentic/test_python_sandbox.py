@@ -334,7 +334,7 @@ def test_the_limits_come_from_the_ledger_and_are_not_widenable():
 # repair still Opus's to make. They prove nothing about a real model.
 
 from tests.cockpit_agentic.conftest import scores          # noqa: E402
-from tests.cockpit_agentic.fake_provider import FakeProvider  # noqa: E402
+from tests.cockpit_agentic.fake_provider import FakeProvider, expand  # noqa: E402
 from backend.cockpit_agentic import states as st           # noqa: E402
 
 SQL_STEP = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "
@@ -361,7 +361,8 @@ def _two_steps(python_code):
 
 def _provider(sonnet_answers, *turns):
     return FakeProvider(structured_script=list(sonnet_answers),
-                        converse_script=[(lambda _r, t=t: t) for t in turns])
+                        converse_script=[(lambda _r, t=t: t)
+                                        for t in expand(turns)])
 
 
 @isolated
@@ -430,7 +431,11 @@ def test_a_failed_python_step_returns_the_full_context_to_opus(
     assert outcome.failures and outcome.failures[0].failing_step_id == "s2"
 
     # The request that carried the failure back, read off the wire.
-    repair = provider.requests[1]
+    # Selected by purpose, not by position: a data analysis makes a gate turn
+    # over the light packet and a plan turn over the full one before it can
+    # reach a repair.
+    repair = next(r for r in provider.requests
+                  if r["purpose"] == "opus_repair")
     serialized = str(repair)
     assert "ZeroDivisionError" in serialized
     assert broken in serialized, "the failed code itself must go back"

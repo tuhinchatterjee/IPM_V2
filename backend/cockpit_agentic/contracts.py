@@ -187,6 +187,155 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
+# ------------------------------------------- text lists from model responses
+
+#: The rolling summary's `list[str]` fields. The contract for every one of them
+#: is a list of STATEMENTS, and section 7.9 does not permit any of them to
+#: become anything else.
+SUMMARY_TEXT_FIELDS: tuple[str, ...] = (
+    "settled_definitions", "corrections", "authorized_references",
+    "supported_conclusions", "unresolved_questions")
+
+
+@dataclass
+class SummaryRepair:
+    """What a repair pass found and did. Reported, never silent.
+
+    A summary that lost a field is a fact about the answer the user is about to
+    read, so it is recorded and surfaced rather than quietly patched.
+    """
+
+    recovered: list[str] = field(default_factory=list)
+    cleared: list[str] = field(default_factory=list)
+
+    @property
+    def occurred(self) -> bool:
+        return bool(self.recovered or self.cleared)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"occurred": self.occurred,
+                "recovered": list(self.recovered),
+                "cleared": list(self.cleared),
+                "note": ("" if not self.occurred else
+                         "A stored summary field had been character-expanded "
+                         "by an earlier release. Fields listed under "
+                         "'recovered' were rebuilt exactly from the expansion; "
+                         "fields listed under 'cleared' could not be and were "
+                         "emptied rather than guessed at.")}
+
+
+#: Above this many elements, and with at least this fraction of them a single
+#: character, a `list[str]` is a character-expanded string rather than a list
+#: of statements. Real settled definitions, corrections and conclusions are
+#: sentences; a list of eight or more items where four in five are one
+#: character long is not data, it is `list("some definition")`.
+EXPANSION_MIN_ELEMENTS = 8
+EXPANSION_RATIO = 0.8
+
+
+def as_text_list(value: Any) -> list[str]:
+    """Normalize a model-supplied field into `list[str]` WITHOUT ever
+    character-expanding a string.
+
+    The rule this exists to enforce, stated once:
+
+    * a scalar string becomes a ONE-ELEMENT list -- `"some definition"` gives
+      `["some definition"]`. That is safe and it is what the caller meant.
+    * `list("some definition")` giving `["s", "o", "m", "e", ...]` is
+      FORBIDDEN. It is what `[str(x) for x in value]` silently does when the
+      model returns a string where the schema asked for an array, and it is
+      what corrupted the rolling summary.
+
+    A string that is itself a serialized JSON array is a serialization
+    accident, not a statement, so it is parsed back into its elements rather
+    than stored as one long element or split into characters. Anything that
+    cannot be parsed is kept whole: keeping the user's own words as one element
+    loses nothing, and guessing at their structure could.
+    """
+    if value is None:
+        return []
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode("utf-8", "replace")
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return []
+        if text.startswith("[") and text.endswith("]"):
+            try:
+                parsed = json.loads(text)
+            except (ValueError, TypeError):
+                return [value]
+            if isinstance(parsed, list):
+                return as_text_list(parsed)
+            return [value]
+        return [value]
+    if isinstance(value, dict):
+        # An object where statements were asked for. Its VALUES are the
+        # statements often enough to be worth keeping, and its keys are labels
+        # rather than content.
+        return [item for v in value.values() for item in as_text_list(v)]
+    if isinstance(value, (list, tuple, set, frozenset)):
+        out: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                text = item.strip()
+                if text:
+                    out.append(item)
+            elif isinstance(item, (list, tuple, set, frozenset, dict)):
+                out.extend(as_text_list(item))
+            elif item is not None:
+                out.append(str(item))
+        return out
+    return [str(value)]
+
+
+def character_expanded(values: Any) -> bool:
+    """Whether a stored list is the wreckage of a character-expanded string.
+
+    Deliberately conservative. A short list of short strings -- quarter labels,
+    ratings, fact ids -- must not be mistaken for corruption, so this requires
+    both a length no real list of statements reaches by accident and a
+    proportion of single characters no real list of statements has.
+    """
+    if not isinstance(values, (list, tuple)):
+        return False
+    items = list(values)
+    if len(items) < EXPANSION_MIN_ELEMENTS:
+        return False
+    if not all(isinstance(v, str) for v in items):
+        return False
+    singles = sum(1 for v in items if len(v) <= 1)
+    return singles >= EXPANSION_RATIO * len(items)
+
+
+def repair_text_list(values: Any) -> tuple[list[str], str]:
+    """Detect and, where possible, undo a character expansion.
+
+    Returns the field and what happened to it: `""` when it was already sound,
+    `"recovered"` when the original statements were rebuilt exactly, and
+    `"cleared"` when they could not be and the field was emptied.
+
+    Recovery is a rejoin, not a reconstruction. `list("[\"a\", \"b\"]")`
+    rejoins to `'["a", "b"]'` and parses back to `["a", "b"]` -- the original
+    statements, character for character. Where the rejoin does not parse into a
+    list of strings, the field is CLEARED. Nothing is invented to fill it: a
+    summary that manufactured a settled definition would be worse than one that
+    admits it lost one.
+    """
+    if not character_expanded(values):
+        return as_text_list(values), ""
+    rejoined = "".join(values)
+    try:
+        parsed = json.loads(rejoined)
+    except (ValueError, TypeError):
+        parsed = None
+    if isinstance(parsed, list) and all(isinstance(v, str) for v in parsed):
+        return [v for v in parsed if v.strip()], "recovered"
+    if isinstance(parsed, str) and parsed.strip():
+        return [parsed], "recovered"
+    return [], "cleared"
+
+
 def fingerprint(*parts: Any) -> str:
     """A stable normalized identity for a code candidate.
 
@@ -992,7 +1141,20 @@ class AnswerEnvelope:
 
 @dataclass
 class ThreadSummary:
-    """Section 7.9. The rolling summary, with the exchange it is current to."""
+    """Section 7.9. The rolling summary, with the exchange it is current to.
+
+    Every list field here is `list[str]` and stays `list[str]`. `__post_init__`
+    normalizes each one through `as_text_list`, so a summary CANNOT be
+    constructed from a model response that returned a string where the schema
+    asked for an array -- the failure that produced
+    `["[", "\"", "C", "o", "c", ...]` in a live thread. A scalar string becomes
+    one element; nothing is ever character-expanded.
+
+    `repair` is the other half, for summaries that were persisted BEFORE this
+    normalization existed. Construction cannot fix those, because a stored
+    character expansion is already a list of strings and passes through
+    unchanged; it has to be detected and undone.
+    """
 
     thread_id: str
     summary_through_exchange_id: str
@@ -1007,8 +1169,33 @@ class ThreadSummary:
     #: verbatim next time because the summary does not yet cover them.
     unsummarized_exchange_ids: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        for name in SUMMARY_TEXT_FIELDS + ("unsummarized_exchange_ids",):
+            setattr(self, name, as_text_list(getattr(self, name)))
+        self.current_topic = str(self.current_topic or "")
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def repair(self) -> SummaryRepair:
+        """Detect and undo character-expanded fields, in place.
+
+        A corrupt field is never carried forward. Where the expansion rejoins
+        into the original statements they are restored exactly; where it does
+        not, ONLY that field is cleared. The other fields, and in particular
+        `authorized_references` -- the evidence ids -- are untouched unless
+        they are themselves corrupt, and no statement is invented to replace
+        one that was lost.
+        """
+        report = SummaryRepair()
+        for name in SUMMARY_TEXT_FIELDS:
+            values, outcome = repair_text_list(getattr(self, name))
+            setattr(self, name, values)
+            if outcome == "recovered":
+                report.recovered.append(name)
+            elif outcome == "cleared":
+                report.cleared.append(name)
+        return report
 
 
 @dataclass

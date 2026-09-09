@@ -28,7 +28,7 @@
 | Rule | Where it is true |
 |---|---|
 | Cockpit reads only the 20-quarter domain | `scope.py`; the DuckDB session materializes only the allowlisted relations, then disables file and network access and locks the configuration |
-| Two Sonnet passes, then the Opus gate | `sonnet.py`, `opus.gate_and_plan`; `states.TRANSITIONS` gives `BUILDING_CONTEXT` exactly one working edge |
+| Two Sonnet passes, then the Opus gate | `sonnet.py`, `opus.gate` over the light stage-A packet, then `opus.plan_first_submission` over the full one; `states.TRANSITIONS` gives `BUILDING_CONTEXT` exactly one working edge |
 | A referral executes nothing | `FUNCTIONALITY_ASSESSMENT` has no edge to `VALIDATING` or `EXECUTING` |
 | Opus owns every query and every repair | `failure.py` and `runtime.py` contain no SQL fragment at all — asserted by reading the source |
 | Five submissions, three rounds, never reset | `ledger.py`; no override exists for either at any level |

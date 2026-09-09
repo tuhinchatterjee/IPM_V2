@@ -41,6 +41,7 @@ from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic import tokens as tokens_mod
 from backend.cockpit_agentic.context import CockpitContextPacket
+from backend.cockpit_agentic.contracts import as_text_list
 from backend.cockpit_agentic.ledger import Ledger
 from backend.cockpit_agentic.sonnet import prompt
 
@@ -223,10 +224,36 @@ GATE_SCHEMA: dict[str, Any] = {
                          "maxItems": 3},
         "clarification_question": {"type": "string"},
         "clarification_options": {"type": "array", "items": {"type": "string"}},
-        "plan": _PLAN,
-        "steps": {"type": "array", "items": _STEP},
     },
     "required": ["scores", "decision", "public_explanation"],
+}
+
+#: Stage B's first turn. Carries the plan and the first step, and NO gate
+#: fields: ownership was decided in stage A and is not reopened here. A schema
+#: that let this turn re-score the registry would be inviting the model to
+#: overturn a decision the server has already acted on.
+PLAN_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "action": {
+            "type": "string",
+            "enum": ["submit_the_first_step", "ask_a_targeted_clarification",
+                     "explain_and_stop"],
+            "description": (
+                "submit_the_first_step: the dictionary supports the analysis "
+                "and you are supplying the plan and its first SELECT. "
+                "ask_a_targeted_clarification: the dictionary shows the "
+                "question needs a choice only the user can make. "
+                "explain_and_stop: the dictionary shows this data cannot "
+                "answer it, and you are saying why rather than approximating "
+                "it.")},
+        "plan": _PLAN,
+        "steps": {"type": "array", "items": _STEP},
+        "clarification_question": {"type": "string"},
+        "clarification_options": {"type": "array", "items": {"type": "string"}},
+        "explanation": {"type": "string"},
+    },
+    "required": ["action"],
 }
 
 REPAIR_SCHEMA: dict[str, Any] = {
@@ -275,6 +302,44 @@ REVIEW_SCHEMA: dict[str, Any] = {
 
 
 # ----------------------------------------------------------- the conversation
+
+def system_blocks(packet: CockpitContextPacket,
+                  contract: str) -> list[dict[str, Any]]:
+    """The system blocks for one turn, stable prefix first, ONE breakpoint.
+
+    Module-level rather than a method so that the size probe and the real
+    dispatch cannot drift apart: whatever this returns is what goes out, and
+    whatever this returns is what was measured.
+    """
+    return [
+        # 1. Invariant for every request in this deployment.
+        {"type": "text", "text": prompt("shared_preamble")},
+        # 2. Invariant for every TURN of this STAGE: the release is pinned for
+        #    the request's lifetime, and the packet says what belongs here --
+        #    the domain outline for the gate, the complete dictionary for the
+        #    analysis. The two stages are two conversations, so neither prefix
+        #    ever changes under itself.
+        {"type": "text",
+         "text": (packet.pinned_heading() + "\n\n"
+                  + json.dumps(packet.pinned(), separators=(",", ":"),
+                               default=str)),
+         # 3. The one breakpoint. Everything above is byte-identical across the
+         #    turns of this stage; everything below moves.
+         "cache_control": {"type": "ephemeral"}},
+        # 4. The contract for THIS turn -- planning, repair or review. It
+        #    changes between turns, so it must sit AFTER the breakpoint:
+        #    putting it first made every turn a cache miss, which is what
+        #    test_the_prefix_is_byte_identical_across_every_turn caught.
+        {"type": "text", "text": prompt(contract)},
+        {"type": "text", "text": UNTRUSTED_NOTE},
+    ]
+
+
+def opening_message(packet: CockpitContextPacket) -> str:
+    """The dynamic half of the context, as the first user message."""
+    return (packet.dynamic_heading() + "\n\n"
+            + json.dumps(packet.dynamic(), separators=(",", ":"), default=str))
+
 
 class Conversation:
     """One Opus conversation for one user request.
@@ -337,65 +402,18 @@ class Conversation:
         no hash, no id and no reference Opus would have to resolve. Section 8.1
         is satisfied by the content being present, not by it being cheap.
         """
-        packet = self.packet.payload
-        pinned = {
-            "domain_id": packet["B_scope"]["domain_id"],
-            "dataset_release_id": packet["B_scope"]["dataset_release_id"],
-            "reporting_currency": packet["B_scope"]["reporting_currency"],
-            "amount_scale": packet["B_scope"]["amount_scale"],
-            "catalogue": packet["D_E_catalogue"],
-            "functionalities": packet["H_functionalities"],
-            "execution_capabilities": packet["I_execution"],
-        }
-        return [
-            # 1. Invariant for every request in this deployment.
-            {"type": "text", "text": prompt("shared_preamble")},
-            # 2. Invariant for every TURN of this request: the release is
-            #    pinned for its lifetime.
-            {"type": "text",
-             "text": ("THE AUTHORIZED COCKPIT DOMAIN FOR THIS REQUEST.\n"
-                      "The complete field dictionary, the grains, the joins, "
-                      "the functionality registry and the execution contract. "
-                      "This is pinned for the lifetime of this request and is "
-                      "sent in full on every turn -- it is never abridged, "
-                      "hashed or replaced by a reference.\n\n"
-                      + json.dumps(pinned, separators=(",", ":"),
-                                   default=str)),
-             # 3. The one breakpoint. Everything above is byte-identical
-             #    across the turns of this request; everything below moves.
-             "cache_control": {"type": "ephemeral"}},
-            # 4. The contract for THIS turn -- planning, repair or review. It
-            #    changes between turns, so it must sit AFTER the breakpoint:
-            #    putting it first made every turn a cache miss, which is what
-            #    test_the_prefix_is_byte_identical_across_every_turn caught.
-            {"type": "text", "text": prompt(contract)},
-            {"type": "text", "text": UNTRUSTED_NOTE},
-        ]
+        return system_blocks(self.packet, contract)
 
     def opening_context(self) -> str:
         """The dynamic half of the context, as the first user message.
 
-        Sections A, B's request-specific scope, C, F, G and J: the question in
-        all three forms, the effective scope, the thread, the measured
-        coverage, the sample rows and the remaining budget. All of it changes
-        between requests -- and F and J change between the TURNS of a request --
-        so none of it belongs in the cached prefix.
+        Sections A, B's request-specific scope, C, J and -- at the analysis
+        stage -- F and G: the question in all three forms, the effective scope,
+        the thread, the coverage, the sample rows and the remaining budget. All
+        of it changes between requests, and J changes between the TURNS of a
+        request, so none of it belongs in the cached prefix.
         """
-        packet = self.packet.payload
-        dynamic = {
-            "request": packet["A_request"],
-            "scope_and_filters": {
-                k: v for k, v in packet["B_scope"].items()
-                if k not in ("domain_id", "dataset_release_id",
-                             "reporting_currency", "amount_scale")},
-            "thread": packet["C_thread"],
-            "measured_coverage": packet["F_coverage"],
-            "sample_rows": packet["G_samples"],
-            "remaining_budget": packet["J_budget"],
-        }
-        return ("THE REQUEST, ITS SCOPE, THE MEASURED COVERAGE AND THE "
-                "REMAINING BUDGET.\n\n"
-                + json.dumps(dynamic, separators=(",", ":"), default=str))
+        return opening_message(self.packet)
 
     # -- one turn ------------------------------------------------------
 
@@ -539,10 +557,10 @@ def envelope_from(raw: Any, *, kind: str = "answer"
         approximate=bool(raw.get("approximate", False)),
         tables=[K.AnswerTable(
             title=str(t.get("title") or ""),
-            columns=[str(c) for c in (t.get("columns") or [])],
+            columns=as_text_list(t.get("columns")),
             rows=[list(r) for r in (t.get("rows") or [])],
             units={str(k): str(v) for k, v in (t.get("units") or {}).items()},
-            fact_ids=[str(f) for f in (t.get("fact_ids") or [])],
+            fact_ids=as_text_list(t.get("fact_ids")),
             note=str(t.get("note") or ""))
             for t in (raw.get("tables") or [])],
         charts=[K.AnswerChart(
@@ -552,30 +570,96 @@ def envelope_from(raw: Any, *, kind: str = "answer"
             x_label=str(c.get("x_label") or ""),
             y_label=str(c.get("y_label") or ""),
             unit=str(c.get("unit") or ""),
-            fact_ids=[str(f) for f in (c.get("fact_ids") or [])])
+            fact_ids=as_text_list(c.get("fact_ids")))
             for c in (raw.get("charts") or [])],
-        findings=[str(x) for x in (raw.get("findings") or [])],
-        suggested_questions=[str(x) for x in
-                             (raw.get("suggested_questions") or [])],
-        limitations=[str(x) for x in (raw.get("limitations") or [])],
-        assumptions=[str(x) for x in (raw.get("assumptions") or [])],
-        hypotheses=[str(x) for x in (raw.get("hypotheses") or [])],
-        fact_ids=[str(f) for f in (raw.get("fact_ids") or [])])
+        findings=as_text_list(raw.get("findings")),
+        suggested_questions=as_text_list(raw.get("suggested_questions")),
+        limitations=as_text_list(raw.get("limitations")),
+        assumptions=as_text_list(raw.get("assumptions")),
+        hypotheses=as_text_list(raw.get("hypotheses")),
+        fact_ids=as_text_list(raw.get("fact_ids")))
 
 
-def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
-                  ) -> tuple[K.FunctionalityDecision, K.AnalysisPlan | None,
-                             K.ExecutionSubmission | None]:
-    """Opus's first responsibility: who owns this, and only then, how.
+#: What one turn's user message costs, in characters, over and above the
+#: packet. The gate's instruction block and the planning brief both land near
+#: 1,400 characters; 2,400 is that with headroom. It is a reservation rather
+#: than a measurement, so it is named and `Conversation.counts` can be checked
+#: against it after a run.
+TURN_MESSAGE_CHARS = 2400
 
-    Returns the decision, and a plan and submission ONLY on the PROCEED branch.
-    A referral or a clarification carries no executable plan -- section 7.5 --
-    and this function drops one if the model supplies it anyway rather than
-    letting it reach the validator.
+#: What to hold back, beyond the reply, for the turns AFTER the one being
+#: sized. The analysis packet is built once and every later turn of the request
+#: -- the review, each repair -- is appended to the same conversation, so a
+#: packet sized to fill the cap exactly leaves the second turn nowhere to go.
+#:
+#: One further turn, measured at about 3,300 tokens: a repair turn carrying a
+#: failure packet with its diagnostics and the results already obtained.
+#:
+#: Deliberately NOT the worst case, and this is a real trade-off rather than a
+#: rounding. A review turn carrying a WIDE result -- a `SELECT *` over the
+#: 198-column facility relation -- costs about 8,000, and four repairs cost
+#: about 13,000; reserving for either would spend every rung of the reduction
+#: ladder on every request, and in Standard mode would refuse the packet
+#: outright, including for the great majority of questions that are answered
+#: from their first submission. So the reserve buys the common case one further
+#: turn, and where a wide result or a long repair sequence outgrows the cap
+#: that is reported as CONTEXT_TOO_LARGE with the honest reason.
+#: docs/cockpit_agentic_v3/CONTEXT_SIZING.md records how many turns each mode
+#: affords and why Deep is the configuration that holds the full repair path.
+CONVERSATION_RESERVE = 4000
+
+
+def request_sizer(*, stage: str, contract: str, schema: dict[str, Any]):
+    """A callable that estimates the FULLY ASSEMBLED request for a payload.
+
+    The packet is not the request. A request also carries the shared preamble,
+    the turn's contract, the untrusted-data note, the tool schema, the turn's
+    own user message -- and, unavoidably, the packet re-serialized as a string
+    inside the message envelope, which escapes every quote and inflates dense
+    JSON by roughly a sixth. Measuring the packet alone against the per-call
+    cap ignored all of that, and that is how a packet the builder believed was
+    within budget became a request the provider refused.
+
+    So the builder's reduction ladder is given this, not a guess: it renders a
+    candidate payload through the SAME functions that will render the real
+    request, and estimates the result. `system_blocks` and `opening_message`
+    are module-level for exactly this reason -- the probe and the dispatch
+    cannot drift apart.
+    """
+    def measure(payload: dict[str, Any]) -> int:
+        probe = CockpitContextPacket(
+            version="", request_id="", payload=payload, estimated_tokens=0,
+            token_method="", stage=stage)
+        return tokens_mod.estimate({
+            "system": system_blocks(probe, contract),
+            "messages": [
+                {"role": "user", "content": opening_message(probe)},
+                {"role": "user", "content": "x" * TURN_MESSAGE_CHARS}],
+            "tools": [{"name": "t", "description": "d",
+                       "input_schema": schema}]})
+
+    return measure
+
+
+def gate(conversation: Conversation, packet: CockpitContextPacket
+         ) -> K.FunctionalityDecision:
+    """STAGE A. Opus's first responsibility: what kind of request is this, and
+    who owns it.
+
+    Reads the gate packet -- the whole question, the thread, the functionality
+    registry, the domain outline -- and returns a decision. It does NOT return
+    a plan: it has not been shown the field dictionary, so a plan authored here
+    would be authored from a guess about what the columns are called. Stage B
+    is where planning happens, with the dictionary in front of it.
+
+    This remains a full semantic judgement. Nothing in this function matches a
+    keyword, and the model scores every functionality in the registry exactly
+    as it did before; what changed is how much of the catalogue it had to read
+    to do it.
     """
     request = packet.payload["A_request"]
     user = "\n\n".join([
-        "Decide who owns this request, and only then how to answer it.",
+        "Decide what kind of request this is and who owns it.",
         f"ORIGINAL: {request['original_question']}",
         f"BUSINESS REQUEST: {request['business_request']}",
         "SUBQUESTIONS:\n" + "\n".join(f"- {s}" for s in request["subquestions"]),
@@ -604,16 +688,20 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
          "from memory."),
         ("Then score every functionality in the registry. If the Cockpit is "
          "not the unique highest scorer, or the action is outside its "
-         "ownership, refer or clarify and include NO executable plan. If it "
-         "is, include your analysis plan and the SQL for its first step."),
+         "ownership, refer or clarify."),
+        ("Do NOT plan an analysis in this turn and do not name a column. You "
+         "have the domain in outline only. If this is DATA_ANALYSIS and the "
+         "Cockpit owns it, the complete field dictionary, the measured "
+         "coverage, the sample rows and the execution contract are assembled "
+         "and sent to you next, and you plan from those."),
     ])
 
     data = conversation.ask(
-        contract="opus_gate_and_plan", user=user, schema=GATE_SCHEMA,
+        contract="opus_gate", user=user, schema=GATE_SCHEMA,
         tool_name="functionality_decision",
-        description="Which functionality owns this request, and -- only if it "
-                    "is the Cockpit -- the analysis plan and its SQL.",
-        purpose="opus_gate_and_plan")
+        description="What kind of request this is and which functionality "
+                    "owns it.",
+        purpose="opus_gate")
 
     scores = [K.SuitabilityScore(
         functionality_id=str(s.get("functionality_id") or ""),
@@ -623,8 +711,8 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
 
     alternatives = [K.AlternativeQuestion(
         question=str(a.get("question") or ""),
-        required_fields=[str(f) for f in (a.get("required_fields") or [])],
-        available_periods=[str(p) for p in (a.get("available_periods") or [])],
+        required_fields=as_text_list(a.get("required_fields")),
+        available_periods=as_text_list(a.get("available_periods")),
         limitation=str(a.get("limitation") or ""))
         for a in (data.get("alternatives") or [])[:3]
         if a.get("question") and a.get("required_fields")]
@@ -668,7 +756,7 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
         mode = K.CLARIFICATION_REQUIRED
         raw_decision = K.CLARIFY_FUNCTIONALITY
 
-    decision = K.FunctionalityDecision(
+    return K.FunctionalityDecision(
         decision=raw_decision,
         query_mode=mode, owner=owner,
         requires_cockpit_data=bool(data.get("requires_cockpit_data")),
@@ -680,9 +768,8 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
         ambiguity=str(data.get("ambiguity") or ""),
         answer=answer,
         scores=scores, best_fit=str(data.get("best_fit") or ""),
-        requested_actions=[str(a) for a in (data.get("requested_actions") or [])],
-        relevant_exclusions=[str(x) for x in
-                             (data.get("relevant_exclusions") or [])],
+        requested_actions=as_text_list(data.get("requested_actions")),
+        relevant_exclusions=as_text_list(data.get("relevant_exclusions")),
         mixed_scope=bool(data.get("mixed_scope")),
         mixed_scope_explanation=str(data.get("mixed_scope_explanation") or ""),
         referral_destination=destination,
@@ -690,24 +777,89 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
         referral_route=route, referral_enabled=enabled,
         alternatives=alternatives,
         clarification_question=str(data.get("clarification_question") or ""),
-        clarification_options=[str(o) for o in
-                               (data.get("clarification_options") or [])],
+        clarification_options=as_text_list(data.get("clarification_options")),
         public_explanation=str(data.get("public_explanation") or ""))
 
-    if not decision.may_execute:
-        # Section 7.5, and sections 10 and 11: a referral, a clarification, a
-        # product-help answer and a theory answer all contain no executable
-        # analysis plan. If one arrived anyway it is discarded HERE, before
-        # anything downstream could act on it.
-        if data.get("steps") or data.get("plan"):
-            logger.info("A non-executing decision carried an executable plan; "
-                        "it was discarded at the gate.")
-        return decision, None, None
 
+def plan_first_submission(conversation: Conversation,
+                          packet: CockpitContextPacket,
+                          decision: K.FunctionalityDecision) -> dict[str, Any]:
+    """STAGE B. The first analysis, planned with the complete dictionary.
+
+    Reached only for `query_mode = DATA_ANALYSIS` and `owner = COCKPIT` that
+    also passed the server's score test. This is a NEW conversation over the
+    full packet, so the cached prefix it establishes is the one every repair
+    and review turn of this request will reuse.
+
+    Three ways out, all of them explicit: the first step, a targeted
+    clarification, or an honest explanation that this data cannot answer it.
+    There is no fourth, and in particular there is no branch that approximates
+    an answer because the dictionary disappointed it.
+    """
+    request = packet.payload["A_request"]
+    lines = [
+        "The gate has decided this is a Cockpit data analysis. Plan it.",
+        # The approved decision, stated in this conversation because the gate
+        # happened in a DIFFERENT one. Section 8.1 requires the effective
+        # context of a repair to carry the approved functionality decision,
+        # and the repair turns continue this conversation, not the gate's.
+        (f"APPROVED FUNCTIONALITY DECISION: {decision.decision} "
+         f"(query_mode={decision.query_mode}, owner={decision.owner}). "
+         f"Ownership is settled and is not reopened."),
+        f"ORIGINAL: {request['original_question']}",
+        f"BUSINESS REQUEST: {request['business_request']}",
+        "SUBQUESTIONS:\n" + "\n".join(f"- {s}" for s in request["subquestions"]),
+    ]
+    if decision.requested_actions:
+        lines.append("REQUESTED ACTIONS:\n"
+                     + "\n".join(f"- {a}" for a in decision.requested_actions))
+    if decision.decision_reason:
+        lines.append(f"WHY THIS IS YOURS: {decision.decision_reason}")
+    if decision.public_explanation:
+        lines.append("WHAT THE USER WAS TOLD ABOUT THAT DECISION: "
+                     + decision.public_explanation)
+    if request["unresolved_ambiguity"]:
+        lines.append("UNRESOLVED AMBIGUITY (do not resolve it by guessing):\n"
+                     + "\n".join(f"- {a}"
+                                 for a in request["unresolved_ambiguity"]))
+    lines.append(
+        "You now have the COMPLETE field dictionary, the grains and their "
+        "join warnings, the measured coverage, the sample rows and the "
+        "execution contract. Ownership is settled and is not reopened here.")
+    lines.append(
+        "Write the analysis plan and the SQL for its FIRST step only. Every "
+        "field you name must be in the dictionary; a field that is not there "
+        "is not there, and neither a near-name nor a plausible one may stand "
+        "in for it. If the dictionary shows the question needs a choice only "
+        "the user can make, ask it. If it shows this data cannot answer the "
+        "question, say so and stop -- do not approximate it.")
+
+    data = conversation.ask(
+        contract="opus_plan", user="\n\n".join(lines), schema=PLAN_SCHEMA,
+        tool_name="analysis_plan",
+        description="The analysis plan and the SQL for its first step.",
+        purpose="opus_plan")
+
+    action = str(data.get("action") or "submit_the_first_step")
     plan = _plan_from(data.get("plan"), decision)
-    submission = _submission_from(data.get("steps"), plan=plan,
-                                  analysis_round=1, submission_number=0)
-    return decision, plan, submission
+    submission = None
+    if action == "submit_the_first_step":
+        submission = _submission_from(data.get("steps"), plan=plan,
+                                      analysis_round=1, submission_number=0)
+        if submission is None:
+            # It said it was submitting a step and did not supply one. That is
+            # not a plan with a small omission; it is nothing to run, and the
+            # runtime is told exactly that rather than being handed an empty
+            # submission to discover later.
+            action = "explain_and_stop"
+    return {
+        "action": action,
+        "plan": plan,
+        "submission": submission,
+        "clarification_question": str(data.get("clarification_question") or ""),
+        "clarification_options": as_text_list(data.get("clarification_options")),
+        "explanation": str(data.get("explanation") or ""),
+    }
 
 
 def _plan_from(raw: Any, decision: K.FunctionalityDecision
@@ -716,12 +868,12 @@ def _plan_from(raw: Any, decision: K.FunctionalityDecision
         return None
     return K.AnalysisPlan(
         plan_id=str(raw.get("plan_id") or f"plan-{uuid.uuid4().hex[:6]}"),
-        subquestions=[str(s) for s in (raw.get("subquestions") or [])]
+        subquestions=as_text_list(raw.get("subquestions"))
         or ["(unstated)"],
-        fields_required=[str(f) for f in (raw.get("fields_required") or [])],
-        joins_required=[str(j) for j in (raw.get("joins_required") or [])],
-        steps=[str(s) for s in (raw.get("steps") or [])],
-        assumptions=[str(a) for a in (raw.get("assumptions") or [])],
+        fields_required=as_text_list(raw.get("fields_required")),
+        joins_required=as_text_list(raw.get("joins_required")),
+        steps=as_text_list(raw.get("steps")),
+        assumptions=as_text_list(raw.get("assumptions")),
         missingness_handling=str(raw.get("missingness_handling") or ""),
         expected_output_grain=str(raw.get("expected_output_grain") or ""),
         expected_units=str(raw.get("expected_units") or ""),
@@ -796,8 +948,7 @@ def repair(conversation: Conversation, packet_failure: K.ExecutionFailurePacket,
             "plan": revised_plan, "submission": submission,
             "clarification_question": str(
                 data.get("clarification_question") or ""),
-            "clarification_options": [
-                str(o) for o in (data.get("clarification_options") or [])],
+            "clarification_options": as_text_list(data.get("clarification_options")),
             "explanation": str(data.get("explanation") or "")}
 
 
@@ -832,7 +983,7 @@ def review(conversation: Conversation, result: K.ExecutionResultPacket, *,
     per_subquestion = [K.SubquestionEvidence(
         subquestion=str(s.get("subquestion") or ""),
         answered=bool(s.get("answered")),
-        evidence_fact_ids=[str(f) for f in (s.get("evidence_fact_ids") or [])],
+        evidence_fact_ids=as_text_list(s.get("evidence_fact_ids")),
         gap=str(s.get("gap") or ""))
         for s in (data.get("per_subquestion") or [])]
 
@@ -854,8 +1005,7 @@ def review(conversation: Conversation, result: K.ExecutionResultPacket, *,
         revised_plan=revised_plan, revised_submission=submission,
         gap_addressed=str(data.get("gap_addressed") or ""),
         clarification_question=str(data.get("clarification_question") or ""),
-        clarification_options=[str(o) for o in
-                               (data.get("clarification_options") or [])],
+        clarification_options=as_text_list(data.get("clarification_options")),
         answer=envelope)
 
 
@@ -884,6 +1034,9 @@ def rewrite_answer(conversation: Conversation, envelope: K.AnswerEnvelope,
 
 
 __all__ = ["Conversation", "GATE_SCHEMA", "OPUS_ROLE", "OpusUnavailable",
-           "REWRITE_SCHEMA", "envelope_from", "rewrite_answer",
-           "REPAIR_SCHEMA", "REVIEW_SCHEMA", "gate_and_plan", "repair",
-           "review"]
+           "PLAN_SCHEMA", "REPAIR_SCHEMA", "REVIEW_SCHEMA", "REWRITE_SCHEMA",
+           "CONVERSATION_RESERVE", "TURN_MESSAGE_CHARS", "envelope_from",
+           "gate",
+           "opening_message", "plan_first_submission", "repair",
+           "request_sizer", "system_blocks",
+           "review", "rewrite_answer"]

@@ -42,7 +42,8 @@ def repaired(runtime_factory, sonnet_answers):
         structured_script=list(sonnet_answers) + [{"current_topic": "ECL"}],
         converse_script=[
             lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                        "public_explanation": "x", "plan": plan(),
+                        "public_explanation": "x"},
+            lambda _r: {"action": "submit_the_first_step", "plan": plan(),
                         "steps": steps(BAD)},
             lambda _r: {"action": "submit_repaired_code", "plan": plan(),
                         "steps": steps(GOOD, "s2")},
@@ -50,7 +51,13 @@ def repaired(runtime_factory, sonnet_answers):
                         "answer": {"narrative": "ECL fell.", "complete": True}},
         ])
     outcome = runtime_factory(provider).run("How much did ECL change?")
-    return {"outcome": outcome, "provider": provider}
+    # Two conversations, deliberately: the gate over the light packet, then
+    # the analysis over the full one. Grouped by purpose because the caching
+    # property is per STAGE -- each has its own prefix and each keeps it.
+    gate = [r for r in provider.requests if r["purpose"] == "opus_gate"]
+    analysis = [r for r in provider.requests if r["purpose"] != "opus_gate"]
+    return {"outcome": outcome, "provider": provider,
+            "gate": gate, "analysis": analysis}
 
 
 # ---- the cached prefix ----------------------------------------------------
@@ -76,24 +83,40 @@ def test_the_breakpoint_is_not_the_last_block(repaired):
         "the per-turn contract and the untrusted-data note sit after it")
 
 
-def test_the_prefix_is_byte_identical_across_every_turn_of_one_request(repaired):
-    """The property caching depends on. One changed byte anywhere before the
-    breakpoint and every later turn is a cache miss."""
-    prefixes = []
-    for request in repaired["provider"].requests:
+def _prefixes(requests):
+    out = []
+    for request in requests:
         blocks = request["system"]
         breakpoint_at = next(i for i, b in enumerate(blocks)
                              if b.get("cache_control"))
-        prefixes.append(json.dumps(blocks[:breakpoint_at + 1], sort_keys=True,
-                                   default=str))
-    assert len(prefixes) == 3, "expected a gate, a repair and a review turn"
-    assert len(set(prefixes)) == 1, (
+        out.append(json.dumps(blocks[:breakpoint_at + 1], sort_keys=True,
+                              default=str))
+    return out
+
+
+def test_the_prefix_is_byte_identical_across_every_turn_of_one_stage(repaired):
+    """The property caching depends on. One changed byte anywhere before the
+    breakpoint and every later turn of that stage is a cache miss.
+
+    A stage, not a request: the gate and the analysis are two conversations
+    over two different packets, and the analysis one -- the expensive one, the
+    one that carries the dictionary through the plan, the repair and the
+    review -- is where the caching pays."""
+    assert len(repaired["gate"]) == 1, "expected exactly one gate turn"
+    assert len(repaired["analysis"]) == 3, (
+        "expected a plan, a repair and a review turn")
+
+    analysis = _prefixes(repaired["analysis"])
+    assert len(set(analysis)) == 1, (
         "the cached prefix changed between turns, so every turn after the "
         "first is a cache miss")
+    # And the two stages pin different things, which is the point of the
+    # split: the gate never carries the dictionary.
+    assert set(_prefixes(repaired["gate"])) != set(analysis)
 
 
 def test_the_catalogue_is_in_the_cached_prefix(repaired):
-    blocks = repaired["provider"].requests[0]["system"]
+    blocks = repaired["analysis"][0]["system"]
     cached = next(b for b in blocks if b.get("cache_control"))
     for name in ("pd_pit_12m", "pd_ttc_12m", "cockpit_facility_quarter",
                  "cockpit_borrower_financial_quarter"):
@@ -118,24 +141,45 @@ def test_volatile_context_is_outside_the_prefix(repaired):
             f"turns, so the cache can never hit")
 
 
-def test_the_catalogue_is_still_logically_present_in_every_request(repaired):
+def test_the_catalogue_is_still_logically_present_in_every_analysis_request(
+        repaired):
     """Caching is an optimisation. Section 8.1 is satisfied by the content
     being THERE, not by it being cheap -- there is no hash and no reference
     Opus would have to resolve."""
-    for request in repaired["provider"].requests:
+    for request in repaired["analysis"]:
         blob = json.dumps(request, default=str)
         assert "pd_pit_12m" in blob and "pd_ttc_12m" in blob
         assert "point-in-time probability of default" in blob.lower()
 
 
+def test_the_gate_request_carries_no_catalogue_at_all(repaired):
+    """The other half of the same rule. Section 8.1 requires the complete
+    dictionary in the turns that PLAN and REPAIR an analysis; the gate plans
+    nothing, and sending it the dictionary is what put a 60,530-token request
+    in front of "who are you?"."""
+    blob = json.dumps(repaired["gate"][0], default=str)
+    assert "pd_pit_12m" not in blob
+    assert "point-in-time probability of default" not in blob.lower()
+    assert "IN OUTLINE" in blob
+
+
 def test_the_dynamic_context_opens_the_conversation(repaired):
     """The question, scope, thread, coverage, samples and budget go in the
     first user message -- after the prefix, so the prefix stays stable."""
-    first = repaired["provider"].requests[0]["messages"][0]
+    first = repaired["analysis"][0]["messages"][0]
     assert first["role"] == "user"
     assert "THE REQUEST, ITS SCOPE" in first["content"]
-    for section in ("measured_coverage", "remaining_budget", "thread"):
+    for section in ("measured_coverage", "sample_rows", "remaining_budget",
+                    "thread"):
         assert section in first["content"]
+
+    # The gate's opening message is the same shape without the analytical
+    # sections: the question, the scope, the thread and the budget.
+    gate_first = repaired["gate"][0]["messages"][0]
+    assert "THE REQUEST, ITS SCOPE" in gate_first["content"]
+    assert "coverage_outline" in gate_first["content"]
+    assert "measured_coverage" not in gate_first["content"]
+    assert "sample_rows" not in gate_first["content"]
 
 
 # ---- counting before spending ---------------------------------------------
@@ -187,7 +231,12 @@ def test_the_output_allowance_is_part_of_fitting():
     """A request that fits only if the answer is truncated has not fitted."""
     counter = T.Counter()
     with pytest.raises(T.TooLargeToSend) as e:
-        counter.fits(system="x" * (3400 * 63), messages=[], tools=None,
+        # Just inside the cap on its own, and outside it once the answer the
+        # same call needs is counted. Sized from the calibrated estimator so
+        # the arithmetic is the estimator's, not a number typed here.
+        text = "x" * int(T.CHARS_PER_TOKEN * 62_000)
+        assert T.estimate(text) < 64_000
+        counter.fits(system=text, messages=[], tools=None,
                      cap=64_000, reserve_output=4_096)
     assert "has not fitted" in str(e.value)
 

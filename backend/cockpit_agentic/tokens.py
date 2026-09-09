@@ -38,11 +38,20 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-#: Characters per token for the local fallback. Deliberately conservative:
-#: dense JSON of this kind tokenizes at roughly 3.5-4 characters per token, and
-#: over-counting is the safe direction because under-counting is what lets an
-#: oversized packet through.
-CHARS_PER_TOKEN = 3.4
+#: Characters per token for the local fallback, CALIBRATED against the
+#: provider's own counter rather than assumed.
+#:
+#: This shipped at 3.4, reasoning that dense JSON tokenizes at roughly 3.5-4
+#: characters per token. Live UAT measured that wrong for this content: the
+#: same assembled gate request estimated 41,261 tokens here and counted 60,530
+#: at the provider -- 2.32 characters per token. Short keys, punctuation and
+#: identifiers tokenize far denser than prose.
+#:
+#: A 47% under-count is the failure that matters, because it is the one that
+#: lets an oversized request through. 2.2 is the measured 2.32 with a small
+#: margin the safe way. It remains a FALLBACK: whenever a credential is
+#: configured, `Counter` asks the provider and reports the answer as measured.
+CHARS_PER_TOKEN = 2.2
 
 MEASURED = "provider_count_tokens"
 ESTIMATED = "local_conservative_estimate"

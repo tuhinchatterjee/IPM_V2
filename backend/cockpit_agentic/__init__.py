@@ -81,11 +81,15 @@ CATALOG_VERSION = "3.0.0"
 #: The functionality registry's version.
 REGISTRY_VERSION = "3.0.0"
 
-#: The context packet contract version.
-CONTEXT_VERSION = "3.0.0"
+#: The context packet contract version. 3.1.0: there are two packets now -- a
+#: light gate packet and the full analytical one -- and each carries the stage
+#: it is, so nothing downstream has to infer which it is holding.
+CONTEXT_VERSION = "3.1.0"
 
 #: The prompt set version. Bumped when any file under `prompts/` changes.
-PROMPT_VERSION = "3.0.0"
+#: 3.1.0: `opus_gate_and_plan` became `opus_gate` and `opus_plan`, one for each
+#: stage of the context.
+PROMPT_VERSION = "3.1.0"
 
 #: The one runtime business domain. Every catalog entry, artifact, sample row
 #: and Python input carries it, and anything that does not is refused.

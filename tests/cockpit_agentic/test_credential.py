@@ -294,8 +294,8 @@ def test_the_secret_never_reaches_a_model_prompt_or_a_trace(
         converse_script=[
             lambda _r: {"decision": "PROCEED_COCKPIT",
                         "query_mode": "DATA_ANALYSIS", "owner": "COCKPIT",
-                        "scores": scores(), "public_explanation": "x",
-                        "plan": plan,
+                        "scores": scores(), "public_explanation": "x"},
+            lambda _r: {"action": "submit_the_first_step", "plan": plan,
                         "steps": [{"step_id": "s1", "language": "sql",
                                    "code": sql}]},
             lambda _r: {"decision": "ANSWER",

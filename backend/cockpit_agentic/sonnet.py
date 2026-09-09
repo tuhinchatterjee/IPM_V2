@@ -28,6 +28,7 @@ the exchange as unsummarized for next time.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -36,7 +37,7 @@ from typing import Any
 from backend.cockpit_agentic import PROMPT_VERSION, UNTRUSTED_NOTE
 from backend.cockpit_agentic.contracts import (CleanedQuestion, Exchange,
                                                NormalizedQuestion,
-                                               ThreadSummary)
+                                               ThreadSummary, as_text_list)
 from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic.ledger import BudgetExceeded, Ledger
 
@@ -201,8 +202,8 @@ def clean(question: str, provider: Any, ledger: Ledger, *,
         original_text=text,
         detected_language=str(data.get("language") or "unknown"),
         english_text=str(data.get("english_text") or ""),
-        preserved_terms=[str(t) for t in (data.get("preserved_terms") or [])],
-        uncertainties=[str(u) for u in (data.get("uncertainties") or [])])
+        preserved_terms=as_text_list(data.get("preserved_terms")),
+        uncertainties=as_text_list(data.get("uncertainties")))
 
 
 def normalize(cleaned: CleanedQuestion, provider: Any, ledger: Ledger, *,
@@ -229,8 +230,13 @@ def normalize(cleaned: CleanedQuestion, provider: Any, ledger: Ledger, *,
             "INHERITED scope, not something the user said in this message):\n"
             + "\n".join(f"- {k}: {v}" for k, v in sorted(ui_filters.items())))
     if rolling_summary:
-        parts.append(f"CONVERSATION SO FAR (rolling summary):\n"
-                     f"{rolling_summary}")
+        # Serialized, not interpolated. `f"{a_dict}"` renders Python repr,
+        # which is neither what the model is told to expect nor bounded; a
+        # summary field that had been character-expanded rendered as thousands
+        # of quoted single characters here.
+        parts.append("CONVERSATION SO FAR (rolling summary):\n"
+                     + json.dumps(rolling_summary, separators=(",", ":"),
+                                  default=str))
     if recent_exchanges:
         rendered = "\n\n".join(
             f"[{e.get('exchange_id', '?')}] Q: {e.get('question', '')}\n"
@@ -265,25 +271,21 @@ def normalize(cleaned: CleanedQuestion, provider: Any, ledger: Ledger, *,
     return NormalizedQuestion(
         business_question=str(data.get("business_question") or
                               cleaned.english_text),
-        subquestions=[str(s) for s in (data.get("subquestions") or [])],
-        requested_measures=[str(m) for m in
-                            (data.get("requested_measures") or [])],
-        requested_actions=[str(a) for a in
-                           (data.get("requested_actions") or [])],
+        subquestions=as_text_list(data.get("subquestions")),
+        requested_measures=as_text_list(data.get("requested_measures")),
+        requested_actions=as_text_list(data.get("requested_actions")),
         explicit_scope=dict(data.get("explicit_scope") or {}),
         # The screen's filters are inherited scope whatever the model says, so
         # they are merged in here rather than trusted from the response.
         inherited_scope={**dict(ui_filters or {}),
                          **dict(data.get("inherited_scope") or {})},
-        inherited_from_exchange_ids=[
-            str(i) for i in (data.get("inherited_from_exchange_ids") or [])],
-        periods=[str(p) for p in (data.get("periods") or [])],
-        entity_references=[str(e) for e in
-                           (data.get("entity_references") or [])],
+        inherited_from_exchange_ids=as_text_list(data.get("inherited_from_exchange_ids")),
+        periods=as_text_list(data.get("periods")),
+        entity_references=as_text_list(data.get("entity_references")),
         preferred_presentation=str(data.get("preferred_presentation") or ""),
         response_language=str(data.get("response_language") or "en"),
         unresolved_ambiguity=(
-            [str(a) for a in (data.get("unresolved_ambiguity") or [])]
+            as_text_list(data.get("unresolved_ambiguity"))
             + list(cleaned.uncertainties)))
 
 
@@ -327,9 +329,21 @@ def update_summary(previous: ThreadSummary | None, exchange: Exchange,
                  "asked and that it was not answered, and why."),
     }.get(exchange.kind, "This exchange was answered.")
 
+    # The previous summary goes back to the model, so it is repaired FIRST. A
+    # character-expanded field echoed into the next request is how one bad
+    # response becomes a permanently corrupt thread -- and, because the
+    # expansion is one element per character, how the summary section grows by
+    # a factor of thirty every time it is carried forward.
+    repair = fallback.repair()
+    if repair.occurred:
+        logger.warning(
+            "The stored Cockpit summary was repaired before use: recovered=%s "
+            "cleared=%s", repair.recovered, repair.cleared)
+
     user = "\n\n".join([
         "PREVIOUS SUMMARY:\n" + (
-            str(previous.to_dict()) if previous
+            json.dumps(previous.to_dict(), separators=(",", ":"), default=str)
+            if previous
             else "(none - this is the first exchange in this thread)"),
         f"LATEST QUESTION:\n{exchange.question}",
         f"WHAT THE USER WAS GIVEN:\n{exchange.answer[:3000]}",
@@ -352,7 +366,13 @@ def update_summary(previous: ThreadSummary | None, exchange: Exchange,
     except Exception as e:                                  # noqa: BLE001
         return kept(str(e))
 
-    references = [str(r) for r in (data.get("authorized_references") or [])]
+    references = as_text_list(data.get("authorized_references"))
+    # `as_text_list` is the whole of the fix for the corruption that started
+    # here. `[str(r) for r in data.get("authorized_references")]` iterates a
+    # STRING one character at a time when the model returns a string where the
+    # schema asked for an array, and the result is stored, echoed back and
+    # re-summarised forever. A scalar string is now one element; nothing is
+    # ever character-expanded.
     # Section 7.9: CreditProbe validates that referenced results actually
     # exist. A summary that cites a fact id from nowhere is not stored with it.
     known = set(exchange.fact_ids) | set(fallback.authorized_references)
@@ -362,14 +382,11 @@ def update_summary(previous: ThreadSummary | None, exchange: Exchange,
         thread_id=fallback.thread_id or "",
         summary_through_exchange_id=exchange.exchange_id,
         current_topic=str(data.get("current_topic") or ""),
-        settled_definitions=[str(d) for d in
-                             (data.get("settled_definitions") or [])],
-        corrections=[str(c) for c in (data.get("corrections") or [])],
+        settled_definitions=as_text_list(data.get("settled_definitions")),
+        corrections=as_text_list(data.get("corrections")),
         authorized_references=validated,
-        supported_conclusions=[str(c) for c in
-                               (data.get("supported_conclusions") or [])],
-        unresolved_questions=[str(q) for q in
-                              (data.get("unresolved_questions") or [])],
+        supported_conclusions=as_text_list(data.get("supported_conclusions")),
+        unresolved_questions=as_text_list(data.get("unresolved_questions")),
         version=fallback.version + 1,
         unsummarized_exchange_ids=[])
 

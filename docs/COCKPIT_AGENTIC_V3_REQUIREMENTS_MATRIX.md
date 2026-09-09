@@ -17,7 +17,7 @@ why. **NOT DONE** — not implemented.
 | 3 | Sonnet pass 1: cleanup and faithful translation | `sonnet.clean`, `prompts/sonnet_pass1_cleanup.md` | `test_a_failed_pass_one_preserves_the_raw_question`; multilingual cases in the benchmark | **PARTIAL** — mechanism tested; fidelity needs a live model |
 | 4 | Sonnet pass 2: business request, ambiguity preserved | `sonnet.normalize`, `prompts/sonnet_pass2_normalize.md` | `test_an_explicit_instruction_overrides_an_inherited_filter` | **PARTIAL** — same |
 | 5 | CreditProbe builds the factual context packet (A–J) | `context.build` | `test_context_and_registry.py` — 25 tests | **DONE** |
-| 6 | Opus performs the functionality gate FIRST | `opus.gate_and_plan`, `states.TRANSITIONS` | `test_the_gate_cannot_be_skipped`, `test_an_ews_question_is_referred_and_executes_nothing` | **DONE** |
+| 6 | Opus performs the functionality gate FIRST | `opus.gate`, `states.TRANSITIONS` | `test_the_gate_cannot_be_skipped`, `test_an_ews_question_is_referred_and_executes_nothing` | **DONE** |
 | 7 | Opus owns reasoning, plan, method, SQL, repair, review, answer | `opus.py`, `runtime.py` | `test_creditprobe_returns_facts_and_opus_writes_the_repair` | **DONE** |
 | 8 | No compulsory analytical templates | `contracts.AnalysisPlan.method_summary` is free text; no method enum anywhere | `test_the_ratio_definitions_are_labelled_semantics_not_a_template` | **DONE** |
 | 9 | CreditProbe does NOT repair Opus SQL/Python | `failure.py`, `sql.execute` | `test_creditprobe_returns_facts_and_opus_writes_the_repair`; `repair_request_shape.json` `carries_no_repaired_query: true` | **DONE** |

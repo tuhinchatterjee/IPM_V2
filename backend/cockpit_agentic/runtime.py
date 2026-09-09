@@ -148,8 +148,19 @@ class Runtime:
         self.attempts: list[dict[str, Any]] = []
         self.artifacts = K.ArtifactManifest(request_id=self.request_id)
         self.completed_steps: list[str] = []
+        #: Stage A. The light packet the gate decided from.
+        self.gate_packet: context_mod.CockpitContextPacket | None = None
+        #: Stage B. The full analytical packet, built ONLY for a Cockpit data
+        #: analysis. It stays None for every other outcome, which is what makes
+        #: "product help never assembles the dictionary" checkable rather than
+        #: asserted.
         self.context_packet: context_mod.CockpitContextPacket | None = None
         self.conversation: Any = None
+        #: Every Opus conversation this request opened, in order: the gate's,
+        #: then the analysis conversation if it reached stage B. Reported
+        #: together, because a token report that showed only the second would
+        #: hide the cost of the first.
+        self.conversations: list[Any] = []
         #: One record per sandboxed Python step: what was run, under which
         #: limits, with which guarantees, and how it ended. Never the data.
         self.python_audit: list[dict[str, Any]] = []
@@ -175,18 +186,13 @@ class Runtime:
         self.model_error: models_mod.CockpitModelError | None = None
         try:
             self.models = models_mod.resolve()
-        except credential_mod.ProviderCredentialMissing as e:
-            # Fails closed before the first provider request. No deterministic
-            # answer, and the message names the variable and never a value.
-            return self._finish(
-                st.PROVIDER_CREDENTIAL_MISSING,
-                _stop_envelope(
-                    reason=e.status, narrative=str(e), understood=question,
-                    help_text=(f"Set {' and '.join(e.variables)} in the "
-                               f"runtime environment and restart the "
-                               f"service.")))
         except models_mod.CockpitModelError as e:
             self.model_error = e
+        # A missing credential is NOT caught here. `service._resolve_provider`
+        # raises it, the caller passes it in as `provider_error`, and `_run`
+        # raises it before anything is assembled -- one shape of stop, reported
+        # through `run`. A second handler here would have had to finish a
+        # request from inside a constructor, which is why it is not one.
 
     # -- progress -------------------------------------------------------
 
@@ -360,26 +366,36 @@ class Runtime:
                     help_text=("This is an access or configuration matter for "
                                "an administrator.")))
 
-        self.context_packet = context_mod.build(
+        # ---- STAGE A: the gate packet --------------------------------
+        # The light packet. The whole question, the whole registry, the domain
+        # in outline -- and no field dictionary, because nothing is planned
+        # from this turn. See `context.build_gate`.
+        packet_args = dict(
             request_id=self.request_id, cleaned=cleaned, normalized=normalized,
             scope=self.scope, catalog=self.catalog, coverage=self.coverage,
             ledger=self.ledger, session=self.session,
             ui_filters=ui_filters, rolling_summary=rolling_summary,
             recent_exchanges=recent_exchanges)
+        self.gate_packet = context_mod.build_gate(
+            **packet_args,
+            reserve_tokens=self.ledger.limits.max_opus_output_tokens,
+            measure=opus_mod.request_sizer(
+                stage=context_mod.GATE_STAGE, contract="opus_gate",
+                schema=opus_mod.GATE_SCHEMA))
 
-        conversation = opus_mod.Conversation(
+        gate_conversation = opus_mod.Conversation(
             provider=self.provider, ledger=self.ledger,
-            packet=self.context_packet,
+            packet=self.gate_packet,
             # The exact id that will serve the request, so tokens are counted
             # against the tokenizer that will actually be used.
             model=self.models.reasoning if self.models else "")
-        self.conversation = conversation
+        self.conversation = gate_conversation
+        self.conversations.append(gate_conversation)
 
         # ---- the gate ------------------------------------------------
         self._advance(st.FUNCTIONALITY_ASSESSMENT,
                       "checking this is a Cockpit question")
-        self.decision, self.plan, submission = opus_mod.gate_and_plan(
-            conversation, self.context_packet)
+        self.decision = opus_mod.gate(gate_conversation, self.gate_packet)
 
         # Sections 10 and 11: a question about the product or about what a
         # term means is answered here, from knowledge, in the turn that
@@ -406,12 +422,51 @@ class Runtime:
             self.decision.decision_reason = why
             return self._not_ours(question, cleaned, normalized)
 
-        # ---- the analysis loop ---------------------------------------
+        # ---- STAGE B: the full analytical packet ---------------------
+        # Reached ONLY here: query_mode is DATA_ANALYSIS, owner is COCKPIT, and
+        # the server's own score test passed. Every other route out of the gate
+        # has already returned, so no product-help, theory, referral,
+        # clarification or unsupported request can reach this line.
         self._advance(st.PLANNING, "planning the analysis")
         self.ledger.note_analysis_round()
+        self.context_packet = context_mod.build(
+            **packet_args,
+            # The reply, plus room for the turns that come after this one: the
+            # analysis packet is built once and every review and repair turn is
+            # appended to the same conversation.
+            reserve_tokens=(self.ledger.limits.max_opus_output_tokens
+                            + opus_mod.CONVERSATION_RESERVE),
+            measure=opus_mod.request_sizer(
+                stage=context_mod.ANALYSIS_STAGE, contract="opus_plan",
+                schema=opus_mod.PLAN_SCHEMA))
 
-        return self._loop(conversation, submission, question, cleaned,
-                          normalized)
+        # A NEW conversation. The two stages pin different domain blocks, and a
+        # prefix that changed under itself mid-request would invalidate the
+        # cache for every turn after it -- and, worse, would leave the gate's
+        # outline and the analysis dictionary both in one history, saying
+        # different things about the same domain.
+        conversation = opus_mod.Conversation(
+            provider=self.provider, ledger=self.ledger,
+            packet=self.context_packet,
+            model=self.models.reasoning if self.models else "")
+        self.conversation = conversation
+        self.conversations.append(conversation)
+
+        planned = opus_mod.plan_first_submission(
+            conversation, self.context_packet, self.decision)
+        self.plan = planned["plan"]
+        if planned["action"] == "ask_a_targeted_clarification":
+            return self._clarify(planned["clarification_question"],
+                                 planned["clarification_options"])
+        if planned["action"] == "explain_and_stop":
+            return self._insufficient(
+                question,
+                planned["explanation"]
+                or "The Cockpit's data cannot answer this question, and no "
+                   "approximation was substituted for it.")
+
+        return self._loop(conversation, planned["submission"], question,
+                          cleaned, normalized)
 
     # -- the loop --------------------------------------------------------
 
@@ -830,6 +885,55 @@ class Runtime:
             checked.complete = False
         return checked, second
 
+    # -- which packet is in hand ----------------------------------------
+
+    def _packet(self) -> context_mod.CockpitContextPacket | None:
+        """The most specific packet built so far.
+
+        Stage B if this became a Cockpit data analysis, stage A otherwise.
+        Everything that only needs the question, the scope or the thread finds
+        them in either, and nothing here promises a dictionary that a
+        product-help request never assembled.
+        """
+        return self.context_packet or self.gate_packet
+
+    def _context_report(self) -> dict[str, Any]:
+        """Both stages, so an audit can see which packets were built and how
+        large each was. A request that never reached stage B says so by the
+        absence of the analysis entry, not by a flag someone had to set."""
+        report: dict[str, Any] = {}
+        if self.gate_packet is not None:
+            report["gate"] = self.gate_packet.to_dict()
+        if self.context_packet is not None:
+            report["analysis"] = self.context_packet.to_dict()
+        report["stages_built"] = list(report)
+        report["full_catalogue_sent"] = self.context_packet is not None
+        return report
+
+    def _token_report(self) -> dict[str, Any]:
+        """Every counted turn of every stage, and the total that was actually
+        assembled. Two stages means two conversations; reporting one of them
+        would understate what the request cost."""
+        if not self.conversations:
+            return {}
+        counts = [c for conv in self.conversations for c in conv.counts]
+        turns = [t for conv in self.conversations for t in conv.turns]
+        return {
+            "counter": self.conversations[0].counter.report(),
+            "counts": counts,
+            "turns": turns,
+            "stages": [
+                {"stage": conv.packet.stage,
+                 "packet_tokens": conv.packet.estimated_tokens,
+                 "reserved_tokens": conv.packet.reserve_tokens,
+                 "turns": len(conv.turns),
+                 "largest_request_tokens": max(
+                     [c["tokens"] for c in conv.counts] or [0])}
+                for conv in self.conversations],
+            "largest_request_tokens": max(
+                [c["tokens"] for c in counts] or [0]),
+        }
+
     def _clarify(self, question: str, options: list[str]) -> Outcome:
         return self._finish(st.WAITING_FOR_USER, K.AnswerEnvelope(
             kind="clarification",
@@ -925,8 +1029,7 @@ class Runtime:
             decision=self.decision, plan=self.plan, results=self.results,
             failures=self.failures, budget=self.ledger.to_dict(),
             machine={**self.machine.to_dict(), "progress": self.progress},
-            context=(self.context_packet.to_dict() if self.context_packet
-                     else {}),
+            context=self._context_report(),
             models=self.models.to_dict() if self.models else {},
             python_audit=list(self.python_audit),
             repair_audits=list(self.repair_audits),
@@ -952,8 +1055,8 @@ class Runtime:
         envelope.status = status
         exchange = K.Exchange(
             exchange_id=self.request_id,
-            question=(self.context_packet.payload["A_request"]
-                      ["original_question"] if self.context_packet else ""),
+            question=(self._packet().payload["A_request"]["original_question"]
+                      if self._packet() is not None else ""),
             answer=envelope.narrative,
             kind=("referral" if status == st.REDIRECTED
                   else "clarification" if status == st.WAITING_FOR_USER
@@ -966,12 +1069,8 @@ class Runtime:
             decision=self.decision, plan=self.plan, results=self.results,
             failures=self.failures, budget=self.ledger.to_dict(),
             machine={**self.machine.to_dict(), "progress": self.progress},
-            context=(self.context_packet.to_dict() if self.context_packet
-                     else {}),
-            tokens=({"counter": self.conversation.counter.report(),
-                     "counts": list(self.conversation.counts),
-                     "turns": list(self.conversation.turns)}
-                    if self.conversation is not None else {}),
+            context=self._context_report(),
+            tokens=self._token_report(),
             python_audit=list(self.python_audit),
             repair_audits=list(self.repair_audits),
             answer_checks=list(self.answer_checks),

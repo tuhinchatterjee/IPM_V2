@@ -50,7 +50,12 @@ def repair_run(runtime_factory, sonnet_answers):
 
     def gate(_request):
         return {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                "public_explanation": "The Cockpit owns stored PD history.",
+                "public_explanation": "The Cockpit owns stored PD history."}
+
+    def first_plan(_request):
+        # Stage B. The gate decides ownership over the light packet; the plan
+        # and the first step are authored over the full analytical packet.
+        return {"action": "submit_the_first_step",
                 "plan": plan(), "steps": steps(failing)}
 
     def repaired(request):
@@ -62,7 +67,7 @@ def repair_run(runtime_factory, sonnet_answers):
 
     provider = FakeProvider(
         structured_script=list(sonnet_answers),
-        converse_script=[gate, repaired,
+        converse_script=[gate, first_plan, repaired,
                          lambda _r: {"decision": "ANSWER",
                                      "answer": {"narrative": "PIT PD by "
                                                              "sector."}}])
@@ -255,10 +260,13 @@ def test_previous_failed_approaches_are_carried_so_they_are_not_repeated(
         structured_script=list(sonnet_answers),
         converse_script=[
             lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                        "public_explanation": "x", "plan": plan(),
+                        "public_explanation": "x"},
+            lambda _r: {"action": "submit_the_first_step", "plan": plan(),
                         "steps": steps(bad.format(0), "s0")},
             repair_turn(1), repair_turn(2), repair_turn(3), repair_turn(4)])
-    outcome = runtime_factory(provider).run("Show me something")
+    # Deep: five submissions is four repair turns appended to one analysis
+    # conversation, and measured that outgrows Standard's per-call cap.
+    outcome = runtime_factory(provider, mode="deep").run("Show me something")
 
     assert outcome.budget["submissions_used"] == 5
     last = seen[-1]
@@ -278,7 +286,8 @@ def test_when_nothing_remains_the_only_permitted_action_is_to_explain(
         runtime_factory, sonnet_answers):
     bad = "SELECT nope_{} FROM cockpit_facility_quarter"
     turns = [lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                         "public_explanation": "x", "plan": plan(),
+                         "public_explanation": "x"},
+             lambda _r: {"action": "submit_the_first_step", "plan": plan(),
                          "steps": steps(bad.format(0), "s0")}]
     for i in range(1, 6):
         turns.append(lambda _r, i=i: {"action": "submit_repaired_code",
@@ -286,6 +295,7 @@ def test_when_nothing_remains_the_only_permitted_action_is_to_explain(
                                       "steps": steps(bad.format(i), f"s{i}")})
     provider = FakeProvider(structured_script=list(sonnet_answers),
                             converse_script=turns)
-    outcome = runtime_factory(provider).run("Show me something")
+    # Deep, for the same reason as the test above.
+    outcome = runtime_factory(provider, mode="deep").run("Show me something")
     assert outcome.status == st.EXECUTION_FAILED
     assert outcome.failures[-1].budget["submissions_remaining"] == 0

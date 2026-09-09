@@ -80,36 +80,49 @@ engine, including a case that bypasses the validator entirely.
 
 ## D. Context-packet token measurements
 
-| Section | Tokens |
-|---|---:|
-| D/E — the complete field dictionary, grains, joins, enumerations | 22,079 |
-| F — measured coverage | 6,152 |
-| H — functionality registry | 2,330 |
-| G — sample rows | 922 |
-| I — execution capabilities, SQL and the Python sandbox | 729 |
-| B — server-confirmed scope | 620 |
-| A, C, J — question, thread, budget | 443 |
-| **Whole packet** | **33,388** |
-| **Required core**, what the guardrail forbids reducing | **26,114** |
-| Floor, every reduction spent | 28,105 |
+The Cockpit assembles two packets. Stage A is what the gate decides from; stage
+B carries the complete field dictionary and is built only for a request the
+gate has ruled `query_mode = DATA_ANALYSIS` with `owner = COCKPIT`. Standard
+mode, test release.
+
+| | Packet | Assembled request |
+|---|---:|---:|
+| **Stage A — the gate** | **8,064** | **15,980** |
+| **Stage B — the analysis**, reduction ladder applied | **44,458** | **54,269** |
+| Stage B required core, what the guardrail forbids reducing | 40,283 | — |
+| Stage B floor, every reduction spent | 43,947 | — |
+
+| Section | Stage A | Stage B |
+|---|---:|---:|
+| D/E — the complete field dictionary, grains, joins, enumerations | — | 34,125 |
+| D — the domain outline: subject areas, sizes, quarters | 1,631 | — |
+| H — functionality registry | 3,600 | 3,600 |
+| F — measured coverage | — | 3,277 |
+| I — execution contract / capability flags | 128 | 1,127 |
+| B — server-confirmed scope | 897 | 897 |
+| G — sample rows | — | 593 |
+| A, C, J — question, thread, budget | 665 | 665 |
 
 | Budget | Standard | Deep |
 |---|---:|---:|
 | Per-call input | 64,000 | 96,000 |
 | Cumulative | 250,000 | 500,000 |
 
-Estimated locally at 3.4 characters per token, deliberately conservative.
-Under a live credential this is replaced by the provider's own count against
-the exact model that will serve the request, and every result records which
-method produced it. **An estimate is never reported as a measurement.**
+Estimated locally at **2.2 characters per token** — calibrated against the
+provider's own counter on the live UAT run, which counted 60,530 for a request
+the estimator then read as 41,261. Under a live credential the estimate is
+replaced by that counter against the exact model that will serve the request,
+and every result records which method produced it. **An estimate is never
+reported as a measurement.**
 
-**What binds first is spend, not tokens.** At $5/MTok input a 28,000-token
-call costs about $0.14; the $1.00 ceiling is reached between the fifth and
-sixth call while barely 170,000 of the 250,000 tokens are used. Per the
-instruction the ceilings stay and live usage will be measured against them.
-Standard affords **6** full-context Opus calls and Deep **10**, so the §9.1
-call ceilings of 12 and 16 are unreachable with this catalogue — reported
-because "12 calls permitted" would mislead.
+**What binds first is spend, not tokens.** At $5/MTok input a call carrying the
+44,000-token stage-B packet costs about $0.27; the $1.00 ceiling is reached
+around the fourth analysis call, with Standard's token ceiling close behind.
+Per the instruction the ceilings stay and live usage will be measured against
+them. Standard affords **4** Opus turns and Deep **7**, so the §9.1 call
+ceilings of 12 and 16 are unreachable with this catalogue — reported because
+"12 calls permitted" would mislead. A full five-submission repair loop needs
+Deep; `docs/cockpit_agentic_v3/CONTEXT_SIZING.md` records the finding.
 
 Unmoved, as required: 5 execution submissions, 3 analysis rounds, the 60 and
 120-second deadlines, no automatic Standard→Deep escalation, earliest bound

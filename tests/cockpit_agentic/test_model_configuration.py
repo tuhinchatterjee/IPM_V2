@@ -29,7 +29,7 @@ from backend.cockpit_agentic import models as M
 from backend.cockpit_agentic import states as st
 from tests.cockpit_agentic.conftest import (TEST_PREPROCESS_MODEL,
                                             TEST_REASONING_MODEL, scores)
-from tests.cockpit_agentic.fake_provider import FakeProvider
+from tests.cockpit_agentic.fake_provider import FakeProvider, expand
 
 GOOD_SQL = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "
             "FROM cockpit_facility_quarter GROUP BY 1 ORDER BY 1 DESC LIMIT 2")
@@ -50,7 +50,8 @@ def _steps(code=GOOD_SQL, step_id="s1"):
 
 def _provider(sonnet_answers, *turns):
     return FakeProvider(structured_script=list(sonnet_answers),
-                        converse_script=[(lambda _r, t=t: t) for t in turns])
+                        converse_script=[(lambda _r, t=t: t)
+                                        for t in expand(turns)])
 
 
 # ============================================== resolution, on its own
@@ -209,7 +210,7 @@ def test_the_configured_reasoning_id_serves_every_analytical_stage(
 
     assert outcome.status == st.COMPLETED
     purposes = provider.purposes()
-    assert purposes == ["opus_gate_and_plan", "opus_repair", "opus_review"]
+    assert purposes == ["opus_gate", "opus_plan", "opus_repair", "opus_review"]
     for request in provider.requests:
         assert request["model"] == TEST_REASONING_MODEL, request["purpose"]
         assert request["model"] != TEST_PREPROCESS_MODEL

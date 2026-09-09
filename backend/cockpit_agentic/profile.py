@@ -211,4 +211,50 @@ def compact(profile: DataCoverageProfile, *, threshold: float = 0.0,
     }
 
 
-__all__ = ["SMALL_GROUP_FLOOR", "compact", "profile_release"]
+def outline(profile: DataCoverageProfile) -> dict[str, Any]:
+    """Coverage at a glance. Stage A's share of section F.
+
+    Row counts, which quarters are populated, and HOW MANY fields have gaps --
+    per relation, as counts. Not the field-by-field missingness table, which is
+    six thousand tokens and is only useful to someone about to choose columns.
+
+    The counts are honest about their own limits: a gate decision must not be
+    "the Cockpit cannot answer this because coverage is poor". Coverage decides
+    how an analysis is qualified, not who owns the question, and the note says
+    so.
+    """
+    with_gaps: dict[str, int] = {}
+    fully_missing: dict[str, int] = {}
+    complete = 0
+    for field_profile in profile.fields.values():
+        relation = field_profile.relation
+        entry = field_profile.compact()
+        if (field_profile.missing_rate_overall > 0
+                or "quarters_fully_missing" in entry
+                or field_profile.stale_carried_forward_rate > 0):
+            with_gaps[relation] = with_gaps.get(relation, 0) + 1
+            if "quarters_fully_missing" in entry:
+                fully_missing[relation] = fully_missing.get(relation, 0) + 1
+        else:
+            complete += 1
+    return {
+        "dataset_release_id": profile.dataset_release_id,
+        "computed_from": "the full authorized release, not the sample rows",
+        "computed_at": profile.computed_at,
+        "row_counts": dict(profile.row_counts),
+        "populated_quarters": list(profile.populated_quarters),
+        "missing_quarters": list(profile.missing_quarters),
+        "fields_with_full_coverage": complete,
+        "fields_with_gaps_by_relation": dict(sorted(with_gaps.items())),
+        "fields_absent_from_some_quarter_by_relation":
+            dict(sorted(fully_missing.items())),
+        "outline_note": (
+            "Counts only. The field-by-field missing rates are not in this "
+            "packet and no rate here may be quoted to the user. Coverage "
+            "qualifies an analysis; it does not decide who owns the question, "
+            "so do not refuse a request as unanswerable on the strength of "
+            "these counts."),
+    }
+
+
+__all__ = ["SMALL_GROUP_FLOOR", "compact", "outline", "profile_release"]

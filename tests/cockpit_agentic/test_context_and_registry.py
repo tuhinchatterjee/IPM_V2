@@ -266,7 +266,12 @@ def test_an_override_can_only_raise_a_limit_never_lower_it(built):
 def test_with_an_explicitly_configured_cap_the_packet_assembles(built):
     with_cap(built, 0)
     result = packet(built, mode="standard")
-    assert result.estimated_tokens <= 36_000
+    # 36,000 was this figure under the old 3.4-characters-per-token estimate.
+    # Live UAT measured 2.32 for this content and the constant is now 2.2, so
+    # the same packet reads about 55% larger. The packet did not change; the
+    # arithmetic did, and the number here follows the measurement rather than
+    # the measurement being trimmed to the number.
+    assert result.estimated_tokens <= 55_000
     assert result.payload["D_E_catalogue"]["relations"]
     assert result.required_core_tokens > 0
 
@@ -356,12 +361,20 @@ def test_the_measured_floor_is_recorded_in_the_sizing_document(built):
     measurement, and a measurement that drifts from the code is a claim."""
     from pathlib import Path
 
+    import re
+
     floor = measured_floor(built)
     document = (Path(__file__).resolve().parents[2]
                 / "docs/cockpit_agentic_v3/CONTEXT_SIZING.md").read_text()
     # The document records the measurement and the decision that followed.
-    assert "28,105" in document or str(floor) in document, (
-        "the sizing document does not record the measured floor")
+    # Compared with a tolerance rather than for an exact string: the packet
+    # carries the request id, so the floor moves by a few tokens with the
+    # length of one, and a test that demanded the digits would fail for a
+    # reason that says nothing about the sizing.
+    stated = [int(m.replace(",", "")) for m in
+              re.findall(r"\d{2},\d{3}", document)]
+    assert any(abs(value - floor) <= floor * 0.01 for value in stated), (
+        f"the sizing document does not record the measured floor of {floor}")
     assert "no override at any level" in document
     assert "spend is now the binding constraint" in document.lower(), (
         "the document must record which guardrail binds first under the new "

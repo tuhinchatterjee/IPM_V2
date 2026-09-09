@@ -7,8 +7,10 @@ import { CockpitV2Badge } from "@/components/ask/cockpit-v2";
 import {
   CockpitV3Answer,
   CockpitV3Badge,
+  CockpitV3Failure,
   CockpitV3Progress,
 } from "@/components/ask/cockpit-agentic";
+import { failureFrom } from "@/components/ask/cockpit-v3-outcome";
 import { Composer, useGreeting } from "@/components/ask/composer";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
@@ -159,8 +161,22 @@ function Cockpit() {
     React.useState<CockpitV3AnswerPayload | null>(null);
   const [v3Steps, setV3Steps] = React.useState<string[]>([]);
   const [v3Running, setV3Running] = React.useState(false);
+  // Every request settles into something the reader can see. This is the fifth
+  // outcome — the one where no envelope came back at all — and it exists
+  // because the previous `catch { setV3Steps([]) }` erased the progress line
+  // and rendered nothing, which reads as success with an empty answer.
+  // The request id travels WITH the failure rather than being read off the
+  // ref at render time: the ref is the id of whatever is running now, and the
+  // failure is about the request that already ended.
+  const [v3Error, setV3Error] = React.useState<
+    { message: string; status?: number; code?: string; requestId: string }
+    | null
+  >(null);
   const [v3Mode, setV3Mode] = React.useState<string>("standard");
   const v3RequestId = React.useRef<string>("");
+  // The text of the question actually asked, so "Ask again" re-asks THAT and
+  // not whatever happens to be in the composer by the time it is clicked.
+  const v3Asked = React.useRef<string>("");
 
   React.useEffect(() => {
     let live = true;
@@ -187,8 +203,10 @@ function Cockpit() {
       if (!cockpitV3?.available) return;
       const requestId = `req-${Date.now().toString(36)}`;
       v3RequestId.current = requestId;
+      v3Asked.current = text;
       setV3Running(true);
       setV3Answer(null);
+      setV3Error(null);
       setV3Steps(["Reading the question"]);
       try {
         const found = await api.cockpitV3Ask({
@@ -199,10 +217,22 @@ function Cockpit() {
         });
         setV3Answer(found);
         // The progress the server actually recorded, not a guess made here.
+        // A stop, a referral, a clarification and a partial answer all arrive
+        // HERE, as envelopes the server wrote, and they render with the
+        // server's own explanation. Only a request that produced no envelope
+        // at all reaches the catch below.
         setV3Steps(found.states?.progress ?? []);
-      } catch {
+      } catch (error) {
+        // Not swallowed. The running indicator stops, "Reading the question"
+        // goes away, and the reader is told what happened, with the request
+        // id so the run can be found. The message is the sentence the server
+        // wrote where there was one; ApiError never carries a stack trace or
+        // anything from the environment, and nothing here adds one.
+        setV3Error({ ...failureFrom(error), requestId });
         setV3Steps([]);
       } finally {
+        // Whatever happened — answer, stop, referral, clarification or
+        // failure — the request has settled and the indicator stops.
         setV3Running(false);
       }
     },
@@ -272,6 +302,12 @@ function Cockpit() {
           steps={v3Steps}
           running={v3Running}
           onCancel={cancelV3}
+        />
+
+        <CockpitV3Failure
+          error={v3Error}
+          requestId={v3Error?.requestId}
+          onRetry={() => void askV3(v3Asked.current)}
         />
 
         {v3Answer && (

@@ -14,7 +14,7 @@ from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import states as st
 from backend.cockpit_agentic import ledger as L
 from tests.cockpit_agentic.conftest import scores
-from tests.cockpit_agentic.fake_provider import FakeProvider
+from tests.cockpit_agentic.fake_provider import FakeProvider, expand
 
 GOOD_SQL = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "
             "FROM cockpit_facility_quarter GROUP BY 1 ORDER BY 1 DESC LIMIT 2")
@@ -41,9 +41,22 @@ def answer(narrative="Reported ECL fell between the two latest quarters."):
             "answer": {"narrative": narrative, "complete": True}}
 
 
+def plan_turn(analysis_plan=None, first_steps=None):
+    """Stage B's turn: the plan and the first step, over the full packet.
+
+    Cockpit V3 asks Opus twice for a data analysis -- once at the gate, over
+    the light packet, and once here with the complete field dictionary. A test
+    that scripts its turns as callables has to say both.
+    """
+    return {"action": "submit_the_first_step",
+            "plan": analysis_plan if analysis_plan is not None else plan(),
+            "steps": first_steps if first_steps is not None else steps()}
+
+
 def provider(sonnet_answers, *turns) -> FakeProvider:
     return FakeProvider(structured_script=list(sonnet_answers),
-                        converse_script=[(lambda _r, t=t: t) for t in turns])
+                        converse_script=[(lambda _r, t=t: t)
+                                        for t in expand(turns)])
 
 
 # ============================================== the happy path
@@ -59,7 +72,7 @@ def test_a_cockpit_question_is_planned_executed_reviewed_and_answered(
     assert outcome.status == st.COMPLETED
     assert outcome.envelope.kind == "answer"
     assert outcome.results and outcome.results[0].steps[0].row_count == 2
-    assert p.purposes() == ["opus_gate_and_plan", "opus_review"]
+    assert p.purposes() == ["opus_gate", "opus_plan", "opus_review"]
     assert outcome.budget["submissions_used"] == 1
     assert outcome.budget["analysis_rounds_used"] == 1
 
@@ -163,9 +176,11 @@ def test_creditprobe_returns_facts_and_opus_writes_the_repair(
 
     def gate(_request):
         return {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                "public_explanation": "x", "plan": plan(),
-                "steps": steps("SELECT pd_12_month FROM "
-                               "cockpit_facility_quarter LIMIT 1")}
+                "public_explanation": "x"}
+
+    def first_plan(_request):
+        return plan_turn(plan(), steps("SELECT pd_12_month FROM "
+                                       "cockpit_facility_quarter LIMIT 1"))
 
     def repaired(request):
         # What CreditProbe handed back is in the conversation, and it is the
@@ -177,7 +192,8 @@ def test_creditprobe_returns_facts_and_opus_writes_the_repair(
                 "plan": plan(), "steps": steps()}
 
     p = FakeProvider(structured_script=list(sonnet_answers),
-                     converse_script=[gate, repaired, lambda _r: answer()])
+                     converse_script=[gate, first_plan, repaired,
+                                      lambda _r: answer()])
     outcome = runtime_factory(p).run("Show me PD")
 
     assert outcome.status == st.COMPLETED
@@ -211,24 +227,32 @@ def test_a_security_refusal_fails_closed_without_spending_more_attempts(
     assert outcome.failures[0].repairable is False
     assert outcome.budget["submissions_used"] == 1, (
         "a fail-closed refusal spent more than one attempt")
-    assert p.purposes() == ["opus_gate_and_plan"], (
+    assert p.purposes() == ["opus_gate", "opus_plan"], (
         "the model was asked to repair an unrepairable refusal")
 
 
 # ============================================== the counters
 
 def test_five_failed_submissions_and_no_sixth(runtime_factory, sonnet_answers):
+    """Run in Deep. Five submissions is four repair turns appended to one
+    analysis conversation, and each carries a failure packet with its
+    diagnostics; measured, that outgrows Standard's 64,000-token per-call cap
+    partway through. Standard would stop on CONTEXT_TOO_LARGE, which is correct
+    behaviour -- and is pinned by
+    test_how_many_analysis_turns_each_mode_affords -- but it is not the counter
+    this test is about."""
     bad = "SELECT nope_{} FROM cockpit_facility_quarter"
     turns = [lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
                          "public_explanation": "x", "plan": plan(),
-                         "steps": steps(bad.format(0))}]
+                         }]
+    turns.append(lambda _r: plan_turn(plan(), steps(bad.format(0))))
     for i in range(1, 8):
         turns.append(
             lambda _r, i=i: {"action": "submit_repaired_code",
                              "plan": plan(), "steps": steps(bad.format(i))})
     p = FakeProvider(structured_script=list(sonnet_answers),
                      converse_script=turns)
-    outcome = runtime_factory(p).run("Show me something")
+    outcome = runtime_factory(p, mode="deep").run("Show me something")
 
     assert outcome.status == st.EXECUTION_FAILED
     assert outcome.budget["submissions_used"] == 5
@@ -248,8 +272,8 @@ def test_an_identical_resubmission_is_blocked_before_execution(
         structured_script=list(sonnet_answers),
         converse_script=[
             lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                        "public_explanation": "x", "plan": plan(),
-                        "steps": steps(same)},
+                        "public_explanation": "x"},
+            lambda _r: plan_turn(plan(), steps(same)),
             # The same query, only reindented. Not a changed approach.
             lambda _r: {"action": "submit_repaired_code", "plan": plan(),
                         "steps": steps("SELECT   nope\n  FROM "
@@ -271,11 +295,12 @@ def test_an_identical_resubmission_is_blocked_before_execution(
 
 def test_a_new_plan_does_not_reset_the_submission_counter(
         runtime_factory, sonnet_answers):
-    """Section 9.2 example B."""
+    """Section 9.2 example B. Deep for the same reason as the test above: five
+    submissions is more analysis turns than Standard's per-call cap holds."""
     bad = "SELECT nope_{} FROM cockpit_facility_quarter"
     turns = [lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                         "public_explanation": "x", "plan": plan("plan-A"),
-                         "steps": steps(bad.format(0))}]
+                         "public_explanation": "x"},
+             lambda _r: plan_turn(plan("plan-A"), steps(bad.format(0)))]
     for i in range(1, 8):
         turns.append(
             lambda _r, i=i: {"action": "revise_the_analysis_plan",
@@ -283,7 +308,7 @@ def test_a_new_plan_does_not_reset_the_submission_counter(
                              "steps": steps(bad.format(i))})
     p = FakeProvider(structured_script=list(sonnet_answers),
                      converse_script=turns)
-    outcome = runtime_factory(p).run("Show me something")
+    outcome = runtime_factory(p, mode="deep").run("Show me something")
     assert outcome.budget["submissions_used"] == 5
     assert outcome.status == st.EXECUTION_FAILED
 
@@ -312,8 +337,8 @@ def test_three_insufficient_rounds_stop_without_a_fourth(
         structured_script=list(sonnet_answers),
         converse_script=[
             lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                        "public_explanation": "x", "plan": plan(),
-                        "steps": steps()},
+                        "public_explanation": "x"},
+            lambda _r: plan_turn(),
             revise(1), revise(2), revise(3), revise(4)])
     outcome = runtime_factory(p).run("How much did ECL change?")
     assert outcome.budget["analysis_rounds_used"] == 3
@@ -336,8 +361,8 @@ def test_a_successful_fifth_submission_with_an_incomplete_answer_stops(
     """
     bad = "SELECT nope_{} FROM cockpit_facility_quarter"
     turns = [lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                         "public_explanation": "x", "plan": plan(),
-                         "steps": steps(bad.format(0))}]
+                         "public_explanation": "x"},
+             lambda _r: plan_turn(plan(), steps(bad.format(0)))]
     for i in range(1, 4):
         turns.append(lambda _r, i=i: {"action": "submit_repaired_code",
                                       "plan": plan(),
@@ -472,6 +497,11 @@ def test_the_same_request_id_continues_one_budget(runtime_factory,
 
 
 def test_an_empty_result_is_not_a_failure(runtime_factory, sonnet_answers):
+    """Run in Deep. `SELECT *` over the 198-column facility relation produces a
+    result packet of about 8,000 tokens even with no rows -- it is all column
+    metadata -- and the review turn carrying it does not fit Standard's
+    per-call cap alongside the complete field dictionary. What is under test is
+    that an empty result is a result, not the cap."""
     empty = ("SELECT * FROM cockpit_facility_quarter "
              "WHERE sector_name = 'Aerospace'")
     p = provider(sonnet_answers,
@@ -479,46 +509,65 @@ def test_an_empty_result_is_not_a_failure(runtime_factory, sonnet_answers):
                   "public_explanation": "x", "plan": plan(),
                   "steps": steps(empty)},
                  answer("No facilities matched that sector in this release."))
-    outcome = runtime_factory(p).run("Show me Aerospace")
+    outcome = runtime_factory(p, mode="deep").run("Show me Aerospace")
     assert outcome.status == st.COMPLETED
     assert outcome.results[0].status == "empty"
     assert outcome.failures == []
     assert "not proof that the quantity is zero" in outcome.results[0].note
 
 
-def test_how_many_full_context_calls_each_mode_affords():
+#: The two request sizes this domain actually assembles, measured by
+#: `test_two_stage_context.py` on the test release at the calibrated 2.2
+#: characters per token: the light gate request, and the first analysis
+#: request with the reduction ladder applied. Written here as constants so the
+#: capacity arithmetic below is about the budgets rather than about rebuilding
+#: packets, and so a change to either shows up as a diff in one place.
+GATE_REQUEST_TOKENS = 16_000
+ANALYSIS_REQUEST_TOKENS = 54_000          # Standard; Deep reduces less, ~62,000
+ANALYSIS_TURN_GROWTH = 3_300              # a repair turn with its failure packet
+
+
+def test_how_many_opus_turns_each_mode_affords():
     """Measured capacity under the UAT configuration.
 
-    This domain's packet is about 28,000 tokens and every Opus turn carries it,
-    so the cumulative token ceiling -- not the model-call ceiling -- decides how
-    long a request can run. The numbers are asserted rather than described so a
-    change to either budget shows up here as a diff.
+    A request makes one small gate call and then a series of analysis calls,
+    each carrying the complete field dictionary, so the CUMULATIVE token
+    ceiling -- not the model-call ceiling -- decides how long it can run. The
+    numbers are asserted rather than described so a change to either budget
+    shows up here as a diff.
 
-    Consequence worth knowing before the live run: Standard's twelve-call and
-    Deep's sixteen-call ceilings are NOT reachable with this catalogue. Tokens
-    bind first, at six calls in Standard and ten in Deep.
+    Two consequences worth knowing before the live run. Standard's twelve-call
+    and Deep's sixteen-call ceilings are NOT reachable with this catalogue:
+    tokens bind first. And Standard affords the plan plus three further
+    analysis turns, which is why the tests that exercise a full
+    five-submission repair loop run in Deep.
     """
     measured = {}
-    for mode in ("standard", "deep"):
+    for mode, analysis in (("standard", ANALYSIS_REQUEST_TOKENS),
+                           ("deep", 62_000)):
         limits = L.limits_for(mode)
         ledger = L.Ledger(mode=mode, prices=L.Prices())
         calls, history, reason = 0, 0, ""
         while True:
+            size = (GATE_REQUEST_TOKENS if calls == 0
+                    else analysis + history)
             try:
                 reservation = ledger.reserve(
                     role="opus", family="opus", purpose="turn",
-                    input_tokens=28_000 + history,
+                    input_tokens=size,
                     max_output_tokens=limits.max_opus_output_tokens)
             except L.BudgetExceeded as e:
                 reason = e.reason
                 break
             ledger.settle(reservation, output_tokens=1_500)
             calls += 1
-            history += 2_500          # results, failure packets, attempts
+            if calls > 1:
+                history += ANALYSIS_TURN_GROWTH
         measured[mode] = (calls, reason)
 
-    assert measured["standard"] == (6, L.STOP_TOKENS)
-    assert measured["deep"] == (10, L.STOP_TOKENS)
+    # One gate turn plus the analysis turns.
+    assert measured["standard"] == (4, L.STOP_TOKENS)
+    assert measured["deep"] == (7, L.STOP_TOKENS)
     # The call ceilings are never the thing that stops it.
     assert L.limits_for("standard").total_provider_requests == 12
     assert L.limits_for("deep").total_provider_requests == 16

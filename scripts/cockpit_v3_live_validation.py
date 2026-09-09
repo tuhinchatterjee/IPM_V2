@@ -241,11 +241,30 @@ def main() -> int:
         step.evidence = evidence
         step.elapsed_seconds = elapsed
 
-    settle(5, bool(body.get("context", {}).get("payload", {}).get("A_request")),
+    # The context is assembled in two stages. Stage A -- the gate packet --
+    # always exists; stage B is built only for a Cockpit data analysis. Both
+    # carry section A, so the preprocessing evidence is read from whichever
+    # was built, and which stages were built is reported alongside it.
+    context = body.get("context") or {}
+    stages = context.get("stages_built") or []
+    gate_payload = (context.get("gate") or {}).get("payload") or {}
+    analysis_payload = (context.get("analysis") or {}).get("payload") or {}
+    request_section = (gate_payload.get("A_request")
+                       or analysis_payload.get("A_request") or {})
+    settle(5, bool(request_section),
            "Both preprocessing passes ran against the real model; the request "
            "section of the packet is what they produced.",
-           {"request": body.get("context", {}).get("payload", {}).get(
-               "A_request", {})})
+           {"request": request_section,
+            "stages_built": stages,
+            "full_catalogue_sent": context.get("full_catalogue_sent"),
+            "gate_packet_tokens": (context.get("gate") or {}).get(
+                "estimated_tokens"),
+            "gate_request_tokens": (context.get("gate") or {}).get(
+                "request_tokens"),
+            "analysis_packet_tokens": (context.get("analysis") or {}).get(
+                "estimated_tokens"),
+            "analysis_request_tokens": (context.get("analysis") or {}).get(
+                "request_tokens")})
 
     decision = body.get("functionality_decision") or {}
     settle(6, bool(decision.get("decision")),

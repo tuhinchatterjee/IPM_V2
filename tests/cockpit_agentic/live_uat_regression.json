@@ -1,0 +1,47 @@
+{
+  "purpose": "The three questions from the live UAT run of 2026-09, kept as a regression fixture. Each records what was OBSERVED live and what must now happen. The token figures under 'live' were measured against the provider's own counter during that run; the figures a test computes are local estimates at the calibrated 2.2 characters per token, and the two are never presented as the same kind of number.",
+  "not_a_quality_claim": "Running these against the labelled mock proves what this application sends, builds and settles into. It proves nothing about how a real model classifies a sentence. Live answer quality is BLOCKED/UNVERIFIED until the 84-question bank is run against the configured Sonnet and Opus.",
+  "cases": [
+    {
+      "case_id": "uat-1-who-are-you",
+      "question": "Who are you?",
+      "expected_query_mode": "PRODUCT_HELP",
+      "expected_owner": "COCKPIT",
+      "expected_status": "COMPLETED",
+      "expected_stages_built": ["gate"],
+      "full_catalogue_sent": false,
+      "expected_opus_purposes": ["opus_gate"],
+      "live_before": {
+        "input_tokens": 60530,
+        "output_allowance": 4096,
+        "total": 64626,
+        "per_call_cap": 64000,
+        "observed": "Refused before dispatch. CONTEXT_TOO_LARGE. The user saw nothing.",
+        "counted_by": "the provider's own token counter"
+      },
+      "why": "Deciding that a question is about the product does not need 751 field definitions, 40 ratio formulas, the join graph, the coverage table or the SQL contract. Stage A carries the question, the thread, the functionality registry and the domain in outline."
+    },
+    {
+      "case_id": "uat-2-pit-vs-ttc",
+      "question": "What is the difference between PIT and TTC PD?",
+      "expected_query_mode": "THEORY_CONCEPT",
+      "expected_owner": "COCKPIT",
+      "expected_status": "COMPLETED",
+      "expected_stages_built": ["gate"],
+      "full_catalogue_sent": false,
+      "expected_opus_purposes": ["opus_gate"],
+      "why": "A question about what a term means is answered from stable credit knowledge in the gate turn. Zero SQL, zero Python, zero execution submissions, zero analysis rounds -- structurally, because this branch never reaches the loop that consumes them."
+    },
+    {
+      "case_id": "uat-3-largest-pd-increase",
+      "question": "Show the borrowers with the largest increase in PIT 12-month PD over the latest four quarters.",
+      "expected_query_mode": "DATA_ANALYSIS",
+      "expected_owner": "COCKPIT",
+      "expected_status": "COMPLETED",
+      "expected_stages_built": ["gate", "analysis"],
+      "full_catalogue_sent": true,
+      "expected_opus_purposes": ["opus_gate", "opus_plan", "opus_review"],
+      "why": "This one needs the book. It is the only route that builds the second, full analytical packet -- and the packet it gets carries the COMPLETE field dictionary, unabridged, exactly as section 7.4 requires."
+    }
+  ]
+}

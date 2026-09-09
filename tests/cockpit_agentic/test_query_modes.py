@@ -19,7 +19,7 @@ import pytest
 from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import states as st
 from tests.cockpit_agentic.conftest import scores
-from tests.cockpit_agentic.fake_provider import FakeProvider
+from tests.cockpit_agentic.fake_provider import FakeProvider, expand
 
 SQL = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "
        "FROM cockpit_facility_quarter GROUP BY 1 ORDER BY 1 DESC LIMIT 2")
@@ -41,7 +41,8 @@ def _steps(code=SQL, step_id="s1"):
 
 def _provider(sonnet_answers, *turns):
     return FakeProvider(structured_script=list(sonnet_answers),
-                        converse_script=[(lambda _r, t=t: t) for t in turns])
+                        converse_script=[(lambda _r, t=t: t)
+                                        for t in expand(turns)])
 
 
 def _gate(mode, owner, **extra):
@@ -134,7 +135,7 @@ def test_pure_product_help_executes_nothing_and_consumes_nothing(
     assert outcome.budget["analysis_rounds_used"] == 0
     assert outcome.budget["submissions_remaining"] == 5
     # One Opus call. The classification and the answer are the same turn.
-    assert provider.purposes() == ["opus_gate_and_plan"]
+    assert provider.purposes() == ["opus_gate"]
     # And the machine never entered the analytical states.
     visited = [h["state"] for h in outcome.machine["history"]]
     assert st.VALIDATING not in visited and st.EXECUTING not in visited
@@ -325,4 +326,4 @@ def test_the_mode_is_decided_again_on_every_turn(runtime_factory,
     assert second.decision.query_mode == K.DATA_ANALYSIS
     assert second.results, "the second turn is not held to the first's mode"
     # Each turn has its own gate call; there is no path that skips it.
-    assert analysis.purposes()[0] == "opus_gate_and_plan"
+    assert analysis.purposes()[0] == "opus_gate"

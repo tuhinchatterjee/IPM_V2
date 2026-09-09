@@ -70,8 +70,13 @@ def _run(runtime_factory, sonnet_answers, first_steps, repaired_steps):
 
     def gate(_request):
         return {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                "public_explanation": "The Cockpit owns stored PD history.",
-                "plan": PLAN, "steps": first_steps}
+                "public_explanation": "The Cockpit owns stored PD history."}
+
+    def first_plan(_request):
+        # Stage B, over the full analytical packet. The gate decided ownership
+        # over the light one and authored nothing.
+        return {"action": "submit_the_first_step", "plan": PLAN,
+                "steps": first_steps}
 
     def repair(request):
         captured["request"] = request
@@ -81,7 +86,7 @@ def _run(runtime_factory, sonnet_answers, first_steps, repaired_steps):
 
     provider = FakeProvider(
         structured_script=list(sonnet_answers),
-        converse_script=[gate, repair, lambda _r: ANSWER])
+        converse_script=[gate, first_plan, repair, lambda _r: ANSWER])
     outcome = runtime_factory(provider).run(QUESTION)
     assert "request" in captured, (
         f"no repair request was ever dispatched; the run ended "
@@ -171,8 +176,14 @@ def test_the_repair_request_carries_the_measured_coverage(sql_repair):
 
 
 def test_the_repair_request_carries_the_functionality_decision(sql_repair):
+    """The APPROVED decision, restated in the analysis conversation.
+
+    The gate happens in its own conversation over the light packet, so the
+    decision is not in this one's history by accident -- `plan_first_submission`
+    states it, and every repair turn continues from there."""
     serialized = sql_repair["serialized"]
     assert "PROCEED_COCKPIT" in serialized
+    assert "Ownership is settled" in serialized
     assert "The Cockpit owns stored PD history." in serialized
 
 
@@ -286,14 +297,15 @@ def test_an_incomplete_context_stops_the_request_rather_than_sending_it(
         structured_script=list(sonnet_answers),
         converse_script=[
             lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
-                        "public_explanation": "e", "plan": PLAN,
+                        "public_explanation": "e"},
+            lambda _r: {"action": "submit_the_first_step", "plan": PLAN,
                         "steps": [_sql_step(failing)]}])
     outcome = runtime_factory(provider).run(QUESTION)
     assert outcome.status == st.EXECUTION_FAILED
     assert outcome.envelope.stop_reason == K.INFRASTRUCTURE_ERROR
     assert "defect here" in outcome.envelope.narrative
     # And the repair request was never sent.
-    assert provider.purposes() == ["opus_gate_and_plan"]
+    assert provider.purposes() == ["opus_gate", "opus_plan"]
 
 
 def test_the_inspection_hook_can_only_read_the_request():

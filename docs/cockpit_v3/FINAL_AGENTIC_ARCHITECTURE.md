@@ -211,15 +211,32 @@ ids are stripped and the turn is labelled as prose only.
 `backend/cockpit_agentic/states.py`. Every edge carries its event, condition,
 side effect and what it consumes.
 
-### Working states
+### Working states, and the two context stages
+
+The context is assembled in two stages, and the second one is built on exactly
+one edge. `BUILDING_CONTEXT` assembles the LIGHT gate packet — the question,
+the thread, the functionality registry and the domain in outline. Only
+`FUNCTIONALITY_ASSESSMENT → PLANNING`, taken when `query_mode = DATA_ANALYSIS`
+and `owner = COCKPIT` and the score test passes, assembles the FULL analytical
+packet with the complete field dictionary. Product help, theory, a referral, a
+clarification and an unsupported request leave the gate without it ever
+existing.
 
 ```
 RECEIVED → NORMALIZING_1 → NORMALIZING_2 → BUILDING_CONTEXT
-         → FUNCTIONALITY_ASSESSMENT
-              ├─ PLANNING → VALIDATING → EXECUTING → REVIEWING → ANSWERING
-              └─ (no-execution modes and referrals leave here)
+                                             │ stage A: the gate packet
+                                             ▼
+                                    FUNCTIONALITY_ASSESSMENT
+         ├─ PLANNING → VALIDATING → EXECUTING → REVIEWING → ANSWERING
+         │    ▲ stage B: the full analytical packet is built here, and only here
+         └─ (no-execution modes and referrals leave here, with no stage B)
          → ANSWER_VALIDATION → SUMMARIZING → terminal
 ```
+
+The two stages are two Opus conversations, each with its own cached prefix, so
+neither prefix ever changes under itself. Sizes and the measurement behind them
+are in `docs/cockpit_agentic_v3/CONTEXT_SIZING.md`; the defect that led to the
+split is in `docs/cockpit_v3/LIVE_UAT_REMEDIATION.md`.
 
 ### The transitions
 
@@ -232,9 +249,9 @@ RECEIVED → NORMALIZING_1 → NORMALIZING_2 → BUILDING_CONTEXT
 | `NORMALIZING_1` | cannot clean safely | meaning would change to proceed | `WAITING_FOR_USER` | a targeted clarification; this request closes | **yes** |
 | `NORMALIZING_2` | pass 2 returned | a business request was produced | `BUILDING_CONTEXT` | — | no |
 | `NORMALIZING_2` | cannot understand safely | the request is ambiguous | `WAITING_FOR_USER` | a targeted clarification; this request closes | **yes** |
-| `BUILDING_CONTEXT` | packet assembled | it fits the input cap | `FUNCTIONALITY_ASSESSMENT` | — | no |
-| `FUNCTIONALITY_ASSESSMENT` | gate returned | query_mode=DATA_ANALYSIS and owner=COCKPIT and the score test passes | `PLANNING` | the first analysis round is consumed | no |
-| `FUNCTIONALITY_ASSESSMENT` | gate returned | query_mode is PRODUCT_HELP or THEORY_CONCEPT | `ANSWER_VALIDATION` | Opus answered in the gate turn; zero submissions, zero rounds | no |
+| `BUILDING_CONTEXT` | gate packet assembled | the light stage-A packet fits the input cap | `FUNCTIONALITY_ASSESSMENT` | the question, the thread, the functionality registry and the domain in OUTLINE; no field dictionary, no coverage table, no sample rows and no execution contract | no |
+| `FUNCTIONALITY_ASSESSMENT` | gate returned | query_mode=DATA_ANALYSIS and owner=COCKPIT and the score test passes | `PLANNING` | the full stage-B analytical packet is built -- this is the ONLY edge that builds it -- and the first analysis round is consumed | no |
+| `FUNCTIONALITY_ASSESSMENT` | gate returned | query_mode is PRODUCT_HELP or THEORY_CONCEPT | `ANSWER_VALIDATION` | Opus answered in the gate turn, from the gate packet; zero submissions, zero rounds, and the field dictionary was never assembled | no |
 | `FUNCTIONALITY_ASSESSMENT` | gate returned | owner is another functionality | `REDIRECTED` | a referral with a configured destination; zero execution | **yes** |
 | `FUNCTIONALITY_ASSESSMENT` | gate returned | query_mode=CLARIFICATION_REQUIRED, or the score test fails | `WAITING_FOR_USER` | a targeted question; this request closes | **yes** |
 | `FUNCTIONALITY_ASSESSMENT` | gate returned | query_mode=UNSUPPORTED, including current external information | `UNSUPPORTED` | the boundary is explained; nothing is fabricated | **yes** |

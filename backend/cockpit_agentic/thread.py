@@ -36,7 +36,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.cockpit_agentic import DOMAIN
-from backend.cockpit_agentic.contracts import Exchange, ThreadSummary
+from backend.cockpit_agentic.contracts import (Exchange, SummaryRepair,
+                                               ThreadSummary)
 from backend.cockpit_agentic.context import estimate_tokens
 from backend.cockpit_agentic.ledger import Limits
 
@@ -207,6 +208,10 @@ class ThreadState:
     catalogue_version: str = ""
     summary: ThreadSummary | None = None
     exchanges: list[Exchange] = field(default_factory=list)
+    #: What the last `context_for` had to repair, if anything. Read by the
+    #: service so a recovery is reported with the answer rather than silently
+    #: absorbed.
+    last_repair: SummaryRepair = field(default_factory=SummaryRepair)
 
     def record(self, exchange: Exchange) -> None:
         self.exchanges.append(exchange)
@@ -219,12 +224,31 @@ class ThreadState:
                            dataset_release_id=self.dataset_release_id,
                            pairs=pairs, referenced_ids=referenced_ids,
                            scope=scope)
+        # Nothing corrupt is carried forward into a request. A summary stored
+        # by an earlier release may hold a character-expanded field; it is
+        # detected here, rebuilt where the expansion rejoins into the original
+        # statements, and otherwise ONLY that field is cleared. The exchanges
+        # and their fact ids are untouched -- the stored results and the
+        # evidence references are exactly what they were -- and nothing is
+        # invented to fill a field that was lost.
+        self.last_repair = (self.summary.repair() if self.summary
+                            else SummaryRepair())
         summary = self.summary.to_dict() if self.summary else {}
         if self.summary and self.summary.unsummarized_exchange_ids:
             summary["note"] = (
                 "One or more exchanges after this summary were not "
                 "summarised; they are included verbatim in the recent "
                 "exchanges below.")
+        if self.last_repair.occurred:
+            summary["recovery"] = self.last_repair.to_dict()
+            if self.last_repair.cleared:
+                summary["recovery_note"] = (
+                    "Part of this thread's stored summary was malformed and "
+                    "could not be rebuilt, so it was cleared: "
+                    + ", ".join(self.last_repair.cleared)
+                    + ". Treat those as unknown rather than empty, and do not "
+                      "state a conclusion the recent exchanges below do not "
+                      "support.")
         return summary, selection
 
     def apply_summary(self, summary: ThreadSummary) -> ThreadSummary:
@@ -236,6 +260,10 @@ class ThreadState:
         if self.summary and summary.version <= self.summary.version:
             return self.summary
         summary.thread_id = self.thread_id
+        # Repaired on the way in as well as on the way out. `__post_init__`
+        # already prevents a fresh model response from being character-expanded
+        # into one; this catches a summary handed in from anywhere else.
+        summary.repair()
         self.summary = summary
         return summary
 

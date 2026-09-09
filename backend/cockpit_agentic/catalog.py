@@ -46,6 +46,38 @@ MACRO_PIVOT = "cockpit_macro_pivot"
 
 QUERYABLE_RELATIONS: tuple[str, ...] = F.RELATIONS + (MACRO_PIVOT,)
 
+#: What each relation holds, in one line, without naming its columns.
+#:
+#: This is the OUTLINE the stage-A gate packet carries. It is deliberately
+#: subject matter rather than schema: enough for Opus to decide whether a
+#: question belongs to the Cockpit at all, and nowhere near enough to write a
+#: query from. The complete dictionary -- every column, type, unit, definition,
+#: aggregation rule and join -- is stage B's `compact`, and it is only built
+#: once the gate has said this really is a Cockpit data question.
+SUBJECT_AREAS: dict[str, str] = {
+    F.CALENDAR: "the reporting calendar: which quarters this release has and "
+                "what each one means",
+    F.FACILITY_QUARTER: "the credit book itself -- one row per facility "
+                        "position per quarter, with exposure, staging, PD, "
+                        "LGD, EAD, ECL, arrears and pricing",
+    F.IFRS9_DETAIL: "the stored IFRS 9 term structure: per-horizon "
+                    "parameters and results by scenario and model run",
+    F.BORROWER_FINANCIAL: "borrower financial statements -- balance sheet, "
+                          "income statement and cash flow, at BORROWER grain",
+    F.RATING_RATIO: "borrower ratings and the financial ratios behind them, "
+                    "at BORROWER grain",
+    F.QUALITATIVE: "the qualitative assessment questionnaire answered per "
+                   "borrower per quarter",
+    F.COLLATERAL: "collateral assets and their valuations, at ASSET grain",
+    F.COLLATERAL_ALLOCATION: "which collateral asset secures which facility "
+                             "position, and for how much",
+    F.COVENANT: "covenant obligations, their tests and their outcomes",
+    F.MACRO_WINDOW: "macroeconomic history and forecasts around each "
+                    "reporting quarter, by geography and scenario",
+    MACRO_PIVOT: "the same macro data as one wide row per anchor quarter, "
+                 "geography and scenario",
+}
+
 
 def _collateral_families() -> tuple[dict[str, Any], ...]:
     """The 108 collateral summary columns, by name, with nine shared meanings.
@@ -232,6 +264,68 @@ class Catalog:
 
     # -- serialization for the model -----------------------------------
 
+    def outline(self) -> dict[str, Any]:
+        """The domain at a glance. Stage A's share of the dictionary.
+
+        Section 7.4 requires the COMPLETE compact dictionary in the packet that
+        plans an analysis. It does not require it in the packet that decides
+        whether there is an analysis to plan. Deciding that a question is
+        "who are you?" needs to know that this module is a quarterly IFRS 9
+        credit book with ten subject areas over twenty quarters; it does not
+        need seven hundred and fifty-one field definitions, forty ratio
+        formulas or a join graph.
+
+        So this returns SUBJECT MATTER and SIZE -- the domain's name, what each
+        relation is about, how many columns it has, which quarters exist -- and
+        no column names, types, units, definitions, aggregation rules, joins or
+        enumerations. It is not a smaller dictionary; it is a different kind of
+        statement, and it says so in the packet so that nothing downstream can
+        mistake it for the dictionary and plan from it.
+        """
+        areas = []
+        for rel in QUERYABLE_RELATIONS:
+            grain = (F.GRAIN.get(rel, "") if rel != MACRO_PIVOT else
+                     "reporting_quarter (anchor) x country_or_region x "
+                     "scenario_id")
+            # The headline grain only: everything after the "--" is the
+            # detailed warning about how joining it goes wrong, and that
+            # belongs with the dictionary that lets you write the join.
+            areas.append({
+                "relation": rel,
+                "about": SUBJECT_AREAS.get(rel, ""),
+                "grain": grain.split(" -- ")[0].strip(),
+                "columns": (len(F.all_column_names(rel))
+                            if rel != MACRO_PIVOT
+                            else len(F.MACRO_PIVOT_FIELDS)
+                            + len(F.COMMON_KEYS)),
+            })
+        summary = F.summary()
+        return {
+            "domain_id": DOMAIN,
+            "domain_name": "Cockpit -- the quarterly IFRS 9 credit book for "
+                           "this tenant",
+            "catalog_version": self.version,
+            "dataset_release_id": self.dataset_release_id,
+            "reporting_currency": self.reporting_currency,
+            "amount_scale": self.amount_scale,
+            "subject_areas": areas,
+            "declared_fields": summary["declared_fields"],
+            "ratio_definitions": summary["ratios"],
+            "qualitative_questions": summary["qualitative_questions"],
+            "macro_factors": summary["macro_factors"],
+            "reporting_quarters": list(self.calendar.slots),
+            "populated_quarters": list(self.calendar.populated),
+            "missing_quarters": list(self.calendar.missing),
+            "outline_note": (
+                "THIS IS AN OUTLINE, NOT THE FIELD DICTIONARY. It names no "
+                "column and defines no field. Use it to decide who owns this "
+                "request. Do not write a query from it, do not assert that a "
+                "field exists or does not exist, and do not tell the user what "
+                "the data contains at column level: the complete dictionary is "
+                "assembled only if this request turns out to be a Cockpit data "
+                "analysis, and you will have it before you plan anything."),
+        }
+
     def compact(self, *, include_pivot_columns: bool = False
                 ) -> dict[str, Any]:
         """The COMPLETE authorized dictionary, small enough to send.
@@ -388,5 +482,5 @@ def build(*, dataset_release_id: str, calendar: Calendar, tenant_id: str = "",
                    amount_scale=amount_scale)
 
 
-__all__ = ["Catalog", "MACRO_PIVOT", "QUERYABLE_RELATIONS", "UnknownField",
-           "UnknownRelation", "build"]
+__all__ = ["Catalog", "MACRO_PIVOT", "QUERYABLE_RELATIONS", "SUBJECT_AREAS",
+           "UnknownField", "UnknownRelation", "build"]

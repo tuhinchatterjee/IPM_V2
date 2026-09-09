@@ -25,6 +25,52 @@ from typing import Any, Callable
 from backend.llm.base import ConverseResult, LLMResult
 
 
+def two_stage(payload: dict[str, Any]) -> list[Any]:
+    """Split one gate-and-plan payload into the two Opus stages.
+
+    Cockpit V3 asks Opus twice for a data analysis: once at the gate, over the
+    light packet, for the decision alone; then once over the full analytical
+    packet, for the plan and the first step. A test whose subject is something
+    else -- the counters, the repair context, a stop -- says what the model
+    decided and what it planned in one dict, and this turns that into the two
+    turns the runtime will actually make.
+
+    A payload with no plan and no steps is a single turn: a referral, a
+    clarification, a product-help answer and an unsupported request all end at
+    the gate, and inventing a second turn for them would let a test pass while
+    the runtime made a call it must never make.
+
+    Only a GATE payload is split. A repair turn and a review turn also carry a
+    plan and steps, and splitting one of those would silently insert a turn the
+    runtime never makes -- which is how this helper first went wrong.
+    """
+    if "decision" not in payload or "scores" not in payload:
+        return [payload]
+    if not (payload.get("plan") or payload.get("steps")):
+        return [payload]
+    gate = {k: v for k, v in payload.items() if k not in ("plan", "steps")}
+    plan = {"action": "submit_the_first_step",
+            "plan": payload.get("plan"),
+            "steps": payload.get("steps") or []}
+    return [gate, plan]
+
+
+def expand(turns) -> list[Any]:
+    """Apply `two_stage` to every plain-dict turn in a script.
+
+    Callables are left alone: a test that scripts a turn as a function is
+    reading the request to decide its answer, and it knows which turn it is
+    answering.
+    """
+    out: list[Any] = []
+    for turn in turns:
+        if isinstance(turn, dict):
+            out.extend(two_stage(turn))
+        else:
+            out.append(turn)
+    return out
+
+
 @dataclass
 class Block:
     """A stand-in for a provider content block."""

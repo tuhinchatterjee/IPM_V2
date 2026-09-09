@@ -205,6 +205,73 @@ export function CockpitV3Progress({ steps, running, onCancel }: {
   );
 }
 
+/** What went wrong when nothing came back at all.
+ *
+ * Every Cockpit request settles into one of five things the reader can see: an
+ * answer, a referral, a clarification, a supported stop, or this. There is no
+ * sixth outcome and in particular there is no blank silence — a request that
+ * failed in transport used to clear the progress line and render nothing,
+ * which reads as "it worked and said nothing".
+ *
+ * A supported stop is NOT this. STOPPED_TOKEN_LIMIT, STOPPED_COST_LIMIT,
+ * STOPPED_TIME_LIMIT, STOPPED_EXECUTION_LIMIT, STOPPED_ANALYSIS_LIMIT,
+ * MODEL_UNAVAILABLE, DATA_UNAVAILABLE, PARTIAL, WAITING_FOR_USER and
+ * REDIRECTED all arrive as envelopes the server wrote, and they render through
+ * `CockpitV3Answer` with the server's own explanation. This is only for the
+ * case where there is no envelope: the request never arrived, never returned,
+ * or was refused before the Cockpit saw it.
+ *
+ * What it shows is the sentence the server wrote, or a written sentence of its
+ * own when the server was never reached, and the request id so the run can be
+ * found in the log. What it never shows is a stack trace, an exception class,
+ * a status code standing in for a reason, or anything from the environment.
+ */
+export function CockpitV3Failure({ error, requestId, onRetry }: {
+  error: { message: string; status?: number; code?: string } | null;
+  requestId?: string;
+  onRetry?: () => void;
+}) {
+  if (!error) return null;
+  const timedOut = error.code === "timeout";
+  return (
+    <div
+      data-testid="cockpit-v3-error"
+      role="alert"
+      className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2"
+    >
+      <p className="text-[12px] font-medium text-amber-900">
+        That question was not answered.
+      </p>
+      <p className="mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-amber-900">
+        {error.message}
+      </p>
+      <p className="mt-1 text-[11px] text-amber-800">
+        Nothing was computed, so no figure on this page has changed.
+        {timedOut
+          ? " The request may still be finishing on the server; asking again" +
+            " starts a new one."
+          : ""}
+      </p>
+      <div className="mt-2 flex items-center gap-3">
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded border border-amber-400 bg-white px-2 py-0.5 text-[11px] text-amber-900 hover:bg-amber-100"
+          >
+            Ask again
+          </button>
+        )}
+        {requestId && (
+          <span className="text-[11px] text-amber-700">
+            Request {requestId}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // -------------------------------------------------------------- the pieces
 
 function Table({ table }: { table: CockpitV3Table }) {

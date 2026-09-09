@@ -26,7 +26,7 @@ from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import registry
 from backend.cockpit_agentic import states as st
 from tests.cockpit_agentic.conftest import scores
-from tests.cockpit_agentic.fake_provider import FakeProvider
+from tests.cockpit_agentic.fake_provider import FakeProvider, expand
 
 CASES = json.loads(
     (Path(__file__).resolve().parents[1] / "evals/cockpit_agentic/"
@@ -71,7 +71,8 @@ def test_the_benchmark_says_a_mock_cannot_score_it():
 def run(runtime_factory, question: str, gate: dict, *later: dict):
     provider = FakeProvider(
         structured_script=sonnet_for(question),
-        converse_script=[(lambda _r, t=t: t) for t in (gate, *later)])
+        converse_script=[(lambda _r, t=t: t)
+                         for t in expand((gate, *later))])
     return runtime_factory(provider).run(question), provider
 
 
@@ -96,7 +97,7 @@ def test_every_referral_executes_nothing_and_offers_a_real_route(
     assert outcome.failures == []
     assert outcome.budget["submissions_used"] == 0
     assert outcome.envelope.referral["route"] == route
-    assert provider.purposes() == ["opus_gate_and_plan"], (
+    assert provider.purposes() == ["opus_gate"], (
         "a referral made a second model call")
 
 

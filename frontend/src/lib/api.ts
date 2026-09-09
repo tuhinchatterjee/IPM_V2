@@ -4038,6 +4038,20 @@ export const api = {
     request<CockpitV3Answer>("/cockpit/ask", {
       method: "POST",
       body: JSON.stringify(body),
+      // TRANSPORT WAITING TIME ONLY. This is how long the browser waits for a
+      // reply; it is not a deadline, a budget or a limit of any kind. The
+      // server owns those and they are unchanged: Standard stops at 60
+      // seconds and Deep at 120, and the request settles inside its own
+      // deadline whatever this number is.
+      //
+      // 20 seconds -- the shared default -- was below what a real Cockpit
+      // request takes. One measured at 20.517 seconds, so the browser aborted
+      // a request the server was about to answer and the user saw nothing.
+      // 120 seconds is Deep's own deadline with the round trip around it, so
+      // the transport now outlives the work rather than cutting it off. The
+      // shared DEFAULT_TIMEOUT_MS is deliberately NOT changed: every other
+      // endpoint keeps the timeout it was given.
+      timeoutMs: 120_000,
     }),
 
   cockpitV3Cancel: (requestId: string) =>
@@ -8275,6 +8289,17 @@ export type CockpitV3Answer = {
   thread_id: string;
   history: Record<string, unknown>;
   summary_updated: boolean;
+  /** Present and non-empty only when this thread's stored rolling summary had
+   *  to be repaired before use: which fields were rebuilt from a malformed
+   *  value and which could not be and were cleared. Reported rather than
+   *  absorbed — a thread that lost a settled definition is a fact about the
+   *  answer above it. */
+  summary_repair: {
+    occurred: boolean;
+    recovered: string[];
+    cleared: string[];
+    note: string;
+  } | Record<string, never>;
 };
 
 export type CockpitV3Diagnostics = {

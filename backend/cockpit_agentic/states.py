@@ -225,17 +225,27 @@ _EDGES: tuple[Edge, ...] = (
     Edge(NORMALIZING_2, "cannot understand safely", "the request is ambiguous",
          WAITING_FOR_USER, "a targeted clarification; this request closes"),
 
-    Edge(BUILDING_CONTEXT, "packet assembled", "it fits the input cap",
-         FUNCTIONALITY_ASSESSMENT),
+    Edge(BUILDING_CONTEXT, "gate packet assembled",
+         "the light stage-A packet fits the input cap",
+         FUNCTIONALITY_ASSESSMENT,
+         "the question, the thread, the functionality registry and the domain "
+         "in OUTLINE; no field dictionary, no coverage table, no sample rows "
+         "and no execution contract"),
 
     # The gate is first, and it is a real fork. Everything that is not
-    # DATA_ANALYSIS+COCKPIT leaves without touching the data.
+    # DATA_ANALYSIS+COCKPIT leaves without touching the data -- and without
+    # the complete dictionary ever being assembled for it.
     Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
          "query_mode=DATA_ANALYSIS and owner=COCKPIT and the score test passes",
-         PLANNING, "the first analysis round is consumed", "analysis_round"),
+         PLANNING,
+         "the full stage-B analytical packet is built -- this is the ONLY "
+         "edge that builds it -- and the first analysis round is consumed",
+         "analysis_round"),
     Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
          "query_mode is PRODUCT_HELP or THEORY_CONCEPT", ANSWER_VALIDATION,
-         "Opus answered in the gate turn; zero submissions, zero rounds"),
+         "Opus answered in the gate turn, from the gate packet; zero "
+         "submissions, zero rounds, and the field dictionary was never "
+         "assembled"),
     Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
          "owner is another functionality", REDIRECTED,
          "a referral with a configured destination; zero execution"),

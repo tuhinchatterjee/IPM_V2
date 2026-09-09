@@ -19,7 +19,7 @@ from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import service, thread
 from backend.cockpit_agentic import states as st
 from tests.cockpit_agentic.conftest import RELEASE, scores
-from tests.cockpit_agentic.fake_provider import FakeProvider
+from tests.cockpit_agentic.fake_provider import FakeProvider, expand
 
 SQL = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "
        "FROM cockpit_facility_quarter GROUP BY 1 ORDER BY 1 DESC LIMIT 2")
@@ -36,7 +36,8 @@ def _steps():
 
 def _provider(sonnet_answers, *turns):
     return FakeProvider(structured_script=list(sonnet_answers),
-                        converse_script=[(lambda _r, t=t: t) for t in turns])
+                        converse_script=[(lambda _r, t=t: t)
+                                        for t in expand(turns)])
 
 
 # ================================ 36. data has no instruction authority
@@ -86,7 +87,7 @@ def test_dataset_text_that_looks_like_an_instruction_is_still_a_value(
 
     conversation = opus_mod.Conversation(
         provider=FakeProvider(), ledger=_ledger(), packet=packet, model="m")
-    system = conversation.system("opus_gate_and_plan")
+    system = conversation.system("opus_gate")
     opening = conversation.opening_context()
 
     # The injected text appears in the DATA and only in the data -- and it
