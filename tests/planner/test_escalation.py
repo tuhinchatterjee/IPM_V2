@@ -28,7 +28,7 @@ in any of them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 
@@ -80,7 +80,14 @@ def _task(*, code="M01-T01", days_late=0, blocked=False, quiet_days=0,
         title=code, status="IN_PROGRESS", percent_complete=40,
         due_date=due, owner_id=owner, blocked=blocked,
         blocker_reason="waiting on Finance" if blocked else "",
-        last_update_at=datetime.now(UTC) - timedelta(days=quiet_days),
+        # Anchored to TODAY, not to the wall clock. The sweep is run with
+        # `today=TODAY`, a fixed date, so measuring quiet_days from
+        # datetime.now() made the two agree only on 2026-09-06 and drift
+        # by a day every day after it — a task three days quiet read as
+        # zero days quiet, and the blocked-escalation cases stopped
+        # firing. Same intent, no calendar coupling.
+        last_update_at=datetime.combine(
+            TODAY - timedelta(days=quiet_days), time.min, tzinfo=UTC),
         milestone_id=milestone, critical=critical)
 
 

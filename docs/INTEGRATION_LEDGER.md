@@ -532,3 +532,96 @@ it would have taken uploads with it silently.
 **Fixed**: promoted to a direct runtime dependency in `pyproject.toml`, pinned
 `==0.0.20` to match `requirements.txt` rather than the `>=0.0.20` the dev group
 carried, so the two files cannot resolve to different versions.
+
+### M3 — Project Planner (`e84bc68`)
+
+| | |
+|---|---|
+| **Merged** | `e84bc68f1494b2c744df8a873f1917872230f7a7`, head re-verified first |
+| **Merge commit** | `874f95f` |
+| **Conflicts** | **one**, `frontend/src/lib/hooks.ts` |
+| **Migrations** | Planner's three renumbered; head moves `0042` -> **`0045`** |
+
+#### Migration decision — the 0042 collision
+
+Lenses V3 and the Planner both claimed `0042`. The Planner's three move up one,
+each with `revision` and `down_revision` rewritten and **its body untouched**:
+
+| Was | Now | down_revision |
+|---|---|---|
+| `0042_planner_copilot` | **`0043`** | `0041` -> `0042` |
+| `0043_task_milestone` | **`0044`** | `0042` -> `0043` |
+| `0044_reminder_level` | **`0045`** | `0043` -> `0044` |
+
+Chain: `0041` -> `0042 lens_live_intelligence` -> `0043` -> `0044` -> `0045`, one head.
+
+| Check | Result |
+|---|---|
+| `alembic heads` | one, `0045` |
+| **Existing** database `0042` -> head | three upgrades, clean |
+| Round trip head -> `0031` -> head | **104** tables at `0031`, back to **146 / 2,402** |
+| `scv_results.value` nullable | YES |
+
+#### The conflict — two designs for one behaviour
+
+Both branches independently added "keep the previous answer while reloading" to
+`useAsync`, with incompatible `Phase` types: the chain widened `loading` to
+carry optional data; the Planner added a distinct `reloading` state.
+
+Resolved to the chain's shape, on evidence rather than preference: a grep for
+the `reloading` variant across `frontend/src` finds **zero consumers** outside
+the hook, and both designs return the same public surface — `data`, `error`,
+`loading`, `reload`, `refused`, `status` — so every caller behaves identically
+either way. The auto-merge had left a test for a variant that no longer
+existed; typecheck caught that, and a stray comment terminator of my own.
+
+Both branches' *documentation* is kept. Each justified the flag with a
+different real case — a Lens re-rendering because a metric was added from
+inside the page, and a form that saves a field then re-reads the document — and
+both are true.
+
+Frontend after: typecheck clean, eslint clean, **564 passed, 0 failed** (541
+before).
+
+#### The gate, and the container's interference
+
+The first backend run showed 38 failures and 11 setup errors. The PostgreSQL
+server log settles what they were:
+
+```
+12:25:34 LOG: terminating any other active server processes ... database system is shut down
+12:32:40 LOG: terminating any other active server processes ... database system is shut down
+```
+
+The container reaped the cluster **twice mid-run**; the keepalive restarted it
+within seconds, but every test holding a connection at those moments failed.
+Re-running the four affected files: **37 of the 38 pass**. This is now the
+dominant source of noise in every gate, and the standing method is to re-run
+failures rather than read a first run as final.
+
+#### The one real failure, and why it is fixed here
+
+`tests/planner/test_escalation.py::test_light_waits_longer_before_escalating_a_blocked_task`
+survived the re-run. **Proven inherited**: checked out at `e84bc68` in a
+worktree and run in this same environment, it fails identically. Not an
+integration regression.
+
+Root cause, instrumented rather than guessed:
+
+* `TODAY = date(2026, 9, 6)` is hardcoded, and the sweep runs with `today=TODAY`.
+* `_task()` set `last_update_at = datetime.now(UTC) - timedelta(days=quiet_days)`
+  — the **wall clock**.
+
+The two agree only on 6 September 2026, the day the Planner session wrote the
+test, and drift by a day every day after. On 9 September a task three days
+quiet measured as **zero** days quiet, so `blocked_days (0) >= 1` was false and
+the CRITICAL blocked-escalation never fired. The product logic is correct; the
+test was coupled to the calendar.
+
+**Fixed** by anchoring `last_update_at` to `TODAY` rather than the wall clock —
+same intent, no coupling. `tests/planner/test_escalation.py`: **24 passed**.
+Swept the rest of the suite for the same pattern; this was the only file mixing
+a fixed `TODAY` with `datetime.now()`.
+
+Left alone would have meant a permanent red that masks real failures at every
+later gate, including M13.
