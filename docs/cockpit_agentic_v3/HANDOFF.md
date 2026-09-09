@@ -61,19 +61,28 @@ Both were done, neither quietly:
 
 - Serialization: 29,600 → 22,078 tokens with **no field lost**, verified by a
   test that reconstructs the field set from the compact form.
-- Configuration: settings that default to the specification's values, raise
-  only, and are reported through `overrides_in_force` and on the screen badge.
+- Configuration: the owner set the UAT budgets — Standard 64,000 per call and
+  250,000 cumulative, Deep 96,000 and 500,000 — and those are now the shipped
+  defaults. **No override is needed to run this domain**, and the test suite
+  runs on the defaults so they are proved sufficient rather than assumed.
+
+The settings remain administrator-configurable, raise only, and are reported
+through `overrides_in_force` and on the screen badge:
 
 ```
-COCKPIT_AGENTIC_V3_STANDARD_INPUT_TOKENS=36000
-COCKPIT_AGENTIC_V3_DEEP_INPUT_TOKENS=40000
-COCKPIT_AGENTIC_V3_STANDARD_TOTAL_TOKENS=100000
-COCKPIT_AGENTIC_V3_DEEP_TOTAL_TOKENS=200000
+COCKPIT_AGENTIC_V3_STANDARD_INPUT_TOKENS=64000   # the default
+COCKPIT_AGENTIC_V3_DEEP_INPUT_TOKENS=96000       # the default
+COCKPIT_AGENTIC_V3_STANDARD_TOTAL_TOKENS=250000  # the default
+COCKPIT_AGENTIC_V3_DEEP_TOTAL_TOKENS=500000      # the default
 ```
 
-Without them the Cockpit returns `CONTEXT_TOO_LARGE` with the measured figure —
-correct behaviour, not a bug. **The five submissions and three rounds cannot be
-raised at any level.** See `CONTEXT_SIZING.md`.
+At these volumes the SPEND ceiling binds before the token ceiling — $1.00
+reaches at about the sixth full-context call while roughly 170,000 of the
+250,000 tokens are still unspent. That is measured and left in place, per the
+instruction to keep the cost ceilings and report evidence rather than raise
+them pre-emptively. **The five submissions, three analysis rounds and the 60
+and 120-second deadlines cannot be raised at any level.** See
+`CONTEXT_SIZING.md`.
 
 ## Commands
 
@@ -118,21 +127,33 @@ file that uses them, the eval runner refuses to produce an accuracy figure
 without a credential, and no deterministic output anywhere in this branch
 stands in for a model-authored analysis.
 
-**Not implemented, and reported rather than hidden.** Isolated Python
-execution: `diagnostics` and the context packet both say `available: false`
-with the reason, and a Python step is refused with `SANDBOX_UNAVAILABLE`
-instead of being run in-process. Real source data: every field is `demo_only`.
-Durable thread state: in-memory, with `backend/services/threads.py` as the
-intended seam. The spending ceiling: inert until prices are configured, and the
-ledger says so rather than implying a control it does not have.
+**Not implemented, and reported rather than hidden.** Real source data:
+every field is `demo_only`. Durable thread state: in-memory, with
+`backend/services/threads.py` as the intended seam. The spending ceiling: inert
+until prices are configured, and the ledger says so rather than implying a
+control it does not have.
+
+Isolated Python execution is now **implemented and verified on this host** —
+separate process, fresh mount/network/PID/IPC/UTS namespaces, a chroot jail
+holding only the standard library and an approved dependency surface, no
+shell, no `/etc`, no repository, no credential, bounded and unprivileged. It
+is offered only where a probe that actually tries to escape comes back clean,
+and reported unavailable where it does not. `docs/cockpit_v3/PYTHON_EXECUTION_BOUNDARY.md`
+records the measured evidence and the separate-service mechanism a locked-down
+production container would need.
 
 ## The unfinished work, in priority order
 
-1. Configure a credential and run the ownership benchmark and the browser UAT
-   live. Until then the architecture is demonstrated but its outputs are not.
-2. Compare the local token estimate against the provider's reported usage and
-   revisit the two caps with measured evidence.
-3. Implement isolated Python, or leave it disabled deliberately.
-4. Bind the thread layer to `backend/services/threads.py`.
+1. Configure a credential and run `scripts/cockpit_v3_live_validation.py`,
+   the ownership benchmark and the browser UAT live, then work
+   `docs/cockpit_v3/QUESTION_BANK.md` side by side against the preserved V2
+   branch. Until then the architecture is demonstrated and its outputs are
+   not.
+2. Compare the provider's reported usage against the measured packet and
+   revisit the spend ceiling with evidence — it is what binds first at these
+   volumes.
+3. Bind the thread layer to `backend/services/threads.py`.
+4. Run the Python sandbox as a separate service for a deployment that cannot
+   grant the API process namespace privileges.
 5. Ingest real data and update `COCKPIT_DATA_DOMAIN_MAPPING.md`, which
    currently states honestly that nothing is real.
