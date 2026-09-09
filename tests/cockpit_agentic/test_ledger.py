@@ -82,12 +82,30 @@ def test_a_repair_uses_a_submission_but_not_a_round():
 # ---- section 8.3: no progress ---------------------------------------------
 
 def test_an_identical_candidate_is_blocked_before_execution():
+    """Section 22: not run again, and the attempt is spent anyway.
+
+    Spending it is the point. A repeat that cost nothing would let a model
+    loop on the same failing query for as long as the deadline allowed.
+    """
     lg = make()
     lg.note_submission("SELECT a FROM t")
-    with pytest.raises(L.BudgetExceeded) as e:
+    with pytest.raises(L.DuplicateCandidate) as e:
         lg.note_submission("SELECT a FROM t")
-    assert e.value.reason == L.STOP_NO_PROGRESS
-    assert lg.submissions == 1, "the blocked duplicate did not consume one"
+    assert e.value.submission_number == 2
+    assert "not run again" in str(e.value)
+    assert lg.submissions == 2, "the duplicate consumed an attempt of its own"
+
+
+def test_a_duplicate_does_not_by_itself_end_the_request():
+    """It is not a budget stop. Opus may still write something different with
+    the attempts that remain, and taking those away for one repeat would be a
+    stricter rule than the one that was agreed."""
+    lg = make()
+    lg.note_submission("SELECT a FROM t")
+    with pytest.raises(L.DuplicateCandidate):
+        lg.note_submission("SELECT a FROM t")
+    assert lg.may_continue() == "", "the request continues"
+    assert lg.submissions_remaining == 3
 
 
 def test_reformatting_is_not_a_changed_approach():

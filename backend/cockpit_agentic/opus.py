@@ -115,6 +115,76 @@ _STEP = {
     "required": ["step_id", "language", "code"],
 }
 
+_TABLE = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "columns": {"type": "array", "items": {"type": "string"}},
+        "rows": {"type": "array", "items": {"type": "array"}},
+        "units": {"type": "object", "additionalProperties": {"type": "string"}},
+        "fact_ids": {"type": "array", "items": {"type": "string"}},
+        "note": {"type": "string"},
+    },
+    "required": ["title", "columns", "rows"],
+}
+
+_CHART = {
+    "type": "object",
+    "properties": {
+        "kind": {"type": "string",
+                 "enum": ["bar", "line", "waterfall", "scatter"]},
+        "title": {"type": "string"},
+        "series": {"type": "array", "items": {"type": "object",
+                                              "additionalProperties": True}},
+        "x_label": {"type": "string"},
+        "y_label": {"type": "string"},
+        "unit": {"type": "string"},
+        "fact_ids": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["kind", "title"],
+}
+
+_ANSWER = {
+    "type": "object",
+    "properties": {
+        "narrative": {"type": "string"},
+        "complete": {"type": "boolean"},
+        "approximate": {"type": "boolean"},
+        "tables": {"type": "array", "items": _TABLE},
+        "charts": {"type": "array", "items": _CHART},
+        "findings": {
+            "type": "array", "items": {"type": "string"},
+            "description": "What the analysis found, one statement each. "
+                           "Every figure in these must come from an executed "
+                           "result."},
+        "suggested_questions": {
+            "type": "array", "items": {"type": "string"}, "maxItems": 4,
+            "description": "Cockpit questions the user could ask next. They "
+                           "are checked against the actual field catalogue "
+                           "and the available quarters, and any that names "
+                           "something this domain does not have is dropped "
+                           "without being repaired."},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "hypotheses": {
+            "type": "array", "items": {"type": "string"},
+            "description": "Claims the evidence supports only as "
+                           "association. Never stated as cause."},
+        "fact_ids": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["narrative"],
+}
+
+#: The answer-only rewrite, section 29. Deliberately carries no plan and no
+#: steps: this turn cannot execute, so a schema that let it propose code would
+#: be offering something the runtime will refuse.
+REWRITE_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"answer": _ANSWER,
+                   "what_was_wrong": {"type": "string"}},
+    "required": ["answer"],
+}
+
 GATE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -124,6 +194,26 @@ GATE_SCHEMA: dict[str, Any] = {
         "relevant_exclusions": {"type": "array", "items": {"type": "string"}},
         "decision": {"type": "string",
                      "enum": list(K.DECISIONS)},
+        "query_mode": {
+            "type": "string", "enum": list(K.QUERY_MODES),
+            "description": (
+                "What KIND of request this is, decided fresh for this turn. "
+                "PRODUCT_HELP: about CreditProbe itself. THEORY_CONCEPT: what "
+                "a credit or accounting term means, with no reference to this "
+                "book's numbers. DATA_ANALYSIS: needs the stored portfolio -- "
+                "including a question that asks for BOTH an explanation and "
+                "the numbers. OTHER_FUNCTIONALITY: another module owns it. "
+                "CLARIFICATION_REQUIRED: it cannot be answered without a "
+                "choice only the user can make. UNSUPPORTED: nothing here "
+                "owns it, including anything about current external events, "
+                "which must never be answered from memory.")},
+        "owner": {"type": "string", "enum": list(K.OWNERS)},
+        "requires_cockpit_data": {"type": "boolean"},
+        "requires_sql": {"type": "boolean"},
+        "requires_python": {"type": "boolean"},
+        "decision_reason": {"type": "string"},
+        "ambiguity": {"type": "string"},
+        "answer": _ANSWER,
         "mixed_scope": {"type": "boolean"},
         "mixed_scope_explanation": {"type": "string"},
         "public_explanation": {"type": "string"},
@@ -156,35 +246,6 @@ REPAIR_SCHEMA: dict[str, Any] = {
     "required": ["action"],
 }
 
-_TABLE = {
-    "type": "object",
-    "properties": {
-        "title": {"type": "string"},
-        "columns": {"type": "array", "items": {"type": "string"}},
-        "rows": {"type": "array", "items": {"type": "array"}},
-        "units": {"type": "object", "additionalProperties": {"type": "string"}},
-        "fact_ids": {"type": "array", "items": {"type": "string"}},
-        "note": {"type": "string"},
-    },
-    "required": ["title", "columns", "rows"],
-}
-
-_CHART = {
-    "type": "object",
-    "properties": {
-        "kind": {"type": "string",
-                 "enum": ["bar", "line", "waterfall", "scatter"]},
-        "title": {"type": "string"},
-        "series": {"type": "array", "items": {"type": "object",
-                                              "additionalProperties": True}},
-        "x_label": {"type": "string"},
-        "y_label": {"type": "string"},
-        "unit": {"type": "string"},
-        "fact_ids": {"type": "array", "items": {"type": "string"}},
-    },
-    "required": ["kind", "title"],
-}
-
 REVIEW_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -207,24 +268,7 @@ REVIEW_SCHEMA: dict[str, Any] = {
         "steps": {"type": "array", "items": _STEP},
         "clarification_question": {"type": "string"},
         "clarification_options": {"type": "array", "items": {"type": "string"}},
-        "answer": {
-            "type": "object",
-            "properties": {
-                "narrative": {"type": "string"},
-                "complete": {"type": "boolean"},
-                "approximate": {"type": "boolean"},
-                "tables": {"type": "array", "items": _TABLE},
-                "charts": {"type": "array", "items": _CHART},
-                "limitations": {"type": "array", "items": {"type": "string"}},
-                "assumptions": {"type": "array", "items": {"type": "string"}},
-                "hypotheses": {
-                    "type": "array", "items": {"type": "string"},
-                    "description": "Claims the evidence supports only as "
-                                   "association. Never stated as cause."},
-                "fact_ids": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["narrative"],
-        },
+        "answer": _ANSWER,
     },
     "required": ["decision"],
 }
@@ -478,6 +522,47 @@ class Conversation:
 
 # ------------------------------------------------------------- the three jobs
 
+def envelope_from(raw: Any, *, kind: str = "answer"
+                  ) -> K.AnswerEnvelope | None:
+    """Build an answer envelope from the model's structured output.
+
+    Shared by the gate (which answers PRODUCT_HELP and THEORY_CONCEPT in its
+    own turn), the sufficiency review, and the single answer rewrite -- one
+    builder, so the three cannot drift into carrying different fields.
+    """
+    if not isinstance(raw, dict) or not raw.get("narrative"):
+        return None
+    return K.AnswerEnvelope(
+        kind=str(raw.get("kind") or kind),
+        narrative=str(raw["narrative"]),
+        complete=bool(raw.get("complete", True)),
+        approximate=bool(raw.get("approximate", False)),
+        tables=[K.AnswerTable(
+            title=str(t.get("title") or ""),
+            columns=[str(c) for c in (t.get("columns") or [])],
+            rows=[list(r) for r in (t.get("rows") or [])],
+            units={str(k): str(v) for k, v in (t.get("units") or {}).items()},
+            fact_ids=[str(f) for f in (t.get("fact_ids") or [])],
+            note=str(t.get("note") or ""))
+            for t in (raw.get("tables") or [])],
+        charts=[K.AnswerChart(
+            kind=str(c.get("kind") or "bar"),
+            title=str(c.get("title") or ""),
+            series=[dict(x) for x in (c.get("series") or [])],
+            x_label=str(c.get("x_label") or ""),
+            y_label=str(c.get("y_label") or ""),
+            unit=str(c.get("unit") or ""),
+            fact_ids=[str(f) for f in (c.get("fact_ids") or [])])
+            for c in (raw.get("charts") or [])],
+        findings=[str(x) for x in (raw.get("findings") or [])],
+        suggested_questions=[str(x) for x in
+                             (raw.get("suggested_questions") or [])],
+        limitations=[str(x) for x in (raw.get("limitations") or [])],
+        assumptions=[str(x) for x in (raw.get("assumptions") or [])],
+        hypotheses=[str(x) for x in (raw.get("hypotheses") or [])],
+        fact_ids=[str(f) for f in (raw.get("fact_ids") or [])])
+
+
 def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
                   ) -> tuple[K.FunctionalityDecision, K.AnalysisPlan | None,
                              K.ExecutionSubmission | None]:
@@ -498,10 +583,29 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
          + "\n".join(f"- {a}" for a in request["unresolved_ambiguity"])
          if request["unresolved_ambiguity"] else
          "No ambiguity was flagged by the preprocessing passes."),
-        ("Score every functionality in the registry. If the Cockpit is not the "
-         "unique highest scorer, or the action is outside its ownership, refer "
-         "or clarify and include NO executable plan. If it is, include your "
-         "analysis plan and the SQL for its first step."),
+        ("FIRST decide the query_mode for THIS turn. Do not carry it over "
+         "from the previous turn: a thread that has been discussing what "
+         "lifetime PD means can turn to which borrowers' lifetime PD moved, "
+         "and those are different modes."),
+        ("PRODUCT_HELP and THEORY_CONCEPT answer from knowledge. Put your "
+         "complete answer in `answer` in THIS response: no query runs and "
+         "there is no second call. For THEORY_CONCEPT you may use general, "
+         "stable credit and accounting knowledge -- but a question about how "
+         "CREDITPROBE specifically does something is only answerable from the "
+         "product information in this packet, and if it is not there, say it "
+         "cannot be verified rather than describing what such a system "
+         "usually does."),
+        ("A question that asks BOTH what something means AND what this book "
+         "shows is DATA_ANALYSIS, not THEORY_CONCEPT. Both halves are owed an "
+         "answer."),
+        ("Anything about current or recent external events -- announcements, "
+         "today's rates, market news -- is UNSUPPORTED unless a configured "
+         "functionality here genuinely owns it. It must never be answered "
+         "from memory."),
+        ("Then score every functionality in the registry. If the Cockpit is "
+         "not the unique highest scorer, or the action is outside its "
+         "ownership, refer or clarify and include NO executable plan. If it "
+         "is, include your analysis plan and the SQL for its first step."),
     ])
 
     data = conversation.ask(
@@ -536,8 +640,45 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
         except LookupError:
             route, enabled = "", False
 
+    mode = str(data.get("query_mode") or "")
+    owner = str(data.get("owner") or "")
+    raw_decision = str(data.get("decision") or K.CLARIFY_FUNCTIONALITY)
+
+    # The mode is the semantic answer and `decision` is what the server does
+    # about it. Where the model gives both and they disagree, the MODE wins:
+    # it is the more specific statement, and a decision to execute alongside a
+    # mode that executes nothing is a contradiction the runtime must not have
+    # to resolve later.
+    if mode in K.NO_EXECUTION_MODES:
+        raw_decision = K.ANSWER_WITHOUT_DATA
+    elif mode == K.OTHER_FUNCTIONALITY:
+        raw_decision = K.REDIRECT
+    elif mode == K.CLARIFICATION_REQUIRED:
+        raw_decision = K.CLARIFY_FUNCTIONALITY
+    elif mode == K.UNSUPPORTED_MODE:
+        raw_decision = K.UNSUPPORTED_REQUEST
+
+    answer = envelope_from(
+        data.get("answer"),
+        kind="explanation" if mode in K.NO_EXECUTION_MODES else "answer")
+    if mode in K.NO_EXECUTION_MODES and answer is None:
+        # The mode promises an answer in this turn. Without one there is
+        # nothing to render and no second call coming, so it becomes a
+        # clarification rather than an empty success.
+        mode = K.CLARIFICATION_REQUIRED
+        raw_decision = K.CLARIFY_FUNCTIONALITY
+
     decision = K.FunctionalityDecision(
-        decision=str(data.get("decision") or K.CLARIFY_FUNCTIONALITY),
+        decision=raw_decision,
+        query_mode=mode, owner=owner,
+        requires_cockpit_data=bool(data.get("requires_cockpit_data")),
+        requires_sql=bool(data.get("requires_sql"))
+        if mode not in K.NO_EXECUTION_MODES else False,
+        requires_python=bool(data.get("requires_python"))
+        if mode not in K.NO_EXECUTION_MODES else False,
+        decision_reason=str(data.get("decision_reason") or ""),
+        ambiguity=str(data.get("ambiguity") or ""),
+        answer=answer,
         scores=scores, best_fit=str(data.get("best_fit") or ""),
         requested_actions=[str(a) for a in (data.get("requested_actions") or [])],
         relevant_exclusions=[str(x) for x in
@@ -554,11 +695,12 @@ def gate_and_plan(conversation: Conversation, packet: CockpitContextPacket
         public_explanation=str(data.get("public_explanation") or ""))
 
     if not decision.may_execute:
-        # Section 7.5: a referral response contains no executable analysis
-        # plan. If one arrived anyway it is discarded HERE, before anything
-        # downstream could act on it.
+        # Section 7.5, and sections 10 and 11: a referral, a clarification, a
+        # product-help answer and a theory answer all contain no executable
+        # analysis plan. If one arrived anyway it is discarded HERE, before
+        # anything downstream could act on it.
         if data.get("steps") or data.get("plan"):
-            logger.info("A non-proceeding decision carried an executable plan; "
+            logger.info("A non-executing decision carried an executable plan; "
                         "it was discarded at the gate.")
         return decision, None, None
 
@@ -700,35 +842,7 @@ def review(conversation: Conversation, result: K.ExecutionResultPacket, *,
                                   analysis_round=analysis_round + 1,
                                   submission_number=0)
 
-    envelope = None
-    raw_answer = data.get("answer")
-    if isinstance(raw_answer, dict) and raw_answer.get("narrative"):
-        envelope = K.AnswerEnvelope(
-            kind="answer", narrative=str(raw_answer["narrative"]),
-            complete=bool(raw_answer.get("complete", True)),
-            approximate=bool(raw_answer.get("approximate", False)),
-            tables=[K.AnswerTable(
-                title=str(t.get("title") or ""),
-                columns=[str(c) for c in (t.get("columns") or [])],
-                rows=[list(r) for r in (t.get("rows") or [])],
-                units={str(k): str(v) for k, v in
-                       (t.get("units") or {}).items()},
-                fact_ids=[str(f) for f in (t.get("fact_ids") or [])],
-                note=str(t.get("note") or ""))
-                for t in (raw_answer.get("tables") or [])],
-            charts=[K.AnswerChart(
-                kind=str(c.get("kind") or "bar"),
-                title=str(c.get("title") or ""),
-                series=[dict(s) for s in (c.get("series") or [])],
-                x_label=str(c.get("x_label") or ""),
-                y_label=str(c.get("y_label") or ""),
-                unit=str(c.get("unit") or ""),
-                fact_ids=[str(f) for f in (c.get("fact_ids") or [])])
-                for c in (raw_answer.get("charts") or [])],
-            limitations=[str(x) for x in (raw_answer.get("limitations") or [])],
-            assumptions=[str(x) for x in (raw_answer.get("assumptions") or [])],
-            hypotheses=[str(x) for x in (raw_answer.get("hypotheses") or [])],
-            fact_ids=[str(f) for f in (raw_answer.get("fact_ids") or [])])
+    envelope = envelope_from(data.get("answer"))
 
     if decision == K.REVISE_ANALYSIS and submission is None:
         # The contract refuses a revision with no code, and refusing it here
@@ -745,6 +859,31 @@ def review(conversation: Conversation, result: K.ExecutionResultPacket, *,
         answer=envelope)
 
 
+def rewrite_answer(conversation: Conversation, envelope: K.AnswerEnvelope,
+                   instruction: str) -> K.AnswerEnvelope | None:
+    """The ONE answer-only rewrite permitted by section 29.
+
+    It cannot execute, cannot open an analysis round and cannot reset a
+    counter -- and it is not given the means to: the schema carries no plan
+    and no steps, and the caller discards anything else that arrives.
+
+    CreditProbe does not edit the prose. It says what did not check out and
+    hands the answer back.
+    """
+    user = "\n\n".join([
+        instruction,
+        "YOUR ANSWER, EXACTLY AS YOU WROTE IT:",
+        json.dumps(envelope.to_dict(), default=str),
+    ])
+    data = conversation.ask(
+        contract="opus_answer_rewrite", user=user, schema=REWRITE_SCHEMA,
+        tool_name="rewritten_answer",
+        description="The corrected answer. No code, no new analysis.",
+        purpose="opus_answer_rewrite", finalization=True)
+    return envelope_from(data.get("answer"), kind=envelope.kind)
+
+
 __all__ = ["Conversation", "GATE_SCHEMA", "OPUS_ROLE", "OpusUnavailable",
+           "REWRITE_SCHEMA", "envelope_from", "rewrite_answer",
            "REPAIR_SCHEMA", "REVIEW_SCHEMA", "gate_and_plan", "repair",
            "review"]

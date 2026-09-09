@@ -276,6 +276,27 @@ def entry(functionality_id: str) -> FunctionalityRegistryEntry:
             f"registry holds: {', '.join(FUNCTIONALITY_IDS)}.") from None
 
 
+def grounding_facts() -> tuple[str, ...]:
+    """Everything the registry actually documents, flattened.
+
+    Section 10: a statement about how CreditProbe works must come from here.
+    Where a product-specific mechanism is not in this tuple, the honest answer
+    is that it cannot be verified from the configured product information --
+    not a description of how such a system usually works, which is the shape
+    an invented answer takes.
+    """
+    facts: list[str] = []
+    for item in ENTRIES:
+        facts.append(item.description)
+        facts.extend(item.owns)
+        facts.extend(item.excludes)
+        facts.extend(item.supported_actions)
+        facts.extend(item.examples)
+        facts.extend(item.counterexamples)
+        facts.append(item.ui_label)
+    return tuple(facts)
+
+
 def compact() -> dict[str, Any]:
     """What goes to Opus. Descriptions only -- never another module's data.
 

@@ -69,22 +69,42 @@ class Selection:
         }
 
 
-def authorized(exchange: Exchange, *, dataset_release_id: str) -> bool:
+def authorized(exchange: Exchange, *, dataset_release_id: str,
+               tenant_id: str = "") -> bool:
     """Whether a stored exchange may be reused as context.
 
-    Refuses anything from another domain or another release. Section 12: reject
-    inaccessible, expired or cross-domain prior artifacts even if a summary
-    mentions them.
+    Refuses anything from another domain, another release or another tenant.
+    Section 12: reject inaccessible, expired or cross-domain prior artifacts
+    even if a summary mentions them. Section 37: identical question text from
+    a different tenant is a different question.
     """
     if exchange.domain_id != DOMAIN:
         return False
     if exchange.dataset_release_id and \
             exchange.dataset_release_id != dataset_release_id:
         return False
+    if tenant_id:
+        stored = str(exchange.scope.get("tenant_id") or "")
+        if stored and stored != str(tenant_id):
+            return False
     return True
 
 
-def render(exchange: Exchange) -> dict[str, Any]:
+def reusable_results(exchange: Exchange,
+                     scope: dict[str, Any]) -> tuple[bool, str]:
+    """Whether this exchange's RESULTS may be carried into a new request.
+
+    Separate from `authorized`, which decides whether the exchange may be
+    SEEN. An exchange about last quarter's construction sector is perfectly
+    good context for a question about this quarter's manufacturing -- it says
+    what was discussed. Its NUMBERS are not, and section 40 is about the
+    numbers.
+    """
+    return exchange.compatible_with(scope)
+
+
+def render(exchange: Exchange, scope: dict[str, Any] | None = None
+           ) -> dict[str, Any]:
     """One exchange as the context packet carries it.
 
     The KIND travels with it. A referral rendered without its kind reads, to
@@ -97,7 +117,7 @@ def render(exchange: Exchange) -> dict[str, Any]:
                          "open.]",
         "stop": "[This question stopped without an answer.]",
     }.get(exchange.kind, "")
-    return {
+    body: dict[str, Any] = {
         "exchange_id": exchange.exchange_id,
         "kind": exchange.kind,
         "question": exchange.question,
@@ -105,11 +125,26 @@ def render(exchange: Exchange) -> dict[str, Any]:
                    else exchange.answer),
         "fact_ids": list(exchange.fact_ids),
     }
+    # Section 40: an earlier result computed under a different scope may be
+    # READ as context and must not be REUSED as a number. Saying which is the
+    # server's job; a model told only "here is a prior result" would have no
+    # way to know it did not apply.
+    if scope is not None:
+        ok, why = reusable_results(exchange, scope)
+        body["results_reusable"] = ok
+        if not ok:
+            body["fact_ids"] = []
+            body["results_note"] = (
+                f"The figures from this earlier turn do NOT apply to the "
+                f"current request: {why}. Use it for what was discussed, not "
+                f"for its numbers.")
+    return body
 
 
 def select(history: list[Exchange], *, limits: Limits,
            dataset_release_id: str, pairs: int = DEFAULT_PAIRS,
-           referenced_ids: list[str] | None = None) -> Selection:
+           referenced_ids: list[str] | None = None,
+           scope: dict[str, Any] | None = None) -> Selection:
     """The bounded recent history, newest last.
 
     `pairs` is what the caller wants; the hard cap and the token cap are what
@@ -118,7 +153,8 @@ def select(history: list[Exchange], *, limits: Limits,
     """
     wanted = max(1, min(int(pairs), HARD_CAP_PAIRS))
     usable = [e for e in history
-              if authorized(e, dataset_release_id=dataset_release_id)]
+              if authorized(e, dataset_release_id=dataset_release_id,
+                            tenant_id=str((scope or {}).get("tenant_id") or ""))]
     dropped = len(history) - len(usable)
 
     chosen: list[Exchange] = []
@@ -140,7 +176,7 @@ def select(history: list[Exchange], *, limits: Limits,
     elif len(chosen) < wanted:
         limited_by = "availability"
 
-    rendered = [render(e) for e in chosen]
+    rendered = [render(e, scope) for e in chosen]
     tokens = estimate_tokens(rendered)
     while rendered and tokens > limits.recent_history_tokens:
         rendered.pop(0)
@@ -163,6 +199,12 @@ class ThreadState:
 
     thread_id: str
     dataset_release_id: str
+    #: Part of this thread's identity, not decoration. Section 37: a thread
+    #: reached from another tenant, another release or another catalogue
+    #: version is a different thread, and these are carried so that is
+    #: checkable rather than assumed from the key.
+    tenant_id: str = ""
+    catalogue_version: str = ""
     summary: ThreadSummary | None = None
     exchanges: list[Exchange] = field(default_factory=list)
 
@@ -170,11 +212,13 @@ class ThreadState:
         self.exchanges.append(exchange)
 
     def context_for(self, *, limits: Limits, pairs: int = DEFAULT_PAIRS,
-                    referenced_ids: list[str] | None = None
+                    referenced_ids: list[str] | None = None,
+                    scope: dict[str, Any] | None = None
                     ) -> tuple[dict[str, Any], Selection]:
         selection = select(self.exchanges, limits=limits,
                            dataset_release_id=self.dataset_release_id,
-                           pairs=pairs, referenced_ids=referenced_ids)
+                           pairs=pairs, referenced_ids=referenced_ids,
+                           scope=scope)
         summary = self.summary.to_dict() if self.summary else {}
         if self.summary and self.summary.unsummarized_exchange_ids:
             summary["note"] = (
@@ -197,4 +241,5 @@ class ThreadState:
 
 
 __all__ = ["DEFAULT_PAIRS", "EXPANDED_PAIRS", "HARD_CAP_PAIRS", "Selection",
-           "ThreadState", "authorized", "render", "select"]
+           "ThreadState", "authorized", "render", "reusable_results",
+           "select"]

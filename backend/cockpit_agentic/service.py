@@ -25,8 +25,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.cockpit_agentic import (DEEP, DOMAIN, MODES, STANDARD,
-                                     default_mode, enabled)
+from backend.cockpit_agentic import (CATALOG_VERSION, DEEP, DOMAIN,
+                                     MODES, STANDARD, default_mode,
+                                     enabled)
 from backend.cockpit_agentic import ledger as ledger_mod
 from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic import profile as profile_mod
@@ -46,6 +47,12 @@ _PROFILES: dict[str, Any] = {}
 #: In-memory thread state, keyed by thread id. The seam where a deployment
 #: binds `backend/services/threads.py` for durable storage.
 _THREADS: dict[str, thread.ThreadState] = {}
+
+
+class ReleaseUnavailable(RuntimeError):
+    """The pinned data release cannot be read. Section 38."""
+
+    status = "DATA_UNAVAILABLE"
 
 
 class NotAvailable(RuntimeError):
@@ -80,12 +87,33 @@ def coverage_for(dataset_release_id: str) -> Any:
     return profile
 
 
-def thread_for(thread_id: str, dataset_release_id: str) -> thread.ThreadState:
-    state = _THREADS.get(thread_id)
+def thread_key(*, thread_id: str, tenant_id: str, dataset_release_id: str,
+               catalogue_version: str) -> str:
+    """Section 37: a thread's identity is not its name.
+
+    Two users of different tenants can pick the same thread id, and a thread
+    carried across a data release or a catalogue version would be answering
+    with prior results that no longer describe the same book. So the identity
+    includes all four, and a mismatch simply addresses a different thread
+    rather than reusing one that does not apply.
+    """
+    return "|".join([str(tenant_id), str(dataset_release_id),
+                     str(catalogue_version), str(thread_id)])
+
+
+def thread_for(thread_id: str, dataset_release_id: str, *,
+               tenant_id: str = "", catalogue_version: str = "") -> \
+        thread.ThreadState:
+    key = thread_key(thread_id=thread_id, tenant_id=tenant_id,
+                     dataset_release_id=dataset_release_id,
+                     catalogue_version=catalogue_version)
+    state = _THREADS.get(key)
     if state is None:
         state = thread.ThreadState(thread_id=thread_id,
-                                   dataset_release_id=dataset_release_id)
-        _THREADS[thread_id] = state
+                                   dataset_release_id=dataset_release_id,
+                                   tenant_id=str(tenant_id),
+                                   catalogue_version=str(catalogue_version))
+        _THREADS[key] = state
     return state
 
 
@@ -117,10 +145,17 @@ def ask(question: str, principal: Any, *, provider: Any = None,
         raise NotAvailable(
             "Cockpit Agentic V3 is switched off in this runtime. Set "
             "COCKPIT_AGENTIC_V3=true to enable it.")
+    # Section 38: the pinned release, or nothing. A release that has gone
+    # away is reported as gone; switching to the latest one would answer a
+    # question about one book with the numbers from another.
     try:
         calendar = store.load_calendar(dataset_release_id)
     except store.ReleaseNotFound as e:
-        raise NotAvailable(str(e)) from e
+        raise ReleaseUnavailable(
+            f"{e} The request named this release and it is not readable. "
+            f"Nothing was substituted for it: another release is a different "
+            f"book, and answering from one while the question named the other "
+            f"would be wrong in a way nobody could see.") from e
 
     chosen = str(mode or default_mode()).lower()
     if chosen not in MODES:
@@ -129,11 +164,19 @@ def ask(question: str, principal: Any, *, provider: Any = None,
     if provider is None:
         provider = _resolve_provider()
 
-    state = thread_for(thread_id or "cockpit-default", dataset_release_id)
+    state = thread_for(
+        thread_id or "cockpit-default", dataset_release_id,
+        tenant_id=str(getattr(principal, "tenant_id", "") or ""),
+        catalogue_version=CATALOG_VERSION)
     limits = ledger_mod.limits_for(chosen)
+    request_scope = {
+        "tenant_id": str(getattr(principal, "tenant_id", "") or ""),
+        "dataset_release_id": dataset_release_id,
+        **{k: v for k, v in (ui_filters or {}).items() if v},
+    }
     summary, selection = state.context_for(
         limits=limits, pairs=pairs,
-        referenced_ids=referenced_exchange_ids)
+        referenced_ids=referenced_exchange_ids, scope=request_scope)
 
     runtime = Runtime(
         provider=provider, principal=principal,
@@ -148,6 +191,9 @@ def ask(question: str, principal: Any, *, provider: Any = None,
     # The answer exists from here on. Nothing below can take it away.
     summary_updated = False
     if outcome.exchange is not None:
+        # Section 40: the scope travels with the exchange, so a later turn can
+        # be told whether these numbers apply to it.
+        outcome.exchange.scope = dict(request_scope)
         state.record(outcome.exchange)
         try:
             updated = sonnet.update_summary(state.summary, outcome.exchange,

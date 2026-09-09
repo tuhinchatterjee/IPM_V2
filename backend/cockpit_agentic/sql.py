@@ -74,6 +74,7 @@ from backend.cockpit_agentic import fields as F
 from backend.cockpit_agentic import scope as scope_mod
 from backend.cockpit_agentic import store
 from backend.cockpit_agentic.contracts import (INVALID_FILTER_VALUE,
+                                               JOIN_MULTIPLICITY_RISK,
                                                OUT_OF_SCOPE_ACCESS,
                                                PERMISSION_DENIED,
                                                RESOURCE_LIMIT, RUNTIME_ERROR,
@@ -345,12 +346,113 @@ def _classify(error: Exception, session: Session) -> SqlRejected:
     return SqlRejected(RUNTIME_ERROR, first)
 
 
+#: Which relations multiply which, and what gets multiplied. Section 19.
+#:
+#: These are facts about the data, not opinions about the analysis. One
+#: facility can be secured by several collateral assets and bound by several
+#: covenants, so a join between them repeats the facility's exposure once per
+#: matching row -- and a SUM over that join is silently wrong in a way the
+#: engine cannot see and the reader cannot check.
+#:
+#: The pairs are directional and specific rather than a blanket "joins are
+#: risky", because a diagnostic that fires on every join is one an author
+#: learns to ignore.
+MULTIPLYING_JOINS: tuple[tuple[str, str, str], ...] = (
+    ("cockpit_facility_quarter", "cockpit_collateral_allocation",
+     "one facility position can have several collateral allocations, so the "
+     "facility's exposure and ECL repeat once per allocation"),
+    ("cockpit_facility_quarter", "cockpit_covenant_quarter",
+     "one facility's borrower can be bound by several covenants, so the "
+     "facility's exposure repeats once per covenant test"),
+    ("cockpit_facility_quarter", "cockpit_borrower_financial_quarter",
+     "one borrower can hold several facilities, so joining the statement to "
+     "facilities repeats the statement once per facility"),
+    ("cockpit_facility_quarter", "cockpit_qualitative_quarter",
+     "there are twenty qualitative answers per borrower-quarter, so the "
+     "facility's measures repeat twenty times"),
+    ("cockpit_borrower_financial_quarter", "cockpit_qualitative_quarter",
+     "twenty qualitative answers per borrower-quarter multiply every "
+     "statement line by twenty"),
+    ("cockpit_collateral_quarter", "cockpit_collateral_allocation",
+     "an asset shared across facilities appears once in the asset relation "
+     "and once per facility in the allocation, so summing gross value across "
+     "the join double counts it"),
+    ("cockpit_facility_quarter", "cockpit_ifrs9_detail",
+     "the IFRS 9 detail is per run, scenario and horizon index, so a facility "
+     "row repeats once per scenario-horizon cell"),
+    ("cockpit_facility_quarter", "cockpit_macro_quarter_window",
+     "the macro window holds twenty offsets per anchor, so every facility row "
+     "repeats twenty times"),
+)
+
+#: What must not be summed across a multiplying join without a de-duplication.
+_ADDITIVE = ("gross_carrying_amount", "drawn_balance", "undrawn_balance",
+             "approved_limit", "ecl_reported", "ecl_12m_reported",
+             "ecl_lifetime_reported", "ecl_modelled", "ecl_overlay",
+             "ead_reported", "gross_market_value", "net_realizable_value",
+             "total_assets", "revenue", "ebitda", "net_profit")
+
+_AGGREGATE = re.compile(r"\b(sum|avg|mean|total)\s*\(", re.I)
+_DISTINCTING = re.compile(r"\b(distinct|group\s+by|qualify|row_number|"
+                          r"partition\s+by)\b", re.I)
+
+
+def multiplication_risk(sql: str, session: Session) -> SqlRejected | None:
+    """Whether this query aggregates an additive measure across a join that
+    repeats it. Section 19.
+
+    A REPORT, not a correction. It names the grains, the multiplicity and the
+    measure at risk, and stops: which de-duplication is right depends on what
+    is being asked, and choosing one here would be choosing the analysis.
+
+    Silent about a join that already de-duplicates, because a diagnostic that
+    fires on correct work is one an author learns to route around.
+    """
+    lowered = " ".join(str(sql).lower().split())
+    if not _AGGREGATE.search(lowered):
+        return None
+    named = [r for r in session.relations if r in lowered]
+    if len(named) < 2:
+        return None
+
+    for left, right, why in MULTIPLYING_JOINS:
+        if left not in named or right not in named:
+            continue
+        measures = [m for m in _ADDITIVE
+                    if re.search(rf"\b(sum|avg|mean|total)\s*\(\s*"
+                                 rf"(distinct\s+)?[\w.]*{m}\b", lowered)]
+        if not measures:
+            continue
+        # An explicit de-duplication is the author saying they know. Take
+        # their word for it: the alternative is refusing correct queries.
+        if _DISTINCTING.search(lowered) and "distinct" in lowered:
+            continue
+        return SqlRejected(
+            JOIN_MULTIPLICITY_RISK,
+            f"This query aggregates {', '.join(measures)} across a join "
+            f"between {left} and {right}, which multiplies rows: {why}. The "
+            f"total would count the same amount more than once.",
+            relation=left,
+            detail=(f"{left} grain: {F.GRAIN.get(left, 'unknown')}. "
+                    f"{right} grain: {F.GRAIN.get(right, 'unknown')}. "
+                    f"Measures at risk: {', '.join(measures)}. "
+                    f"CreditProbe does not choose the de-duplication: "
+                    f"aggregating one side before joining, counting distinct "
+                    f"keys, or a window function are all valid and only the "
+                    f"question decides which."))
+    return None
+
+
 def bind(sql: str, session: Session) -> None:
-    """Resolve the query against the real views WITHOUT running it."""
+    """Resolve the query against the real views WITHOUT running it, then check
+    it does not silently multiply a measure."""
     try:
         session.connection.execute(f"EXPLAIN {sql}")
     except Exception as e:                                  # noqa: BLE001
         raise _classify(e, session) from e
+    risk = multiplication_risk(sql, session)
+    if risk is not None:
+        raise risk
 
 
 # ------------------------------------------------------------- 4. execution

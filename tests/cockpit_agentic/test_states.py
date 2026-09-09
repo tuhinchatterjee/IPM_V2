@@ -18,7 +18,7 @@ def test_the_happy_path_reaches_completed():
     m = drive(st.Machine(), st.NORMALIZING_1, st.NORMALIZING_2,
               st.BUILDING_CONTEXT, st.FUNCTIONALITY_ASSESSMENT, st.PLANNING,
               st.VALIDATING, st.EXECUTING, st.REVIEWING, st.ANSWERING,
-              st.SUMMARIZING, st.COMPLETED)
+              st.ANSWER_VALIDATION, st.SUMMARIZING, st.COMPLETED)
     assert m.finished and m.state == st.COMPLETED
 
 
@@ -38,7 +38,10 @@ def test_a_referral_performs_no_execution_by_construction():
               st.BUILDING_CONTEXT, st.FUNCTIONALITY_ASSESSMENT)
     assert not m.may(st.EXECUTING)
     assert not m.may(st.VALIDATING)
-    assert m.may(st.SUMMARIZING) and m.may(st.REDIRECTED)
+    # The gate reaches the referral terminal directly. It does not pass
+    # through PLANNING, VALIDATING or EXECUTING, and there is no edge by which
+    # it could.
+    assert m.may(st.REDIRECTED)
 
 
 def test_a_validation_failure_returns_to_planning_not_to_execution():
@@ -54,7 +57,7 @@ def test_a_validation_failure_returns_to_planning_not_to_execution():
 
 def test_a_stopped_request_is_not_reopened():
     m = drive(st.Machine(), st.NORMALIZING_1)
-    m.advance(st.TIMED_OUT)
+    m.advance(st.STOPPED_TIME_LIMIT)
     with pytest.raises(st.IllegalTransition) as e:
         m.advance(st.PLANNING)
     assert "not reopened" in str(e.value)
@@ -65,7 +68,7 @@ def test_every_working_state_can_stop_on_a_hard_limit():
         if state == st.SUMMARIZING:
             continue          # summarizing stops into the answer's own status
         allowed = st.TRANSITIONS[state]
-        for reason in (st.BUDGET_EXCEEDED, st.TIMED_OUT, st.CANCELLED,
+        for reason in (st.STOPPED_EXECUTION_LIMIT, st.STOPPED_TIME_LIMIT, st.CANCELLED,
                        st.PROVIDER_ERROR, st.CONTEXT_TOO_LARGE):
             assert reason in allowed, f"{state} cannot stop on {reason}"
 

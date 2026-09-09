@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.cockpit_agentic import DOMAIN, STANDARD
+from backend.cockpit_agentic import answer_check
 from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import context as context_mod
 from backend.cockpit_agentic import contracts as K
@@ -48,10 +49,15 @@ from backend.cockpit_agentic import sonnet as sonnet_mod
 from backend.cockpit_agentic import sql as sql_mod
 from backend.cockpit_agentic import states as st
 from backend.cockpit_agentic import tokens as tokens_mod
-from backend.cockpit_agentic.ledger import (STORE, BudgetExceeded, Ledger,
-                                            Prices, STOP_CANCELLED,
-                                            STOP_DEADLINE, STOP_NO_PROGRESS,
-                                            STOP_ROUNDS, STOP_SUBMISSIONS)
+from backend.cockpit_agentic.ledger import (STORE, BudgetExceeded,
+                                            DuplicateCandidate, Ledger,
+                                            Prices, STOP_CALLS,
+                                            STOP_CANCELLED, STOP_DEADLINE,
+                                            STOP_INPUT_TOO_LARGE,
+                                            STOP_METADATA, STOP_NO_PROGRESS,
+                                            STOP_ROUNDS, STOP_SPEND,
+                                            STOP_STEPS, STOP_SUBMISSIONS,
+                                            STOP_TOKENS)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +79,7 @@ class Outcome:
     tokens: dict[str, Any] = field(default_factory=dict)
     python_audit: list[dict[str, Any]] = field(default_factory=list)
     repair_audits: list[dict[str, Any]] = field(default_factory=list)
+    answer_checks: list[dict[str, Any]] = field(default_factory=list)
     models: dict[str, Any] = field(default_factory=dict)
     exchange: K.Exchange | None = None
 
@@ -93,6 +100,7 @@ class Outcome:
             "tokens": dict(self.tokens),
             "python_execution": list(self.python_audit),
             "repair_context_audits": list(self.repair_audits),
+            "answer_validation": list(self.answer_checks),
             "models": dict(self.models),
         }
 
@@ -146,6 +154,10 @@ class Runtime:
         #: One record per repair dispatch: which of the sixteen required parts
         #: of the effective context were found in the ACTUAL outbound request.
         self.repair_audits: list[dict[str, Any]] = []
+        #: One report per answer validation. Section 29.
+        self.answer_checks: list[dict[str, Any]] = []
+        #: The bound that makes the rewrite ONE. Nothing decrements it.
+        self.answer_rewrites = 0
         # Resolved at construction, so a misconfigured deployment is caught
         # before any work is done -- but REPORTED through `run`, because a
         # constructor that raises gives the caller an exception where the rest
@@ -246,15 +258,38 @@ class Runtime:
                         help_text=("This is an operator or configuration "
                                    "matter. No answer was produced from a "
                                    "deterministic substitute.")))
-            logger.exception("The Cockpit request failed")
-            return self._finish(
-                st.PROVIDER_ERROR,
+            # Section 41: an unexpected application failure is INTERNAL_ERROR,
+            # with the stage and an error id recorded and no secret and no
+            # stack trace shown. Not PROVIDER_ERROR: blaming the provider for
+            # this application's defect sends an operator to look in the wrong
+            # place.
+            error_id = f"err-{uuid.uuid4().hex[:12]}"
+            logger.exception("The Cockpit request failed [%s] at stage %s",
+                             error_id, self.machine.state)
+            if not self.machine.finished:
+                return self._finish(
+                    st.INTERNAL_ERROR,
+                    _stop_envelope(
+                        reason="internal_error",
+                        narrative=(
+                            f"Something in this application failed while "
+                            f"{st.progress(self.machine.state).lower()}. The "
+                            f"failure is recorded under {error_id}. No answer "
+                            f"was produced from a substitute."),
+                        understood=question,
+                        help_text=(f"Quote {error_id} to an operator. The "
+                                   f"question itself is fine; rephrasing it "
+                                   f"is unlikely to help.")))
+            # The machine already settled -- the failure happened on the way
+            # out. The outcome stands; the error is recorded and not shown.
+            return self._outcome(
+                self.machine.state,
                 _stop_envelope(
-                    reason="system_error",
-                    narrative=("The Cockpit could not complete this request "
-                               "because of an internal error. Nothing was "
-                               "answered from a substitute."),
-                    understood=question, help_text=str(e)[:200]))
+                    reason="internal_error",
+                    narrative=(f"The Cockpit could not complete this request. "
+                               f"The failure is recorded under {error_id}."),
+                    understood=question,
+                    help_text=f"Quote {error_id} to an operator."))
 
     def _run(self, question: str, *, ui_filters, rolling_summary,
              recent_exchanges) -> Outcome:
@@ -313,18 +348,29 @@ class Runtime:
         self.decision, self.plan, submission = opus_mod.gate_and_plan(
             conversation, self.context_packet)
 
+        # Sections 10 and 11: a question about the product or about what a
+        # term means is answered here, from knowledge, in the turn that
+        # classified it. Zero SQL, zero Python, zero execution submissions,
+        # zero analysis rounds -- by construction, because this branch never
+        # reaches the loop that consumes them.
+        if self.decision.answers_without_executing:
+            return self._explain(self.decision, question)
+
         if not self.decision.may_execute:
             return self._not_ours(question, cleaned, normalized)
 
-        # Section 6.2: a score never overrides ownership, and a tie is a
-        # clarification. The server checks this rather than trusting the
-        # decision field alone.
-        if not self.decision.uniquely_highest_cockpit():
+        # Section 9: the server reads the scores, not the model's confidence
+        # about them. Below the floor, not highest, or too close to call is a
+        # question for the user.
+        owned, why = self.decision.ownership_test()
+        if not owned:
             self.decision.decision = K.CLARIFY_FUNCTIONALITY
+            self.decision.query_mode = K.CLARIFICATION_REQUIRED
             if not self.decision.clarification_question:
                 self.decision.clarification_question = (
                     "This request could be handled by more than one part of "
                     "CreditProbe. Which would you like?")
+            self.decision.decision_reason = why
             return self._not_ours(question, cleaned, normalized)
 
         # ---- the analysis loop ---------------------------------------
@@ -362,16 +408,14 @@ class Runtime:
         if self.machine.state != st.VALIDATING:
             self._advance(st.VALIDATING, "checking the analysis against the "
                                          "data")
+        duplicate: DuplicateCandidate | None = None
         try:
             number = self.ledger.note_submission(submission.fingerprint)
-        except BudgetExceeded as e:
-            if e.reason == STOP_NO_PROGRESS:
-                return self._insufficient(
-                    "", "The same query was proposed again after it had "
-                        "already failed. Repeating it cannot make progress, so "
-                        "the request stopped here rather than spending another "
-                        "attempt on it.")
-            raise
+        except DuplicateCandidate as e:
+            # Section 22: the attempt is spent and the code is NOT run again.
+            # Opus is told, and may write something different if attempts
+            # remain. Only exhaustion ends the request.
+            duplicate, number = e, e.submission_number
         submission = K.ExecutionSubmission(
             submission_id=submission.submission_id, plan_id=submission.plan_id,
             analysis_round=self.ledger.analysis_rounds,
@@ -382,6 +426,15 @@ class Runtime:
             self.ledger.note_steps(len(submission.steps))
         except BudgetExceeded:
             raise
+
+        if duplicate is not None:
+            step = (submission.steps[0] if submission.steps
+                    else K.ExecutionStep(step_id="duplicate", language=K.SQL,
+                                         code="", purpose=""))
+            return self._failed_step(
+                conversation, submission, step,
+                sql_mod.SqlRejected(K.NO_PROGRESS_DUPLICATE, str(duplicate),
+                                    detail=submission.fingerprint))
 
         step_results: list[K.StepResult] = []
         for step in submission.steps:
@@ -634,7 +687,7 @@ class Runtime:
                 complete=False, stop_reason="unsupported",
                 alternatives=decision.alternatives))
 
-        return self._finish(st.CLARIFICATION_REQUIRED, K.AnswerEnvelope(
+        return self._finish(st.WAITING_FOR_USER, K.AnswerEnvelope(
             kind="clarification",
             narrative=decision.public_explanation
             or decision.clarification_question,
@@ -643,8 +696,33 @@ class Runtime:
             clarification_options=list(decision.clarification_options),
             alternatives=decision.alternatives))
 
+    def _explain(self, decision: K.FunctionalityDecision,
+                 question: str) -> Outcome:
+        """Sections 10 and 11: product help and theory, answered without
+        touching the book.
+
+        This path never reaches `_loop`, so there is no code path by which it
+        could consume an execution submission or an analysis round. That is
+        the proof, and it is structural rather than a promise.
+        """
+        envelope = decision.answer
+        assert envelope is not None
+        self._advance(st.ANSWER_VALIDATION, "checking what the answer claims")
+        envelope, report = self._validate_answer(envelope, executed=False)
+        if not report.valid:
+            envelope, report = self._rewrite_once(envelope, report)
+        return self._finish(
+            st.COMPLETED if report.valid else st.PARTIAL, envelope)
+
     def _answer(self, envelope: K.AnswerEnvelope, *, partial: bool) -> Outcome:
-        envelope = self._bind_figures(envelope)
+        if self.machine.state != st.ANSWER_VALIDATION:
+            self._advance(st.ANSWER_VALIDATION,
+                          "checking every figure against the results")
+        envelope, report = self._validate_answer(envelope, executed=True)
+        if not report.valid:
+            envelope, report = self._rewrite_once(envelope, report)
+            partial = partial or not report.valid
+
         charts = self.ledger.limits.max_charts
         if len(envelope.charts) > charts:
             envelope.charts = envelope.charts[:charts]
@@ -655,25 +733,72 @@ class Runtime:
             envelope.complete = False
         return self._finish(st.PARTIAL if partial else st.COMPLETED, envelope)
 
-    def _bind_figures(self, envelope: K.AnswerEnvelope) -> K.AnswerEnvelope:
-        """Check the claimed evidence references exist. Section 7.9.
+    def _validate_answer(self, envelope: K.AnswerEnvelope, *,
+                         executed: bool) -> tuple[K.AnswerEnvelope, Any]:
+        """Section 29: hold the answer against the evidence before anyone
+        sees it. Optional parts that fail are dropped here; blocking failures
+        go back to Opus."""
+        from backend.cockpit_agentic import registry as registry_mod
 
-        Structural validation only, and this module does not pretend
-        otherwise: that a fact id exists does not make the sentence containing
-        it true. What it does catch is a citation to nothing.
-        """
-        known = {r.artifact_id for packet in self.results
-                 for r in packet.steps if r.artifact_id}
-        unknown = [f for f in envelope.fact_ids if f not in known]
-        if unknown:
-            envelope.fact_ids = [f for f in envelope.fact_ids if f in known]
+        envelope, report = answer_check.check(
+            envelope, results=self.results, catalog=self.catalog,
+            registry_facts=registry_mod.grounding_facts(), executed=executed)
+        self.answer_checks.append(report.to_dict())
+        for dropped in report.dropped_charts:
+            logger.info("Cockpit chart dropped: %s", dropped)
+        if report.dropped_references:
             envelope.limitations.append(
-                f"{len(unknown)} evidence reference(s) in this answer did not "
-                f"match a result produced for this request and were removed.")
-        return envelope
+                f"{len(report.dropped_references)} evidence reference(s) in "
+                f"this answer did not match a result produced for this "
+                f"request and were removed.")
+        return envelope, report
+
+    def _rewrite_once(self, envelope: K.AnswerEnvelope,
+                      report: Any) -> tuple[K.AnswerEnvelope, Any]:
+        """The one rewrite, section 29. Never a second.
+
+        `answer_rewrites` is the counter that makes it one, and nothing
+        decrements it. If the rewrite fails validation too, the answer is
+        rendered with only what checks out and a limitation saying so -- which
+        is what a stop looks like when there is something worth showing.
+        """
+        if self.answer_rewrites >= 1 or self.conversation is None:
+            envelope.limitations.append(
+                "Parts of this answer could not be traced to the results of "
+                "this request and were removed. What remains is supported by "
+                "the evidence shown.")
+            envelope.complete = False
+            return envelope, report
+
+        self.answer_rewrites += 1
+        self._advance(st.ANSWERING, "correcting the answer against the results")
+        self._advance(st.ANSWER_VALIDATION, "re-checking the corrected answer")
+        try:
+            rewritten = opus_mod.rewrite_answer(
+                self.conversation, envelope,
+                answer_check.rewrite_request(envelope, report))
+        except Exception as e:                              # noqa: BLE001
+            logger.info("The Cockpit answer rewrite did not complete: %s", e)
+            rewritten = None
+        if rewritten is None:
+            envelope.limitations.append(
+                "Parts of this answer could not be traced to the results of "
+                "this request and were removed.")
+            envelope.complete = False
+            return envelope, report
+
+        checked, second = self._validate_answer(
+            rewritten, executed=bool(self.results))
+        if not second.valid:
+            checked.limitations.append(
+                "Some figures in this answer could not be traced to the "
+                "results of this request. Only what the evidence supports is "
+                "shown.")
+            checked.complete = False
+        return checked, second
 
     def _clarify(self, question: str, options: list[str]) -> Outcome:
-        return self._finish(st.CLARIFICATION_REQUIRED, K.AnswerEnvelope(
+        return self._finish(st.WAITING_FOR_USER, K.AnswerEnvelope(
             kind="clarification",
             narrative=question or "A clarification is needed to continue.",
             complete=False, clarification_question=question,
@@ -729,13 +854,23 @@ class Runtime:
                        "resolve.")))
 
     def _budget_stop(self, error: BudgetExceeded, question: str) -> Outcome:
+        # Section 42: one terminal state per guardrail. "The request stopped"
+        # is not actionable; "it used its five execution submissions" is, and
+        # it is a different thing to do about it than "it reached the spend
+        # ceiling".
         status = {
-            STOP_DEADLINE: st.TIMED_OUT,
+            STOP_DEADLINE: st.STOPPED_TIME_LIMIT,
             STOP_CANCELLED: st.CANCELLED,
-            STOP_SUBMISSIONS: st.EXECUTION_FAILED,
-            STOP_ROUNDS: st.PARTIAL,
+            STOP_SUBMISSIONS: st.STOPPED_EXECUTION_LIMIT,
+            STOP_STEPS: st.STOPPED_EXECUTION_LIMIT,
+            STOP_CALLS: st.STOPPED_EXECUTION_LIMIT,
+            STOP_METADATA: st.STOPPED_EXECUTION_LIMIT,
+            STOP_ROUNDS: st.STOPPED_ANALYSIS_LIMIT,
+            STOP_TOKENS: st.STOPPED_TOKEN_LIMIT,
+            STOP_INPUT_TOO_LARGE: st.CONTEXT_TOO_LARGE,
+            STOP_SPEND: st.STOPPED_COST_LIMIT,
             STOP_NO_PROGRESS: st.INSUFFICIENT_DATA,
-        }.get(error.reason, st.BUDGET_EXCEEDED)
+        }.get(error.reason, st.STOPPED_EXECUTION_LIMIT)
         return self._finish(status, _stop_envelope(
             reason=error.reason, narrative=str(error), understood=question,
             tried=[a["what_failed"] for a in self.attempts],
@@ -744,13 +879,43 @@ class Runtime:
                 "it did and its attempts are preserved so the next does not "
                 "repeat them.")))
 
+    def _outcome(self, status: str, envelope: K.AnswerEnvelope) -> Outcome:
+        """Build the outcome for a machine that has ALREADY settled.
+
+        Split from `_finish` so the failure path out of a finished request
+        cannot try to advance a terminal state and raise a second time inside
+        the handler for the first.
+        """
+        envelope.status = status
+        return Outcome(
+            request_id=self.request_id, status=status, envelope=envelope,
+            decision=self.decision, plan=self.plan, results=self.results,
+            failures=self.failures, budget=self.ledger.to_dict(),
+            machine={**self.machine.to_dict(), "progress": self.progress},
+            context=(self.context_packet.to_dict() if self.context_packet
+                     else {}),
+            models=self.models.to_dict() if self.models else {},
+            python_audit=list(self.python_audit),
+            repair_audits=list(self.repair_audits),
+            answer_checks=list(self.answer_checks))
+
     def _finish(self, status: str, envelope: K.AnswerEnvelope) -> Outcome:
         if not self.machine.finished:
             if self.machine.may(status):
                 self.machine.advance(status, "finished")
-            elif self.machine.may(st.SUMMARIZING):
+            elif self.machine.may(st.SUMMARIZING) and \
+                    status in st.TRANSITIONS[st.SUMMARIZING]:
                 self.machine.advance(st.SUMMARIZING, "finishing")
                 self.machine.advance(status, "finished")
+            else:
+                # Section 42: no request may remain RUNNING. A status the
+                # machine cannot reach from here is an application defect, and
+                # leaving the request in a working state to hide it would be
+                # the exact failure this rule exists to prevent. Raising sends
+                # it to INTERNAL_ERROR, which is a terminal state.
+                raise st.IllegalTransition(
+                    f"the request cannot settle as {status} from "
+                    f"{self.machine.state}")
         envelope.status = status
         exchange = K.Exchange(
             exchange_id=self.request_id,
@@ -758,7 +923,7 @@ class Runtime:
                       ["original_question"] if self.context_packet else ""),
             answer=envelope.narrative,
             kind=("referral" if status == st.REDIRECTED
-                  else "clarification" if status == st.CLARIFICATION_REQUIRED
+                  else "clarification" if status == st.WAITING_FOR_USER
                   else "answer" if status == st.COMPLETED
                   else "stop"),
             fact_ids=list(envelope.fact_ids),
@@ -776,6 +941,7 @@ class Runtime:
                     if self.conversation is not None else {}),
             python_audit=list(self.python_audit),
             repair_audits=list(self.repair_audits),
+            answer_checks=list(self.answer_checks),
             models=self.models.to_dict() if self.models else {},
             exchange=exchange)
 

@@ -1,19 +1,26 @@
 """
-The server-owned state machine. Specification section 11.
+The server-owned state machine, as an explicit transition registry.
 
 The model requests transitions; this module alone approves them. A response
 cannot set its own attempts remaining, bypass a prior refusal, reopen a
-stopped request or acquire another module's data — because none of those are
+stopped request or acquire another module's data -- because none of those are
 expressible here. `Machine.advance` is the only way a request changes state,
 it checks the edge against `TRANSITIONS`, and a terminal state has no
 outgoing edges at all.
 
-Why an explicit table rather than flags
----------------------------------------
-Cockpit V2 had `executor.STAGES`, a list of names for progress display. Names
-are not a machine: nothing stopped a stage running twice or out of order. The
-guardrails in section 9 are only real if the states they attach to are real,
-so the edges are enumerated and a violation raises rather than logs.
+Why a registry rather than an adjacency list
+--------------------------------------------
+An adjacency list says a transition is permitted. It does not say what causes
+it, under what condition, or what it costs -- so a reviewer asking "can this
+request loop forever?" has to reconstruct the answer from the runtime. The
+registry below carries EVENT, CONDITION and SIDE_EFFECT on every edge, and the
+side effect is where boundedness lives: each edge that returns to PLANNING
+consumes something that cannot be replenished, so every cycle is finite by
+construction rather than by discipline.
+
+`tests/cockpit_agentic/test_state_machine.py` reads this table and proves the
+properties that matter: every non-terminal state has an exit, every declared
+edge names a real state, every path terminates, and no cycle is unbounded.
 """
 
 from __future__ import annotations
@@ -33,87 +40,320 @@ VALIDATING = "VALIDATING"
 EXECUTING = "EXECUTING"
 REVIEWING = "REVIEWING"
 ANSWERING = "ANSWERING"
+#: The final-answer evidence check, and the one rewrite it may ask for.
+#: A state of its own because the rewrite is bounded at one and a bound needs
+#: somewhere to be counted.
+ANSWER_VALIDATION = "ANSWER_VALIDATION"
 SUMMARIZING = "SUMMARIZING"
 
 WORKING: tuple[str, ...] = (
     RECEIVED, NORMALIZING_1, NORMALIZING_2, BUILDING_CONTEXT,
     FUNCTIONALITY_ASSESSMENT, PLANNING, VALIDATING, EXECUTING, REVIEWING,
-    ANSWERING, SUMMARIZING)
+    ANSWERING, ANSWER_VALIDATION, SUMMARIZING)
 
-# ---- terminal statuses ------------------------------------------------
+# ---- terminal states --------------------------------------------------
+#
+# Every request settles on exactly one of these. They are grouped by what a
+# reader would do about them, because "the request stopped" is not actionable
+# and "the request stopped because it ran out of execution submissions" is.
 
+#: Delivered.
 COMPLETED = "COMPLETED"
-REDIRECTED = "REDIRECTED"
-CLARIFICATION_REQUIRED = "CLARIFICATION_REQUIRED"
-INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
-EXECUTION_FAILED = "EXECUTION_FAILED"
-UNSUPPORTED = "UNSUPPORTED"
 PARTIAL = "PARTIAL"
-BUDGET_EXCEEDED = "BUDGET_EXCEEDED"
-CONTEXT_TOO_LARGE = "CONTEXT_TOO_LARGE"
-TIMED_OUT = "TIMED_OUT"
-CANCELLED = "CANCELLED"
-PROVIDER_ERROR = "PROVIDER_ERROR"
-#: The Cockpit's model roles are not configured, or the provider will not
-#: serve what they name. Distinct from PROVIDER_ERROR because the remedy is
-#: different: PROVIDER_ERROR is "the provider did not answer", these two are
-#: "nobody has said which model should answer" and "the model named does not
-#: exist here". An operator needs to be told which.
+
+#: Answered, but not by the Cockpit.
+REDIRECTED = "REDIRECTED"
+UNSUPPORTED = "UNSUPPORTED"
+
+#: The request is over and the ball is with the user. The reply is a NEW
+#: request in the same thread; this one does not resume.
+WAITING_FOR_USER = "WAITING_FOR_USER"
+
+#: A guardrail was reached. One state per guardrail, because the remedy
+#: differs: more time will not help a request that used five submissions, and
+#: a simpler question will not help one that hit the spend ceiling.
+STOPPED_EXECUTION_LIMIT = "STOPPED_EXECUTION_LIMIT"
+STOPPED_ANALYSIS_LIMIT = "STOPPED_ANALYSIS_LIMIT"
+STOPPED_TOKEN_LIMIT = "STOPPED_TOKEN_LIMIT"
+STOPPED_COST_LIMIT = "STOPPED_COST_LIMIT"
+STOPPED_TIME_LIMIT = "STOPPED_TIME_LIMIT"
+STOPPED_SECURITY = "STOPPED_SECURITY"
+
+#: The environment cannot serve the request.
 MODEL_CONFIGURATION_MISSING = "MODEL_CONFIGURATION_MISSING"
 MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+PROVIDER_ERROR = "PROVIDER_ERROR"
+DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
+CONTEXT_TOO_LARGE = "CONTEXT_TOO_LARGE"
+
+#: The data could not answer it, or the attempts could not.
+INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+EXECUTION_FAILED = "EXECUTION_FAILED"
+
+#: The user stopped it, or this application broke.
+CANCELLED = "CANCELLED"
+INTERNAL_ERROR = "INTERNAL_ERROR"
 
 TERMINAL: tuple[str, ...] = (
-    COMPLETED, REDIRECTED, CLARIFICATION_REQUIRED, INSUFFICIENT_DATA,
-    EXECUTION_FAILED, UNSUPPORTED, PARTIAL, BUDGET_EXCEEDED,
-    CONTEXT_TOO_LARGE, TIMED_OUT, CANCELLED, PROVIDER_ERROR,
-    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE)
+    COMPLETED, PARTIAL, REDIRECTED, UNSUPPORTED, WAITING_FOR_USER,
+    STOPPED_EXECUTION_LIMIT, STOPPED_ANALYSIS_LIMIT, STOPPED_TOKEN_LIMIT,
+    STOPPED_COST_LIMIT, STOPPED_TIME_LIMIT, STOPPED_SECURITY,
+    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE, PROVIDER_ERROR,
+    DATA_UNAVAILABLE, CONTEXT_TOO_LARGE, INSUFFICIENT_DATA, EXECUTION_FAILED,
+    CANCELLED, INTERNAL_ERROR)
 
 ALL_STATES: tuple[str, ...] = WORKING + TERMINAL
+
+#: Every guardrail stop, so a caller can ask "did a limit end this?" without
+#: enumerating them and missing one.
+STOPPED_BY_GUARDRAIL = frozenset({
+    STOPPED_EXECUTION_LIMIT, STOPPED_ANALYSIS_LIMIT, STOPPED_TOKEN_LIMIT,
+    STOPPED_COST_LIMIT, STOPPED_TIME_LIMIT, STOPPED_SECURITY})
 
 #: A stop that happened before any analysis was possible, versus one that
 #: happened with findings in hand. The renderer says different things.
 STOPPED_WITHOUT_ANSWER = frozenset({
-    REDIRECTED, CLARIFICATION_REQUIRED, INSUFFICIENT_DATA, EXECUTION_FAILED,
-    UNSUPPORTED, BUDGET_EXCEEDED, CONTEXT_TOO_LARGE, TIMED_OUT, CANCELLED,
-    PROVIDER_ERROR, MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE})
+    REDIRECTED, WAITING_FOR_USER, INSUFFICIENT_DATA, EXECUTION_FAILED,
+    UNSUPPORTED, CONTEXT_TOO_LARGE, CANCELLED, PROVIDER_ERROR,
+    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE, DATA_UNAVAILABLE,
+    INTERNAL_ERROR}) | STOPPED_BY_GUARDRAIL
 
-#: Every state may stop for one of these, because every one of them can happen
-#: at any point: the deadline expires, the user cancels, the provider fails,
-#: or a budget preflight refuses the next call.
-_ALWAYS = (BUDGET_EXCEEDED, TIMED_OUT, CANCELLED, PROVIDER_ERROR,
-           CONTEXT_TOO_LARGE, MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE)
 
-#: The permitted edges. Read this as the specification's section 11 diagram.
-TRANSITIONS: dict[str, tuple[str, ...]] = {
-    RECEIVED: (NORMALIZING_1,) + _ALWAYS,
-    # A failed pass 1 does not silently rewrite intent: it proceeds on the
-    # preserved raw text with the failure flagged, so pass 2 still runs.
-    NORMALIZING_1: (NORMALIZING_2,) + _ALWAYS,
-    NORMALIZING_2: (BUILDING_CONTEXT,) + _ALWAYS,
-    BUILDING_CONTEXT: (FUNCTIONALITY_ASSESSMENT,) + _ALWAYS,
-    # The gate is first and it is a real fork. A referral goes straight to
-    # SUMMARIZING: zero analytical execution, by construction rather than by
-    # discipline.
-    FUNCTIONALITY_ASSESSMENT: (PLANNING, SUMMARIZING, REDIRECTED,
-                               CLARIFICATION_REQUIRED, UNSUPPORTED) + _ALWAYS,
-    PLANNING: (VALIDATING, ANSWERING, SUMMARIZING, CLARIFICATION_REQUIRED,
-               INSUFFICIENT_DATA) + _ALWAYS,
-    # Validation failure does not go to EXECUTING. It goes back to PLANNING,
-    # because only Opus may author the next candidate.
-    VALIDATING: (EXECUTING, PLANNING, EXECUTION_FAILED,
-                 INSUFFICIENT_DATA) + _ALWAYS,
-    EXECUTING: (REVIEWING, PLANNING, EXECUTION_FAILED) + _ALWAYS,
-    REVIEWING: (PLANNING, ANSWERING, CLARIFICATION_REQUIRED,
-                INSUFFICIENT_DATA, PARTIAL) + _ALWAYS,
-    ANSWERING: (SUMMARIZING, COMPLETED, PARTIAL) + _ALWAYS,
-    # A failed summary never erases a completed answer.
-    SUMMARIZING: (COMPLETED, PARTIAL, REDIRECTED, CLARIFICATION_REQUIRED,
-                  INSUFFICIENT_DATA, EXECUTION_FAILED, UNSUPPORTED,
-                  BUDGET_EXCEEDED, TIMED_OUT, CANCELLED, PROVIDER_ERROR,
-                  CONTEXT_TOO_LARGE),
-}
+# ---- the registry -----------------------------------------------------
+
+@dataclass(frozen=True)
+class Edge:
+    """One permitted transition, and why it exists.
+
+    `consumes` is the load-bearing field. An edge that returns to an earlier
+    working state must consume something finite, or the graph has a cycle
+    nothing closes. The test suite reads this and refuses an unconsumed
+    back-edge.
+    """
+
+    state: str
+    event: str
+    condition: str
+    next_state: str
+    side_effect: str = ""
+    #: The finite resource this edge spends: "execution_submission",
+    #: "analysis_round", "answer_rewrite", or "" for edges that move forward.
+    consumes: str = ""
+
+    @property
+    def terminal(self) -> bool:
+        return self.next_state in TERMINAL
+
+    @property
+    def backward(self) -> bool:
+        """True when the edge returns to a state already visited in the loop."""
+        return (self.next_state in WORKING
+                and WORKING.index(self.next_state) <= WORKING.index(self.state))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"state": self.state, "event": self.event,
+                "condition": self.condition, "next_state": self.next_state,
+                "side_effect": self.side_effect, "consumes": self.consumes,
+                "terminal": self.terminal}
+
+
+#: Reachable from EVERY working state, because each can happen at any moment:
+#: the deadline expires, the user cancels, a budget preflight refuses the next
+#: call, the provider fails, the models are unconfigured, the packet will not
+#: fit, or this application breaks.
+def _always(state: str) -> tuple[Edge, ...]:
+    return (
+        Edge(state, "deadline reached", "clock past the request deadline",
+             STOPPED_TIME_LIMIT, "the stop names the deadline"),
+        Edge(state, "user cancelled", "cancel flag set on the ledger",
+             CANCELLED, "in-flight work is stopped; usage is retained"),
+        Edge(state, "token ceiling reached", "cumulative input would exceed it",
+             STOPPED_TOKEN_LIMIT, "the stop names the ceiling"),
+        Edge(state, "spend ceiling reached", "the next call would exceed it",
+             STOPPED_COST_LIMIT, "the stop names the ceiling"),
+        Edge(state, "model call ceiling reached", "no provider calls remain",
+             STOPPED_EXECUTION_LIMIT, "the stop names what was tried"),
+        Edge(state, "provider failed", "the provider raised",
+             PROVIDER_ERROR, "no deterministic substitute is produced"),
+        Edge(state, "model roles unconfigured", "either role is unset",
+             MODEL_CONFIGURATION_MISSING, "the stop names the variable"),
+        Edge(state, "model refused by provider", "the provider will not serve it",
+             MODEL_UNAVAILABLE, "the stop names the id"),
+        Edge(state, "packet will not fit", "measured above the input cap",
+             CONTEXT_TOO_LARGE, "nothing is sent"),
+        Edge(state, "pinned release unavailable", "the release cannot be read",
+             DATA_UNAVAILABLE, "no silent switch to another release"),
+        Edge(state, "forbidden operation attempted",
+             "the engine or sandbox refused a boundary violation",
+             STOPPED_SECURITY, "the attempt is recorded; nothing runs"),
+        Edge(state, "unexpected application failure", "an unhandled exception",
+             INTERNAL_ERROR, "stage and error id recorded; no secrets, no "
+                             "stack trace, no fallback"),
+    )
+
+
+_EDGES: tuple[Edge, ...] = (
+    Edge(RECEIVED, "request accepted", "authenticated and authorized",
+         NORMALIZING_1, "ledger opened; scope, release and deadline pinned"),
+    Edge(RECEIVED, "authorization refused", "principal may not read this scope",
+         STOPPED_SECURITY, "nothing is read; the refusal is recorded"),
+
+    Edge(NORMALIZING_1, "pass 1 returned", "the question was cleaned",
+         NORMALIZING_2),
+    Edge(NORMALIZING_1, "pass 1 failed", "the call raised or returned nothing",
+         NORMALIZING_2,
+         "proceeds on the preserved raw text with the failure flagged; intent "
+         "is never silently rewritten"),
+    Edge(NORMALIZING_1, "cannot clean safely",
+         "meaning would change to proceed", WAITING_FOR_USER,
+         "a targeted clarification; this request closes"),
+
+    Edge(NORMALIZING_2, "pass 2 returned", "a business request was produced",
+         BUILDING_CONTEXT),
+    Edge(NORMALIZING_2, "cannot understand safely", "the request is ambiguous",
+         WAITING_FOR_USER, "a targeted clarification; this request closes"),
+
+    Edge(BUILDING_CONTEXT, "packet assembled", "it fits the input cap",
+         FUNCTIONALITY_ASSESSMENT),
+
+    # The gate is first, and it is a real fork. Everything that is not
+    # DATA_ANALYSIS+COCKPIT leaves without touching the data.
+    Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
+         "query_mode=DATA_ANALYSIS and owner=COCKPIT and the score test passes",
+         PLANNING, "the first analysis round is consumed", "analysis_round"),
+    Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
+         "query_mode is PRODUCT_HELP or THEORY_CONCEPT", ANSWER_VALIDATION,
+         "Opus answered in the gate turn; zero submissions, zero rounds"),
+    Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
+         "owner is another functionality", REDIRECTED,
+         "a referral with a configured destination; zero execution"),
+    Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
+         "query_mode=CLARIFICATION_REQUIRED, or the score test fails",
+         WAITING_FOR_USER, "a targeted question; this request closes"),
+    Edge(FUNCTIONALITY_ASSESSMENT, "gate returned",
+         "query_mode=UNSUPPORTED, including current external information",
+         UNSUPPORTED, "the boundary is explained; nothing is fabricated"),
+
+    Edge(PLANNING, "Opus submitted candidate code", "submissions remain",
+         VALIDATING, "one execution submission is consumed",
+         "execution_submission"),
+    Edge(PLANNING, "Opus chose to answer without executing",
+         "the plan needs no data", ANSWER_VALIDATION),
+    Edge(PLANNING, "Opus asked for clarification", "the request is ambiguous",
+         WAITING_FOR_USER, "this request closes"),
+    Edge(PLANNING, "Opus explained and stopped",
+         "the data cannot answer it", INSUFFICIENT_DATA),
+    Edge(PLANNING, "the repair could not be dispatched",
+         "the effective context could not be assembled, or the failure is "
+         "not repairable", EXECUTION_FAILED,
+         "an application defect is reported as one; no repair request is sent "
+         "that Opus could not act on"),
+    Edge(PLANNING, "submissions exhausted", "five have been consumed",
+         STOPPED_EXECUTION_LIMIT, "Opus explains what was tried"),
+    Edge(PLANNING, "rounds exhausted", "three have been consumed",
+         STOPPED_ANALYSIS_LIMIT, "what was established is reported"),
+
+    Edge(VALIDATING, "validation passed", "the candidate is safe and resolvable",
+         EXECUTING),
+    Edge(VALIDATING, "validation failed, repairable",
+         "the diagnostic goes back to Opus and submissions remain", PLANNING,
+         "CreditProbe authors nothing; Opus writes the next candidate"),
+    Edge(VALIDATING, "validation failed, not repairable",
+         "out of scope or permission denied", EXECUTION_FAILED,
+         "fails closed; looking for a workaround would spend attempts on "
+         "nothing"),
+    Edge(VALIDATING, "duplicate candidate",
+         "the code, parameters and release hash to a prior failure", PLANNING,
+         "the submission is consumed and the code is NOT run again"),
+    Edge(VALIDATING, "forbidden operation", "the candidate reaches outside the "
+         "authorized domain", STOPPED_SECURITY),
+    Edge(VALIDATING, "submissions exhausted", "five have been consumed",
+         STOPPED_EXECUTION_LIMIT),
+
+    Edge(EXECUTING, "execution succeeded", "results were produced", REVIEWING),
+    Edge(EXECUTING, "execution failed, repairable",
+         "the runtime diagnostic goes back to Opus and submissions remain",
+         PLANNING, "CreditProbe authors nothing"),
+    Edge(EXECUTING, "execution failed, not repairable",
+         "no attempts remain or the failure is closed", EXECUTION_FAILED),
+    Edge(EXECUTING, "sandbox refused the code",
+         "the isolation boundary was reached", STOPPED_SECURITY),
+
+    Edge(REVIEWING, "SUFFICIENT", "every subquestion is answered",
+         ANSWERING),
+    Edge(REVIEWING, "NEEDS_FURTHER_ANALYSIS",
+         "the method must materially change and rounds remain", PLANNING,
+         "one analysis round is consumed", "analysis_round"),
+    Edge(REVIEWING, "NEEDS_FURTHER_ANALYSIS", "no rounds remain",
+         STOPPED_ANALYSIS_LIMIT, "what was established is reported"),
+    Edge(REVIEWING, "NEEDS_USER_CLARIFICATION", "the answer depends on a choice "
+         "only the user can make", WAITING_FOR_USER),
+    Edge(REVIEWING, "MISSING_DATA", "the domain does not hold it",
+         INSUFFICIENT_DATA),
+    Edge(REVIEWING, "MISSING_DATA", "partial findings are supported", PARTIAL),
+    Edge(REVIEWING, "OUT_OF_SCOPE", "another functionality owns it", REDIRECTED),
+    Edge(REVIEWING, "BUDGET_STOP", "a guardrail was reached",
+         STOPPED_EXECUTION_LIMIT),
+
+    Edge(ANSWERING, "Opus returned the final answer", "always",
+         ANSWER_VALIDATION),
+
+    Edge(ANSWER_VALIDATION, "validation passed", "every claim traces to "
+         "evidence and the envelope is well formed", SUMMARIZING),
+    Edge(ANSWER_VALIDATION, "validation failed",
+         "no rewrite has been used yet", ANSWERING,
+         "the ONE permitted answer-only rewrite; it cannot execute, cannot "
+         "open a round and cannot reset a counter", "answer_rewrite"),
+    Edge(ANSWER_VALIDATION, "validation failed again",
+         "the rewrite has been used", PARTIAL,
+         "only the safely supported content is rendered, with a limitation "
+         "saying what was removed"),
+    Edge(ANSWER_VALIDATION, "domain leak detected",
+         "the answer names data outside the authorized domain",
+         STOPPED_SECURITY),
+
+    Edge(SUMMARIZING, "summary updated", "the call succeeded", COMPLETED),
+    Edge(SUMMARIZING, "summary failed", "the call raised", COMPLETED,
+         "the delivered answer stands; the turn is marked unsummarized and "
+         "the last valid summary is retained. No retry loop"),
+    Edge(SUMMARIZING, "partial answer summarized", "the answer was partial",
+         PARTIAL),
+    Edge(SUMMARIZING, "referral summarized", "the turn was a referral",
+         REDIRECTED),
+    Edge(SUMMARIZING, "clarification summarized", "the turn asked a question",
+         WAITING_FOR_USER),
+    Edge(SUMMARIZING, "stop summarized", "the turn stopped", UNSUPPORTED),
+    Edge(SUMMARIZING, "stop summarized", "the data did not support it",
+         INSUFFICIENT_DATA),
+    Edge(SUMMARIZING, "stop summarized", "execution failed", EXECUTION_FAILED),
+)
+
+EDGES: tuple[Edge, ...] = _EDGES + tuple(
+    edge for state in WORKING
+    # SUMMARIZING runs after the answer already exists. A guardrail reached
+    # while saving a summary must not take the answer away, so the always-on
+    # stops do not apply there -- section 32.
+    if state != SUMMARIZING
+    for edge in _always(state))
+
+#: The adjacency view, derived. Nothing writes it by hand, so it cannot drift
+#: from the registry above.
+TRANSITIONS: dict[str, tuple[str, ...]] = {}
+for _edge in EDGES:
+    _seen = TRANSITIONS.setdefault(_edge.state, ())
+    if _edge.next_state not in _seen:
+        TRANSITIONS[_edge.state] = _seen + (_edge.next_state,)
 for _terminal in TERMINAL:
     TRANSITIONS.setdefault(_terminal, ())
+
+
+def edges_from(state: str) -> tuple[Edge, ...]:
+    return tuple(e for e in EDGES if e.state == state)
+
+
+def registry() -> list[dict[str, Any]]:
+    """The table, for the documentation build and the tests."""
+    return [edge.to_dict() for edge in EDGES]
 
 
 class IllegalTransition(RuntimeError):
@@ -173,6 +413,7 @@ PROGRESS: dict[str, str] = {
     EXECUTING: "Executing submission {submission} of {submission_max}",
     REVIEWING: "Reviewing the results, round {round} of {round_max}",
     ANSWERING: "Preparing the answer",
+    ANSWER_VALIDATION: "Checking every figure against the results",
     SUMMARIZING: "Saving the thread summary",
 }
 
@@ -185,13 +426,16 @@ def progress(state: str, **counters: Any) -> str:
         return template
 
 
-__all__ = ["ALL_STATES", "ANSWERING", "BUDGET_EXCEEDED", "BUILDING_CONTEXT",
-           "CANCELLED", "CLARIFICATION_REQUIRED", "COMPLETED",
-           "CONTEXT_TOO_LARGE", "EXECUTING", "EXECUTION_FAILED",
-           "FUNCTIONALITY_ASSESSMENT", "INSUFFICIENT_DATA",
-           "IllegalTransition", "MODEL_CONFIGURATION_MISSING",
-           "MODEL_UNAVAILABLE", "Machine", "NORMALIZING_1", "NORMALIZING_2",
-           "PARTIAL", "PLANNING", "PROGRESS", "PROVIDER_ERROR", "RECEIVED",
-           "REDIRECTED", "REVIEWING", "STOPPED_WITHOUT_ANSWER", "SUMMARIZING",
-           "TERMINAL", "TIMED_OUT", "TRANSITIONS", "UNSUPPORTED", "VALIDATING",
-           "WORKING", "progress"]
+__all__ = [
+    "ALL_STATES", "ANSWERING", "ANSWER_VALIDATION", "BUILDING_CONTEXT",
+    "CANCELLED", "COMPLETED", "CONTEXT_TOO_LARGE", "DATA_UNAVAILABLE",
+    "EDGES", "EXECUTING", "EXECUTION_FAILED", "Edge",
+    "FUNCTIONALITY_ASSESSMENT", "INSUFFICIENT_DATA", "INTERNAL_ERROR",
+    "IllegalTransition", "MODEL_CONFIGURATION_MISSING", "MODEL_UNAVAILABLE",
+    "Machine", "NORMALIZING_1", "NORMALIZING_2", "PARTIAL", "PLANNING",
+    "PROGRESS", "PROVIDER_ERROR", "RECEIVED", "REDIRECTED", "REVIEWING",
+    "STOPPED_ANALYSIS_LIMIT", "STOPPED_BY_GUARDRAIL", "STOPPED_COST_LIMIT",
+    "STOPPED_EXECUTION_LIMIT", "STOPPED_SECURITY", "STOPPED_TIME_LIMIT",
+    "STOPPED_TOKEN_LIMIT", "STOPPED_WITHOUT_ANSWER", "SUMMARIZING",
+    "TERMINAL", "TRANSITIONS", "UNSUPPORTED", "VALIDATING",
+    "WAITING_FOR_USER", "WORKING", "edges_from", "progress", "registry"]

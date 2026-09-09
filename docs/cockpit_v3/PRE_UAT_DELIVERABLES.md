@@ -194,9 +194,28 @@ What a live provider would actually serve is **UNVERIFIED**.
 `scripts/cockpit_v3_live_validation.py` reports the ids and the provider's own
 token counts against them the moment a credential exists.
 
+## G2. The architecture freeze
+
+The state machine is now an explicit registry — every edge carries its event,
+condition, side effect and what it consumes — and the query modes exist, so a
+question about what the Cockpit IS no longer costs one of the five execution
+submissions reserved for questions about the portfolio.
+
+| | |
+|---|---|
+| Query modes | `PRODUCT_HELP` · `THEORY_CONCEPT` · `DATA_ANALYSIS` · `OTHER_FUNCTIONALITY` · `CLARIFICATION_REQUIRED` · `UNSUPPORTED` |
+| Owners | `COCKPIT` · `EWS` · `CREDIT_SCORING` · `SCORECARD_VALIDATION` · `WHAT_IF` · `LENSES` · `GENERAL_CREDITPROBE_HELP` · `NONE` |
+| Terminal states | 20, one per guardrail |
+| State machine | `backend/cockpit_agentic/states.py` |
+| Answer validation | `backend/cockpit_agentic/answer_check.py`, one rewrite |
+
+`docs/cockpit_v3/FINAL_AGENTIC_ARCHITECTURE.md` is the full description and
+`docs/cockpit_v3/ARCHITECTURE_FREEZE_AUDIT.md` records what was already
+compliant and what was not.
+
 ## H. Cockpit V3 test results
 
-**397 tests, all passing.** Every one uses the labelled mock provider or no
+**490 tests, all passing.** Every one uses the labelled mock provider or no
 provider at all. They prove application properties — the gate runs first, a
 referral executes nothing, five submissions is five, the repair request
 carries the effective context, the sandbox boundary holds, CreditProbe authors

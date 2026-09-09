@@ -27,13 +27,79 @@ from backend.cockpit_agentic import DOMAIN
 
 # ------------------------------------------------------- decision vocabulary
 
+#: FunctionalityDecision.query_mode -- WHAT KIND of request this is. Decided
+#: by Opus, semantically, on every turn. It is not inherited from the previous
+#: turn and it is not a keyword match: "what is lifetime PD" and "which
+#: borrowers had the largest lifetime PD increase" share every keyword that
+#: matters and are different modes.
+#:
+#: The mode decides whether the analytical pipeline runs at all, which is why
+#: it exists separately from the owner: a question the Cockpit owns can still
+#: be one that needs no data.
+PRODUCT_HELP = "PRODUCT_HELP"
+THEORY_CONCEPT = "THEORY_CONCEPT"
+DATA_ANALYSIS = "DATA_ANALYSIS"
+OTHER_FUNCTIONALITY = "OTHER_FUNCTIONALITY"
+CLARIFICATION_REQUIRED = "CLARIFICATION_REQUIRED"
+UNSUPPORTED_MODE = "UNSUPPORTED"
+QUERY_MODES: tuple[str, ...] = (
+    PRODUCT_HELP, THEORY_CONCEPT, DATA_ANALYSIS, OTHER_FUNCTIONALITY,
+    CLARIFICATION_REQUIRED, UNSUPPORTED_MODE)
+
+#: The two modes that answer from knowledge rather than from the book. They
+#: consume no execution submission and no analysis round, because they run no
+#: analysis -- and a question about what the Cockpit IS must not cost one of
+#: the five attempts available for answering a question about the portfolio.
+NO_EXECUTION_MODES: tuple[str, ...] = (PRODUCT_HELP, THEORY_CONCEPT)
+
+#: FunctionalityDecision.owner -- WHO owns it. The six functionalities, plus
+#: the product itself for questions about CreditProbe, plus NONE for a request
+#: nothing here owns.
+OWNER_COCKPIT = "COCKPIT"
+OWNER_EWS = "EWS"
+OWNER_CREDIT_SCORING = "CREDIT_SCORING"
+OWNER_SCORECARD_VALIDATION = "SCORECARD_VALIDATION"
+OWNER_WHAT_IF = "WHAT_IF"
+OWNER_LENSES = "LENSES"
+OWNER_GENERAL_HELP = "GENERAL_CREDITPROBE_HELP"
+OWNER_NONE = "NONE"
+OWNERS: tuple[str, ...] = (
+    OWNER_COCKPIT, OWNER_EWS, OWNER_CREDIT_SCORING,
+    OWNER_SCORECARD_VALIDATION, OWNER_WHAT_IF, OWNER_LENSES,
+    OWNER_GENERAL_HELP, OWNER_NONE)
+
+#: The registry ids are lower case and are the storage form; the OWNER enum is
+#: the wire form. One mapping, in one place, so the two cannot drift.
+OWNER_OF_FUNCTIONALITY: dict[str, str] = {
+    "cockpit": OWNER_COCKPIT,
+    "ews": OWNER_EWS,
+    "credit_scoring": OWNER_CREDIT_SCORING,
+    "scorecard_validation": OWNER_SCORECARD_VALIDATION,
+    "what_if": OWNER_WHAT_IF,
+    "lenses": OWNER_LENSES,
+}
+FUNCTIONALITY_OF_OWNER: dict[str, str] = {
+    owner: fid for fid, owner in OWNER_OF_FUNCTIONALITY.items()}
+
+#: Section 9's deterministic reading of the scores. Opus assesses; these two
+#: numbers decide, server-side, so a confident-sounding explanation cannot
+#: carry a request into the Cockpit that the scores do not support.
+OWNERSHIP_FLOOR = 70
+OWNERSHIP_LEAD = 10
+
 #: FunctionalityDecision.decision
 PROCEED_COCKPIT = "PROCEED_COCKPIT"
+#: Answer from knowledge, touching nothing. The decision PRODUCT_HELP and
+#: THEORY_CONCEPT reach. Its own value rather than PROCEED_COCKPIT, because
+#: "proceed" has meant "run the analysis" everywhere else in this codebase and
+#: overloading it would put a contradiction inside the object the whole gate
+#: is read through.
+ANSWER_WITHOUT_DATA = "ANSWER_WITHOUT_DATA"
 REDIRECT = "REDIRECT"
 CLARIFY_FUNCTIONALITY = "CLARIFY_FUNCTIONALITY"
 UNSUPPORTED_REQUEST = "UNSUPPORTED"
-DECISIONS = (PROCEED_COCKPIT, REDIRECT, CLARIFY_FUNCTIONALITY,
-             UNSUPPORTED_REQUEST)
+DECISIONS = (PROCEED_COCKPIT, ANSWER_WITHOUT_DATA, REDIRECT,
+             CLARIFY_FUNCTIONALITY, UNSUPPORTED_REQUEST)
 
 #: AnalysisReviewDecision.decision
 ANSWER = "ANSWER"
@@ -61,6 +127,13 @@ RESOURCE_LIMIT = "RESOURCE_LIMIT"
 SANDBOX_UNAVAILABLE = "SANDBOX_UNAVAILABLE"
 INFRASTRUCTURE_ERROR = "INFRASTRUCTURE_ERROR"
 CONTEXT_TOO_LARGE = "CONTEXT_TOO_LARGE"
+#: Section 19: the join would multiply a measure. Structural data safety, not
+#: a view about the method -- the diagnostic reports the grains and the
+#: multiplicities and stops there.
+JOIN_MULTIPLICITY_RISK = "JOIN_MULTIPLICITY_RISK"
+#: Section 22: the same code, parameters and release as a candidate that
+#: already failed. The attempt is spent; the code is not run again.
+NO_PROGRESS_DUPLICATE = "NO_PROGRESS_DUPLICATE"
 
 #: Not in section 8.2's list, because 8.2 enumerates ways a SUBMISSION can
 #: fail and these are ways the RUNTIME cannot start. They are stop statuses
@@ -75,7 +148,7 @@ ERROR_CATEGORIES = (
     TYPE_MISMATCH, INPUT_SHAPE_MISMATCH, MISSING_SOURCE_DATA,
     OUT_OF_SCOPE_ACCESS, PERMISSION_DENIED, UNSAFE_OPERATION, RUNTIME_ERROR,
     RESOURCE_LIMIT, SANDBOX_UNAVAILABLE, INFRASTRUCTURE_ERROR,
-    CONTEXT_TOO_LARGE)
+    CONTEXT_TOO_LARGE, JOIN_MULTIPLICITY_RISK, NO_PROGRESS_DUPLICATE)
 
 #: Failures that must fail closed immediately -- section 8.3. Five is a
 #: ceiling, not an obligation, and a security or permission refusal does not
@@ -409,6 +482,19 @@ class FunctionalityDecision:
     """Opus's FIRST responsibility. Section 6.2."""
 
     decision: str
+    #: The semantic classification, decided by Opus on this turn. `decision`
+    #: is what the server DOES about it; these two are what it IS.
+    query_mode: str = ""
+    owner: str = ""
+    requires_cockpit_data: bool = False
+    requires_sql: bool = False
+    requires_python: bool = False
+    decision_reason: str = ""
+    ambiguity: str = ""
+    #: For PRODUCT_HELP and THEORY_CONCEPT, Opus answers in this same turn.
+    #: Carried here rather than through a second call, because a second call
+    #: to say what ECL means would spend a model request on nothing.
+    answer: "AnswerEnvelope | None" = None
     scores: list[SuitabilityScore] = field(default_factory=list)
     best_fit: str = ""
     requested_actions: list[str] = field(default_factory=list)
@@ -427,6 +513,36 @@ class FunctionalityDecision:
     def __post_init__(self) -> None:
         _require(self.decision in DECISIONS,
                  f"{self.decision!r} is not a functionality decision")
+        if self.query_mode:
+            _require(self.query_mode in QUERY_MODES,
+                     f"{self.query_mode!r} is not a query mode")
+        if self.owner:
+            _require(self.owner in OWNERS, f"{self.owner!r} is not an owner")
+        # The two vocabularies must agree. A decision to execute alongside a
+        # mode that runs nothing, or an owner that is not the Cockpit, is not
+        # a disagreement to resolve later -- it is a malformed decision.
+        if self.decision == PROCEED_COCKPIT and self.query_mode:
+            _require(self.query_mode == DATA_ANALYSIS,
+                     f"only DATA_ANALYSIS may execute; this decision is "
+                     f"{self.query_mode}")
+            _require(self.owner in ("", OWNER_COCKPIT),
+                     f"only the Cockpit may execute here; this decision names "
+                     f"{self.owner}")
+        if self.decision == ANSWER_WITHOUT_DATA:
+            _require(self.query_mode in ("",) + NO_EXECUTION_MODES,
+                     f"only PRODUCT_HELP and THEORY_CONCEPT answer without "
+                     f"data; this decision is {self.query_mode}")
+        if self.query_mode in NO_EXECUTION_MODES:
+            _require(self.decision == ANSWER_WITHOUT_DATA,
+                     f"{self.query_mode} must decide ANSWER_WITHOUT_DATA, not "
+                     f"{self.decision}")
+            _require(self.requires_sql is False
+                     and self.requires_python is False,
+                     f"{self.query_mode} answers from knowledge and executes "
+                     f"nothing, so it cannot require SQL or Python")
+            _require(self.answer is not None,
+                     f"{self.query_mode} must carry its answer: there is no "
+                     f"second call to produce one")
         if self.decision == REDIRECT:
             _require(bool(_clean(self.referral_destination)),
                      "a redirect must name its destination")
@@ -440,9 +556,53 @@ class FunctionalityDecision:
 
     @property
     def may_execute(self) -> bool:
-        """The single predicate the gate is read through. A referral or a
-        clarification performs ZERO analytical execution -- section 9.6."""
-        return self.decision == PROCEED_COCKPIT
+        """The single predicate the gate is read through. A referral, a
+        clarification, a product-help answer and a theory answer all perform
+        ZERO analytical execution -- sections 9.6, 10 and 11."""
+        if self.decision != PROCEED_COCKPIT:
+            return False
+        if self.query_mode and self.query_mode != DATA_ANALYSIS:
+            return False
+        return self.owner in ("", OWNER_COCKPIT)
+
+    @property
+    def answers_without_executing(self) -> bool:
+        """PRODUCT_HELP and THEORY_CONCEPT: answered from knowledge, in the
+        gate turn, at the cost of no submission and no round."""
+        return (self.query_mode in NO_EXECUTION_MODES
+                and self.answer is not None)
+
+    def score_of(self, functionality_id: str) -> int:
+        for s in self.scores:
+            if s.functionality_id == functionality_id:
+                return s.score
+        return 0
+
+    def ownership_test(self) -> tuple[bool, str]:
+        """Section 9, applied by the server rather than read off the decision.
+
+        Proceed only when the Cockpit clears the floor, is highest, and leads
+        the next eligible owner by the margin. A near-tie is a question for
+        the user, not a coin toss resolved in the Cockpit's favour.
+        """
+        if not self.scores:
+            return False, "the gate returned no suitability scores"
+        cockpit = self.score_of("cockpit")
+        others = sorted((s.score for s in self.scores
+                         if s.functionality_id != "cockpit"), reverse=True)
+        runner_up = others[0] if others else 0
+        if cockpit < OWNERSHIP_FLOOR:
+            return False, (f"the Cockpit scored {cockpit}, below the "
+                           f"{OWNERSHIP_FLOOR} needed to own a request")
+        if runner_up > cockpit:
+            return False, (f"another functionality scored {runner_up} against "
+                           f"the Cockpit's {cockpit}")
+        if cockpit - runner_up < OWNERSHIP_LEAD:
+            return False, (f"the Cockpit scored {cockpit} and the next "
+                           f"functionality {runner_up}; a lead below "
+                           f"{OWNERSHIP_LEAD} points is too close to decide "
+                           f"without asking")
+        return True, ""
 
     def cockpit_score(self) -> int:
         for s in self.scores:
@@ -776,6 +936,13 @@ class AnswerEnvelope:
     approximate: bool = False
     tables: list[AnswerTable] = field(default_factory=list)
     charts: list[AnswerChart] = field(default_factory=list)
+    #: What the analysis found, one statement each. Separate from the prose so
+    #: the evidence check has something to check that is not a paragraph.
+    findings: list[str] = field(default_factory=list)
+    #: Cockpit questions the user could ask next. Validated against the actual
+    #: catalogue and dropped when they name something that does not exist --
+    #: a suggestion that cannot be answered is worse than none.
+    suggested_questions: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)
     #: Claims the evidence supports as association only. Never stated as cause.
@@ -791,7 +958,8 @@ class AnswerEnvelope:
     what_would_help: str = ""
 
     def __post_init__(self) -> None:
-        _require(self.kind in ("answer", "referral", "clarification", "stop"),
+        _require(self.kind in ("answer", "referral", "clarification", "stop",
+                               "explanation"),
                  f"{self.kind!r} is not an answer kind")
         _require(bool(_clean(self.narrative)),
                  "an envelope with no prose says nothing to the user")
@@ -803,6 +971,8 @@ class AnswerEnvelope:
             "approximate": self.approximate,
             "tables": [t.to_dict() for t in self.tables],
             "charts": [c.to_dict() for c in self.charts],
+            "findings": list(self.findings),
+            "suggested_questions": list(self.suggested_questions),
             "limitations": list(self.limitations),
             "assumptions": list(self.assumptions),
             "hypotheses": list(self.hypotheses),
@@ -853,9 +1023,37 @@ class Exchange:
     fact_ids: list[str] = field(default_factory=list)
     domain_id: str = DOMAIN
     dataset_release_id: str = ""
+    #: The scope this exchange's results describe. Section 40: a stored result
+    #: is only reusable for a question asked under the same scope, and an
+    #: exchange that does not record its own scope cannot be checked.
+    scope: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    def compatible_with(self, scope: dict[str, Any]) -> tuple[bool, str]:
+        """Whether this exchange's results may be cited for a request in
+        `scope`. Section 40.
+
+        Silence is not compatibility: an exchange recorded before scopes were
+        carried has no scope to compare, and is treated as reusable prose but
+        never as reusable RESULTS. The caller decides what to do with that;
+        what this refuses to do is claim a match it cannot show.
+        """
+        if not self.scope:
+            return not self.fact_ids, (
+                "" if not self.fact_ids else
+                "this exchange recorded results without recording the scope "
+                "they were computed under")
+        for key in ("dataset_release_id", "tenant_id", "reporting_quarter",
+                    "borrower_id", "portfolio_id", "sector_name",
+                    "currency", "grain"):
+            mine, theirs = self.scope.get(key), scope.get(key)
+            if mine is not None and theirs is not None and mine != theirs:
+                return False, (f"the earlier result was computed for "
+                               f"{key}={mine!r} and this request is "
+                               f"{key}={theirs!r}")
+        return True, ""
 
 
 # ----------------------------------------------------------- 13. ArtifactManifest
@@ -937,7 +1135,9 @@ __all__ = [
     "INPUT_SHAPE_MISMATCH", "INVALID_FILTER_VALUE", "LANGUAGES",
     "MISSING_REASONS", "MISSING_SOURCE_DATA", "NEEDS_CLARIFICATION",
     "NormalizedQuestion", "OBSERVATION_STATUSES", "OUT_OF_SCOPE_ACCESS",
-    "MODEL_CONFIGURATION_MISSING", "MODEL_UNAVAILABLE",
+    "ANSWER_WITHOUT_DATA", "JOIN_MULTIPLICITY_RISK",
+    "MODEL_CONFIGURATION_MISSING",
+    "MODEL_UNAVAILABLE", "NO_PROGRESS_DUPLICATE",
     "PERMISSION_DENIED", "PROCEED_COCKPIT", "PYTHON", "REDIRECT",
     "RESOURCE_LIMIT", "REVIEW_DECISIONS", "REVISE_ANALYSIS", "RUNTIME_ERROR",
     "SANDBOX_UNAVAILABLE", "SQL", "SYNTAX_ERROR", "SYSTEM_ERROR", "StepResult",

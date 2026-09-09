@@ -118,6 +118,14 @@ def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
             ui_filters=dict(payload.filters), request_id=payload.request_id,
             pairs=payload.recent_pairs,
             referenced_exchange_ids=list(payload.referenced_exchange_ids))
+    except service.ReleaseUnavailable as e:
+        # Section 38: the pinned release, or nothing. Reported as its own
+        # terminal state so the browser can say what happened rather than
+        # showing a generic outage for a request that was well formed.
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail={"error": "DATA_UNAVAILABLE",
+                                    "status": "DATA_UNAVAILABLE",
+                                    "message": str(e)}) from e
     except service.NotAvailable as e:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                             detail={"error": "cockpit_unavailable",

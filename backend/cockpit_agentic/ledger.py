@@ -235,6 +235,21 @@ HARD_STOPS = frozenset({STOP_CALLS, STOP_TOKENS, STOP_SPEND, STOP_DEADLINE,
                         STOP_CANCELLED})
 
 
+class DuplicateCandidate(RuntimeError):
+    """The same code, parameters and release as a candidate that already
+    failed. Section 22.
+
+    Not a budget stop: the submission is consumed and the request continues,
+    because Opus may still write something different. It becomes a stop only
+    when the five are gone, and then it is `STOPPED_EXECUTION_LIMIT` like any
+    other exhaustion.
+    """
+
+    def __init__(self, submission_number: int, message: str) -> None:
+        super().__init__(message)
+        self.submission_number = submission_number
+
+
 class BudgetExceeded(RuntimeError):
     """A reservation the ledger refuses. Carries the reason that fired."""
 
@@ -494,17 +509,21 @@ class Ledger:
                     f"{self.limits.execution_submissions} submissions for this "
                     f"question have been used. A new analysis plan does not "
                     f"grant more.")
-            if fingerprint:
-                if fingerprint in self.fingerprints:
-                    self.stop(STOP_NO_PROGRESS,
-                              "an identical candidate was submitted again")
-                    raise BudgetExceeded(
-                        STOP_NO_PROGRESS,
-                        "This candidate is identical to one already submitted "
-                        "and failed. Repeating it cannot make progress.")
+            duplicate = bool(fingerprint) and fingerprint in self.fingerprints
+            if fingerprint and not duplicate:
                 self.fingerprints.append(fingerprint)
+            # Section 22: a duplicate consumes the submission and is NOT run.
+            # It is not, by itself, the end of the request -- Opus may still
+            # author something different with the attempts that remain, and
+            # taking those away for one repeat would be a stricter rule than
+            # the one that was agreed.
             self.submissions += 1
             self._persist()
+            if duplicate:
+                raise DuplicateCandidate(
+                    self.submissions,
+                    "This candidate is identical to one already submitted and "
+                    "failed. It was not run again, and the attempt is spent.")
             return self.submissions
 
     def note_analysis_round(self) -> int:
@@ -793,7 +812,8 @@ class LedgerStore:
 STORE = LedgerStore()
 
 
-__all__ = ["BudgetExceeded", "CallRecord", "DEEP_LIMITS", "HARD_STOPS",
+__all__ = [
+    "BudgetExceeded", "DuplicateCandidate", "CallRecord", "DEEP_LIMITS", "HARD_STOPS",
            "Ledger", "LedgerStore", "Limits", "Prices", "Reservation",
            "STANDARD_LIMITS", "STOP_CALLS", "STOP_CANCELLED", "STOP_DEADLINE",
            "STOP_INPUT_TOO_LARGE", "STOP_METADATA", "STOP_NO_PROGRESS",

@@ -136,7 +136,7 @@ def test_a_tie_becomes_a_clarification_not_a_silent_execution(
                   "scores": scores(cockpit=80, what_if=80),
                   "public_explanation": "x", "plan": plan(), "steps": steps()})
     outcome = runtime_factory(p).run("Compare the downside scenario")
-    assert outcome.status == st.CLARIFICATION_REQUIRED
+    assert outcome.status == st.WAITING_FOR_USER
     assert outcome.results == [], "a tie executed a query"
     assert outcome.budget["submissions_used"] == 0
     assert outcome.envelope.clarification_question
@@ -149,7 +149,7 @@ def test_the_server_overrides_a_decision_that_contradicts_its_own_scores(
                   "scores": scores(cockpit=30, ews=91),
                   "public_explanation": "x", "plan": plan(), "steps": steps()})
     outcome = runtime_factory(p).run("Why did the alert fire?")
-    assert outcome.status == st.CLARIFICATION_REQUIRED
+    assert outcome.status == st.WAITING_FOR_USER
     assert outcome.results == []
 
 
@@ -256,10 +256,17 @@ def test_an_identical_resubmission_is_blocked_before_execution(
                                        "cockpit_facility_quarter")},
         ])
     outcome = runtime_factory(p).run("Show me something")
-    assert outcome.status == st.INSUFFICIENT_DATA
-    assert outcome.budget["submissions_used"] == 1, (
-        "the blocked duplicate consumed an attempt")
-    assert "Repeating it" in outcome.envelope.narrative
+    # Section 22: the duplicate consumes the attempt and is NOT run again.
+    # It is not the end of the request by itself -- Opus may still write
+    # something different -- so what ends this run is the script running out
+    # of scripted turns, and what matters is that the attempt was spent and
+    # the code never reached the engine.
+    assert outcome.budget["submissions_used"] == 2, (
+        "the blocked duplicate consumed an attempt of its own")
+    assert any(f.category == K.NO_PROGRESS_DUPLICATE
+               for f in outcome.failures), \
+        "the duplicate is reported to Opus as a duplicate"
+    assert any("not run again" in f.message for f in outcome.failures)
 
 
 def test_a_new_plan_does_not_reset_the_submission_counter(
@@ -348,8 +355,7 @@ def test_a_successful_fifth_submission_with_an_incomplete_answer_stops(
                      converse_script=turns)
     outcome = runtime_factory(p, mode="deep").run("Show me something")
     assert outcome.budget["submissions_used"] == 5
-    assert outcome.status in (st.EXECUTION_FAILED, st.PARTIAL,
-                              st.INSUFFICIENT_DATA)
+    assert outcome.status == st.STOPPED_EXECUTION_LIMIT
     assert outcome.budget["submissions_remaining"] == 0
 
 
@@ -366,7 +372,7 @@ def test_the_deadline_stops_the_request(runtime_factory, sonnet_answers):
     runtime.ledger._started = 0.0
     clock["t"] = 61.0
     outcome = runtime.run("How much did ECL change?")
-    assert outcome.status == st.TIMED_OUT
+    assert outcome.status == st.STOPPED_TIME_LIMIT
     assert outcome.envelope.kind == "stop"
     assert "new question starts a new budget" in outcome.envelope.what_would_help
 
@@ -416,7 +422,12 @@ def test_a_truncated_response_is_incomplete_not_a_shorter_answer(
 
 def test_the_chart_limit_is_enforced_by_the_server(
         runtime_factory, sonnet_answers):
-    charts = [{"kind": "bar", "title": f"chart {i}"} for i in range(5)]
+    # Each chart has a series, so none is dropped for drawing nothing, and no
+    # numeric values, so none is dropped for claiming a figure the results do
+    # not carry. What is being tested here is the CAP.
+    charts = [{"kind": "bar", "title": f"chart {i}",
+               "series": [{"name": "ecl", "labels": ["2026Q1", "2026Q2"]}]}
+              for i in range(5)]
     reply = answer()
     reply["answer"]["charts"] = charts
     p = provider(sonnet_answers,
