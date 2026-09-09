@@ -168,7 +168,7 @@ Per screen: `/` 30 · `/early-warning` 4 · `/what-if` 10 · `/lenses` 14 ·
 
 ### Functional depth — PASS
 
-`scripts/acceptance/demo_functionality.py`. **60 checks, 60 passed.** A route
+`scripts/acceptance/demo_functionality.py`. **63 checks, 63 passed.** A route
 returning 200 proves a page exists; these ask whether the thing works.
 
 | | |
@@ -177,7 +177,8 @@ returning 200 proves a page exists; these ask whether the thing works.
 | Masterscale | 19 grades in the exact order AAA … C |
 | Early Warning | portfolio score 8.36, 300 borrowers, 5 segments, methodology published |
 | Cockpit | `canonical-16q-v1`, SAR millions, 16 populated quarters; a question answers or refuses honestly |
-| Playbook | 3 workspaces, 31 exports across 5 modules; a What-If export opens with its provenance, its conditional limitation and its link back |
+| Playbook, workspace half | 3 seeded workspaces; 31 exports across 5 modules; a What-If export opens with its provenance, its conditional limitation and its link back |
+| Playbook, committee half | 3 committees, 6 packs; the first opens with 3 sections at 40% ready; the chase list reads without sending anything, as the screen claims |
 | Rating migration | the full **20 x 20** — 19 grades plus D as a state — row-normalised, and every one of the 17 populated rows sums to **100.00%** on both the account and exposure views. AAA and C sum to zero because no borrower STARTED the period on them, which is the honest answer and not a break |
 | Stage migration | 4 x 4, denominator stated as "the origin Stage's own total" |
 | Download | Early Warning portfolio report, 130,444 bytes, opens as a real Word document |
@@ -278,6 +279,33 @@ and is post-demo work under the scope control.
 | SME statement kernel and recalibration | Explicitly out of scope for this pass |
 | 84 `ruff` findings | Inherited, unchanged through this pass, none new. `B904` chaining, `B905` zip-strict, `F841`, `E741` — judgement calls on other branches' code |
 | Eight orchestration/planner failures | Inherited. M6's diff touches zero files under `backend/orchestration`, `backend/engine`, `backend/runtime` or any non-Playbook router, so nothing in it can reach the analytical planner they exercise |
+
+---
+
+## 6a. What was NOT verified, in those words
+
+Three things, stated rather than folded into a passing number.
+
+**Live AI.** No provider credential is configured in this environment.
+`ai_provider` reports `not_configured`, the Cockpit stops at its first request
+with `PROVIDER_CREDENTIAL_MISSING`, and the Playbook composer says generation
+needs a provider. Every one of those refusals was checked and each is honest —
+it names what is missing rather than substituting a default, returning a cached
+answer, or showing an empty result that reads as "nothing found". What was NOT
+verified is any model-authored output: no Cockpit answer, no Playbook document
+and no What-If interpretation was produced by a model in this run. Set
+`COCKPIT_ANTHROPIC_API_KEY`, `AI_COCKPIT_PREPROCESS_MODEL` and
+`AI_COCKPIT_REASONING_MODEL` to exercise them.
+
+**Visual document review.** The Early Warning portfolio report downloads at
+130,444 bytes and `python-docx` parses it as a valid OOXML package. Nobody
+opened it in Word. Structural verification is not visual verification and the
+two are not conflated here.
+
+**XGBoost retraining.** The library imports and the ML methodology is
+selectable. A retrain against the canonical book was not run — it is M12 in the
+integration plan, after the final data rebuild, and is post-demo.
+
 
 ---
 
