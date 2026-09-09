@@ -30,7 +30,7 @@ an implementation issue."
 
 Both halves of that were done. The serialization was fixed as far as it
 honestly goes -- structural families brought it from 29,600 tokens to 18,700
-with no field lost, and the remainder is 750 genuine field definitions. What
+with no field lost, and the remainder is 751 genuine field definitions. What
 remains is a configuration question, so `required_core_tokens` is measured and
 reported, the packet returns CONTEXT_TOO_LARGE when it does not fit, and
 `docs/cockpit_agentic_v3/CONTEXT_SIZING.md` records the measurement and the

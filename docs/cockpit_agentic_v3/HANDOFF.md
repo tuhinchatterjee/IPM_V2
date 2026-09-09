@@ -16,7 +16,7 @@
 |---|---:|
 | New backend package | `backend/cockpit_agentic/` — 19 modules |
 | Versioned prompt contracts | 6, in `backend/cockpit_agentic/prompts/` |
-| Declared fields | 750, zero unexpanded placeholders |
+| Declared fields | 751 definitions; 991 addressable `relation.column` pairs; zero unexpanded placeholders. See `docs/cockpit_v3/COCKPIT_FIELD_AUDIT.md` for which count is which |
 | Reporting quarters | 20, plus a separate macro axis of offsets −4…+15 |
 | Demo release | 250 borrowers, 600 facilities, ~13 MB Parquet, 72 integrity gates |
 | Tests | 259 in `tests/cockpit_agentic/`, all passing |
