@@ -228,10 +228,10 @@ Weighted ECL was SAR 22.77 million.
             return v
 
         monkeypatch.setattr(validate, "validate", always_fails)
-        monkeypatch.setattr("backend.playbook.service.validate.validate",
+        monkeypatch.setattr("backend.playbook.workspace_service.validate.validate",
                             always_fails)
         monkeypatch.setattr(
-            "backend.playbook.service.validate.validate_all",
+            "backend.playbook.workspace_service.validate.validate_all",
             lambda files, doc: {f: always_fails(b, f, doc)
                                 for f, b in files.items()})
 

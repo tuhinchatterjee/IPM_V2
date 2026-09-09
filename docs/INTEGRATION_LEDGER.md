@@ -1136,3 +1136,58 @@ with 80 governed datasets registered, 34 authoritative, 10 business domains,
 3,800 borrowers over 16 quarters, 20 Early Warning monthly snapshots, the Q2 2026
 review completed leaving 7 Risk Cases, **3 Playbook committees** and **3 Playbook
 workspaces with 30 exported analyses**.
+
+#### Integration defects I-11 to I-13 — found only by running things
+
+Three more, none of which a conflict-free merge would have shown:
+
+**I-11 — the models merge dropped a vocabulary.** `SOURCE_ROLES` (what a source
+document *is* to the request: previous report, template, methodology, results,
+supporting) is declared on the chat-first branch and vanished when the two model
+modules became one. `workspace_service.correct_source` imports it, so correcting
+a misidentified source answered 500 with an `ImportError`. Restored beside the
+workspace source classes, and the module's `__all__` — which was the committee
+list only, 49 names, none of them the workspace half — now carries the whole
+merged surface, 62 names, asserted resolvable and duplicate-free. A name
+reachable by import but absent from `__all__` is a name the next merge loses
+silently.
+
+**I-12 — two dependency files carried the same seam as the code.** `python-pptx`
+had been glued to the end of a comment line in both `requirements.txt` and
+`pyproject.toml`, so the pin was inside a comment and the package was not
+declared at all. `tests/playbook/test_legacy_retirement.py` states the
+consequence exactly — *"imported by the Playbook and not in requirements.txt, so
+it works on a developer machine and 500s in the container"* — and named twelve
+import sites. A repo-wide sweep for the same shape (a version pin or a statement
+glued to the end of a line) across every file this branch changes now returns
+nothing.
+
+**I-13 — two tests pinned a premise the integration overturned.**
+`TestTheMonitoringPlaybooksFeatureIsUntouched` required `/api/v1/playbooks` to
+answer, because on its own branch the plural standing-instruction Playbook was a
+third feature to leave alone. The chain retired it — `0039` drops `playbooks`
+and `playbook_runs`, and the router is deliberately unregistered. Rewritten
+rather than deleted, to assert what the merge actually had to get right: the
+plural route is gone, both halves mount under `/playbook`, and no
+`(path, method)` in the whole application is claimed twice.
+
+#### Cockpit V3, for the demo
+
+`scripts/build_cockpit_agentic_v3.py` publishes `demo-20q-v1`: 250 borrowers,
+600 facilities, twenty quarters to 2026Q2, **72 integrity checks, 0 failed**.
+`COCKPIT_AGENTIC_V3=true` then reports `available: true` and
+`/api/v1/cockpit/catalogue` answers.
+
+This is the **unrepointed** Cockpit universe — `BRW`/`FAC` ids, INR, crore,
+twenty quarters — exactly as recorded at M4b, where the repoint was deferred on
+measurement and the boundary proven by six tests instead. It is a separate,
+declared, Cockpit-owned book that does not touch the canonical one; it is not
+canonical Corporate and must not be presented as it.
+
+#### A note for whoever runs the demo
+
+The backend suite and the demonstration share one database, so running
+`pytest tests/playbook` against the demo deployment deletes seeded committees
+and packs as fixtures tear down. Re-run `python scripts/bootstrap_demo.py`
+afterwards — it is idempotent and takes seconds. This is the I-3 class of
+problem, recorded rather than fixed: separating them is a post-demo change.

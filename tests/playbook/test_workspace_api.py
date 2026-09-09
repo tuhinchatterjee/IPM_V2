@@ -296,19 +296,39 @@ class TestWorkspacesAndDownloads:
         ).status_code == 404
 
 
-class TestTheMonitoringPlaybooksFeatureIsUntouched:
-    def test_its_routes_still_exist_and_answer(self, client):
-        """The standing-instruction Playbook of PRODUCT_SPEC §9 is a different
-        feature and this branch must not have disturbed it."""
-        response = client.get("/api/v1/playbooks")
-        assert response.status_code in (200, 503)
+class TestTheTwoPlaybooksShareOnePrefix:
+    """This class asserted the opposite until the integration.
 
-    def test_the_two_features_have_separate_prefixes(self, client):
+    It was written when the standing-instruction Playbook at `/playbooks`
+    (plural) was a third feature to be left alone. The chain retired it —
+    migration 0039 drops `playbooks` and `playbook_runs`, and the router is
+    deliberately not registered — so a test that requires the plural route to
+    answer now pins a premise the product no longer holds. What is worth
+    asserting instead is what the merge actually had to get right: the two
+    surviving halves share `/playbook` and do not collide there.
+    """
+
+    def test_the_plural_route_is_retired(self, client):
+        assert client.get("/api/v1/playbooks").status_code == 404
+
+    def test_both_halves_mount_under_one_prefix_without_colliding(self):
+        from collections import Counter
+
         from backend.api.main import create_app
 
-        paths = set(create_app().openapi()["paths"])
-        assert "/api/v1/playbooks" in paths
+        spec = create_app().openapi()
+        paths = set(spec["paths"])
+        # The workspace half, and the committee half.
         assert "/api/v1/playbook/home" in paths
+        assert "/api/v1/playbook/committees" in paths
+        # And nothing plural survives.
+        assert not [p for p in paths if p.startswith("/api/v1/playbooks")]
+        # One (path, method) may be claimed once. Two routers mounted at the
+        # same prefix is exactly where a silent shadowing would happen.
+        pairs = Counter((path, method)
+                        for path, ops in spec["paths"].items()
+                        for method in ops)
+        assert [p for p, n in pairs.items() if n > 1] == []
 
 
 class TestDecidingProposedChangesOverHTTP:

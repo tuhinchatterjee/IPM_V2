@@ -1245,6 +1245,24 @@ __all__ = [
     "PlaybookSource",
     "PlaybookTemplate",
     "PlaybookVersion",
+
+    # The workspace half. Declared here rather than in a second __all__ so
+    # there is one exported surface for one module: the two subsystems share
+    # this file, and a name reachable by import but absent from __all__ is a
+    # name the next merge silently loses.
+    "SOURCE_ROLES",
+    "PlaybookArtifact",
+    "PlaybookArtifactFile",
+    "PlaybookArtifactVersion",
+    "PlaybookAttachment",
+    "PlaybookChangeItem",
+    "PlaybookChangeSet",
+    "PlaybookJob",
+    "PlaybookJobEvent",
+    "PlaybookMessage",
+    "PlaybookWorkspace",
+    "PlaybookWorkspaceSource",
+    "PlaybookWorkspaceSourceChunk",
 ]
 
 
@@ -1467,6 +1485,18 @@ class PlaybookMessage(Base):
 # --------------------------------------------------------------------------
 # Sources: what the user supplied, and what was actually read of it
 # --------------------------------------------------------------------------
+
+#: What a source document IS to the request, which is not the same as its file
+#: type. A previous report and an empty template are both .docx and are not
+#: remotely the same input.
+SOURCE_ROLES = (
+    "previous_report",
+    "template",
+    "methodology",
+    "results",
+    "supporting",
+)
+
 
 
 class PlaybookWorkspaceSource(Base):

@@ -1,7 +1,7 @@
 {
   "dataset_release_id": "demo-20q-v1",
   "computed_from": "the full authorized release, not the sample rows",
-  "computed_at": "2026-09-08T19:16:08+00:00",
+  "computed_at": "2026-09-09T15:48:17+00:00",
   "row_counts": {
     "cockpit_reporting_calendar": 20,
     "cockpit_facility_quarter": 6758,
@@ -745,106 +745,22 @@
       {
         "n": "source_period_start",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_period_end",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_published_at",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_available_at",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       }
     ],
     "cockpit_collateral_quarter": [
@@ -933,252 +849,64 @@
       {
         "n": "threshold_lower",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "threshold_upper",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "observed_value",
         "miss": 0.5076,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2022Q1",
-          "2022Q3",
-          "2023Q1",
-          "2023Q3",
-          "2024Q1",
-          "2024Q3",
-          "2025Q1",
-          "2025Q3",
-          "2026Q1"
-        ]
+        "quarters_fully_missing": "10 of 20 quarters, 2021Q3 to 2026Q1"
       },
       {
         "n": "headroom_value",
         "miss": 0.5076,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2022Q1",
-          "2022Q3",
-          "2023Q1",
-          "2023Q3",
-          "2024Q1",
-          "2024Q3",
-          "2025Q1",
-          "2025Q3",
-          "2026Q1"
-        ]
+        "quarters_fully_missing": "10 of 20 quarters, 2021Q3 to 2026Q1"
       },
       {
         "n": "breach_date",
         "miss": 0.9241,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2022Q1",
-          "2022Q3",
-          "2023Q1",
-          "2023Q3",
-          "2024Q1",
-          "2024Q3",
-          "2025Q1",
-          "2025Q3",
-          "2026Q1"
-        ]
+        "quarters_fully_missing": "10 of 20 quarters, 2021Q3 to 2026Q1"
       },
       {
         "n": "waiver_date",
         "miss": 0.9601,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2022Q1",
-          "2022Q3",
-          "2023Q1",
-          "2023Q3",
-          "2024Q1",
-          "2024Q3",
-          "2025Q1",
-          "2025Q3",
-          "2026Q1"
-        ]
+        "quarters_fully_missing": "10 of 20 quarters, 2021Q3 to 2026Q1"
       },
       {
         "n": "waiver_expiry_date",
         "miss": 0.9601,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2022Q1",
-          "2022Q3",
-          "2023Q1",
-          "2023Q3",
-          "2024Q1",
-          "2024Q3",
-          "2025Q1",
-          "2025Q3",
-          "2026Q1"
-        ]
+        "quarters_fully_missing": "10 of 20 quarters, 2021Q3 to 2026Q1"
       },
       {
         "n": "cure_deadline",
         "miss": 0.9241,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2022Q1",
-          "2022Q3",
-          "2023Q1",
-          "2023Q3",
-          "2024Q1",
-          "2024Q3",
-          "2025Q1",
-          "2025Q3",
-          "2026Q1"
-        ]
+        "quarters_fully_missing": "10 of 20 quarters, 2021Q3 to 2026Q1"
       }
     ],
     "cockpit_facility_quarter": [
       {
         "n": "ead_ttc",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "ccf_ttc",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "lgd_downturn",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "default_date",
         "miss": 0.9993,
-        "quarters_fully_missing": [
-          "2022Q2",
-          "2022Q3",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "16 of 20 quarters, 2022Q2 to 2026Q2"
       },
       {
         "n": "cash_deposits_haircut_weighted",
@@ -1281,212 +1009,44 @@
       {
         "n": "source_period_start",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_period_end",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_published_at",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_available_at",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       }
     ],
     "cockpit_qualitative_quarter": [
       {
         "n": "source_period_start",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_period_end",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_published_at",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "source_available_at",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "observation_age_days",
@@ -1696,886 +1256,172 @@
       {
         "n": "quick_ratio_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "cash_ratio_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "operating_cash_flow_to_current_liabilities_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "working_capital_to_total_assets_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "liquid_assets_to_total_assets_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "ebitda_interest_coverage_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "fixed_charge_coverage_ratio_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "operating_cash_flow_to_debt_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "free_cash_flow_to_debt_service_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "debt_to_ebitda_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "liabilities_to_assets_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "equity_to_assets_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "long_term_debt_to_capital_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "tangible_net_worth_to_debt_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "gross_profit_margin_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "ebitda_margin_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "operating_profit_margin_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "net_profit_margin_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "return_on_assets_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "return_on_equity_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "return_on_capital_employed_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "operating_cash_flow_margin_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "free_cash_flow_margin_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "total_asset_turnover_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "fixed_asset_turnover_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "working_capital_turnover_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "inventory_turnover_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "receivables_turnover_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "payables_turnover_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "receivables_days_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "inventory_days_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "payables_days_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "cash_conversion_cycle_days_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       },
       {
         "n": "capex_to_operating_cash_flow_source_value",
         "miss": 1.0,
-        "quarters_fully_missing": [
-          "2021Q3",
-          "2021Q4",
-          "2022Q1",
-          "2022Q2",
-          "2022Q3",
-          "2022Q4",
-          "2023Q1",
-          "2023Q2",
-          "2023Q3",
-          "2023Q4",
-          "2024Q1",
-          "2024Q2",
-          "2024Q3",
-          "2024Q4",
-          "2025Q1",
-          "2025Q2",
-          "2025Q3",
-          "2025Q4",
-          "2026Q1",
-          "2026Q2"
-        ]
+        "quarters_fully_missing": "every quarter"
       }
     ],
     "cockpit_reporting_calendar": [

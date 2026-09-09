@@ -249,7 +249,7 @@ def scripted_author(monkeypatch):
         return result
 
     monkeypatch.setattr(provider, "author", fake_author)
-    monkeypatch.setattr("backend.playbook.service.provider.author", fake_author)
+    monkeypatch.setattr("backend.playbook.workspace_service.provider.author", fake_author)
 
     def configure(text: str, files=None, model: str = "scripted-author",
                   chunk: int = 40, pause: float = 0.0):
