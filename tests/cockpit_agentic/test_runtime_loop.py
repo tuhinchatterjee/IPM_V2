@@ -318,7 +318,15 @@ def test_three_insufficient_rounds_stop_without_a_fourth(
 
 def test_a_successful_fifth_submission_with_an_incomplete_answer_stops(
         runtime_factory, sonnet_answers):
-    """Section 9.2 example C: no submission six."""
+    """Section 9.2 example C: no submission six.
+
+    Run in Deep. A full five-submission repair loop plus a review is six
+    full-context Opus calls, and at this domain's ~28,000-token packet that is
+    exactly at the edge of Standard's 250,000-token ceiling -- measured in
+    test_how_many_full_context_calls_each_mode_affords. Standard would stop on
+    the token ceiling, which is correct behaviour but not the property under
+    test here.
+    """
     bad = "SELECT nope_{} FROM cockpit_facility_quarter"
     turns = [lambda _r: {"decision": "PROCEED_COCKPIT", "scores": scores(),
                          "public_explanation": "x", "plan": plan(),
@@ -338,7 +346,7 @@ def test_a_successful_fifth_submission_with_an_incomplete_answer_stops(
         "steps": steps()})
     p = FakeProvider(structured_script=list(sonnet_answers),
                      converse_script=turns)
-    outcome = runtime_factory(p).run("Show me something")
+    outcome = runtime_factory(p, mode="deep").run("Show me something")
     assert outcome.budget["submissions_used"] == 5
     assert outcome.status in (st.EXECUTION_FAILED, st.PARTIAL,
                               st.INSUFFICIENT_DATA)
@@ -465,3 +473,41 @@ def test_an_empty_result_is_not_a_failure(runtime_factory, sonnet_answers):
     assert outcome.results[0].status == "empty"
     assert outcome.failures == []
     assert "not proof that the quantity is zero" in outcome.results[0].note
+
+
+def test_how_many_full_context_calls_each_mode_affords():
+    """Measured capacity under the UAT configuration.
+
+    This domain's packet is about 28,000 tokens and every Opus turn carries it,
+    so the cumulative token ceiling -- not the model-call ceiling -- decides how
+    long a request can run. The numbers are asserted rather than described so a
+    change to either budget shows up here as a diff.
+
+    Consequence worth knowing before the live run: Standard's twelve-call and
+    Deep's sixteen-call ceilings are NOT reachable with this catalogue. Tokens
+    bind first, at six calls in Standard and ten in Deep.
+    """
+    measured = {}
+    for mode in ("standard", "deep"):
+        limits = L.limits_for(mode)
+        ledger = L.Ledger(mode=mode, prices=L.Prices())
+        calls, history, reason = 0, 0, ""
+        while True:
+            try:
+                reservation = ledger.reserve(
+                    role="opus", family="opus", purpose="turn",
+                    input_tokens=28_000 + history,
+                    max_output_tokens=limits.max_opus_output_tokens)
+            except L.BudgetExceeded as e:
+                reason = e.reason
+                break
+            ledger.settle(reservation, output_tokens=1_500)
+            calls += 1
+            history += 2_500          # results, failure packets, attempts
+        measured[mode] = (calls, reason)
+
+    assert measured["standard"] == (6, L.STOP_TOKENS)
+    assert measured["deep"] == (10, L.STOP_TOKENS)
+    # The call ceilings are never the thing that stops it.
+    assert L.limits_for("standard").total_provider_requests == 12
+    assert L.limits_for("deep").total_provider_requests == 16

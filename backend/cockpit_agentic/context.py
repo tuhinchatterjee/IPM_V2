@@ -131,6 +131,21 @@ class CockpitContextPacket:
         return json.dumps(self.payload, separators=(",", ":"), default=str)
 
 
+def floor(**kwargs: Any) -> dict[str, Any]:
+    """The smallest packet this domain can produce, measured.
+
+    Runs every rung of the reduction ladder and reports what is left. Used by
+    the sizing document and its test, so the recorded floor is a measurement
+    rather than a number someone typed. Deliberately not implemented by passing
+    an impossibly small cap: an override that only raises would ignore it, and a
+    measurement that depends on a configuration quirk is not a measurement.
+    """
+    reduced = build(**{**kwargs, "_force_full_reduction": True})
+    return {"tokens": reduced.estimated_tokens,
+            "reductions_applied": list(reduced.reductions_applied),
+            "breakdown": dict(reduced.breakdown)}
+
+
 def build(*, request_id: str, cleaned: CleanedQuestion,
           normalized: NormalizedQuestion, scope: Scope, catalog: Catalog,
           coverage: DataCoverageProfile, ledger: Ledger,
@@ -139,7 +154,9 @@ def build(*, request_id: str, cleaned: CleanedQuestion,
           rolling_summary: dict[str, Any] | None = None,
           recent_exchanges: list[dict[str, Any]] | None = None,
           sample_relations: tuple[str, ...] = (),
-          include_pivot_columns: bool = False) -> CockpitContextPacket:
+          include_pivot_columns: bool = False,
+          _force_full_reduction: bool = False,
+          _cap_override: int = 0) -> CockpitContextPacket:
     """Assemble sections A-J, reduce optional detail if needed, or refuse."""
     limits = ledger.limits
     exchanges = list(recent_exchanges or [])
@@ -303,7 +320,11 @@ def build(*, request_id: str, cleaned: CleanedQuestion,
     def measure(payload: dict[str, Any]) -> dict[str, int]:
         return {key: estimate_tokens(value) for key, value in payload.items()}
 
-    cap = limits.max_input_tokens_per_call
+    # `_cap_override` exists so a test can simulate a deployment whose cap is
+    # below this domain's floor. It is a test seam and nothing reads it in
+    # production: the real cap comes from the ledger's limits.
+    cap = (0 if _force_full_reduction
+           else (_cap_override or limits.max_input_tokens_per_call))
     payload = assemble()
     applied: list[str] = []
 
@@ -338,6 +359,14 @@ def build(*, request_id: str, cleaned: CleanedQuestion,
         total = estimate_tokens(payload)
 
     breakdown = measure(payload)
+    if _force_full_reduction:
+        # A floor measurement, not a request. Every rung has been spent; there
+        # is nothing to refuse.
+        return CockpitContextPacket(
+            version=CONTEXT_VERSION, request_id=request_id, payload=payload,
+            estimated_tokens=total, token_method="local floor measurement",
+            reductions_applied=applied, required_core_tokens=core,
+            breakdown=breakdown)
     if total > cap:
         raise ContextTooLarge(
             f"The Cockpit's required context is about {total} tokens against a "

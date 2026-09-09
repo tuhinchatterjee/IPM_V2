@@ -124,6 +124,7 @@ def built(tmp_path_factory):
 
 
 def packet(built, *, mode="standard", exchanges=None, **kw):
+    """Build the packet for the fixture's release."""
     return X.build(
         request_id="req-test",
         cleaned=CleanedQuestion(original_text="ECL kitna badha hai?",
@@ -162,23 +163,48 @@ def with_cap(built, tokens: int):
         cockpit_agentic_v3_deep_model_requests=0)
 
 
-def test_the_specification_cap_does_not_fit_and_that_is_reported(built):
-    """Section 7.4's own case: do not secretly omit half the schema, and do not
-    silently raise the budget. Say it."""
+def test_the_uat_configuration_holds_the_whole_packet(built):
+    """The owner's decision: 64,000 Standard, 96,000 Deep. The measured floor
+    is about 28,000, so the packet now fits with room for the conversation."""
     with_cap(built, 0)
+    result = packet(built, mode="standard")
+    assert L.limits_for("standard").max_input_tokens_per_call == 64_000
+    assert result.estimated_tokens < 64_000
+    assert result.reductions_applied == [], (
+        "nothing had to be reduced at the configured cap")
+
+
+def test_an_oversized_packet_is_still_refused_rather_than_abridged(built):
+    """The rule did not change with the number. If the core does not fit, the
+    schema is not halved to make it."""
+    with_cap(built, 0)
+    floor = measured_floor(built)
+    import dataclasses as dc
+
+    from backend import config
+
+    config.settings = dc.replace(built["settings"],
+                                 cockpit_agentic_v3_standard_input_tokens=0)
+    # Simulate a deployment whose cap is below this domain's floor by asking
+    # the builder to honour a cap it cannot meet.
     with pytest.raises(X.ContextTooLarge) as e:
-        packet(built, mode="standard")
-    error = e.value
-    assert error.cap == 12_000
-    assert error.required > error.cap
-    assert error.breakdown["D_E_catalogue"] > 15_000
-    message = str(error)
+        X.build(request_id="r", cleaned=CleanedQuestion(
+                    original_text="q", detected_language="en",
+                    english_text="q"),
+                normalized=NormalizedQuestion(business_question="q"),
+                scope=built["scope"], catalog=built["catalog"],
+                coverage=built["coverage"],
+                ledger=L.Ledger(mode="standard", prices=L.Prices(),
+                                store=None),
+                session=built["session"],
+                _cap_override=floor - 1_000)
+    message = str(e.value)
     assert "not abridged" in message
     assert "silently hidden" in message
     assert "CONTEXT_SIZING.md" in message
 
 
-def test_five_submissions_and_three_rounds_have_no_override_at_all(built):
+def test_the_invariants_have_no_override_at_all(built):
     """Sections 1.7 and 9.2 state these as invariants, not starting values.
 
     Every other numeric limit is a configurable starting value an administrator
@@ -190,20 +216,27 @@ def test_five_submissions_and_three_rounds_have_no_override_at_all(built):
 
     from backend import config
 
-    assert set(L.INVARIANT) == {"execution_submissions", "analysis_rounds"}
+    assert set(L.INVARIANT) == {"execution_submissions", "analysis_rounds",
+                                "deadline_seconds", "total_provider_requests",
+                                "spend_ceiling_usd"}
     assert not (set(L.INVARIANT) & set(L.OVERRIDABLE))
 
     # Set every override that exists, generously, and check what moved.
     config.settings = dc.replace(
         built["settings"],
-        cockpit_agentic_v3_standard_input_tokens=99_000,
+        cockpit_agentic_v3_standard_input_tokens=199_000,
         cockpit_agentic_v3_standard_total_tokens=999_000,
         cockpit_agentic_v3_standard_deadline_seconds=9_999.0,
         cockpit_agentic_v3_standard_model_requests=999)
     limits = L.limits_for("standard")
     assert limits.execution_submissions == 5
     assert limits.analysis_rounds == 3
-    assert limits.max_input_tokens_per_call == 99_000
+    assert limits.deadline_seconds == 60.0, "the deadline is not configurable"
+    assert limits.total_provider_requests == 12
+    assert limits.spend_ceiling_usd == 1.00, (
+        "the spending ceiling stays put so live usage can be measured "
+        "against it")
+    assert limits.max_input_tokens_per_call == 199_000
     assert limits.total_tokens == 999_000
     with_cap(built, 0)
 
@@ -216,22 +249,22 @@ def test_an_override_is_reported_never_silent(built):
     assert L.overrides_in_force("standard") == {}
     assert L.input_cap_is_overridden("standard") is False
 
-    with_cap(built, 36_000)
+    with_cap(built, 120_000)
     reported = L.overrides_in_force("standard")
     assert reported["max_input_tokens_per_call"] == {
-        "specification": 12_000, "configured": 36_000}
+        "specification": 64_000, "configured": 120_000}
     assert L.input_cap_is_overridden("standard") is True
     with_cap(built, 0)
 
 
 def test_an_override_can_only_raise_a_limit_never_lower_it(built):
     with_cap(built, 500)
-    assert L.limits_for("standard").max_input_tokens_per_call == 12_000
+    assert L.limits_for("standard").max_input_tokens_per_call == 64_000
     with_cap(built, 0)
 
 
 def test_with_an_explicitly_configured_cap_the_packet_assembles(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     result = packet(built, mode="standard")
     assert result.estimated_tokens <= 36_000
     assert result.payload["D_E_catalogue"]["relations"]
@@ -241,7 +274,7 @@ def test_with_an_explicitly_configured_cap_the_packet_assembles(built):
 def test_the_complete_dictionary_is_in_the_packet_never_the_top_ten(built):
     """Section 7.4-D: never replace the entire dictionary with only ten
     important fields."""
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     result = packet(built, mode="standard")
     catalogue = result.payload["D_E_catalogue"]
     named: set[tuple[str, str]] = set()
@@ -268,23 +301,31 @@ def test_the_complete_dictionary_is_in_the_packet_never_the_top_ten(built):
 def measured_floor(built) -> int:
     """The smallest packet this domain can produce, measured not guessed.
 
-    Every rung of the ladder is spent to reach it, so a cap at the floor is the
-    tightest one that can still be satisfied.
+    Every rung of the ladder is spent to reach it. Measured through
+    `context.floor`, which runs the ladder to exhaustion, rather than by
+    passing an impossibly small cap -- an override that only raises would
+    ignore one, and a measurement that depends on a configuration quirk is not
+    a measurement.
     """
-    with_cap(built, 1)
-    try:
-        packet(built, mode="standard")
-    except X.ContextTooLarge as e:
-        return e.required
-    raise AssertionError("a one-token cap was somehow satisfied")
+    return X.floor(
+        request_id="floor",
+        cleaned=CleanedQuestion(original_text="q", detected_language="en",
+                                english_text="q"),
+        normalized=NormalizedQuestion(business_question="q"),
+        scope=built["scope"], catalog=built["catalog"],
+        coverage=built["coverage"],
+        ledger=L.Ledger(mode="standard", prices=L.Prices()),
+        session=built["session"])["tokens"]
 
 
 def test_optional_detail_is_reduced_before_anything_else(built):
     """Section 7.4: reduce preview rows and non-essential history FIRST."""
     floor = measured_floor(built)
-    with_cap(built, floor + 200)
+    with_cap(built, 0)
+    built["cap_override"] = floor + 200
     exchanges = [{"question": f"q{i}", "answer": "a" * 400} for i in range(8)]
-    result = packet(built, mode="standard", exchanges=exchanges)
+    result = packet(built, mode="standard", exchanges=exchanges,
+                    _cap_override=floor + 200)
     assert result.reductions_applied, "nothing was reduced despite a tight cap"
     # The rungs are used in the mandated order: samples and history before
     # anything else, and never the schema.
@@ -300,9 +341,8 @@ def test_optional_detail_is_reduced_before_anything_else(built):
 
 def test_the_ladder_never_touches_the_schema_or_the_scope(built):
     floor = measured_floor(built)
-    with_cap(built, floor + 200)
-    tight = packet(built, mode="standard")
-    with_cap(built, 60_000)
+    with_cap(built, 0)
+    tight = packet(built, mode="standard", _cap_override=floor + 200)
     loose = packet(built, mode="standard")
     assert tight.reductions_applied and not loose.reductions_applied
     assert (tight.payload["D_E_catalogue"]
@@ -319,19 +359,26 @@ def test_the_measured_floor_is_recorded_in_the_sizing_document(built):
     floor = measured_floor(built)
     document = (Path(__file__).resolve().parents[2]
                 / "docs/cockpit_agentic_v3/CONTEXT_SIZING.md").read_text()
-    assert "COCKPIT_AGENTIC_V3_STANDARD_INPUT_TOKENS" in document
-    # The recommended cap must actually clear the measured floor.
-    recommended = 36_000
-    assert recommended > floor, (
-        f"the document recommends {recommended} but the measured floor is "
+    # The document records the measurement and the decision that followed.
+    assert "28,105" in document or str(floor) in document, (
+        "the sizing document does not record the measured floor")
+    assert "no override at any level" in document
+    assert "spend is now the binding constraint" in document.lower(), (
+        "the document must record which guardrail binds first under the new "
+        "configuration")
+    # The configured cap must actually clear the measured floor.
+    configured = L.limits_for("standard").max_input_tokens_per_call
+    assert configured == 64_000
+    assert configured > floor, (
+        f"the configured cap is {configured} and the measured floor is "
         f"{floor}")
-    assert str(recommended) in document
+    assert "64,000" in document or "64000" in document
 
 
 # ---- the packet's contents ------------------------------------------------
 
 def test_all_ten_sections_are_present(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     payload = packet(built).payload
     for key in ("A_request", "B_scope", "C_thread", "D_E_catalogue",
                 "F_coverage", "G_samples", "H_functionalities", "I_execution",
@@ -340,7 +387,7 @@ def test_all_ten_sections_are_present(built):
 
 
 def test_the_packet_carries_all_three_forms_of_the_question(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     request = packet(built).payload["A_request"]
     assert request["original_question"] == "ECL kitna badha hai?"
     assert request["detected_language"] == "hi"
@@ -350,7 +397,7 @@ def test_the_packet_carries_all_three_forms_of_the_question(built):
 
 
 def test_explicit_scope_overrides_inherited_scope_in_the_packet(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     scope_block = packet(built).payload["B_scope"]
     assert scope_block["effective_scope"]["sector_name"] == "Construction"
     assert scope_block["effective_scope"]["reporting_quarter"] == "2026Q2"
@@ -358,7 +405,7 @@ def test_explicit_scope_overrides_inherited_scope_in_the_packet(built):
 
 
 def test_coverage_comes_from_the_profiler_not_the_samples(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     coverage = packet(built).payload["F_coverage"]
     assert coverage["computed_from"] == (
         "the full authorized release, not the sample rows")
@@ -366,7 +413,7 @@ def test_coverage_comes_from_the_profiler_not_the_samples(built):
 
 
 def test_samples_are_labelled_as_shape_not_as_evidence(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     samples = packet(built).payload["G_samples"]
     assert "do not establish a total" in samples["note"]
     for sample in samples["samples"]:
@@ -375,7 +422,7 @@ def test_samples_are_labelled_as_shape_not_as_evidence(built):
 
 
 def test_the_packet_states_what_can_actually_be_executed(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     execution = packet(built).payload["I_execution"]
     assert execution["sql"]["available"] is True
     assert "no ATTACH" in execution["sql"]["statement_rule"]
@@ -386,7 +433,7 @@ def test_the_packet_states_what_can_actually_be_executed(built):
 
 
 def test_the_packet_carries_the_remaining_budget(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     budget = packet(built).payload["J_budget"]
     assert budget["submissions_remaining"] == 5
     assert budget["analysis_rounds_remaining"] == 3
@@ -395,7 +442,7 @@ def test_the_packet_carries_the_remaining_budget(built):
 
 
 def test_the_packet_carries_no_other_module_s_data(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     blob = packet(built).serialize().lower()
     for leak in ("ews_alert", "watchlist_register", "scorecard_run",
                  "retail_application_scorecard", "lens_tile"):
@@ -403,14 +450,14 @@ def test_the_packet_carries_no_other_module_s_data(built):
 
 
 def test_the_untrusted_data_note_travels_with_the_packet(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     payload = packet(built).payload
     assert "never an instruction" in payload["untrusted_data_note"].lower() or \
            "data, not instruction" in payload["untrusted_data_note"].lower()
 
 
 def test_the_token_estimate_is_conservative_and_says_so(built):
-    with_cap(built, 36_000)
+    with_cap(built, 0)
     result = packet(built)
     assert "conservative" in result.token_method
     assert X.CHARS_PER_TOKEN <= 4.0, (

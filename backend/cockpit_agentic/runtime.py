@@ -44,6 +44,7 @@ from backend.cockpit_agentic import scope as scope_mod
 from backend.cockpit_agentic import sonnet as sonnet_mod
 from backend.cockpit_agentic import sql as sql_mod
 from backend.cockpit_agentic import states as st
+from backend.cockpit_agentic import tokens as tokens_mod
 from backend.cockpit_agentic.ledger import (STORE, BudgetExceeded, Ledger,
                                             Prices, STOP_CANCELLED,
                                             STOP_DEADLINE, STOP_NO_PROGRESS,
@@ -66,6 +67,7 @@ class Outcome:
     budget: dict[str, Any] = field(default_factory=dict)
     machine: dict[str, Any] = field(default_factory=dict)
     context: dict[str, Any] = field(default_factory=dict)
+    tokens: dict[str, Any] = field(default_factory=dict)
     exchange: K.Exchange | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -82,6 +84,7 @@ class Outcome:
             "budget": dict(self.budget),
             "states": dict(self.machine),
             "context": dict(self.context),
+            "tokens": dict(self.tokens),
         }
 
 
@@ -127,6 +130,7 @@ class Runtime:
         self.artifacts = K.ArtifactManifest(request_id=self.request_id)
         self.completed_steps: list[str] = []
         self.context_packet: context_mod.CockpitContextPacket | None = None
+        self.conversation: Any = None
 
     # -- progress -------------------------------------------------------
 
@@ -165,6 +169,19 @@ class Runtime:
                     help_text=("This is an operator or configuration matter, "
                                "not something rephrasing the question can "
                                "fix.")))
+        except tokens_mod.TooLargeToSend as e:
+            return self._finish(
+                st.CONTEXT_TOO_LARGE,
+                _stop_envelope(
+                    reason="context_too_large", narrative=str(e),
+                    understood=question,
+                    help_text=(
+                        f"The request was measured at {e.counted.tokens:,} "
+                        f"tokens "
+                        f"({'against ' + e.counted.model if e.counted.measured else 'by local estimate'}) "
+                        f"against a {e.cap:,}-token limit and was not sent. "
+                        f"An administrator can raise the per-call input cap "
+                        f"for this deployment.")))
         except context_mod.ContextTooLarge as e:
             return self._finish(
                 st.CONTEXT_TOO_LARGE,
@@ -232,9 +249,15 @@ class Runtime:
             ui_filters=ui_filters, rolling_summary=rolling_summary,
             recent_exchanges=recent_exchanges)
 
+        from backend.llm import roles
+
         conversation = opus_mod.Conversation(
             provider=self.provider, ledger=self.ledger,
-            packet=self.context_packet)
+            packet=self.context_packet,
+            # The exact id that will serve the request, so tokens are counted
+            # against the tokenizer that will actually be used.
+            model=roles.role(opus_mod.OPUS_ROLE).model)
+        self.conversation = conversation
 
         # ---- the gate ------------------------------------------------
         self._advance(st.FUNCTIONALITY_ASSESSMENT,
@@ -626,6 +649,10 @@ class Runtime:
             machine={**self.machine.to_dict(), "progress": self.progress},
             context=(self.context_packet.to_dict() if self.context_packet
                      else {}),
+            tokens=({"counter": self.conversation.counter.report(),
+                     "counts": list(self.conversation.counts),
+                     "turns": list(self.conversation.turns)}
+                    if self.conversation is not None else {}),
             exchange=exchange)
 
 

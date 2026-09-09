@@ -159,6 +159,34 @@ class AnthropicProvider:
             f"The orchestrator did not answer: {telemetry.sanitise(str(last))}"
         ) from last
 
+    # ---- counting, before spending ------------------------------------------
+
+    def count_tokens(self, *, system: Any, messages: list[dict[str, Any]],
+                     tools: list[dict[str, Any]] | None = None,
+                     model: str = "") -> int:
+        """How many input tokens this exact request will cost, per the provider.
+
+        Uses `messages.count_tokens`, which counts against the named model's own
+        tokenizer. That matters: tokenizers differ between model families, so a
+        count taken against the wrong model is not a count. Callers pass the id
+        they are about to send to.
+
+        Raises rather than guessing. The caller decides whether to fall back to
+        a local estimate, and records which it used -- an estimate reported as a
+        measurement is worse than no measurement.
+        """
+        if not self.configured:
+            raise LLMError("No Anthropic API key is configured, so tokens "
+                           "cannot be counted against the provider.")
+        chosen = (model or "").strip() or self.model
+        request: dict[str, Any] = {"model": chosen, "messages": messages}
+        if system:
+            request["system"] = system
+        if tools:
+            request["tools"] = tools
+        counted = self._client().messages.count_tokens(**request)
+        return int(getattr(counted, "input_tokens", 0) or 0)
+
     # ---- the conversation --------------------------------------------------
 
     def converse(self, *, system: Any, messages: list[dict[str, Any]],

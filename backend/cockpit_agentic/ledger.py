@@ -46,7 +46,37 @@ from backend.cockpit_agentic import DEEP, MODES, STANDARD
 
 @dataclass(frozen=True)
 class Limits:
-    """Section 9.1, as data. Configurable starting limits, not measured optima."""
+    """Section 9.1, as data. Configurable starting limits, not measured optima.
+
+    The UAT configuration, and what moved
+    -------------------------------------
+    The specification's own 12,000/20,000-token per-call input caps and its
+    35,000/70,000-token cumulative ceilings cannot hold this domain's mandatory
+    field catalogue, which measures about 22,000 tokens on its own. That was
+    measured, documented in docs/cockpit_agentic_v3/CONTEXT_SIZING.md, and put
+    to the owner rather than closed in code.
+
+    The owner's decision, applied here as the UAT configuration:
+
+    * Standard: 64,000-token input packet, 250,000-token cumulative ceiling.
+    * Deep:     96,000-token input packet, 500,000-token cumulative ceiling.
+
+    These are still application guardrails and still configurable. What did NOT
+    move, and cannot:
+
+    * five Opus-authored execution submissions;
+    * three substantive analysis rounds;
+    * the 60-second Standard and 120-second Deep deadlines;
+    * the total model-call ceilings;
+    * the spending ceilings, which stay where they were so live usage can be
+      measured against them before anyone proposes new ones;
+    * no automatic escalation from Standard to Deep;
+    * the earliest bound wins.
+
+    The finalization reserve grew with the ceiling for one reason: it has to be
+    able to fund a terminal explanation that carries the same catalogue, and a
+    6,000-token reserve could not.
+    """
 
     mode: str
     sonnet_preprocessing_calls: int
@@ -86,14 +116,14 @@ STANDARD_LIMITS = Limits(
     execution_submissions=5, analysis_rounds=3,
     total_provider_requests=12, metadata_tool_requests=2,
     steps_per_submission=6, steps_per_request=12,
-    deadline_seconds=60.0, total_tokens=35_000,
-    max_input_tokens_per_call=12_000, max_opus_output_tokens=4_096,
+    deadline_seconds=60.0, total_tokens=250_000,
+    max_input_tokens_per_call=64_000, max_opus_output_tokens=4_096,
     max_sonnet_pass1_output_tokens=800, max_sonnet_pass2_output_tokens=1_200,
     max_summary_output_tokens=1_000,
     recent_pairs_default=3, recent_pairs_expanded=5, recent_pairs_hard_cap=8,
     recent_history_tokens=4_000, sample_rows_per_dataset=10,
     step_wall_seconds=15.0, summary_wall_seconds=8.0, max_charts=2,
-    spend_ceiling_usd=1.00, finalization_token_reserve=6_000,
+    spend_ceiling_usd=1.00, finalization_token_reserve=25_000,
     python_memory_mib=512)
 
 DEEP_LIMITS = Limits(
@@ -102,14 +132,14 @@ DEEP_LIMITS = Limits(
     execution_submissions=5, analysis_rounds=3,
     total_provider_requests=16, metadata_tool_requests=3,
     steps_per_submission=8, steps_per_request=24,
-    deadline_seconds=120.0, total_tokens=70_000,
-    max_input_tokens_per_call=20_000, max_opus_output_tokens=6_144,
+    deadline_seconds=120.0, total_tokens=500_000,
+    max_input_tokens_per_call=96_000, max_opus_output_tokens=6_144,
     max_sonnet_pass1_output_tokens=800, max_sonnet_pass2_output_tokens=1_200,
     max_summary_output_tokens=1_000,
     recent_pairs_default=3, recent_pairs_expanded=5, recent_pairs_hard_cap=8,
     recent_history_tokens=8_000, sample_rows_per_dataset=10,
     step_wall_seconds=30.0, summary_wall_seconds=8.0, max_charts=3,
-    spend_ceiling_usd=2.00, finalization_token_reserve=10_000,
+    spend_ceiling_usd=2.00, finalization_token_reserve=40_000,
     python_memory_mib=1_024)
 
 LIMITS: dict[str, Limits] = {STANDARD: STANDARD_LIMITS, DEEP: DEEP_LIMITS}
@@ -125,15 +155,18 @@ OVERRIDABLE: dict[str, tuple[str, str]] = {
                                   "cockpit_agentic_v3_deep_input_tokens"),
     "total_tokens": ("cockpit_agentic_v3_standard_total_tokens",
                      "cockpit_agentic_v3_deep_total_tokens"),
-    "deadline_seconds": ("cockpit_agentic_v3_standard_deadline_seconds",
-                         "cockpit_agentic_v3_deep_deadline_seconds"),
-    "total_provider_requests": ("cockpit_agentic_v3_standard_model_requests",
-                                "cockpit_agentic_v3_deep_model_requests"),
 }
 
-#: Never overridable, at any level. Listed so the property is testable rather
-#: than merely absent.
-INVARIANT: tuple[str, ...] = ("execution_submissions", "analysis_rounds")
+#: Never overridable, at any level. Listed so each property is testable rather
+#: than merely absent from the table above.
+#:
+#: The two counters are architectural invariants (sections 1.7 and 9.2). The
+#: deadlines and the model-call ceilings are here because the owner fixed them
+#: for this UAT configuration while the token budgets moved: a deadline that
+#: could be raised to make a slow analysis fit would stop measuring anything.
+INVARIANT: tuple[str, ...] = ("execution_submissions", "analysis_rounds",
+                              "deadline_seconds", "total_provider_requests",
+                              "spend_ceiling_usd")
 
 
 def limits_for(mode: str) -> Limits:

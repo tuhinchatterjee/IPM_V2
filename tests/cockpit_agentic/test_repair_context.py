@@ -224,10 +224,17 @@ def test_the_conversation_continues_rather_than_restarting(repair_run):
     """Section 8.1: do not flatten an error into an unrelated new
     conversation."""
     messages = repair_run["repair_request"]["messages"]
-    assert len(messages) >= 3, (
+    assert len(messages) >= 4, (
         "the repair turn started a fresh conversation instead of continuing")
     assert messages[0]["role"] == "user"
-    assert messages[1]["role"] == "assistant"
+    # The assistant's planning turn is still in the conversation, wherever it
+    # sits: asserting a position would break the moment the opening context
+    # became its own message, which is exactly what happened.
+    roles = [m["role"] for m in messages]
+    assert "assistant" in roles
+    assert roles.index("assistant") < len(roles) - 1, (
+        "the assistant's turn is not followed by anything, so nothing "
+        "continued")
 
 
 # ---- the attempt history --------------------------------------------------

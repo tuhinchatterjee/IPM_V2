@@ -30,12 +30,14 @@ architecture removes.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
 from typing import Any
 
 from backend.cockpit_agentic import UNTRUSTED_NOTE
 from backend.cockpit_agentic import contracts as K
+from backend.cockpit_agentic import tokens as tokens_mod
 from backend.cockpit_agentic.context import CockpitContextPacket
 from backend.cockpit_agentic.ledger import Ledger
 from backend.cockpit_agentic.sonnet import prompt
@@ -237,7 +239,7 @@ class Conversation:
     """
 
     def __init__(self, *, provider: Any, ledger: Ledger,
-                 packet: CockpitContextPacket) -> None:
+                 packet: CockpitContextPacket, model: str = "") -> None:
         if provider is None or not hasattr(provider, "converse"):
             raise OpusUnavailable(
                 "This runtime has no provider that can hold a multi-turn "
@@ -250,28 +252,99 @@ class Conversation:
         self.packet = packet
         self.messages: list[dict[str, Any]] = []
         self.turns: list[dict[str, Any]] = []
-        self._system_cache: list[dict[str, Any]] | None = None
+        self.counts: list[dict[str, Any]] = []
+        self._pending = ""
+        self.counter = tokens_mod.Counter(provider=provider, model=model)
 
-    # -- the system prompt, cached across turns ------------------------
+    # -- the system prompt, and where the cache breakpoint goes ---------
 
     def system(self, contract: str) -> list[dict[str, Any]]:
-        """System blocks with the stable prefix marked for caching.
+        """System blocks, stable prefix first, with ONE cache breakpoint.
 
-        The context packet is the stable prefix: it does not change across the
-        repair turns of one request. Caching it lowers cost and latency and
-        does NOT lower the logical token count -- section 9.3 -- so the ledger
-        counts it either way.
+        Caching is a prefix match: any byte change anywhere before the
+        breakpoint invalidates everything after it. So the blocks are ordered
+        most-stable first and the breakpoint sits at the end of the last block
+        that does not change within a request:
+
+          1. the architecture instructions and the Cockpit-only restriction --
+             identical for every request in this deployment;
+          2. the pinned domain context: the complete compact field catalogue,
+             the grains, the join definitions, the functionality registry and
+             the execution contract -- identical for every turn of THIS
+             request, because the release is pinned for its lifetime;
+          3. <- cache breakpoint here.
+
+        Everything that moves between turns -- the question, the Sonnet
+        outputs, the filters, the thread summary, the plan, prior results, the
+        failed code, the diagnostics, the remaining budgets -- lives in
+        `messages`, after the breakpoint. That is what makes the repair turns
+        of one request cache hits rather than four full re-reads of a
+        22,000-token catalogue.
+
+        Caching is an OPTIMISATION AND NOTHING ELSE. The catalogue is sent in
+        full on every request whether it is served from cache or not; there is
+        no hash, no id and no reference Opus would have to resolve. Section 8.1
+        is satisfied by the content being present, not by it being cheap.
         """
+        packet = self.packet.payload
+        pinned = {
+            "domain_id": packet["B_scope"]["domain_id"],
+            "dataset_release_id": packet["B_scope"]["dataset_release_id"],
+            "reporting_currency": packet["B_scope"]["reporting_currency"],
+            "amount_scale": packet["B_scope"]["amount_scale"],
+            "catalogue": packet["D_E_catalogue"],
+            "functionalities": packet["H_functionalities"],
+            "execution_capabilities": packet["I_execution"],
+        }
         return [
-            {"type": "text", "text": prompt(contract)},
+            # 1. Invariant for every request in this deployment.
+            {"type": "text", "text": prompt("shared_preamble")},
+            # 2. Invariant for every TURN of this request: the release is
+            #    pinned for its lifetime.
             {"type": "text",
-             "text": ("THE FACTUAL CONTEXT FOR THIS REQUEST.\n"
-                      "Everything you may rely on is here. It does not change "
-                      "while this request is running.\n\n"
-                      + self.packet.serialize()),
+             "text": ("THE AUTHORIZED COCKPIT DOMAIN FOR THIS REQUEST.\n"
+                      "The complete field dictionary, the grains, the joins, "
+                      "the functionality registry and the execution contract. "
+                      "This is pinned for the lifetime of this request and is "
+                      "sent in full on every turn -- it is never abridged, "
+                      "hashed or replaced by a reference.\n\n"
+                      + json.dumps(pinned, separators=(",", ":"),
+                                   default=str)),
+             # 3. The one breakpoint. Everything above is byte-identical
+             #    across the turns of this request; everything below moves.
              "cache_control": {"type": "ephemeral"}},
+            # 4. The contract for THIS turn -- planning, repair or review. It
+            #    changes between turns, so it must sit AFTER the breakpoint:
+            #    putting it first made every turn a cache miss, which is what
+            #    test_the_prefix_is_byte_identical_across_every_turn caught.
+            {"type": "text", "text": prompt(contract)},
             {"type": "text", "text": UNTRUSTED_NOTE},
         ]
+
+    def opening_context(self) -> str:
+        """The dynamic half of the context, as the first user message.
+
+        Sections A, B's request-specific scope, C, F, G and J: the question in
+        all three forms, the effective scope, the thread, the measured
+        coverage, the sample rows and the remaining budget. All of it changes
+        between requests -- and F and J change between the TURNS of a request --
+        so none of it belongs in the cached prefix.
+        """
+        packet = self.packet.payload
+        dynamic = {
+            "request": packet["A_request"],
+            "scope_and_filters": {
+                k: v for k, v in packet["B_scope"].items()
+                if k not in ("domain_id", "dataset_release_id",
+                             "reporting_currency", "amount_scale")},
+            "thread": packet["C_thread"],
+            "measured_coverage": packet["F_coverage"],
+            "sample_rows": packet["G_samples"],
+            "remaining_budget": packet["J_budget"],
+        }
+        return ("THE REQUEST, ITS SCOPE, THE MEASURED COVERAGE AND THE "
+                "REMAINING BUDGET.\n\n"
+                + json.dumps(dynamic, separators=(",", ":"), default=str))
 
     # -- one turn ------------------------------------------------------
 
@@ -279,24 +352,41 @@ class Conversation:
             tool_name: str, description: str, purpose: str,
             max_tokens: int = 0, finalization: bool = False
             ) -> dict[str, Any]:
-        """One reserved, settled turn that must answer through the tool."""
+        """One counted, reserved, settled turn that must answer through the tool.
+
+        Counted first. Section 9.3 and the owner's instruction: the assembled
+        request is measured against the model that will serve it, and refused
+        before dispatch if it will not fit with room for the answer. A request
+        that fails at the provider for size has spent latency and told the user
+        nothing.
+        """
         from backend.llm import roles
 
         role = roles.role(OPUS_ROLE)
         limit = max_tokens or self.ledger.limits.max_opus_output_tokens
         system_blocks = self.system(contract)
-        estimated = (self.packet.estimated_tokens
-                     + sum(len(str(m)) for m in self.messages) // 4
-                     + len(user) // 4 + 1)
+
+        if not self.messages:
+            # The dynamic context opens the conversation, after the cached
+            # prefix, so the catalogue above it stays byte-identical.
+            self.messages.append({"role": "user",
+                                  "content": self.opening_context()})
+        pending = self.messages + [{"role": "user", "content": user}]
+        tool = {"name": tool_name, "description": description,
+                "input_schema": schema}
+
+        counted = self.counter.fits(
+            system=system_blocks, messages=pending, tools=[tool],
+            cap=self.ledger.limits.max_input_tokens_per_call,
+            reserve_output=limit)
+        self.counts.append({"purpose": purpose, **counted.to_dict()})
 
         reservation = self.ledger.reserve(
             role=OPUS_ROLE, family=OPUS_FAMILY, purpose=purpose,
-            input_tokens=estimated, max_output_tokens=limit,
+            input_tokens=counted.tokens, max_output_tokens=limit,
             finalization=finalization)
 
-        self.messages.append({"role": "user", "content": user})
-        tool = {"name": tool_name, "description": description,
-                "input_schema": schema}
+        self.messages = pending
         try:
             result = self.provider.converse(
                 system=system_blocks, messages=self.messages, tools=[tool],
@@ -321,9 +411,15 @@ class Conversation:
             self.messages.append({"role": "assistant",
                                   "content": result.assistant_blocks})
 
-        self.turns.append({"purpose": purpose, "stop_reason": result.stop_reason,
-                           "tool_calls": len(result.tool_calls),
-                           "truncated": result.truncated})
+        self.turns.append({
+            "purpose": purpose, "stop_reason": result.stop_reason,
+            "tool_calls": len(result.tool_calls),
+            "truncated": result.truncated,
+            "counted_input_tokens": counted.tokens,
+            "count_method": counted.method,
+            "reported_input_tokens": result.input_tokens,
+            "cache_read_tokens": result.cache_read_tokens,
+            "cache_write_tokens": result.cache_write_tokens})
 
         if result.truncated:
             # Section 9.1: a truncated output is INCOMPLETE, not a shorter

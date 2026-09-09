@@ -36,19 +36,15 @@ def lake(tmp_path_factory):
 
     base = tmp_path_factory.mktemp("runtimelake")
     original = config.settings
-    # The explicitly configured mode docs/cockpit_agentic_v3/CONTEXT_SIZING.md
-    # describes. The specification's own 12,000-token input cap and
-    # 35,000-token ceiling cannot hold this domain's mandatory catalogue, which
-    # is measured, documented and put to an administrator rather than worked
-    # around. These tests run under that configuration and say so.
+    # No budget overrides. The UAT configuration -- 64,000 input, 250,000
+    # cumulative -- holds this domain's packet on its own, so these tests run
+    # on the shipped defaults and prove they are enough.
+    #
+    # This fixture is session-scoped, so anything it overrode would leak into
+    # every later test in the package. It did, briefly: a 400,000-token ceiling
+    # set here made three ledger tests pass for the wrong reason.
     config.settings = dataclasses.replace(
-        original, cockpit_agentic_v3=True, analytics_dir=base / "analytics",
-        cockpit_agentic_v3_standard_input_tokens=60_000,
-        cockpit_agentic_v3_deep_input_tokens=60_000,
-        cockpit_agentic_v3_standard_total_tokens=400_000,
-        cockpit_agentic_v3_deep_total_tokens=400_000,
-        cockpit_agentic_v3_standard_model_requests=40,
-        cockpit_agentic_v3_deep_model_requests=40)
+        original, cockpit_agentic_v3=True, analytics_dir=base / "analytics")
     release = G.build_release(dataset_release_id=RELEASE, borrowers=20,
                               facilities=40)
     G.conform(release)

@@ -213,9 +213,6 @@ def test_the_diagnostics_report_which_guardrails_are_raised(api):
     """A demonstration run under raised limits must not read as if it were run
     under the specification's own."""
     body = api.get(f"{API}/diagnostics", headers=HEADERS).json()
-    overrides = body["standard_overrides_in_force"]
-    assert "max_input_tokens_per_call" in overrides
-    assert overrides["max_input_tokens_per_call"]["specification"] == 12_000
     assert "no override at any level" in body["guardrails_note"]
     assert body["standard_limits"]["execution_submissions"] == 5
     assert body["standard_limits"]["analysis_rounds"] == 3

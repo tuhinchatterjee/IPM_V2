@@ -1,0 +1,33 @@
+{
+  "full_packet_tokens": 32991,
+  "floor_tokens": 28105,
+  "reductions_to_reach_floor": [
+    "samples_10_to_5",
+    "history_to_3_pairs",
+    "profile_to_120",
+    "samples_5_to_2",
+    "profile_to_60",
+    "drop_samples",
+    "history_to_1_pair",
+    "drop_history"
+  ],
+  "breakdown": {
+    "context_version": 2,
+    "request_id": 1,
+    "A_request": 162,
+    "B_scope": 574,
+    "C_thread": 110,
+    "D_E_catalogue": 22074,
+    "F_coverage": 6150,
+    "G_samples": 922,
+    "H_functionalities": 2330,
+    "I_execution": 392,
+    "J_budget": 167,
+    "untrusted_data_note": 57
+  },
+  "catalogue_tokens": 22074,
+  "standard_cap": 64000,
+  "deep_cap": 96000,
+  "standard_total": 250000,
+  "deep_total": 500000
+}

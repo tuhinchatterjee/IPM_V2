@@ -165,6 +165,16 @@ class LLMProvider(Protocol):
     def status(self) -> ProviderStatus:
         ...
 
+    def count_tokens(self, *, system: Any, messages: list[dict[str, Any]],
+                     tools: list[dict[str, Any]] | None = None,
+                     model: str = "") -> int:
+        """Input tokens for this exact request, per the provider's own counter.
+
+        Optional on a provider: callers check `hasattr` and fall back to a
+        documented local estimate, recording which they used.
+        """
+        ...
+
     def converse(self, *, system: Any, messages: list[dict[str, Any]],
                  tools: list[dict[str, Any]] | None = None,
                  max_tokens: int = 4096, model: str = "",
@@ -243,6 +253,12 @@ class NullProvider:
                     "phrasing."),
             health=telemetry.health(provider="none", model="",
                                     configured=False))
+
+    def count_tokens(self, **_: Any) -> int:
+        raise LLMError(
+            "No intelligence provider is configured, so tokens cannot be "
+            "counted against a model. The caller falls back to a local "
+            "estimate and records that it did.")
 
     def converse(self, **_: Any) -> ConverseResult:
         raise LLMError(
