@@ -50,7 +50,18 @@ logger = logging.getLogger(__name__)
 _ALWAYS_ALLOWED = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
                    "11", "12", "100"}
 
-_NUMERAL = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+#: A published month, as `YYYY-MM`. Matched and set aside BEFORE any numeral
+#: scanning, because a date is one token and not three.
+#:
+#: Without this, "2026-06," gave the numeral scanner `-06,` — the hyphen read
+#: as a minus sign, the trailing comma swallowed — and a reading that quoted
+#: its own period correctly was discarded for citing a figure of minus six.
+_PERIOD_TOKEN = re.compile(r"\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])\b")
+
+#: A figure. The lookbehind stops a hyphen or a digit before it being read as
+#: part of the number, and the trailing lookbehind stops the match ending on a
+#: separator — `1,049` is one figure, `049,` is not a figure at all.
+_NUMERAL = re.compile(r"(?<![\d.,\-])-?\d[\d,]*(?:\.\d+)?(?<![.,])")
 
 SYSTEM = """You are the senior credit risk interpretation of CreditProbe's \
 Early Warning product. A governed runtime has ALREADY computed everything you \
@@ -136,6 +147,14 @@ SCHEMA: dict[str, Any] = {
                             "partial answer, an uncorroborated signal. Only "
                             "what the runtime did not already state."),
         },
+        "fact_refs": {
+            "type": "array", "items": {"type": "string"},
+            "maxItems": 8,
+            "description": ("The names of the result fields your figures came "
+                            "from, exactly as they are spelled in `figures` — "
+                            "for example \"exposure\", \"high_plus_count\". "
+                            "One per figure you quote."),
+        },
     },
     "required": ["direct", "interpretation"],
 }
@@ -151,16 +170,59 @@ class Reading:
     #: Figures the model wrote that the packet does not carry. Non-empty means
     #: the prose was discarded.
     ungrounded: list[str] = field(default_factory=list)
+    #: The result fields the reading says its figures came from, kept where
+    #: they resolve to something the packet actually holds.
+    fact_refs: list[str] = field(default_factory=list)
+    #: Names it gave that resolve to nothing. Recorded rather than fatal: the
+    #: numeric check is what rejects a reading, and a mistyped field name on a
+    #: reading whose every figure IS in the packet is a bookkeeping slip, not
+    #: an invented number. It is on the trace so a pattern of them is visible.
+    unresolved_refs: list[str] = field(default_factory=list)
+
+
+#: The sections of the interpretation packet whose numerals the reading may
+#: cite — the user's request, the scope, the executed result, the governed
+#: action and escalation metadata, and the periods.
+#:
+#: This is the whole control. The guard checks prose against what the writer
+#: was ALLOWED to see, so anything in the packet that is not evidence is a
+#: number the writer can read and must not use — and `_context` therefore
+#: carries nothing else.
+#:
+#: The field dictionary's coverage summary is what taught us that. It said
+#: 2,521 fields described, 1,049 fully populated, 1,179 empty; those are
+#: statistics about the SCHEMA, not about the book, and a live Opus reading
+#: quoted them into a credit paragraph. Planning needs them. The final answer
+#: writer has no business with them, and `test_grounding.py` asserts that no
+#: section outside this list ever reaches it.
+CITABLE_SECTIONS: tuple[str, ...] = (
+    "question", "normalized_request", "period", "comparison_period",
+    "filters", "figures", "rows", "provenance", "caveats",
+    "governed_actions", "escalation_route", "steps_that_ran",
+    "deterministic_reading")
+
+#: Sections that carry no figure at all — a scope label, a verdict, a
+#: presentation choice. Listed so the contract test can tell "carries no
+#: number" apart from "carries numbers nobody checked".
+NON_NUMERIC_SECTIONS: tuple[str, ...] = ("scope", "sufficiency")
 
 
 def _allowed_figures(packet: packet_mod.ResultPacket,
-                     deterministic: dict[str, Any]) -> set[str]:
+                     deterministic: dict[str, Any],
+                     context: dict[str, Any] | None = None) -> set[str]:
     """Every numeral the prose is allowed to contain.
 
-    Built from the packet's own values and from the deterministic answer —
-    which is itself written from the packet and formatted the way a person
-    would write it, so a model quoting "SAR 15.5bn" from the reading it was
-    shown is quoting the result rather than inventing one.
+    Built from the packet's own values, from the deterministic answer — which
+    is itself written from the packet and formatted the way a person would
+    write it, so a model quoting "SAR 15.5bn" from the reading it was shown is
+    quoting the result rather than inventing one — and from the citable
+    sections of the packet the writer was given.
+
+    That last part is the point. The allowed set is derived from what the
+    writer may SEE, and `_context` puts nothing in front of it that is not
+    evidence, so the two agree by construction rather than by a whitelist
+    somebody has to remember to update. A figure the model produced from
+    somewhere else is still rejected, which is the guard doing its job.
     """
     allowed = set(_ALWAYS_ALLOWED)
     for value in packet.numbers():
@@ -175,9 +237,12 @@ def _allowed_figures(packet: packet_mod.ResultPacket,
             allowed.add(f"{value / 1000:.0f}")
     for text in _prose(deterministic):
         allowed.update(_NUMERAL.findall(text))
-    for period in (packet.period, packet.comparison_period):
-        if period:
-            allowed.update(_NUMERAL.findall(str(period)))
+    for section in CITABLE_SECTIONS:
+        value = (context or {}).get(section)
+        if value is None:
+            continue
+        allowed.update(_NUMERAL.findall(
+            json.dumps(value, default=str)))
     return {a.replace(",", "") for a in allowed} | allowed
 
 
@@ -193,16 +258,79 @@ def _prose(answer: dict[str, Any]) -> list[str]:
     return out
 
 
-def _ungrounded(written: dict[str, Any], allowed: set[str]) -> list[str]:
-    """Every figure the prose asserts that the packet does not carry."""
+def _ungrounded(written: dict[str, Any], allowed: set[str],
+                periods: set[str]) -> list[str]:
+    """Every figure the prose asserts that the packet does not carry.
+
+    Periods are taken out first and checked as whole tokens. A month is one
+    thing, and reading `2026-06` as a minus sign followed by six is how a
+    reading that quoted its own period correctly came to be discarded.
+    """
     problems: list[str] = []
     for text in _prose(written):
-        for found in _NUMERAL.findall(text):
+        # A month the answer names has to be a month the answer read. A
+        # reading that quotes a period nobody published is as wrong as one
+        # that quotes a figure nobody computed.
+        for month in _PERIOD_TOKEN.findall(text):
+            if month not in periods:
+                problems.append(month)
+        for found in _NUMERAL.findall(_PERIOD_TOKEN.sub(" ", text)):
             bare = found.replace(",", "")
             if found in allowed or bare in allowed:
                 continue
             problems.append(found)
     return sorted(set(problems))
+
+
+def _permitted_periods(packet: packet_mod.ResultPacket) -> set[str]:
+    """The months this answer is allowed to name.
+
+    The ones it read, and the ones the domain published. A period is a
+    non-analytical reference and citable as such; a month nobody published is
+    not a reference to anything.
+    """
+    months = {str(p) for p in (packet.period, packet.comparison_period) if p}
+    for step in packet.steps:
+        for key in ("period", "comparison_period"):
+            value = step.get(key)
+            if value:
+                months.add(str(value))
+        months.update(_PERIOD_TOKEN.findall(str(step.get("statement") or "")))
+    try:
+        from backend.early_warning import v2_service as svc
+
+        months.update(str(p) for p in svc.periods())
+    except Exception:  # noqa: BLE001 - an unreadable domain permits what it read
+        pass
+    return months
+
+
+def _checked_refs(named: Any,
+                  packet: packet_mod.ResultPacket) -> tuple[list[str],
+                                                            list[str]]:
+    """The result fields a reading says it drew on, checked against the packet.
+
+    Structured grounding beside the numeric one: a reading that names
+    `high_plus_count` can be traced back to the value it quoted, which a bare
+    numeral cannot. Both are recorded; only the numeric check rejects, because
+    a mistyped field name on a reading whose every figure IS in the packet is
+    a bookkeeping slip rather than an invented number.
+    """
+    known = set(packet.figures)
+    for row in packet.rows[:50]:
+        known.update(str(k) for k in row)
+    for action in packet.governed_actions:
+        known.update(str(k) for k in action)
+    known.update(str(k) for k in packet.escalation)
+
+    resolved: list[str] = []
+    unresolved: list[str] = []
+    for name in (named or [])[:8]:
+        text = str(name).strip()
+        if not text:
+            continue
+        (resolved if text in known else unresolved).append(text)
+    return resolved, unresolved
 
 
 def _context(question: str, packet: packet_mod.ResultPacket,
@@ -229,7 +357,12 @@ def _context(question: str, packet: packet_mod.ResultPacket,
         # mention anyway.
         "rows": list(packet.rows)[:10],
         "provenance": list(packet.provenance)[:6],
-        "coverage": dict(packet.coverage),
+        # The field dictionary's coverage summary is NOT here, and that is
+        # deliberate. It says how many of the 2,521 described fields are
+        # populated — a statistic about the schema, not about the book — and
+        # a live Opus reading quoted "1,049" and "2,521" into a credit
+        # paragraph, where they meant nothing and were rightly discarded.
+        # Planning needs those counts; the answer writer does not.
         "caveats": list(packet.caveats)[:4],
         "governed_actions": list(packet.governed_actions)[:3],
         "escalation_route": dict(packet.escalation),
@@ -263,12 +396,12 @@ def write(question: str, packet: packet_mod.ResultPacket,
     if ledger is None:
         return Reading(answer=deterministic)
 
+    context = _context(question, packet, deterministic, reviewed)
     outcome = seam_mod.call(
         seam_mod.INTERPRETATION, system=SYSTEM,
         prompt=("Write the senior credit risk reading of this Early Warning "
                 "result.\n\n"
-                + json.dumps(_context(question, packet, deterministic,
-                                       reviewed), indent=2, default=str)),
+                + json.dumps(context, indent=2, default=str)),
         schema=SCHEMA, ledger=ledger)
     if not outcome.used_model:
         return Reading(answer=deterministic, model_call=outcome.to_dict())
@@ -288,12 +421,16 @@ def write(question: str, packet: packet_mod.ResultPacket,
                                        engine=seam_mod.DETERMINISTIC,
                                        fallback_reason="the reading was empty"))
 
-    ungrounded = _ungrounded(written, _allowed_figures(packet, deterministic))
+    refs, unresolved = _checked_refs(data.get("fact_refs"), packet)
+    periods = _permitted_periods(packet)
+    ungrounded = _ungrounded(
+        written, _allowed_figures(packet, deterministic, context), periods)
     if ungrounded:
         logger.error("Discarding an Early Warning reading: figures %s are not "
                      "in the result packet.", ungrounded)
         return Reading(
-            answer=deterministic, ungrounded=ungrounded,
+            answer=deterministic, ungrounded=ungrounded, fact_refs=refs,
+            unresolved_refs=unresolved,
             model_call=dict(outcome.to_dict(),
                             engine=seam_mod.DETERMINISTIC,
                             fallback_reason=(
@@ -322,8 +459,10 @@ def write(question: str, packet: packet_mod.ResultPacket,
         if caveat not in caveats:
             caveats.append(caveat)
     answer["caveats"] = caveats
-    return Reading(answer=answer, engine=seam_mod.MODEL,
-                   model_call=outcome.to_dict())
+    return Reading(answer=answer, engine=seam_mod.MODEL, fact_refs=refs,
+                   unresolved_refs=unresolved,
+                   model_call=dict(outcome.to_dict(), fact_refs=refs,
+                                   unresolved_refs=unresolved))
 
 
 __all__ = ["Reading", "SCHEMA", "SYSTEM", "write"]

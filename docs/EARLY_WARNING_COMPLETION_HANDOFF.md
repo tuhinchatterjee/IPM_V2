@@ -426,12 +426,12 @@ Backend, `tests/early_warning/` + `tests/evals/test_early_warning_brain.py` +
 `tests/api/`, with PostgreSQL running:
 
 ```
-30 failed, 2407 passed, 66 skipped, 8 errors in 238.19s
+30 failed, 2439 passed, 66 skipped, 8 errors in 223.42s
 ```
 
 | | |
 |---|---|
-| Passed | **2,407** |
+| Passed | **2,439** |
 | Non-passing identifiers | **38** (30 failed + 8 errors) |
 | — Forward Risk Signal (Early Warning) | 5 — 2 failed, 3 errors, all pre-existing |
 | — credit-book API fixtures | 33 — 28 failed, 5 errors, all pre-existing |
@@ -455,6 +455,7 @@ Suites that matter here, run individually:
 | `test_closing_reserve.py` | 17 passed |
 | `test_executable_contract.py` | 41 passed |
 | `test_output_allowances.py` | 23 passed |
+| `test_grounding.py` | 32 passed |
 | `test_signal_universe.py` | 22 passed |
 | `test_conversation_routing.py` | 76 passed, 1 skipped |
 | `test_conversation_pipeline.py` | 21 passed |
@@ -744,6 +745,79 @@ full grounded reading both accepted, the packets proved not to duplicate the
 evidence, list-trimming, truncation still detected and not retried, one
 truncation costing one call with both closing stages still on a model, the
 budget architecture untouched, and both live acceptance targets.
+
+### Defect 5 — a successful Opus reading was discarded by the grounding guard
+
+The fourth live run made seven Anthropic calls, all successful, and still wrote
+its answer deterministically:
+
+```
+Discarding an Early Warning reading:
+figures ['-06,', '1,049', '1,218', '2,521'] are not in the result packet.
+```
+
+The guard was **right to reject the prose** and wrong about two of the four.
+
+**Where the numbers came from.** `1,049` and `2,521` are the field dictionary's
+coverage summary — 2,521 fields described, 1,049 fully populated — which the
+interpretation packet was carrying as `coverage`, and `1,218` is arithmetic on
+them. Those are statistics about the SCHEMA, not about the book. A credit
+paragraph quoting them says nothing true about any obligor, so discarding the
+reading was correct; the defect is that the writer could see them at all.
+
+`-06,` was never a figure. It was `2026-06,` read by a numeral scanner whose
+pattern took the hyphen for a minus sign and swallowed the trailing comma — so
+a reading that quoted its own period correctly was thrown out for citing minus
+six.
+
+**The rule underneath.** The guard checks prose against what the writer was
+allowed to SEE, which makes the packet the control. The packet now carries
+evidence and nothing else, and the allowance is **derived from the citable
+sections of that packet** — so the two agree by construction rather than by a
+whitelist somebody has to remember to update.
+
+| The writer sees | The writer does not see |
+|---|---|
+| the question and the normalised request | field-inventory counts |
+| the scope, the filters, the periods | dictionary coverage and missingness |
+| the executed figures and up to ten rows | the grain package's statistics |
+| the provenance and the runtime's caveats | anything held for planning only |
+| the governed actions and the escalation route | |
+| the sufficiency verdict, and the deterministic reading as the baseline | |
+
+Planning keeps all of it — `packet.coverage`, the grain package and the API's
+`result_packet` are untouched, and a test asserts that. This is about the last
+stage only.
+
+**Nothing was whitelisted.** `1,049`, `1,218` and `2,521` are not analytical
+figures, are no longer visible to the writer, and a test proves they would
+still be rejected in prose if they ever reappeared.
+
+**The parser.** A `YYYY-MM` period is matched and set aside as one token before
+any numeral scanning; a figure can no longer begin after a hyphen that follows
+a digit, nor end on a separator. `2026-06` is a month, `1,049` is one figure and
+`-3.2` is still a negative one. A period is a permitted non-analytical
+reference — and checked: a month nobody published is refused like any other
+invented figure.
+
+**Structured grounding, added.** A reading may return `fact_refs`, naming the
+result fields its figures came from. A ref that resolves to nothing is recorded
+on the trace and is not fatal — a mistyped field name on a reading whose every
+figure IS in the packet is a bookkeeping slip, not an invented number — and
+naming a field does not make a number true: an invented figure with a ref
+attached is still discarded. The numeric check remains the one that rejects.
+
+**No second model call.** One interpretation call, grounded or not; a repair
+pass would spend an Opus call out of the closing reserve. The ledger is
+unchanged at 7 charged.
+
+`tests/early_warning/test_grounding.py`: **32 passed** — the packet-is-evidence
+invariant (no section reaches the writer that is not citable), every numeral the
+writer can see being one it may cite, the coverage summary gone from the packet
+and still present for planning, the parser on periods and separators, an
+unpublished month refused, invented figures still rejected, the schema
+statistics still rejected, `fact_refs` resolving and not rescuing, and both
+acceptance targets.
 
 ### What was NOT changed
 

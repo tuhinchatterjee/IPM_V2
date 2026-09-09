@@ -433,6 +433,68 @@ in prose is not a control.
 
 ---
 
+## What the answer writer may see
+
+The grounding guard checks the prose against what the writer was ALLOWED to
+see. That makes the packet the control: anything in it that is not evidence is
+a number the writer can read and must not use.
+
+A live run taught us that the hard way. The interpretation packet was carrying
+the field dictionary's coverage summary — 2,521 fields described, 1,049 fully
+populated — and Opus quoted those into a credit paragraph. The guard rejected
+the reading, correctly, and the whole turn fell back to deterministic prose
+after seven successful model calls. The counts are statistics about the
+**schema**, not about the book.
+
+So the writer receives evidence and nothing else:
+
+| It sees | It does not see |
+|---|---|
+| the question and the normalised request | field-inventory counts |
+| the scope, the filters, the periods | dictionary coverage and missingness |
+| the executed figures and up to ten rows | the grain package's statistics |
+| the provenance and the runtime's caveats | anything the context builder holds for planning |
+| the governed actions and the escalation route | |
+| the sufficiency verdict | |
+| the deterministic reading, as the baseline | |
+
+The planning stages keep all of it. This is about the last stage only.
+
+`reading.CITABLE_SECTIONS` names the evidence sections, the allowance is built
+from them, and `test_grounding.py` asserts that **no section outside that list
+ever reaches the writer** — so the packet and the allowance agree by
+construction rather than by a whitelist somebody has to remember to update. The
+guard itself is unchanged in strictness: a figure from anywhere else is still
+discarded, and the schema statistics would still be refused if they came back.
+
+### A month is one token
+
+The same run rejected `-06,`. That was never a figure: it was `2026-06,` read
+by a numeral scanner that took the hyphen for a minus sign and swallowed the
+comma, so a reading quoting its own period correctly was thrown out for citing
+minus six.
+
+Periods are now matched and set aside as whole `YYYY-MM` tokens before any
+numeral scanning, and checked against the months the answer actually read and
+the domain actually published — a period is a permitted non-analytical
+reference, not a free pass, and a month nobody published is refused like any
+other invented figure.
+
+### Naming the field, not just the number
+
+A reading may return `fact_refs`: the result fields its figures came from,
+spelled as `figures` spells them. A reading that names `high_plus_count` can be
+traced back to the value it quoted, which a bare numeral cannot.
+
+The numeric check remains the one that rejects. A ref resolving to nothing is
+recorded on the trace and is not fatal — a mistyped field name on a reading
+whose every figure IS in the packet is a bookkeeping slip, not an invented
+number, and discarding a sound answer over it would trade a real control for a
+cosmetic one. Naming a field does not make a number true: an invented figure
+with a ref attached is still discarded.
+
+---
+
 ## Sufficiency
 
 "Why has Contracting deteriorated and is it broad across the segment?" is two
