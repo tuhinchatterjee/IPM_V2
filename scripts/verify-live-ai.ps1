@@ -176,8 +176,11 @@ $EstimatedCalls = @{
     # loop is two roles - orchestration and judgement - and the Cockpit adds
     # two more of its own, preprocessing and reasoning, so the quick check now
     # proves nine roles rather than seven.
-    'quick'              = 17
-    'critical'           = 30
+    'quick'              = 17    # loop is two roles - orchestration and judgement - and Playbook's author
+    # is an eighth, so the quick check proves eight roles rather than five.
+    # Every one of them is called in production, and a role nothing reaches
+    # before a run calls itself verified is a role nobody has verified.
+    'quick'              = 16    'critical'           = 30
     'fullrouting'        = 14
     'fullcertification'  = 120
     'agenticcritical'    = 22

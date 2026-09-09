@@ -1,0 +1,529 @@
+"""
+The authoring runtime. Playbook §10.
+
+Why this is not `backend.llm`
+-----------------------------
+`backend/llm/base.py` states its own contract in its docstring: one method, a
+schema-constrained call, and a reply that does not conform is an ERROR rather
+than something to salvage. It also says, in as many words, why it does not
+stream — nothing downstream can begin until the whole plan is known. That
+contract is what makes every figure in CreditProbe defensible and it must not be
+loosened to let Playbook write prose through it.
+
+Playbook needs the opposite shape: long-form output, many turns, server-side
+code execution, document Skills, streaming and cancellation. So it gets its own
+runtime — and reuses everything about `backend.llm` that is configuration rather
+than contract: the role catalogue, the no-silent-substitution rule, the
+telemetry ledger, and the secret redaction those already implement.
+
+What the model is and is not trusted with
+-----------------------------------------
+It writes. It structures. It argues. It drives the document tools.
+
+It does not supply figures. Every number reaching a document comes from an
+export snapshot, a located source chunk, or `backend.playbook.calc`, and
+`backend.playbook.grounding` checks the draft against that ledger afterwards.
+The container has no network access, is given no credential, and receives source
+documents only through file ids this process created — never one supplied by a
+caller, because the Files API is workspace-scoped and one user's file id would
+otherwise read another user's upload.
+
+Configured, not remembered
+--------------------------
+No model id is written down here. The id comes from the AUTHOR role, and the id
+the provider actually served is recorded on every result so a claim about which
+model wrote a report can be checked rather than believed. A configured model the
+provider cannot serve is a loud configuration failure, never a quiet fall back
+to a cheaper one.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+from backend.llm import roles as role_config
+from backend.llm import telemetry
+from backend.playbook import capabilities
+
+logger = logging.getLogger(__name__)
+
+#: The code-execution tool version this integration is written against. Declared
+#: here rather than inline so an upgrade is one deliberate edit with one place to
+#: re-test. No `anthropic-beta` header is required for any current version.
+CODE_EXECUTION_TOOL = "code_execution_20260120"
+
+#: Where the container writes what it produces. Anything outside it is ignored.
+WORKDIR = "/tmp/outputs"
+
+#: Bounds. A loop that can run for ever is not a control, and neither is a
+#: prompt asking the model to be brief.
+MAX_TURNS = int(os.environ.get("PLAYBOOK_MAX_TURNS") or 24)
+MAX_OUTPUT_TOKENS = int(os.environ.get("PLAYBOOK_MAX_OUTPUT_TOKENS") or 16000)
+REQUEST_TIMEOUT_SECONDS = float(os.environ.get("PLAYBOOK_TIMEOUT_SECONDS") or 900)
+#: Retries cover a transport hiccup and an overloaded provider. Nothing else is
+#: retried: a provider that retries a refusal turns one problem into three.
+MAX_ATTEMPTS = 3
+
+#: How long an uploaded source stays in the provider's workspace. Bounded so
+#: evidence does not accumulate there indefinitely; the durable copy is ours.
+SOURCE_FILE_TTL_SECONDS = 24 * 3600
+
+
+class ProviderNotConfigured(RuntimeError):
+    """No usable provider. The message is an instruction, not an apology."""
+
+
+class AuthoringError(RuntimeError):
+    """The authoring call failed. `category` is telemetry's classification."""
+
+    def __init__(self, message: str, *, category: str = "") -> None:
+        super().__init__(message)
+        self.category = category
+
+
+class Cancelled(RuntimeError):
+    """The user stopped this generation."""
+
+
+@dataclass
+class GeneratedFile:
+    """A file the container produced, before it has been persisted."""
+
+    file_id: str
+    filename: str
+    content: bytes
+
+    @property
+    def format(self) -> str:
+        return self.filename.rsplit(".", 1)[-1].lower() if "." in self.filename else ""
+
+
+@dataclass
+class AuthoringResult:
+    """What one authoring run produced, and what it cost.
+
+    `model_served` is what the provider says answered, which is not necessarily
+    what was configured. Keeping both is the whole of PB-030: a downgrade that
+    nobody records is a downgrade that nobody notices.
+    """
+
+    text: str = ""
+    files: list[GeneratedFile] = field(default_factory=list)
+    model_requested: str = ""
+    model_served: str = ""
+    request_ids: list[str] = field(default_factory=list)
+    container_id: str = ""
+    turns: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    milestones: list[dict] = field(default_factory=list)
+    stop_reason: str = ""
+
+    @property
+    def downgraded(self) -> bool:
+        """True when the provider served something other than what was asked
+        for. Never suppressed — surfaced, so a report carries an honest note."""
+        if not self.model_requested or not self.model_served:
+            return False
+        return not self.model_served.startswith(self.model_requested.split("-latest")[0])
+
+    def usage(self) -> dict:
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "turns": self.turns,
+            "model_requested": self.model_requested,
+            "model_served": self.model_served,
+            "downgraded": self.downgraded,
+        }
+
+
+@dataclass(frozen=True)
+class Status:
+    """Whether authoring can run at all, said plainly and without a key."""
+
+    configured: bool
+    reason: str = ""
+    provider: str = ""
+    model: str = ""
+    inherited: bool = True
+
+    def as_dict(self) -> dict:
+        return {
+            "configured": self.configured,
+            "reason": self.reason,
+            "provider": self.provider,
+            "model": self.model,
+            "model_inherited": self.inherited,
+        }
+
+
+def status() -> Status:
+    """What an administrator needs to know, with nothing secret in it."""
+    from backend.config import settings
+
+    provider = (settings.ai_provider or "").strip().lower()
+    author = role_config.role(role_config.AUTHOR)
+
+    if provider in ("", "none", "offline"):
+        return Status(
+            False,
+            "AI_PROVIDER is set to offline, so Playbook will not call a model. "
+            "Seeded workspaces and their files remain browseable.",
+            provider, author.model, author.inherited,
+        )
+    if provider != "anthropic":
+        return Status(
+            False,
+            f"Playbook's authoring runtime supports the Anthropic provider; "
+            f"AI_PROVIDER is {provider!r}.",
+            provider, author.model, author.inherited,
+        )
+    if not (settings.anthropic_api_key or "").strip():
+        return Status(
+            False,
+            "ANTHROPIC_API_KEY is not set. Set it in the deployment's "
+            "environment to enable Playbook generation. Existing workspaces, "
+            "sources and files stay readable without it.",
+            provider, author.model, author.inherited,
+        )
+    return Status(True, "", provider, author.model, author.inherited)
+
+
+def _client() -> Any:
+    from backend.config import settings
+
+    state = status()
+    if not state.configured:
+        raise ProviderNotConfigured(state.reason)
+    try:
+        import anthropic
+    except ImportError as exc:  # pragma: no cover - declared dependency
+        raise ProviderNotConfigured("The anthropic SDK is not installed.") from exc
+    return anthropic.Anthropic(
+        api_key=settings.anthropic_api_key,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        max_retries=0,  # retries are handled here, where they can be recorded
+    )
+
+
+def upload_source(filename: str, content: bytes, mime: str) -> str:
+    """Put one source document in the provider's workspace, and return its id.
+
+    Server-side only. The returned id is stored against our own source row and
+    never accepted back from a client: the Files API is scoped to the workspace,
+    not to an end user, so honouring a caller-supplied id would let one user
+    read another's document.
+    """
+    client = _client()
+    uploaded = client.beta.files.upload(
+        file=(filename, content, mime),
+        extra_body={"expires_in_seconds": SOURCE_FILE_TTL_SECONDS},
+    )
+    return uploaded.id
+
+
+def _skills(formats: list[str]) -> list[dict]:
+    wanted, seen = [], set()
+    for fmt in formats:
+        cap = capabilities.require(fmt)
+        skill_id = capabilities.SKILL_ID[cap.format]
+        if skill_id not in seen:
+            seen.add(skill_id)
+            wanted.append({"type": "anthropic", "skill_id": skill_id,
+                           "version": "latest"})
+    return wanted
+
+
+def _file_ids(response: Any) -> list[str]:
+    """Ids of the files the container produced during this turn.
+
+    They arrive inside `bash_code_execution_tool_result` blocks. The shape is
+    walked defensively: a provider that adds a field must not break authoring,
+    and a block we do not recognise is skipped rather than guessed at.
+    """
+    found: list[str] = []
+    for block in getattr(response, "content", []) or []:
+        if getattr(block, "type", "") != "bash_code_execution_tool_result":
+            continue
+        content = getattr(block, "content", None)
+        inner = getattr(content, "content", None) or []
+        for item in inner:
+            fid = getattr(item, "file_id", None)
+            if fid:
+                found.append(fid)
+    return found
+
+
+def _text(response: Any) -> str:
+    return "\n".join(
+        getattr(b, "text", "") for b in (getattr(response, "content", []) or [])
+        if getattr(b, "type", "") == "text"
+    ).strip()
+
+
+def download(client: Any, file_id: str) -> GeneratedFile:
+    """Fetch a generated file's bytes into this process.
+
+    Called before a job may complete. A file card pointing at a container that
+    has since expired is not a deliverable, so the bytes come here first and go
+    to durable storage immediately afterwards.
+    """
+    meta = client.beta.files.retrieve_metadata(file_id)
+    payload = client.beta.files.download(file_id)
+    content = payload.read() if hasattr(payload, "read") else bytes(payload)
+    return GeneratedFile(file_id=file_id,
+                         filename=getattr(meta, "filename", "") or file_id,
+                         content=content)
+
+
+def author(
+    *,
+    system: str,
+    messages: list[dict],
+    formats: list[str],
+    purpose: str = "playbook_authoring",
+    container_id: str = "",
+    on_milestone: Callable[[str, str], None] | None = None,
+    on_delta: Callable[[str], None] | None = None,
+    is_cancelled: Callable[[], bool] | None = None,
+) -> AuthoringResult:
+    """Run one authoring turn to completion, including its tool-use loop.
+
+    Returns when the model stops, or raises. The loop is bounded by MAX_TURNS,
+    checks for cancellation between turns, and downloads every produced file
+    before returning so that nothing depends on a container that will expire.
+
+    `on_delta` receives the answer text as it arrives, and NOTHING else. The
+    provider's stream also carries reasoning blocks, tool inputs and the code
+    the sandbox is about to run; those are not forwarded — only `text_delta` on
+    a `text` block is. Cancellation is checked between deltas as well as
+    between turns, so stopping does not wait for a long reply to finish.
+    """
+    client = _client()
+
+    role = role_config.role(role_config.AUTHOR)
+    model = role.model or ""
+    if not model:
+        # There is no id to fall back to that would not be a guess. The
+        # provider's own default is the honest choice, and it is recorded.
+        logger.info("No AI_AUTHOR_MODEL configured; using the provider default.")
+
+    tools = [{"type": CODE_EXECUTION_TOOL, "name": "code_execution"}]
+    container: dict[str, Any] = {"skills": _skills(formats)}
+    if container_id:
+        container["id"] = container_id
+
+    result = AuthoringResult(model_requested=model)
+    convo = list(messages)
+    started = time.time()
+
+    def milestone(state: str, detail: str = "") -> None:
+        entry = {"state": state, "detail": detail,
+                 "at": round(time.time() - started, 3)}
+        result.milestones.append(entry)
+        if on_milestone:
+            on_milestone(state, detail)
+
+    milestone("reviewing_sources")
+
+    for turn in range(1, MAX_TURNS + 1):
+        if is_cancelled and is_cancelled():
+            raise Cancelled("This generation was stopped.")
+
+        response = _call(client, model=model, system=system, messages=convo,
+                         tools=tools, container=container, purpose=purpose,
+                         role=role, on_delta=on_delta,
+                         is_cancelled=is_cancelled)
+        result.turns = turn
+
+        rid = getattr(response, "_request_id", "") or ""
+        if rid:
+            result.request_ids.append(rid)
+        usage = getattr(response, "usage", None)
+        if usage:
+            result.input_tokens += getattr(usage, "input_tokens", 0) or 0
+            result.output_tokens += getattr(usage, "output_tokens", 0) or 0
+        served = getattr(response, "model", "") or ""
+        if served:
+            result.model_served = served
+        cont = getattr(response, "container", None)
+        if cont is not None and getattr(cont, "id", ""):
+            result.container_id = cont.id
+            container["id"] = cont.id
+
+        for fid in _file_ids(response):
+            if fid not in {f.file_id for f in result.files}:
+                milestone("rendering", fid)
+                result.files.append(download(client, fid))
+
+        stop = getattr(response, "stop_reason", "") or ""
+        result.stop_reason = stop
+        text = _text(response)
+        if text:
+            result.text = text
+
+        if stop == "pause_turn":
+            # A long-running skill asked for more time. Continue the same turn
+            # with the same container rather than starting again.
+            convo.append({"role": "assistant", "content": response.content})
+            milestone("drafting", "continuing a paused turn")
+            continue
+        if stop == "tool_use":
+            convo.append({"role": "assistant", "content": response.content})
+            # Code execution is served by the provider, so there is no local
+            # tool result to append; asking it to carry on is enough.
+            convo.append({"role": "user",
+                          "content": "Continue. When every requested file has "
+                                     "been written, summarise what you produced."})
+            milestone("drafting", f"turn {turn}")
+            continue
+        if stop == "refusal":
+            raise AuthoringError(
+                "The model declined this request. Nothing was generated.",
+                category="refusal")
+        break
+    else:
+        raise AuthoringError(
+            f"Authoring did not finish within {MAX_TURNS} turns. Nothing was "
+            "marked complete.", category="budget")
+
+    milestone("validating")
+    if result.downgraded:
+        logger.warning(
+            "Playbook authoring requested %s and was served %s.",
+            result.model_requested, result.model_served)
+    return result
+
+
+def _call(client: Any, *, model: str, system: str, messages: list[dict],
+          tools: list[dict], container: dict, purpose: str, role: Any,
+          on_delta: Callable[[str], None] | None = None,
+          is_cancelled: Callable[[], bool] | None = None) -> Any:
+    """One provider call, with bounded retries and honest telemetry.
+
+    Streamed, always. The completed message is still what the caller gets back —
+    stop reason, container, usage, file ids and all — so nothing downstream
+    changes; streaming adds the text arriving as it is written rather than
+    replacing the result with a pile of fragments.
+
+    A stream is never retried after the first delta has been forwarded. Retrying
+    then would replay text the user has already read, and a second copy of half
+    an answer is worse than the failure.
+    """
+
+    last: Exception | None = None
+    emitted = False
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        began = time.time()
+        try:
+            kwargs: dict[str, Any] = {
+                "max_tokens": MAX_OUTPUT_TOKENS,
+                "messages": messages,
+                "system": system,
+                "tools": tools,
+                "container": container,
+            }
+            if model:
+                kwargs["model"] = model
+            response, streamed = _stream_once(
+                client, kwargs, on_delta=on_delta, is_cancelled=is_cancelled)
+            if streamed:
+                emitted = True
+            telemetry.record_success(
+                provider="anthropic",
+                model=getattr(response, "model", "") or model,
+                purpose=purpose, role=role_config.AUTHOR, effort=role.effort,
+                latency_ms=int((time.time() - began) * 1000),
+                request_id=getattr(response, "_request_id", "") or "",
+                attempts=attempt,
+                input_tokens=getattr(getattr(response, "usage", None),
+                                     "input_tokens", 0) or 0,
+                output_tokens=getattr(getattr(response, "usage", None),
+                                      "output_tokens", 0) or 0,
+            )
+            return response
+        except Cancelled:
+            # A stop is not a provider failure. It must not be classified,
+            # retried, or reported as an outage.
+            raise
+        except Exception as exc:  # noqa: BLE001 — classified, then re-raised
+            category = telemetry.classify(exc)
+            telemetry.record_failure(
+                provider="anthropic", model=model, purpose=purpose,
+                role=role_config.AUTHOR, effort=role.effort,
+                latency_ms=int((time.time() - began) * 1000),
+                error=exc, category=category, attempts=attempt,
+            )
+            last = exc
+            retryable = category in {"rate_limit", "overloaded", "server",
+                                     "connection", "timeout"}
+            if emitted:
+                # Text has already reached the user. Starting again would show
+                # them a second beginning of the same answer.
+                retryable = False
+            if not retryable or attempt == MAX_ATTEMPTS:
+                raise AuthoringError(
+                    _message_for(category, exc), category=category
+                ) from exc
+            time.sleep(min(2 ** attempt, 8))
+    raise AuthoringError(str(last) if last else "authoring failed")  # pragma: no cover
+
+
+def _stream_once(client: Any, kwargs: dict, *,
+                 on_delta: Callable[[str], None] | None,
+                 is_cancelled: Callable[[], bool] | None) -> tuple[Any, bool]:
+    """One streamed call. Returns the finished message and whether text flowed.
+
+    The filter is the security boundary of this module, and it is deliberately
+    narrow: a delta is forwarded only when the event is a `content_block_delta`
+    AND the delta is a `text_delta`. Reasoning (`thinking_delta`), its signature,
+    and tool inputs (`input_json_delta` — which carries the code the sandbox is
+    about to run) all fail that test and never leave this function.
+    """
+    forwarded = False
+    with client.beta.messages.stream(**kwargs) as stream:
+        for event in stream:
+            if is_cancelled and is_cancelled():
+                # Close the connection rather than reading a reply nobody
+                # wants. `stream` is a context manager, so this releases it.
+                raise Cancelled("This generation was stopped.")
+            if getattr(event, "type", "") != "content_block_delta":
+                continue
+            delta = getattr(event, "delta", None)
+            if getattr(delta, "type", "") != "text_delta":
+                continue
+            text = getattr(delta, "text", "") or ""
+            if text and on_delta:
+                on_delta(text)
+                forwarded = True
+        message = stream.get_final_message()
+        rid = stream.request_id or ""
+    if rid and not getattr(message, "_request_id", ""):
+        try:
+            object.__setattr__(message, "_request_id", rid)
+        except Exception:  # noqa: BLE001 — a model that refuses the attribute
+            pass            # simply reports no request id, which is honest.
+    return message, forwarded
+
+
+def _message_for(category: str, exc: Exception) -> str:
+    """A sentence an operator can act on, with nothing secret in it."""
+    return {
+        "auth": "The configured Anthropic credential was rejected. Playbook "
+                "generation is unavailable until it is corrected.",
+        "credit": "The Anthropic account has no available credit, so nothing "
+                  "was generated.",
+        "model_not_found": "The configured authoring model is not one this "
+                           "account can serve. Playbook will not quietly use a "
+                           "different model; correct AI_AUTHOR_MODEL.",
+        "rate_limit": "The provider rate-limited this request after several "
+                      "attempts. Nothing was generated; try again shortly.",
+        "timeout": "The provider did not respond in time. Nothing was "
+                   "generated and the previous version is unchanged.",
+    }.get(category, telemetry.sanitise(str(exc)) or "The authoring call failed.")

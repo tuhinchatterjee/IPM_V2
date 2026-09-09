@@ -188,3 +188,27 @@ def pack(session, committee, template, actors):
         comparison_period="2024-12",
         meeting_at=datetime.now(UTC) + timedelta(days=10),
         owner_id=actors["owner"].user_id)
+
+
+# ---------------------------------------------------------------------------
+# The workspace half of the Playbook suite.
+#
+# Both halves ship a conftest of their own and they do not collide — the
+# committee fixtures are `session`/`people`/`committee`/`template`/`pack`, the
+# workspace ones `db`/`scope`/`workspace` plus the real documents it parses.
+# Kept in their own module so each half stays readable, re-exported here so
+# pytest finds them: a fixture pytest cannot see is a suite that errors at
+# setup rather than a suite that fails.
+# ---------------------------------------------------------------------------
+from tests.playbook.conftest_workspace import (  # noqa: E402,F401
+    committee_report_docx,
+    db,
+    image_only_pdf,
+    methodology_docx,
+    results_workbook_xlsx,
+    scope,
+    scripted_author,
+    simple_deck_pptx,
+    text_pdf,
+    workspace,
+)

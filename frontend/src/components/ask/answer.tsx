@@ -18,6 +18,7 @@ import {
 } from "@/components/ask/coverage";
 import { DataAndMethod } from "@/components/ask/data-and-method";
 import { DownloadResults } from "@/components/exports/download";
+import { ExportToPlaybook } from "@/components/exports/export-to-playbook";
 import {
   foundNothing,
   implications,
@@ -36,8 +37,7 @@ import { ResultView } from "@/components/analytics/result-view";
 import { AccuracyFeedback } from "@/components/feedback/accuracy-prompt";
 import { answerKindOf } from "@/components/feedback/answer-kind";
 import { RichText } from "@/components/ask/rich-answer";
-import { isStructured } from "@/components/ask/rich-text";
-import { Thumbs } from "@/components/feedback/thumbs";
+import { isStructured } from "@/components/ask/rich-text";import { exportability, fromAnswer } from "@/lib/playbook-export";import { Thumbs } from "@/components/feedback/thumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -906,6 +906,8 @@ export function ActionStrip({
   onAddToProject,
   busy,
   returnTo,
+  exportModule = "cockpit",
+  threadId,
 }: {
   run: InvestigationResponse;
   onSave?: () => void;
@@ -913,8 +915,15 @@ export function ActionStrip({
   onAddToProject?: () => void;
   busy?: boolean;
   returnTo?: { href: string; label: string };
+  /** Which source module this answer belongs to, for the Playbook export. */
+  exportModule?: string;
+  threadId?: number;
 }) {
   const runId = run.analysis_run_id;
+  // Whether this answer is a completed analysis at all. An answer that stopped
+  // to ask, matched nothing or failed is not evidence, and the control says so
+  // rather than failing after it is pressed.
+  const canExport = exportability(run);
   const certified =
     run.steps.length > 0 &&
     run.steps.every((s) => s.certification === "certified");
@@ -974,6 +983,14 @@ export function ActionStrip({
             {saved ? "Saved" : "Save analysis"}
           </Button>
         )}
+        <ExportToPlaybook
+          compact
+          build={() =>
+            fromAnswer(run, { module: exportModule, threadId })
+          }
+          disabled={!canExport.can}
+          disabledReason={canExport.reason}
+        />
       </div>
     </div>
   );

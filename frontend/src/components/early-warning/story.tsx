@@ -3,6 +3,8 @@
 import * as React from "react";
 
 import type { BorrowerStory, StoryFamily, StorySection } from "@/lib/api";
+import { ExportToPlaybook } from "@/components/exports/export-to-playbook";
+import { fromCreditStory } from "@/lib/playbook-export";
 import * as ewFormat from "@/lib/early-warning-format";
 
 /**
@@ -186,6 +188,12 @@ export function CreditStory({ story }: { story: BorrowerStory }) {
 
   return (
     <div className="space-y-5">
+      {/* §5: a completed borrower reading is evidence a review can be built on.
+          Its prototype caveat travels with it. */}
+      <div className="flex justify-end">
+        <ExportToPlaybook compact build={() => fromCreditStory(story)} />
+      </div>
+
       {lead.map((section) => (
         <Lead key={section.key} section={section} />
       ))}

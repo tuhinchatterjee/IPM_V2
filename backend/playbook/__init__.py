@@ -1,33 +1,31 @@
-"""Playbook — the committee pack intelligence system.
+"""Playbook — one product, two subsystems that arrived separately.
 
-A committee pack is not a document. It is a governed record of what a forum was
-told, which numbers it was told, where those numbers came from, what it decided
-and what somebody then had to do. This package is that lifecycle:
+CreditProbe's Playbook is the governed home for evidence a person chose to
+keep. It reached that shape from two directions at once, and this package
+holds both rather than picking a winner, because each does something the other
+does not.
 
-    committee -> schedule -> data readiness -> generation -> analysis ->
-    commentary -> review -> approval -> presentation -> decisions ->
-    actions -> planner follow-up -> the next pack
+THE COMMITTEE PACK SYSTEM — the durable system of record. `service`, `access`,
+`readiness`, `snapshots`, `findings`, `actions`, `compare`, `monitor`,
+`narrative`, `export`, `import_`, `materiality`, `generation`, `agent`, `demo`.
+A committee pack is not a document: it is a governed record of what a forum was
+told, which numbers, where they came from, what it decided and what somebody
+then had to do. Every figure on a pack is a SNAPSHOT rather than a live
+calculation, which is what makes a pack still true a quarter later.
 
-Module map
-----------
-    access      who may read and change what; the single door
-    service     committees, packs, sections, blocks — the CRUD with governance
-    readiness   whether a pack can go to committee, and precisely why not
-    materiality deterministic rules that decide what is worth saying
-    snapshots   freezing a governed figure into a pack, reproducibly
-    generation  building a pack from a template and the data
-    narrative   AI commentary, bounded by the snapshots it is given
-    compare     what changed since the previous approved pack
-    monitor     the schedule sweep that chases people
-    agent       background jobs, registered on the existing worker
-    actions     the bridge to the Project Planner
-    export      PDF, DOCX and the evidence workbook
-    import_     reading somebody's existing pack into a draft
-    demo        three realistic committees, built and refreshed by arithmetic
+THE CHAT-FIRST WORKSPACE — how a person actually makes one. `workspace_service`,
+`repository`, `store`, `library`, `document`, `evidence`, `grounding`, `calc`,
+`capabilities`, `validate`, `provider`, `prompts`, plus `ingest/` for reading
+uploaded documents and `render/` for writing Word, PDF, PowerPoint and Excel.
+Turning evidence somebody chose — uploaded documents, and analyses explicitly
+exported here — into a report, a deck or a workbook by describing what is
+wanted.
 
-What this package does NOT own: identity, notifications, comments, exports
-records, tasks, metric formulas, chart rendering or the job queue. Every one of
-those is an existing CreditProbe service and Playbook calls it.
+WHY BOTH NAMES EXIST. Both subsystems arrived with a module called `service`.
+The committee one keeps the name because it is the system of record; the
+workspace one is `workspace_service`. That is the only rename the merge
+required — the other thirty modules never collided.
+
+The bridge between them, so an exported analysis becomes a block a committee
+pack can carry, is the remaining work and is tracked in the integration ledger.
 """
-
-from __future__ import annotations

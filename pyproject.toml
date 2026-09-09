@@ -30,8 +30,9 @@ dependencies = [
     # A committee reads slides in the room and the pack afterwards. Declared
     # rather than optional: a Playbook export that silently omitted the format
     # a chair actually presents from would be a missing feature dressed as a
-    # configuration difference.
-    "python-pptx==1.0.2",
+    # configuration difference.    # Playbook renders committee decks natively. python-pptx is the only way
+    # this repository can write a .pptx at all — a deck flattened to images is
+    # not an editable presentation, and a renamed file is not a PowerPoint.    "python-pptx==1.0.2",
     "matplotlib==3.11.0",
     "pillow==12.2.0",
     "requests==2.34.2",

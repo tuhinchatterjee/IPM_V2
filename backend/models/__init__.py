@@ -12,8 +12,10 @@ read through the Data Access Layer (docs/ARCHITECTURE.md §4.1).
   planner.py        the Project Planner's system of record: delivery projects,
                     participants, workstreams, tasks, milestones,
                     dependencies, RAID, the append-only update history,
-                    reminder fingerprints and workbook imports
-
+                    reminder fingerprints and workbook imports  platform.py   projects, chats, analysis runs, trace graphs, engine and data
+                catalogue definitions, workflow
+  playbook.py   the Playbook workspace: exported-analysis library, workspace
+                threads, sources, artifacts and their immutable versions
 The existing backend/db/models.py (dataset versions, users, AI usage) is retained
 unchanged and shares the same declarative Base, so both sets of tables live in one
 schema and one Alembic history.

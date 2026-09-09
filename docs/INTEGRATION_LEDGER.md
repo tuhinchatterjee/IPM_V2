@@ -935,3 +935,204 @@ real bug is I-5 above.
 | Frontend tests | **589 passed, 0 failed** (564 before; EWS adds 25) |
 | `alembic heads` | one, `0046` |
 | Round trip | 104 at `0031`, 148 / 2,416 at head |
+
+---
+
+### M6 — the chat-first Playbook (`713f99a`)
+
+The last feature merge. 28 conflicts, and the reason the number is that high is
+that this branch and the chain both wrote a subsystem called Playbook. Decision
+1 said keep both and bridge them, so nothing here was resolved `--ours` or
+`--theirs`: each collision is two real subsystems that had to end up with
+distinct names, distinct tables and one route tree.
+
+#### Checkpoint
+
+| | |
+|---|---|
+| Branch | `claude/creditprobe-playbook-plan-ky3m05` |
+| Exact commit | `713f99a` |
+| Migrations added | three — `analysis_export_library`, `playbook_workspace`, `playbook_stream_events`, all claiming numbers the chain had already used |
+| Dependency changes | none |
+| Env changes | none beyond what M4 already carried |
+| Inherited baseline | 9,810 passed / 30 skipped / 0 failed on its own branch; 39 PASS / 0 FAIL / **6 BLOCKED** (PB-013, PB-015, PB-017, PB-029, PB-030, PB-043), every one blocked solely on a missing `ANTHROPIC_API_KEY` |
+
+#### The seven resolutions
+
+1. **Tables.** Both branches define `playbook_sources` and `playbook_source_chunks`.
+   The chat-first pair became `playbook_workspace_sources` /
+   `playbook_workspace_source_chunks`, classes `PlaybookWorkspaceSource` /
+   `PlaybookWorkspaceSourceChunk`. `backend/models/playbook.py` is now one module
+   holding both class sets — **29 tables, no duplicate `__tablename__`**. The
+   rename had to be carried into `backend/playbook/repository.py` and
+   `workspace_service.py`; `access.py` and `import_.py` keep the committee
+   `PlaybookSource`, which is pack-scoped and a different row entirely.
+
+2. **Services.** Committee keeps `backend/playbook/service.py` (1,743 lines);
+   chat-first lands as `backend/playbook/workspace_service.py` (1,113 lines).
+   One `__init__.py` docstring describes both.
+
+3. **Routers.** Both mount at `/playbook` with **zero path collisions** — checked
+   against the built OpenAPI spec, not by inspection: **670 paths, 63 of them
+   Playbook, no duplicate `(path, method)` anywhere in the app.** The plural
+   `/playbooks` router stays unregistered and the plural route stays retired.
+
+4. **Migrations.** Renumbered to a single linear chain — `0047`
+   analysis_export_library, `0048` playbook_workspace, `0049`
+   playbook_stream_events. **Head is `0049`.** Only `revision` /
+   `down_revision` / filenames changed; no migration body was touched.
+
+5. **Roles.** `backend/llm/roles.py` is the union: 11 roles, `STRICT_ROLES`
+   intact for the two Cockpit roles, `AUTHOR` added. `ACTIVE_ROLES` is 10
+   (`TRANSLATION` is declared and unused, deliberately). This moved a number
+   two branches had each pinned by hand — see the arithmetic below.
+
+6. **The landing page.** Neither file survived unchanged, as the plan required.
+   The chat-first composer, quick prompts, recent playbooks and exported-analysis
+   library are the page; the committee half — the readiness stats, *Next up*,
+   and the *Who you are waiting on* dry-run chase list — is folded in between the
+   prompts and the recent work. `/playbook` is now **one nav entry in Work**, not
+   one in Work and one in Govern.
+
+7. **The dynamic route.** Chat-first's `/playbook/[id]` moved to
+   `/playbook/artifacts/[id]`, so the literal segments (`committees`, `packs`,
+   `library`, `artifacts`) never race a dynamic one.
+
+#### Integration defect I-7 — four files broken by blind conflict resolution
+
+Mine, not a branch's, and worth recording because it recurred four times this
+session. Concatenating both sides of a conflict is correct only when the sides
+are additive. These four were not, and the damage was silent in three of them:
+
+| File | Damage | Found by |
+|---|---|---|
+| `frontend/src/lib/api.ts` | the paste landed **inside** `qs()`, swallowing its closing brace — one `TS1005` at line 15,212 for a fault at line 6,741 | `tsc --noEmit` |
+| `frontend/src/lib/navigation.ts` | the What-If entry, the chat-first Playbook entry and the retired `/playbooks` entry interleaved into two malformed objects | `tsc --noEmit` |
+| `frontend/src/lib/return-context.ts` | `workflow` declared twice, `playbook` added to `INDEX_OF` but not to `SourceType` | `tsc --noEmit` |
+| `tests/validation/test_live_{verify,smoke_contract}.py` | five assertions concatenated onto one line each | `ruff` / `ast.parse` |
+
+`frontend/src/app/scorecard-validation/page.tsx` was the fifth and was caught
+before it was staged. The lesson is recorded rather than the apology: **a
+conflict is resolved by reading both sides, never by keeping both texts.**
+
+#### The role-ping arithmetic, corrected rather than picked
+
+Two branches each asserted a literal:
+
+| Ref | role pings | smoke checks | total |
+|---|---|---|---|
+| Integration HEAD (with the Cockpit's two) | 9 | 8 | 17 |
+| Chat-first (with `author`) | 8 | 8 | 16 |
+| **Merged** | **10** | **8** | **18** |
+
+`ESTIMATED_CALLS[QUICK]` is derived from `len(ACTIVE_ROLES) + live_smoke.ESTIMATED_CALLS`,
+so the merged figure was computed from the catalogue and verified against it,
+not chosen from the two on offer.
+
+#### Test fixtures
+
+`tests/playbook/conftest.py` collided add/add. The chat-first fixtures now live
+in `tests/playbook/conftest_workspace.py` and are re-exported from the conftest
+— without that, 60+ tests error at setup with `fixture 'db' not found`, which
+is a suite that reports errors rather than one that reports failures.
+
+#### Bootstrap
+
+`backend/bootstrap/plan.py` collided twice, and both sides had defined
+`_playbook_needed` / `_seed_playbook` for **different subsystems**. Both survive:
+the committee seed keeps the names, the workspace seed becomes
+`_playbook_workspace_needed` / `_seed_playbook_workspace`, and the step list
+grows to **17 steps, A–R**, with the review still last as both branches required.
+
+#### Gates
+
+| Gate | Result |
+|---|---|
+| Frontend `tsc --noEmit` | **clean** |
+| Frontend `eslint` | **clean** |
+| Frontend tests | **671 passed, 0 failed** (589 before; the Playbook adds 82) |
+| `alembic heads` | **one, `0049`** |
+| `alembic upgrade` from `0031` | clean, no manual step |
+| Round trip `head → 0031 → head` | **identical** — 104 tables / 1,648 columns at `0031`, **162 / 2,577** at head |
+| App boot + OpenAPI | **670 paths, 63 Playbook, 0 duplicate `(path, method)`, no `/playbooks`** |
+| `ruff check .` | **84** — the same 84 recorded at M4. M6 added only import ordering, which is fixed |
+
+#### Carried, not fixed
+
+- `docs/FINAL_FEATURE_VERIFICATION_MATRIX.md` is generated against a running
+  build. It is marked stale in its own header and must be regenerated at the
+  final UAT rather than hand-edited.
+- `tests/exports/` errors at setup in this container because the ask pipeline
+  answers `needs_clarification` for the rating breakdown its fixture asks for.
+  **Inherited, not an M6 regression, and proven so by construction:** M6 changed
+  **zero** files under `backend/engine/`, `backend/orchestration/`,
+  `backend/runtime/`, `backend/brain/`, `backend/metrics/`, `backend/corporate/`
+  or `backend/data_access/`.
+- The Playbook `ANALYSIS_EXPORT` block-kind bridge (M6b) and the export rollout
+  (M7) remain open.
+
+#### Integration defect I-8 — the table rename did not reach the foreign keys
+
+Found by running the bootstrap on an empty database, which is the only place it
+could have been found: every unit test that touches a workspace source failed
+the same way, and each failure read as a test problem rather than a schema one.
+
+`0048_playbook_workspace` renames `playbook_sources` →
+`playbook_workspace_sources` (§10's collision resolution, so the committee table
+keeps the name), and the ORM models follow the rename. Two `ForeignKeyConstraint`
+declarations inside that same migration did not:
+
+```
+playbook_workspace_source_chunks.source_id -> playbook_sources.id     (wrong)
+playbook_attachments.source_id             -> playbook_sources.id     (wrong)
+```
+
+So the schema pointed the workspace's chunks and attachments at the **committee**
+sources table. Every insert failed with `ForeignKeyViolation: Key (source_id)=(19)
+is not present in table "playbook_sources"` — a workspace source id checked
+against a committee table it was never in. Both now target
+`playbook_workspace_sources`, verified by reading
+`information_schema.table_constraints` after a full `0031 → head` rebuild rather
+than by re-reading the migration.
+
+#### Integration defect I-9 — five call sites bound to the wrong Playbook service
+
+The same rename, one layer up. `backend/playbook/service.py` is the committee
+service and `workspace_service.py` is the chat-first one; five modules kept
+importing `service` and calling workspace functions on it. Found by walking
+every `from backend.playbook import service` site and checking each referenced
+attribute against the module that would actually be bound:
+
+| Site | Attributes that did not exist on the committee service |
+|---|---|
+| `backend/api/routers/playbook_workspace.py` | 20+ — the whole workspace router |
+| `backend/playbook/stream.py` | `send_message`, `mark_job_finished`, `cancellation_watcher` |
+| `backend/playbook/seed.py` | `add_source` |
+| `scripts/playbook_live_slice.py` | `add_source`, `author_document`, `ledger_for` |
+| `scripts/acceptance/playbook_browser_acceptance.py` | `mark_job_finished` |
+
+All five now bind `workspace_service as service`. The check is repeatable and is
+the reason the count is five and not "the ones the tests happened to reach".
+
+#### Integration defect I-10 — the readiness gate could not see the committee half
+
+`backend/bootstrap/readiness.py` carried one Playbook check, the chat-first one,
+and its remedy named a step that after the merge seeds the *other* subsystem. A
+deployment with three seeded workspaces and no committee therefore reported
+READY while every pack control on the landing page had nothing to open — I-1,
+one subsystem along. Added `playbook_committees` as its own check; corrected the
+workspace check's remedy to `--step playbook_workspace`.
+
+#### Bootstrap, on an empty database
+
+Not a claim from a probe — the run itself:
+
+```
+17 steps, A–R. 0 performed, 17 already in place, in 3s. The deployment is ready.
+18 of 18 readiness checks pass.
+```
+
+with 80 governed datasets registered, 34 authoritative, 10 business domains,
+3,800 borrowers over 16 quarters, 20 Early Warning monthly snapshots, the Q2 2026
+review completed leaving 7 Risk Cases, **3 Playbook committees** and **3 Playbook
+workspaces with 30 exported analyses**.

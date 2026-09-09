@@ -53,6 +53,7 @@ from backend.api.routers import metrics as metrics_router
 from backend.api.routers import planner as planner_router
 from backend.api.routers import planner_copilot as planner_copilot_router
 from backend.api.routers import playbook as playbook_router
+from backend.api.routers import playbook_workspace as playbook_workspace_router
 from backend.api.routers import preferences as preferences_router
 from backend.api.routers import regulatory as regulatory_router
 from backend.api.routers import (
@@ -356,6 +357,11 @@ def create_app() -> FastAPI:
     app.include_router(metrics_router.router, prefix=API_PREFIX)
     app.include_router(formula_router.router, prefix=API_PREFIX)
     app.include_router(whatif_router.router, prefix=API_PREFIX)
+    # Both Playbook subsystems mount at /playbook. Their 43 and 20 route paths
+    # were checked for overlap and share none, so neither needed its URLs
+    # rewritten and neither frontend had to change. `playbooks` (plural) is NOT
+    # registered: migration 0039 drops its tables and the route is retired.
+    app.include_router(playbook_workspace_router.router, prefix=API_PREFIX)
     app.include_router(studio_router.router, prefix=API_PREFIX)
     # The AI Intelligence Studio, on /intelligence. Distinct from the four
     # borrower-level domain readings on /domain-intelligence above: this one

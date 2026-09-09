@@ -4,12 +4,13 @@ as the running app."""
 
 from logging.config import fileConfig
 
-# Both model modules must be imported so every table is registered on the shared
+# All three model modules must be imported so every table is registered on the shared
 # Base.metadata — otherwise autogenerate would propose dropping the ones it cannot see.
 import backend.db.models  # noqa: F401 — dataset versions, users, AI usage
 import backend.models.collaboration  # noqa: F401 — threads, messages, shares, audit
 import backend.models.planner  # noqa: F401 — delivery projects, tasks, RAID
 import backend.models.platform  # noqa: F401 — projects, runs, traces, engine/data catalogue
+import backend.models.playbook  # noqa: F401 — Playbook workspaces, exported-analysis library, artifacts
 from alembic import context
 from backend.config import settings
 from backend.db.base import Base

@@ -380,7 +380,74 @@ def _database_checks(session: Any) -> list[Check]:
     checks.append(_scorecard_models(session))
     checks.append(_workspace(session))
     checks.append(_review(session))
+    checks.append(_playbook_committees(session))
+    checks.append(_playbook(session))
     return checks
+
+
+def _playbook_committees(session: Any) -> Check:
+    """Is there a committee to open a pack against?
+
+    The committee half of the Playbook is seeded by a different step from the
+    workspace half, so it needs a check of its own. A deployment with seeded
+    workspaces and no committee reports READY and then strands every pack
+    control on the landing page — the I-1 failure, one subsystem along.
+    """
+    key = "playbook_committees"
+    title = "Playbook committees are seeded"
+    remedy = "scripts/bootstrap_demo.py --step playbook"
+    try:
+        from sqlalchemy import func, select
+
+        from backend.models.playbook import PlaybookCommittee
+
+        count = int(session.execute(
+            select(func.count()).select_from(PlaybookCommittee)).scalar() or 0)
+    except Exception as exc:  # noqa: BLE001 - a check never raises
+        return Check(key=key, title=title, status=UNKNOWN,
+                     detail=f"Could not be read: {exc}", remedy=remedy)
+    if count:
+        return Check(key=key, title=title, status=OK,
+                     detail=f"{count} committee(s).", data={"count": count})
+    return Check(
+        key=key, title=title, status=MISSING,
+        detail="No committee — the pack controls have nothing to open.",
+        remedy=remedy, data={"count": 0})
+
+
+def _playbook(session: Any) -> Check:
+    """Is the Playbook demonstration there?
+
+    A deployment that reports READY with an empty Playbook is one where the
+    first click of the demonstration lands on an empty screen. The check asks
+    the same question the bootstrap step asks, so the two cannot drift.
+    """
+    key, title = "playbook_demo", "Playbook workspaces are seeded"
+    remedy = "scripts/bootstrap_demo.py --step playbook_workspace"
+    try:
+        from backend.agentic.principals import tenant_of
+        from backend.playbook import repository as pb_repo
+        from backend.playbook import seed as pb_seed
+
+        state = pb_seed.status(session, pb_repo.Scope(tenant=tenant_of(None)))
+    except Exception as exc:  # noqa: BLE001 — a check never raises
+        return Check(key=key, title=title, status=UNKNOWN,
+                     detail=f"Could not be read: {exc}", remedy=remedy)
+
+    workspaces = len(state["workspaces_present"])
+    expected = len(state["workspaces_expected"])
+    exports = state["exports_total"]
+    if state["ready"]:
+        return Check(key=key, title=title, status=OK,
+                     detail=(f"{workspaces} seeded workspace(s) and "
+                             f"{exports} exported analyses."),
+                     data={"workspaces": workspaces, "exports": exports})
+    return Check(
+        key=key, title=title, status=MISSING,
+        detail=(f"{workspaces} of {expected} workspace(s) and {exports} of 30 "
+                "exported analyses — Playbook opens on an empty screen."),
+        remedy=remedy,
+        data={"workspaces": workspaces, "exports": exports})
 
 
 def _scorecard_models(session: Any) -> Check:

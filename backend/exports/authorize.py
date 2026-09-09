@@ -46,7 +46,7 @@ import logging
 from dataclasses import dataclass, field
 
 from backend.api.permissions import Principal, Role
-from backend.exports.contract import CALCULATION_PACK, RESULTS
+from backend.exports.contract import CALCULATION_PACK, PLAYBOOK_SNAPSHOT, RESULTS
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,12 @@ def decide(principal: Principal, *, kind: str, run_id: int) -> Decision:
     """
     if kind == RESULTS:
         return _results(principal, run_id)
+    # A Playbook snapshot shows the analysis to somebody who may already see
+    # it, in a workspace they own. Same bar as the Results Workbook.
+    if kind == PLAYBOOK_SNAPSHOT:
+        decision = _results(principal, run_id)
+        decision.kind = PLAYBOOK_SNAPSHOT
+        return decision
     if kind == CALCULATION_PACK:
         return _pack(principal, run_id)
     return Decision(False, kind, f"'{kind}' is not an export this product produces.",

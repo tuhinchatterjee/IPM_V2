@@ -106,6 +106,23 @@ RESET_ORDER: tuple[str, ...] = (
     # dashboards
     "lens_revisions",
     "lenses",
+    # the Playbook workspace: what somebody wrote, and the evidence they chose.
+    # Workspace rather than governed platform — a demonstration report and the
+    # analyses exported into it are both records of what a person did, and both
+    # are rebuilt by seeding. Children before parents, as everywhere here.
+    "playbook_artifact_files",
+    "playbook_artifact_versions",
+    "playbook_change_items",
+    "playbook_change_sets",
+    "playbook_attachments",
+    "playbook_artifacts",
+    "playbook_messages",
+    "playbook_jobs",
+    "playbook_source_chunks",
+    "playbook_sources",
+    "playbook_workspaces",
+    "analysis_export_revisions",
+    "analysis_exports",
     # the analytical record
     "assurance_records",
     "saved_analyses",

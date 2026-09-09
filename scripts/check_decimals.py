@@ -114,6 +114,16 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "What-If ECL, the movement, the coverage — is on the RESULT screen "
         "and goes through the contract there."),
     Allowed(
+        "backend/playbook/fixtures/scorecard.py",
+        "The same model-validation statistics as backend/scorecard/metrics.py "
+        "- AUC, Gini, KS and PSI - computed from a synthetic population for "
+        "the Playbook demonstration, and quoted at four decimals for the same "
+        "reason given there. A PSI of 0.0142 shown as 0.01 has lost the "
+        "distance to the 0.10 threshold, and a Gini moving 0.7377 to 0.6936 "
+        "is the finding a validation report exists to state. Every currency "
+        "figure in Playbook goes through backend/playbook/calc.py, which "
+        "carries its own rounding convention per calculation."),
+    Allowed(
         "backend/corporate/graphmath.py",
         "The spectral radius of an ownership component, in the refusal "
         "message that explains why effective ownership was not computed. "

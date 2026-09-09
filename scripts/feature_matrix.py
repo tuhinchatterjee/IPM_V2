@@ -475,6 +475,15 @@ _JUDGEMENTS: dict[str, Judgement] = {
         limitation="The macro variables are collinear by construction in "
                    "this universe, so they are deliberately not model "
                    "features. The page says so above the metrics."),
+    "/playbook/artifacts/[id]": Judgement(
+        "One workspace: its conversation, its parsed sources with what was and "
+        "was not read of each, and every artifact version with its files.",
+        status=PARTIAL,
+        limitation="New generation needs a configured provider; the history "
+                   "and every generated file reopen without one."),
+    "/playbook/library": Judgement(
+        "Every analysis explicitly exported to Playbook, searchable and "
+        "previewable in full. Nothing appears here that was not exported."),
     "/documents": Judgement(
         "Document authoring.",
         status=HIDDEN,

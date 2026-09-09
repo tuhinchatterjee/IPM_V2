@@ -321,7 +321,15 @@ def test_the_estimate_is_derived_from_the_catalogue():
     # and ninth are the Cockpit's own preprocessing and reasoning roles. All
     # of them are called in production, so all of them have to be reachable
     # before a run may call itself verified.
-    assert lv.ESTIMATED_CALLS[lv.QUICK] == 17
+    # Ten role pings after the integration: §29 added the complex planner
+    # beside the routine one, R2 split the old single analyst into the cheap
+    # investigator that gathers and the deep analyst that judges, Playbook
+    # added the author, and the Cockpit added its own preprocessing and
+    # reasoning roles. Every one of them is called in production, so every one
+    # has to be reachable before a run may call itself verified — which is why
+    # this total tracks the role catalogue rather than being pinned to a number
+    # somebody has to remember to change.
+    assert lv.ESTIMATED_CALLS[lv.QUICK] == 18
 
 
 # ===========================================================================
@@ -335,7 +343,7 @@ def test_quick_records_every_smoke_check_individually(offline_quick):
 
     assert names == [
         "role:router", "role:planner", "role:complex_planner",
-        "role:investigator", "role:analyst",
+        "role:investigator", "role:analyst", "role:author",
         "role:interpretation", "role:critic",
         "role:cockpit_preprocess", "role:cockpit_reasoning",
         "smoke:data_discovery", "smoke:data_dictionary",
@@ -365,7 +373,7 @@ def test_each_smoke_case_carries_its_own_evidence(offline_quick):
 def test_the_call_total_is_the_sum_of_the_cases(offline_quick):
     report = lv.quick()
     assert report.live_calls_made == sum(c.calls for c in report.cases)
-    assert report.live_calls_made == 17
+    assert report.live_calls_made == 18
 
 
 def test_one_failed_smoke_case_fails_the_whole_run(monkeypatch,
@@ -383,7 +391,7 @@ def test_one_failed_smoke_case_fails_the_whole_run(monkeypatch,
     # And the seven smoke cases that passed, plus every role ping, are
     # still reported as passing.
     passing = [c for c in report.cases if c.passed]
-    assert len(passing) == 16
+    assert len(passing) == 17
 
 
 def test_a_failed_smoke_case_names_the_case_not_the_suite(monkeypatch,

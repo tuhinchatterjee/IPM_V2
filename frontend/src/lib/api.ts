@@ -11,6 +11,7 @@
  */
 
 import { filenameFrom } from "@/lib/downloads";
+import type { PlaybookStreamEvent } from "@/lib/stream";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -6741,6 +6742,293 @@ function qs(parts: Record<string, string | undefined>): string {
   return body ? `?${body}` : "";
 }
 
+// ---------------------------------------------------------------------------
+// Playbook — the chat-first document workspace.
+//
+// The other half of the same Playbook: the committee cycle above governs a
+// pack, this drafts a document from the evidence. Two subsystems, one product,
+// one route tree. These types are prefixed `Pb` so a call site cannot reach
+// for the committee ones by autocomplete.
+// ---------------------------------------------------------------------------
+
+export interface PbWorkspaceCard {
+  id: number;
+  title: string;
+  document_family: string;
+  state_summary: string;
+  demo: boolean;
+  last_activity: string;
+}
+
+export interface PbAnalysisCard {
+  export_id: number;
+  revision_id: number;
+  revision: number;
+  title: string;
+  source_module: string;
+  reporting_period: string;
+  insight: string;
+  tags: string[];
+  demo: boolean;
+  exported_at: string;
+  revisions: number;
+}
+
+export interface PbHome {
+  recent_playbooks: PbWorkspaceCard[];
+  recent_exports: PbAnalysisCard[];
+  export_total: number;
+}
+
+export interface PbLibrary {
+  analyses: PbAnalysisCard[];
+  total: number;
+  counts: Record<string, number>;
+  modules: string[];
+  implemented_modules: string[];
+}
+
+export interface PbTable {
+  id: string;
+  title: string;
+  columns: string[];
+  rows: unknown[][];
+  units: Record<string, string>;
+  precision: Record<string, number>;
+}
+
+/** The full contents of one exported analysis. Not a summary — §4 is explicit. */
+export interface PbAnalysisPreview {
+  export_id: number;
+  revision_id: number;
+  revision: number;
+  title: string;
+  question: string;
+  narrative: string;
+  tables: PbTable[];
+  charts: { id: string; kind: string; title: string; categories: string[];
+    series: Record<string, unknown[]> }[];
+  scope: Record<string, unknown>;
+  assumptions: string[];
+  limitations: string[];
+  caveats: string[];
+  data_quality: string[];
+  provenance: Record<string, unknown>;
+  source_module: string;
+  reporting_period: string;
+  content_hash: string;
+  demo: boolean;
+  /** Set when a later snapshot exists. Surfaced, never substituted. */
+  newer_revision_available: number | null;
+}
+
+export interface PbSource {
+  id: number;
+  filename: string;
+  role: string;
+  /** `user` when a person overruled the parser's guess. */
+  role_set_by?: string;
+  reporting_period?: string;
+  status: "uploaded" | "parsing" | "parsed" | "partial" | "failed";
+  size_bytes: number;
+  manifest: {
+    format?: string;
+    read?: string[];
+    skipped?: { what: string; why: string }[];
+    warnings?: string[];
+    complete?: boolean;
+  };
+  failure_reason: string;
+}
+
+export interface PbArtifactFile {
+  id: number;
+  format: "docx" | "pdf" | "pptx" | "xlsx";
+  filename: string;
+  size_bytes: number;
+  renderer: string;
+  validated: boolean;
+}
+
+export interface PbArtifactVersion {
+  id: number;
+  version: number;
+  change_summary: string;
+  origin: string;
+  created_at: string;
+  files: PbArtifactFile[];
+}
+
+export interface PbArtifact {
+  id: number;
+  kind: string;
+  title: string;
+  current_version_id: number | null;
+  /** A deck records the report version it was built from; a report has none. */
+  derived_from_artifact_id: number | null;
+  derived_from_version_id: number | null;
+  versions: PbArtifactVersion[];
+}
+
+export interface PbMessage {
+  id: number;
+  sequence: number;
+  role: string;
+  content: Record<string, unknown>;
+  /** `seed_fixture` is never presented as something a model wrote. */
+  origin: "user" | "assistant_live" | "seed_fixture" | "system";
+  model: string;
+  created_at: string;
+}
+
+export interface PbWorkspace {
+  id: number;
+  title: string;
+  document_family: string;
+  state_summary: string;
+  demo: boolean;
+  messages: PbMessage[];
+  sources: PbSource[];
+  artifacts: PbArtifact[];
+  /**
+   * The generation this workspace has in flight, if any.
+   *
+   * Present so a browser that has just loaded — a refresh mid-generation, or a
+   * second tab — can attach to it. Without it the only way to discover a
+   * running job would be to send the message again, which is the one thing
+   * that must not happen.
+   */
+  running_job: PbJob | null;
+}
+
+export interface PbChangeItem {
+  stable_id: string;
+  number: number;
+  target_section: string;
+  rationale: string;
+  evidence: Record<string, unknown>;
+  depends_on: string[];
+  status: "proposed" | "approved" | "rejected" | "applied" | "superseded";
+}
+
+export interface PbChangeSet {
+  id: number;
+  status: string;
+  base_version_id: number | null;
+  items: PbChangeItem[];
+}
+
+export interface PbDecision {
+  change_set_id: number;
+  approved: string[];
+  rejected: string[];
+  conflicts: {
+    stable_id: string;
+    display_number: number;
+    target_section: string;
+    depends_on: string[];
+  }[];
+  base_version_id: number | null;
+  /** What the next generation will be told to do, and only that. */
+  instruction: string;
+}
+
+export interface PbVersionPreview {
+  artifact_id: number;
+  artifact_title: string;
+  version: number;
+  is_current: boolean;
+  change_summary: string;
+  created_at: string;
+  title: string;
+  subtitle: string;
+  meta: Record<string, unknown>;
+  /** Rendered from what was SAVED, so it shows what grounding left in. */
+  markdown: string;
+  sections: string[];
+  sources: string[];
+  files: {
+    id: number;
+    format: string;
+    filename: string;
+    size_bytes: number;
+    validated: boolean;
+  }[];
+}
+
+export interface PbJob {
+  id: number;
+  workspace_id: number;
+  state: string;
+  cancelled: boolean;
+  /** Real steps only. There is no percentage because there is no basis for one. */
+  milestones: { state: string; detail: string }[];
+  model: string;
+  error: string;
+  finished: boolean;
+}
+
+export interface PbRestore {
+  artifact_id: number;
+  version_id: number;
+  version: number;
+  restored_from: number;
+  change_summary: string;
+  files: string[];
+}
+
+export interface PbCapabilities {
+  formats: { format: string; mime: string; routes: string[];
+    description: string }[];
+  provider: {
+    configured: boolean;
+    reason: string;
+    provider: string;
+    model: string;
+    model_inherited: boolean;
+  };
+}
+
+export interface PbSendResult {
+  job_id: number;
+  state: string;
+  duplicate: boolean;
+  message_id?: number;
+  artifact_id?: number | null;
+  version?: number;
+  notes?: string[];
+  message?: string;
+  /** Present on a streamed send: where to watch this generation. */
+  stream_url?: string;
+  idempotency_key?: string;
+}
+
+export interface PbExportRequest {
+  source_module: string;
+  title: string;
+  question?: string;
+  narrative?: string;
+  tables?: Partial<PbTable>[];
+  scope?: Record<string, unknown>;
+  assumptions?: string[];
+  limitations?: string[];
+  caveats?: string[];
+  source_ref?: Record<string, unknown>;
+  source_revision?: string;
+  scope_kind?: string;
+  report_family?: string;
+  tags?: string[];
+  reporting_period?: string;
+  insight?: string;
+}
+
+export interface PbExportResult {
+  export_id: number;
+  revision_id: number;
+  revision: number;
+  duplicate: boolean;
+  message: string;}
+
 export const api = {
   // ---- authentication ----
   /**
@@ -8053,6 +8341,208 @@ export const api = {
   whatIfMlExample: (features: Record<string, unknown>) =>
     request<WhatIfExample>("/whatif/models/ml/example",
       { method: "POST", body: JSON.stringify(features), timeoutMs: 60_000 }),
+
+  // ---- playbook (the document workspace, not the standing instruction) ----
+  playbookHome: (limit = 6) =>
+    request<PbHome>(`/playbook/home?limit=${limit}`),
+  playbookCapabilities: () =>
+    request<PbCapabilities>("/playbook/capabilities"),
+  playbookWorkspaces: (limit = 24) =>
+    request<{ workspaces: PbWorkspaceCard[] }>(
+      `/playbook/workspaces?limit=${limit}`,
+    ),
+  playbookWorkspace: (id: number) =>
+    request<PbWorkspace>(`/playbook/workspaces/${id}`),
+  /**
+   * Watch a running generation.
+   *
+   * `fetch` rather than `EventSource`, because `EventSource` cannot send the
+   * role header this deployment identifies callers with. The cost is that
+   * reconnection is ours to do; the benefit is that `Last-Event-ID` is ours to
+   * set, which is what makes a refresh resume rather than replay.
+   *
+   * No timeout: a generation legitimately takes minutes, and the server sends
+   * a keep-alive comment so a silent tool call is distinguishable from a dead
+   * connection.
+   */
+  playbookStream: async (
+    workspaceId: number,
+    jobId: number,
+    opts: {
+      after?: number;
+      signal?: AbortSignal;
+      onEvent: (event: PlaybookStreamEvent) => void;
+    },
+  ): Promise<void> => {
+    const { SSEParser, toPlaybookEvent } = await import("@/lib/stream");
+    const after = opts.after ?? 0;
+    const response = await fetch(
+      `${API_BASE_URL}${API_PREFIX}/playbook/workspaces/${workspaceId}` +
+        `/stream?job_id=${jobId}&after=${after}`,
+      {
+        credentials: "include",
+        signal: opts.signal,
+        headers: {
+          Accept: "text/event-stream",
+          "X-IPM-Role": activeRole,
+          ...(after ? { "Last-Event-ID": String(after) } : {}),
+        },
+      },
+    );
+    if (!response.ok || !response.body) {
+      throw new Error(
+        response.status === 404
+          ? "That generation could not be found."
+          : `The stream could not be opened (HTTP ${response.status}).`,
+      );
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const parser = new SSEParser();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      // `stream: true` matters: a multi-byte character split across two reads
+      // would otherwise decode as two replacement characters.
+      for (const raw of parser.push(decoder.decode(value, { stream: true }))) {
+        const event = toPlaybookEvent(raw);
+        if (event) opts.onEvent(event);
+      }
+    }
+  },
+  playbookSource: (sourceId: number) =>
+    request<PbSource>(`/playbook/sources/${sourceId}`),
+  correctPlaybookSource: (
+    sourceId: number,
+    payload: { source_role?: string; reporting_period?: string },
+  ) =>
+    request<PbSource>(`/playbook/sources/${sourceId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  retryPlaybookJob: (jobId: number) =>
+    request<{ idempotency_key: string; workspace_id: number; retry_of: number }>(
+      `/playbook/jobs/${jobId}/retry`,
+      { method: "POST" },
+    ),
+  retryPlaybookSource: (sourceId: number) =>
+    request<PbSource>(`/playbook/sources/${sourceId}/retry`, {
+      method: "POST",
+      timeoutMs: 120_000,
+    }),
+  playbookVersionPreview: (artifactId: number, version: number) =>
+    request<PbVersionPreview>(
+      `/playbook/artifacts/${artifactId}/versions/${version}/preview`,
+    ),
+  restorePlaybookVersion: (artifactId: number, version: number) =>
+    request<PbRestore>(
+      `/playbook/artifacts/${artifactId}/restore/${version}`,
+      { method: "POST" },
+    ),
+  playbookJobByKey: (key: string) =>
+    request<PbJob>(`/playbook/jobs/by-key/${encodeURIComponent(key)}`),
+  cancelPlaybookJob: (jobId: number) =>
+    request<PbJob & { message: string }>(
+      `/playbook/jobs/${jobId}/cancel`,
+      { method: "POST" },
+    ),
+  playbookChangeSets: (id: number) =>
+    request<{ change_sets: PbChangeSet[] }>(
+      `/playbook/workspaces/${id}/change-sets`,
+    ),
+  decidePlaybookChanges: (
+    workspaceId: number,
+    changeSetId: number,
+    payload: { approve: string[]; reject?: string[]; force?: boolean },
+  ) =>
+    request<PbDecision>(
+      `/playbook/workspaces/${workspaceId}/change-sets/${changeSetId}/decide`,
+      { method: "POST", body: JSON.stringify(payload) },
+    ),
+  createPlaybookWorkspace: (payload: {
+    title: string;
+    document_family?: string;
+  }) =>
+    request<{ id: number; title: string }>("/playbook/workspaces", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  renamePlaybookWorkspace: (id: number, title: string) =>
+    request<{ id: number; title: string }>(`/playbook/workspaces/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    }),
+  uploadPlaybookSource: (id: number, file: File, sourceRole = "supporting") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("source_role", sourceRole);
+    // rawBody: the browser must set the multipart boundary itself.
+    return request<PbSource>(`/playbook/workspaces/${id}/sources`, {
+      method: "POST",
+      body: form,
+      rawBody: true,
+      timeoutMs: 120_000,
+    });
+  },
+  playbookExports: (
+    opts: {
+      q?: string;
+      modules?: string[];
+      period?: string;
+      sort?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
+    const query = new URLSearchParams();
+    if (opts.q) query.set("q", opts.q);
+    (opts.modules ?? []).forEach((m) => query.append("module", m));
+    if (opts.period) query.set("period", opts.period);
+    if (opts.sort) query.set("sort", opts.sort);
+    if (opts.limit) query.set("limit", String(opts.limit));
+    if (opts.offset) query.set("offset", String(opts.offset));
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<PbLibrary>(`/playbook/exports${suffix}`);
+  },
+  playbookExportPreview: (revisionId: number) =>
+    request<PbAnalysisPreview>(`/playbook/exports/revisions/${revisionId}`),
+  exportToPlaybook: (payload: PbExportRequest) =>
+    request<PbExportResult>("/playbook/exports", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 60_000,
+    }),
+  sendPlaybookMessage: (
+    id: number,
+    payload: {
+      text: string;
+      source_ids?: number[];
+      export_revision_ids?: number[];
+      formats?: string[];
+      artifact_id?: number | null;
+      base_version_id?: number | null;
+      idempotency_key?: string;
+      /** One of §8's task framings, when the request is one of those jobs. */
+      task?: string;
+      /** For `edit`: the part of the document that may change. */
+      scope?: string;
+      /**
+       * Run in a worker and answer immediately with the job to watch, rather
+       * than holding the request open. The browser always sets this: it is
+       * what lets a refresh mid-generation reconnect instead of restarting.
+       */
+      stream?: boolean;
+    },
+  ) =>
+    // Authoring a report is minutes of work, not seconds, so this carries the
+    // longest timeout the client allows rather than the default.
+    request<PbSendResult>(`/playbook/workspaces/${id}/messages`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      timeoutMs: 900_000,
+    }),
+  playbookDownloadPath: (fileId: number) =>
+    `/playbook/artifact-files/${fileId}/download`,
 
   // ---- early warning ----
   earlyWarningTaxonomy: () =>

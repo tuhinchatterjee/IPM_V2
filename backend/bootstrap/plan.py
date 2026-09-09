@@ -560,6 +560,41 @@ def _build_early_warning() -> str:
     _refresh_data_access()
     return f"{readiness.MINIMUM_EARLY_WARNING_MONTHS}+ Early Warning monthly snapshot(s)"
 
+
+def _playbook_workspace_needed() -> bool:
+    """Whether the Playbook WORKSPACE demonstration has to be built.
+
+    Asks the same question the readiness check asks, so the step and the gate
+    cannot disagree about what "seeded" means — which is exactly the drift the
+    review step's comment above records.
+    """
+    from backend.db.engine import get_session
+    from backend.playbook import repository as pb_repo
+    from backend.playbook import seed as pb_seed
+
+    with get_session() as session:
+        return not pb_seed.status(session, _playbook_scope(pb_repo))["ready"]
+
+
+def _playbook_scope(pb_repo):
+    from backend.agentic.principals import tenant_of
+
+    return pb_repo.Scope(tenant=tenant_of(None))
+
+
+def _seed_playbook_workspace() -> str:
+    """Seed the Playbook workspaces. Makes no provider call."""
+    from backend.db.engine import get_session
+    from backend.playbook import repository as pb_repo
+    from backend.playbook import seed as pb_seed
+
+    with get_session() as session:
+        result = pb_seed.reseed(session, _playbook_scope(pb_repo))
+    made = sum(1 for w in result["workspaces"] if w["created"])
+    return (f"{result['exports_total']} exported analyses and {made} "
+            f"Playbook workspace(s)")
+
+
 def _review_needed() -> bool:
     """Needed whenever the readiness gate would not pass, not merely when no
     run row exists.
@@ -657,8 +692,15 @@ def steps() -> tuple[Step, ...]:
         # The review stays last, in both branches' words: it reads the finished
         # book and reports on it, so anything running after it is something the
         # review did not see. Two branches each made it the final letter; the
-        # merged list has one more step than either, so it is Q.
-        Step("review", "Q", f"Run the {readiness.PERIOD} portfolio review",
+        # merged list has one more step than either, so it is R.
+        # The workspace half of the Playbook: exported analyses and the
+        # artifacts drafted from them. Separate from the committee seed above
+        # because they are separate subsystems that happen to share a name,
+        # and a deployment can legitimately have one without the other.
+        Step("playbook_workspace", "Q", "Seed the Playbook workspaces",
+             _playbook_workspace_needed, _seed_playbook_workspace,
+             needs_database=True),
+        Step("review", "R", f"Run the {readiness.PERIOD} portfolio review",
              _review_needed, _run_review, needs_database=True),
     )
 

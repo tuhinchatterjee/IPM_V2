@@ -61,6 +61,7 @@ export type SourceType =
   | "dataset"
   | "trace"
   | "workflow"
+  | "playbook"
   | "studio"
   | "unknown";
 
@@ -80,6 +81,7 @@ export const INDEX_OF: Record<SourceType, ReturnTo> = {
   dataset: { href: "/data-builder/browse", label: "Data Builder" },
   trace: { href: "/trace", label: "Trace & Lineage" },
   workflow: { href: "/reviews", label: "My reviews" },
+  playbook: { href: "/playbook", label: "Playbook" },
   studio: { href: "/studio", label: "Analysis Studio" },
   unknown: { href: "/", label: "Back" },
 };

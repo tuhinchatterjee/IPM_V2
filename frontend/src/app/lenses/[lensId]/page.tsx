@@ -18,6 +18,8 @@ import { ResultView } from "@/components/analytics/result-view";
 import { ChartTile } from "@/components/metrics/chart-tile";
 import { MetricTile } from "@/components/metrics/metric-tile";
 import { DownloadResults } from "@/components/exports/download";
+import { ExportToPlaybook } from "@/components/exports/export-to-playbook";
+import { fromLensPanel } from "@/lib/playbook-export";
 import { Badge } from "@/components/ui/badge";
 import { BackLink } from "@/components/layout/back-link";
 import { Button } from "@/components/ui/button";
@@ -378,8 +380,7 @@ function LensView({ id }: { id: number }) {
               the first question and the tiles answer the second. */}
           <LensChangesPanel
             changes={changes}
-            onRefreshed={() => setNonce((n) => n + 1)}
-          />
+            onRefreshed={() => setNonce((n) => n + 1)}          />
           <LensDesignPanel design={lens.design} />
           <LensInterpretationPanel
             lensId={id}
@@ -620,6 +621,8 @@ function LensBody({
                 key={`${panel.analysis_id}-${position}`}
                 panel={panel}
                 from={from}
+                lensId={lens.id}
+                lensName={lens.name}
               />
             ))}
           </section>
@@ -802,10 +805,14 @@ function Header({
 function PanelView({
   panel,
   from,
+  lensId,
+  lensName,
 }: {
   panel: RenderedPanel;
   /** §5: Lens → Analysis → Trace → Back to Lens. */
   from: ReturnContext;
+  lensId: number | string;
+  lensName: string;
 }) {
   if (panel.status !== "succeeded" || !panel.result) {
     return (
@@ -876,6 +883,11 @@ function PanelView({
               compact
             />
           ) : null}
+          {/* §5: a completed panel is evidence a report can be built on. */}
+          <ExportToPlaybook
+            compact
+            build={() => fromLensPanel(panel, { id: lensId, name: lensName })}
+          />
           {panel.analysis_run_id ? (
             <Button variant="ghost" size="sm" asChild>
               <Link href={linkBack(`/trace/${panel.analysis_run_id}`, from)}>
