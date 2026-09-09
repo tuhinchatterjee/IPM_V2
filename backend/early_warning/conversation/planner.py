@@ -83,12 +83,27 @@ step produces something that looks complete — it has a figure, a movement and 
 confident tone — while half the question was never measured.
 
 CONSTRAINTS
-- `domain` is always "early_warning". There is no other dataset.
+- `domain` is always "early_warning". There is no other dataset. Write it on \
+every step.
+- `analysis` must be one of the analysis types you are given, spelled exactly.
+- `output_grain` must be one of the analytical grains you are given, spelled \
+exactly.
 - Every field you name must exist in the dictionary exactly as spelled there.
-- Every period you name must be one of the published periods.
+- Every period you name must be one of the published periods, in the same \
+`YYYY-MM` form.
 - A comparison period must be EARLIER than the period. There is no future.
+- `filters` is an object mapping field name to value, not a list.
 - Keep `limit` at or below 500, and use the smallest that answers the question.
-- At most 8 steps.
+- At most 8 steps. Keep each `rationale` to one sentence.
+
+THE SHAPE
+{"intent": "diagnosis", "output_grain": "population_month", "steps": [
+  {"analysis": "population", "domain": "early_warning", "period": "2026-06",
+   "filters": {"sector": "Contracting"}, "measures": ["ews_score", "exposure"],
+   "rationale": "The position the question is about."},
+  {"analysis": "movement", "domain": "early_warning", "period": "2026-06",
+   "comparison_period": "2025-12", "filters": {"sector": "Contracting"},
+   "measures": ["ews_score"], "rationale": "Whether it has deteriorated."}]}
 
 Plan the analysis. Do not write the answer."""
 
@@ -149,7 +164,12 @@ SCHEMA: dict[str, Any] = {
                                         "answers."),
                     },
                 },
-                "required": ["analysis", "domain", "rationale"],
+                # `analysis` is the only field a step cannot do without: it
+                # decides what the step IS. `domain` has one legal value and
+                # a model that saw no reason to repeat a constant has not
+                # written a bad plan; `rationale` is for the audit trail.
+                # Requiring either turned a usable plan into a fallback.
+                "required": ["analysis"],
             },
         },
         "notes": {
@@ -158,8 +178,121 @@ SCHEMA: dict[str, Any] = {
                             "plan reads the request."),
         },
     },
-    "required": ["steps", "output_grain"],
+    # Same reasoning. Without steps there is no plan; `output_grain` has a
+    # sensible default and is not worth losing a plan over.
+    "required": ["steps"],
 }
+
+#: Names a planner reaches for that mean an analysis this product has under
+#: another name. Mapped into the vocabulary the schema already declares —
+#: never into a new one, and never invented where there is no match.
+_ANALYSIS_ALIASES: dict[str, str] = {
+    "trend": plan_mod.MOVEMENT,
+    "trend_analysis": plan_mod.MOVEMENT,
+    "time_series": plan_mod.MOVEMENT,
+    "change": plan_mod.MOVEMENT,
+    "deterioration": plan_mod.MOVEMENT,
+    "rank": plan_mod.RANKING,
+    "top_n": plan_mod.RANKING,
+    "obligors": plan_mod.RANKING,
+    "borrowers": plan_mod.RANKING,
+    "names": plan_mod.RANKING,
+    "group": plan_mod.GROUPING,
+    "group_by": plan_mod.GROUPING,
+    "breakdown": plan_mod.GROUPING,
+    "segmentation": plan_mod.GROUPING,
+    "distribution": plan_mod.GROUPING,
+    "portfolio": plan_mod.POPULATION,
+    "summary": plan_mod.POPULATION,
+    "overview": plan_mod.POPULATION,
+    "aggregate": plan_mod.POPULATION,
+    "driver": plan_mod.DIAGNOSIS,
+    "drivers": plan_mod.DIAGNOSIS,
+    "root_cause": plan_mod.DIAGNOSIS,
+    "why": plan_mod.DIAGNOSIS,
+    "concentration_analysis": plan_mod.CONCENTRATION,
+    "systemic": plan_mod.CONCENTRATION,
+    "compare": plan_mod.COMPARISON,
+    "comparison_analysis": plan_mod.COMPARISON,
+    "borrower_detail": plan_mod.BORROWER,
+    "customer": plan_mod.BORROWER,
+    "obligor": plan_mod.BORROWER,
+    "signal": plan_mod.EVIDENCE,
+    "signals": plan_mod.EVIDENCE,
+    "lineage": plan_mod.EVIDENCE,
+    "layers": plan_mod.LAYER,
+    "methodology_explanation": plan_mod.METHODOLOGY,
+}
+
+#: The same, for the output grain.
+_GRAIN_ALIASES: dict[str, str] = {
+    "customer": "customer_month",
+    "borrower_month": "customer_month",
+    "obligor_month": "customer_month",
+    "borrower": "customer_latest",
+    "latest": "customer_latest",
+    "portfolio_month": "population_month",
+    "portfolio": "population_month",
+    "population": "population_month",
+    "segment_month": "group_month",
+    "sector_month": "group_month",
+    "group": "group_month",
+    "trend": "population_trend",
+    "portfolio_trend": "population_trend",
+}
+
+
+def tidy(data: dict[str, Any]) -> dict[str, Any]:
+    """A model's plan, mapped into this product's vocabulary.
+
+    Only the vocabulary. An analysis this product does not have under any
+    name is left exactly as it arrived so `_steps` drops it and the trace
+    says which one; a domain that is not this one is left alone so the
+    VALIDATOR refuses it by name. Correcting either here would hide the two
+    things worth seeing.
+    """
+    steps = []
+    for raw in data.get("steps") or []:
+        if not isinstance(raw, dict):
+            continue
+        step = dict(raw)
+        analysis = str(step.get("analysis") or "").strip().lower()
+        analysis = analysis.replace(" ", "_").replace("-", "_")
+        if analysis not in plan_mod.ANALYSIS_TYPES:
+            analysis = _ANALYSIS_ALIASES.get(analysis, analysis)
+        step["analysis"] = analysis
+        limit = step.get("limit")
+        if isinstance(limit, (int, float)) and not isinstance(limit, bool):
+            # Clamped rather than refused: a planner asking for a thousand
+            # rows wants "all of them", and the bound is the product's answer
+            # to that rather than a reason to lose the plan.
+            step["limit"] = max(1, min(int(limit), 500))
+        if isinstance(step.get("filters"), list):
+            # Some planners write filters as [{"field": x, "value": y}].
+            merged: dict[str, Any] = {}
+            for entry in step["filters"]:
+                if isinstance(entry, dict) and "field" in entry:
+                    merged[str(entry["field"])] = entry.get("value")
+                elif isinstance(entry, dict):
+                    merged.update({str(k): v for k, v in entry.items()})
+            step["filters"] = merged
+        steps.append(step)
+    out = dict(data)
+    out["steps"] = steps
+
+    grain = str(out.get("output_grain") or "").strip().lower()
+    if grain and grain not in grain_mod.ANALYTICAL_GRAINS \
+            and grain != "methodology":
+        mapped = _GRAIN_ALIASES.get(grain)
+        if mapped:
+            out["output_grain"] = mapped
+        else:
+            # Not a grain this product delivers at, and not one that maps to
+            # one. Dropped rather than guessed: the deterministic grain is a
+            # better answer than a plausible wrong one, and the schema makes
+            # it optional for exactly this case.
+            out.pop("output_grain", None)
+    return out
 
 
 def _context(request: Any, package: grain_mod.GrainPackage,
@@ -257,7 +390,7 @@ def plan(request: Any, package: grain_mod.GrainPackage,
         prompt=("Plan the Early Warning analysis for this request.\n\n"
                 + json.dumps(_context(request, package, floor), indent=2,
                              default=str)),
-        schema=SCHEMA, ledger=ledger)
+        schema=SCHEMA, ledger=ledger, tidy=tidy)
     if not outcome.used_model:
         floor.model_call = outcome.to_dict()
         return floor
@@ -326,4 +459,5 @@ def known_fields() -> frozenset[str]:
     return dic.names()
 
 
-__all__ = ["MAX_NAMED_FIELDS", "SCHEMA", "SYSTEM", "known_fields", "plan"]
+__all__ = ["MAX_NAMED_FIELDS", "SAMPLE_ROWS", "SCHEMA", "SYSTEM",
+           "known_fields", "plan", "tidy"]

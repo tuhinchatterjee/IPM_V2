@@ -264,10 +264,12 @@ them looks affordable if each attempt starts fresh.
 | | Standard | Deep |
 |---|---|---|
 | model calls | 8 | 16 |
+| — reserved for the closing stages | 2 | 2 |
 | executions | 6 | 14 |
 | repairs | 2 | 3 |
 | revisions | 1 | 3 |
-| wall clock | 60s | 150s |
+| wall clock, soft | 120s | 240s |
+| wall clock, hard | 240s | 480s |
 
 Deep raises the ceiling and nothing else. Not another domain, not a skipped
 validation, not a fact the evidence does not support — a mode that could reach
@@ -276,6 +278,51 @@ reader picks from a dropdown.
 
 When the budget is exhausted the turn **stops and says what it ran out of**.
 Nothing is invented to fill the gap.
+
+### The closing reserve
+
+Two stages are not optional: the final interpretation, and the rolling summary
+that lets the next turn resolve "it". A turn that spent its whole allowance on
+an optional sufficiency revision and then wrote its answer deterministically has
+spent the budget on the part the reader never sees — four Opus calls of analysis
+delivered in a paragraph that none of them wrote.
+
+So two model calls are held back, and optional work may not touch them. It is
+not extra budget: the ceiling is unchanged, every stage still spends from the
+same counters, and a repair or a revision still costs exactly what it cost
+before. It is an ordering rule, and it makes an optional revision genuinely
+optional rather than a gamble against the answer.
+
+Standard's arithmetic is why the ceiling is eight. Pass one, pass two,
+functionality selection, the analysis plan and one sufficiency review are five;
+the single permitted revision costs a second review, making six; the two closing
+stages take it to eight exactly. A second revision would eat the reserve, and is
+**declined** rather than allowed to — the turn returns the supported partial
+answer, says which part is missing, and still writes it properly.
+
+### Two clocks, for the same reason
+
+The soft deadline stops optional work. The hard deadline stops everything. Only
+the closing stages may run between them.
+
+One clock cannot express that, and the failure it produces is quiet: a turn
+makes six real model calls, runs past sixty seconds somewhere in the middle,
+and writes its answer deterministically while reporting `model-call budget
+spent (6 of 8)` — a message that sends a reader to look at a ceiling that was
+never the problem. Every budget refusal now names the resource that actually
+ran out.
+
+### What the ledger records
+
+Charged, succeeded and failed are three different numbers, and the trace
+carries all three plus every attempt in order, with its stage, family,
+provider, model, duration and — where it failed — why.
+
+A call that was made and then failed is still **charged**: a ledger counting
+only successes would make a provider that fails expensively look free. It is
+not, however, counted as a stage a model served. Reporting only one of those
+two facts is what makes `6 charged` next to `5 served` look like an error
+rather than the two true statements it is.
 
 ---
 
@@ -374,6 +421,30 @@ the data; **schema-validated output**, checked again on the way back rather
 than salvaged; **the same ledger**, so seven stages spend from one budget; and
 **real metadata** — provider, model, role, effort, latency, tokens, request id
 — taken off the call that happened.
+
+#### What the schema is for, and what it is not for
+
+The schema exists to make sure a usable document came back. It is not the
+governed contract — `Step`, `Plan` and the validator are, and they decide
+whether anything may run.
+
+So a schema requires only what the document cannot exist without. A plan needs
+steps and a step needs an analysis; `domain` has exactly one legal value and a
+model that saw no reason to repeat a constant has not written a bad plan.
+Requiring it cost a live Opus plan its whole stage.
+
+And before validation, two passes correct what a model gets wrong about
+bookkeeping rather than about analysis: a generic, schema-driven coercion that
+only ever moves a value into the type the schema already declares, and a
+per-stage tidy that maps a synonym into the enum the schema already contains.
+**Neither may add a value.** A reply missing something required is still
+missing it, and still falls back. An analysis this product does not have under
+any name is left exactly as it arrived, so the refusal names it.
+
+A tool call cut off at the token limit is reported as truncation, not as a
+malformed reply — it arrives as a partial document, and calling that
+"non-conforming" sends whoever is debugging it to look at a schema that is
+fine.
 
 ### The deterministic implementations are not stubs
 

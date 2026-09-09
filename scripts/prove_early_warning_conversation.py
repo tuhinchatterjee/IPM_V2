@@ -91,20 +91,53 @@ def _trace(turn: pipe.Turn) -> None:
             served = f"  [deterministic: {call['fallback_reason']}]"
         print(f"  {event.at_ms:>5}ms  {event.stage:<32}"
               f"{('engine=' + engine) if engine else '':<22}{served}")
+        # What was actually wrong, when something was. "Did not conform"
+        # without saying which field is a diagnosis nobody can act on.
+        for problem in call.get("schema_errors") or []:
+            print(f"{'':>9}  {'':<32}    schema: {problem}")
+        if call.get("returned_keys"):
+            print(f"{'':>9}  {'':<32}    returned: "
+                  f"{', '.join(call['returned_keys'])}")
+        if event.detail.get("revision_declined"):
+            print(f"{'':>9}  {'':<32}    revision declined: "
+                  f"{event.detail['revision_declined']}")
 
     spent = turn.budget["spent"]
+    budget = turn.budget
     _rule("ONE LEDGER")
-    print(f"  mode              : {turn.budget['mode']}")
-    print(f"  model calls       : {spent['model_calls']} of "
-          f"{turn.budget['ceilings']['model_calls']}")
-    print(f"    sonnet          : {spent['sonnet_calls']}")
-    print(f"    opus            : {spent['opus_calls']}")
+    print(f"  mode              : {budget['mode']}")
+    print(f"  model calls       : {budget['model_calls_charged']} charged of "
+          f"{budget['ceilings']['model_calls']}"
+          f"  ({budget['reserved_model_calls']} reserved for the closing "
+          f"stages)")
+    print(f"    succeeded       : {budget['model_calls_succeeded']}")
+    print(f"    failed          : {budget['model_calls_failed']}")
+    print(f"    sonnet / opus   : {spent['sonnet_calls']} / "
+          f"{spent['opus_calls']}")
+    print(f"  optional left     : "
+          f"{budget['optional_model_calls_remaining']}")
     print(f"  executions        : {spent['executions']}")
     print(f"  repairs           : {spent['repairs']}")
     print(f"  revisions         : {spent['revisions']}")
-    print(f"  recorded calls    : {len(turn.model_calls)}")
+    print(f"  elapsed           : {budget['elapsed_seconds']}s of "
+          f"{budget['ceilings']['wall_clock_seconds']}s soft, "
+          f"{budget['ceilings']['hard_wall_clock_seconds']}s hard")
+    print(f"  stages served     : {len(turn.model_calls)}")
+    assert (budget["model_calls_succeeded"] + budget["model_calls_failed"]
+            == budget["model_calls_charged"]), (
+        "the ledger does not reconcile: charged is not succeeded plus failed")
     assert len(turn.model_calls) <= spent["model_calls"], (
         "more stages claimed a model than the ledger paid for")
+
+    if turn.model_attempts:
+        _rule("EVERY ATTEMPT (charged, in order)")
+        for attempt in turn.model_attempts:
+            mark = "ok  " if attempt["ok"] else "FAIL"
+            print(f"  {attempt['at_seconds']:>7.2f}s  {mark}  "
+                  f"{attempt['stage']:<30} {attempt['family']:<7}"
+                  f"{attempt['provider']}/{attempt['model'] or '(default)'}"
+                  f"  {attempt['duration_ms']}ms"
+                  + (f"  {attempt['reason']}" if attempt["reason"] else ""))
 
     _rule("OWNERSHIP")
     print(f"  selected          : {turn.selection['selected_functionality']}")

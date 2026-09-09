@@ -263,7 +263,12 @@ def test_one_ledger_carries_every_stage(configured):
 
 def test_a_spent_budget_stops_the_calls_and_not_the_answer(configured,
                                                            monkeypatch):
-    """The ceiling is what makes the ledger a budget rather than a counter."""
+    """The ceiling is what makes the ledger a budget rather than a counter.
+
+    At a ceiling of three, one call is optional and two are the closing
+    reserve — so the early stages fall back and the answer is still written
+    by a model, which is the trade the reserve exists to make.
+    """
     monkeypatch.setitem(budget_mod.CEILINGS[budget_mod.STANDARD],
                         "model_calls", 3)
     turn = pipe.answer(QUESTION)
@@ -272,9 +277,13 @@ def test_a_spent_budget_stops_the_calls_and_not_the_answer(configured,
     assert len(turn.model_calls) == 3
     assert turn.answer["answered"] is True
     later = [e for e in turn.events
-             if e.detail.get("model_call", {}).get("fallback_reason", "")
-             .startswith("this turn's model-call budget is spent")]
+             if "allowance is spent"
+             in e.detail.get("model_call", {}).get("fallback_reason", "")]
     assert later, "the stages after the ceiling did not say why they fell back"
+    assert "reserved" in later[0].detail["model_call"]["fallback_reason"]
+    # The two that matter got the reserve.
+    assert turn.engines[pipe.FINAL_ANSWER] == seam_mod.MODEL
+    assert turn.engines[pipe.SUMMARY_UPDATED] == seam_mod.MODEL
 
 
 def test_deep_mode_raises_the_ceiling_and_nothing_else(configured):

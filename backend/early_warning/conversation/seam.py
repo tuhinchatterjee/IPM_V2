@@ -50,7 +50,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from backend.early_warning.conversation import budget as budget_mod
 
@@ -88,6 +88,11 @@ class Stage:
     tool_name: str
     tool_description: str
     max_tokens: int = 1400
+    #: True for the two stages a turn cannot end without. They spend from the
+    #: reserved allowance and are measured against the hard deadline rather
+    #: than the soft one, so a slow provider costs an optional revision and
+    #: not the answer.
+    closing: bool = False
 
 
 #: Which model does which job.
@@ -135,7 +140,11 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Compose the bounded Early Warning analysis steps that answer "
             "every part of the request."),
-        max_tokens=2000),
+        # The longest document any stage returns: up to eight steps, each
+        # with filters, measures and a rationale. A tool call truncated at
+        # max_tokens arrives as a partial object and reads downstream as a
+        # malformed reply, which is a confusing way to discover a budget.
+        max_tokens=4000),
     SUFFICIENCY: Stage(
         key=SUFFICIENCY, family=OPUS, role="critic",
         purpose="early_warning_sufficiency",
@@ -151,7 +160,7 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Say what the Early Warning result means to a senior credit risk "
             "officer, using only figures the result carries."),
-        max_tokens=1600),
+        max_tokens=1600, closing=True),
     SUMMARY: Stage(
         key=SUMMARY, family=SONNET, role="router",
         purpose="early_warning_summary",
@@ -159,7 +168,7 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Update the rolling analytical summary of this thread from the "
             "answer that was actually supported."),
-        max_tokens=700),
+        max_tokens=700, closing=True),
 }
 
 
@@ -189,6 +198,10 @@ class Outcome:
     fallback_reason: str = ""
     #: What was wrong with the model's reply, when there was something.
     schema_errors: list[str] = field(default_factory=list)
+    #: The top-level keys the model actually returned. Recorded alongside the
+    #: schema errors because "did not conform" without saying what came back
+    #: is a diagnosis nobody can act on.
+    returned_keys: list[str] = field(default_factory=list)
 
     @property
     def used_model(self) -> bool:
@@ -212,6 +225,8 @@ class Outcome:
             out["fallback_reason"] = self.fallback_reason
         if self.schema_errors:
             out["schema_errors"] = list(self.schema_errors)
+        if self.returned_keys:
+            out["returned_keys"] = list(self.returned_keys)
         return out
 
 
@@ -279,6 +294,91 @@ def _role(name: str) -> dict[str, str]:
         return {"model": "", "effort": ""}
 
 
+def _tidied(data: Any, schema: dict[str, Any],
+            tidy: Callable[[dict[str, Any]], dict[str, Any]] | None
+            ) -> Any:
+    """The reply, with the housekeeping corrected and nothing added.
+
+    A model writing to a schema gets the shape right and the bookkeeping
+    wrong: a number as a string, one item where a list was asked for, an
+    explicit null for a field it had nothing to say about. Rejecting a
+    correct plan over `"limit": "25"` is not a control, it is a papercut that
+    costs the whole stage.
+
+    So two passes, in order. `coerce` is generic and schema-driven — it only
+    ever moves a value into the type the schema already declares, and drops a
+    null where the schema does not require the key. Then the stage's own
+    `tidy` maps vocabulary into the enum the schema already contains.
+
+    **Neither may add a value.** A reply that was missing something required
+    is still missing it after this, and still fails validation below.
+    """
+    if not isinstance(data, dict):
+        return data
+    out = _coerce(data, schema)
+    if tidy is None:
+        return out
+    try:
+        return tidy(out)
+    except Exception as e:  # noqa: BLE001 - tidying must not lose the reply
+        logger.warning("A stage normaliser failed, using the raw reply: %s", e)
+        return out
+
+
+def _coerce(value: Any, schema: dict[str, Any]) -> Any:
+    """One value, moved into the type the schema declares. Never invented."""
+    if not isinstance(schema, dict):
+        return value
+    kind = schema.get("type")
+
+    if kind == "object" and isinstance(value, dict):
+        properties = schema.get("properties") or {}
+        required = set(schema.get("required") or ())
+        out: dict[str, Any] = {}
+        for key, item in value.items():
+            if item is None and key not in required:
+                # An explicit null for something optional is the model saying
+                # it had nothing to say. Dropping it is what the schema
+                # already means by optional.
+                continue
+            out[key] = (_coerce(item, properties[key])
+                        if key in properties else item)
+        return out
+
+    if kind == "array":
+        items = schema.get("items") or {}
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            # One item where a list was asked for. The model answered the
+            # question; it just did not put brackets round it.
+            value = [value]
+        return [_coerce(item, items) for item in value]
+
+    if kind in ("integer", "number") and isinstance(value, str):
+        text = value.strip().replace(",", "")
+        try:
+            return int(text) if kind == "integer" else float(text)
+        except ValueError:
+            return value
+
+    if kind == "integer" and isinstance(value, float) and value.is_integer():
+        return int(value)
+
+    if kind == "boolean" and isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "yes"):
+            return True
+        if lowered in ("false", "no"):
+            return False
+
+    if kind == "string" and isinstance(value, (int, float)) \
+            and not isinstance(value, bool):
+        return str(value)
+
+    return value
+
+
 def _conforms(data: Any, schema: dict[str, Any]) -> list[str]:
     """Every way the reply fails the schema, in plain sentences.
 
@@ -300,7 +400,9 @@ def _conforms(data: Any, schema: dict[str, Any]) -> list[str]:
 
 
 def call(stage_key: str, *, system: str, prompt: str, schema: dict[str, Any],
-         ledger: budget_mod.Ledger | None = None) -> Outcome:
+         ledger: budget_mod.Ledger | None = None,
+         tidy: Callable[[dict[str, Any]], dict[str, Any]] | None = None
+         ) -> Outcome:
     """Ask the model that serves this stage, or say why it was not asked.
 
     Never raises. Every failure — no provider, no budget, a provider error, a
@@ -329,20 +431,24 @@ def call(stage_key: str, *, system: str, prompt: str, schema: dict[str, Any],
 
     # The budget is checked BEFORE the call and spent ON it. A stage that
     # checked afterwards would be a stage that could always afford one more.
-    if ledger is not None and not ledger.can("model_calls"):
-        return Outcome(
-            stage=stage.key, family=stage.family, provider=provider.name,
-            fallback_reason=(
-                f"this turn's model-call budget is spent "
-                f"({ledger.model_calls} of "
-                f"{ledger.ceilings.get('model_calls')})"))
+    #
+    # A closing stage is checked against the reserved allowance and the hard
+    # deadline; everything else stops short of both. The reason comes back as
+    # a sentence rather than a bare refusal, because "the budget is spent"
+    # over a turn that used six of eight calls sends a reader looking in the
+    # wrong place — it was the clock.
+    if ledger is not None:
+        blocked = ledger.why_not("model_calls", closing=stage.closing)
+        if blocked:
+            return Outcome(stage=stage.key, family=stage.family,
+                           provider=provider.name, fallback_reason=blocked)
 
     configured = _role(stage.role)
     if ledger is not None:
         try:
-            ledger.model_call(family=stage.family)
+            ledger.model_call(family=stage.family, closing=stage.closing)
         except budget_mod.Exhausted as stop:
-            # The wall clock went while this stage was being prepared. The
+            # The clock went while this stage was being prepared. The
             # deterministic implementation still answers, which is a better
             # outcome than losing the turn to an optional enhancement.
             return Outcome(
@@ -350,6 +456,18 @@ def call(stage_key: str, *, system: str, prompt: str, schema: dict[str, Any],
                 fallback_reason=str(stop))
 
     started = time.perf_counter()
+
+    def failed(reason: str, **extra: Any) -> Outcome:
+        outcome = Outcome(
+            stage=stage.key, family=stage.family, provider=provider.name,
+            model=extra.pop("model", configured["model"]), role=stage.role,
+            effort=configured["effort"],
+            duration_ms=extra.pop(
+                "duration_ms", int((time.perf_counter() - started) * 1000)),
+            fallback_reason=reason, **extra)
+        _settle(ledger, stage, outcome, ok=False)
+        return outcome
+
     try:
         result = provider.structured(
             system=system, prompt=prompt, schema=schema,
@@ -360,42 +478,64 @@ def call(stage_key: str, *, system: str, prompt: str, schema: dict[str, Any],
             model=configured["model"],
             role=stage.role, effort=configured["effort"])
     except LLMError as e:
-        return Outcome(
-            stage=stage.key, family=stage.family, provider=provider.name,
-            model=configured["model"], role=stage.role,
-            effort=configured["effort"],
-            duration_ms=int((time.perf_counter() - started) * 1000),
-            fallback_reason=f"the model did not answer: {e}")
+        return failed(f"the model did not answer: {e}")
     except Exception as e:  # noqa: BLE001 - a seam must never lose a turn
         logger.warning("The Early Warning %s seam failed: %s", stage.key, e)
-        return Outcome(
-            stage=stage.key, family=stage.family, provider=provider.name,
-            model=configured["model"], role=stage.role,
-            effort=configured["effort"],
-            duration_ms=int((time.perf_counter() - started) * 1000),
-            fallback_reason=f"the model call failed: {e}")
+        return failed(f"the model call failed: {e}")
 
-    problems = _conforms(result.data, schema)
+    # A model writing to a schema gets the shape right and the housekeeping
+    # wrong: a required constant it saw no reason to repeat, a number as a
+    # string, one item where a list was asked for. `tidy` maps those into the
+    # schema's OWN vocabulary and drops what it cannot place. It never adds a
+    # value, so a reply that was missing something is still missing it and
+    # still fails below.
+    data = _tidied(result.data, schema, tidy)
+    problems = _conforms(data, schema)
     if problems:
-        return Outcome(
-            stage=stage.key, family=stage.family, provider=provider.name,
-            model=result.model, role=stage.role, effort=configured["effort"],
-            duration_ms=result.duration_ms, request_id=result.request_id,
-            input_tokens=result.input_tokens,
+        return failed(
+            "the reply did not conform to the schema",
+            model=result.model, duration_ms=result.duration_ms,
+            request_id=result.request_id, input_tokens=result.input_tokens,
             output_tokens=result.output_tokens, attempts=result.attempts,
-            fallback_reason="the reply did not conform to the schema",
-            schema_errors=problems)
+            schema_errors=problems, returned_keys=sorted(result.data)
+            if isinstance(result.data, dict) else [])
 
-    return Outcome(
-        stage=stage.key, engine=MODEL, data=dict(result.data),
+    outcome = Outcome(
+        stage=stage.key, engine=MODEL, data=dict(data),
         family=stage.family, provider=provider.name, model=result.model,
         role=stage.role, effort=configured["effort"],
         duration_ms=result.duration_ms, request_id=result.request_id,
         input_tokens=result.input_tokens, output_tokens=result.output_tokens,
         attempts=result.attempts)
+    _settle(ledger, stage, outcome, ok=True)
+    return outcome
+
+
+def _settle(ledger: budget_mod.Ledger | None, stage: Stage,
+            outcome: Outcome, *, ok: bool) -> None:
+    """Tell the ledger how the call it charged for ended.
+
+    Charged and settled are recorded separately so `charged = succeeded +
+    failed` holds by construction. A trace reporting six calls and five
+    served stages is then reconstructable rather than a discrepancy somebody
+    has to guess at.
+    """
+    if ledger is None:
+        return
+    ledger.settle(
+        stage=stage.key, family=stage.family, ok=ok,
+        provider=outcome.provider, model=outcome.model, role=outcome.role,
+        reason=outcome.fallback_reason,
+        duration_ms=outcome.duration_ms,
+        input_tokens=outcome.input_tokens,
+        output_tokens=outcome.output_tokens)
 
 
 __all__ = ["DETERMINISTIC", "FUNCTIONALITY", "INTERPRETATION", "MODEL",
            "OPUS", "Outcome", "PASS_1", "PASS_2", "PLAN", "SONNET", "STAGES",
            "SUFFICIENCY", "SUMMARY", "Stage", "call", "family_of",
            "provider_available", "routing"]
+
+#: Exposed for the tests: the generic coercion is the part most likely to be
+#: wrong in a way nothing else would notice.
+__all__ += ["_coerce", "_tidied"]

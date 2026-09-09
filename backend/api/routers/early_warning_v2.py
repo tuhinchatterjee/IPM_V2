@@ -513,6 +513,11 @@ def ask_early_warning(payload: AskRequest,
         # named the models without this could not be checked.
         "engines": turn.engines,
         "model_calls": [dict(c) for c in turn.model_calls],
+        # Every attempt, including one that was charged and then failed. The
+        # ledger's charged count and the number of stages a model served are
+        # different figures, and a trace that reported only the second leaves
+        # the first looking like an error.
+        "model_attempts": [dict(c) for c in turn.model_attempts],
         "result_packet": (
             {"diagnostics": packet.diagnostics,
              "provenance": packet.provenance,

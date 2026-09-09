@@ -135,10 +135,16 @@ class Turn:
     packet: packet_mod.ResultPacket | None = None
     rolling_summary: summary_mod.RollingSummary | None = None
     budget: dict[str, Any] = field(default_factory=dict)
-    #: Every model call this turn actually made, in stage order. Empty when
-    #: no provider is configured, which is not the same thing as a stage
+    #: Every model call that actually served a stage, in stage order. Empty
+    #: when no provider is configured, which is not the same thing as a stage
     #: having been skipped.
     model_calls: list[dict[str, Any]] = field(default_factory=list)
+    #: Every ATTEMPT, including the ones that were charged and then failed.
+    #: Read off the ledger rather than assembled here, so the arithmetic
+    #: charged = succeeded + failed holds by construction. A trace reporting
+    #: six calls and five served stages is then reconstructable rather than a
+    #: discrepancy somebody has to guess at.
+    model_attempts: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def stages(self) -> list[str]:
@@ -163,6 +169,7 @@ class Turn:
                                  if self.rolling_summary else {}),
             "budget": dict(self.budget),
             "model_calls": [dict(c) for c in self.model_calls],
+            "model_attempts": [dict(c) for c in self.model_attempts],
             "engines": self.engines,
             "provider_configured": seam_mod.provider_available(),
         }
@@ -421,13 +428,27 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
          packs=len(packet.packs), packet_hash=_hash(packet.figures))
 
     reviewed = suff.review(request, plan, packet,
-                           can_revise=ledger.can("revisions"), ledger=ledger)
+                           can_revise=ledger.may_revise(), ledger=ledger)
     emit(SUFFICIENCY_COMPLETE, complete=reviewed.complete,
          uncovered=list(reviewed.uncovered),
          presentation=reviewed.presentation, engine=reviewed.engine,
          model_call=dict(reviewed.model_call))
 
     while not reviewed.complete and reviewed.next_step is not None:
+        if not ledger.may_revise():
+            # A revision costs a revision, an execution and a second review,
+            # and the answer still has to be written afterwards. Declining it
+            # here returns the supported partial answer WITH its final
+            # interpretation, which is a better turn than a fuller analysis
+            # nobody got to read.
+            emit(SUFFICIENCY_COMPLETE, complete=False,
+                 uncovered=list(reviewed.uncovered),
+                 presentation=reviewed.presentation,
+                 engine=reviewed.engine,
+                 revision_declined=ledger.why_not("model_calls"))
+            reviewed.recommend_partial = True
+            reviewed.next_step = None
+            break
         ledger.revision()
         step = reviewed.next_step
         recheck = val.check(plan_mod.Plan(steps=[step]), package)
@@ -445,8 +466,7 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
                                   package=package, budget=ledger.to_dict())
         turn.packet = packet
         reviewed = suff.review(request, plan, packet,
-                               can_revise=ledger.can("revisions"),
-                               ledger=ledger)
+                               can_revise=ledger.may_revise(), ledger=ledger)
         emit(SUFFICIENCY_COMPLETE, complete=reviewed.complete,
              uncovered=list(reviewed.uncovered),
              presentation=reviewed.presentation, engine=reviewed.engine,
@@ -646,8 +666,12 @@ def _finish(turn: Turn, request: Any, prior: summary_mod.RollingSummary,
          engine=turn.rolling_summary.engine,
          model_call=dict(turn.rolling_summary.model_call))
     turn.budget = ledger.to_dict()
+    turn.model_attempts = [dict(c) for c in ledger.calls]
     emit(THREAD_PERSISTED, thread=turn.thread_id,
-         summary_version=turn.rolling_summary.version)
+         summary_version=turn.rolling_summary.version,
+         model_calls_charged=ledger.model_calls,
+         model_calls_succeeded=ledger.model_calls_succeeded,
+         model_calls_failed=ledger.model_calls_failed)
     return turn
 
 

@@ -403,12 +403,20 @@ are FOR, and offers five questions this domain can actually answer.
 
 ### Reproducing it against a real provider
 
+From the repository root, with the virtualenv the backend uses:
+
+```bash
+AI_PROVIDER=anthropic \
+ANTHROPIC_API_KEY="sk-ant-..." \
+AI_ROUTER_MODEL=claude-sonnet-5 \
+AI_COMPLEX_PLANNER_MODEL=claude-opus-5 \
+AI_CRITIC_MODEL=claude-opus-5 \
+AI_ANALYST_MODEL=claude-opus-5 \
+.venv/bin/python scripts/prove_early_warning_conversation.py
 ```
-AI_PROVIDER=anthropic ANTHROPIC_API_KEY=... \
-AI_ROUTER_MODEL=claude-sonnet-5 AI_COMPLEX_PLANNER_MODEL=claude-opus-5 \
-AI_CRITIC_MODEL=claude-opus-5 AI_ANALYST_MODEL=claude-opus-5 \
-python scripts/prove_early_warning_conversation.py
-```
+
+`AI_TRANSLATION_MODEL` is optional — pass one falls back to the router's model.
+Add `--mode deep` for the wider ceilings, or `--json` to print the whole turn.
 
 ---
 
@@ -418,12 +426,12 @@ Backend, `tests/early_warning/` + `tests/evals/test_early_warning_brain.py` +
 `tests/api/`, with PostgreSQL running:
 
 ```
-30 failed, 2295 passed, 66 skipped, 8 errors in 334.31s
+30 failed, 2343 passed, 66 skipped, 8 errors in 369.51s
 ```
 
 | | |
 |---|---|
-| Passed | **2,295** |
+| Passed | **2,343** |
 | Non-passing identifiers | **38** (30 failed + 8 errors) |
 | — Forward Risk Signal (Early Warning) | 5 — 2 failed, 3 errors, all pre-existing |
 | — credit-book API fixtures | 33 — 28 failed, 5 errors, all pre-existing |
@@ -443,6 +451,8 @@ Suites that matter here, run individually:
 |---|---|
 | `test_rawabi_regression.py` | 1 passed — **56 MEDIUM** |
 | `test_model_seam.py` | 26 passed |
+| `test_opus_plan_contract.py` | 31 passed |
+| `test_closing_reserve.py` | 17 passed |
 | `test_signal_universe.py` | 22 passed |
 | `test_conversation_routing.py` | 76 passed, 1 skipped |
 | `test_conversation_pipeline.py` | 21 passed |
@@ -458,7 +468,144 @@ clean, `next build` clean.
 
 ---
 
-## 6. What a reviewer should look at first
+## 6. Live-proof remediation
+
+The first real `claude-sonnet-5` / `claude-opus-5` run exposed two defects. The
+What-If journey was correct and is unchanged. Both defects are fixed.
+
+### Defect 1 — the Opus plan was discarded
+
+`opus_analysis_plan` made a real call, got a plan back, and threw it away with
+`the reply did not conform to the schema`.
+
+The plan was fine. The JSON schema required `domain` and `rationale` on every
+step and `output_grain` at the top. `domain` has exactly one legal value and
+the prompt says so; `rationale` is for the audit trail; `output_grain` has a
+sensible default. A model that saw no reason to repeat a constant on every step
+had not written a bad plan — and requiring it cost the whole stage.
+
+**The governed contract is untouched.** `Step`, `Plan` and
+`conversation/validate.py` are unchanged, and they are what decides whether a
+plan may run. What changed:
+
+- The schema requires only what the document cannot exist without: `steps` at
+  the top, `analysis` per step. Everything else keeps its description and its
+  enum, and stays optional.
+- Two normalising passes run **before** validation. `_coerce` is generic and
+  schema-driven — it only ever moves a value into the type the schema already
+  declares (`"25"` → `25`, one measure → a list of one, an explicit null for an
+  optional field dropped). `planner.tidy` maps vocabulary into the enum the
+  schema already contains (`trend` → `movement`, `top_n` → `ranking`,
+  `portfolio` → `population_month`) and clamps `limit` to the 500-row bound.
+  **Neither may add a value**, so a reply missing something required is still
+  missing it and still falls back.
+- An analysis this product does not have under any name is left exactly as it
+  arrived, so the refusal names it: `'monte_carlo' is not one of ['population',
+  …]`.
+- A `domain` that is not this one is also left alone, so the **validator**
+  refuses it by name. That path is asserted, not assumed.
+- The plan stage's token allowance went from 2,000 to 4,000. Eight steps with
+  filters, measures and rationales was landing on the boundary, and a tool call
+  truncated at the boundary arrives as a partial document.
+- A truncated tool call is now reported as truncation rather than as a
+  malformed reply, and is not retried — it would be cut off again in exactly
+  the same place. `backend/llm/anthropic_provider.py::_refuse_if_truncated`.
+- A failed stage now records what came back: the schema errors AND the
+  top-level keys the model returned.
+
+`tests/early_warning/test_opus_plan_contract.py`: **31 passed.** Half are plans
+a real model plausibly returns that must be accepted — the live shape, the same
+plan without `domain`, without `rationale`, without `output_grain`, with
+`"limit": "25"`, with a single measure instead of a list, with `filters` as a
+list of field/value pairs, with a limit above the bound. Half are replies that
+must still fall back — no steps, steps that are not a list, an empty document,
+an analysis this product cannot run, a foreign domain, a provider error.
+
+### Defect 2 — the answer lost the budget to the analysis
+
+The trace ended:
+
+```
+opus_final_interpretation   deterministic
+sonnet_summary_update       deterministic
+this turn's model-call budget is spent (6 of 8)
+```
+
+Six of eight is not spent. Two calls remained and two stages needed one each.
+What had run out was the **sixty-second clock** — and the message named the
+wrong resource, so the obvious reading of the trace was wrong in a way nothing
+on the trace could correct.
+
+Three changes, none of them "more budget":
+
+**A closing reserve.** Two model calls are held back for the final
+interpretation and the rolling summary, and optional work may not touch them.
+The ceiling is unchanged, every stage still spends from the same counters, and
+a repair or revision costs exactly what it cost before — the reserve is an
+ordering rule inside the one ledger, not a second allowance beside it. Standard
+mode's arithmetic is why the ceiling is eight: five calls to the first
+sufficiency review, six with the one permitted revision, eight with the closing
+stages. A second revision would eat the reserve and is **declined** — the turn
+returns the supported partial answer, says which part is missing, and still
+writes it properly.
+
+**Two clocks.** The soft deadline stops optional work; the hard deadline stops
+everything; only the closing stages may run between them. Standard is now
+120s soft / 240s hard, Deep 240s / 480s — bounded, and set against real Opus
+latency rather than against the sub-second deterministic path the original 60s
+was chosen for.
+
+**Every refusal names its resource.** `Ledger.why_not()` returns the reason
+rather than a bare `False`, and distinguishes the counter, the reserve and each
+clock.
+
+### The `6 charged / 5 recorded` discrepancy
+
+Legitimate, and now explicit. A call that was made and then failed is real
+spending: it is charged. It is not a stage a model served. Reporting only the
+second made the first look like an error.
+
+The ledger now records `model_calls_charged`, `model_calls_succeeded`,
+`model_calls_failed` and `calls` — every attempt in order with its stage,
+family, provider, model, role, duration, tokens, elapsed time and, where it
+failed, why. `charged = succeeded + failed` holds by construction. The API
+returns `model_attempts` alongside `model_calls`, and the proof script prints
+both.
+
+```
+ONE LEDGER
+  model calls       : 7 charged of 8  (2 reserved for the closing stages)
+    succeeded       : 7
+    failed          : 0
+    sonnet / opus   : 3 / 4
+  optional left     : 0
+  elapsed           : 4.7s of 120s soft, 240s hard
+  stages served     : 7
+
+EVERY ATTEMPT (charged, in order)
+     0.07s  ok    sonnet_pass_1                  sonnet  …/claude-sonnet-5   7ms
+     0.36s  ok    sonnet_pass_2                  sonnet  …/claude-sonnet-5   7ms
+     4.09s  ok    opus_functionality_selection   opus    …/claude-opus-5     7ms
+     4.10s  ok    opus_analysis_plan             opus    …/claude-opus-5     7ms
+     …
+```
+
+`tests/early_warning/test_closing_reserve.py`: **17 passed**, including the
+exact misdiagnosis (the clock must not be reported as the call count), the
+closing stages running past the soft deadline, the hard deadline still stopping
+them, the revision being declined rather than the answer, the reserve not being
+extra budget, and the ledger reconciling.
+
+### What was NOT changed
+
+The What-If journey, the functionality gate, the domain locks, the 20-month
+domain, the 2,521-field universe, the 123/105/18 reconciliation, the scoring
+engine, Rawabi at 56 MEDIUM, the action and escalation workflow, Messages,
+Investigations, the reports and the thread semantics.
+
+---
+
+## 7. What a reviewer should look at first
 
 1. `backend/early_warning/conversation/seam.py` — the single model boundary and
    the fallback contract.

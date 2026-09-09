@@ -58,6 +58,13 @@ class StubProvider:
     behaviour: str = ""
     #: Which stage the behaviour applies to. Empty means every stage.
     behaviour_for: str = ""
+    #: Canned replies by tool name, for testing the exact document shapes a
+    #: real model returns. Takes precedence over everything else, so a test
+    #: can paste a response transcribed from a live run and assert that the
+    #: seam accepts it.
+    replies: dict[str, Any] = field(default_factory=dict)
+    #: Stop reason to report, so truncation can be exercised.
+    stop_reason: str = "tool_use"
 
     @property
     def configured(self) -> bool:
@@ -80,6 +87,14 @@ class StubProvider:
                            "effort": effort, "purpose": purpose,
                            "packet": packet, "system": system,
                            "max_tokens": max_tokens})
+
+        if tool_name in self.replies:
+            canned = self.replies[tool_name]
+            if isinstance(canned, Exception):
+                raise canned
+            return LLMResult(data=canned, model=served, duration_ms=3,
+                             input_tokens=100, output_tokens=60,
+                             request_id="stub-request")
 
         misbehaving = self.behaviour and (
             not self.behaviour_for or self.behaviour_for == tool_name)
@@ -152,6 +167,13 @@ def _plan(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
 
 def _review(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
     floor = packet.get("coverage_map") or {}
+    if behaviour == "declare_incomplete":
+        # A review that always wants one more step, so the revision path can
+        # be driven against a squeezed budget.
+        return {"complete": False, "uncovered": ["concentration"],
+                "unsupported_claims": [], "next_analysis": "concentration",
+                "next_analysis_rationale": "the review wants one more",
+                "presentation": "narrative"}
     if behaviour == "declare_complete":
         return {"complete": True, "uncovered": [], "unsupported_claims": [],
                 "next_analysis": "", "presentation": "narrative"}
