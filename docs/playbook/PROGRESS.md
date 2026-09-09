@@ -104,9 +104,9 @@ re-checked against the provider's current documentation.
 
 | What | Result |
 |---|---|
-| `pytest tests/playbook` | 318 passed |
+| `pytest tests/playbook` | 326 passed, 8 live checks skipped |
 | `pytest tests/playbook tests/api tests/demo tests/services tests/exports tests/docs tests/proof tests/validation tests/llm` | 1373 passed, 8 skipped |
-| `pytest` (whole repository) | **9759 passed, 22 skipped, 0 failed** |
+| `pytest` (whole repository) | **9802 passed, 22 skipped, 0 failed** |
 | `npm test` | 462 passed |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
@@ -268,8 +268,22 @@ Stated here rather than left to be discovered.
    requirements are BLOCKED on it and nothing else: PB-013, PB-015, PB-017,
    PB-029, PB-030, PB-043. The pipeline around the provider is tested against a
    scripted one; that is not live verification and is nowhere reported as
-   though it were. `scripts/playbook_live_slice.py` runs the whole vertical
-   slice the moment a key is present, and exits 2 rather than 0 without one.
+   though it were.
+
+   The suite that closes them is written and waiting.
+   `backend/validation/live_playbook.py` holds eight checks — one per blocked
+   requirement, plus live streaming and all four file formats — as production
+   code, so a deployment can run them without shipping the test suite.
+   `tests/playbook/test_live_playbook.py` drives them and skips honestly
+   without a key; `scripts/playbook_live_slice.py` runs the vertical slice and
+   then the suite, and exits 2 rather than 0 when there is no credential. The
+   whole thing is about twelve provider calls, declared before any is spent,
+   against synthetic evidence only.
+
+   Eight structural tests run everywhere and guard the suite itself: that every
+   blocked requirement still has a check, that every check has a runner, that
+   the cost stays bounded, and that it refuses to run rather than passing when
+   there is no credential.
 2. **Nothing about streaming.** Implemented end to end and verified in a real
    browser. There is still no percentage anywhere, because there is still no
    honest basis for one — the states are real steps, not a bar on a timer.

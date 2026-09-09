@@ -271,6 +271,22 @@ def main() -> int:
             if row is not None:
                 session.delete(row)
 
+    # ------------------------------------------- the rest of the live suite
+    # The slice above is one vertical journey. These are the remaining
+    # acceptance criteria that need a provider, defined in production code so
+    # a deployment can run them too.
+    from backend.validation import live_playbook
+
+    print("-" * 72)
+    print(f"Live suite: {len(live_playbook.CHECKS)} checks, "
+          f"about {live_playbook.ESTIMATED_CALLS} provider calls")
+    suite = live_playbook.run_all()
+    for outcome in suite.outcomes:
+        which = next(c for c in live_playbook.CHECKS if c.id == outcome.check)
+        check(f"[{which.requirement}] {which.title}", outcome.passed,
+              outcome.detail)
+    record["live_suite"] = suite.to_dict()
+
     record["checks_passed"] = len(ok)
     record["checks_failed"] = len(bad)
     record["result"] = "PASS" if not bad else "FAIL"

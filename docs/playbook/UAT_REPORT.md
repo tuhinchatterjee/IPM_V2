@@ -23,8 +23,19 @@ assembly, grounding, rendering, validation, versioning, idempotency — is teste
 against a scripted provider. **That is not live verification and is not reported
 as though it were.**
 
-`scripts/playbook_live_slice.py` exists to close this the moment a key does.
-Run without one it prints the reason and exits **2**, never 0:
+Two things close this the moment a key exists, and neither needs a code change:
+
+    .venv/bin/python scripts/playbook_live_slice.py     # slice, then the suite
+    .venv/bin/python -m pytest tests/playbook/test_live_playbook.py -m live
+
+`backend/validation/live_playbook.py` holds the suite — eight checks, one per
+blocked requirement plus live streaming and all four formats, about twelve
+provider calls, declared before any is spent, against synthetic evidence only.
+It lives in production code so a deployment can run it without shipping the
+test suite, which is the lesson `backend/validation/live_smoke.py` was written
+to record.
+
+Run without a credential the slice prints the reason and exits **2**, never 0:
 
 ```
 CANNOT RUN: ANTHROPIC_API_KEY is not set. …
@@ -44,9 +55,9 @@ resulting instruction to a document, and that is the same blocker as PB-015.
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **318 passed** |
+| Playbook backend | `pytest tests/playbook` | **326 passed, 8 live checks skipped** |
 | Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
-| Full backend | `pytest -q` | **9759 passed, 22 skipped, 0 failed** |
+| Full backend | `pytest -q` | **9802 passed, 22 skipped, 0 failed** |
 | Frontend units | `npm test` | **462 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
