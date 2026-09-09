@@ -26,11 +26,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from backend.cockpit_agentic import DOMAIN
+from backend.cockpit_agentic import DOMAIN, store
 from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import fields as F
-from backend.cockpit_agentic import profile as profile_mod
-from backend.cockpit_agentic import store
 
 OUT = Path("docs/cockpit_v3")
 
@@ -409,8 +407,8 @@ def render(*, release, calendar, manifest, rows, families, published,
         "",
         "`" + " → ".join(F.RATING_SCALE) + "`",
         "",
-        f"rank 1 = AAA, rank 19 = C. Larger rank means weaker grade. No CCC+, "
-        f"no CCC−, no D; `default_flag` is a separate field.",
+        "rank 1 = AAA, rank 19 = C. Larger rank means weaker grade. No CCC+, "
+        "no CCC−, no D; `default_flag` is a separate field.",
         "",
         "### J — forecast vintage preserved",
         "",
@@ -491,7 +489,7 @@ def render(*, release, calendar, manifest, rows, families, published,
             "",
             f"**Grain:** {grain}",
             "",
-            f"**Quarter applicability:** "
+            "**Quarter applicability:** "
             + ("all 20 reporting quarters"
                if relation != catalog_mod.MACRO_PIVOT
                else "all 20 anchors; each row spans offsets −4…+15"),

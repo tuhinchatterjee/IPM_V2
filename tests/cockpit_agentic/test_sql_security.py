@@ -16,14 +16,16 @@ from backend.cockpit_agentic import catalog as C
 from backend.cockpit_agentic import fields as F
 from backend.cockpit_agentic import generate as G
 from backend.cockpit_agentic import scope as S
-from backend.cockpit_agentic import sql
-from backend.cockpit_agentic import store
-from backend.cockpit_agentic.contracts import (OUT_OF_SCOPE_ACCESS,
-                                               PERMISSION_DENIED,
-                                               RESOURCE_LIMIT, SYNTAX_ERROR,
-                                               TYPE_MISMATCH,
-                                               UNRESOLVED_FIELD,
-                                               UNSAFE_OPERATION)
+from backend.cockpit_agentic import sql, store
+from backend.cockpit_agentic.contracts import (
+    OUT_OF_SCOPE_ACCESS,
+    PERMISSION_DENIED,
+    RESOURCE_LIMIT,
+    SYNTAX_ERROR,
+    TYPE_MISMATCH,
+    UNRESOLVED_FIELD,
+    UNSAFE_OPERATION,
+)
 
 RELEASE = "test-sec-20q"
 

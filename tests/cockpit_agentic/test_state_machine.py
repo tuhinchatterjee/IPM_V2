@@ -16,7 +16,6 @@ import pytest
 
 from backend.cockpit_agentic import states as st
 
-
 # ============================================== completeness of the graph
 
 def test_every_non_terminal_state_has_an_outgoing_transition():

@@ -3957,6 +3957,222 @@ export interface EarlyWarningMethodology {
   document: string;
 }
 
+// ---- early warning v2 (the consolidated workbook-based product) ----
+
+export interface EarlyWarningV2SeverityBand {
+  band: "VERY_HIGH" | "HIGH" | "MEDIUM" | "LOW" | "VERY_LOW";
+  borrower_count: number;
+  borrower_pct: number;
+  exposure: number;
+  exposure_pct: number;
+}
+
+export interface EarlyWarningV2Summary {
+  period: string;
+  portfolio_ews: number;
+  borrower_count: number;
+  total_exposure: number;
+  high_plus_count: number;
+  high_plus_exposure: number;
+  severity_distribution: EarlyWarningV2SeverityBand[];
+}
+
+export interface EarlyWarningV2TrendPoint {
+  period: string;
+  portfolio_ews: number;
+  high_plus_count: number;
+}
+
+export interface EarlyWarningV2BorrowerRow {
+  customer_id: string;
+  customer_name: string;
+  segment: string;
+  exposure: number;
+  dpd: number;
+  ifrs9_stage: number | null;
+  ews_score: number;
+  ews_band: string;
+  ta_score: number;
+  ta_band: string;
+  classifier_score: number;
+  classifier_band: string;
+  dominant_driver: string | null;
+}
+
+export interface EarlyWarningV2Overview {
+  summary: EarlyWarningV2Summary;
+  trend: EarlyWarningV2TrendPoint[];
+  top_high_risk: EarlyWarningV2BorrowerRow[];
+  available_periods: string[];
+}
+
+export interface EarlyWarningV2SegmentRow {
+  segment: string;
+  borrower_count: number;
+  exposure: number;
+  portfolio_ews: number;
+  high_plus_count: number;
+  weakest_borrower: string | null;
+}
+
+export interface EarlyWarningV2Segments {
+  period: string;
+  segments: EarlyWarningV2SegmentRow[];
+}
+
+export interface EarlyWarningV2Diagnosis {
+  population: number;
+  total_exposure: number;
+  drivers: { signal: string; borrower_count: number }[];
+  note: string;
+}
+
+export interface EarlyWarningV2BorrowerDetail {
+  latest: Record<string, unknown>;
+  history: {
+    snapshot_month: string;
+    ews_score: number;
+    ews_band: string;
+    ta_score: number;
+    classifier_score: number;
+    dpd: number;
+    utilisation_pct: number;
+  }[];
+  fired_signals: { signal_key: string; signal_score: number; causal_chain_id: string }[];
+}
+
+export interface EarlyWarningV2Reading {
+  direct: string;
+  interpretation: string;
+  points: string[];
+  follow_ups: string[];
+  caveats?: string[];
+}
+
+/** One alternative the domain offers when another functionality owns the question. */
+export interface EarlyWarningV2Alternative {
+  question: string;
+  requires: string[];
+  because: string;
+}
+
+/** Which CreditProbe functionality owns the question, and how sure. */
+export interface EarlyWarningV2Routing {
+  selected_functionality: string;
+  selected_name: string;
+  fit_scores: Record<string, number>;
+  confidence: number;
+  ownership_rationale: string;
+  active_product_is_best: boolean;
+  ambiguous: boolean;
+  required_clarification: string;
+  engine: string;
+}
+
+export interface EarlyWarningV2Answer extends EarlyWarningV2Reading {
+  answered: boolean;
+  scope: string;
+  refused?: boolean;
+  drivers?: { code: string; name: string; score: number; band: string; reason: string }[];
+  chart?: { kind?: string; reason?: string };
+  facts?: { rows?: Record<string, unknown>[]; caveats?: string[] };
+  /** True when another functionality owns the question and nothing was run. */
+  redirected?: boolean;
+  selected_name?: string;
+  alternatives?: EarlyWarningV2Alternative[];
+  /** Whether every part of the request had evidence behind it. */
+  complete?: boolean;
+  presentation?: string;
+  routing?: EarlyWarningV2Routing;
+  /** The stages the turn actually ran, in order. */
+  stages?: string[];
+  budget?: {
+    mode: string;
+    spent: Record<string, number>;
+    remaining: Record<string, number>;
+    elapsed_seconds: number;
+  };
+  /**
+   * The thread's analytical context. Handed straight back on the next turn
+   * so "escalate it" still knows what "it" is — the client stores it rather
+   * than reconstructing it, because the server is what decided it.
+   */
+  rolling_summary?: Record<string, unknown>;
+  request_id?: string;
+}
+
+export interface EarlyWarningV2LevelRow {
+  obligors: number;
+  exposure: number;
+  portfolio_ews: number;
+  band: string;
+  high_plus_count: number;
+  weakest_obligor: string;
+  weakest_customer_id: string;
+  [key: string]: unknown;
+}
+
+export interface EarlyWarningV2Level {
+  level: string;
+  label: string;
+  period: string;
+  rows: EarlyWarningV2LevelRow[];
+  reading: EarlyWarningV2Reading;
+  caveats: string[];
+}
+
+export interface EarlyWarningV2SignalRow {
+  signal_key: string;
+  signal_score: number;
+  causal_chain_id: string;
+}
+
+export interface EarlyWarningV2SubCategoryNode {
+  code: string;
+  name: string;
+  score: number;
+  band: string;
+  reason: string;
+  signals: EarlyWarningV2SignalRow[];
+}
+
+export interface EarlyWarningV2LayerNode {
+  layer: string;
+  ta_score?: number;
+  c_score?: number;
+  sub_categories: EarlyWarningV2SubCategoryNode[];
+}
+
+export interface EarlyWarningV2ExternalEvent {
+  trigger_code?: string;
+  event_date?: string;
+  source_tier?: number;
+  scenario_status?: string;
+  [key: string]: unknown;
+}
+
+export interface EarlyWarningV2BorrowerTree {
+  customer_id: string;
+  period: string;
+  tree: EarlyWarningV2LayerNode[];
+  external_events: EarlyWarningV2ExternalEvent[];
+}
+
+export interface EarlyWarningV2Methodology {
+  methodology_version: string;
+  layers: { code: string; name: string }[];
+  signal_inventory: { signal_count: number; status_counts: Record<string, number> };
+  classifiers: { count: number };
+  triggers: { count: number };
+  combination: { formula: string; note: string };
+}
+
+export interface EarlyWarningV2WorkflowResult {
+  case_id: number;
+  case_key?: string;
+  workflow_item: { id: number; state: string; action: string; recipients: unknown[] };
+}
+
 export interface SignalWeight {
   factor_id: string;
   label: string;
@@ -7958,6 +8174,122 @@ export const api = {
       timeoutMs: 180_000,
     }),
 
+  // ---- early warning v2 (the consolidated workbook-based product) ----
+  earlyWarningV2Overview: (period?: string) =>
+    request<EarlyWarningV2Overview>(
+      `/early-warning/v2${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+    ),
+  earlyWarningV2Segments: (period?: string) =>
+    request<EarlyWarningV2Segments>(
+      `/early-warning/v2/segments${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+    ),
+  earlyWarningV2Diagnose: (opts: { period?: string; band?: string; segment?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (opts.period) query.set("period", opts.period);
+    if (opts.band) query.set("band", opts.band);
+    if (opts.segment) query.set("segment", opts.segment);
+    const suffix = query.toString() ? `?${query}` : "";
+    return request<EarlyWarningV2Diagnosis>(`/early-warning/v2/diagnose${suffix}`);
+  },
+  earlyWarningV2Borrower: (customerId: string) =>
+    request<EarlyWarningV2BorrowerDetail>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}`,
+    ),
+  earlyWarningV2BorrowerTree: (customerId: string) =>
+    request<EarlyWarningV2BorrowerTree>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/tree`,
+    ),
+  /** The screen's own chat. Reads the Early Warning domain and no other. */
+  earlyWarningV2Ask: (payload: {
+    question: string;
+    period?: string;
+    customerId?: string;
+    /** Where the reader is: the band filter, the level, the selection. */
+    uiState?: Record<string, unknown>;
+    /** The previous turn's summary, handed back unchanged. */
+    rollingSummary?: Record<string, unknown>;
+    threadId?: string;
+    mode?: "standard" | "deep";
+  }) =>
+    request<EarlyWarningV2Answer>("/early-warning/v2/ask", {
+      method: "POST",
+      body: JSON.stringify({
+        question: payload.question,
+        period: payload.period ?? null,
+        customer_id: payload.customerId ?? null,
+        ui_state: payload.uiState ?? null,
+        rolling_summary: payload.rollingSummary ?? null,
+        thread_id: payload.threadId ?? null,
+        mode: payload.mode ?? "standard",
+      }),
+      timeoutMs: 60_000,
+    }),
+  earlyWarningV2Suggestions: () =>
+    request<{ questions: { question: string; note: string }[] }>(
+      "/early-warning/v2/suggestions",
+    ),
+  earlyWarningV2Insight: (period?: string) =>
+    request<EarlyWarningV2Reading & { period: string }>(
+      `/early-warning/v2/insight${period ? `?period=${encodeURIComponent(period)}` : ""}`,
+    ),
+  earlyWarningV2Levels: () =>
+    request<{ levels: { field: string; label: string }[] }>(
+      "/early-warning/v2/levels",
+    ),
+  earlyWarningV2Level: (field: string, period?: string) =>
+    request<EarlyWarningV2Level>(
+      `/early-warning/v2/level/${encodeURIComponent(field)}${
+        period ? `?period=${encodeURIComponent(period)}` : ""
+      }`,
+    ),
+  earlyWarningV2Methodology: () =>
+    request<EarlyWarningV2Methodology>("/early-warning/v2/methodology"),
+  earlyWarningV2Escalate: (
+    customerId: string,
+    payload: { recipientUserIds: number[]; message?: string; requestedDecision?: string },
+  ) =>
+    request<EarlyWarningV2WorkflowResult>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/escalate`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          recipient_user_ids: payload.recipientUserIds,
+          message: payload.message ?? "",
+          requested_decision: payload.requestedDecision ?? "",
+        }),
+      },
+    ),
+  earlyWarningV2Inform: (
+    customerId: string,
+    payload: { recipientUserIds: number[]; message?: string },
+  ) =>
+    request<EarlyWarningV2WorkflowResult>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/inform`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          recipient_user_ids: payload.recipientUserIds,
+          message: payload.message ?? "",
+        }),
+      },
+    ),
+  earlyWarningV2RecordAction: (
+    customerId: string,
+    payload: { action: string; ownerUserId?: number; dueAt?: string; closingEvidenceRequired?: string },
+  ) =>
+    request<{ case_id: number; action: string }>(
+      `/early-warning/v2/borrower/${encodeURIComponent(customerId)}/action`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          action: payload.action,
+          owner_user_id: payload.ownerUserId ?? null,
+          due_at: payload.dueAt ?? null,
+          closing_evidence_required: payload.closingEvidenceRequired ?? "",
+        }),
+      },
+    ),
+
   // ---- projects ----
   projects: (opts: { status?: string; ownerId?: number } = {}) => {
     const query = new URLSearchParams();
@@ -8030,12 +8362,15 @@ export const api = {
       projectId?: number;
       includeArchived?: boolean;
       scope?: "standalone" | "project" | "all";
+      /** Narrow to threads locked to this governed domain (e.g. "early_warning"). */
+      domain?: string;
     } = {},
   ) => {
     const query = new URLSearchParams();
     if (opts.projectId !== undefined)
       query.set("project_id", String(opts.projectId));
     if (opts.scope) query.set("scope", opts.scope);
+    if (opts.domain) query.set("domain", opts.domain);
     if (opts.includeArchived) query.set("include_archived", "true");
     const suffix = query.toString() ? `?${query}` : "";
     return request<{ investigations: ThreadSummary[] }>(
@@ -8050,6 +8385,9 @@ export const api = {
     ask?: boolean;
     fromPeriod?: string;
     toPeriod?: string;
+    /** Seeds the thread's stored context — {domain: "early_warning"} locks
+     * every turn of this thread to that domain's own datasets. */
+    context?: Record<string, unknown>;
   }) =>
     request<ThreadTurn>("/investigations", {
       method: "POST",
@@ -8060,6 +8398,7 @@ export const api = {
         ask: payload.ask ?? true,
         from_period: payload.fromPeriod ?? null,
         to_period: payload.toPeriod ?? null,
+        context: payload.context ?? {},
       }),
       timeoutMs: 120_000,
     }),

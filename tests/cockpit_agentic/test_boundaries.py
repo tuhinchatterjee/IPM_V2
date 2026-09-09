@@ -18,7 +18,7 @@ import pytest
 from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import service, thread
 from backend.cockpit_agentic import states as st
-from tests.cockpit_agentic.conftest import RELEASE, scores
+from tests.cockpit_agentic.conftest import RELEASE
 from tests.cockpit_agentic.fake_provider import FakeProvider
 
 SQL = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "

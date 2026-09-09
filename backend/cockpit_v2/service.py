@@ -27,10 +27,9 @@ import logging
 import time
 from typing import Any
 
-from backend.cockpit_v2 import ANSWER_VERSION, DATA_VERSION, enabled
+from backend.cockpit_v2 import ANSWER_VERSION, DATA_VERSION, enabled, reader
 from backend.cockpit_v2 import answer as answer_mod
 from backend.cockpit_v2 import budgets as budgets_mod
-from backend.cockpit_v2 import reader
 from backend.cockpit_v2 import scope as scope_mod
 from backend.cockpit_v2 import understand as understand_mod
 

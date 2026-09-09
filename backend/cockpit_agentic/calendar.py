@@ -32,9 +32,10 @@ missingness. Both distinctions are carried in `Calendar`, not left to prose.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Iterator
+from typing import Any
 
 #: Exactly twenty ordered, consecutive quarterly snapshot slots per release.
 SLOTS = 20
@@ -70,7 +71,7 @@ class Quarter:
     index: int                      # quarters since 2000Q1
 
     @staticmethod
-    def of(year: int, quarter: int) -> "Quarter":
+    def of(year: int, quarter: int) -> Quarter:
         if quarter not in (1, 2, 3, 4):
             raise ValueError(f"{quarter!r} is not a quarter of the year")
         return Quarter((int(year) - 2000) * 4 + (int(quarter) - 1))
@@ -100,7 +101,7 @@ class Quarter:
     def display(self) -> str:
         return f"Q{self.quarter} {self.year}"
 
-    def shift(self, by: int) -> "Quarter":
+    def shift(self, by: int) -> Quarter:
         return Quarter(self.index + int(by))
 
     def __str__(self) -> str:       # pragma: no cover - convenience
@@ -165,7 +166,7 @@ class Calendar:
 
     @staticmethod
     def ending(last: str, *, dataset_release_id: str,
-               populated: tuple[str, ...] | None = None) -> "Calendar":
+               populated: tuple[str, ...] | None = None) -> Calendar:
         """Twenty consecutive slots ending at `last`. The release's calendar,
         never the wall clock."""
         end = parse(last)

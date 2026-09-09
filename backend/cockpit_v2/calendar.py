@@ -52,7 +52,7 @@ class Quarter:
         """Quarters since 2000Q1. Handy for arithmetic across year ends."""
         return (self.year - 2000) * 4 + (self.quarter - 1)
 
-    def shift(self, quarters: int) -> "Quarter":
+    def shift(self, quarters: int) -> Quarter:
         i = self.index + int(quarters)
         return Quarter(f"{2000 + i // 4}Q{i % 4 + 1}", 2000 + i // 4, i % 4 + 1)
 

@@ -24,7 +24,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from backend.api.permissions import Principal, RequireAnalyst
-from backend.cockpit_agentic import DEEP, MODES, STANDARD, service, thread
+from backend.cockpit_agentic import MODES, service, thread
 
 logger = logging.getLogger(__name__)
 

@@ -26,7 +26,8 @@ present in the schema but unsupplied by a source stays `unavailable`.
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from backend.cockpit_agentic.contracts import CockpitFieldSpec
 

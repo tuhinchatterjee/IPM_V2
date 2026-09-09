@@ -42,9 +42,10 @@ it. No model calls it and it computes nothing at query time.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import date, timedelta
-from typing import Any, Sequence
+from datetime import timedelta
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -978,7 +979,7 @@ def build_release(*, dataset_release_id: str = "demo-20q-v1",
                   borrowers: int = DEFAULT_BORROWERS,
                   facilities: int = DEFAULT_FACILITIES,
                   populated: Sequence[str] | None = None
-                  ) -> "Release":
+                  ) -> Release:
     """Build the whole twenty-quarter release. Deterministic."""
     calendar = cal.Calendar.ending(
         last_quarter, dataset_release_id=dataset_release_id,

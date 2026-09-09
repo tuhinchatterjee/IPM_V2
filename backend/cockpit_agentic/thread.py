@@ -36,8 +36,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.cockpit_agentic import DOMAIN
-from backend.cockpit_agentic.contracts import Exchange, ThreadSummary
 from backend.cockpit_agentic.context import estimate_tokens
+from backend.cockpit_agentic.contracts import Exchange, ThreadSummary
 from backend.cockpit_agentic.ledger import Limits
 
 DEFAULT_PAIRS = 3

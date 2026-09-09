@@ -28,7 +28,7 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -88,7 +88,7 @@ def main() -> int:
     args = parser.parse_args()
 
     payload = json.loads(CASES.read_text(encoding="utf-8"))
-    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    started = datetime.now(UTC).isoformat(timespec="seconds")
 
     if not credential_configured():
         report = {
@@ -167,7 +167,7 @@ def main() -> int:
     report = {
         "status": "LIVE_VERIFIED" if len(passed) == len(results) else "MEASURED",
         "started_at": started,
-        "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "finished_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "mode": args.mode,
         "dataset_release_id": args.release,
         "registry_version": registry.REGISTRY_VERSION,

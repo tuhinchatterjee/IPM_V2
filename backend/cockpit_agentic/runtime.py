@@ -35,8 +35,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.cockpit_agentic import DOMAIN, STANDARD
-from backend.cockpit_agentic import answer_check
+from backend.cockpit_agentic import DOMAIN, STANDARD, answer_check
 from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import context as context_mod
 from backend.cockpit_agentic import contracts as K
@@ -50,15 +49,23 @@ from backend.cockpit_agentic import sonnet as sonnet_mod
 from backend.cockpit_agentic import sql as sql_mod
 from backend.cockpit_agentic import states as st
 from backend.cockpit_agentic import tokens as tokens_mod
-from backend.cockpit_agentic.ledger import (STORE, BudgetExceeded,
-                                            DuplicateCandidate, Ledger,
-                                            Prices, STOP_CALLS,
-                                            STOP_CANCELLED, STOP_DEADLINE,
-                                            STOP_INPUT_TOO_LARGE,
-                                            STOP_METADATA, STOP_NO_PROGRESS,
-                                            STOP_ROUNDS, STOP_SPEND,
-                                            STOP_STEPS, STOP_SUBMISSIONS,
-                                            STOP_TOKENS)
+from backend.cockpit_agentic.ledger import (
+    STOP_CALLS,
+    STOP_CANCELLED,
+    STOP_DEADLINE,
+    STOP_INPUT_TOO_LARGE,
+    STOP_METADATA,
+    STOP_NO_PROGRESS,
+    STOP_ROUNDS,
+    STOP_SPEND,
+    STOP_STEPS,
+    STOP_SUBMISSIONS,
+    STOP_TOKENS,
+    STORE,
+    BudgetExceeded,
+    DuplicateCandidate,
+    Prices,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -178,13 +185,22 @@ class Runtime:
         except credential_mod.ProviderCredentialMissing as e:
             # Fails closed before the first provider request. No deterministic
             # answer, and the message names the variable and never a value.
-            return self._finish(
-                st.PROVIDER_CREDENTIAL_MISSING,
-                _stop_envelope(
-                    reason=e.status, narrative=str(e), understood=question,
-                    help_text=(f"Set {' and '.join(e.variables)} in the "
-                               f"runtime environment and restart the "
-                               f"service.")))
+            #
+            # CARRIED, not answered here. This block used to call
+            # `self._finish(...)` and `return` its envelope from `__init__` —
+            # which cannot return a value — while naming `question`, which is
+            # not in scope in a constructor. So the one path a deployment
+            # without the Cockpit's credential always takes raised NameError
+            # instead of the honest stop it was written to give, and this
+            # environment has no COCKPIT_ANTHROPIC_API_KEY, so it is the path
+            # taken every time.
+            #
+            # The fix is the mechanism this class already documents four lines
+            # above: carry it and let `run` report it, exactly as it reports
+            # `provider_error` from the service and `model_error` from
+            # `models.resolve`. One shape for a stop rather than two.
+            if self.provider_error is None:
+                self.provider_error = e
         except models_mod.CockpitModelError as e:
             self.model_error = e
 

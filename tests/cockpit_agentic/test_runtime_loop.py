@@ -8,11 +8,9 @@ validation is BLOCKED until a credential is configured.
 
 from __future__ import annotations
 
-import pytest
-
 from backend.cockpit_agentic import contracts as K
-from backend.cockpit_agentic import states as st
 from backend.cockpit_agentic import ledger as L
+from backend.cockpit_agentic import states as st
 from tests.cockpit_agentic.conftest import scores
 from tests.cockpit_agentic.fake_provider import FakeProvider
 

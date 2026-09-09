@@ -32,18 +32,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 import pandas as pd
 
-from backend.cockpit_v2 import (ANSWER_VERSION, DATA_VERSION, MODEL_VERSION,
-                                POLICY_VERSION)
+from backend.cockpit_v2 import ANSWER_VERSION, DATA_VERSION, MODEL_VERSION, POLICY_VERSION, policy, reader
 from backend.cockpit_v2 import attribution as attr
 from backend.cockpit_v2 import calendar as cal
 from backend.cockpit_v2 import ecl as ecl_mod
 from backend.cockpit_v2 import evidence as ev
-from backend.cockpit_v2 import policy
-from backend.cockpit_v2 import reader
 from backend.cockpit_v2 import schema as schema_mod
 from backend.cockpit_v2 import scope as scope_mod
 from backend.cockpit_v2 import understand as understand_mod
@@ -606,9 +603,9 @@ def _composition_section(request: understand_mod.Request, principal: Any,
                      "columns": ["Dimension", "Member", "Reported ECL",
                                  "Exposure", "Coverage %", "Facilities"],
                      "rows": rows, "unit": AMOUNT_UNIT,
-                     "footer": (f"Coverage is reported ECL over exposure for "
-                                f"each member. It is a ratio of components, "
-                                f"not the average of facility coverages.")}
+                     "footer": ("Coverage is reported ECL over exposure for "
+                                "each member. It is a ratio of components, "
+                                "not the average of facility coverages.")}
     if request.wants_chart:
         section.chart = {"type": "bar", "title": "Reported ECL by sector",
                          "unit": AMOUNT_UNIT,
@@ -659,7 +656,7 @@ def _scenario_section(request: understand_mod.Request, principal: Any,
     section.paragraphs.append(
         f"At {cal.display(quarter)} the three scenarios produce "
         + ", ".join(f"{s} {money(totals[s])}" for s in policy.SCENARIO_IDS)
-        + f". Weighting them at "
+        + ". Weighting them at "
         + ", ".join(f"{s} {weights[s]:.0%}" for s in policy.SCENARIO_IDS)
         + f" gives a modelled ECL of {money(weighted)}, and adding the "
           f"separately identified overlay of {money(overlay)} gives the "
@@ -817,7 +814,7 @@ def _macro_section(request: understand_mod.Request, ledger: ev.Ledger,
               "sensitivity for this sector, so they do not affect its PD.")
         if lgd_links:
             section.paragraphs.append(
-                f"Separately, "
+                "Separately, "
                 + "; ".join(f"{s.predictor.replace('_', ' ')} enters LGD with "
                             f"coefficient {s.coefficient:+.2f}"
                             for s in lgd_links)
@@ -1158,7 +1155,7 @@ def _rating_section(request: understand_mod.Request, principal: Any,
                 truncated=True))
     else:
         section.paragraphs.append(
-            f"No rating downgrade is recorded in this scope"
+            "No rating downgrade is recorded in this scope"
             + (f" between {periods['opening_label']} and "
                f"{periods['closing_label']}" if periods.get("available") else "")
             + f". {len(snap)} facilities carry a grade at "
@@ -1338,10 +1335,10 @@ def _stage_section(request: understand_mod.Request, principal: Any,
                                  "Trigger", "Reason", "Days past due",
                                  "Notches since origination", "Exposure"],
                      "rows": rows, "unit": AMOUNT_UNIT,
-                     "footer": (f"Stage 3 is measured by the credit-impaired "
-                                f"cash-shortfall method, not by the "
-                                f"performing formula. NPL and Stage 3 "
-                                f"coincide here as a stated demo policy.")}
+                     "footer": ("Stage 3 is measured by the credit-impaired "
+                                "cash-shortfall method, not by the "
+                                "performing formula. NPL and Stage 3 "
+                                "coincide here as a stated demo policy.")}
     section.findings = [f"Stage {s}: {int(counts.get(s, 0))} facilities"
                         for s in (1, 2, 3)]
     section.findings.append(f"{len(transitions)} stage change(s) in the period")

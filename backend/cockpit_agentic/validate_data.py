@@ -20,7 +20,6 @@ import numpy as np
 import pandas as pd
 
 from backend.cockpit_agentic import DOMAIN, ORIGIN
-from backend.cockpit_agentic import calendar as cal
 from backend.cockpit_agentic import fields as F
 from backend.cockpit_agentic.generate import SCENARIO_WEIGHT, Release
 

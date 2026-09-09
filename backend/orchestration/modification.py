@@ -489,7 +489,12 @@ def preview(request: str, plan: AnalysisPlan, graph: dict[str, Any],
     rejected: list[str] = []
     if not is_composed(plan):
         try:
-            validate_plan(proposed, vocab)
+            # `plan.domain_lock` is the domain the ORIGINAL investigation was
+            # answered under (stamped by `_run_certified`, carried through the
+            # stored Trace) — re-validated here so a Trace-modify request
+            # cannot walk a domain-locked investigation onto a dataset outside
+            # that domain just because the modification path never re-asks.
+            validate_plan(proposed, vocab, domain_lock=plan.domain_lock)
         except PlanRejected as rejection:
             rejected = rejection.reasons
 
@@ -557,7 +562,7 @@ def apply_modification(plan: AnalysisPlan, previous_steps: list[ExecutedStep],
     started = time.perf_counter()
     if is_composed(plan):
         return _recompose(plan, change, user_id=user_id, started=started)
-    proposed = validate_plan(change.proposed_plan)
+    proposed = validate_plan(change.proposed_plan, domain_lock=plan.domain_lock)
     steps = execute_plan(proposed, user_id=user_id, previous=previous_steps)
     return assemble(proposed, steps,
                     duration_ms=int((time.perf_counter() - started) * 1000),
@@ -583,7 +588,7 @@ def _recompose(plan: AnalysisPlan, change: ProposedChange, *,
 
     investigation = run_investigation(
         plan.question, user_id=user_id, persist=False, period=period,
-        extra_filters=filters)
+        extra_filters=filters, domain_lock=plan.domain_lock)
     investigation.duration_ms = int((time.perf_counter() - started) * 1000)
     investigation.plan.notes.append(change.description)
     return investigation

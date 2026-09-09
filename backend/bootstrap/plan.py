@@ -540,7 +540,25 @@ def _seed_playbook() -> str:
             f"no committee was seeded and none was already present: {detail}")
     return (f"{len(report.built)} committee(s) built, "
             f"{len(report.present)} already present")
+def _early_warning_needed() -> bool:
+    if not _lake_has(*readiness.EARLY_WARNING_DATASETS):
+        return True
+    try:
+        from backend.data_access import get_data_source
 
+        months = len(get_data_source().periods("early_warning_borrower_month") or [])
+    except Exception:  # noqa: BLE001 - an unreadable dataset is one to rebuild
+        return True
+    return months < readiness.MINIMUM_EARLY_WARNING_MONTHS
+
+
+def _build_early_warning() -> str:
+    import scripts.build_early_warning_v2 as builder
+
+    if builder.main([]) != 0:
+        raise RuntimeError("the Early Warning V2 monthly build reported failure")
+    _refresh_data_access()
+    return f"{readiness.MINIMUM_EARLY_WARNING_MONTHS}+ Early Warning monthly snapshot(s)"
 
 def _review_needed() -> bool:
     """Needed whenever the readiness gate would not pass, not merely when no
@@ -611,30 +629,36 @@ def steps() -> tuple[Step, ...]:
         # After the workspace, because it attaches REAL investigations and
         # analyses and describes a REAL data release: seeded before those exist
         # it would have nothing to point at, and an example workflow whose
-        # attachment cards open onto nothing is worse than none. Before the
-        # review, because the review must stay last — it is the step that reads
-        # the finished book and reports on it, and anything that runs after it
-        # is something the review did not see.
+        # attachment cards open onto nothing is worse than none.
         Step("workflow", "L", "Seed the example internal workflow",
              _workflow_needed, _seed_workflow, needs_database=True),
-        # The two features that arrived on their own branches, each with a
-        # seed script nobody wired into this list. Both branches verified
-        # themselves by running their seed BY HAND before their journeys, so
-        # neither noticed; the integration rehearsal started the container
-        # from an empty volume and found Delivery and Playbook empty on a
-        # deployment whose health check was green. That is the failure this
-        # module's docstring was written about, repeated on two new features.
+        # Early Warning writes Parquet under its own dataset names and does not
+        # touch metadata/catalog.json, so it carries none of C/D/E's ordering
+        # constraint against the catalogue. It does read the corporate book,
+        # which D builds, and it runs before the review like everything else.
+        Step("early_warning", "M",
+             "Generate Early Warning V2 monthly snapshots",
+             _early_warning_needed, _build_early_warning),
+        # The features that arrived on their own branches, each with a seed
+        # script nobody wired into this list. Both branches verified themselves
+        # by running their seed BY HAND before their journeys, so neither
+        # noticed; the integration rehearsal started the container from an
+        # empty volume and found Delivery and Playbook empty on a deployment
+        # whose health check was green. That is the failure this module's
+        # docstring was written about, repeated on two new features.
         # `lenses.install()` says in its own docstring that it is "called
-        # from the demo bootstrap". It was not called from anywhere. A
-        # container therefore came up with the Retail Risk, Retail Analytics
-        # and Corporate IFRS 9 lenses absent and the Lens catalogue empty.
-        Step("lenses", "M", "Install the shipped lenses",
+        # from the demo bootstrap". It was not called from anywhere.
+        Step("lenses", "N", "Install the shipped lenses",
              _lenses_needed, _install_lenses, needs_database=True),
-        Step("planner", "N", "Seed the Project Planner delivery plan",
+        Step("planner", "O", "Seed the Project Planner delivery plan",
              _planner_needed, _seed_planner, needs_database=True),
-        Step("playbook", "O", "Seed the Playbook committees",
+        Step("playbook", "P", "Seed the Playbook committees",
              _playbook_needed, _seed_playbook, needs_database=True),
-        Step("review", "P", f"Run the {readiness.PERIOD} portfolio review",
+        # The review stays last, in both branches' words: it reads the finished
+        # book and reports on it, so anything running after it is something the
+        # review did not see. Two branches each made it the final letter; the
+        # merged list has one more step than either, so it is Q.
+        Step("review", "Q", f"Run the {readiness.PERIOD} portfolio review",
              _review_needed, _run_review, needs_database=True),
     )
 
@@ -644,7 +668,7 @@ def run(*, only: str = "", force: bool = False,
     """Perform whatever this deployment is missing, then verify.
 
     `only` runs one step by key. `force` runs a step whose probe says it is
-    already done — for a rebuild. `skip_builders` leaves the three data
+    already done — for a rebuild. `skip_builders` leaves the four data
     universes alone, which is what a test wants when the lake is already
     there and only the database half is in question.
     """
@@ -657,7 +681,8 @@ def run(*, only: str = "", force: bool = False,
     for step in steps():
         if only and step.key != only:
             continue
-        if skip_builders and step.key in ("portfolio", "corporate", "retail"):
+        if skip_builders and step.key in ("portfolio", "corporate", "retail",
+                                          "early_warning"):
             continue
         if step.needs_database and not has_db:
             result.outcomes.append(Outcome(

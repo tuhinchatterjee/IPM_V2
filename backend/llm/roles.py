@@ -120,6 +120,13 @@ _FALLBACK_ROLE: dict[str, str] = {
     # shared default and the routing would be a claim rather than a fact.
     INVESTIGATOR: PLANNER,
     ANALYST: COMPLEX_PLANNER,
+    # The language pass — spelling, transcription noise, a question asked in
+    # another script — is the routing model's kind of job: short, structured
+    # and cheap. A deployment that configured AI_ROUTER_MODEL and left
+    # AI_TRANSLATION_MODEL blank should get that model rather than the shared
+    # default, which on a differentiated configuration is usually the
+    # expensive one.
+    TRANSLATION: ROUTER,
 }
 
 #: Roles that must be configured explicitly or not at all. No fallback to

@@ -24,8 +24,9 @@ refusal itself does not map the rest of the application.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from backend.cockpit_agentic import DOMAIN, UNTRUSTED_NOTE
 from backend.cockpit_agentic.catalog import QUERYABLE_RELATIONS

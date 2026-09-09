@@ -58,9 +58,10 @@ sensitivity; `forward_sensitivity` below is the separate thing, and it says so.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from itertools import combinations
-from typing import Any, Callable, Iterable, Sequence
+from typing import Any
 
 from backend.cockpit_v2 import ATTRIBUTION_VERSION
 from backend.cockpit_v2 import ecl as ecl_mod

@@ -26,8 +26,9 @@ layer treats it as one.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
 from backend.cockpit_v2 import DOMAIN
 from backend.cockpit_v2 import calendar as cal

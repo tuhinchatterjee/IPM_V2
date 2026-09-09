@@ -19,9 +19,13 @@ product wins:
   unavailable -- so the entry is present, `enabled=False`, with no route and an
   honest reason. Cockpit still refuses to generate a score; it just cannot
   promise a screen that would.
-* **What-if Analysis ships as "Stress Testing".** The route is `/stress` and
-  the label a user sees is "Stress Testing". Referring someone to "What-if
-  Analysis" would send them looking for a menu item that is not there.
+* **What-If Analysis ships as "What-If Analysis", at `/what-if`.** It used to
+  ship as "Stress Testing" at `/stress`, and this registry said so, because
+  that was true when the Cockpit branch forked. The What-If rebuild renamed
+  both. `/stress` is kept as a redirect for links already in the wild, but it
+  is no longer a menu item, so referring anyone to it would send them looking
+  for something that is not there -- which is the exact failure this entry was
+  written to avoid, pointed the other way.
 
 Ownership is about the ACTION, not the vocabulary
 -------------------------------------------------
@@ -199,9 +203,10 @@ ENTRIES: tuple[FunctionalityRegistryEntry, ...] = (
     ),
     FunctionalityRegistryEntry(
         functionality_id=WHAT_IF,
-        # The label a user actually sees. Referring them to "What-if Analysis"
-        # would send them looking for a menu item that is not there.
-        ui_label="Stress Testing",
+        # The label a user actually sees, which is what the navigation
+        # declares. It was "Stress Testing" until the What-If rebuild renamed
+        # the capability and moved it to /what-if.
+        ui_label="What-If Analysis",
         description=(
             "Named, versioned management scenarios applied to the portfolio, "
             "with comparison. This is where a new shock or hypothetical "
@@ -230,7 +235,7 @@ ENTRIES: tuple[FunctionalityRegistryEntry, ...] = (
         ),
         data_domain="stress",
         enabled=True,
-        route="/stress",
+        route="/what-if",
     ),
     FunctionalityRegistryEntry(
         functionality_id=LENSES,

@@ -179,6 +179,13 @@ class Answered:
     certified_params: dict[str, Any] = field(default_factory=dict)
     build: ap.AnalysisBuild | None = None
     runtime: Any = None
+    #: The governed domain this question was locked to, if any — carried onto
+    #: the assembled `AnalysisPlan` so a later Trace-modify re-validates
+    #: against the SAME domain the investigation actually ran under.
+    domain_lock: str | None = None
+    #: Which scope a governed domain answered at ("borrower", "portfolio",
+    #: "diagnosis", ...), when one did. Empty when the ordinary path answered.
+    domain_answer: str = ""
     written: interpretation.Interpretation | None = None
     clarification: str = ""
     #: The governed choice behind a clarification, when the reason CreditProbe
@@ -270,7 +277,8 @@ def answer(question: str, *, context: Any = None,
            memory: wm.WorkingMemory | None = None,
            period: tuple[str, str] | None = None,
            extra_filters: dict[str, Any] | None = None,
-           use_certified: bool = True) -> Answered:
+           use_certified: bool = True,
+           domain_lock: str | None = None) -> Answered:
     """Read, route, and either answer from metadata or compose and run.
 
     `period` is a comparison already chosen — from answering a clarification, or
@@ -283,6 +291,10 @@ def answer(question: str, *, context: Any = None,
     because a question CreditProbe cannot read is a conversation rather than an
     error. It raises nothing for a failed plan either — that comes back as a
     stated failure, for the same reason.
+
+    `domain_lock`, when set, restricts every dataset the composed plan may
+    read to that domain's allow-list (`backend.orchestration.domain_lock`),
+    forwarded to `backend.runtime.validation.validate()` via `_analyse()`.
     """
     started = time.perf_counter()
     state = state or cv.ConversationState()
@@ -418,6 +430,22 @@ def answer(question: str, *, context: Any = None,
     def finish(target: Answered) -> Answered:
         target.duration_ms = int((time.perf_counter() - started) * 1000)
         return target
+
+    # A thread locked to a governed domain is answered by that domain.
+    #
+    # This sits ahead of every guard below because those guards are written
+    # for the credit book and reject an Early Warning question before it can
+    # be read: the coverage check does not recognise an early warning node as
+    # a governed concept, and the unknown-borrower check looks the obligor up
+    # in the customer master, does not find it, and replies that CreditProbe
+    # holds no data about it. Both are accurate about the book they consulted
+    # and wrong about the question, which was asked inside the domain that
+    # does hold the answer. The domain lock has already guaranteed this thread
+    # reads nothing else, so routing here narrows nothing.
+    if domain_lock:
+        routed = _from_domain(answered, question, domain_lock, period)
+        if routed is not None:
+            return finish(routed)
 
     # "You didn't answer my second question." The complaint itself names no
     # figure, so reading it literally produces a menu of concepts — which is
@@ -583,7 +611,8 @@ def answer(question: str, *, context: Any = None,
 
     return finish(_analyse(answered, question, reading, context, state,
                            continuation, period, extra_filters,
-                           thread_datasets=list(memory.datasets)))
+                           thread_datasets=list(memory.datasets),
+                           domain_lock=domain_lock))
 
 
 def _drill_into_the_previous_analysis(
@@ -618,7 +647,6 @@ def _drill_into_the_previous_analysis(
     logger.info("Follow-up %r drills into %s of %s.", question[:60],
                 params[bridge_drill.PARAMETER], state.certified_analysis)
     return match, params
-
 
 def _as_association(question: str, reading: cap.Reading) -> cap.Reading:
     """Route a question about a PATTERN to the runtime rather than the catalogue.
@@ -1402,15 +1430,106 @@ def _from_metadata(answered: Answered, question: str, reading: cap.Reading,
     return answered
 
 
+def _from_domain(answered: Answered, question: str, domain: str,
+                  period: tuple[str, str] | None) -> Answered | None:
+    """Answer from a governed domain that reads its own data.
+
+    Returns None when the domain cannot answer, so the question falls
+    through to the ordinary path rather than failing inside a route that was
+    only meant to help. Early Warning is the only domain wired for this
+    today; the shape is deliberately general because the next single-product
+    surface will want the same thing.
+    """
+    from backend.orchestration import domain_lock as dl
+
+    if domain != dl.EARLY_WARNING:
+        return None
+    try:
+        from backend.early_warning import ask as ews_ask
+    except Exception as e:  # noqa: BLE001 - the domain is not installed here
+        logger.info("The Early Warning answerer is unavailable: %s", e)
+        return None
+
+    try:
+        found = ews_ask.answer(question, period=period[1] if period else None)
+    except Exception as e:  # noqa: BLE001 - fall through, never fail the turn
+        logger.warning("The Early Warning answerer could not read %r: %s",
+                       question, e)
+        return None
+    if found is None:
+        # Not a question this domain answers. Falling through matters: it is
+        # how a question needing another domain's data still reaches the
+        # domain lock and is refused, rather than being absorbed here.
+        return None
+
+    composed = found.composed
+    # `execution` is what the Trace consistency contract reads to decide
+    # whether a figure was computed. This one computed from a governed
+    # domain, and reporting it as metadata would make the Trace say nothing
+    # was calculated when the answer is full of figures.
+    answered.result = handlers.HandlerResult(
+        answer=composed.direct,
+        rows=list(found.pack.rows) if found.pack else [],
+        values=dict(found.pack.figures) if found.pack else {},
+        detail={"scope": found.scope, "facts": found.pack.to_dict() if found.pack else {},
+                "drivers": composed.drivers, "chart": composed.chart},
+        follow_ups=list(composed.follow_ups),
+        warnings=list(composed.caveats),
+        interpretation=composed.interpretation,
+        interpretation_points=list(composed.points),
+        execution="early_warning" if not found.refused else "metadata",
+        execution_label=("Early Warning domain" if not found.refused
+                         else "Governed refusal"),
+    )
+    answered.domain_answer = found.scope
+    _offer_to_the_model(answered, question, found)
+    return answered
+
+
+def _offer_to_the_model(answered: Answered, question: str, found: Any) -> None:
+    """Let a live model rewrite the reading, if one is configured and it can
+    do it without inventing anything.
+
+    The deterministic reading is already written and already correct; this
+    is the seam, not the source. The fact pack becomes the grounding
+    result, so the same check that discards an ungrounded sentence on the
+    ordinary path applies here — and when there is no provider, or the
+    model declines, or what it writes quotes a figure the pack does not
+    carry, the deterministic text is what stands. That ordering is what
+    makes adding a provider an improvement rather than a risk.
+    """
+    if found.pack is None or found.refused:
+        return
+    try:
+        from backend.early_warning import facts as ff
+
+        runtime = ff.PackRuntime(found.pack)
+        written = interpretation.write(
+            question, found.composed.direct, runtime,
+            plan_note="Answered from the Early Warning domain, which computed "
+                      "every figure quoted.",
+            **_role_call("interpretation"))
+    except Exception as e:  # noqa: BLE001 - the seam must never lose an answer
+        logger.warning("The Early Warning interpretation seam failed: %s", e)
+        return
+    answered.written = written
+    if written.interpretation:
+        answered.result.interpretation = written.interpretation
+        if written.notable:
+            answered.result.interpretation_points = list(written.notable)
+
+
 def _analyse(answered: Answered, question: str, reading: cap.Reading,
              context: Any, state: cv.ConversationState,
              continuation: cv.Continuation,
              period: tuple[str, str] | None,
              extra_filters: dict[str, Any] | None,
-             thread_datasets: list[str] | None = None) -> Answered:
+             thread_datasets: list[str] | None = None,
+             domain_lock: str | None = None) -> Answered:
     """Compose, validate, run and interpret. Or say why it could not."""
     from backend.runtime.executor import ExecutionClass, execute
 
+    answered.domain_lock = domain_lock
     reading = _with_overrides(reading, period, extra_filters)
     answered.reading = reading
 
@@ -1499,7 +1618,8 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         answered.runtime = execute(
             build.plan, question=question, intent=build.summary,
             certification=ExecutionClass.DYNAMIC,
-            population_steps=_population_steps(build))
+            population_steps=_population_steps(build),
+            domain_lock=domain_lock)
     except Exception as e:  # noqa: BLE001
         logger.exception("The governed runtime failed for %r", question)
         answered.failure_kind = FAILED_RUNTIME

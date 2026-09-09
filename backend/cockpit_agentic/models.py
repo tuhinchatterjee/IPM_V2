@@ -42,8 +42,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.cockpit_agentic.contracts import (MODEL_CONFIGURATION_MISSING,
-                                               MODEL_UNAVAILABLE)
+from backend.cockpit_agentic.contracts import MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE
 
 #: The role names, kept identical to the shared registry's so an administrator
 #: reading Settings and an engineer reading this file are talking about the

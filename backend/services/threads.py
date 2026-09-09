@@ -418,7 +418,12 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
             # follow-up about a field set reached the planner with no "those"
             # to resolve — which worked in tests that drove the orchestrator
             # directly and failed for every user.
-            memory=wm.load(context))
+            memory=wm.load(context),
+            # A thread started from a governed domain (e.g. Early Warning)
+            # stays locked to that domain's own datasets for every later
+            # turn — the lock lives on the thread's stored context, not on
+            # each incoming request, so it cannot be widened mid-conversation.
+            domain_lock=context.get("domain"))
 
     result = officer.investigation
     answered = officer.answered
@@ -739,6 +744,7 @@ def publish(thread_id: int, *, published: bool,
 
 def listing(*, project_id: int | None = None, owner_id: int | None = None,
             include_archived: bool = False, scope: str = "standalone",
+            domain: str | None = None,
             limit: int = 50) -> list[dict[str, Any]]:
     """Threads, most recently spoken in first, with a one-line preview.
 
@@ -758,6 +764,11 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
     Defaulting to "standalone" is deliberate: the global list is the one a
     caller reaches for without thinking, and the safe default is the narrower
     one.
+
+    `domain`, when set, narrows to threads whose own stored context locked
+    them to that domain (e.g. "early_warning") — an ADDITIONAL view onto the
+    same rows scope already selects, not a separate store: a saved Early
+    Warning investigation still appears in the unfiltered global list too.
     """
     if not settings.has_database:
         return []
@@ -798,6 +809,8 @@ def listing(*, project_id: int | None = None, owner_id: int | None = None,
 
         if owner_id is not None:
             query = query.where(Investigation.owner_id == owner_id)
+        if domain is not None:
+            query = query.where(Investigation.context["domain"].astext == domain)
         if not include_archived:
             query = query.where(Investigation.status != INV_ARCHIVED)
         rows = session.execute(query).scalars().all()

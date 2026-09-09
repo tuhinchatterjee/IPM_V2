@@ -261,12 +261,13 @@ copy .env.example .env
 .venv\Scripts\python scripts\generate_saudi_universe.py
 .venv\Scripts\python scripts\build_retail_scorecards.py
 .venv\Scripts\python scripts\build_corporate_universe.py
+.venv\Scripts\python scripts\build_early_warning_v2.py
 ```
 
 This installs everything CreditProbe needs and converts the sample credit data into the
 format the analytics engine reads. It takes a few minutes the first time.
 
-All three builds are needed, not just the first. The governed catalogue is
+All four builds are needed, not just the first. The governed catalogue is
 generated rather than committed, and the AI Brain's training vocabulary
 refuses to start when a dataset it names is missing from it — so a clone with
 only the credit book will not run at all.

@@ -27,12 +27,10 @@ import time
 from typing import Any
 
 from backend.analyst.evidence import Observation
-from backend.analyst.safety import Principal, READ_METADATA, RUN_ANALYSIS
-from backend.cockpit_v2 import (ATTRIBUTION_VERSION, DATA_VERSION,
-                                MODEL_VERSION, POLICY_VERSION, enabled)
+from backend.analyst.safety import READ_METADATA, RUN_ANALYSIS, Principal
+from backend.cockpit_v2 import ATTRIBUTION_VERSION, DATA_VERSION, MODEL_VERSION, POLICY_VERSION, enabled, reader
 from backend.cockpit_v2 import attribution as attr
 from backend.cockpit_v2 import calendar as cal
-from backend.cockpit_v2 import reader
 from backend.cockpit_v2 import schema as schema_mod
 from backend.cockpit_v2 import scope as scope_mod
 

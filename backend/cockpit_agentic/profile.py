@@ -27,10 +27,9 @@ Computed once per release, not per query.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from backend.cockpit_agentic import CATALOG_VERSION
@@ -131,7 +130,7 @@ def profile_release(release: Release) -> DataCoverageProfile:
     return DataCoverageProfile(
         dataset_release_id=release.dataset_release_id,
         catalog_version=CATALOG_VERSION,
-        computed_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        computed_at=datetime.now(UTC).isoformat(timespec="seconds"),
         reporting_quarters=list(release.calendar.slots),
         populated_quarters=list(release.calendar.populated),
         missing_quarters=list(release.calendar.missing),

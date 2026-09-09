@@ -201,6 +201,22 @@ export function fromBorrower(
 }
 
 /**
+ * A borrower opened in the Early Warning V2 drill-down (`?customer=`).
+ *
+ * Distinct from `fromBorrower` above, which carries the legacy fitted
+ * Forward Risk Signal's `?facility=` scheme — the two screens keep separate
+ * query parameters so a link built for one never silently opens the wrong
+ * row on the other.
+ */
+export function fromEwsBorrower(customerId: string, name: string): ReturnContext {
+  return {
+    href: `/early-warning?customer=${encodeURIComponent(customerId)}`,
+    label: name || customerId || "this borrower",
+    type: "borrower",
+  };
+}
+
+/**
  * A dataset in Data Builder, at the period that was being read.
  *
  * §5: "Data Builder → Dataset → Relationship → Back to exact Dataset/period".

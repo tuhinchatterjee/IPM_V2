@@ -37,7 +37,7 @@ import dataclasses
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from backend.cockpit_agentic import DEEP, MODES, STANDARD
@@ -347,7 +347,7 @@ class Ledger:
     def __init__(self, *, request_id: str = "", mode: str = STANDARD,
                  prices: Prices | None = None,
                  clock: Any = time.monotonic,
-                 store: "LedgerStore | None" = None) -> None:
+                 store: LedgerStore | None = None) -> None:
         mode = str(mode or STANDARD).lower()
         if mode not in MODES:
             mode = STANDARD

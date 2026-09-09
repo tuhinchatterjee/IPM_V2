@@ -40,6 +40,14 @@ class HandlerResult:
     values: dict[str, Any] = field(default_factory=dict)
     #: Structured detail the answer panel renders in its own block.
     detail: dict[str, Any] = field(default_factory=dict)
+    #: The reading of the answer, where the capability wrote one. Most
+    #: capabilities describe the catalogue and have nothing to interpret, so
+    #: this is empty for them and the answer surface renders as before. A
+    #: capability that COMPUTED something has a reading worth showing, and
+    #: without these fields it had nowhere to put it: `assembly.from_handler`
+    #: hard-coded the narrative's interpretation to empty.
+    interpretation: str = ""
+    interpretation_points: list[str] = field(default_factory=list)
     graph: TraceGraph | None = None
     follow_ups: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)

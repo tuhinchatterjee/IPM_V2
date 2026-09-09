@@ -494,7 +494,7 @@ class FunctionalityDecision:
     #: For PRODUCT_HELP and THEORY_CONCEPT, Opus answers in this same turn.
     #: Carried here rather than through a second call, because a second call
     #: to say what ECL means would spend a model request on nothing.
-    answer: "AnswerEnvelope | None" = None
+    answer: AnswerEnvelope | None = None
     scores: list[SuitabilityScore] = field(default_factory=list)
     best_fit: str = ""
     requested_actions: list[str] = field(default_factory=list)
@@ -864,7 +864,7 @@ class AnalysisReviewDecision:
     gap_addressed: str = ""
     clarification_question: str = ""
     clarification_options: list[str] = field(default_factory=list)
-    answer: "AnswerEnvelope | None" = None
+    answer: AnswerEnvelope | None = None
 
     def __post_init__(self) -> None:
         _require(self.decision in REVIEW_DECISIONS,

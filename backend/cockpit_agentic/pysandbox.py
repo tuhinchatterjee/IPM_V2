@@ -53,9 +53,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.cockpit_agentic import sql as sql_mod
-from backend.cockpit_agentic.contracts import (RESOURCE_LIMIT, RUNTIME_ERROR,
-                                               SANDBOX_UNAVAILABLE,
-                                               UNSAFE_OPERATION)
+from backend.cockpit_agentic.contracts import RESOURCE_LIMIT, RUNTIME_ERROR, SANDBOX_UNAVAILABLE
 
 BOOT = Path(__file__).with_name("_pyjail_boot.py")
 
@@ -105,7 +103,7 @@ class SandboxLimits:
     max_input_rows: int = 20_000
 
     @classmethod
-    def from_ledger(cls, ledger) -> "SandboxLimits":
+    def from_ledger(cls, ledger) -> SandboxLimits:
         limits = ledger.limits
         wall = min(float(limits.step_wall_seconds),
                    max(1.0, ledger.remaining_seconds))

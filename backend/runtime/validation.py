@@ -131,12 +131,29 @@ class ValidationReport:
 def validate(plan: AnalyticalPlan, *, catalog: Any = None,
              limits: Limits = DEFAULT_LIMITS,
              archived_domains: frozenset[str] | None = None,
-             scope: str = "GENERAL") -> ValidationReport:
+             scope: str = "GENERAL",
+             domain_lock: str | None = None) -> ValidationReport:
     """Check a plan against the governed catalogue and the cost limits.
+
+    TWO governance boundaries arrive here from two branches, and they are
+    independent rather than alternatives, so the signature carries both.
 
     `scope` decides whether the scorecard validation domains may be read. It
     defaults to GENERAL — the restrictive value — so a caller that has not
     thought about it gets the safe answer rather than the convenient one.
+
+    `domain_lock`, when set, restricts every dataset the plan scans to the
+    named domain's allow-list (`backend.orchestration.domain_lock`) — the
+    enforcement point for a thread locked to one product surface (e.g.
+    Early Warning), on the live compute path this runtime actually serves.
+    A plan reading anything outside the lock is refused with every
+    out-of-domain dataset named, exactly as every other refusal here names
+    every reason rather than the first.
+
+    They COMPOSE. A plan must satisfy both: a scope that permits a dataset
+    does not unlock it past a domain lock, and a domain lock that permits one
+    does not unlock it past the scope. Neither weakens the other, because a
+    boundary that another boundary can open is not a boundary.
     """
     from backend.data_access.catalog import get_catalog
 
@@ -227,6 +244,21 @@ def validate(plan: AnalyticalPlan, *, catalog: Any = None,
             # Keep an empty schema so downstream steps report their own problems
             # against something, rather than cascading "unknown input".
             schemas[operation.id] = StepSchema()
+
+    if domain_lock:
+        from backend.orchestration import domain_lock as dl
+
+        allowed = dl.DOMAIN_DATASETS.get(domain_lock)
+        if allowed is not None:
+            out_of_domain = [name for name in plan.datasets() if name not in allowed]
+            if out_of_domain:
+                reasons.append(
+                    "This thread is locked to the "
+                    f"{domain_lock.replace('_', ' ')} domain, which does not include "
+                    f"{', '.join(sorted(out_of_domain))}. Ask outside "
+                    f"{domain_lock.replace('_', ' ')} for that, or check whether the "
+                    "field should be added to that domain's source lineage."
+                )
 
     return ValidationReport(
         ok=not reasons,

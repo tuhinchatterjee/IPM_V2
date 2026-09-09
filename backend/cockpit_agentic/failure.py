@@ -35,22 +35,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import fields as F
 from backend.cockpit_agentic import sql as sql_mod
-from backend.cockpit_agentic.contracts import (CatalogAlternative,
-                                               ExecutionFailurePacket,
-                                               ExecutionStep,
-                                               ExecutionSubmission,
-                                               INVALID_FILTER_VALUE,
-                                               MISSING_SOURCE_DATA,
-                                               OUT_OF_SCOPE_ACCESS,
-                                               PERMISSION_DENIED,
-                                               RESOURCE_LIMIT,
-                                               SANDBOX_UNAVAILABLE,
-                                               UNRESOLVED_FIELD,
-                                               UNRESOLVED_RELATION,
-                                               UNSAFE_OPERATION)
+from backend.cockpit_agentic.contracts import (
+    INVALID_FILTER_VALUE,
+    MISSING_SOURCE_DATA,
+    OUT_OF_SCOPE_ACCESS,
+    PERMISSION_DENIED,
+    RESOURCE_LIMIT,
+    SANDBOX_UNAVAILABLE,
+    UNRESOLVED_FIELD,
+    UNRESOLVED_RELATION,
+    UNSAFE_OPERATION,
+    CatalogAlternative,
+    ExecutionFailurePacket,
+    ExecutionStep,
+    ExecutionSubmission,
+)
 from backend.cockpit_agentic.ledger import Ledger
 
 #: The parts of the effective context that must be present in the outbound

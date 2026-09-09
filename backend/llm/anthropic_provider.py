@@ -21,8 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.llm import caching, telemetry
-from backend.llm.base import (ConverseResult, LLMError, LLMResult,
-                              ProviderStatus, register)
+from backend.llm.base import ConverseResult, LLMError, LLMResult, ProviderStatus, register
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +124,7 @@ class AnthropicProvider:
                     tool_choice={"type": "tool", "name": tool_name},
                     messages=[{"role": "user", "content": prompt}],
                 )
+                _refuse_if_truncated(message, tool_name, max_tokens)
                 data = _tool_input(message, tool_name)
                 usage = getattr(message, "usage", None)
                 cached = caching.usage(usage)
@@ -308,6 +308,24 @@ class AnthropicProvider:
         return self.client
 
 
+def _refuse_if_truncated(message: Any, tool_name: str,
+                         max_tokens: int) -> None:
+    """A tool call cut off at max_tokens is not a malformed reply.
+
+    It arrives as a partial object — a plan missing its last two steps, a
+    reading missing its last sentence — and every layer downstream reports it
+    as "did not conform to the schema", which sends whoever is debugging it
+    to look at the schema. The schema is fine. The document was truncated,
+    and the fix is a larger allowance for that stage.
+    """
+    if getattr(message, "stop_reason", "") != "max_tokens":
+        return
+    raise LLMError(
+        f"The {tool_name} reply was cut off at the {max_tokens}-token limit "
+        "before it finished, so what came back is a partial document rather "
+        "than a malformed one.")
+
+
 def _tool_input(message: Any, tool_name: str) -> dict[str, Any]:
     """The tool call's arguments, or an error naming what came back instead."""
     for block in getattr(message, "content", []) or []:
@@ -356,8 +374,10 @@ def _worth_retrying(error: Exception) -> bool:
                 "RateLimitError", "APIStatusError", "OverloadedError"}:
         return True
     if isinstance(error, LLMError):
-        # Prose instead of a tool call: a second attempt often lands.
-        return "in prose" in str(error)
+        # Prose instead of a tool call: a second attempt often lands. A reply
+        # cut off at the token limit will be cut off again in exactly the
+        # same place, so it is not retried.
+        return "in prose" in str(error) and "cut off" not in str(error)
     return isinstance(error, (TimeoutError, ConnectionError))
 
 

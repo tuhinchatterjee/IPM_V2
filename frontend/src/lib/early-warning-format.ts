@@ -62,6 +62,20 @@ function fixed(value: number, decimals: number): string {
  * `SAR 75.4m` up to a billion, `SAR 1.2bn` above it. One decimal: a facility
  * at 321.8 rounded to 322 has lost the precision the reader is checking it
  * for, and the line is no longer for keeping it.
+ *
+ * This is the single definition on the interface side, and it mirrors
+ * `money()` in backend/early_warning/compose.py character for character.
+ * The two have to agree: the same exposure appears on a KPI tile, in the
+ * sentence directly beneath it, and in the report generated from both, and a
+ * reader who sees `15,470` above "SAR 15.5bn" concludes the product cannot
+ * add up. Use it for every Early Warning value a reader compares against
+ * prose — never the application-wide `money()` in lib/format.ts, which
+ * returns a bare number with no unit at all.
+ *
+ * Tables are the deliberate exception. A column of twenty-five rows each
+ * repeating "SAR" is twenty-four wasted repetitions of the one fact that
+ * does not change, so an Early Warning table says "(SAR m)" in its header
+ * once and keeps bare numbers in the cells.
  */
 export function money(
   millions: number,
@@ -172,4 +186,22 @@ export function showMovement(
     default:
       return `${sign}${size.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
   }
+}
+
+
+/** What an Early Warning money column says in its header, exactly once. */
+export const MONEY_COLUMN_UNIT = "SAR m";
+
+/**
+ * A money value for a table cell, bare, under a `(SAR m)` header.
+ *
+ * Deliberately NOT scaled to billions. A column where one cell reads 15.5
+ * and the next reads 840.0 under a single header is a column stating two
+ * different units, and the reader has no way to tell which row is which.
+ */
+export function moneyCell(millions: number | null | undefined): string {
+  if (millions === null || millions === undefined || !Number.isFinite(millions)) {
+    return NOTHING;
+  }
+  return fixed(millions, 1);
 }

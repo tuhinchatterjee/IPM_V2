@@ -34,10 +34,8 @@ from pathlib import Path
 from typing import Any
 
 from backend.cockpit_agentic import PROMPT_VERSION, UNTRUSTED_NOTE
-from backend.cockpit_agentic.contracts import (CleanedQuestion, Exchange,
-                                               NormalizedQuestion,
-                                               ThreadSummary)
 from backend.cockpit_agentic import models as models_mod
+from backend.cockpit_agentic.contracts import CleanedQuestion, Exchange, NormalizedQuestion, ThreadSummary
 from backend.cockpit_agentic.ledger import BudgetExceeded, Ledger
 
 logger = logging.getLogger(__name__)

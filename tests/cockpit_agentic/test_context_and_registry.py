@@ -47,11 +47,26 @@ def test_every_enabled_route_exists_in_the_application():
 
 
 def test_what_if_is_registered_under_the_label_users_actually_see():
-    """Referring someone to 'What-if Analysis' would send them looking for a
-    menu item that is not there."""
+    """Referring someone to a menu item that is not there is the failure.
+
+    This asserted the two literals "Stress Testing" and "/stress", which was
+    the right intent pinned the wrong way: the What-If rebuild renamed the
+    capability to "What-If Analysis" at /what-if, and a test holding the old
+    strings failed for being correct about a product that had moved on.
+
+    So it asks the question it meant instead — does the registry agree with
+    what the application actually declares — which is stronger than either
+    literal and cannot go stale on the next rename. `/stress` still resolves,
+    as a redirect for links already in the wild, but it is no longer the menu
+    item and no longer what a referral should name.
+    """
     entry = R.entry(R.WHAT_IF)
-    assert entry.ui_label == "Stress Testing"
-    assert entry.route == "/stress"
+    declared = R.verify_routes()["results"][R.WHAT_IF]
+    assert declared["route_exists"] is True
+    assert declared["label_matches"] is True, (
+        f"the registry calls it {declared['registry_label']!r} but the "
+        f"application calls it {declared['declared_label']!r}")
+    assert entry.route == declared["route"]
 
 
 def test_credit_scoring_is_excluded_and_honestly_unavailable():

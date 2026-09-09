@@ -317,7 +317,7 @@ def _periods(text: str) -> tuple[str, str]:
     return ordered[-1], ordered[0]
 
 
-def read(text: str, *, previous: "Request | None" = None) -> Request:
+def read(text: str, *, previous: Request | None = None) -> Request:
     """Read one utterance, carrying forward what a follow-up should keep."""
     utterance = (text or "").strip()
     lower = utterance.lower()

@@ -18,7 +18,8 @@ Every read goes through `scope.permit`.
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pandas as pd
 

@@ -6,13 +6,14 @@ import * as React from "react";
 import {
   ChevronDown,
   FlaskConical,
-  ListChecks,
+  MessageSquare,
   Radar,
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
+import { EarlyWarningV2Portfolio } from "@/components/early-warning/v2-portfolio";
 import { Badge } from "@/components/ui/badge";
 import { technical } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -84,17 +85,20 @@ function EarlyWarning() {
     <div className="space-y-7">
       <PageHeader
         title="Early Warning"
-        description="A forward-looking estimate of the chance that a facility moves to a worse IFRS 9 stage next quarter. Fitted separately for three transitions, because they have different drivers and different base rates."
-        status="partial"
-        phase="Prototype signal on synthetic data"
-        actions={
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/early-warning/signals">
-                <ListChecks aria-hidden />
-                Signals
-              </Link>
-            </Button>
+        description="Four intelligence layers, 123 governed signals, 23 classifiers and 67 dynamic triggers, scored against the CreditProbe Early Warning Framework Version 2 workbook: what is happening now (Trigger &amp; Accelerator), read in the context of how vulnerable the borrower structurally is (Classifier), combined through a published anchor matrix and five governance notches into one explainable score."
+        status="live"
+      />
+
+      <EarlyWarningV2Portfolio />
+
+      <RecentEarlyWarningInvestigations />
+
+      <details className="rounded-lg border border-border">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-text-secondary hover:text-text-primary">
+          Legacy: Forward Risk Signal (fitted prototype, superseded by Early Warning V2 above)
+        </summary>
+        <div className="space-y-7 border-t border-border p-4">
+          <div className="flex justify-end">
             <Button variant="outline" size="sm" asChild>
               <Link href="/early-warning/lab">
                 <FlaskConical aria-hidden />
@@ -102,68 +106,129 @@ function EarlyWarning() {
               </Link>
             </Button>
           </div>
-        }
-      />
 
-      {overview.data && <PrototypeNotice notice={overview.data.notice} />}
+          {overview.data && <PrototypeNotice notice={overview.data.notice} />}
 
-      {overview.loading && <Skeleton className="h-64 w-full" />}
-      {overview.error && (
-        <Card className="border-negative/40 p-4 text-sm text-negative">
-          {overview.error}
+          {overview.loading && <Skeleton className="h-64 w-full" />}
+          {overview.error && (
+            <Card className="border-negative/40 p-4 text-sm text-negative">
+              {overview.error}
+            </Card>
+          )}
+
+          {targets.length > 0 && (
+            <>
+              <Tabs
+                active={active ?? ""}
+                onChange={setTargetId}
+                tabs={targets.map((t) => ({
+                  id: t.id,
+                  label: t.label,
+                  count: t.versions || undefined,
+                }))}
+              />
+
+              {target && (
+                <div className="space-y-6">
+                  <div className="max-w-3xl">
+                    <p className="text-sm leading-relaxed text-text-secondary">
+                      {target.definition}
+                    </p>
+                    <p className="mt-1.5 text-xs text-text-muted">
+                      {target.eligible_note} Horizon: {target.horizon}.
+                    </p>
+                  </div>
+
+                  {target.active ? (
+                    <TargetScores
+                      targetId={target.id}
+                      families={overview.data?.families ?? []}
+                      modelName={target.active.display_name}
+                      version={target.active.version}
+                      opened={query.get("facility")}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={Radar}
+                      title="No model fitted for this transition yet"
+                      description="An administrator can fit one in the Model Lab. Fitting takes a few seconds and holds the last three quarters back to test on."
+                      action={
+                        <Button size="sm" asChild>
+                          <Link href="/early-warning/lab">Open the Model Lab</Link>
+                        </Button>
+                      }
+                    />
+                  )}
+
+                  <FactorArchitecture families={overview.data?.families ?? []} />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------- recent investigations */
+
+/**
+ * Recent Early Warning Investigations.
+ *
+ * Mirrors the Cockpit's own "Continue where you left off" panel
+ * (`app/page.tsx`), narrowed server-side to threads whose stored context
+ * locked them to the Early Warning domain — an additional, domain-scoped
+ * view onto the same rows, not a separate store: a saved Early Warning
+ * investigation still appears in the general Investigations list too.
+ */
+function RecentEarlyWarningInvestigations() {
+  const threads = useAsync(
+    () => api.threads({ scope: "all", domain: "early_warning" }),
+    [],
+  );
+  const items = threads.data?.investigations ?? [];
+
+  if (!threads.loading && items.length === 0) return null;
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="meta text-text-muted">Recent Early Warning Investigations</h2>
+        {items.length > 0 && (
+          <Link
+            href="/investigations"
+            className="text-[11px] text-text-muted underline-offset-4 hover:text-accent hover:underline"
+          >
+            All investigations
+          </Link>
+        )}
+      </div>
+      {threads.loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <Card className="divide-y divide-border">
+          {items.slice(0, 6).map((thread) => (
+            <Link
+              key={thread.id}
+              href={`/investigations/${thread.id}`}
+              className="group flex items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-surface-hover"
+            >
+              <MessageSquare
+                className="size-3.5 shrink-0 text-text-muted"
+                aria-hidden
+              />
+              <span className="min-w-0 flex-1 truncate text-[13px] text-text-secondary group-hover:text-text-primary">
+                {thread.title}
+              </span>
+              <span className="mono shrink-0 text-[10px] text-text-muted">
+                {thread.message_count}
+              </span>
+            </Link>
+          ))}
         </Card>
       )}
-
-      {targets.length > 0 && (
-        <>
-          <Tabs
-            active={active ?? ""}
-            onChange={setTargetId}
-            tabs={targets.map((t) => ({
-              id: t.id,
-              label: t.label,
-              count: t.versions || undefined,
-            }))}
-          />
-
-          {target && (
-            <div className="space-y-6">
-              <div className="max-w-3xl">
-                <p className="text-sm leading-relaxed text-text-secondary">
-                  {target.definition}
-                </p>
-                <p className="mt-1.5 text-xs text-text-muted">
-                  {target.eligible_note} Horizon: {target.horizon}.
-                </p>
-              </div>
-
-              {target.active ? (
-                <TargetScores
-                  targetId={target.id}
-                  families={overview.data?.families ?? []}
-                  modelName={target.active.display_name}
-                  version={target.active.version}
-                  opened={query.get("facility")}
-                />
-              ) : (
-                <EmptyState
-                  icon={Radar}
-                  title="No model fitted for this transition yet"
-                  description="An administrator can fit one in the Model Lab. Fitting takes a few seconds and holds the last three quarters back to test on."
-                  action={
-                    <Button size="sm" asChild>
-                      <Link href="/early-warning/lab">Open the Model Lab</Link>
-                    </Button>
-                  }
-                />
-              )}
-
-              <FactorArchitecture families={overview.data?.families ?? []} />
-            </div>
-          )}
-        </>
-      )}
-    </div>
+    </section>
   );
 }
 

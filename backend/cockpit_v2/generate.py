@@ -36,18 +36,17 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from backend.cockpit_v2 import (DATA_VERSION, MODEL_VERSION, NOT_CLIENT_DATA,
-                                ORIGIN, POLICY_VERSION)
+from backend.cockpit_v2 import DATA_VERSION, MODEL_VERSION, NOT_CLIENT_DATA, ORIGIN, POLICY_VERSION, policy
 from backend.cockpit_v2 import calendar as cal
 from backend.cockpit_v2 import ecl as ecl_mod
-from backend.cockpit_v2 import policy
 from backend.cockpit_v2 import stories as stories_mod
 
 logger = logging.getLogger(__name__)

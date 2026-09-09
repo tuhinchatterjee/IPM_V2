@@ -11,8 +11,6 @@ does not rewrite the claim. It reports, once, and Opus corrects it.
 
 from __future__ import annotations
 
-import pytest
-
 from backend.cockpit_agentic import answer_check as AC
 from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import states as st

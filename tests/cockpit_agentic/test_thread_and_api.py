@@ -9,7 +9,6 @@ from backend.cockpit_agentic import states as st
 from backend.cockpit_agentic import thread
 from backend.cockpit_agentic.contracts import Exchange, ThreadSummary
 from backend.cockpit_agentic.ledger import DEEP_LIMITS, STANDARD_LIMITS
-from tests.cockpit_agentic.conftest import scores
 from tests.cockpit_agentic.fake_provider import FakeProvider
 
 
@@ -153,7 +152,6 @@ def test_unsummarized_exchanges_are_flagged_for_inclusion_next_time():
 def test_a_failed_summary_call_keeps_the_previous_one(runtime_factory,
                                                       sonnet_answers):
     """Section 7.9: a failed summary does not erase a completed answer."""
-    from backend.cockpit_agentic import service
 
     from backend.cockpit_agentic import sonnet as sonnet_mod
     from backend.cockpit_agentic.ledger import Ledger, Prices

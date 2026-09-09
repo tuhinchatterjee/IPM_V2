@@ -27,8 +27,7 @@ import pytest
 
 from backend.cockpit_agentic import models as M
 from backend.cockpit_agentic import states as st
-from tests.cockpit_agentic.conftest import (TEST_PREPROCESS_MODEL,
-                                            TEST_REASONING_MODEL, scores)
+from tests.cockpit_agentic.conftest import TEST_PREPROCESS_MODEL, TEST_REASONING_MODEL, scores
 from tests.cockpit_agentic.fake_provider import FakeProvider
 
 GOOD_SQL = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "

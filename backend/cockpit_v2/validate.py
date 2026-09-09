@@ -13,17 +13,16 @@ report can cite the gate rather than the assertion.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
-from backend.cockpit_v2 import DATA_VERSION
+from backend.cockpit_v2 import DATA_VERSION, policy
 from backend.cockpit_v2 import calendar as cal
 from backend.cockpit_v2 import ecl as ecl_mod
-from backend.cockpit_v2 import policy
 from backend.cockpit_v2 import schema as schema_mod
-from backend.cockpit_v2 import stories as stories_mod
 from backend.cockpit_v2.generate import Build
 
 #: Numerical tolerance for reconciliation gates, in the reporting unit.

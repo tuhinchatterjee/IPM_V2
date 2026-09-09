@@ -6,7 +6,6 @@ import pytest
 
 from backend.cockpit_agentic import contracts as C
 
-
 # ---- the repair-ownership rule, section 7.6A ------------------------------
 
 def test_creditprobe_cannot_author_a_submission():

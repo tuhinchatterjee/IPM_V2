@@ -44,16 +44,13 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.cockpit_agentic import (CONTEXT_VERSION, DOMAIN, UNTRUSTED_NOTE,
-                                     registry)
+from backend.cockpit_agentic import CONTEXT_VERSION, DOMAIN, UNTRUSTED_NOTE, registry
 from backend.cockpit_agentic import fields as F
 from backend.cockpit_agentic import profile as profile_mod
 from backend.cockpit_agentic import pysandbox as py_mod
 from backend.cockpit_agentic import sql as sql_mod
 from backend.cockpit_agentic.catalog import Catalog
-from backend.cockpit_agentic.contracts import (CleanedQuestion,
-                                               DataCoverageProfile,
-                                               NormalizedQuestion)
+from backend.cockpit_agentic.contracts import CleanedQuestion, DataCoverageProfile, NormalizedQuestion
 from backend.cockpit_agentic.ledger import Ledger
 from backend.cockpit_agentic.scope import Scope
 

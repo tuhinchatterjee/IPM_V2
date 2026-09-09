@@ -68,20 +68,22 @@ from typing import Any
 
 import duckdb
 
-from backend.cockpit_agentic import DOMAIN
+from backend.cockpit_agentic import DOMAIN, store
 from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import fields as F
 from backend.cockpit_agentic import scope as scope_mod
-from backend.cockpit_agentic import store
-from backend.cockpit_agentic.contracts import (INVALID_FILTER_VALUE,
-                                               JOIN_MULTIPLICITY_RISK,
-                                               OUT_OF_SCOPE_ACCESS,
-                                               PERMISSION_DENIED,
-                                               RESOURCE_LIMIT, RUNTIME_ERROR,
-                                               SYNTAX_ERROR, TYPE_MISMATCH,
-                                               UNRESOLVED_FIELD,
-                                               UNRESOLVED_RELATION,
-                                               UNSAFE_OPERATION)
+from backend.cockpit_agentic.contracts import (
+    JOIN_MULTIPLICITY_RISK,
+    OUT_OF_SCOPE_ACCESS,
+    PERMISSION_DENIED,
+    RESOURCE_LIMIT,
+    RUNTIME_ERROR,
+    SYNTAX_ERROR,
+    TYPE_MISMATCH,
+    UNRESOLVED_FIELD,
+    UNRESOLVED_RELATION,
+    UNSAFE_OPERATION,
+)
 
 #: Rows returned to the model. The full result stays in a bounded artifact; a
 #: clipped table is reported as clipped and never as a complete aggregate.
@@ -251,7 +253,7 @@ def _build_session(*, scope: scope_mod.Scope,
 
 #: Cached sessions, keyed by tenant and release. Bounded: a deployment serving
 #: many tenants must not accumulate one materialized copy per tenant for ever.
-_SESSIONS: "OrderedDict[tuple[str, str], Session]" = OrderedDict()
+_SESSIONS: OrderedDict[tuple[str, str], Session] = OrderedDict()
 _SESSIONS_LOCK = threading.RLock()
 MAX_CACHED_SESSIONS = 4
 

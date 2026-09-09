@@ -112,9 +112,7 @@ def main() -> int:
 
     from backend.cockpit_agentic import credential as cockpit_credential
     from backend.cockpit_agentic import models as cockpit_models
-    from backend.cockpit_agentic import pysandbox, service, store
-    from backend.cockpit_agentic import ledger as ledger_mod
-    from backend.config import settings
+    from backend.cockpit_agentic import pysandbox, service
     from backend.llm.anthropic_provider import AnthropicProvider
 
     steps = {n: Step(n, name) for n, name in STEP_NAMES.items()}
@@ -324,7 +322,6 @@ def main() -> int:
 
 def _model_status() -> dict[str, Any]:
     """The two ids, for the evidence file. Never a credential."""
-    from backend.cockpit_agentic import credential as cockpit_credential
     from backend.cockpit_agentic import models as cockpit_models
 
     return cockpit_models.status()

@@ -19,9 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 OUT = Path("docs/cockpit_agentic_v3/evidence/browser")
@@ -49,7 +47,7 @@ def main() -> int:
 
     OUT.mkdir(parents=True, exist_ok=True)
     report: dict = {
-        "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "started_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "base_url": args.base,
         "note": ("A real browser run. It settles what is on screen. It does "
                  "not settle answer quality, and with no model credential the "
@@ -144,7 +142,7 @@ def main() -> int:
 
     failures = [c for c in report["checks"] if not c["passed"]]
     report["status"] = "PASSED" if not failures else "FAILURES"
-    report["finished_at"] = datetime.now(timezone.utc).isoformat(
+    report["finished_at"] = datetime.now(UTC).isoformat(
         timespec="seconds")
     report["screenshots"] = sorted(p.name for p in OUT.glob("*.png"))
     (OUT.parent / "browser_uat.json").write_text(json.dumps(report, indent=2))

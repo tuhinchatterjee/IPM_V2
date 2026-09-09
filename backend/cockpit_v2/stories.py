@@ -22,7 +22,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-
 #: Every story id carries this prefix so a fixture identifier can never be
 #: confused with a domain term. `OVERLAY_CHANGE` collided exactly with the
 #: bridge's legitimate overlay line, and the leak test could not tell the

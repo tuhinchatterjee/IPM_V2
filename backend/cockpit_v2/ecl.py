@@ -60,8 +60,9 @@ validated, and no parameter in it is calibrated to anything.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 from backend.cockpit_v2 import MODEL_VERSION
 

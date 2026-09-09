@@ -34,8 +34,7 @@ from typing import Any
 
 import pandas as pd
 
-from backend.cockpit_v2 import (DATA_VERSION, DOMAIN, MODEL_VERSION,
-                                NOT_CLIENT_DATA, ORIGIN, POLICY_VERSION)
+from backend.cockpit_v2 import DATA_VERSION, DOMAIN, MODEL_VERSION, NOT_CLIENT_DATA, ORIGIN, POLICY_VERSION
 from backend.cockpit_v2 import calendar as cal
 from backend.cockpit_v2 import schema as schema_mod
 from backend.cockpit_v2.generate import AMOUNT_UNIT, REPORTING_CURRENCY

@@ -17,12 +17,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from backend.cockpit_agentic import (CATALOG_VERSION, DATA_VERSION, DOMAIN,
-                                     NOT_CLIENT_DATA)
+from backend.cockpit_agentic import CATALOG_VERSION, DATA_VERSION, DOMAIN, NOT_CLIENT_DATA, registry, store
 from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import fields as F
-from backend.cockpit_agentic import profile as profile_mod
-from backend.cockpit_agentic import registry, store
 
 DOCS = Path("docs")
 OUT = DOCS / "cockpit_agentic_v3"

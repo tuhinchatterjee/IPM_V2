@@ -827,3 +827,111 @@ While the two books are separate, the Cockpit answers portfolio questions on
 both the same question will get different portfolio totals**, and that is a
 presentation risk rather than a defect. It is named here so the demo script can
 avoid a side-by-side that invites the comparison.
+
+### M5 — Early Warning V2 (`7711270`)
+
+| | |
+|---|---|
+| **Approved** | `4dcef65` · **Adopted** `7711270` (moved again; two live-run fixes) |
+| **Conflicts** | **nine**, all resolved semantically |
+| **Migration** | `0032_early_warning_v2_methodology` renumbered to **`0046`**, `down_revision` `0031` -> `0045` |
+| **Head** | one, `0046`. Round trip `0046 -> 0031 -> 0046`: **104** tables at `0031`, back to **148 / 2,416**; `scv_results.value` still nullable |
+
+#### The two governance parameters now compose
+
+`validate()` and `execute()` carry **both** `scope` (chain) and `domain_lock`
+(EWS). They are independent boundaries, not alternatives: a scope that permits
+a dataset does not unlock it past a domain lock, and a lock that permits one
+does not unlock it past the scope — because a boundary another boundary can
+open is not a boundary. Both refusal blocks survive, and the chain is verified
+end to end: `answer()` -> `_analyse()` -> `execute()` -> `validate()`.
+
+`threads.py` **auto-merged** and `domain_lock=context.get("domain")` reached
+`agentic.run` unaided, because M4 had already placed the clarification merge
+and the Cockpit short-circuit correctly.
+
+#### The bootstrap step list
+
+Both branches claimed letter **L** and both made `review` last under different
+letters. Merged to sixteen steps, unique letters, `review` last at **Q**, with
+`early_warning` at M — it reads the corporate book that D builds and writes
+Parquet under its own names, so it carries none of C/D/E's catalogue ordering
+constraint. The I-1 probe fix is intact.
+
+#### `_legacy-signals` was a snapshot, not a copy
+
+EWS retires `/early-warning/signals` to a redirect and preserves the page at
+`_legacy-signals`. But that snapshot was taken **before the chain added
+`BorrowerScorecardView` and `RiskLevels`** — so taking the redirect as-is would
+have silently dropped two chain features. The route retires as EWS intended and
+the legacy copy is the chain's fuller page.
+
+#### Integration defect I-5 — the Cockpit's credential path raised NameError
+
+**Found by lint, not by tests, and on the path this environment always takes.**
+
+`ruff` reported `F821 Undefined name 'question'` at
+`backend/cockpit_agentic/runtime.py:191`. The problem was larger than the name:
+the handler sits inside `__init__` and did `return self._finish(...)` — a
+constructor cannot return a value, and `question` is not in scope there. So a
+deployment without `COCKPIT_ANTHROPIC_API_KEY` raised **NameError** instead of
+the honest `PROVIDER_CREDENTIAL_MISSING` stop it was written to give. **This
+environment has no such credential, so it is the path every Cockpit question
+takes here.**
+
+Fixed with the mechanism the class documents four lines above: carry it as
+`self.provider_error` and let `run()` report it, exactly as it already reports
+the same exception type from the service. One shape for a stop rather than two.
+
+#### Integration defect I-6 — Cockpit referred users to a retired route
+
+Cockpit's functionality registry declared `what_if -> /stress`, label
+"Stress Testing". M2's What-If rebuild renamed the capability to
+"What-If Analysis" at `/what-if`. Cockpit forked before that, so its referral
+pointed at a route that is no longer a menu item — a **collision between M2 and
+M4**, on the demo path, caught by Cockpit's own route-verification test.
+
+Registry repointed, and its docstring corrected. `/stress` survives as a
+redirect for links already in the wild, which the What-If branch had already
+built.
+
+`tests/cockpit_agentic/test_context_and_registry.py::test_what_if_is_registered_under_the_label_users_actually_see`
+pinned the two literals `"Stress Testing"` and `"/stress"` — the right intent
+asserted the wrong way, so it failed for being correct about a product that had
+moved on. It now asserts that the registry **agrees with what the application
+declares**, which is stronger than either literal and cannot go stale at the
+next rename.
+
+#### A correction: ruff was NOT clean at M4, and I reported that it was
+
+My M4 gate ran `ruff check . | tail -2`, produced no visible output, and I read
+that as success. It was not.
+
+| Ref | ruff errors |
+|---|---|
+| `origin/main` `3855f9b` | **0** |
+| Lenses V3 `c0b66d0` | **0** |
+| What-If `80e74a4` | **0** |
+| Project Planner `e84bc68` | **0** |
+| **Cockpit `275284c`** | **151** |
+
+The lint debt is Cockpit's, with EWS adding roughly 49 more. Neither branch saw
+it because, as the Playbook branch recorded, **GitHub Actions has never run on
+this repository** — so `uv run ruff check .` has never gated anything. The
+locked ruff is `0.16.6`, the same version used here, so this is not a
+version artefact.
+
+**178 safe auto-fixes applied. 84 remain** — `B904` exception chaining, `B905`
+zip-strict, `F841` unused variables, `E741` ambiguous names — judgement calls
+on other branches' code, recorded rather than bulk-changed. The one that was a
+real bug is I-5 above.
+
+#### Gates
+
+| Gate | Result |
+|---|---|
+| `tests/cockpit_agentic/` (registry, thread/api, credential) | **79 passed** |
+| Frontend `tsc --noEmit`, eslint | clean |
+| Frontend tests | **589 passed, 0 failed** (564 before; EWS adds 25) |
+| `alembic heads` | one, `0046` |
+| Round trip | 104 at `0031`, 148 / 2,416 at head |

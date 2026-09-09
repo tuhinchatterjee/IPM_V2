@@ -1744,6 +1744,76 @@ class EarlyWarningModel(Base):
     )
 
 
+class EarlyWarningMethodologyVersion(Base):
+    """One version of the Early Warning V2 governed methodology bundle.
+
+    This is NOT the fitted logistic model above (`EarlyWarningModel` —
+    CreditProbe's own experimental "Forward Risk Signal"). This is the
+    Version 2 workbook methodology: the 123-signal catalogue, the 35
+    classifiers, the 67 triggers, the accelerator, the network propagation
+    parameters, the override table and the reason-code library.
+
+    One versioned JSONB bundle rather than a dozen narrow relational tables,
+    following the same pattern `EarlyWarningModel` already uses for the
+    fitted model: the numbers are transcribed once, verified against the
+    workbook's own worked examples in `backend/early_warning/*.py`, and
+    seeded here as one document per version so a score from six months ago
+    can always be reconstructed under the methodology that was actually in
+    force (§ auditability). `backend/early_warning/*.py` remains the
+    authoritative Python source of the DEFAULT/seed bundle; this table is
+    what makes it a governed, versioned, queryable configuration a bank can
+    review and — in a future change-controlled workflow — adjust.
+    """
+
+    __tablename__ = "early_warning_methodology_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: {"signal_catalog": [...], "classifiers": [...], "triggers": [...],
+    #:  "accelerator": {...}, "network": {...}, "overrides": {...},
+    #:  "reason_codes": {...}, "action_library": [...]}
+    bundle: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    change_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("version", name="uq_early_warning_methodology_version"),
+        Index("ix_early_warning_methodology_active", "is_active"),
+    )
+
+
+class EarlyWarningEscalationVersion(Base):
+    """One version of the Early Warning escalation matrix: the ladder
+    (L0-L5), the specialist routes (S1-S5), routing by severity/materiality,
+    SLAs and permitted decisions.
+
+    Versioned separately from `EarlyWarningMethodologyVersion` because it
+    changes on a different cadence and by different roles (§AF): a credit
+    risk governance change to who gets notified at what exposure tier is not
+    a change to the scoring mathematics. A case raised under one escalation
+    version keeps that version's routing even after the matrix is edited.
+    """
+
+    __tablename__ = "early_warning_escalation_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: {"ladder": [...], "specialist_routes": [...], "routing_matrix": [...],
+    #:  "sla": {...}}
+    bundle: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    change_note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("version", name="uq_early_warning_escalation_version"),
+        Index("ix_early_warning_escalation_active", "is_active"),
+    )
+
+
 # ============================================================ analysis studio
 
 

@@ -30,8 +30,10 @@ if str(ROOT) not in sys.path:
 
 from backend.cockpit_v2 import calendar as cal  # noqa: E402
 from backend.cockpit_v2 import generate as generate_mod  # noqa: E402
-from backend.cockpit_v2 import guard  # noqa: E402
-from backend.cockpit_v2 import persist  # noqa: E402
+from backend.cockpit_v2 import (
+    guard,  # noqa: E402
+    persist,  # noqa: E402
+)
 from backend.cockpit_v2 import stories as stories_mod  # noqa: E402
 from backend.cockpit_v2 import validate as validate_mod  # noqa: E402
 

@@ -180,7 +180,7 @@ class LLMProvider(Protocol):
                  max_tokens: int = 4096, model: str = "",
                  purpose: str = "conversation", role: str = "",
                  effort: str = "", timeout: float = 0.0,
-                 allow_retry: bool = True) -> "ConverseResult":
+                 allow_retry: bool = True) -> ConverseResult:
         """One turn of a multi-turn conversation.
 
         Optional on a provider: callers check `hasattr` and report the

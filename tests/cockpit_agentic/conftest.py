@@ -13,7 +13,6 @@ import dataclasses
 
 import pytest
 
-from backend.cockpit_agentic import catalog as C
 from backend.cockpit_agentic import generate as G
 from backend.cockpit_agentic import ledger as L
 from backend.cockpit_agentic import profile as P

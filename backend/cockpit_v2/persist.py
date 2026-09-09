@@ -17,10 +17,9 @@ from typing import Any
 
 import pandas as pd
 
-from backend.cockpit_v2 import DATA_VERSION
+from backend.cockpit_v2 import DATA_VERSION, guard
 from backend.cockpit_v2 import calendar as cal
 from backend.cockpit_v2 import catalogue as catalogue_mod
-from backend.cockpit_v2 import guard
 from backend.cockpit_v2.generate import Build
 
 logger = logging.getLogger(__name__)

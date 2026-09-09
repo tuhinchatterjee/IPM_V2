@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  MONEY_COLUMN_UNIT,
   money,
+  moneyCell,
   NOTHING,
   showMovement,
   showValue,
@@ -145,4 +147,54 @@ test("a rating label is a label, never a number", () => {
   assert.equal(showValue("Negative", "category"), "Negative");
   assert.equal(showValue("AA-", "category"), "AA-");
   assert.equal(showValue("", "category"), NOTHING);
+});
+
+/* -------------------------------------------------------------------------- */
+/*  A column of money, and agreement with the sentence beside it               */
+/* -------------------------------------------------------------------------- */
+
+test("a money column states its unit once, in the header", () => {
+  assert.equal(MONEY_COLUMN_UNIT, "SAR m");
+});
+
+test("every cell of a money column is in the header's unit", () => {
+  // A column where one cell reads 15.5 and the next reads 840.0 under a
+  // single header is a column stating two different units, and the reader
+  // has no way to tell which row is which. So a cell is never scaled.
+  assert.equal(moneyCell(15470.2), "15,470.2");
+  assert.equal(moneyCell(840), "840.0");
+  assert.equal(moneyCell(31.49), "31.5");
+});
+
+test("a cell carries no currency, because the header carries it", () => {
+  assert.ok(!moneyCell(840).includes("SAR"));
+});
+
+test("a missing figure in a money column is nothing, not zero", () => {
+  assert.equal(moneyCell(null), NOTHING);
+  assert.equal(moneyCell(undefined), NOTHING);
+  assert.equal(moneyCell(Number.NaN), NOTHING);
+});
+
+test("the KPI tile and the sentence beneath it write the same figure", () => {
+  // The acceptance run found a tile reading `15,470` above prose reading
+  // "SAR 15.5bn" — one figure written two ways, which is how a reader
+  // concludes the product cannot add up. Both now go through money().
+  //
+  // These exact strings are duplicated in
+  // tests/early_warning/test_money_convention.py, which asserts the backend
+  // writer produces them character for character. Neither side can drift
+  // without failing a test on one side or the other.
+  assert.equal(money(15470.2), "SAR 15.5bn");
+  assert.equal(money(117991), "SAR 118.0bn");
+  assert.equal(money(2115.37), "SAR 2.1bn");
+  assert.equal(money(489), "SAR 489.0m");
+  assert.equal(money(31.49), "SAR 31.5m");
+  assert.equal(money(0.04), "SAR 0.04m");
+  assert.equal(money(0), "SAR 0.0m");
+});
+
+test("the millions become billions at exactly a thousand", () => {
+  assert.equal(money(999.9), "SAR 999.9m");
+  assert.equal(money(1000), "SAR 1.0bn");
 });

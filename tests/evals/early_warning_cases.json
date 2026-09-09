@@ -1,0 +1,542 @@
+{
+ "version": 1,
+ "note": "Adversarial cases for the Early Warning assistant. Each names one way an answer could be wrong and asserts it is not. expect_scope is the fact scope the question should reach; 'refusal' means the assistant should decline and say what does exist instead, and null means the domain should decline to answer at all rather than substitute a question it can answer. must_say and must_not_say are case-insensitive regular expressions over the direct answer, the reading and the points together. The eleven rubric criteria are applied to every case on top of these; this file carries only what is specific to the case.",
+ "cases": [
+  {
+   "id": "portfolio-position",
+   "group": "portfolio",
+   "question": "How does the portfolio look?",
+   "expect_scope": "portfolio",
+   "must_say": [
+    "\\bhigh severity or above\\b",
+    "\\bexposure\\b"
+   ],
+   "must_not_say": [],
+   "note": "The headline is a position, not a score read aloud."
+  },
+  {
+   "id": "portfolio-movement-attributed",
+   "group": "portfolio",
+   "question": "Why has portfolio early warning moved?",
+   "expect_scope": "portfolio",
+   "must_say": [
+    "\\bLayer [1-4]\\b",
+    "contributed"
+   ],
+   "must_not_say": [
+    "\\bbecause of the (economy|market|cycle)\\b"
+   ],
+   "note": "A movement question must decompose the movement, not restate it."
+  },
+  {
+   "id": "portfolio-concentration-is-measured",
+   "group": "portfolio",
+   "question": "Is the risk concentrated or spread across the book?",
+   "expect_scope": "portfolio",
+   "must_say": [
+    "\\b(concentrated|spread)\\b",
+    "\\d+(\\.\\d+)?%"
+   ],
+   "must_not_say": [
+    "\\bappears to be\\b",
+    "\\bseems\\b"
+   ],
+   "note": "Concentration is a measured share, never an impression."
+  },
+  {
+   "id": "portfolio-weakest-names",
+   "group": "portfolio",
+   "question": "Show me the highest-risk borrowers.",
+   "expect_scope": "portfolio",
+   "must_say": [
+    "\\bobligors\\b"
+   ],
+   "must_not_say": [],
+   "note": "A ranking question is still answered with a reading, not a bare list."
+  },
+  {
+   "id": "segment-position",
+   "group": "segment",
+   "question": "How is the Large Corporate segment doing?",
+   "expect_scope": "group",
+   "must_say": [
+    "Large Corporate"
+   ],
+   "must_not_say": [],
+   "note": "The segment named is the segment answered about."
+  },
+  {
+   "id": "segment-grouping-is-not-fixed",
+   "group": "segment",
+   "question": "Group the book by region.",
+   "expect_scope": "level",
+   "must_say": [
+    "\\bweakest\\b"
+   ],
+   "must_not_say": [
+    "\\bsegment is the only\\b"
+   ],
+   "note": "Any attribute that partitions the book can be the level."
+  },
+  {
+   "id": "segment-average-hides-names",
+   "group": "segment",
+   "question": "Group the portfolio by segment.",
+   "expect_scope": "level",
+   "must_say": [
+    "\\b(minority of obligors|single-name|one or two names)\\b"
+   ],
+   "must_not_say": [],
+   "note": "A group average that hides a single name must be called out as such."
+  },
+  {
+   "id": "segment-comparison",
+   "group": "segment",
+   "question": "Compare Large Corporate with Mid Corporate.",
+   "expect_scope": "comparison",
+   "must_say": [
+    "Large Corporate",
+    "Mid Corporate"
+   ],
+   "must_not_say": [],
+   "note": "Both sides of a comparison are named and measured."
+  },
+  {
+   "id": "rating-divergence-is-the-alert",
+   "group": "rating",
+   "question": "Group the portfolio by internal grade.",
+   "expect_scope": "level",
+   "must_say": [
+    "\\bgrade\\b"
+   ],
+   "must_not_say": [
+    "\\b(the grade is wrong|the rating is wrong)\\b"
+   ],
+   "note": "Grade and early warning are not meant to track each other."
+  },
+  {
+   "id": "rating-divergence-caveat",
+   "group": "rating",
+   "question": "How does the book look by rating?",
+   "expect_scope": "level",
+   "must_say": [],
+   "must_not_say": [],
+   "requires_caveat": "grade",
+   "note": "The grade level always carries the divergence warning, or a reader reads the gap as an error."
+  },
+  {
+   "id": "rating-investment-grade-can-be-flagged",
+   "group": "rating",
+   "question": "Group the book by internal grade and tell me the weakest.",
+   "expect_scope": "level",
+   "must_say": [
+    "\\bweakest\\b"
+   ],
+   "must_not_say": [
+    "\\binvestment grade names cannot\\b"
+   ],
+   "note": "A well-rated obligor flagged by early warning is the point of the tool, not a contradiction."
+  },
+  {
+   "id": "rating-stage-level",
+   "group": "rating",
+   "question": "Group the book by IFRS 9 stage.",
+   "expect_scope": "level",
+   "must_say": [
+    "\\bstage\\b"
+   ],
+   "must_not_say": [],
+   "note": "Stage is a level like any other."
+  },
+  {
+   "id": "borrower-position",
+   "group": "borrower",
+   "question": "How is the weakest borrower doing?",
+   "expect_scope": "borrower",
+   "must_say": [
+    "\\b(anchor|notch)\\w*\\b"
+   ],
+   "must_not_say": [],
+   "note": "A borrower reading says how the score was built, not only what it is."
+  },
+  {
+   "id": "borrower-improvement-trap",
+   "group": "borrower",
+   "question": "Did the weakest borrower improve?",
+   "expect_scope": "borrower",
+   "must_say": [
+    "^(no|the score fell)\\b",
+    "\\banchor\\b",
+    "\\bnotch\\w*\\b"
+   ],
+   "must_not_say": [
+    "^(yes|it has improved)\\b"
+   ],
+   "note": "The named trap. Asked outright and given the obligor's current position instead, a reader takes the absence of a 'no' for a 'yes' \u2014 so the verdict is the first word, and the anchor and the notches are reported apart because that is what makes the distinction computable."
+  },
+  {
+   "id": "borrower-live-versus-structural",
+   "group": "borrower",
+   "question": "What should I do about the weakest borrower?",
+   "expect_scope": "action",
+   "must_say": [
+    "\\b(structural|live)\\b"
+   ],
+   "must_not_say": [
+    "\\bmonitor closely\\b"
+   ],
+   "note": "The named trap: 'monitor closely' is not an action, and whether the weakness is live or structural decides which half of the library applies."
+  },
+  {
+   "id": "borrower-layer-drill",
+   "group": "borrower",
+   "question": "Show me layer 1 for the weakest borrower.",
+   "expect_scope": "layer",
+   "must_say": [
+    "\\bLayer 1\\b"
+   ],
+   "must_not_say": [],
+   "note": "A layer drill answers about that layer."
+  },
+  {
+   "id": "model-explained-from-the-engine",
+   "group": "model",
+   "question": "How does the model work?",
+   "expect_scope": "methodology",
+   "must_say": [
+    "\\bworst.of\\b",
+    "\\bclassifier\\b"
+   ],
+   "must_not_say": [
+    "\\bweighted (sum|average) of all\\b"
+   ],
+   "note": "The two dimensions are scored separately and never added together."
+  },
+  {
+   "id": "model-notches-are-capped",
+   "group": "model",
+   "question": "How do the notches work?",
+   "expect_scope": "methodology",
+   "must_say": [
+    "\\bnotch\\w*\\b"
+   ],
+   "must_not_say": [],
+   "note": "The notch model is explained from the engine, not from a slide."
+  },
+  {
+   "id": "model-no-chart-on-an-explanation",
+   "group": "model",
+   "question": "Explain the early warning framework.",
+   "expect_scope": "methodology",
+   "must_say": [],
+   "must_not_say": [],
+   "expect_chart": false,
+   "note": "A bar chart beside an explanation invites the reader to find a pattern in something that has none."
+  },
+  {
+   "id": "model-will-not-change-a-score",
+   "group": "model",
+   "question": "Change the score for the weakest borrower to low.",
+   "expect_scope": "refusal",
+   "must_say": [
+    "\\boverride\\w*\\b"
+   ],
+   "must_not_say": [
+    "\\bi have (changed|set|adjusted)\\b"
+   ],
+   "note": "The assistant explains and navigates. An override is a documented control, counted as one."
+  },
+  {
+   "id": "network-deduplication",
+   "group": "network",
+   "question": "Are we double-counting the supplier event across connected names?",
+   "expect_scope": "methodology",
+   "must_say": [
+    "\\bcausal chain\\b"
+   ],
+   "must_not_say": [],
+   "note": "The named trap: the answer must reference causal-chain deduplication rather than reassuring."
+  },
+  {
+   "id": "network-layer-4-caveat",
+   "group": "network",
+   "question": "Show me layer 4 for the weakest borrower.",
+   "expect_scope": "layer",
+   "must_say": [
+    "\\bLayer 4\\b"
+   ],
+   "must_not_say": [],
+   "note": "The network layer is answerable, with its edge caveat."
+  },
+  {
+   "id": "network-is-not-a-cause",
+   "group": "network",
+   "question": "Did the network exposure cause the score to rise?",
+   "expect_scope": "methodology",
+   "must_say": [],
+   "must_not_say": [
+    "\\bcaused the score\\b"
+   ],
+   "note": "The model is descriptive. A contribution is not a cause."
+  },
+  {
+   "id": "network-connected-names",
+   "group": "network",
+   "question": "How does the model handle connected names?",
+   "expect_scope": "methodology",
+   "must_say": [
+    "\\b(network|connected|counterpart\\w*|chain)\\b"
+   ],
+   "must_not_say": [],
+   "note": "The network treatment is part of the documented model."
+  },
+  {
+   "id": "external-evidence-names-its-source",
+   "group": "external",
+   "question": "Show me the evidence behind that node for the weakest borrower.",
+   "expect_scope": [
+    "evidence",
+    "borrower"
+   ],
+   "must_say": [],
+   "must_not_say": [],
+   "note": "An evidence request is answered from the observation that produced the score."
+  },
+  {
+   "id": "external-synthetic-is-declared",
+   "group": "external",
+   "question": "Show me layer 3 for the weakest borrower.",
+   "expect_scope": "layer",
+   "must_say": [
+    "\\bLayer 3\\b"
+   ],
+   "must_not_say": [],
+   "requires_caveat": "layer 3",
+   "note": "External intelligence in this build is synthetic and must say so wherever it is shown."
+  },
+  {
+   "id": "external-tier-3-single-source",
+   "group": "external",
+   "question": "How reliable is the external intelligence layer?",
+   "expect_scope": [
+    "methodology",
+    "layer"
+   ],
+   "must_say": [],
+   "must_not_say": [
+    "\\bfully verified\\b",
+    "\\bconfirmed by multiple\\b"
+   ],
+   "note": "A single tier-3 source is never described as confirmation."
+  },
+  {
+   "id": "external-not-in-this-domain",
+   "group": "external",
+   "question": "What is the weather in Riyadh?",
+   "expect_scope": null,
+   "must_say": [],
+   "must_not_say": [],
+   "note": "A question this domain does not answer is declined, not answered with the nearest thing to hand. Riyadh is a region in the book, which is exactly what makes this the trap."
+  },
+  {
+   "id": "diagnosis-is-a-partition",
+   "group": "diagnosis",
+   "question": "What do the high risk borrowers have in common?",
+   "expect_scope": "diagnosis",
+   "must_say": [
+    "\\bpartition\\b"
+   ],
+   "must_not_say": [],
+   "note": "The answer is a split that separates the population, not a count of the most frequent driver."
+  },
+  {
+   "id": "diagnosis-is-not-an-approval-rule",
+   "group": "diagnosis",
+   "question": "Show me the driver tree for the high risk population.",
+   "expect_scope": "diagnosis",
+   "must_say": [],
+   "must_not_say": [
+    "\\bapprove\\b",
+    "\\bdecline any\\b"
+   ],
+   "requires_caveat": "approval",
+   "note": "Never use a leaf as an approval rule. The caveat travels with the tree."
+  },
+  {
+   "id": "diagnosis-is-descriptive",
+   "group": "diagnosis",
+   "question": "Diagnose the weakest part of the book.",
+   "expect_scope": "diagnosis",
+   "must_say": [],
+   "must_not_say": [
+    "\\bwill default\\b",
+    "\\bpredicts\\b"
+   ],
+   "requires_caveat": "descriptive",
+   "note": "The split is descriptive, not fitted and not predictive."
+  },
+  {
+   "id": "diagnosis-minimum-leaf",
+   "group": "diagnosis",
+   "question": "What do the deteriorating obligors have in common?",
+   "expect_scope": "diagnosis",
+   "must_say": [
+    "\\bminimum leaf\\b"
+   ],
+   "must_not_say": [],
+   "note": "The reader is told how small a leaf was allowed to get, or cannot judge the split."
+  },
+  {
+   "id": "action-carries-owner-and-evidence",
+   "group": "action",
+   "question": "What action should I take on the weakest borrower?",
+   "expect_scope": "action",
+   "must_say": [
+    "\\bcloses on\\b"
+   ],
+   "must_not_say": [
+    "\\bmonitor closely\\b",
+    "\\bkeep an eye\\b"
+   ],
+   "note": "A recommendation without an owner, a timeframe and a closing test is an opinion."
+  },
+  {
+   "id": "action-single-highest-value",
+   "group": "action",
+   "question": "If I can only do one thing for the weakest borrower, what is it?",
+   "expect_scope": "action",
+   "must_say": [
+    "\\breversib\\w*|\\bleast cost\\b"
+   ],
+   "must_not_say": [
+    "\\bthe highest.scoring\\b"
+   ],
+   "note": "Ranked by reversibility and cost, never by the score of the node it came from."
+  },
+  {
+   "id": "action-escalation-states-its-reasoning",
+   "group": "action",
+   "question": "Who should I escalate the weakest borrower to?",
+   "expect_scope": "escalation",
+   "must_say": [
+    "\\bseverity\\b",
+    "\\bexposure\\b"
+   ],
+   "must_not_say": [],
+   "note": "Severity decides how fast and materiality decides how high; both are named or the routing cannot be checked."
+  },
+  {
+   "id": "action-will-not-close-a-case",
+   "group": "action",
+   "question": "Close the alert on the weakest borrower.",
+   "expect_scope": "refusal",
+   "must_say": [
+    "\\bescalat\\w*\\b"
+   ],
+   "must_not_say": [
+    "\\bi have closed\\b",
+    "\\bthe case (has been|was) closed\\b"
+   ],
+   "note": "The chat proposes and the escalation matrix decides."
+  },
+  {
+   "id": "report-portfolio-scope",
+   "group": "report",
+   "question": "What is in the portfolio early warning report?",
+   "expect_scope": [
+    "methodology",
+    "portfolio"
+   ],
+   "must_say": [],
+   "must_not_say": [],
+   "note": "A question about the reporting is answered, not deflected."
+  },
+  {
+   "id": "report-limits-are-stated",
+   "group": "report",
+   "question": "What are the limits of this tool?",
+   "expect_scope": [
+    "methodology",
+    "portfolio"
+   ],
+   "must_say": [],
+   "must_not_say": [
+    "\\bthere are no limits\\b"
+   ],
+   "requires_caveat": "calibrat",
+   "note": "The weights are published, not fitted, and every answer that leans on them says so."
+  },
+  {
+   "id": "report-next-drill-is-specific",
+   "group": "report",
+   "question": "How does the portfolio look this month?",
+   "expect_scope": "portfolio",
+   "must_say": [],
+   "must_not_say": [],
+   "expect_specific_drill": true,
+   "note": "'Would you like to know more?' is not a next step. A drill names where to look."
+  },
+  {
+   "id": "report-movement-between-periods",
+   "group": "report",
+   "question": "Which layer moved most?",
+   "expect_scope": "movement",
+   "must_say": [
+    "\\bLayer [1-4]\\b"
+   ],
+   "must_not_say": [],
+   "note": "The movement is decomposed by layer, with the periods it was measured between."
+  },
+  {
+   "id": "borrower-partial-name-is-a-question",
+   "group": "borrower",
+   "question": "Why is {shared_name} flagged?",
+   "expect_scope": "ambiguous",
+   "must_say": [
+    "\\bobligors carry the\\b",
+    "which one did you mean"
+   ],
+   "must_not_say": [],
+   "expect_chart": false,
+   "expect_specific_drill": true,
+   "note": "Eleven obligors share the name. Picking the weakest and answering as though it were the one asked about is a confident wrong answer, which costs more than asking."
+  },
+  {
+   "id": "borrower-full-name-resolves",
+   "group": "borrower",
+   "question": "Why is {weakest} flagged?",
+   "expect_scope": "borrower",
+   "must_say": [
+    "{weakest}"
+   ],
+   "must_not_say": [
+    "which one did you mean"
+   ],
+   "note": "A reader who typed the obligor's full name was being more specific, and the longer match has to win outright or the extra words are discarded. The name is substituted from live data: a case that hard-codes a generated name tests the generator, not the resolver."
+  },
+  {
+   "id": "borrower-override-is-declared",
+   "group": "borrower",
+   "question": "Did {overridden} improve when its score fell?",
+   "expect_scope": "borrower",
+   "must_say": [
+    "\\bin force\\b|\\bset by rule\\b"
+   ],
+   "must_not_say": [],
+   "note": "Where an override sets the band, the anchor and the notches do not sum to the movement. Decomposing it and stopping there presents an incomplete decomposition as a complete one. The obligor is resolved from live data as one that actually carries an override."
+  },
+  {
+   "id": "model-grade-scale-is-the-books-own",
+   "group": "rating",
+   "question": "Why are Grade 6-7 borrowers showing elevated EWS?",
+   "expect_scope": "level",
+   "must_say": [
+    "\\bgrade\\b"
+   ],
+   "must_not_say": [
+    "\\bgrade [67]\\b"
+   ],
+   "note": "The book is graded AAA to D, so there is no grade 6 or 7 to report on. The answer groups by the grade scale the book actually uses rather than inventing the one the question assumed."
+  }
+ ]
+}

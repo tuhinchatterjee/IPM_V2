@@ -66,6 +66,23 @@ RETAIL_DATASETS: tuple[str, ...] = (
 IFRS9_DATASETS: tuple[str, ...] = ("ifrs9_staging", "corporate_ifrs9",
                                    "scenario_definitions")
 
+EARLY_WARNING_DATASETS: tuple[str, ...] = (
+    "early_warning_borrower_month", "early_warning_signal_observation",
+)
+
+#: Twenty published month-ends, November 2024 to June 2026.
+#:
+#: Twenty rather than fifteen because a twelve-month comparison needs
+#: thirteen months to exist before it means anything, and the movement
+#: reading, the recurrence counter and the rating-migration view all read
+#: back a year. Fifteen left a twelve-month question answerable for only
+#: three of the published months.
+#:
+#: The build computes twelve further months BEFORE the first published one
+#: and discards them, so the earliest visible month is scored against a full
+#: trailing baseline rather than against itself.
+MINIMUM_EARLY_WARNING_MONTHS = 20
+
 #: Below this the corporate book is a fixture, not a demonstration. The
 #: builder makes 3,800; a deployment holding forty has been quietly truncated
 #: and Borrower 360 search returns almost nothing.
@@ -230,6 +247,36 @@ def _scorecard_months(present: set[str], why: str) -> Check:
     return Check(key=key, title=title, status=OK,
                  detail=(f"{application} application and {behavioural} "
                          "behavioural validation months."), data=data)
+
+
+def _early_warning_months(present: set[str], why: str) -> Check:
+    key, title = "early_warning_months", "Early Warning V2 monthly snapshots exist"
+    remedy = "scripts/bootstrap_demo.py --step early_warning"
+    dataset = "early_warning_borrower_month"
+    if why or dataset not in present:
+        return Check(key=key, title=title, status=UNKNOWN if why else MISSING,
+                     detail=(why or f"{dataset} is not built — the Early "
+                                    "Warning screen has no snapshots to show."),
+                     remedy=remedy)
+    try:
+        from backend.data_access import get_data_source
+
+        months = len(get_data_source().periods(dataset) or [])
+    except Exception as e:  # noqa: BLE001
+        return Check(key=key, title=title, status=UNKNOWN,
+                     detail=f"{type(e).__name__}: {e}", remedy=remedy)
+
+    data = {"months": months}
+    if months < MINIMUM_EARLY_WARNING_MONTHS:
+        return Check(
+            key=key, title=title, status=MISSING,
+            detail=(f"{months} month(s) built — at least "
+                    f"{MINIMUM_EARLY_WARNING_MONTHS} are needed for the "
+                    "portfolio trend, the twelve-month movement and the "
+                    "rating-migration views to have anything to show."),
+            remedy=remedy, data=data)
+    return Check(key=key, title=title, status=OK,
+                 detail=f"{months} monthly snapshot(s) built.", data=data)
 
 
 def _catalogue() -> Check:
@@ -461,8 +508,12 @@ def report(session: Any | None = None) -> Report:
         _datasets_check("ifrs9_data", "IFRS 9 datasets exist",
                         IFRS9_DATASETS, present, why,
                         "scripts/bootstrap_demo.py --step portfolio"),
+        _datasets_check("early_warning_data", "Early Warning V2 datasets exist",
+                        EARLY_WARNING_DATASETS, present, why,
+                        "scripts/bootstrap_demo.py --step early_warning"),
         _corporate_scale(present, why),
         _scorecard_months(present, why),
+        _early_warning_months(present, why),
         _catalogue(),
     ]
 
@@ -484,10 +535,10 @@ def ready(session: Any | None = None) -> bool:
 
 
 __all__ = [
-    "CORPORATE_DATASETS", "Check", "IFRS9_DATASETS",
+    "CORPORATE_DATASETS", "Check", "EARLY_WARNING_DATASETS", "IFRS9_DATASETS",
     "MINIMUM_CORPORATE_BORROWERS", "MINIMUM_CORPORATE_QUARTERS",
-    "MINIMUM_RISK_CASES", "MINIMUM_SCORECARD_MODELS",
-    "MINIMUM_SCORECARD_MONTHS", "MISSING", "OK", "PERIOD", "PORTFOLIO_DATASETS",
-    "PRIOR_PERIOD", "READINESS_VERSION", "RETAIL_DATASETS", "Report", "UNKNOWN",
-    "ready", "report",
+    "MINIMUM_EARLY_WARNING_MONTHS", "MINIMUM_RISK_CASES",
+    "MINIMUM_SCORECARD_MODELS", "MINIMUM_SCORECARD_MONTHS", "MISSING", "OK",
+    "PERIOD", "PORTFOLIO_DATASETS", "PRIOR_PERIOD", "READINESS_VERSION",
+    "RETAIL_DATASETS", "Report", "UNKNOWN", "ready", "report",
 ]

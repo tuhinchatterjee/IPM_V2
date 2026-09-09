@@ -17,7 +17,6 @@ import json
 
 import pytest
 
-from backend.cockpit_agentic import contracts as K
 from backend.cockpit_agentic import failure as failure_mod
 from backend.cockpit_agentic import states as st
 from tests.cockpit_agentic.conftest import scores

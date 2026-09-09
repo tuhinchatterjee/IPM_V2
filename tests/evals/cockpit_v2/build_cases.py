@@ -31,12 +31,15 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import pandas as pd  # noqa: E402
 
-from backend.cockpit_v2 import DATA_VERSION, MODEL_VERSION, POLICY_VERSION  # noqa: E402
+from backend.cockpit_v2 import (  # noqa: E402
+    DATA_VERSION,
+    MODEL_VERSION,
+    POLICY_VERSION,
+    policy,  # noqa: E402
+    reader,  # noqa: E402
+)
 from backend.cockpit_v2 import calendar as cal  # noqa: E402
-from backend.cockpit_v2 import policy  # noqa: E402
-from backend.cockpit_v2 import reader  # noqa: E402
 from backend.cockpit_v2.generate import MASTER_SEED  # noqa: E402
 
 DEV = "development"

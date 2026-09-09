@@ -201,6 +201,34 @@ DOMAINS: tuple[BusinessDomain, ...] = (
         owner="Credit Policy",
     ),
     BusinessDomain(
+        name="Early Warning",
+        description=(
+            "The governed Early Warning analytical domain, and the only one "
+            "Early Warning chat reads. One row is one customer at one "
+            "month-end, across twenty contiguous published months, carrying "
+            "the complete model surface rather than only the final score: "
+            "the 123-signal inventory of which 105 are scored, 23 "
+            "classifiers, 67 dynamic triggers, the five accelerator "
+            "dimensions with their separate class-specific decay, all 22 "
+            "sub-category nodes, the six layer and dimension outputs, the "
+            "trigger-and-accelerator and classifier scores, the anchor read "
+            "off the published five-by-five matrix, all five notches, the "
+            "caps and overrides, and the field-level lineage back to "
+            "Ratings, IFRS 9, Facilities, Collateral, Covenants, External "
+            "Intelligence and the corporate graph. A derived domain, not a "
+            "source one: every non-behavioural field here is a governed "
+            "copy, never the system of record — which is why Early Warning "
+            "answers from these snapshots rather than reading those systems "
+            "again at answer time."),
+        owner="Credit Risk Analytics",
+        catalogue_domains=("Early Warning",),
+        datasets=(
+            "early_warning_borrower_month",
+            "early_warning_signal_observation",
+            "early_warning_network_edge_snapshot",
+        ),
+    ),
+    BusinessDomain(
         name="CreditProbe Operational Metadata",
         description=(
             "How the platform knows what it knows: entity resolution across "

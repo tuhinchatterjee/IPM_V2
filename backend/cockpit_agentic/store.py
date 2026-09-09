@@ -19,14 +19,13 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from backend.cockpit_agentic import (CATALOG_VERSION, DATA_VERSION, DOMAIN,
-                                     NOT_CLIENT_DATA, ORIGIN, namespace)
+from backend.cockpit_agentic import CATALOG_VERSION, DATA_VERSION, DOMAIN, NOT_CLIENT_DATA, ORIGIN, namespace
 from backend.cockpit_agentic.calendar import Calendar
 from backend.cockpit_agentic.generate import Release
 
@@ -116,7 +115,7 @@ def write(release: Release, *, require_flag: bool = True,
         "tenants": sorted(
             str(t) for t in release.frames[
                 "cockpit_facility_quarter"]["tenant_id"].dropna().unique()),
-        "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "calendar": release.calendar.to_dict(),
         "relations": written,
     }

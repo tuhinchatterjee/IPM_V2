@@ -25,6 +25,7 @@ from typing import Any
 
 from backend.engine.contracts import ContractError
 from backend.engine.registry import UnknownAnalysisError, get_registry
+from backend.orchestration import domain_lock as dl
 from backend.orchestration.schema import (
     MAX_PLAN_STEPS,
     AnalysisPlan,
@@ -109,12 +110,19 @@ def _period_values(step: PlanStep) -> dict[str, Any]:
     return out
 
 
-def validate_plan(plan: AnalysisPlan, vocab: Vocabulary | None = None) -> AnalysisPlan:
+def validate_plan(plan: AnalysisPlan, vocab: Vocabulary | None = None, *,
+                   domain_lock: str | None = None) -> AnalysisPlan:
     """Validate a whole plan, raising PlanRejected with every reason.
 
     Returns the plan unchanged on success. It is returned rather than mutated so
     that the caller cannot accidentally execute an unvalidated object: the
     executor only accepts what this function handed back.
+
+    `domain_lock` is the Early Warning (and future single-product-surface)
+    hard gate: when set, every step whose registered analysis needs a
+    dataset outside that domain's allow-list is rejected here, at the one
+    place every plan already passes through — never left to the planner's
+    own judgement about which dataset looks like a good fit.
     """
     vocab = vocab or get_vocabulary()
     reasons: list[str] = []
@@ -130,6 +138,12 @@ def validate_plan(plan: AnalysisPlan, vocab: Vocabulary | None = None) -> Analys
     for index, step in enumerate(plan.steps, start=1):
         for problem in validate_step(step, vocab):
             reasons.append(f"Step {index} ({step.analysis_id or 'unnamed'}): {problem}")
+
+    for violation in dl.check_plan(plan.steps, domain_lock):
+        reasons.append(
+            f"'{violation.analysis_id}' needs '{violation.dataset}', which is outside "
+            f"the {violation.domain_lock} domain this thread is locked to."
+        )
 
     if reasons:
         logger.warning("Plan rejected for %r: %s", plan.question, reasons)

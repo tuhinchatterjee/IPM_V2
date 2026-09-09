@@ -333,9 +333,9 @@ def test_the_limits_come_from_the_ledger_and_are_not_widenable():
 # what SQL already fetched, and that its failure comes back to Opus with the
 # repair still Opus's to make. They prove nothing about a real model.
 
-from tests.cockpit_agentic.conftest import scores          # noqa: E402
+from backend.cockpit_agentic import states as st  # noqa: E402
+from tests.cockpit_agentic.conftest import scores  # noqa: E402
 from tests.cockpit_agentic.fake_provider import FakeProvider  # noqa: E402
-from backend.cockpit_agentic import states as st           # noqa: E402
 
 SQL_STEP = ("SELECT reporting_quarter, sum(ecl_reported) AS ecl "
             "FROM cockpit_facility_quarter GROUP BY 1 ORDER BY 1 LIMIT 4")

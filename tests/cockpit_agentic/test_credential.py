@@ -269,7 +269,6 @@ def test_nothing_serializes_a_provider_with_asdict():
     """`dataclasses.asdict` reads `__dict__` and ignores `repr=False`, so it
     would still expose the key. Nothing does it, and this is what keeps that
     true."""
-    import ast
     from pathlib import Path
 
     for base in ("backend/cockpit_agentic", "backend/llm"):

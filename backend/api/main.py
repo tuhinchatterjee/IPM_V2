@@ -37,6 +37,7 @@ from backend.api.routers import corporate as corporate_router
 from backend.api.routers import data_builder as data_builder_router
 from backend.api.routers import domain_intelligence as domain_intelligence_router
 from backend.api.routers import early_warning as early_warning_router
+from backend.api.routers import early_warning_v2 as early_warning_v2_router
 from backend.api.routers import engine as engine_router
 from backend.api.routers import exports as exports_router
 from backend.api.routers import feedback as feedback_router
@@ -313,6 +314,7 @@ def create_app() -> FastAPI:
 
     app.include_router(cockpit_agentic_router.router, prefix=API_PREFIX)
     app.include_router(early_warning_router.router, prefix=API_PREFIX)
+    app.include_router(early_warning_v2_router.router, prefix=API_PREFIX)
     app.include_router(domain_intelligence_router.router,
                        prefix=API_PREFIX)
     # The governed agentic layer: runs, the live officer indicator,
