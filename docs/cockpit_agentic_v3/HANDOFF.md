@@ -89,6 +89,27 @@ them pre-emptively. **The five submissions, three analysis rounds and the 60
 and 120-second deadlines cannot be raised at any level.** See
 `CONTEXT_SIZING.md`.
 
+## The Cockpit's own Anthropic credential
+
+```
+COCKPIT_ANTHROPIC_API_KEY=<set-in-runtime-environment>
+```
+
+**Not `ANTHROPIC_API_KEY`.** That name is also what the Claude Code agent uses
+for its own provider access in this environment, and sharing it would
+authenticate and bill the product's calls against whatever account happened to
+be driving the tooling — with no way afterwards to separate the two and no way
+to revoke one without breaking the other.
+
+The Cockpit reads this and nothing else: not `ANTHROPIC_API_KEY`, not the
+SDK's implicit discovery, not the legacy application setting. Missing stops
+the request with `PROVIDER_CREDENTIAL_MISSING` before the first provider call.
+The rest of CreditProbe keeps its existing configuration.
+
+Diagnostics report `PRESENT` or `MISSING` and nothing else — no prefix, no
+suffix, no length, no hash, no masked form. Never put the value in a
+repository file.
+
 ## The two model roles, which do NOT inherit
 
 ```

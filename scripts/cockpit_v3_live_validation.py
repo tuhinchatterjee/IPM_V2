@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """The twelve live-provider steps, run against a real credential.
 
-    ANTHROPIC_API_KEY=...  COCKPIT_AGENTIC_V3=true \\
+    COCKPIT_ANTHROPIC_API_KEY=...  COCKPIT_AGENTIC_V3=true \\
         python scripts/cockpit_v3_live_validation.py
 
 Every automated test in `tests/cockpit_agentic/` uses a LABELLED MOCK. Those
@@ -13,8 +13,10 @@ it while a real credential is configured.
 
 THE CREDENTIAL
 --------------
-Read from the environment through `backend.config.settings`, and that is all
-that happens to it. It is never printed, never written to the evidence file,
+`COCKPIT_ANTHROPIC_API_KEY`, read through `cockpit_agentic.credential`, and
+that is all that happens to it. Deliberately NOT `ANTHROPIC_API_KEY`: this
+script validates the application, so it authenticates the way the application
+does, and borrowing the agent's key would prove the wrong thing. It is never printed, never written to the evidence file,
 never logged, and never committed. The report records only WHETHER a
 credential was configured, and the last four characters are not an exception
 to that.
@@ -91,7 +93,8 @@ def _redact(text: Any) -> str:
     this makes that true of the output as well as of the intent.
     """
     body = str(text)
-    for marker in ("sk-ant", "ANTHROPIC_API_KEY"):
+    for marker in ("sk-ant", "ANTHROPIC_API_KEY",
+                   "COCKPIT_ANTHROPIC_API_KEY"):
         if marker in body:
             return "[redacted: the output referenced a credential]"
     return body[:4_000]
@@ -107,6 +110,7 @@ def main() -> int:
         "sectors drove the change?"))
     args = parser.parse_args()
 
+    from backend.cockpit_agentic import credential as cockpit_credential
     from backend.cockpit_agentic import models as cockpit_models
     from backend.cockpit_agentic import pysandbox, service, store
     from backend.cockpit_agentic import ledger as ledger_mod
@@ -116,18 +120,21 @@ def main() -> int:
     steps = {n: Step(n, name) for n, name in STEP_NAMES.items()}
     started = time.time()
 
-    configured = bool(settings.anthropic_api_key)
+    # The Cockpit's own credential, not ANTHROPIC_API_KEY. This script
+    # validates the application, so it authenticates the way the application
+    # does; using the agent's key here would prove the wrong thing.
+    configured = cockpit_credential.present()
     if not configured:
         for step in steps.values():
-            step.detail = ("No ANTHROPIC_API_KEY is configured, so this step "
-                           "did not run. It is reported BLOCKED rather than "
-                           "substituted: there is no deterministic path that "
-                           "could stand in for it.")
+            step.detail = (
+                f"No {cockpit_credential.COCKPIT_CREDENTIAL_VAR} is "
+                f"configured, so this step did not run. It is reported "
+                f"BLOCKED rather than substituted: there is no deterministic "
+                f"path that could stand in for it, and the Cockpit does not "
+                f"borrow ANTHROPIC_API_KEY.")
         return _write(steps, configured=False, started=started, args=args)
 
-    provider = AnthropicProvider(api_key=settings.anthropic_api_key,
-                                 model=settings.ai_model or
-                                 AnthropicProvider.model)
+    provider = AnthropicProvider(api_key=cockpit_credential.require())
 
     # ---- 1. connectivity -------------------------------------------
     step = steps[1]
@@ -317,6 +324,7 @@ def main() -> int:
 
 def _model_status() -> dict[str, Any]:
     """The two ids, for the evidence file. Never a credential."""
+    from backend.cockpit_agentic import credential as cockpit_credential
     from backend.cockpit_agentic import models as cockpit_models
 
     return cockpit_models.status()
@@ -333,6 +341,7 @@ def _write(steps, *, configured, started, args, body=None, ledger=None,
 
     blob = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "credential_variable": "COCKPIT_ANTHROPIC_API_KEY",
         "credential_configured": configured,
         "credential_value_recorded": False,
         "release": args.release, "mode": args.mode,

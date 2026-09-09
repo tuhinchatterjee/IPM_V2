@@ -28,6 +28,7 @@ from typing import Any
 from backend.cockpit_agentic import (CATALOG_VERSION, DEEP, DOMAIN,
                                      MODES, STANDARD, default_mode,
                                      enabled)
+from backend.cockpit_agentic import credential
 from backend.cockpit_agentic import ledger as ledger_mod
 from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic import profile as profile_mod
@@ -161,8 +162,15 @@ def ask(question: str, principal: Any, *, provider: Any = None,
     if chosen not in MODES:
         chosen = STANDARD
 
+    provider_error: Exception | None = None
     if provider is None:
-        provider = _resolve_provider()
+        try:
+            provider = _resolve_provider()
+        except credential.ProviderCredentialMissing as e:
+            # Not raised out of here. The request gets the same shape of
+            # honest outcome every other configuration failure gets, and the
+            # message names the variable rather than any value.
+            provider_error, provider = e, None
 
     state = thread_for(
         thread_id or "cockpit-default", dataset_release_id,
@@ -182,7 +190,7 @@ def ask(question: str, principal: Any, *, provider: Any = None,
         provider=provider, principal=principal,
         dataset_release_id=dataset_release_id,
         coverage=coverage_for(dataset_release_id), calendar=calendar,
-        mode=chosen, request_id=request_id)
+        mode=chosen, request_id=request_id, provider_error=provider_error)
 
     outcome = runtime.run(question, ui_filters=ui_filters,
                           rolling_summary=summary,
@@ -210,16 +218,80 @@ def ask(question: str, principal: Any, *, provider: Any = None,
 
 
 def _resolve_provider() -> Any:
+    """The Cockpit's provider, on the Cockpit's own credential.
+
+    `COCKPIT_ANTHROPIC_API_KEY` and nothing else. Not `ANTHROPIC_API_KEY`,
+    which in this deployment is the Claude Code agent's own; not the SDK's
+    implicit discovery; not a legacy application setting. Missing raises here,
+    before any request is assembled, and the runtime turns that into
+    PROVIDER_CREDENTIAL_MISSING.
+
+    No model is passed. The Cockpit's two roles are resolved strictly in
+    `models.py` and supplied per call, so a default carried on the provider
+    would be a fallback nobody chose -- exactly what the model-role hardening
+    removed.
+    """
     from backend.config import settings
     from backend.llm.anthropic_provider import AnthropicProvider
-    from backend.llm.base import NullProvider
 
-    if str(settings.ai_provider).lower() == "offline" or \
-            not settings.anthropic_api_key:
+    if str(settings.ai_provider).lower() == "offline":
+        # An explicitly offline deployment is a configuration, not a failure.
+        # The Cockpit still answers nothing -- the runtime reports the
+        # provider as unavailable rather than substituting an analysis.
+        from backend.llm.base import NullProvider
         return NullProvider()
-    return AnthropicProvider(api_key=settings.anthropic_api_key,
-                             model=settings.ai_model or
-                             AnthropicProvider.model)
+    return AnthropicProvider(api_key=credential.require())
+
+
+def _preflight(body: dict[str, Any], dataset_release_id: str
+               ) -> dict[str, Any]:
+    """The commissioning checklist, in one place.
+
+    Each entry is a STATE. Nothing here carries a credential, a prompt, or a
+    row of data -- a preflight that leaked one of those would be the thing it
+    exists to prevent.
+    """
+    from backend.config import settings
+
+    models = body["cockpit_models"]
+    sandbox = body["python_execution"]
+    release = body.get("release") or {}
+    prices = ledger_mod.prices_from_settings()
+    counting = "provider_count_tokens" if body["provider"]["configured"] \
+        else "local_conservative_estimate"
+
+    return {
+        "cockpit_agentic_v3": "enabled" if body["cockpit_agentic_v3"]
+                              else "disabled",
+        "provider": (settings.ai_provider or "").strip().lower() or "unset",
+        "cockpit_anthropic_credential": body["provider"]["status"],
+        "preprocess_model": models.get("preprocess_model") or "NOT SET",
+        "reasoning_model": models.get("reasoning_model") or "NOT SET",
+        "model_role_configuration": models.get("status"),
+        "provider_connectivity": (
+            "UNVERIFIED — no call has been made from this process"
+            if body["provider"]["configured"] else
+            "NOT ATTEMPTED — no credential"),
+        "token_counting": (
+            "provider counting, against the configured ids"
+            if counting == "provider_count_tokens" else
+            "local conservative estimate; never reported as a measurement"),
+        "prompt_cache": ("one breakpoint after the invariant prefix; the "
+                         "catalogue is inside it"),
+        "spend_accounting": ("enforced" if prices.configured else
+                             "UNKNOWN — no prices configured, so the spend "
+                             "ceiling is not a control"),
+        "python_sandbox": ("available — " + str(sandbox.get("strategy") or "")
+                           if sandbox.get("available") else "unavailable"),
+        "data_release": (dataset_release_id if body["available"]
+                         else f"{dataset_release_id} — NOT READABLE"),
+        "data_origin": release.get("origin") or "demo_only — no real source",
+        "ready_for_commissioning": bool(
+            body["cockpit_agentic_v3"]
+            and body["available"]
+            and body["provider"]["configured"]
+            and models.get("configured")),
+    }
 
 
 def diagnostics(principal: Any = None,
@@ -255,11 +327,20 @@ def diagnostics(principal: Any = None,
         role_name: roles.role(role_name).to_dict()
         for role_name in (sonnet.SONNET_ROLE, "cockpit_reasoning")}
     body["provider"] = {
-        "configured": bool(settings.anthropic_api_key),
-        "note": ("With no credential configured the Cockpit reports that it "
-                 "cannot answer. It does not substitute a deterministic "
-                 "analysis."),
+        "name": (settings.ai_provider or "").strip().lower(),
+        # PRESENT or MISSING, and never anything else about the value. Its
+        # own `note` names the variable to set and is kept: the general note
+        # below would otherwise overwrite the actionable one.
+        **credential.report(),
+        "behaviour": ("With no credential configured the Cockpit reports that "
+                      "it cannot answer. It does not substitute a "
+                      "deterministic analysis."),
     }
+    # A single block an operator can read straight down before commissioning,
+    # rather than assembling the answer from eight places. Every line is a
+    # state, never a value: the credential in particular is PRESENT or
+    # MISSING and nothing else.
+    body["preflight"] = _preflight(body, dataset_release_id)
     body["cost_enforced"] = ledger_mod.prices_from_settings().configured
     if not body["cost_enforced"]:
         body["cost_note"] = (

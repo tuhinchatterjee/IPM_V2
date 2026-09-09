@@ -200,6 +200,13 @@ DOCUMENTED_EXTRAS = {
                       "MODEL_UNAVAILABLE, which is a model that does not "
                       "exist here, and from INTERNAL_ERROR, which is this "
                       "application's own defect.",
+    "PROVIDER_CREDENTIAL_MISSING": "nobody configured the Cockpit's own "
+                                   "Anthropic credential. Distinct from "
+                                   "MODEL_CONFIGURATION_MISSING, which is "
+                                   "nobody saying which model answers: one "
+                                   "sends an operator to "
+                                   "COCKPIT_ANTHROPIC_API_KEY and the other "
+                                   "to the two model-role variables.",
 }
 
 

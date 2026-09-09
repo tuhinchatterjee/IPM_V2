@@ -265,7 +265,9 @@ reports how much of the ceiling is left, in cents. Detail in
    both are set — that is now enforced rather than warned about. Set
    `AI_COCKPIT_PREPROCESS_MODEL=claude-sonnet-5` and
    `AI_COCKPIT_REASONING_MODEL=claude-opus-5`.
-1. **No provider credential.** Everything that depends on a model is
+1. **No provider credential.** The Cockpit needs its own,
+   `COCKPIT_ANTHROPIC_API_KEY` — deliberately not `ANTHROPIC_API_KEY`, which
+   is the Claude Code agent's here. Everything that depends on a model is
    BLOCKED/UNVERIFIED: routing accuracy, translation fidelity, plan quality,
    repair quality, answer quality, latency, and real token and cost figures.
 2. **No real data.** Every field in the release is `demo_only`. Nothing is
@@ -316,7 +318,7 @@ curl -s localhost:8000/api/v1/cockpit/diagnostics | python -m json.tool
 
 # 8. When a credential exists -- from the environment, never on a command line
 #    that lands in shell history, never in a file that gets committed
-ANTHROPIC_API_KEY=... COCKPIT_AGENTIC_V3=true \
+COCKPIT_ANTHROPIC_API_KEY=... COCKPIT_AGENTIC_V3=true \
     .venv/bin/python scripts/cockpit_v3_live_validation.py
 ```
 

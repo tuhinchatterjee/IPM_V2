@@ -284,6 +284,7 @@ away, which is why `SUMMARIZING` is excluded.
 
 | Event | Condition | Next | Side effect |
 |---|---|---|---|
+| no Cockpit provider credential | `COCKPIT_ANTHROPIC_API_KEY` is unset or empty | `PROVIDER_CREDENTIAL_MISSING` | the stop names the variable and never the value; no fallback to ANTHROPIC_API_KEY or any other credential |
 | deadline reached | clock past the request deadline | `STOPPED_TIME_LIMIT` | the stop names the deadline |
 | user cancelled | cancel flag set on the ledger | `CANCELLED` | in-flight work is stopped; usage is retained |
 | token ceiling reached | cumulative input would exceed it | `STOPPED_TOKEN_LIMIT` | the stop names the ceiling |
@@ -322,14 +323,19 @@ away, which is why `SUMMARIZING` is excluded.
 | `CANCELLED` |
 | `INTERNAL_ERROR` |
 
-`INSUFFICIENT_DATA`, `EXECUTION_FAILED` and `PROVIDER_ERROR` are this
-implementation's additions to the specification's list. Each is distinct from
-its nearest neighbour: `INSUFFICIENT_DATA` is a readable domain that does not
-hold the answer, where `DATA_UNAVAILABLE` is an unreadable release;
-`EXECUTION_FAILED` is every attempt failing for a reason inside the analysis,
-where `STOPPED_EXECUTION_LIMIT` is running out of attempts; `PROVIDER_ERROR`
-is the provider not answering, where `MODEL_UNAVAILABLE` is a model that does
-not exist here and `INTERNAL_ERROR` is this application's own defect.
+`INSUFFICIENT_DATA`, `EXECUTION_FAILED`, `PROVIDER_ERROR` and
+`PROVIDER_CREDENTIAL_MISSING` are this implementation's additions to the
+specification's list. Each is distinct from its nearest neighbour:
+`INSUFFICIENT_DATA` is a readable domain that does not hold the answer, where
+`DATA_UNAVAILABLE` is an unreadable release; `EXECUTION_FAILED` is every
+attempt failing for a reason inside the analysis, where
+`STOPPED_EXECUTION_LIMIT` is running out of attempts; `PROVIDER_ERROR` is the
+provider not answering, where `MODEL_UNAVAILABLE` is a model that does not
+exist here and `INTERNAL_ERROR` is this application's own defect; and
+`PROVIDER_CREDENTIAL_MISSING` is nobody having configured the Cockpit's own
+credential, where `MODEL_CONFIGURATION_MISSING` is nobody having said which
+model answers — one sends an operator to `COCKPIT_ANTHROPIC_API_KEY` and the
+other to the two model-role variables.
 
 ### Why no request can run forever
 
@@ -370,8 +376,20 @@ fail closed. No fallback to `AI_MODEL`, to another role, or to the SDK's
 default. Missing → `MODEL_CONFIGURATION_MISSING`; refused by the provider →
 `MODEL_UNAVAILABLE`. Neither is answered from a deterministic substitute.
 
-**The credential** is read from the environment and never printed, logged,
-stored or returned.
+**The credential** — the Cockpit reads `COCKPIT_ANTHROPIC_API_KEY` and nothing
+else. Not `ANTHROPIC_API_KEY`, which in this deployment is also the Claude Code
+agent's own; not the SDK's implicit discovery; not the legacy application
+setting. Missing → `PROVIDER_CREDENTIAL_MISSING`, before the first provider
+request. The rest of CreditProbe keeps its existing provider configuration,
+which is correct for it: this isolation is the Cockpit's requirement, not a
+change of convention for the product.
+
+The value is read from the environment on demand and never stored — no module
+global, no dataclass field, no settings attribute. Diagnostics report
+`PRESENT` or `MISSING` and nothing else: no prefix, no suffix, no length, no
+hash, no masked form. `backend/cockpit_agentic/credential.py` is the only
+place it is read, and a test reads that module's own source to confirm it
+reaches the environment exactly once.
 
 ## 11. Data release and macro vintage
 

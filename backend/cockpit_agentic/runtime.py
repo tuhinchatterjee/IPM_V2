@@ -40,6 +40,7 @@ from backend.cockpit_agentic import answer_check
 from backend.cockpit_agentic import catalog as catalog_mod
 from backend.cockpit_agentic import context as context_mod
 from backend.cockpit_agentic import contracts as K
+from backend.cockpit_agentic import credential as credential_mod
 from backend.cockpit_agentic import failure as failure_mod
 from backend.cockpit_agentic import models as models_mod
 from backend.cockpit_agentic import opus as opus_mod
@@ -121,7 +122,8 @@ class Runtime:
     def __init__(self, *, provider: Any, principal: Any,
                  dataset_release_id: str, coverage: Any, calendar: Any,
                  mode: str = STANDARD, request_id: str = "",
-                 prices: Prices | None = None, store: Any = STORE) -> None:
+                 prices: Prices | None = None, store: Any = STORE,
+                 provider_error: Exception | None = None) -> None:
         self.request_id = request_id or f"req-{uuid.uuid4().hex[:12]}"
         self.provider = provider
         self.mode = mode
@@ -163,10 +165,26 @@ class Runtime:
         # constructor that raises gives the caller an exception where the rest
         # of this class gives it an honest outcome, and the API surface should
         # not have two shapes for the same kind of stop.
+        # Raised by `service._resolve_provider` when the Cockpit's own
+        # credential is not configured. Carried rather than raised at
+        # construction, for the same reason the model error is: the caller
+        # gets an honest outcome, not an exception, and there is one shape for
+        # a stop rather than two.
+        self.provider_error = provider_error
         self.models: models_mod.CockpitModels | None = None
         self.model_error: models_mod.CockpitModelError | None = None
         try:
             self.models = models_mod.resolve()
+        except credential_mod.ProviderCredentialMissing as e:
+            # Fails closed before the first provider request. No deterministic
+            # answer, and the message names the variable and never a value.
+            return self._finish(
+                st.PROVIDER_CREDENTIAL_MISSING,
+                _stop_envelope(
+                    reason=e.status, narrative=str(e), understood=question,
+                    help_text=(f"Set {' and '.join(e.variables)} in the "
+                               f"runtime environment and restart the "
+                               f"service.")))
         except models_mod.CockpitModelError as e:
             self.model_error = e
 
@@ -207,6 +225,16 @@ class Runtime:
                     help_text=("This is an operator or configuration matter, "
                                "not something rephrasing the question can "
                                "fix.")))
+        except credential_mod.ProviderCredentialMissing as e:
+            # Fails closed before the first provider request. No deterministic
+            # answer, and the message names the variable and never a value.
+            return self._finish(
+                st.PROVIDER_CREDENTIAL_MISSING,
+                _stop_envelope(
+                    reason=e.status, narrative=str(e), understood=question,
+                    help_text=(f"Set {' and '.join(e.variables)} in the "
+                               f"runtime environment and restart the "
+                               f"service.")))
         except models_mod.CockpitModelError as e:
             # Requirement, stated plainly: no deterministic answering fallback.
             # An unconfigured or unserveable model role ends the request with a
@@ -294,7 +322,12 @@ class Runtime:
     def _run(self, question: str, *, ui_filters, rolling_summary,
              recent_exchanges) -> Outcome:
         # Before anything, including the first preprocessing call: if nobody
-        # has said which models serve this Cockpit, nothing runs.
+        # has said which account pays for this Cockpit, nothing runs. This is
+        # the "before the first provider request" gate -- no request has been
+        # assembled at this point, let alone sent.
+        if self.provider_error is not None:
+            raise self.provider_error
+        # And if nobody has said which models serve it.
         if self.model_error is not None:
             raise self.model_error
         # And that the provider will actually serve what they name. Checked

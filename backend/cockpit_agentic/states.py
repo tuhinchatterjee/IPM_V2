@@ -28,6 +28,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.cockpit_agentic.credential import COCKPIT_CREDENTIAL_VAR
+
 # ---- working states ---------------------------------------------------
 
 RECEIVED = "RECEIVED"
@@ -82,6 +84,11 @@ STOPPED_SECURITY = "STOPPED_SECURITY"
 #: The environment cannot serve the request.
 MODEL_CONFIGURATION_MISSING = "MODEL_CONFIGURATION_MISSING"
 MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+#: No Cockpit Anthropic credential. Its own state rather than one of the two
+#: above: those mean nobody said WHICH MODEL should answer, this means nobody
+#: said WHICH ACCOUNT pays for it, and an operator sent to the wrong variable
+#: is an operator who does not fix it.
+PROVIDER_CREDENTIAL_MISSING = "PROVIDER_CREDENTIAL_MISSING"
 PROVIDER_ERROR = "PROVIDER_ERROR"
 DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
 CONTEXT_TOO_LARGE = "CONTEXT_TOO_LARGE"
@@ -98,8 +105,8 @@ TERMINAL: tuple[str, ...] = (
     COMPLETED, PARTIAL, REDIRECTED, UNSUPPORTED, WAITING_FOR_USER,
     STOPPED_EXECUTION_LIMIT, STOPPED_ANALYSIS_LIMIT, STOPPED_TOKEN_LIMIT,
     STOPPED_COST_LIMIT, STOPPED_TIME_LIMIT, STOPPED_SECURITY,
-    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE, PROVIDER_ERROR,
-    DATA_UNAVAILABLE, CONTEXT_TOO_LARGE, INSUFFICIENT_DATA, EXECUTION_FAILED,
+    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE,
+    PROVIDER_CREDENTIAL_MISSING, PROVIDER_ERROR, DATA_UNAVAILABLE, CONTEXT_TOO_LARGE, INSUFFICIENT_DATA, EXECUTION_FAILED,
     CANCELLED, INTERNAL_ERROR)
 
 ALL_STATES: tuple[str, ...] = WORKING + TERMINAL
@@ -115,8 +122,8 @@ STOPPED_BY_GUARDRAIL = frozenset({
 STOPPED_WITHOUT_ANSWER = frozenset({
     REDIRECTED, WAITING_FOR_USER, INSUFFICIENT_DATA, EXECUTION_FAILED,
     UNSUPPORTED, CONTEXT_TOO_LARGE, CANCELLED, PROVIDER_ERROR,
-    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE, DATA_UNAVAILABLE,
-    INTERNAL_ERROR}) | STOPPED_BY_GUARDRAIL
+    MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE,
+    PROVIDER_CREDENTIAL_MISSING, DATA_UNAVAILABLE, INTERNAL_ERROR}) | STOPPED_BY_GUARDRAIL
 
 
 # ---- the registry -----------------------------------------------------
@@ -177,6 +184,11 @@ def _always(state: str) -> tuple[Edge, ...]:
              PROVIDER_ERROR, "no deterministic substitute is produced"),
         Edge(state, "model roles unconfigured", "either role is unset",
              MODEL_CONFIGURATION_MISSING, "the stop names the variable"),
+        Edge(state, "no Cockpit provider credential",
+             f"{COCKPIT_CREDENTIAL_VAR} is unset or empty",
+             PROVIDER_CREDENTIAL_MISSING,
+             "the stop names the variable and never the value; no fallback to "
+             "ANTHROPIC_API_KEY or any other credential"),
         Edge(state, "model refused by provider", "the provider will not serve it",
              MODEL_UNAVAILABLE, "the stop names the id"),
         Edge(state, "packet will not fit", "measured above the input cap",

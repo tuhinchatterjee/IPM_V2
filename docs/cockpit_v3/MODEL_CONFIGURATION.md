@@ -103,12 +103,16 @@ provider error with the wrong remedy attached.
 
 ## The credential
 
-`backend/cockpit_agentic/models.py` never reads, holds, logs or reports
-`ANTHROPIC_API_KEY`. The model ids are configuration and are reported; the key
-is a secret and is not. A test sets a recognisable fake key in the environment
-and asserts it appears in neither the resolved metadata nor the diagnostics,
-and reads the module's own source to confirm it does not reach for the key at
-all.
+`backend/cockpit_agentic/models.py` never reads, holds, logs or reports any
+credential. The model ids are configuration and are reported; a key is a
+secret and is not. A test sets a recognisable fake key in the environment and
+asserts it appears in neither the resolved metadata nor the diagnostics, and
+reads the module's own source to confirm it does not reach for one at all.
+
+The Cockpit's credential itself lives in
+`backend/cockpit_agentic/credential.py` and is `COCKPIT_ANTHROPIC_API_KEY` —
+deliberately not `ANTHROPIC_API_KEY`. See
+`docs/cockpit_v3/FINAL_AGENTIC_ARCHITECTURE.md` §10.
 
 ## The tests
 

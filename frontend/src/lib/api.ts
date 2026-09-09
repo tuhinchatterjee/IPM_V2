@@ -8311,7 +8311,17 @@ export type CockpitV3Diagnostics = {
   guardrails_note: string;
   model_roles: Record<string, { role: string; model: string; effort: string;
                                 inherited: boolean; purpose: string }>;
-  provider: { configured: boolean; note: string };
+  provider: {
+    name?: string;
+    /** The variable that must be set — the Cockpit's own, not ANTHROPIC_API_KEY. */
+    variable?: string;
+    /** PRESENT or MISSING. Never a prefix, suffix, length, hash or mask. */
+    status?: string;
+    configured: boolean;
+    note: string;
+    behaviour?: string;
+  };
+  preflight?: Record<string, string | boolean>;
   cost_enforced: boolean;
   cost_note?: string;
   release: {

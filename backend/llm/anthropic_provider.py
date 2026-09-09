@@ -44,7 +44,12 @@ TIMEOUT_SECONDS = 60.0
 class AnthropicProvider:
     """Anthropic Claude, used as an orchestrator rather than an author."""
 
-    api_key: str
+    #: `repr=False` is not cosmetic. A dataclass renders every field into its
+    #: repr, so before this the key appeared in any log line, traceback or
+    #: f-string that mentioned the provider -- `raise ValueError(f"{provider}")`
+    #: was enough. `__repr__` below reports whether one is set and never what
+    #: it is.
+    api_key: str = field(repr=False)
     model: str = DEFAULT_MODEL
     name: str = "anthropic"
     timeout: float = TIMEOUT_SECONDS
@@ -52,6 +57,10 @@ class AnthropicProvider:
     #: default is built lazily, because constructing a client at import time
     #: would make the whole backend fail to start on a bad key.
     client: Any = field(default=None, repr=False)
+
+    def __repr__(self) -> str:
+        return (f"AnthropicProvider(model={self.model!r}, "
+                f"credential={'PRESENT' if self.api_key else 'MISSING'})")
 
     @property
     def configured(self) -> bool:

@@ -84,12 +84,14 @@ def runtime_factory(lake):
     """Build a Runtime over the published release, with a scripted provider."""
     from backend.cockpit_agentic.runtime import Runtime
 
-    def make(provider, *, mode="standard", request_id="", store_=None):
+    def make(provider, *, mode="standard", request_id="", store_=None,
+             provider_error=None):
         return Runtime(
             provider=provider, principal=Principal(),
             dataset_release_id=RELEASE, coverage=lake["coverage"],
             calendar=lake["calendar"], mode=mode, request_id=request_id,
-            prices=L.Prices(), store=store_ or L.LedgerStore())
+            prices=L.Prices(), store=store_ or L.LedgerStore(),
+            provider_error=provider_error)
 
     return make
 

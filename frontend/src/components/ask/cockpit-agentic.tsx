@@ -81,7 +81,7 @@ export function CockpitV3Badge({ diagnostics }: {
         />
         <Pill label="data" value={diagnostics.release?.data_version ?? "—"} />
         {!diagnostics.provider.configured && (
-          <Pill label="provider" value="not configured" tone="red" />
+          <Pill label="credential" value="missing" tone="red" />
         )}
         {/* Which models answer is not a detail an operator should have to
             read a log to discover. Two roles that fail closed are shown
@@ -120,6 +120,22 @@ export function CockpitV3Badge({ diagnostics }: {
           ))}
           . The five execution submissions and three analysis rounds are not
           configurable at any level.
+        </p>
+      )}
+
+      {/* The Cockpit has its own Anthropic credential, deliberately separate
+          from the one the tooling uses. Missing means it answers nothing —
+          and never that it quietly borrowed another. */}
+      {!diagnostics.provider.configured && (
+        <p className="text-[11px] leading-snug text-red-800">
+          <span className="font-semibold">
+            No Cockpit Anthropic credential.
+          </span>{" "}
+          Set {diagnostics.provider.variable ?? "COCKPIT_ANTHROPIC_API_KEY"} in
+          the runtime environment. It is deliberately separate from
+          ANTHROPIC_API_KEY, and nothing here falls back to that or to any
+          other credential: every question stops with
+          PROVIDER_CREDENTIAL_MISSING until it is set.
         </p>
       )}
 

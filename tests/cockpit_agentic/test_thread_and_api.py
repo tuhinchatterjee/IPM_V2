@@ -261,14 +261,21 @@ def test_deep_mode_is_never_selected_silently(api):
 
 
 def test_without_a_credential_the_api_says_so_and_substitutes_nothing(api):
-    """Sections 17 and 18, through the real endpoint."""
+    """Sections 17 and 18, through the real endpoint.
+
+    The status is PROVIDER_CREDENTIAL_MISSING rather than the older, vaguer
+    PROVIDER_ERROR: nothing failed to answer here, nobody configured the
+    Cockpit's own credential, and those send an operator to different places.
+    """
+    from backend.cockpit_agentic import credential
+
     body = api.post(f"{API}/ask",
                     json={"question": "How much did ECL change?",
                           "dataset_release_id": "test-runtime-20q"},
                     headers=HEADERS).json()
-    assert body["status"] == st.PROVIDER_ERROR
+    assert body["status"] == st.PROVIDER_CREDENTIAL_MISSING
     assert body["answer"]["kind"] == "stop"
-    assert "no deterministic stand-in" in body["answer"]["narrative"]
+    assert credential.COCKPIT_CREDENTIAL_VAR in body["answer"]["narrative"]
     assert body["results"] == []
     assert body["answer"]["tables"] == [] and body["answer"]["charts"] == []
 

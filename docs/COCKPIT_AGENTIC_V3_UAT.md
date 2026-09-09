@@ -54,7 +54,7 @@ any level.
 ### With a credential
 
 ```sh
-export ANTHROPIC_API_KEY=...           # spends real money
+export COCKPIT_ANTHROPIC_API_KEY=...    # the Cockpit's own; spends real money
 export AI_COCKPIT_PREPROCESS_MODEL=... # a fast model
 export AI_COCKPIT_REASONING_MODEL=...  # a strong one
 # Configure prices, or the spending ceiling is not a control:
@@ -145,7 +145,7 @@ Check the badge first: domain, release, twenty quarters, and any raised limit.
 
 | # | Do | Expect |
 |---:|---|---|
-| F1 | Unset `ANTHROPIC_API_KEY` and ask anything. | A stop saying no provider is configured. **No tables, no charts, no analysis.** Nothing that could be mistaken for an answer. |
+| F1 | Unset `COCKPIT_ANTHROPIC_API_KEY` and ask anything — leaving `ANTHROPIC_API_KEY` set, if it is. | `PROVIDER_CREDENTIAL_MISSING`, naming the variable to set. **No tables, no charts, no analysis**, and the agent's own key is not borrowed. |
 | F2 | Unset the input-token override and ask anything. | `CONTEXT_TOO_LARGE`, the measured figure, and a pointer to the sizing document. Not half a schema and a confident answer. |
 | F3 | Stop the release build and ask. | An honest unavailable, not a substitute. |
 

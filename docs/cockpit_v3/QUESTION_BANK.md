@@ -279,7 +279,7 @@ These do not need a credit judgement. They are the application's guarantees, run
 ## Running it
 
 ```
-ANTHROPIC_API_KEY=...  COCKPIT_AGENTIC_V3=true \
+COCKPIT_ANTHROPIC_API_KEY=...  COCKPIT_AGENTIC_V3=true \
     python scripts/cockpit_v3_live_validation.py
 ```
 
