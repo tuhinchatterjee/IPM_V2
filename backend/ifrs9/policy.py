@@ -53,6 +53,25 @@ SICR_DPD_DAYS = 30
 #: Days past due at which default is presumed.
 DEFAULT_DPD_DAYS = 90
 
+#: How many consecutive clear quarters a Stage 2 borrower serves before it is
+#: allowed back into Stage 1.
+#:
+#: Deterioration is immediate; improvement has to be sustained. Every IFRS 9
+#: book of any size operates a probation like this, and the reason is the one
+#: this book ran into without it: a trigger evaluated afresh each quarter let a
+#: third of the Stage 2 population cure every quarter on a PD that had moved by
+#: a hundredth, and the provision oscillated with it. An average Stage 2
+#: sojourn under three quarters is a staging rule measuring noise rather than
+#: credit, and it is the pattern supervisors look for because it suppresses
+#: provisions.
+#:
+#: Two quarters is the shortest probation that means anything. It lives here,
+#: with the triggers, because the generator that stages the book and the rule
+#: set that reproduces it must not hold separate copies — a rule set that cured
+#: faster than the book would stop reproducing it, and the baseline column of
+#: every What-If rests on that tie.
+STAGE_2_PROBATION_QUARTERS = 2
+
 #: Scenario probability weights, and the ECL multiplier each scenario carries.
 #: The reported ECL is the probability-weighted one, so every measurement here
 #: carries the same factor and the base reproduces the book.
@@ -71,15 +90,31 @@ WEIGHTED_SCENARIO_FACTOR = sum(w * m for _, w, m in SCENARIO_WEIGHTS)
 LIFETIME_HORIZON_YEARS = 4.2
 
 
-def lifetime_pd(pd_12m: np.ndarray | pd.Series) -> np.ndarray:
+def lifetime_pd(pd_12m: np.ndarray | pd.Series,
+                through_the_cycle: np.ndarray | pd.Series | None = None
+                ) -> np.ndarray:
     """Lifetime PD from a twelve-month PD, both as decimals.
 
-    A constant-hazard extension over the behavioural life, floored at the
-    twelve-month rate (a lifetime probability can never be lower) and capped
-    below one.
+    ONE transform, governed in `backend.corporate.ratingscale`, used on both
+    sides of every comparison. There were two: the book carried a mean-
+    reverting lifetime PD anchored on the grade's through-the-cycle level,
+    and this function returned a constant-hazard extension. A scenario then
+    divided a stressed figure from one curve by a reported figure from the
+    other, and the resulting "PD effect" was a difference between two
+    definitions rather than a fact about the borrower.
+
+    With no anchor the borrower is its own through-the-cycle level, which is
+    exactly the constant-hazard case — so a caller that has no grade to anchor
+    on gets the same answer it always did, and a caller that has one gets a
+    lifetime PD that reverts.
     """
+    from backend.corporate import ratingscale
+
     twelve = np.asarray(pd_12m, dtype=float)
-    return np.clip(1.0 - (1.0 - twelve) ** LIFETIME_HORIZON_YEARS, twelve, 0.999)
+    anchor = (twelve if through_the_cycle is None
+              else np.asarray(through_the_cycle, dtype=float))
+    life = ratingscale.lifetime_pd(twelve * 100.0, anchor * 100.0) / 100.0
+    return np.clip(life, twelve, 0.999)
 
 
 @dataclass(frozen=True)
@@ -146,10 +181,19 @@ def measured_ecl(stage: np.ndarray | pd.Series, pd_12m_pct: pd.Series,
                  *, lifetime_pd_pct: pd.Series | None = None) -> np.ndarray:
     """ECL on the governed measurement basis, before any overlay.
 
-    Stage 1 is measured on the twelve-month PD; Stages 2 and 3 on the lifetime
-    PD. That single line is why a Stage 1 to Stage 2 migration increases the
-    provision even when nothing else about the borrower moved, and it is the
-    mechanism a scenario answer has to get right to be worth anything.
+    Stage 1 is measured on the twelve-month PD, Stage 2 on the lifetime PD,
+    and Stage 3 on a PD of 100%. The Stage 1 to Stage 2 line is why a migration
+    increases the provision even when nothing else about the borrower moved,
+    and it is the mechanism a scenario answer has to get right to be worth
+    anything. The Stage 3 line is not a modelling choice: the default has
+    happened, so the probability of it happening is one.
+
+    The scenario weighting is applied to the PERFORMING legs only. Its
+    multipliers (upside 0.72, base 1.00, downside 1.46) scale a PROBABILITY
+    that has not yet resolved; multiplying a certainty by 1.082 would assert a
+    loss rate above the borrower's own LGD, which is not a provision but an
+    arithmetic error. On a defaulted exposure the whole of the severity
+    question is LGD and EAD, and that is where it stays.
     """
     twelve = pd.to_numeric(pd_12m_pct, errors="coerce").fillna(0.0) / 100.0
     if lifetime_pd_pct is None:
@@ -159,8 +203,31 @@ def measured_ecl(stage: np.ndarray | pd.Series, pd_12m_pct: pd.Series,
     loss = pd.to_numeric(lgd_pct, errors="coerce").fillna(0.0) / 100.0
     exposure = pd.to_numeric(ead, errors="coerce").fillna(0.0)
     staged = np.asarray(stage, dtype=float)
-    applied = np.where(staged <= 1, twelve, life)
-    return applied * loss * exposure * WEIGHTED_SCENARIO_FACTOR
+    defaulted = staged >= 3
+    applied = np.where(defaulted, 1.0, np.where(staged <= 1, twelve, life))
+    weighting = np.where(defaulted, 1.0, WEIGHTED_SCENARIO_FACTOR)
+    return applied * loss * exposure * weighting
+
+
+def bounded(ecl: np.ndarray | pd.Series,
+            ead: np.ndarray | pd.Series) -> np.ndarray:
+    """An expected credit loss, bounded by the exposure it provides against.
+
+    Not conservatism and not a fudge: a provision larger than the amount at
+    risk is an arithmetic error, and the reported book applies this bound to
+    itself. A What-If that carries the reported figure onto a stressed basis by
+    a ratio can breach it under an extreme shock — a ten-thousand-per-cent PD
+    move with a 95-point LGD uplift provisioned 1,320 borrowers above what they
+    owed — so the same bound applies on both sides of the comparison.
+
+    Callers report what the bound REMOVED rather than absorbing it: a scenario
+    that ran into a policy limit did not have the effect it asked for, and
+    saying so is what makes this a bound and not a fudge.
+    """
+    loss = np.asarray(pd.to_numeric(ecl, errors="coerce"), dtype=float)
+    exposure = np.asarray(pd.to_numeric(ead, errors="coerce"), dtype=float)
+    return np.minimum(np.nan_to_num(loss, nan=0.0),
+                      np.nan_to_num(exposure, nan=0.0))
 
 
 def describe() -> dict[str, object]:
@@ -197,6 +264,7 @@ __all__ = [
     "DEFAULT_DPD_DAYS", "LIFETIME_HORIZON_YEARS", "POLICY_OWNER",
     "POLICY_VERSION", "SCENARIO_WEIGHTS", "SICR_ABSOLUTE_PD",
     "SICR_DPD_DAYS", "SICR_PD_ABSOLUTE", "SICR_PD_RATIO", "Triggers",
-    "WEIGHTED_SCENARIO_FACTOR", "describe", "lifetime_pd", "measured_ecl",
+    "WEIGHTED_SCENARIO_FACTOR", "bounded", "describe", "lifetime_pd",
+    "measured_ecl",
     "sicr", "stage_of",
 ]

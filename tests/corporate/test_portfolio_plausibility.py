@@ -74,8 +74,22 @@ class TestTheStageDistribution:
         assert 0.68 <= share.get(1, 0.0) <= 0.92
 
     def test_stage_two_is_neither_empty_nor_half_the_book(self, latest):
+        """The ceiling is a quarter, not a fifth, and the difference is the
+        cure probation.
+
+        A borrower whose SICR trigger stops firing serves two clear quarters
+        before it returns to Stage 1. That is the curing rule an IFRS 9 book
+        operates, and it necessarily RAISES the standing Stage 2 population:
+        names that would previously have oscillated back out on a PD that moved
+        by a hundredth now stay. The old ceiling described the book before that
+        rule existed, when a third of Stage 2 exposure cured every quarter.
+
+        A fifth of a corporate book in Stage 2 through the trough of a cycle is
+        low, not high; a quarter is the point at which the population stops
+        being a deterioration signal and starts being the book.
+        """
         share = latest["stage"].value_counts(normalize=True)
-        assert 0.05 <= share.get(2, 0.0) <= 0.20
+        assert 0.05 <= share.get(2, 0.0) <= 0.25
 
     def test_stage_three_is_a_real_but_small_population(self, latest):
         share = latest["stage"].value_counts(normalize=True)

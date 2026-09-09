@@ -1,0 +1,1093 @@
+{
+ "version": "2.0.0",
+ "cases": [
+  {
+   "question": "What can this feature do?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How do I use What-If Analysis?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What is What-If Analysis?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Show me how to get started.",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How does this screen work?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What kinds of scenario can I build here?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Give me an example of something I could ask.",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Walk me through running my first scenario.",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What am I supposed to do here?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Help.",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "I am new to this. Where do I begin?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What is this tool for?",
+   "intent": "help",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What data does this run on?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Which dataset am I looking at?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Where does this book come from?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What periods are available?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Which quarters does this cover?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How many borrowers are in this book?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What is the grain of this data?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Is this facility level or borrower level?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Which portfolio is this?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What is the source of these numbers?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How current is this data?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What currency are these figures in?",
+   "intent": "data",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What fields can I shock?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Which columns are available?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "List the fields I can filter on.",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What attributes does a borrower have here?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Can I shock DSCR?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Which risk parameters can I change?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What can I filter the population by?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Show me the field catalogue.",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Is collateral coverage a field I can use?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What variables are in this dataset?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Which fields carry the exposure?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Do you have a leverage field?",
+   "intent": "fields",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How is ECL calculated here?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What is the Delta Model?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How does the ML methodology work?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How do you decide the stage?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What are the SICR triggers?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How is lifetime PD derived?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What is the scenario weighting?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How does the masterscale work?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Why does a downgrade change the PD?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How do you measure ECL for a Stage 2 borrower?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What is the difference between the two methodologies?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How is LGD applied to the secured share?",
+   "intent": "methodology",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Is this scenario plausible?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Has this ever happened before?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How realistic is a 200% PD rise?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Is a shock this size supported by history?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How severe is this compared with what the book has seen?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Does the history support this assumption?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Has the book ever moved this much in a quarter?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How unusual is this scenario?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Is that a realistic assumption?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Where does this sit against past experience?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Have we observed a move like this?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Is this within historical experience?",
+   "intent": "plausibility",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What does the history show for GDP growth?",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Analyse the relationship between unemployment and PD.",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How correlated is the oil price with our default rates?",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Estimate the sensitivity to the policy rate from our own data.",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What relationship does this book actually show for credit spreads?",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Measure inflation against the book.",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Show me the empirical relationship for house prices.",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How strong is the link between equities and PD here?",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "What do sixteen quarters tell us about FX?",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Fit a relationship for the current account.",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Is the configured GDP sensitivity supported by our history?",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "How well does unemployment explain PD movements in this book?",
+   "intent": "macro_analysis",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Use my own sensitivity for GDP growth.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Set the unemployment PD multiplier to 1.3.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "I want to define my own relationship for oil.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Override the credit spread sensitivity for this thread.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Change the policy rate assumption to 1.15.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Define a custom macro relationship for inflation.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Use the estimated sensitivity for house prices instead.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Let me set the LGD response for equities myself.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Configure my own FX sensitivity.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Replace the configured GDP relationship with mine.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "I want to use a different multiplier for the current account.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Set my own assumption for the unemployment rate.",
+   "intent": "macro_config",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Downgrade everyone one notch.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Downgrade all borrowers by two notches.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Downgrade BBB borrowers two notches.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Increase Stage 1 PD by 20%.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Add 100 bps to BBB Stage 1 PD.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Increase LGD by five percentage points.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Increase CCF by 20%.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Cut collateral values by 20%.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Move 50% of Stage 1 clients in Transport & Logistics to Stage 2.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Move half the Stage 1 borrowers to Stage 2.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Shock GDP growth down 2 percentage points.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Apply a 200bp rate rise.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Stress the top 50 exposures by two notches.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Stress the real estate portfolio.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Worsen the macro outlook.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Apply a severe scenario to Stage 2.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Downgrade construction borrowers with exposure above SAR 100m by two notches.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Increase PD by 20% for real estate names with exposure above SAR 50m.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Downgrade the top 25 exposures by one notch.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Raise LGD by 5 points for Stage 2 borrowers in Contracting.",
+   "intent": "scenario",
+   "has_result": false,
+   "has_steps": false
+  },
+  {
+   "question": "Now increase LGD by 5 percentage points.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Also raise PD by 10%.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Undo the last step.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Reset the scenario.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Remove the macro shock.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Start again.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Now downgrade them another notch.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Add a 100bp rate rise on top.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Take the LGD shock back off.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Also cut collateral by 10%.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Now apply that to Contracting as well.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Drop the rating step.",
+   "intent": "modify",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Compare the two methodologies for me.",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What would the ML model say?",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "How does the Delta Model compare with the ML one?",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Run this under both methodologies.",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show me the difference between the two models.",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Would the other methodology give a different answer?",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Compare Delta and ML on this scenario.",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What does the machine-learning model make of this?",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show both models side by side.",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Does the ML model agree with this figure?",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "How far apart are the two methodologies here?",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Price this with the other model too.",
+   "intent": "comparison",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Which features drove the model's prediction?",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show me the SHAP values.",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What is the model paying attention to?",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Explain the ML model's output.",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Which inputs mattered most to the model?",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show the feature importance.",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Why did the model predict that for this borrower?",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What features moved the model here?",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Give me the model explainability.",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "How does the model weight leverage?",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Which variables is the model using?",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Break the model prediction into its features.",
+   "intent": "explainability",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Export this to Excel.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Download the detail.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Give me the workbook.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Can I get this as a spreadsheet?",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Export the borrower level detail.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Download this as xlsx.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "I need this in Excel.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Give me the file.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Export the results.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Can I download the full detail?",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Send me the workbook for this run.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Save this to a spreadsheet.",
+   "intent": "export",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Why did ECL rise?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What caused the increase?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Why did Stage 3 move?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Which borrowers contributed most?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "How much of this is the measurement basis changing?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What drove the movement?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Why is the provision up so much?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Explain this result.",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Which sector caused most of the increase?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Why did so many borrowers migrate?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What is behind the LGD effect?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show me the borrowers responsible for this.",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "How much came from the rating downgrade?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Why is the change larger than I expected?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "What made Stage 2 grow?",
+   "intent": "explain",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show this by sector.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Break it down by rating.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Give me a table.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show me the stage distribution.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "By segment, please.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "List the top 20 borrowers.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show the rating migration.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Give me the sector table.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Break this out by stage.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show me the numbers by industry.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Table of the biggest movers.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  },
+  {
+   "question": "Show the distribution.",
+   "intent": "view",
+   "has_result": true,
+   "has_steps": true
+  }
+ ],
+ "known_gaps": [
+  {
+   "question": "Now restrict that to Contracting.",
+   "reads_as": "explain",
+   "should_be": "modify",
+   "why": "Re-scoping the population of a step that already exists is a modification of the scenario, but the builder only reads a population off a NEW step. Today the thread answers it as a question and changes nothing, which is safe \u2014 it cannot silently move a number \u2014 but it is not what was asked."
+  },
+  {
+   "question": "Take the sector filter off.",
+   "reads_as": "explain",
+   "should_be": "modify",
+   "why": "Widening a step's population is a modification, but the only modification the builder can make is removing a whole step. With nothing to widen, the thread reads it as a question and answers it from the result \u2014 safe, but not what was asked."
+  }
+ ]
+}

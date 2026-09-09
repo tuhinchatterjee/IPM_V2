@@ -1,0 +1,72 @@
+{
+  "active": "2026.09.08.10",
+  "models": [
+    {
+      "built_at": "2026-09-07T19:52:53+00:00",
+      "predecessor": "",
+      "state": "RETIRED",
+      "version": "2026.09.07"
+    },
+    {
+      "built_at": "2026-09-08T05:50:07+00:00",
+      "predecessor": "2026.09.07",
+      "state": "RETIRED",
+      "version": "2026.09.08"
+    },
+    {
+      "built_at": "2026-09-08T08:35:25+00:00",
+      "predecessor": "2026.09.08",
+      "state": "RETIRED",
+      "version": "2026.09.08.2"
+    },
+    {
+      "built_at": "2026-09-08T08:51:42+00:00",
+      "predecessor": "2026.09.08.2",
+      "state": "RETIRED",
+      "version": "2026.09.08.3"
+    },
+    {
+      "built_at": "2026-09-08T09:43:31+00:00",
+      "predecessor": "2026.09.08.3",
+      "state": "RETIRED",
+      "version": "2026.09.08.4"
+    },
+    {
+      "built_at": "2026-09-08T09:44:36+00:00",
+      "predecessor": "2026.09.08.4",
+      "state": "RETIRED",
+      "version": "2026.09.08.5"
+    },
+    {
+      "built_at": "2026-09-08T18:39:19+00:00",
+      "predecessor": "2026.09.08.5",
+      "state": "RETIRED",
+      "version": "2026.09.08.6"
+    },
+    {
+      "built_at": "2026-09-08T19:18:52+00:00",
+      "predecessor": "2026.09.08.6",
+      "state": "RETIRED",
+      "version": "2026.09.08.7"
+    },
+    {
+      "built_at": "2026-09-08T19:36:59+00:00",
+      "predecessor": "2026.09.08.7",
+      "state": "RETIRED",
+      "version": "2026.09.08.8"
+    },
+    {
+      "built_at": "2026-09-08T19:57:59+00:00",
+      "predecessor": "2026.09.08.8",
+      "state": "RETIRED",
+      "version": "2026.09.08.9"
+    },
+    {
+      "built_at": "2026-09-08T22:35:23+00:00",
+      "predecessor": "2026.09.08.9",
+      "state": "ACTIVE",
+      "version": "2026.09.08.10"
+    }
+  ],
+  "registry_version": "1.0.0"
+}

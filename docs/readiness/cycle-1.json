@@ -1,0 +1,24 @@
+{
+  "cycle": 1,
+  "at": "2026-09-08T22:29:47Z",
+  "failed": 0,
+  "steps": [
+    {"step": "the API is reachable", "status": "PASS", "seconds": 0},
+    {"step": "the web app is reachable", "status": "PASS", "seconds": 0},
+    {"step": "ruff", "status": "PASS", "seconds": 0},
+    {"step": "typecheck", "status": "PASS", "seconds": 3},
+    {"step": "eslint", "status": "PASS", "seconds": 33},
+    {"step": "What-If unit and invariant suites", "status": "PASS", "seconds": 211},
+    {"step": "the evaluation corpus", "status": "PASS", "seconds": 8},
+    {"step": "the quick-analysis corpus", "status": "PASS", "seconds": 25},
+    {"step": "the API surface", "status": "PASS", "seconds": 143},
+    {"step": "the red team", "status": "PASS", "seconds": 26},
+    {"step": "the nineteen browser journeys", "status": "PASS", "seconds": 126},
+    {"step": "the manual-failure journeys", "status": "PASS", "seconds": 90},
+    {"step": "performance against budget", "status": "PASS", "seconds": 31},
+    {"step": "the book's economic coherence", "status": "PASS", "seconds": 7},
+    {"step": "What-If scenario economics", "status": "PASS", "seconds": 20},
+    {"step": "the integration contract against the book on disk", "status": "PASS", "seconds": 0},
+    {"step": "the schema contract against the book on disk", "status": "PASS", "seconds": 1}
+  ]
+}

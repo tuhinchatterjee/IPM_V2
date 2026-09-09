@@ -439,6 +439,13 @@ def build_graph(entities: pd.DataFrame,
     own = _reconcile_registers(pd.DataFrame(ownership))
     sources, confidence = _source_draw(rng, len(own))
     dates = _dates(rng, len(own), closes=0.09)
+    # A fixture that is only sometimes there is not a fixture. The two
+    # deliberately defective registers exist so the refusal path has something
+    # real to refuse; a closing date on either leg of the loop breaks it, and
+    # the defect survives as an over-claim nothing detects. Both legs are
+    # therefore open-ended, always.
+    deliberate = own.pop("deliberate").to_numpy()
+    dates["valid_to"] = np.where(deliberate, "", dates["valid_to"])
     voting = np.clip(own["ownership"].to_numpy() + own["voting_bias"].to_numpy(),
                      0.01, 1.0)
     ownership_edges = pd.DataFrame({
@@ -669,7 +676,12 @@ def _reconcile_registers(own: pd.DataFrame) -> pd.DataFrame:
             # summing to 100.0003% fails the same check as one summing to 196%.
             own.loc[row, "ownership"] = math.floor((held - take) * 1e6) / 1e6
             excess -= take
-    return own.drop(columns=["deliberate"])
+    # The flag is KEPT. The caller needs it: a deliberate over-claim whose
+    # reciprocal leg is allowed to expire stops being a loop, and what is left
+    # is a register claiming 198% of a borrower inside an ACYCLIC component —
+    # which nothing can produce and nothing refuses, because the refusal keys
+    # on the spectral radius the loop provided.
+    return own
 
 
 def _director_weights(rng: np.random.Generator, pool: int) -> np.ndarray:

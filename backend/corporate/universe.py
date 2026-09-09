@@ -44,7 +44,8 @@ import numpy as np
 import pandas as pd
 
 from backend import scenarios
-from backend.corporate import NOT_CLIENT_DATA, ORIGIN
+from backend.corporate import NOT_CLIENT_DATA, ORIGIN, ratingscale
+from backend.ifrs9 import policy
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,11 @@ class Sector:
     revenue_scale: float
     #: Typical EBITDA margin.
     margin: float
+    #: Loss on the UNSECURED part of an exposure in this sector, as a
+    #: fraction. What the estate pays when the security has run out: a
+    #: contractor's receivables book realises very differently from a utility's
+    #: regulated asset base, and this is where that difference lives.
+    unsecured_lgd: float = 0.68
 
 
 #: The same mix as the core portfolio book, and for the same reasons: a Gulf
@@ -124,23 +130,23 @@ class Sector:
 #: investment firms and exchange houses together — and small enough that a
 #: headline drawn from it would be describing 150 names.
 SECTORS: tuple[Sector, ...] = (
-    Sector("Contracting", 0.11, 1.55, 0.62, -0.55, 420.0, 0.09),
-    Sector("Real Estate", 0.10, 1.30, 0.50, -0.25, 380.0, 0.28),
-    Sector("Wholesale & Retail Trade", 0.09, 0.95, 0.44, -0.10, 520.0, 0.07),
-    Sector("Manufacturing", 0.08, 1.00, 0.40, 0.05, 610.0, 0.14),
-    Sector("Petrochemicals", 0.07, 1.15, 0.38, 0.35, 1450.0, 0.22),
-    Sector("Financial Services", 0.07, 0.85, 0.34, 0.45, 640.0, 0.29),
-    Sector("Oil & Gas", 0.06, 1.10, 0.42, 0.50, 1650.0, 0.27),
-    Sector("Transport & Logistics", 0.06, 0.90, 0.38, 0.00, 340.0, 0.16),
-    Sector("Utilities", 0.05, 0.30, 0.20, 0.75, 980.0, 0.31),
-    Sector("Government-Related Entities", 0.05, 0.25, 0.16, 1.05, 1900.0, 0.26),
-    Sector("Healthcare", 0.05, 0.45, 0.28, 0.40, 290.0, 0.21),
-    Sector("Shipping", 0.04, 1.45, 0.58, -0.30, 380.0, 0.17),
-    Sector("Mining & Metals", 0.04, 1.20, 0.48, 0.05, 720.0, 0.24),
-    Sector("Agriculture & Food", 0.04, 0.70, 0.36, 0.10, 300.0, 0.12),
-    Sector("Hospitality & Tourism", 0.04, 1.35, 0.55, -0.35, 210.0, 0.19),
-    Sector("Telecommunications", 0.03, 0.50, 0.24, 0.60, 1150.0, 0.34),
-    Sector("Education", 0.02, 0.40, 0.26, 0.35, 160.0, 0.18),
+    Sector("Contracting", 0.11, 1.55, 0.62, -0.55, 420.0, 0.09, 0.78),
+    Sector("Real Estate", 0.10, 1.30, 0.50, -0.25, 380.0, 0.28, 0.62),
+    Sector("Wholesale & Retail Trade", 0.09, 0.95, 0.44, -0.10, 520.0, 0.07, 0.74),
+    Sector("Manufacturing", 0.08, 1.00, 0.40, 0.05, 610.0, 0.14, 0.68),
+    Sector("Petrochemicals", 0.07, 1.15, 0.38, 0.35, 1450.0, 0.22, 0.63),
+    Sector("Financial Services", 0.07, 0.85, 0.34, 0.45, 640.0, 0.29, 0.70),
+    Sector("Oil & Gas", 0.06, 1.10, 0.42, 0.50, 1650.0, 0.27, 0.60),
+    Sector("Transport & Logistics", 0.06, 0.90, 0.38, 0.00, 340.0, 0.16, 0.69),
+    Sector("Utilities", 0.05, 0.30, 0.20, 0.75, 980.0, 0.31, 0.52),
+    Sector("Government-Related Entities", 0.05, 0.25, 0.16, 1.05, 1900.0, 0.26, 0.45),
+    Sector("Healthcare", 0.05, 0.45, 0.28, 0.40, 290.0, 0.21, 0.64),
+    Sector("Shipping", 0.04, 1.45, 0.58, -0.30, 380.0, 0.17, 0.72),
+    Sector("Mining & Metals", 0.04, 1.20, 0.48, 0.05, 720.0, 0.24, 0.66),
+    Sector("Agriculture & Food", 0.04, 0.70, 0.36, 0.10, 300.0, 0.12, 0.71),
+    Sector("Hospitality & Tourism", 0.04, 1.35, 0.55, -0.35, 210.0, 0.19, 0.75),
+    Sector("Telecommunications", 0.03, 0.50, 0.24, 0.60, 1150.0, 0.34, 0.58),
+    Sector("Education", 0.02, 0.40, 0.26, 0.35, 160.0, 0.18, 0.67),
 )
 
 #: A sub-sector per sector, so a cohort can be cut finer than the fifteen.
@@ -259,24 +265,40 @@ RELATIONSHIP_MANAGERS: tuple[str, ...] = (
 
 # ------------------------------------------------------------ rating scale
 
-#: A fourteen-point master scale. Numeric 1 (strongest) to 14, so
-#: "rating_change_notches" is a plain subtraction and a downgrade is positive.
+#: The GOVERNED nineteen-point master scale, and the three probabilities of
+#: default the book is measured on, live in `backend.corporate.ratingscale`.
+#: They are re-exported here under their historical names so that every reader
+#: of this module sees the same table the generator writes — there is one
+#: scale, and this is not a copy of it.
+#: The nineteen PERFORMING grades, AAA to C, in governed order.
+PERFORMING = ratingscale.PERFORMING
+PERFORMING_COUNT = ratingscale.PERFORMING_COUNT
+#: The nineteen grades followed by the default state, for array indexing:
+#: `ALL_STATES[DEFAULT_STATE_INDEX]` is "D".
+ALL_STATES = ratingscale.ALL_STATES
+DEFAULT_STATE_INDEX = ratingscale.DEFAULT_STATE_INDEX
+RATING_BOUNDS = ratingscale.RATING_BOUNDS
+
+#: How much of the cycle a RATING absorbs. A pure through-the-cycle grade
+#: never migrates and makes a migration matrix a table of zeros off the
+#: diagonal; a pure point-in-time grade migrates with every quarter's
+#: macro print and makes it unreadable. Real internal ratings are hybrid, and
+#: this is the hybrid: the grade takes 45% of the cycle, the PIT PD takes all
+#: of it, and the TTC PD takes none.
+RATING_CYCLE_PASSTHROUGH = 0.45
+
+#: The credit cycle factor is written in quality units, roughly -0.48 to +0.27
+#: over the window. The single-factor PD transform wants a standard normal, so
+#: this converts one to the other: the trough becomes Z = -1.4, a severe
+#: downturn on a scale where -1.0 is a bad year.
 #:
-#: Thirteen PERFORMING grades and D. D is assigned on the default event, never
-#: by a PD band: a name can carry a 40% twelve-month PD and still be paying,
-#: and a scale that grades it "D" makes the default rate unmeasurable because
-#: the grade and the outcome stop being separate facts.
-RATING_SCALE: tuple[str, ...] = (
-    "AAA", "AA", "A", "BBB+", "BBB", "BBB-", "BB+", "BB", "BB-",
-    "B+", "B", "CCC", "CC", "D",
-)
-#: Index of the default grade in RATING_SCALE.
-DEFAULT_INDEX = len(RATING_SCALE) - 1
-#: Upper PD bound, in percent, for each performing grade except the weakest.
-RATING_BOUNDS: tuple[float, ...] = (
-    0.04, 0.09, 0.18, 0.32, 0.55, 0.95, 1.60, 2.70, 4.50,
-    7.50, 13.00, 26.00,
-)
+#: It was 5.0, which put the trough at Z = -2.4. Combined with the conditioning
+#: below that produced a book whose average twelve-month PD went from 0.7% to
+#: 17% and back inside four years — a twenty-three-fold swing. Books do not do
+#: that. Neither the ECL nor the staging built on top of it could be defended,
+#: and every figure a reader saw inherited the exaggeration.
+CYCLE_TO_Z = 3.0
+
 RATING_MODELS: tuple[str, ...] = (
     "Corporate Rating Model v4", "Financial Institutions Model v2",
     "Public Sector Model v1",
@@ -300,26 +322,42 @@ DEFAULT_SEASONING = 3
 PD_OFFSET = 5.10
 
 
+def systematic_z(factor: np.ndarray) -> np.ndarray:
+    """The credit cycle, on the standard-normal scale the PD transform wants.
+
+    POSITIVE is a good economy, matching `credit_cycle_factor` and matching
+    `ratingscale.pit_pd`, so a reader never has to remember which way round
+    one of them runs.
+    """
+    return np.asarray(factor, dtype=float) * CYCLE_TO_Z
+
+
 def pd_from_quality(z: np.ndarray) -> np.ndarray:
     """Twelve-month PD in percent from latent quality.
 
     Logistic: strong names cluster within a few basis points, weak ones climb
     steeply. Floored above zero because no rating system publishes a PD of
     exactly zero, and capped below 100 for the same reason.
+
+    The floor is the SCALE's floor rather than a second one written here. It
+    used to be 0.02%, which sat ABOVE the AAA band's upper edge of 0.011% —
+    so no borrower could ever be graded AAA, and the strongest grade of a
+    nineteen-point scale was unreachable by construction. Two floors that
+    disagree is the same defect as two copies of a policy threshold: one of
+    them silently wins, and here the one that won truncated the top of the
+    scale.
     """
-    return np.clip(100.0 / (1.0 + np.exp(2.10 * z + PD_OFFSET)), 0.02, 99.0)
+    return np.clip(100.0 / (1.0 + np.exp(2.10 * z + PD_OFFSET)),
+                   ratingscale.PD_FLOOR_PCT, ratingscale.PD_CEILING_PCT)
 
 
 def grade_from_pd(pd_pct: np.ndarray) -> np.ndarray:
-    """Index into RATING_SCALE from the twelve-month PD, on fixed bands.
+    """Index into the performing grades from a twelve-month PD.
 
     Returns a PERFORMING grade only. D is never reached from a PD; it is set
     by the default event.
     """
-    index = np.zeros_like(pd_pct, dtype=int)
-    for edge in RATING_BOUNDS:
-        index = index + (pd_pct > edge).astype(int)
-    return np.clip(index, 0, DEFAULT_INDEX - 1)
+    return ratingscale.grade_from_pd(pd_pct)
 
 
 # ------------------------------------------------------------------ helpers
@@ -519,6 +557,8 @@ def build_entities(rng: np.random.Generator) -> pd.DataFrame:
         "business_unit": business_unit,
         "entry_index": entry_index,
         "sector_quality": quality,
+        "sector_lgd": np.array(
+            [{x.name: x.unsecured_lgd for x in SECTORS}[y] for y in sector]),
         "sector_beta": beta,
         "sector_vol": vol,
         "revenue_scale": revenue_scale * size_factor,
@@ -550,9 +590,37 @@ def macro_factor(rng: np.random.Generator,
     ])[:len(periods)]
     noise = rng.normal(0.0, 0.05, len(path))
     factor = path + noise
-    oil = 84.0 + 18.0 * factor + rng.normal(0.0, 2.0, len(path))
-    gdp = 2.4 + 2.6 * factor + rng.normal(0.0, 0.25, len(path))
-    rate = 5.6 - 1.1 * factor + rng.normal(0.0, 0.12, len(path))
+    n = len(path)
+    oil = 84.0 + 18.0 * factor + rng.normal(0.0, 2.0, n)
+    gdp = 2.4 + 2.6 * factor + rng.normal(0.0, 0.25, n)
+    rate = 5.6 - 1.1 * factor + rng.normal(0.0, 0.12, n)
+
+    # The other SEVEN governed variables.
+    #
+    # The macro screen offers ten variables and a sensitivity for each, and the
+    # book published three of them. The other seven read "no observed level",
+    # which is ambiguous in exactly the way that matters — it looks like a
+    # broken variable rather than a configured one — and it made the empirical
+    # relationship journey unavailable on seven of the ten cards.
+    #
+    # They are derived from the SAME latent factor as the first three, with
+    # their own loading, lag and noise. That is honest rather than convenient:
+    # this installation has one macro degree of freedom, the limitation on the
+    # macro screen says so in those words, and generating seven independent
+    # series would be manufacturing information the demonstration does not
+    # have. The lag is what stops them being exact multiples of each other.
+    lagged = np.concatenate([[factor[0]], factor[:-1]])
+    unemployment = 5.8 - 1.9 * lagged + rng.normal(0.0, 0.18, n)
+    house_prices = 100.0 * np.cumprod(
+        1.0 + (0.012 + 0.045 * factor + rng.normal(0.0, 0.006, n)))
+    inflation = 2.3 + 1.4 * lagged + rng.normal(0.0, 0.20, n)
+    current_account = 3.1 + 4.4 * factor + rng.normal(0.0, 0.45, n)
+    equities = 100.0 * np.cumprod(
+        1.0 + (0.015 + 0.090 * factor + rng.normal(0.0, 0.020, n)))
+    fx = 100.0 * np.cumprod(
+        1.0 + (-0.001 - 0.020 * factor + rng.normal(0.0, 0.004, n)))
+    spread = 165.0 - 95.0 * factor + rng.normal(0.0, 8.0, n)
+
     return pd.DataFrame({
         "period": periods,
         "period_end_date": [quarter_end(p) for p in periods],
@@ -560,6 +628,13 @@ def macro_factor(rng: np.random.Generator,
         "oil_price_usd": _round(oil, 2),
         "real_gdp_growth_pct": _round(gdp, 2),
         "policy_rate_pct": _round(rate, 2),
+        "unemployment_rate_pct": _round(np.clip(unemployment, 2.0, 14.0), 2),
+        "house_price_index": _round(house_prices, 2),
+        "inflation_rate_pct": _round(np.clip(inflation, -1.0, 12.0), 2),
+        "current_account_pct_gdp": _round(current_account, 2),
+        "equity_index": _round(equities, 2),
+        "fx_index": _round(fx, 2),
+        "corporate_credit_spread_bps": _round(np.clip(spread, 40.0, 900.0), 1),
         "origin": ORIGIN,
     })
 
@@ -686,17 +761,40 @@ def simulate_state(entities: pd.DataFrame, z: np.ndarray,
 
 
 def spine(entities: pd.DataFrame, state: dict[str, np.ndarray],
-          z: np.ndarray, periods: list[str]) -> pd.DataFrame:
+          z: np.ndarray, periods: list[str],
+          factor: np.ndarray | None = None) -> pd.DataFrame:
     """The borrower-quarter index every domain frame is built on.
 
     One row per borrower per quarter it is on book. Every other frame in this
     module joins to it, so a field that disagrees with the spine about whether
     a borrower existed in a quarter is a bug rather than a judgement call.
+
+    It also carries the three pieces the three PDs are built from, so that no
+    downstream builder has to re-derive the cycle and risk disagreeing with
+    this one about it:
+
+      `quality`         the borrower's latent quality, cycle included;
+      `ttc_quality`     the same with the cycle TAKEN OUT — what the borrower
+                        is like through the cycle;
+      `rating_quality`  the hybrid the internal GRADE is read from, which
+                        absorbs `RATING_CYCLE_PASSTHROUGH` of the cycle;
+      `cycle_z`         the systematic factor as a standard normal, positive
+                        in good times.
     """
     active = state["active"]
     rows, cols = np.nonzero(active)
     order = np.lexsort((rows, cols))
     rows, cols = rows[order], cols[order]
+
+    if factor is None:
+        factor = np.zeros(len(periods))
+    beta = entities["sector_beta"].to_numpy()
+    # The cycle's contribution to each borrower-quarter's quality, exactly as
+    # `simulate_quality` added it.
+    cycle = np.outer(beta, np.asarray(factor, dtype=float))
+    ttc_quality = z - cycle
+    rating_quality = ttc_quality + RATING_CYCLE_PASSTHROUGH * cycle
+    z_norm = systematic_z(np.asarray(factor, dtype=float))
 
     return pd.DataFrame({
         "borrower_id": entities["borrower_id"].to_numpy()[rows],
@@ -705,12 +803,172 @@ def spine(entities: pd.DataFrame, state: dict[str, np.ndarray],
         "entity_index": rows,
         "quarter_index": cols,
         "quality": np.round(z[rows, cols], 4),
+        "ttc_quality": np.round(ttc_quality[rows, cols], 4),
+        "rating_quality": np.round(rating_quality[rows, cols], 4),
+        "cycle_z": np.round(z_norm[cols], 4),
         "pd_pct": np.round(state["pd_pct"][rows, cols], 4),
         "default_flag": state["defaulted"][rows, cols],
     })
 
 
 # ------------------------------------------------------------------ ratings
+
+
+#: How far the model grade has to sit from the grade the bank is carrying
+#: before the committee moves it.
+#:
+#: A rating is not a re-binning of a score. Reading the grade straight off the
+#: quality every quarter moved the average name 1.31 notches a quarter and left
+#: only 26% of the book on the same grade it started on — nine-notch moves
+#: included. A real internal grade is REAFFIRMED unless the evidence has moved,
+#: which is what produces the 85-95% quarterly stability a rating system is
+#: judged on.
+#:
+#: Three notches, read off this book's own distribution rather than chosen to
+#: clear a target. The buffer meets the drift accumulated since the LAST
+#: REVIEW, not since last quarter, and the model grade's annual wander has a
+#: median of 2 notches and a 75th percentile of 3. Sitting the buffer at the
+#: median lets half of every year's ordinary drift through; sitting it at the
+#: 75th percentile means a name has done more than three years in four would.
+#:
+#: With the ordinary step at a single notch this no longer puts a floor under
+#: how far a grade is SEEN to travel, which is what made an earlier version of
+#: this produce nine two-notch moves for every one-notch move.
+RATING_REVIEW_BUFFER = 3
+
+#: The same buffer, in the units it actually has to be measured in.
+#:
+#: A notch is not a constant amount of credit risk. On the governed masterscale
+#: three notches is 1.11 in log-odds at the investment-grade end and 1.90
+#: through the distressed tail, so a buffer counted in NOTCHES is a tight
+#: filter at the top of the scale and a loose one at the bottom. The book it
+#: produced said so plainly: AAA held its grade 75% of quarters and BB+ held it
+#: 90%, which is the wrong way round — a real rating system's strongest grades
+#: are its stickiest, and its CCC names are the ones that move.
+#:
+#: So the buffer is expressed on the axis the masterscale is built on. 1.57 is
+#: exactly three notches at BBB, where the mass of this book sits, so the
+#: middle of the scale behaves as it did and the two ends are corrected: about
+#: four and a half notches at AAA, and about two and a half through CCC/CC/C.
+#: The number is the same evidence as before — the model grade's annual drift,
+#: 75th percentile — read on the right axis.
+#: BBB (ordinal 9) to BB (ordinal 12) is the three notches, on the axis.
+RATING_REVIEW_BUFFER_LOG_ODDS = float(
+    ratingscale.log_odds_gap([ratingscale.ORDINAL["BBB"] - 1],
+                             [ratingscale.ORDINAL["BB"] - 1])[0])
+
+#: How far a grade may travel in one quarter once the committee does act.
+#: Multi-notch downgrades are real and they belong in the book; what does not
+#: belong is a six-notch move as the routine consequence of discretising a
+#: continuous score.
+RATING_MAX_STEP = 2
+
+#: How far the committee moves ORDINARILY, having decided to act.
+#:
+#: One notch, and not because one notch is a nice number: a hysteresis band on
+#: its own puts a FLOOR under the observed move, because a grade that only
+#: moves once the evidence is `RATING_REVIEW_BUFFER` notches away can never be
+#: seen moving less than that. Setting the buffer at three and the cap at two
+#: produced a book where 9.2% of moves were exactly two notches and 0.05% were
+#: one — the opposite of every real migration matrix, in which single-notch
+#: moves are much the commonest.
+#:
+#: A committee acts the way this models it: it moves the name a notch and
+#: watches, and only takes it further when the drift is bad enough to have
+#: brought the review forward in the first place.
+RATING_ORDINARY_STEP = 1
+
+#: How often a performing name comes up for review, in quarters.
+#:
+#: The buffer alone was not enough — it took quarterly stability from 26% to
+#: 61%, because a candidate that wanders will cross a two-notch buffer often.
+#: The missing mechanism is the one every bank actually has: a name is
+#: REVIEWED on a cycle, not continuously. Annual review, borrowers spread
+#: across the four quarters, so roughly a quarter of the book is in front of
+#: the committee at any time.
+RATING_REVIEW_QUARTERS = 4
+
+#: The drift that brings a name forward for review out of cycle, and lets the
+#: committee move it further than a notch when it gets there.
+#:
+#: Five, because an exception has to be exceptional. The model grade's annual
+#: wander reaches four notches for 22.7% of the book and five for 13.2%: a
+#: threshold of four would bring nearly a quarter of every year's names
+#: forward, which is not an exception but a second review cycle. Five sits at
+#: the annual 90th percentile — a borrower doing worse in a year than nine in
+#: ten of its peers, which is what cannot wait for an anniversary.
+RATING_OUT_OF_CYCLE_NOTCHES = 5
+
+#: The out-of-cycle threshold on the same axis, and for the same reason: five
+#: notches at BBB, which is about seven and a half at the top of the scale and
+#: about four through the tail.
+#: BBB (ordinal 9) to B+ (ordinal 14) is the five notches, on the axis.
+RATING_OUT_OF_CYCLE_LOG_ODDS = float(
+    ratingscale.log_odds_gap([ratingscale.ORDINAL["BBB"] - 1],
+                             [ratingscale.ORDINAL["B+"] - 1])[0])
+
+
+def _rating_with_inertia(candidate: np.ndarray, entity: np.ndarray,
+                         quarter: np.ndarray, default_flag: np.ndarray,
+                         entity_count: int,
+                         review_quarter: np.ndarray) -> np.ndarray:
+    """The grade the bank carries, given what the model says each quarter.
+
+    A scan forward through the quarters, holding each borrower's standing
+    grade. Three things have to be true at once before the grade moves, and
+    each of them is something a credit process actually does:
+
+      the name is IN FRONT OF the committee — its annual review falls in this
+      quarter, or it has drifted far enough to be brought forward;
+
+      the evidence has MOVED — the model grade sits at least
+      `RATING_REVIEW_BUFFER_LOG_ODDS` away in credit risk from the grade
+      being carried;
+
+      and then it travels at most `RATING_MAX_STEP` notches.
+
+    Default is subject to none of it. It is an event, it is immediate, and it
+    overrides the standing grade. A borrower that cures out of default
+    re-enters at the weakest performing grades and has to climb, which is both
+    what happens and what makes a cure visible in the migration matrix.
+    """
+    held = np.full(entity_count, -1, dtype=np.int64)
+    settled = np.empty(len(candidate), dtype=np.int64)
+    for step in range(int(quarter.max()) + 1 if len(quarter) else 0):
+        rows = quarter == step
+        if not rows.any():
+            continue
+        here = entity[rows]
+        want = candidate[rows].astype(np.int64)
+        standing = held[here]
+        # A borrower nobody has rated yet is rated where the model puts it.
+        opening = standing < 0
+        gap = want - np.where(opening, want, standing)
+
+        # How far the evidence has moved, measured in credit risk rather than
+        # in notch counts — the two are not the same thing on a scale whose
+        # notches widen down it, and counting notches made the strongest
+        # grades the least stable in the book.
+        moved_by = ratingscale.log_odds_gap(
+            np.where(opening, want, standing), want)
+
+        due = review_quarter[here] == (step % RATING_REVIEW_QUARTERS)
+        urgent = moved_by >= RATING_OUT_OF_CYCLE_LOG_ODDS
+        acts = (due | urgent) & (moved_by >= RATING_REVIEW_BUFFER_LOG_ODDS)
+
+        # A notch, ordinarily; further only for the drift that brought the
+        # name forward out of cycle — and never past the candidate itself,
+        # because a committee does not overshoot the evidence.
+        allowed = np.where(urgent, RATING_MAX_STEP, RATING_ORDINARY_STEP)
+        travel = np.sign(gap) * np.minimum(np.abs(gap), allowed)
+
+        moved = np.where(opening, want,
+                         np.where(acts, standing + travel, standing))
+        moved = np.clip(moved, 0, PERFORMING_COUNT - 1)
+        moved = np.where(default_flag[rows], DEFAULT_STATE_INDEX, moved)
+        settled[rows] = moved
+        held[here] = moved
+    return settled
 
 
 def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
@@ -724,36 +982,104 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     the module exists to answer, and a book with no overrides answers it
     vacuously.
     """
-    n = len(spine_df)
     index = spine_df["entity_index"].to_numpy()
     quarter = spine_df["quarter_index"].to_numpy()
-    pd_pct = spine_df["pd_pct"].to_numpy()
     default_flag = spine_df["default_flag"].to_numpy()
 
-    model_grade = grade_from_pd(pd_pct)
+    # The GRADE is read from the hybrid quality, not from the point-in-time
+    # PD. A grade read straight off the PIT PD swings with every quarter's
+    # macro print and turns the migration matrix into a picture of the cycle;
+    # a grade read off pure through-the-cycle quality never migrates at all.
+    # `rating_quality` absorbs RATING_CYCLE_PASSTHROUGH of the cycle, which is
+    # what a real internal rating does.
+    model_grade = grade_from_pd(
+        pd_from_quality(spine_df["rating_quality"].to_numpy()))
 
     # An override on roughly one name in fourteen, more often downwards: a
     # committee that overrides is usually adding a concern the model cannot
     # see rather than removing one it can.
-    draw = rng.random(n)
-    override = draw < 0.072
-    direction = np.where(rng.random(n) < 0.62, 1, -1)
-    grade_index = np.clip(model_grade + override * direction,
-                          0, DEFAULT_INDEX - 1)
-    grade_index = np.where(default_flag, DEFAULT_INDEX, grade_index)
+    #
+    # The override is drawn per ENTITY, not per row. A committee's disagreement
+    # with the model is a standing view of a borrower, not a coin tossed afresh
+    # every quarter, and a per-row draw would flip 7% of the book up and down a
+    # notch each quarter for no reason anybody could name.
+    entity_count = int(entities.shape[0])
+    override_entity = rng.random(entity_count) < 0.072
+    direction_entity = np.where(rng.random(entity_count) < 0.62, 1, -1)
+    override = override_entity[index]
+    direction = direction_entity[index]
+    candidate = np.clip(model_grade + override * direction,
+                        0, PERFORMING_COUNT - 1)
+
+    # The candidate is what the model and the committee SAY this quarter. The
+    # grade is what the bank is carrying, and those are not the same thing.
+    #
+    # Review dates are spread across the year so the committee's workload is
+    # level and no quarter is a book-wide re-rating.
+    review_quarter = rng.integers(0, RATING_REVIEW_QUARTERS, entity_count)
+    grade_index = _rating_with_inertia(
+        candidate, index, quarter, default_flag, entity_count, review_quarter)
 
     segment = entities["segment"].to_numpy()[index]
     model = np.where(
         segment == "Financial Institution", RATING_MODELS[1],
         np.where(segment == "Public Sector", RATING_MODELS[2], RATING_MODELS[0]))
 
+    # ---- the three PDs, derived once, here, and joined everywhere else.
+    grades = np.array(ALL_STATES)[grade_index]
+    sectors = entities["sector"].to_numpy()[index]
+    ttc = ratingscale.ttc_pd(grades)
+    rho = ratingscale.correlation(sectors)
+    cycle_z = spine_df["cycle_z"].to_numpy()
+
+    # What the borrower's own condition says beyond what its grade already
+    # says. The grade rounds a continuous quality onto nineteen steps; this is
+    # the remainder, scaled into the quantile space the transform works in, so
+    # two BBB names in the same quarter do not carry an identical PD.
+    residual = (pd_from_quality(spine_df["rating_quality"].to_numpy())
+                / np.maximum(ttc, 1e-9))
+    idiosyncratic = np.clip(np.log(np.maximum(residual, 1e-6)) * 0.28,
+                            -0.60, 0.60)
+    # Only the cycle the GRADE has not already absorbed.
+    #
+    # `rating_quality` carries RATING_CYCLE_PASSTHROUGH of the cycle, so a
+    # downturn has already migrated the borrower down the scale and raised its
+    # through-the-cycle PD. Conditioning that migrated grade on the whole
+    # cycle again counts the same economy twice, which is precisely what made
+    # the point-in-time PD move by an order of magnitude across a downturn
+    # that moved GDP by two points.
+    residual_cycle = (1.0 - RATING_CYCLE_PASSTHROUGH) * cycle_z
+    pit = ratingscale.pit_pd(ttc, residual_cycle, rho, idiosyncratic)
+    life = ratingscale.lifetime_pd(pit, ttc)
+    # A defaulted name is measured on the default treatment, not on a grade.
+    # A defaulted borrower has defaulted. All three PDs read 100% on those
+    # rows, so no screen, export or model can pick up a 99.0 or 99.9
+    # near-default convention and present it as the measurement basis. PD of
+    # 100% is not LGD of 100%: the severity stays entirely with LGD and EAD.
+    pit = np.where(default_flag, ratingscale.DEFAULT_PD_PCT, pit)
+    life = np.where(default_flag, ratingscale.DEFAULT_PD_PCT, life)
+    ttc = np.where(default_flag, ratingscale.DEFAULT_PD_PCT, ttc)
+
     frame = pd.DataFrame({
         "borrower_id": spine_df["borrower_id"].to_numpy(),
         "period": spine_df["period"].to_numpy(),
         "period_end_date": spine_df["period_end_date"].to_numpy(),
-        "internal_rating": np.array(RATING_SCALE)[grade_index],
+        "internal_rating": np.array(ALL_STATES)[grade_index],
+        # The governed ordinal: 1 for AAA through 19 for C, 20 for default.
+        # Written from the same index as the grade itself, so the two agree
+        # by construction rather than by a later reconciliation.
+        "internal_rating_ordinal": grade_index + 1,
+        # The historical name for the same number, carried so readers written
+        # against it keep working. It is an ALIAS, never a second opinion.
         "internal_rating_numeric": grade_index + 1,
-        "model_grade": np.array(RATING_SCALE)[model_grade],
+        # The three PDs, each meaning a different thing and none copied from
+        # another. TTC is a property of the GRADE; PIT is that grade read in
+        # THIS quarter's cycle for THIS borrower; lifetime is the cumulative
+        # hazard over the behavioural life, mean-reverting back to the grade.
+        "ttc_pd_pct": _round(ttc, 4),
+        "pit_pd_12m_pct": _round(pit, 4),
+        "lifetime_pd_pct": _round(life, 4),
+        "model_grade": np.array(ALL_STATES)[model_grade],
         "rating_model": model,
         "rating_override_flag": override & ~default_flag,
         "rating_override_reason": np.where(
@@ -773,11 +1099,11 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # quarter a borrower joins - there is no previous assessment, and a zero
     # there would be read as "no change".
     frame = frame.sort_values(["borrower_id", "_quarter_index"])
-    previous = frame.groupby("borrower_id")["internal_rating_numeric"].shift(1)
+    previous = frame.groupby("borrower_id")["internal_rating_ordinal"].shift(1)
     frame["previous_rating"] = np.where(
         previous.isna(), "",
-        np.array(RATING_SCALE)[previous.fillna(1).astype(int) - 1])
-    notches = frame["internal_rating_numeric"] - previous
+        np.array(ALL_STATES)[previous.fillna(1).astype(int) - 1])
+    notches = frame["internal_rating_ordinal"] - previous
     frame["rating_change_notches"] = notches.fillna(0).astype(int)
     frame["rating_direction"] = np.select(
         [previous.isna(), notches > 0, notches < 0],
@@ -787,12 +1113,12 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
     has_external = (
         np.isin(entities["segment"].to_numpy()[frame["_entity_index"]],
                 ["Large Corporate", "Public Sector", "Financial Institution"])
-        & (frame["internal_rating_numeric"] <= 9))
+        & (frame["internal_rating_ordinal"] <= 9))
     external_index = np.clip(
-        frame["internal_rating_numeric"].to_numpy() - 1
-        + rng.integers(-1, 2, len(frame)), 0, DEFAULT_INDEX - 1)
+        frame["internal_rating_ordinal"].to_numpy() - 1
+        + rng.integers(-1, 2, len(frame)), 0, PERFORMING_COUNT - 1)
     frame["external_rating"] = np.where(
-        has_external, np.array(RATING_SCALE)[external_index], "")
+        has_external, np.array(ALL_STATES)[external_index], "")
     frame["rating_outlook"] = np.where(
         has_external,
         np.array(RATING_OUTLOOKS)[np.clip(
@@ -800,7 +1126,7 @@ def build_ratings(entities: pd.DataFrame, spine_df: pd.DataFrame,
         "")
 
     frame["watchlist_flag"] = (
-        (frame["internal_rating_numeric"] >= 11)
+        (frame["internal_rating_ordinal"] >= 11)
         | (frame["rating_change_notches"] >= 2))
     frame["origin"] = ORIGIN
     return frame.drop(columns=["_entity_index", "_quarter_index"]).reset_index(
@@ -1071,6 +1397,15 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
     origination_quarter = rng.integers(-40, QUARTER_COUNT - 1,
                                        total_facilities)
     tenor_quarters = rng.integers(20, 80, total_facilities)
+    # The core facility is the relationship, and it is renewed for as long as
+    # the borrower is on book; the others amortise and mature. Without this,
+    # seventy obligors reached a quarter with every facility matured and sat
+    # in the IFRS 9 book at zero exposure — rated, staged, provisioned at
+    # nothing. An obligor with no exposure is not a credit exposure, and a
+    # book that carries one cannot be reconciled against itself.
+    core = offsets[:n_entities]
+    origination_quarter[core] = -40
+    tenor_quarters[core] = 40 + QUARTER_COUNT + 4
 
     # Expand to quarters. Only facilities that exist in a quarter, for
     # borrowers that are on book in it.
@@ -1173,136 +1508,353 @@ def build_facilities(entities: pd.DataFrame, spine_df: pd.DataFrame,
 
 
 # ------------------------------------------------------------------- IFRS 9
-
-#: Relative PD increase that counts as a significant increase in credit risk.
-SICR_PD_RATIO = 2.0
-#: And the absolute increase it must also clear, so a move from 0.03% to 0.07%
-#: does not trip a trigger on its own.
-#:
-#: At 0.75 this floor was too thin to do its job. Origination PD is anchored to
-#: the borrower's through-the-cycle quality, so by the trough a doubling is the
-#: NORMAL experience of the book rather than a signal about one name, and the
-#: relative test alone put a quarter of the book into Stage 2 - a population
-#: too large to review and therefore not a watchlist at all. Two hundred basis
-#: points is a movement a credit officer would want to look at, and leaves a
-#: Stage 2 population somebody could actually work through.
-SICR_PD_ABSOLUTE = 2.00
-#: A twelve-month PD this high is a significant increase on its own, whatever
-#: the borrower was graded at origination. Roughly the CCC band.
-SICR_ABSOLUTE_PD = 13.0
-#: Days past due at which a facility is presumed to have suffered a SICR.
-SICR_DPD_DAYS = 30
-#: Days past due at which default is presumed.
-DEFAULT_DPD_DAYS = 90
+#
+# The staging thresholds are NOT declared here. They are the governed corporate
+# policy and they live in `backend.ifrs9.policy`, which What-If also reads.
+#
+# They used to be declared here as well, with the same values, and a test
+# asserted the two agreed. That test passed by coincidence rather than by
+# construction: nothing stopped somebody changing one copy. A generator that
+# stages the book on one set of thresholds and an engine that re-stages it on
+# another would disagree about which borrowers are Stage 2, and the
+# disagreement would surface as a What-If answer nobody could defend.
+#
+# So there is one declaration and this module imports it. The names are
+# re-exported because callers and tests already read them from here.
+SICR_PD_RATIO = policy.SICR_PD_RATIO
+SICR_PD_ABSOLUTE = policy.SICR_PD_ABSOLUTE
+SICR_ABSOLUTE_PD = policy.SICR_ABSOLUTE_PD
+SICR_DPD_DAYS = policy.SICR_DPD_DAYS
+DEFAULT_DPD_DAYS = policy.DEFAULT_DPD_DAYS
 
 SCENARIOS: tuple[tuple[str, float], ...] = (
     ("Base", 0.50), ("Upside", 0.20), ("Downside", 0.30),
 )
+#: The probability-weighted uplift the reported ECL carries. Imported rather
+#: than restated so the generator and the engine cannot drift apart on it.
+WEIGHTED_SCENARIO_FACTOR = policy.WEIGHTED_SCENARIO_FACTOR
+
+#: Loss on the SECURED part of an exposure: the cost and delay of realising
+#: security that has already been haircut, not a second view of its value.
+SECURED_LGD_MEAN = 0.22
+#: Loss on the UNSECURED part, before the sector's own severity is applied.
+UNSECURED_LGD_MEAN = 0.68
+#: What a workout adds once the name has actually defaulted. The easy
+#: recoveries have already happened by then.
+DEFAULTED_LGD_UPLIFT = 0.07
+
+
+def _staged_with_probation(measured: np.ndarray, borrower: np.ndarray
+                           ) -> tuple[np.ndarray, np.ndarray]:
+    """The stage a book carries, and how much probation is served.
+
+    Deterioration is immediate — a borrower that trips a trigger is in Stage 2
+    (or 3) that quarter. Improvement is not: the borrower has to stay clear for
+    `policy.STAGE_2_PROBATION_QUARTERS` consecutive quarters before it returns.
+
+    Returns the carried stage AND the quarters served, because the second one
+    has to be on the book. Without it a single quarter's row cannot be staged
+    at all: a borrower measured Stage 1 and carried at Stage 2 is
+    indistinguishable from one that has just cured, and the governed rule set
+    would stop reproducing the book it staged — which is the tie every What-If
+    baseline column rests on.
+
+    Expects the rows sorted by borrower and then by period, which is what the
+    caller does immediately before calling.
+    """
+    out = np.asarray(measured, dtype=np.int64).copy()
+    served = np.zeros(len(out), dtype=np.int64)
+    if not len(out):
+        return out, served
+    held = out[0]
+    clear = 0
+    current = borrower[0]
+    for i in range(len(out)):
+        if borrower[i] != current:
+            current = borrower[i]
+            held = out[i]
+            clear = 0
+            out[i] = held
+            served[i] = 0
+            continue
+        want = out[i]
+        if want >= held:
+            # Worse, or the same. Nothing to serve.
+            held = want
+            clear = 0
+        else:
+            clear += 1
+            if clear >= policy.STAGE_2_PROBATION_QUARTERS:
+                held = want
+        # The count is recorded AFTER the increment and is NOT reset by the
+        # cure, because the row has to carry the number that DROVE the
+        # decision. Resetting it here wrote a zero on the quarter a borrower
+        # cured, and a rule set reading that row back saw "no probation
+        # served" and held the borrower where it was — so the governed rules
+        # stopped reproducing the book they staged.
+        #
+        # It needs no reset: once the borrower has cured, `held` equals `want`
+        # and the next quarter takes the branch above.
+        out[i] = held
+        served[i] = clear
+    return out, served
 
 
 def build_ifrs9(entities: pd.DataFrame, spine_df: pd.DataFrame,
                 facilities: pd.DataFrame, delinquency: pd.DataFrame,
+                collateral: pd.DataFrame, ratings: pd.DataFrame,
                 rng: np.random.Generator) -> pd.DataFrame:
     """Staging and expected credit loss, at obligor grain. B3, B4.
 
     Staged at OBLIGOR level, not facility level: for corporate exposures a
     significant increase in credit risk is assessed on the counterparty, and a
     book that stages one facility of a borrower differently from another is
-    describing a bank that does not exist. The grain is stated in the domain
-    metadata so nobody has to infer it from the row count.
+    describing a bank that does not exist.
 
-    All three IFRS 9 triggers are evaluated separately and recorded
-    separately, so a Stage 2 borrower can be asked WHY it is Stage 2 rather
-    than only THAT it is.
+    Every input here is READ from somewhere else rather than drawn again:
+
+      the three PDs   from `build_ratings`, which derived them from the
+                      governed masterscale, the cycle and the borrower;
+      EAD             from the facilities, as drawn + CCF x undrawn;
+      LGD             from the collateral actually recognised against the
+                      exposure, through the secured and unsecured split;
+      Stage           from the governed SICR policy.
+
+    That is what makes the book internally coherent: there is exactly one
+    place each quantity comes from, and every cut of it is a view of the same
+    rows.
     """
     frame = spine_df[["borrower_id", "period", "period_end_date",
-                      "entity_index", "quarter_index", "pd_pct",
-                      "default_flag"]].copy()
+                      "entity_index", "quarter_index", "default_flag"]].copy()
 
-    ead = (facilities.groupby(["borrower_id", "period"])["ifrs9_ead"]
-           .sum().rename("ead"))
-    frame = frame.merge(ead, on=["borrower_id", "period"], how="left")
-    frame["ead"] = frame["ead"].fillna(0.0)
+    # ---- exposure, and the identity that defines it
+    exposure = (facilities.groupby(["borrower_id", "period"])
+                .agg(ead=("ifrs9_ead", "sum"),
+                     drawn_exposure=("drawn_exposure", "sum"),
+                     undrawn_commitment=("undrawn_commitment", "sum"),
+                     total_limit=("limit_amount", "sum"))
+                .reset_index())
+    frame = frame.merge(exposure, on=["borrower_id", "period"], how="left")
+    for column in ("ead", "drawn_exposure", "undrawn_commitment",
+                   "total_limit"):
+        frame[column] = frame[column].fillna(0.0)
+    # The obligor's effective conversion factor, implied by the identity
+    # rather than averaged from the facilities: this is the CCF that
+    # reproduces the borrower's own EAD, which is the only one worth showing.
+    undrawn = frame["undrawn_commitment"].to_numpy()
+    # A PROPORTION, not a percentage, and held to four decimals rather than
+    # two: it is a back-solved ratio, and either scaling it or rounding it is
+    # what makes the identity `EAD = drawn + CCF x undrawn` fail to reconcile
+    # on a large undrawn commitment. The facility-level factor beside it is a
+    # proportion too; a book that expressed the same quantity two ways at two
+    # grains could not be reconciled between them.
+    frame["credit_conversion_factor"] = _round(np.where(
+        undrawn > 0,
+        np.clip((frame["ead"].to_numpy() - frame["drawn_exposure"].to_numpy())
+                / np.maximum(undrawn, 1e-9), 0.0, 1.0),
+        0.0), 4)
 
     dpd = delinquency.set_index(["borrower_id", "period"])["current_dpd"]
     frame["current_dpd"] = frame.set_index(
         ["borrower_id", "period"]).index.map(dpd).fillna(0).astype(int)
 
+    # ---- the three PDs, joined from the ratings dataset
+    pds = ratings[["borrower_id", "period", "internal_rating",
+                   "internal_rating_ordinal", "ttc_pd_pct",
+                   "pit_pd_12m_pct", "lifetime_pd_pct"]]
+    frame = frame.merge(pds, on=["borrower_id", "period"], how="left")
+    for column, fallback in (("ttc_pd_pct", 1.2), ("pit_pd_12m_pct", 1.2),
+                             ("lifetime_pd_pct", 4.0)):
+        frame[column] = frame[column].fillna(fallback)
+
     frame = frame.sort_values(["borrower_id", "quarter_index"])
 
+    # ---- collateral, and the LGD it implies
+    #
+    # gross market value -> regulatory haircut -> recognised value ->
+    # secured exposure -> unsecured residual. Each step is a column so the
+    # chain can be read on screen and reconciled row by row.
+    recognised = (collateral.groupby(["borrower_id", "period"])
+                  .agg(collateral_market_value=("collateral_market_value", "sum"),
+                       collateral_eligible_value=("collateral_eligible_value", "sum"))
+                  .reset_index())
+    frame = frame.merge(recognised, on=["borrower_id", "period"], how="left")
+    frame["collateral_market_value"] = frame["collateral_market_value"].fillna(0.0)
+    frame["collateral_eligible_value"] = frame["collateral_eligible_value"].fillna(0.0)
+
+    ead_v = frame["ead"].to_numpy()
+    eligible = frame["collateral_eligible_value"].to_numpy()
+    secured = np.minimum(eligible, ead_v)
+    unsecured = np.maximum(ead_v - secured, 0.0)
+    frame["secured_exposure"] = _round(secured)
+    frame["unsecured_exposure"] = _round(unsecured)
+    frame["collateral_coverage_pct"] = _round(np.where(
+        ead_v > 0, np.minimum(eligible / np.maximum(ead_v, 1e-9), 5.0) * 100.0,
+        0.0), 2)
+    frame["collateral_shortfall"] = _round(unsecured)
+
+    n = len(frame)
+    # A recovery on the SECURED part is a recovery on an asset that has
+    # already been haircut, so the loss there is the cost and delay of
+    # realising it. On the UNSECURED part it is whatever the estate pays,
+    # which is a property of the borrower and its sector.
+    secured_lgd = np.clip(SECURED_LGD_MEAN + rng.normal(0.0, 0.04, n),
+                          0.05, 0.45)
+    sector_severity = entities["sector_lgd"].to_numpy()[
+        frame["entity_index"].to_numpy()] if "sector_lgd" in entities.columns \
+        else np.full(n, UNSECURED_LGD_MEAN)
+    unsecured_lgd = np.clip(sector_severity + rng.normal(0.0, 0.06, n),
+                            0.35, 0.92)
+    secured_share = np.where(ead_v > 0, secured / np.maximum(ead_v, 1e-9), 0.0)
+    lgd = secured_share * secured_lgd + (1.0 - secured_share) * unsecured_lgd
+    # A defaulted exposure is worked out rather than modelled: the loss is
+    # what the workout leaves, and it is higher than on a performing name of
+    # the same security because the easy recoveries have already happened.
+    lgd = np.where(frame["default_flag"].to_numpy(),
+                   np.clip(lgd + DEFAULTED_LGD_UPLIFT, 0.12, 0.95), lgd)
+    lgd = np.clip(lgd, 0.05, 0.95)
+    frame["secured_lgd"] = _round(secured_lgd * 100, 2)
+    frame["unsecured_lgd"] = _round(unsecured_lgd * 100, 2)
+    # Round FIRST, then measure from the rounded figure. The published LGD is
+    # the one a reader multiplies out; if the provision were computed from an
+    # unrounded value behind it, the identity on screen would fail by half a
+    # basis point of LGD times the exposure — up to fourteen million on the
+    # largest names, which is exactly the sort of gap nobody can explain in a
+    # committee.
+    frame["lgd"] = _round(lgd * 100, 2)
+    lgd = frame["lgd"].to_numpy() / 100.0
+
+    # ---- origination PD, and the SICR triggers read against it
+    #
     # PD at origination is the PD when the exposure was first recognised, and
-    # for most of this book that predates the window: the facilities data has
-    # three quarters of every four originating before Q3 2022. Taking the
-    # borrower's PD in its FIRST OBSERVED quarter instead would anchor every
-    # comparison to the top of the cycle, and by the 2025 trough almost every
-    # borrower's PD would have doubled against it - putting half the book in
-    # Stage 2 as an artefact of where the generator starts, not of what the
-    # borrower did. So origination PD is read from the borrower's own
-    # through-the-cycle quality, which is stable and is what a bank's
-    # origination-grade record actually holds.
+    # for most of this book that predates the window. Read from the
+    # borrower's own through-the-cycle quality, which is stable and is what a
+    # bank's origination-grade record actually holds; reading it from the
+    # first observed quarter would anchor every comparison to the top of the
+    # cycle and put half the book in Stage 2 as an artefact of where the
+    # generator starts.
     origination_quality = (
         entities["sector_quality"].to_numpy()
         + rng.normal(0.0, 0.55, len(entities)))
     origination_pd = pd_from_quality(origination_quality)
-    frame["pd_at_origination_pct"] = _round(
-        origination_pd[frame["entity_index"].to_numpy()], 4)
 
-    ratio = frame["pd_pct"] / frame["pd_at_origination_pct"].replace(0, np.nan)
-    absolute = frame["pd_pct"] - frame["pd_at_origination_pct"]
-    frame["sicr_trigger_pd"] = (
-        (ratio >= SICR_PD_RATIO) & (absolute >= SICR_PD_ABSOLUTE)).fillna(False)
+    # The reference is RE-CONDITIONED onto the reporting date's economy.
+    #
+    # IFRS 9 compares the risk of default now against the risk expected at
+    # initial recognition, using consistent forward-looking information on
+    # both sides. Holding the origination figure at its own vintage does not
+    # do that: it makes the comparison a measure of the CYCLE rather than of
+    # the borrower, and the book showed exactly that — Stage 2 walked from 6%
+    # of the book to 75% and back as the credit cycle turned, because at the
+    # trough almost every borrower's point-in-time PD was more than double a
+    # figure fixed years earlier. A bank with three quarters of its book in
+    # Stage 2 is not a bank with a credit problem, it is a bank with a
+    # staging rule that does not work.
+    #
+    # So the origination grade's through-the-cycle PD is conditioned on the
+    # SAME systematic factor as the current reading. The ratio then measures
+    # what the trigger is for — deterioration in this borrower relative to
+    # where it started — while the cycle keeps its full effect on the ECL
+    # through the point-in-time and lifetime PDs, and keeps a real effect on
+    # staging through the two triggers that are levels rather than ratios:
+    # the absolute PD trigger and days past due.
+    row_entity = frame["entity_index"].to_numpy()
+    row_rho = ratingscale.correlation(
+        entities["sector"].to_numpy()[row_entity])
+    row_z = frame.merge(
+        spine_df[["borrower_id", "period", "cycle_z"]],
+        on=["borrower_id", "period"], how="left")["cycle_z"].fillna(0.0).to_numpy()
+    frame["pd_at_origination_pct"] = _round(ratingscale.pit_pd(
+        origination_pd[row_entity], systematic=row_z, rho=row_rho), 4)
+
+    pit = frame["pit_pd_12m_pct"].to_numpy()
+    ratio = pit / frame["pd_at_origination_pct"].replace(0, np.nan).to_numpy()
+    absolute = pit - frame["pd_at_origination_pct"].to_numpy()
+    frame["sicr_trigger_pd"] = pd.Series(
+        (ratio >= SICR_PD_RATIO) & (absolute >= SICR_PD_ABSOLUTE),
+        index=frame.index).fillna(False)
     frame["sicr_trigger_dpd"] = frame["current_dpd"] >= SICR_DPD_DAYS
-    frame["sicr_trigger_watchlist"] = frame["pd_pct"] >= SICR_ABSOLUTE_PD
+    frame["sicr_trigger_watchlist"] = pit >= SICR_ABSOLUTE_PD
     frame["sicr_flag"] = (frame["sicr_trigger_pd"]
                           | frame["sicr_trigger_dpd"]
                           | frame["sicr_trigger_watchlist"])
 
-    frame["stage"] = np.where(
+    # The stage the triggers alone would give.
+    measured_stage = np.where(
         frame["default_flag"] | (frame["current_dpd"] >= DEFAULT_DPD_DAYS), 3,
         np.where(frame["sicr_flag"], 2, 1))
+
+    # And then the probation. A borrower whose SICR trigger stops firing does
+    # not return to Stage 1 the same quarter: it has to stay clear for
+    # policy.STAGE_2_PROBATION_QUARTERS consecutive quarters first.
+    #
+    # This is not a smoothing device. It is the curing rule IFRS 9 books
+    # actually operate, and without it a third of Stage 2 exposure returned to
+    # Stage 1 every quarter — an average Stage 2 sojourn under three quarters,
+    # which is a staging rule measuring noise rather than credit.
+    frame["stage_measured"] = measured_stage
+    frame = frame.sort_values(
+        ["borrower_id", "period_end_date"]).reset_index(drop=True)
+    frame["stage"], frame["sicr_clear_quarters"] = _staged_with_probation(
+        frame["stage_measured"].to_numpy(), frame["borrower_id"].to_numpy())
     frame["prior_stage"] = (frame.groupby("borrower_id")["stage"]
                             .shift(1).fillna(frame["stage"]).astype(int))
     frame["stage_moved"] = frame["stage"] - frame["prior_stage"]
 
-    n = len(frame)
-    pd_12m = frame["pd_pct"].to_numpy() / 100.0
-    # Lifetime PD over a five-year horizon, floored at the twelve-month rate.
-    pd_lifetime = np.clip(1.0 - (1.0 - pd_12m) ** 4.2, pd_12m, 0.999)
-    secured_share = np.clip(rng.normal(0.55, 0.20, n), 0.0, 0.95)
-    lgd = np.clip(0.62 - 0.38 * secured_share + rng.normal(0, 0.05, n),
-                  0.08, 0.90)
-    lgd = np.where(frame["stage"] == 3,
-                   np.clip(lgd + 0.06, 0.10, 0.95), lgd)
+    # ---- measurement
+    #
+    # One line decides the basis, and it is the governed one: twelve-month in
+    # Stage 1, lifetime above it. Everything else is arithmetic.
+    stage = frame["stage"].to_numpy()
+    # Rounded first, for the same reason as the LGD above.
+    pd_12m = _round(pit, 4) / 100.0
+    pd_life = _round(frame["lifetime_pd_pct"].to_numpy(), 4) / 100.0
+    # The governed basis, in percent, then carried down as a fraction: Stage 1
+    # twelve-month, Stage 2 lifetime, Stage 3 one hundred per cent.
+    applicable = ratingscale.applicable_pd(
+        stage, pd_12m * 100.0, pd_life * 100.0) / 100.0
 
-    ead_v = frame["ead"].to_numpy()
-    ecl_12m = pd_12m * lgd * ead_v
-    ecl_lifetime = pd_lifetime * lgd * ead_v
-    # Scenario weighting: the reported ECL is the probability-weighted one.
-    weighted = (0.50 * 1.00 + 0.20 * 0.72 + 0.30 * 1.46)
-    base_ecl = np.where(frame["stage"] == 1, ecl_12m, ecl_lifetime) * weighted
+    ecl_12m = pd_12m * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR
+    ecl_lifetime = pd_life * lgd * ead_v * WEIGHTED_SCENARIO_FACTOR
+    # An expected loss above the exposure is not a loss, it is an error. The
+    # only way to reach it is a lifetime PD near one on a fully unsecured
+    # name, and even then the loss is bounded by what is owed. The bound
+    # applies to the measured figure as well as the final one: a provision
+    # BEFORE overlay that already exceeded the exposure was published on seven
+    # rows, and a reader who checked the arithmetic on one of them would have
+    # found the book asserting a loss larger than the amount at risk.
+    # The scenario weighting scales a PD that has not yet resolved. A defaulted
+    # exposure has resolved, so it is measured at 1.00 x LGD x EAD and the
+    # whole of the severity question stays with LGD - multiplying a certainty
+    # by 1.082 would assert a loss rate above the borrower's own LGD.
+    weighting = np.where(stage >= 3, 1.0, WEIGHTED_SCENARIO_FACTOR)
+    base_ecl = np.minimum(applicable * lgd * ead_v * weighting, ead_v)
     overlay = np.where(rng.random(n) < 0.06,
                        base_ecl * rng.uniform(0.05, 0.25, n), 0.0)
+    final = np.minimum(base_ecl + overlay, ead_v)
 
-    frame["pd_12m"] = _round(pd_12m * 100, 4)
-    frame["pd_lifetime"] = _round(pd_lifetime * 100, 4)
-    frame["lgd"] = _round(lgd * 100, 2)
-    frame["ecl_12m"] = _round(ecl_12m * weighted, 4)
-    frame["ecl_lifetime"] = _round(ecl_lifetime * weighted, 4)
+    frame["pd_12m"] = _round(pit, 4)
+    frame["pd_lifetime"] = _round(frame["lifetime_pd_pct"].to_numpy(), 4)
+    frame["pd_applicable"] = _round(applicable * 100.0, 4)
+    frame["pd_measurement_basis"] = np.select(
+        [stage >= 3, stage <= 1],
+        ["Defaulted - PD 100%", "12-month PD"], default="Lifetime PD")
+    frame["ecl_12m"] = _round(ecl_12m, 4)
+    frame["ecl_lifetime"] = _round(ecl_lifetime, 4)
+    frame["ecl_before_overlay"] = _round(base_ecl, 4)
     frame["management_overlay"] = _round(overlay, 4)
-    frame["final_ecl"] = _round(base_ecl + overlay, 4)
-    # Guarded denominator rather than np.where over the raw division: both
-    # branches of np.where are evaluated, so the division warns on the zero-
-    # exposure rows even though their result is discarded.
+    frame["final_ecl"] = _round(final, 4)
     safe_ead = np.where(ead_v > 0, ead_v, 1.0)
     frame["ecl_coverage"] = _round(
-        np.where(ead_v > 0, (base_ecl + overlay) / safe_ead * 100, 0.0), 4)
+        np.where(ead_v > 0, final / safe_ead * 100, 0.0), 4)
     frame["scenario_weight_base"] = 0.50
     frame["scenario_weight_upside"] = 0.20
     frame["scenario_weight_downside"] = 0.30
     frame["ead"] = _round(ead_v)
     frame["origin"] = ORIGIN
 
-    return frame.drop(columns=["entity_index", "quarter_index", "pd_pct"]
+    return frame.drop(columns=["entity_index", "quarter_index",
+                               "internal_rating", "internal_rating_ordinal"]
                       ).reset_index(drop=True)
 
 
@@ -1352,6 +1904,15 @@ def build_delinquency(entities: pd.DataFrame, spine_df: pd.DataFrame,
     # floor is drawn instead, from the day default is recognised outwards.
     default_floor = 91.0 + rng.gamma(1.4, 55.0, n)
     dpd = np.where(default_flag, np.maximum(dpd, default_floor), dpd)
+    # Ninety days past due is the presumption of default, and a book that
+    # contradicts its own presumption is unreadable: it produced borrowers who
+    # were credit-impaired by days past due, still rated B-, still carrying a
+    # ten per cent PD, and whose Stage 3 provision then moved under a rating
+    # shock aimed at performing names. A borrower who is not in default is
+    # therefore not past due by ninety days. The presumption is not rebutted
+    # anywhere in this book, so the two agree by construction rather than by
+    # luck, and Stage 3 means one thing.
+    dpd = np.where(default_flag, dpd, np.minimum(dpd, DEFAULT_DPD_DAYS - 1))
     dpd = np.clip(dpd, 0, 640).astype(int)
 
     exposure = (facilities.groupby(["borrower_id", "period"])["drawn_exposure"]
@@ -1998,21 +2559,26 @@ def build(*, periods: list[str] | None = None, seed: int = SEED) -> Universe:
     macro = macro_factor(rng, quarters_)
     z = simulate_quality(entities, macro["credit_cycle_factor"].to_numpy(), rng)
     state = simulate_state(entities, z, rng)
-    spine_df = spine(entities, state, z, quarters_)
+    spine_df = spine(entities, state, z, quarters_,
+                     macro["credit_cycle_factor"].to_numpy())
 
     financials = build_financials(entities, z, rng)
     facilities = build_facilities(entities, spine_df, rng)
     delinquency = build_delinquency(entities, spine_df, facilities, rng)
-    ifrs9 = build_ifrs9(entities, spine_df, facilities, delinquency, rng)
-    covenants = build_covenants(entities, spine_df, financials, rng)
+    # Collateral BEFORE IFRS 9: the loss given default is derived from the
+    # security actually recognised against the exposure, so the collateral has
+    # to exist first. Inventing an LGD beside the collateral rather than from
+    # it is how a book ends up with a 90%-covered name carrying a 62% LGD.
     collateral = build_collateral(entities, spine_df, facilities, rng)
+    ratings = build_ratings(entities, spine_df, rng)
+    ifrs9 = build_ifrs9(entities, spine_df, facilities, delinquency,
+                        collateral, ratings, rng)
+    covenants = build_covenants(entities, spine_df, financials, rng)
     limits = build_limits(entities, spine_df, facilities, rng)
     watchlist = build_watchlist(entities, spine_df, rng)
     restructuring = build_restructuring(entities, spine_df, rng)
     profitability = build_profitability(
         entities, spine_df, facilities, ifrs9, rng)
-
-    ratings = build_ratings(entities, spine_df, rng)
 
     graph = graphdata.build_graph(entities, rng)
     people = graphdata.build_people_edges(entities, graph["_nodes"], rng)

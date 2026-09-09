@@ -44,7 +44,6 @@ every machine, so a figure quoted in a document is the figure a reader sees.
 
 from __future__ import annotations
 
-import json
 import math
 import shutil
 import sys
@@ -1883,10 +1882,23 @@ def main() -> int:
     catalog["datasets"].extend(
         extra_catalog_entries(extra, infer_fields, field))
 
+    # MERGED, not written over the top. This generator and the Corporate
+    # IFRS 9 builder both register datasets here, and serialising one of them
+    # over the file unregisters the other's whole book — which surfaces far
+    # away and much later as "not a governed dataset", or as a binder error on
+    # a column the catalogue promised and the Parquet never had.
+    from backend.data_access import catalogue_io
+
     settings.metadata_dir.mkdir(parents=True, exist_ok=True)
-    catalog_path = settings.metadata_dir / "catalog.json"
-    catalog_path.write_text(json.dumps(catalog, indent=2), encoding="utf-8")
-    log(f"{catalog_path} — {len(catalog['datasets'])} governed datasets")
+    merged = catalogue_io.merge(
+        settings.metadata_dir,
+        datasets=catalog["datasets"],
+        relationships=catalog.get("relationships"),
+        extra={k: v for k, v in catalog.items()
+               if k not in ("datasets", "relationships")})
+    catalog_path = catalogue_io.path_for(settings.metadata_dir)
+    log(f"{catalog_path} — {len(merged['datasets'])} governed datasets "
+        f"({len(catalog['datasets'])} from this build, the rest left alone)")
 
     print()
     print("Done. Every row is marked SYNTHETIC and describes no real borrower.")

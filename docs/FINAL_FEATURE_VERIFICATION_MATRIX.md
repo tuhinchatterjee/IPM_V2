@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `768d01e` by `scripts/feature_matrix.py`.
+Generated from the build at `7d10ec7` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 60 |
-| Reviewed | 60 |
+| Pages | 63 |
+| Reviewed | 63 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
 | Not fully OK | 5 |
-| API endpoints | 588 across 41 areas |
+| API endpoints | 612 across 41 areas |
 | Browser-crawled routes | 98 |
 
 ## Pages
@@ -113,10 +113,9 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/lenses/[lensId]` | Administrator, Analyst | One Lens: its figures and charts, banded as the lens says to band them, each able to explain how its number is calculated. It says what it is for and which period it is showing, and the period can be changed to any the lens's own datasets hold rows for. Changed either by asking or by arranging it directly — both write a version that can be put back, and both are refused by the same rules. | `lenses` (14) | 5 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (14) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
-| `/lenses/new` | Administrator, Analyst | Creating a lens by being asked three things: what to call it, what it is for, and what it should show. The name is matched against the Metric Catalogue to suggest the rest, deterministically rather than by a model, so the same name suggests the same thing on every machine and nothing is invented. The metric search starts empty and narrows as words are added. | `lenses` (14) | - | - | OK | - | A lens is created with metric tiles. Charts and layout come next, on the lens itself, because which chart types are honest depends on the dimension and that belongs to the chart builder. |
-| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (14) | 5 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
+| `/lenses/[lensId]` | Administrator, Analyst | One Lens: its tiles, banded as the lens says to band them, each able to explain how its number is calculated. Changed either by asking or by arranging it directly — both write a version that can be put back, and both are refused by the same rules. | `lenses` (10) | 4 file(s) | `/lenses/cro` ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses/cro` | Administrator, Analyst | The CRO Lens: the executive story. | `lenses` (10) | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/lenses` | any signed-in role | Saved dashboards of governed analyses. | `lenses` (10) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | PARTIAL | A Viewer sees the Lenses link and gets a dashboard of refusals: every tile runs an analysis and running one requires an Analyst. | The permission is deliberate; the invitation is the rough edge. Sign in as Analyst or Administrator. |
 
 ### messages
 
@@ -172,7 +171,7 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/stress` | Administrator, Analyst | Scenario definitions and their impact. | none | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+| `/stress` | Administrator, Analyst | Redirects to /what-if. The capability was renamed; the old address still resolves so a bookmarked link does not 404. | none | 2 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
 
 ### studio
 
@@ -195,6 +194,15 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
 | `/users` | Administrator | Users, roles and teams. | `users` (5) | 4 file(s) | ADMIN pass, ANALYST pass, VIEWER pass | OK | - | - |
+
+### what-if
+
+| Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
+|---|---|---|---|---|---|---|---|---|
+| `/what-if/models/delta` | Administrator, Analyst | The Delta Model: the PD, LGD and EAD factors, the formula, and how it reconciles to the governed ECL measurement. | none | 1 file(s) | - | OK | - | - |
+| `/what-if/models/ml` | Administrator, Analyst | The XGBoost model: its card, out-of-time metrics, feature importance, SHAP, a scored example, retraining and versions. | none | 1 file(s) | - | OK | - | The macro variables are collinear by construction in this universe, so they are deliberately not model features. The page says so above the metrics. |
+| `/what-if` | Administrator, Analyst | The What-If landing: a composer, six guided starting points, saved and recent What-Ifs, and the two ECL models. | none | 1 file(s) | - | OK | - | - |
+| `/what-if/thread` | Administrator, Analyst | One What-If, built in layers. The ECL methodology is asked for before any figure is calculated, and every result carries its period, staging version, methodology and model version. | none | - | - | OK | - | - |
 
 ### workflow
 
@@ -244,7 +252,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `intelligence` | 45 |
 | `investigations` | 16 |
 | `learning` | 24 |
-| `lenses` | 14 |
+| `lenses` | 10 |
 | `messages` | 18 |
 | `metadata` | 6 |
 | `metrics` | 16 |
@@ -262,7 +270,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `teaching-corpus` | 3 |
 | `trace` | 6 |
 | `users` | 5 |
-| `whatif` | 6 |
+| `whatif` | 34 |
 | `workspace` | 18 |
 
 ## What this document does not claim

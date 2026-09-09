@@ -59,6 +59,16 @@ class Allowed:
 #: the number never reaches a reader as a figure.
 ALLOWLIST: tuple[Allowed, ...] = (
     Allowed(
+        "backend/whatif/macrolab.py",
+        "PD sensitivity multipliers, at three decimals, and the third one is "
+        "the finding. A macro relationship is a MULTIPLIER on a probability, "
+        "so the quantity a reader is comparing is how far it sits from one: "
+        "an estimated 1.003 against a configured 1.000 is a relationship "
+        "worth nothing, and at two decimals both read 1.00 and the comparison "
+        "the whole screen exists for disappears. The same argument the "
+        "scorecard statistics make. Money, percentages and counts in this "
+        "module go through the contract as everywhere else."),
+    Allowed(
         "backend/scorecard/metrics.py",
         "Model-validation statistics on the unit interval: AUC, Gini, KS, "
         "PSI, CSI, Brier. These DO reach a reader, at four decimals, and "
@@ -88,6 +98,21 @@ ALLOWLIST: tuple[Allowed, ...] = (
         "and percentages in this package go through the contract as "
         "everywhere else — `report.percent` renders every rate, and "
         "`report.stat` every statistic that reaches the report."),
+    Allowed(
+        "frontend/src/app/what-if/models/ml/page.tsx",
+        "The What-If ML model's configuration page: the out-of-time metric "
+        "table, the SHAP explanation of one scored example, and the "
+        "prediction the contributions have to add up to. Same reasoning as "
+        "backend/scorecard/metrics.py, on the screen instead of in the "
+        "report. An R-squared of 0.9976 rendered as 1.00 makes every "
+        "candidate look identical to the champion, which is the one "
+        "comparison this page exists to support; and a SHAP contribution of "
+        "0.000412 on an ECL RATE rendered as 0.00 stops the contributions "
+        "summing to the prediction, which is the property that makes the "
+        "explanation checkable at all. These are model diagnostics on a "
+        "model page. Every figure a committee reads as an amount — the "
+        "What-If ECL, the movement, the coverage — is on the RESULT screen "
+        "and goes through the contract there."),
     Allowed(
         "backend/corporate/graphmath.py",
         "The spectral radius of an ownership component, in the refusal "

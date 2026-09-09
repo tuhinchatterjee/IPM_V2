@@ -97,7 +97,8 @@ def current_principal(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "not_signed_in",
-                    "message": "Sign in to use CreditProbe."},
+                    "message": ("You are signed out. Please sign in again. "
+                                "Nothing you were working on has been lost.")},
         )
 
     try:

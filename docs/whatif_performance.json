@@ -1,0 +1,133 @@
+{
+ "version": "1.0.0",
+ "period": "Q2 2026",
+ "borrowers": 3241,
+ "repeats": 3,
+ "measurements": [
+  {
+   "what": "read the book (cold)",
+   "runs": [
+    1.054
+   ],
+   "median": 1.054,
+   "best": 1.054,
+   "worst": 1.054,
+   "budget": 8.0,
+   "status": "ok"
+  },
+  {
+   "what": "read the book (warm)",
+   "runs": [
+    0.02,
+    0.019,
+    0.019
+   ],
+   "median": 0.019,
+   "best": 0.019,
+   "worst": 0.02,
+   "budget": 1.0,
+   "status": "ok"
+  },
+  {
+   "what": "price a scenario \u2014 Delta",
+   "runs": [
+    0.667,
+    0.659,
+    0.67
+   ],
+   "median": 0.667,
+   "best": 0.659,
+   "worst": 0.67,
+   "budget": 3.0,
+   "status": "ok"
+  },
+  {
+   "what": "price a scenario \u2014 ML",
+   "runs": [
+    1.584,
+    0.934,
+    0.96
+   ],
+   "median": 0.96,
+   "best": 0.934,
+   "worst": 1.584,
+   "budget": 6.0,
+   "status": "ok"
+  },
+  {
+   "what": "attribution (5 shocks)",
+   "runs": [
+    0.787,
+    0.747,
+    0.73
+   ],
+   "median": 0.747,
+   "best": 0.73,
+   "worst": 0.787,
+   "budget": 6.0,
+   "status": "ok"
+  },
+  {
+   "what": "plausibility (cold)",
+   "runs": [
+    2.136
+   ],
+   "median": 2.136,
+   "best": 2.136,
+   "worst": 2.136,
+   "budget": 8.0,
+   "status": "ok"
+  },
+  {
+   "what": "plausibility (warm)",
+   "runs": [
+    0.096,
+    0.095,
+    0.092
+   ],
+   "median": 0.095,
+   "best": 0.092,
+   "worst": 0.096,
+   "budget": 1.0,
+   "status": "ok"
+  },
+  {
+   "what": "macro fit",
+   "runs": [
+    0.412,
+    0.52
+   ],
+   "median": 0.466,
+   "best": 0.412,
+   "worst": 0.52,
+   "budget": 5.0,
+   "status": "ok"
+  },
+  {
+   "what": "both methodologies",
+   "runs": [
+    1.694,
+    1.728
+   ],
+   "median": 1.711,
+   "best": 1.694,
+   "worst": 1.728,
+   "budget": 10.0,
+   "status": "ok"
+  },
+  {
+   "what": "detailed workbook",
+   "runs": [
+    6.737,
+    6.733
+   ],
+   "median": 6.735,
+   "best": 6.733,
+   "worst": 6.737,
+   "budget": 30.0,
+   "status": "ok"
+  }
+ ],
+ "over_budget": [],
+ "statement": "Measured on the machine that ran it, against the book that installation carries. A budget is the point at which an interaction stops feeling like an answer, not a machine limit, and a row over it is reported rather than failed."
+}

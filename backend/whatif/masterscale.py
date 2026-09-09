@@ -11,7 +11,7 @@ moving a borrower down a notch moves it onto the PD the bank has assigned to
 that grade.
 
 So a notch is worth what the masterscale says it is worth, and the masterscale
-here is the same one the book was graded on: `RATING_SCALE` with `RATING_BOUNDS`
+here is the same one the book was graded on: `PERFORMING` with `RATING_BOUNDS`
 as the PD band edges. This module reads that authority rather than restating it.
 
 Within-grade calibration is preserved
@@ -33,68 +33,63 @@ borrower's own position separately.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from backend.corporate.universe import (
+from backend.corporate import ratingscale
+from backend.corporate.ratingscale import (
+    ALL_STATES,
     DEFAULT_GRADE,
-    DEFAULT_INDEX,
+    PERFORMING_COUNT,
     RATING_BOUNDS,
-    RATING_SCALE,
 )
 
 MASTERSCALE_OWNER = "Credit Risk Analytics"
-MASTERSCALE_VERSION = "1.0.0"
+#: 3.0.0 is the governed nineteen-point PERFORMING scale, AAA to C, with
+#: default a separate state rather than the scale's last grade, and a TTC PD
+#: master calibrated on public corporate default evidence. Earlier scales are
+#: gone rather than hidden underneath: there is no second computational grade
+#: set, and a figure produced on an older one is not comparable with this.
+MASTERSCALE_VERSION = "3.0.0"
 
-#: The strongest grade has no lower band edge, and a PD of exactly zero is not
-#: a thing any rating system publishes. This is the floor the generator uses.
-PD_FLOOR_PCT = 0.02
-#: The weakest performing grade has no upper edge either. Twice the last edge
-#: is the representative the band's own width implies.
-PD_CEILING_PCT = RATING_BOUNDS[-1] * 2.0
+PD_FLOOR_PCT = ratingscale.PD_FLOOR_PCT
+PD_CEILING_PCT = ratingscale.PD_CEILING_PCT
 
+#: Grade -> the THROUGH-THE-CYCLE twelve-month PD that grade carries, in
+#: percent. Read straight from the governed master table rather than
+#: reconstructed from the band edges: the masterscale is the definition, and a
+#: geometric midpoint of its own bands would be a second opinion about it.
+#:
+#: D is NOT in this table. The masterscale is the table of performing grades,
+#: and a defaulted exposure is measured at 100% by `ratingscale.applicable_pd`
+#: rather than by looking a grade up here.
+MASTERSCALE: dict[str, float] = dict(ratingscale.TTC_PD_PCT)
 
-def _representative(index: int) -> float:
-    """The PD a grade carries, in percent.
-
-    The geometric mid-point of the grade's band. Geometric rather than
-    arithmetic because the bands widen multiplicatively — the gap from AAA to
-    AA is four basis points and the gap from CCC to CC is thirteen points, and
-    an arithmetic mid-point would put almost every investment-grade name at the
-    top of its band.
-    """
-    lower = PD_FLOOR_PCT if index == 0 else RATING_BOUNDS[index - 1]
-    upper = PD_CEILING_PCT if index >= len(RATING_BOUNDS) else RATING_BOUNDS[index]
-    return float(np.sqrt(max(lower, PD_FLOOR_PCT) * upper))
-
-
-#: Grade -> the twelve-month PD that grade carries, in percent. D is the default
-#: grade and carries no forward PD: a defaulted borrower has already defaulted.
-MASTERSCALE: dict[str, float] = {
-    grade: _representative(index)
-    for index, grade in enumerate(RATING_SCALE[:DEFAULT_INDEX])
-}
-
-GRADE_INDEX: dict[str, int] = {grade: i for i, grade in enumerate(RATING_SCALE)}
+#: Index within `ALL_STATES`, so a defaulted name can still be located.
+GRADE_INDEX: dict[str, int] = {grade: i for i, grade in enumerate(ALL_STATES)}
 
 #: The performing grades, strongest first. A scenario never downgrades a
 #: borrower INTO default: default is an event, not a grade a shock produces.
-PERFORMING: tuple[str, ...] = tuple(RATING_SCALE[:DEFAULT_INDEX])
+PERFORMING: tuple[str, ...] = ratingscale.PERFORMING
 
-#: Broad bands, for questions phrased "all BBB borrowers" or "investment grade".
+#: Broad bands, for questions phrased "all BBB borrowers" or "investment
+#: grade". The governed table owns them; this is a view of it.
 BANDS: dict[str, tuple[str, ...]] = {
-    "AAA": ("AAA",),
-    "AA": ("AA",),
-    "A": ("A",),
-    "BBB": ("BBB+", "BBB", "BBB-"),
-    "BB": ("BB+", "BB", "BB-"),
-    "B": ("B+", "B"),
-    "CCC": ("CCC",),
-    "CC": ("CC",),
-    "investment grade": ("AAA", "AA", "A", "BBB+", "BBB", "BBB-"),
-    "sub-investment grade": ("BB+", "BB", "BB-", "B+", "B", "CCC", "CC"),
-    "speculative grade": ("BB+", "BB", "BB-", "B+", "B", "CCC", "CC"),
+    "AAA": ratingscale.BANDS["aaa"],
+    "AA": ratingscale.BANDS["aa"],
+    "A": ratingscale.BANDS["a"],
+    "BBB": ratingscale.BANDS["bbb"],
+    "BB": ratingscale.BANDS["bb"],
+    "B": ratingscale.BANDS["b"],
+    "CCC": ratingscale.BANDS["ccc"],
+    "CC": ratingscale.BANDS["cc"],
+    "C": ratingscale.BANDS["c"],
+    "investment grade": ratingscale.INVESTMENT_GRADE,
+    "sub-investment grade": ratingscale.SPECULATIVE_GRADE,
+    "speculative grade": ratingscale.SPECULATIVE_GRADE,
+    "high yield": ratingscale.SPECULATIVE_GRADE,
 }
 
 
@@ -125,6 +120,18 @@ def masterscale_pd(grade: str) -> float:
     return MASTERSCALE.get(str(grade or "").strip().upper(), float("nan"))
 
 
+def through_the_cycle(grades: Any) -> np.ndarray:
+    """The through-the-cycle PD each grade carries, in percent.
+
+    The lifetime PD reverts towards this, so a scenario that moves a grade has
+    to move the anchor with it. Read from the governed scale rather than from
+    the borrower, because that is the whole point of a masterscale: the level
+    belongs to the grade.
+    """
+    return ratingscale.ttc_pd(
+        pd.Series(grades).astype(str).str.strip().str.upper())
+
+
 def shift(grade: str, notches: int) -> str:
     """Move a grade by `notches` (positive = worse), inside the scale.
 
@@ -139,7 +146,7 @@ def shift(grade: str, notches: int) -> str:
     if said == DEFAULT_GRADE:
         return said
     landed = GRADE_INDEX[said] + int(notches)
-    return RATING_SCALE[int(np.clip(landed, 0, DEFAULT_INDEX - 1))]
+    return ALL_STATES[int(np.clip(landed, 0, PERFORMING_COUNT - 1))]
 
 
 def move(grade: str, notches: int) -> Move:

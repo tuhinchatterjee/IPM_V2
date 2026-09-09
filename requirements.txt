@@ -69,3 +69,17 @@ python-multipart==0.0.20
 # produce no extractable text and are marked NEEDS_OCR rather than stored as
 # empty — see backend/regulatory/extract.py, which refuses to pretend.
 pypdf==6.4.0
+
+# ---- What-If Analysis: the ML ECL methodology ----
+# The second ECL methodology. xgboost is the model; scikit-learn supplies the
+# metrics rather than a second hand-rolled R-squared. SHAP values come from
+# XGBoost itself (pred_contribs); the `shap` package cannot read the base_score
+# XGBoost 3.1 writes. The artifact is XGBoost NATIVE JSON, never a pickle —
+# backend/brain/security.py refuses .pkl/.joblib/.pt because "a pickle is a
+# program, not data", and .json is already on its allowlist.
+xgboost==3.1.2
+scikit-learn==1.7.2
+# Imported by backend/runtime/kernels.py (stat_test) and never declared, so a
+# container built from this file raised ImportError the first time that kernel
+# ran. A pre-existing defect, fixed here because the ML work needs scipy anyway.
+scipy==1.16.2

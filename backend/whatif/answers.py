@@ -130,18 +130,32 @@ def compose_answer(result: wf.Result, reading: lg.Reading) -> Answer:
                           for step in result.steps]))
 
     if result.sensitivity_rows:
+        # Two readers write these rows: the governed ten-variable macro module
+        # and the older sector-sensitivity matrix. They carry different keys,
+        # so the table is built from what each row actually has rather than
+        # from what one of them happens to use.
+        def _cell(row: dict[str, Any], *names: str, default: Any = "") -> Any:
+            for name in names:
+                if name in row and row[name] is not None:
+                    return row[name]
+            return default
+
         sections.append(Section(
             key="sensitivity", title="Sensitivity assumptions", detail=True,
-            body=[f"Macro effects come from sensitivity matrix "
-                  f"{sv.MATRIX_VERSION}, owned by {sv.MATRIX_OWNER} and "
-                  f"effective {sv.MATRIX_EFFECTIVE}. These are configured "
-                  "management assumptions, not econometric estimates."],
-            table={"columns": ["Variable", "Shock", "Sector",
-                               "Sector sensitivity", "PD effect (%)",
-                               "LGD effect (pp)", "Borrowers"],
-                   "rows": [[r["variable"], r["shock"], r["scope"],
-                             r["sector_sensitivity"], r["pd_effect_pct"],
-                             r["lgd_effect_pp"], r["borrowers"]]
+            body=["Macro effects come from configured CreditProbe What-If "
+                  "sensitivities — declared management assumptions with a "
+                  "named owner and version, not econometric estimates fitted "
+                  "to this book."],
+            table={"columns": ["Variable", "Shock", "Scope",
+                               "Sensitivity", "PD effect", "LGD effect (pp)",
+                               "Borrowers"],
+                   "rows": [[_cell(r, "variable", "name"),
+                             _cell(r, "shock", "description"),
+                             _cell(r, "scope", "rule"),
+                             _cell(r, "sector_sensitivity", "adverse_units"),
+                             _cell(r, "pd_effect_pct", "pd_factor"),
+                             _cell(r, "lgd_effect_pp", "lgd_delta_pp"),
+                             _cell(r, "borrowers", default=result.population_size)]
                             for r in result.sensitivity_rows[:20]]}))
 
     if reading.notes or result.warnings:

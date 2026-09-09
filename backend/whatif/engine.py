@@ -39,16 +39,25 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from backend.corporate import ratingscale as rs
 from backend.ifrs9 import policy
 from backend.whatif import masterscale as ms
 from backend.whatif import scenarios as sc
+from backend.whatif import schema as sch
 from backend.whatif import sensitivity as sv
+from backend.whatif import staging as st
 
-#: What the engine reads. Everything else in the answer is derived from these.
+#: What the engine reads, at most. Which of these a given run actually asks
+#: for is decided by `sch.snapshot_fields`, against the columns the Parquet
+#: really has — see `backend/whatif/schema.py`. The list here is the ceiling,
+#: not the demand: a book that does not carry a working-capital statistic can
+#: still price every scenario, and loses only the shocks that need it.
 FIELDS: tuple[str, ...] = (
     "borrower_id", "display_name", "legal_name", "sector", "segment",
     "group_id", "group_name", "period",
-    "internal_rating", "internal_rating_numeric", "watchlist_flag",
+    "internal_rating", "internal_rating_ordinal", "internal_rating_numeric",
+    "watchlist_flag",
+    "ttc_pd_pct",
     "stage", "pd_12m", "pd_lifetime", "lgd", "ead", "final_ecl",
     "ecl_12m", "ecl_lifetime", "management_overlay", "ecl_coverage",
     "current_dpd", "default_flag",
@@ -85,6 +94,26 @@ class Result:
     sensitivity_rows: list[dict[str, Any]] = field(default_factory=list)
     steps: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    #: Things a reader should know that are not wrong with the answer.
+    #:
+    #: An installation without an optional column loses one capability and
+    #: nothing else, so saying so in the same red bar as "this shock could not
+    #: be applied" taught people to ignore both. Notes are separated from
+    #: warnings for exactly that reason: a warning is about THIS result, and a
+    #: note is about the installation.
+    notes: list[str] = field(default_factory=list)
+    #: The full working frame — every reported and stressed column, before the
+    #: presentation layer narrows it. Kept so a SECOND ECL methodology can be
+    #: applied to exactly the same shocked book rather than re-deriving it,
+    #: which is how the Delta and ML answers stay comparable.
+    frame: pd.DataFrame = field(default_factory=pd.DataFrame)
+    #: The rule set that staged the SCENARIO. The baseline column is always
+    #: staged by the reported-book policy, so the trace can name both.
+    staging: Any = None
+    #: Per-driver before/after of PD, LGD and EAD, recorded as each shock was
+    #: applied. What `backend.whatif.attribution` turns into an exact,
+    #: order-neutral split of the ECL movement.
+    tracked: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def population_size(self) -> int:
@@ -105,6 +134,7 @@ class Result:
             "steps": list(self.steps),
             "sensitivity": list(self.sensitivity_rows),
             "warnings": list(self.warnings),
+            "notes": list(self.notes),
         }
 
 
@@ -126,8 +156,13 @@ def latest_period(source: Any = None) -> str:
     return str(periods[-1])
 
 
-def _read(period: str, source: Any = None) -> tuple[pd.DataFrame, str]:
+def _read(period: str,
+          source: Any = None) -> tuple[pd.DataFrame, str, list[str]]:
     """The book for one period, joined to the IFRS 9 origination PD.
+
+    Returns the frame, the period actually used, and one note per field the
+    book does not carry — each naming what that costs. A caller that gets no
+    notes has a complete book.
 
     The origination PD lives on the IFRS 9 dataset rather than on the snapshot,
     and without it the RELATIVE SICR trigger cannot be re-evaluated — which
@@ -140,14 +175,21 @@ def _read(period: str, source: Any = None) -> tuple[pd.DataFrame, str]:
     reader = source or DuckDBSource()
     settled = str(period or "").strip() or latest_period(reader)
     context = AnalysisContext(period=settled)
-    available = set(reader.fields(BORROWER_SNAPSHOT))
+
+    # Resolved against the PARQUET, not the catalogue. The catalogue declares
+    # what the dataset is supposed to carry; a SELECT binds against what it
+    # does. Where those disagreed, the engine used to name a column DuckDB
+    # could not find and the whole ECL calculation died on a working-capital
+    # statistic it did not need.
+    wanted = tuple(f for f in FIELDS if f not in sch.REQUIRED)
+    resolution = sch.snapshot_fields(wanted, source=reader)
     frame = reader.fetch(BORROWER_SNAPSHOT, context=context,
-                         fields=[f for f in FIELDS if f in available],
-                         period=settled)
+                         fields=list(resolution.present), period=settled)
     if frame.empty:
         raise ValueError(f"No corporate borrower data for {settled}.")
-    ifrs9_available = set(reader.fields(IFRS9_DATASET))
-    keep = [f for f in IFRS9_FIELDS if f in ifrs9_available]
+
+    measurement = sch.ifrs9_fields(source=reader)
+    keep = [f for f in measurement.present if f in set(IFRS9_FIELDS)]
     if keep:
         ifrs9 = reader.fetch(IFRS9_DATASET, context=context, fields=keep,
                              period=settled)
@@ -156,7 +198,10 @@ def _read(period: str, source: Any = None) -> tuple[pd.DataFrame, str]:
         if join_on:
             frame = frame.merge(ifrs9, on=join_on, how="left",
                                 suffixes=("", "_ifrs9"))
-    return frame, settled
+    notes = resolution.warnings() + [
+        w for w in measurement.warnings()
+        if any(f in w for f in IFRS9_FIELDS)]
+    return frame, settled, notes
 
 
 def _numeric(frame: pd.DataFrame, columns: tuple[str, ...]) -> None:
@@ -180,6 +225,26 @@ def select(frame: pd.DataFrame, population: sc.Population) -> pd.DataFrame:
     if population.stages:
         work = work[pd.to_numeric(work["stage"], errors="coerce").isin(
             list(population.stages))]
+    # Numeric filters. A threshold the book cannot answer is REFUSED, not
+    # dropped: silently widening "exposure above SAR 100m" to the whole book
+    # is how a scenario aimed at twelve names priced three thousand.
+    for threshold in getattr(population, "thresholds", ()):
+        if threshold.field not in work.columns:
+            raise PopulationUnavailable(
+                f"This book does not carry "
+                f"'{sc.LABELS.get(threshold.field, threshold.field)}', so the "
+                f"filter \"{threshold.describe()}\" cannot be applied. The "
+                "scenario has not been run, because running it without that "
+                "filter would answer a different question.")
+        values = pd.to_numeric(work[threshold.field], errors="coerce")
+        work = work[threshold.apply(values).fillna(False)]
+
+    if getattr(population, "top_n", 0):
+        column = population.top_by if population.top_by in work.columns else "ead"
+        work = work.nlargest(int(population.top_n),
+                             pd.to_numeric(work[column], errors="coerce").name
+                             if column in work.columns else "ead")
+
     if population.borrower_ids:
         wanted_ids = {str(b).strip().upper() for b in population.borrower_ids}
         work = work[work["borrower_id"].astype(str).str.upper().isin(wanted_ids)]
@@ -191,6 +256,26 @@ def select(frame: pd.DataFrame, population: sc.Population) -> pd.DataFrame:
 # ------------------------------------------------------------------ shocks
 
 
+#: Which DRIVER each shock kind belongs to, for attribution. Collateral and
+#: haircut are one driver because they are one idea — the security is worth
+#: less — reaching LGD by two routes.
+DRIVER_OF: dict[str, str] = {
+    sc.RATING: "rating",
+    sc.MACRO: "macro",
+    sc.FINANCIAL: "financial",
+    sc.PD: "pd",
+    sc.LGD: "lgd",
+    sc.CCF: "ccf",
+    sc.COLLATERAL: "collateral",
+    sc.HAIRCUT: "collateral",
+    sc.EAD: "ead",
+    sc.STAGE: "stage",
+}
+#: The clamps. Named so a shock that ran into a policy limit is not credited
+#: with the effect it asked for.
+DRIVER_LIMITS = "limits"
+
+
 def _apply_rating(work: pd.DataFrame, notches: int,
                   steps: list[dict[str, Any]]) -> None:
     """Rating shock, through the governed masterscale rather than a multiplier."""
@@ -198,6 +283,10 @@ def _apply_rating(work: pd.DataFrame, notches: int,
     for column in moves.columns:
         work[column] = moves[column].to_numpy()
     work["pd_stressed"] = work["pd_stressed"] * work["rating_pd_factor"]
+    # The lifetime PD reverts towards the GRADE's through-the-cycle level, so
+    # a downgrade moves that level too. Leaving it behind would measure a
+    # downgraded borrower's lifetime loss against the grade it left.
+    work["ttc_stressed"] = ms.through_the_cycle(work["stressed_rating"])
     steps.append({
         "step": "Rating shock",
         "detail": f"{notches:+d} notch(es) applied through the governed rating "
@@ -292,6 +381,18 @@ def _apply_collateral(work: pd.DataFrame, shock: sc.Shock,
     })
 
 
+class ShockUnavailable(ValueError):
+    """A shock this book cannot answer, named rather than silently skipped."""
+
+
+class PopulationUnavailable(ValueError):
+    """A filter this book cannot apply. Refused rather than widened away."""
+
+
+class EmptyPopulation(ValueError):
+    """A filter that is answerable and matches nobody. A finding, not a fault."""
+
+
 #: Which stressed financial column each sensitivity effect writes to.
 _FINANCIAL_COLUMNS: tuple[str, ...] = (
     "revenue", "ebitda", "ebitda_margin", "dscr", "interest_coverage",
@@ -312,7 +413,14 @@ def _apply_financial(work: pd.DataFrame, shock: sc.Shock,
     target = shock.target or "ebitda"
     column = f"{target}_stressed"
     if column not in work.columns:
-        return
+        # A shock somebody asked for that quietly does nothing is
+        # indistinguishable on screen from one that moved no borrower. Say
+        # which measure the book lacks, and what it would have taken.
+        raise ShockUnavailable(
+            f"This book does not carry '{target}', so a "
+            f"{target.replace('_', ' ')} shock cannot be applied. Every other "
+            "part of the scenario can run — remove this step, or rebuild the "
+            f"book with `{sch.REBUILD}` to restore the field.")
     factor = (1.0 + shock.magnitude / 100.0) if shock.unit == sc.RELATIVE else 1.0
     work[column] = work[column] * factor
     if target in ("ebitda", "revenue", "free_cash_flow"):
@@ -333,7 +441,264 @@ def _apply_financial(work: pd.DataFrame, shock: sc.Shock,
     })
 
 
+def _apply_ccf(work: pd.DataFrame, shock: sc.Shock,
+                steps: list[dict[str, Any]]) -> None:
+    """Move the credit conversion factor, and let EAD follow.
+
+        EAD = drawn + CCF x undrawn
+
+    A CCF change is NOT an EAD change of the same size, because the drawn
+    balance does not move at all. A borrower half-drawn on a 50% CCF sees a
+    20% rise in CCF turn into under 7% of EAD. Converting properly is the
+    whole point of offering CCF as a shock rather than telling somebody to
+    work out the exposure themselves.
+    """
+    if "undrawn_commitment" not in work.columns:
+        return
+    undrawn = pd.to_numeric(work["undrawn_commitment"], errors="coerce").fillna(0.0)
+    drawn = (pd.to_numeric(work["drawn_exposure"], errors="coerce").fillna(0.0)
+             if "drawn_exposure" in work.columns
+             else (work["ead_stressed"] - undrawn).clip(lower=0.0))
+    base = pd.to_numeric(work.get("ccf"), errors="coerce") if "ccf" in work.columns \
+        else pd.Series(np.nan, index=work.index)
+    # Where no CCF is carried, imply it from the borrower's own EAD rather
+    # than assuming a number the book never stated.
+    implied = ((work["ead_stressed"] - drawn) / undrawn.replace(0, np.nan)).clip(0.0, 1.0)
+    current = base.fillna(implied).fillna(0.0)
+
+    if shock.unit == sc.RELATIVE:
+        moved = current * (1.0 + shock.magnitude / 100.0)
+    elif shock.unit == sc.ABSOLUTE_PP:
+        moved = current + shock.magnitude / 100.0
+    elif shock.unit == sc.BASIS_POINTS:
+        moved = current + shock.magnitude / 10_000.0
+    else:
+        moved = current
+    moved = moved.clip(lower=0.0, upper=1.0)
+    work["ccf_stressed"] = moved
+    before = float(work["ead_stressed"].sum())
+    work["ead_stressed"] = (drawn + moved * undrawn).clip(lower=0.0)
+    after = float(work["ead_stressed"].sum())
+    steps.append({
+        "step": f"CCF {shock.describe()}",
+        "detail": (f"The conversion factor moved from a weighted "
+                   f"{float((current * undrawn).sum() / undrawn.sum()) * 100 if undrawn.sum() else 0:.1f}% "
+                   f"to {float((moved * undrawn).sum() / undrawn.sum()) * 100 if undrawn.sum() else 0:.1f}%. "
+                   f"EAD follows through drawn + CCF x undrawn, moving "
+                   f"{(after / before - 1) * 100 if before else 0:+.2f}% — not "
+                   "by the CCF's own percentage."),
+        "affected": int((moved != current).sum()),
+    })
+
+
+def _apply_haircut(work: pd.DataFrame, shock: sc.Shock,
+                   assumptions: sc.Assumptions,
+                   steps: list[dict[str, Any]]) -> None:
+    """Move the haircut on collateral, and let LGD follow.
+
+    A haircut is applied to the collateral value, so a rise in the haircut is
+    a fall in the covered share, which raises loss given default on exactly
+    the secured part of the exposure and leaves the unsecured part alone.
+    """
+    if not assumptions.collateral_to_lgd or "collateral_market_value" not in work.columns:
+        return
+    exposure = work["ead_stressed"].replace(0, np.nan)
+    collateral = pd.to_numeric(work["collateral_market_value"], errors="coerce").fillna(0.0)
+    secured_share = (collateral / exposure).clip(0, 1).fillna(0.0)
+    if shock.unit == sc.RELATIVE:
+        change = secured_share * (shock.magnitude / 100.0)
+    else:
+        change = secured_share * (shock.magnitude / 100.0)
+    before = float(work["lgd_stressed"].mean())
+    work["lgd_stressed"] = (work["lgd_stressed"] + (change * 100.0)).clip(0.0, 95.0)
+    steps.append({
+        "step": f"Haircut {shock.describe()}",
+        "detail": ("The haircut moved, so the covered share of each secured "
+                   "exposure moved with it. LGD went from an average "
+                   f"{before:.2f}% to {float(work['lgd_stressed'].mean()):.2f}%. "
+                   "Unsecured exposure is untouched."),
+        "affected": int((secured_share > 0).sum()),
+    })
+
+
+def _apply_stage(work: pd.DataFrame, shock: sc.Shock,
+                 steps: list[dict[str, Any]]) -> None:
+    """Move a share of one Stage into another, because somebody asked.
+
+    This is a DIRECT migration — "move half the Stage 1 BBB borrowers to Stage
+    2" — as distinct from a Stage change triggered by a PD move. Both exist:
+    one is an assumption about staging, the other a consequence of a shock.
+
+    Who moves is decided by PD, worst first for a deterioration and best first
+    for a cure, rather than at random. A random half would make the same
+    instruction produce a different answer every time it was run, and "the
+    weakest names deteriorate first" is the assumption a credit officer would
+    make if asked. It is stated in the step so nobody has to guess.
+    """
+    target = str(shock.target or "1->2")
+    try:
+        start, end = (int(x) for x in target.replace(">", "").split("-")[:2]) \
+            if "-" in target else (int(target[0]), int(target[-1]))
+    except (ValueError, IndexError):
+        raise ValueError(
+            f"'{shock.target}' is not a Stage movement this engine reads. "
+            "Use a form like '1->2', '2->3', '2->1' or '3->2'.") from None
+    if start not in (1, 2, 3) or end not in (1, 2, 3) or start == end:
+        raise ValueError(
+            f"Stage {start} to Stage {end} is not a movement this engine "
+            "applies. Stages are 1, 2 and 3, and a movement needs two "
+            "different ones.")
+
+    pool = work.index[work["stage_stressed_direct"] == start] \
+        if "stage_stressed_direct" in work.columns \
+        else work.index[work["stage_baseline"] == start]
+    if not len(pool):
+        steps.append({"step": f"Stage {start} to Stage {end}",
+                      "detail": f"No borrower is in Stage {start}, so nothing moved.",
+                      "affected": 0})
+        return
+
+    share = float(shock.magnitude)
+    if shock.unit in (sc.RELATIVE, sc.ABSOLUTE_PP):
+        wanted = int(round(len(pool) * min(max(share, 0.0), 100.0) / 100.0))
+    else:
+        wanted = int(min(max(share, 0), len(pool)))
+
+    worsening = end > start
+    ranked = work.loc[pool, "pd_stressed"].sort_values(ascending=not worsening)
+    chosen = ranked.index[:wanted]
+    if "stage_stressed_direct" not in work.columns:
+        work["stage_stressed_direct"] = work["stage_baseline"]
+    work.loc[chosen, "stage_stressed_direct"] = end
+
+    steps.append({
+        "step": f"Stage {start} to Stage {end}",
+        "detail": (f"{len(chosen):,} of {len(pool):,} Stage {start} borrowers "
+                   f"moved to Stage {end} — "
+                   f"{'the highest' if worsening else 'the lowest'}-PD names "
+                   "first, so the same instruction always selects the same "
+                   "borrowers. Their ECL is now measured on "
+                   f"{'lifetime' if end >= 2 else 'twelve-month'} PD."),
+        "affected": int(len(chosen)),
+    })
+
+
+def _observed_level(variable: Any) -> float | None:
+    """The latest published level of a macro variable, where the book has one.
+
+    Needed only to size a RELATIVE move of a variable quoted in points —
+    "increase unemployment by 30%" is meaningless without knowing it is at 5%.
+    Returns None rather than a guess when the book does not publish it, and the
+    caller refuses instead of inventing a level.
+    """
+    if not getattr(variable, "column", ""):
+        return None
+    try:
+        from backend.whatif import domain as wf_domain
+        from backend.whatif import macro as mc
+
+        return mc.levels(wf_domain.macro()).get(variable.key)
+    except Exception:  # noqa: BLE001 - an unbuilt lake is not this function's job
+        return None
+
+
 def _apply_macro(work: pd.DataFrame, shock: sc.Shock,
+                 steps: list[dict[str, Any]], rows: list[dict[str, Any]],
+                 sensitivity: Any = None) -> None:
+    """Move a macro variable, and let PD and LGD follow its declared sensitivity.
+
+    The governed ten (`backend.whatif.macro`) are tried first: those are the
+    CreditProbe V1 variables the product configures, each with a declared PD
+    multiplier and LGD change per adverse unit. The older eight-variable
+    sensitivity matrix is still consulted for targets only it carries, so
+    scenarios written against it keep working.
+
+    Nothing here is fitted by default. The sensitivities are declared
+    assumptions and the step says so, because a screen that showed
+    "unemployment +1pp raises PD by 12%" without saying where that came from
+    would invite a committee to believe a coefficient nobody measured.
+
+    `sensitivity` is the thread's own relationship where it set one — its own
+    estimate, or its own assumption. It applies HERE and nowhere else: the
+    governed matrix is untouched, and the step records whose relationship
+    produced the movement, because a figure computed on somebody's own
+    assumption must never be mistaken for one computed on the governed one.
+    """
+    from backend.whatif import macro as mc
+    from backend.whatif import macrolab as ml
+
+    governed = mc.variable(shock.target)
+    override = (sensitivity if (sensitivity is not None
+                                and getattr(sensitivity, "source", "") != ml.REFERENCE)
+                else None)
+    if governed is not None and override is not None:
+        unit = {sc.RELATIVE: mc.RELATIVE, sc.ABSOLUTE_PP: mc.ABSOLUTE_PP,
+                sc.BASIS_POINTS: mc.BASIS_POINTS}.get(shock.unit, mc.ABSOLUTE_PP)
+        level = None
+        if unit == mc.RELATIVE and governed.unit != "percent":
+            level = _observed_level(governed)
+        try:
+            units = governed.units_for(shock.magnitude, unit, level=level)
+        except mc.MacroError as e:
+            steps.append({"step": f"{governed.name} — not applied",
+                          "detail": str(e), "affected": 0})
+            return
+        factor = (float(override.pd_response) ** units
+                  if override.pd_response_kind == ml.MULTIPLIER
+                  else 1.0 + (override.pd_response * units) / 100.0)
+        lgd_delta = (override.lgd_response * units
+                     if override.lgd_response_kind == ml.ABSOLUTE_PP else 0.0)
+        work["pd_stressed"] = mc.apply_pd(work["pd_stressed"], factor)
+        if lgd_delta:
+            work["lgd_stressed"] = mc.apply_lgd(work["lgd_stressed"], lgd_delta)
+        rows.append({"key": governed.key, "name": governed.name,
+                     "units": round(units, 4), "pd_factor": round(factor, 6),
+                     "lgd_delta_pp": round(lgd_delta, 4),
+                     "source": override.source,
+                     "source_label": override.label})
+        steps.append({
+            "step": f"{governed.name} — {override.label.lower()}",
+            "detail": (
+                f"{units:+.2f} adverse unit(s) of {governed.name}, applied "
+                f"through {override.describe()}. This is NOT the governed "
+                f"CreditProbe reference sensitivity (v{mc.MACRO_VERSION}), "
+                "which is unchanged: this relationship applies to this thread "
+                "only, and every figure it produced carries its label."),
+            "affected": int(len(work)),
+        })
+        return
+
+    if governed is not None:
+        unit = {sc.RELATIVE: mc.RELATIVE, sc.ABSOLUTE_PP: mc.ABSOLUTE_PP,
+                sc.BASIS_POINTS: mc.BASIS_POINTS}.get(shock.unit, mc.ABSOLUTE_PP)
+        level = None
+        if unit == mc.RELATIVE and governed.unit != "percent":
+            level = _observed_level(governed)
+        try:
+            applied = mc.applied(governed.key, shock.magnitude, unit, level=level)
+        except mc.MacroError as e:
+            steps.append({"step": f"{governed.name} — not applied",
+                          "detail": str(e), "affected": 0})
+            return
+        work["pd_stressed"] = mc.apply_pd(work["pd_stressed"], applied.pd_factor)
+        if applied.lgd_delta_pp:
+            work["lgd_stressed"] = mc.apply_lgd(work["lgd_stressed"],
+                                                applied.lgd_delta_pp)
+        rows.append(applied.to_dict())
+        steps.append({
+            "step": governed.name,
+            "detail": (f"{applied.describe()}. This is a declared CreditProbe "
+                       f"What-If sensitivity (v{mc.MACRO_VERSION}), not an "
+                       "IFRS 9 coefficient and not an estimate fitted to this "
+                       "book."),
+            "affected": int(len(work)),
+        })
+        return
+
+    _apply_macro_legacy(work, shock, steps, rows)
+
+
+def _apply_macro_legacy(work: pd.DataFrame, shock: sc.Shock,
                  steps: list[dict[str, Any]],
                  rows: list[dict[str, Any]]) -> None:
     """A macro shock, through the versioned sensitivity matrix."""
@@ -385,17 +750,38 @@ def _apply_macro(work: pd.DataFrame, shock: sc.Shock,
 # ------------------------------------------------------------------- the run
 
 
-def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Result:
-    """Run one scenario over the book, borrower by borrower."""
-    frame, settled = _read(period or scenario.period, source)
+def run(scenario: sc.Scenario, *, period: str = "", source: Any = None,
+        staging: Any = None,
+        sensitivities: dict[str, Any] | None = None) -> Result:
+    """Run one scenario over the book, borrower by borrower.
+
+    `staging` is the thread's staging criteria. Left as None it is the
+    governed corporate policy, which is what produced the reported book, so an
+    unmodified thread reproduces it exactly.
+
+    `sensitivities` are the thread's own macro relationships, keyed by variable.
+    Left empty every macro shock runs on the governed reference matrix. A
+    thread-level relationship applies here and nowhere else — the matrix is
+    never edited by a scenario.
+    """
+    frame, settled, schema_notes = _read(period or scenario.period, source)
     work = select(frame, scenario.population)
     steps: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
+    # Anything the book does not carry is said once, as a NOTE about the
+    # installation rather than a warning about this result — it is discovered
+    # before a figure appears, not when a shock quietly fails to apply, and it
+    # costs exactly the capability it names.
     warnings: list[str] = []
+    notes: list[str] = list(schema_notes)
 
     if work.empty:
-        raise ValueError(
-            f"No borrowers match {scenario.population.describe()} in {settled}.")
+        # A different thing from a broken scenario, and it reads differently:
+        # the filter was understood and applied, and nobody met it.
+        raise EmptyPopulation(
+            f"No borrowers match {scenario.population.describe()} in "
+            f"{settled}. The filter was applied as stated — widen it, or "
+            "check the period.")
 
     _numeric(work, ("pd_12m", "pd_lifetime", "lgd", "ead", "final_ecl",
                     "management_overlay", "current_dpd", "stage",
@@ -422,26 +808,70 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
     })
 
     # ---- baseline, on the governed measurement basis
+    #
+    # The lifetime PD reverts towards the GRADE's through-the-cycle level, so
+    # the transform needs that level as an anchor. Where the book does not
+    # publish one the borrower is its own anchor, which is the constant-hazard
+    # case — the same figure the engine produced before the anchor existed.
     work["stage_baseline"] = pd.to_numeric(work["stage"], errors="coerce").fillna(1).astype(int)
+    if "ttc_pd_pct" in work.columns:
+        anchor = pd.to_numeric(work["ttc_pd_pct"], errors="coerce")
+        work["ttc_baseline"] = anchor.where(anchor > 0).fillna(work["pd_12m"])
+    else:
+        work["ttc_baseline"] = work["pd_12m"]
+    # BOTH sides of the ratio go through the same transform. Dividing a
+    # stressed figure computed one way by a reported figure computed another
+    # produced a "PD effect" that was a difference between two definitions of
+    # lifetime PD rather than a fact about the borrower, and it did not
+    # reconcile to the movement it was explaining.
+    work["pd_lifetime_baseline"] = policy.lifetime_pd(
+        work["pd_12m"] / 100.0, work["ttc_baseline"] / 100.0) * 100.0
     measured_base = policy.measured_ecl(
-        work["stage_baseline"], work["pd_12m"], work["lgd"], work["ead"])
+        work["stage_baseline"], work["pd_12m"], work["lgd"], work["ead"],
+        lifetime_pd_pct=work["pd_lifetime_baseline"])
 
     # ---- the stressed position starts as a copy of the baseline
     work["pd_stressed"] = work["pd_12m"]
     work["lgd_stressed"] = work["lgd"]
     work["ead_stressed"] = work["ead"]
+    work["ttc_stressed"] = work["ttc_baseline"]
     for measure in _FINANCIAL_COLUMNS:
         if measure in work.columns:
             work[f"{measure}_stressed"] = work[measure]
 
     # ---- apply every shock, in a fixed order so a scenario is reproducible
-    order = (sc.RATING, sc.MACRO, sc.FINANCIAL, sc.PD, sc.LGD, sc.COLLATERAL, sc.EAD)
+    #
+    # Each shock's effect on the three risk parameters is recorded as it is
+    # applied, so the ECL movement can be attributed back to the driver that
+    # caused it. The record is a BEFORE and AFTER per driver, which telescopes:
+    # the drivers' factors multiply back to the whole movement exactly, and
+    # nothing has to be inferred from the order they ran in.
+    order = (sc.RATING, sc.MACRO, sc.FINANCIAL, sc.STAGE, sc.PD, sc.LGD,
+             sc.CCF, sc.COLLATERAL, sc.HAIRCUT, sc.EAD)
+    tracked: dict[str, dict[str, np.ndarray]] = {}
+
+    _TRACKED_COLUMNS = {"pd": "pd_stressed", "lgd": "lgd_stressed",
+                        "ead": "ead_stressed", "ttc": "ttc_stressed"}
+
+    def _snapshot() -> dict[str, np.ndarray]:
+        return {name: work[column].to_numpy(dtype=float, copy=True)
+                for name, column in _TRACKED_COLUMNS.items()}
+
+    def _record(driver: str, before: dict[str, np.ndarray]) -> None:
+        entry = tracked.setdefault(driver, {})
+        for name, opening in before.items():
+            entry.setdefault(f"{name}_before", opening)
+            entry[f"{name}_after"] = work[
+                _TRACKED_COLUMNS[name]].to_numpy(dtype=float, copy=True)
+
     for kind in order:
         for shock in scenario.shocks_of(kind):
+            _before = _snapshot()
             if kind == sc.RATING:
                 _apply_rating(work, int(shock.magnitude), steps)
             elif kind == sc.MACRO:
-                _apply_macro(work, shock, steps, rows)
+                _apply_macro(work, shock, steps, rows,
+                             sensitivity=(sensitivities or {}).get(shock.target))
             elif kind == sc.FINANCIAL:
                 _apply_financial(work, shock, steps)
             elif kind == sc.PD:
@@ -450,20 +880,65 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
                 _apply_lgd(work, shock, steps)
             elif kind == sc.COLLATERAL:
                 _apply_collateral(work, shock, scenario.assumptions, steps)
+            elif kind == sc.CCF:
+                _apply_ccf(work, shock, steps)
+            elif kind == sc.HAIRCUT:
+                _apply_haircut(work, shock, scenario.assumptions, steps)
+            elif kind == sc.STAGE:
+                _apply_stage(work, shock, steps)
             elif kind == sc.EAD:
                 _apply_ead(work, shock, steps)
+            _record(DRIVER_OF.get(kind, kind), _before)
 
-    work["pd_stressed"] = work["pd_stressed"].clip(lower=0.0, upper=99.0)
+    # The clamps are a driver too, and a named one. A shock that ran into the
+    # policy limits did not have the effect it asked for, and attributing the
+    # difference to the shock would overstate it.
+    #
+    # The PD ceiling of 99% exists so a PERFORMING borrower is never modelled
+    # as certain to default. It must not touch a borrower that already has:
+    # a defaulted exposure carries 100%, and clipping it to 99 would restate
+    # the reported book — asserting a one-in-a-hundred chance that an event
+    # already observed did not occur — on every scenario, including one that
+    # never mentioned PD.
+    _before = _snapshot()
+    ceiling = np.where(
+        pd.to_numeric(work.get("stage_baseline", work.get("stage")),
+                      errors="coerce").fillna(1) >= 3,
+        rs.DEFAULT_PD_PCT, 99.0)
+    work["pd_stressed"] = np.clip(
+        pd.to_numeric(work["pd_stressed"], errors="coerce").fillna(0.0),
+        0.0, ceiling)
     work["lgd_stressed"] = work["lgd_stressed"].clip(lower=0.0, upper=95.0)
     work["ead_stressed"] = work["ead_stressed"].clip(lower=0.0)
+    _record(DRIVER_LIMITS, _before)
 
-    # ---- re-stage against the STRESSED PD, using the governed triggers
-    if scenario.assumptions.reevaluate_sicr:
-        stressed_stage = policy.stage_of(
-            work["pd_stressed"], work["pd_at_origination_pct"],
-            work["current_dpd"], work["default_flag"])
-    else:
-        stressed_stage = work["stage_baseline"].to_numpy()
+    # ---- re-stage against the STRESSED PD, using the thread's criteria
+    #
+    # The criteria default to the governed corporate policy, so a thread that
+    # has changed nothing reproduces the reported book. A thread that has
+    # edited them is running its own assumption, and says so on every result.
+    work["pd_12m_baseline"] = work["pd_12m"]
+    # Two rule sets, and which one applies to which column is the point.
+    #
+    #   stage_baseline  — the REPORTED book's own Stage column, staged by the
+    #                     governed policy. Never recomputed here, so no What-If
+    #                     rule can move a name in it.
+    #   stage_stressed  — staged by the THREAD's rule set, which defaults to
+    #                     the governed three plus Rule A and Rule B.
+    #
+    # A caller that passes no criteria gets `reported()`, which reproduces
+    # `policy.stage_of` exactly — one code path, proven equivalent by test,
+    # rather than two implementations that agree by inspection.
+    criteria = staging if staging is not None else st.reported()
+    # The criteria read `pd_12m`, and the thing being staged is the STRESSED
+    # PD. Assigning over a copy rather than renaming, because a rename would
+    # leave two columns called `pd_12m` and the rule would read whichever came
+    # first.
+    evaluated = work.copy()
+    evaluated["pd_12m"] = work["pd_stressed"]
+    stressed_stage = (criteria.stage(evaluated)
+                      if scenario.assumptions.reevaluate_sicr
+                      else work["stage_baseline"].to_numpy())
 
     if scenario.assumptions.rating_deterioration_sicr and "notches_moved" in work.columns:
         deteriorated = (work["notches_moved"]
@@ -471,28 +946,61 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
         stressed_stage = np.where((stressed_stage == 1) & deteriorated, 2,
                                   stressed_stage)
 
-    # A scenario never improves a Stage. Curing is a credit event and a
-    # negotiation, not an arithmetic consequence of a shock.
-    work["stage_stressed"] = np.maximum(stressed_stage,
-                                        work["stage_baseline"].to_numpy())
-    moved = int((work["stage_stressed"] > work["stage_baseline"]).sum())
+    # A SHOCK never improves a Stage. Curing is a credit event and a
+    # negotiation, not an arithmetic consequence of a PD move.
+    stressed_stage = np.maximum(stressed_stage, work["stage_baseline"].to_numpy())
+
+    # A Stage migration somebody ASKED for is a different thing: the person is
+    # asserting the movement rather than deriving it, and the product supports
+    # curing as well as deterioration because a book cures. So a direct
+    # migration overrides the derived Stage in both directions.
+    held = 0
+    if "stage_stressed_direct" in work.columns:
+        asked = pd.to_numeric(work["stage_stressed_direct"],
+                              errors="coerce").fillna(0).astype(int).to_numpy()
+        requested = np.where(asked > 0, asked, stressed_stage)
+        # The default presumption is not a staging opinion. A borrower with a
+        # recorded default, or 90+ days past due, stays in Stage 3 whatever
+        # the instruction said, and the instruction is told how many.
+        presumed = (work["default_flag"].to_numpy()
+                    | (pd.to_numeric(work["current_dpd"], errors="coerce")
+                       .fillna(0) >= policy.DEFAULT_DPD_DAYS).to_numpy())
+        held = int(((requested < 3) & presumed).sum())
+        stressed_stage = np.where(presumed, 3, requested)
+        if held:
+            warnings.append(
+                f"{held:,} borrower(s) were asked to leave Stage 3 but carry a "
+                "recorded default or 90+ days past due, so they stayed. The "
+                "default presumption is not a staging assumption.")
+
+    work["stage_stressed"] = stressed_stage
+    moved = int((work["stage_stressed"] != work["stage_baseline"]).sum())
+    if scenario.assumptions.reevaluate_sicr:
+        applied = "; ".join(rule.describe() for rule in criteria.enabled)
+        detail = (
+            f"The reported book was staged by the governed corporate policy "
+            f"({policy.POLICY_VERSION}) and that column is untouched. The "
+            f"SCENARIO was staged by the {criteria.label.lower()} "
+            f"({criteria.version}), which fires on "
+            f"{'any' if criteria.combination == st.ANY else 'every'} of: "
+            f"{applied}.")
+    else:
+        detail = "Staging was held at the reported Stage."
     steps.append({
         "step": "SICR re-evaluation",
-        "detail": ("The governed SICR triggers were re-read against the "
-                   f"stressed PD ({policy.POLICY_VERSION}): PD at least "
-                   f"{policy.SICR_PD_RATIO:g}x origination and "
-                   f"{policy.SICR_PD_ABSOLUTE:.2f}pp higher, PD at or above "
-                   f"{policy.SICR_ABSOLUTE_PD:.0f}%, or "
-                   f"{policy.SICR_DPD_DAYS}+ days past due."
-                   if scenario.assumptions.reevaluate_sicr
-                   else "Staging was held at the reported Stage."),
+        "detail": detail,
         "affected": moved,
+        "reported_staging_version": st.reported().version,
+        "whatif_staging_version": criteria.version,
     })
 
     # ---- re-measure, and carry onto the reported basis
+    work["pd_lifetime_stressed"] = policy.lifetime_pd(
+        work["pd_stressed"] / 100.0, work["ttc_stressed"] / 100.0) * 100.0
     measured_stress = policy.measured_ecl(
         work["stage_stressed"], work["pd_stressed"],
-        work["lgd_stressed"], work["ead_stressed"])
+        work["lgd_stressed"], work["ead_stressed"],
+        lifetime_pd_pct=work["pd_lifetime_stressed"])
     ratio = np.where(measured_base > 0, measured_stress / np.where(
         measured_base > 0, measured_base, 1.0), 1.0)
     work["ecl_baseline"] = work["final_ecl"]
@@ -501,6 +1009,33 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
     # is the measured one, which is the only figure available and is honest.
     zero_base = work["final_ecl"] <= 0
     work.loc[zero_base, "ecl_stressed"] = measured_stress[zero_base.to_numpy()]
+    # An expected loss above the exposure is not conservatism, it is an
+    # arithmetic error, and the book applies the same bound to itself. Carrying
+    # the REPORTED figure onto a stressed basis by a ratio can breach it where
+    # the shock is extreme: a ten-thousand-per-cent PD move with a 95-point LGD
+    # uplift provisioned 1,320 borrowers above what they owe.
+    #
+    # The bound is not folded into a driver. The attribution explains the
+    # MEASUREMENT movement, and the part the cap removed is reported on its own
+    # line — a scenario that ran into a policy limit did not have the effect it
+    # asked for, and saying so is the difference between a bound and a fudge.
+    uncapped = work["ecl_stressed"].to_numpy(dtype=float, copy=True)
+    work["ecl_stressed"] = policy.bounded(uncapped, work["ead_stressed"])
+    capped = int((uncapped - work["ecl_stressed"].to_numpy() > 1e-9).sum())
+    if capped:
+        removed = float((uncapped - work["ecl_stressed"].to_numpy()).sum())
+        warnings.append(
+            f"{capped:,} borrower(s) were measured above their own exposure "
+            f"under this scenario and were bounded by it, removing "
+            f"{removed:,.1f} from the What-If figure. An expected loss larger "
+            "than the amount at risk is not a loss.")
+        steps.append({
+            "step": "Exposure cap",
+            "detail": (f"{capped:,} borrower(s) reached an expected credit "
+                       "loss above their exposure at default and were bounded "
+                       "by it, as the reported book bounds itself."),
+            "affected": capped,
+        })
     work["ecl_increase"] = work["ecl_stressed"] - work["ecl_baseline"]
     work["ecl_increase_pct"] = np.where(
         work["ecl_baseline"] > 0,
@@ -518,7 +1053,8 @@ def run(scenario: sc.Scenario, *, period: str = "", source: Any = None) -> Resul
     work["primary_driver"] = _drivers(work, scenario)
     result = Result(scenario=scenario, period=settled,
                     borrowers=_present(work), steps=steps,
-                    sensitivity_rows=rows, warnings=warnings)
+                    sensitivity_rows=rows, warnings=warnings, notes=notes,
+                    frame=work.copy(), staging=criteria, tracked=tracked)
     result.summary = _summarise(work, scenario, settled)
     result.by_sector = _group(work, "sector")
     result.by_rating = _group(work, "internal_rating")

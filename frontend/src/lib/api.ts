@@ -31,6 +31,37 @@ const API_PREFIX = "/api/v1";
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 /**
+ * How long a call is allowed to take, by what it actually does.
+ *
+ * The default above is twenty seconds, which is right for an endpoint that
+ * reads a row and returns it. It was wrong for two whole classes of What-If
+ * call, and being wrong about it produced the worst error message in the
+ * product: the client aborted, `fetch` threw an `AbortError`, and the reading
+ * became "The CreditProbe backend did not answer" — while the backend was
+ * answering, several minutes later, to nobody.
+ *
+ * That failure is intermittent by nature. `/api/v1/health` returns in
+ * milliseconds and stays green throughout, so every check a person makes says
+ * the backend is fine, which is exactly what a UAT tester reported.
+ *
+ * `LAKE_TIMEOUT_MS` covers a read that scans the analytical lake — a rating
+ * profile, a migration matrix, a parameter distribution over 3,241 borrowers
+ * across sixteen quarters. Warm these return in under a second; cold, with
+ * DuckDB opening the Parquet partitions for the first time after a restart,
+ * they do not.
+ *
+ * `MODEL_TIMEOUT_MS` covers a call that may consult the language model. It is
+ * derived from the server's own budget rather than guessed: the provider
+ * allows `TIMEOUT_SECONDS = 60` per attempt and `MAX_ATTEMPTS = 3`, with a
+ * 0.4s and 0.8s backoff between them, so a single structured() call can
+ * legitimately take 181 seconds. A client budget below the server's does not
+ * protect anyone — it just guarantees that the slowest requests are reported
+ * as an outage.
+ */
+const LAKE_TIMEOUT_MS = 60_000;
+const MODEL_TIMEOUT_MS = 190_000;
+
+/**
  * The caller's role, sent on every request.
  *
  * The backend has no login yet and reads the role from this header (see
@@ -2875,6 +2906,9 @@ async function download(
   path: string,
   fallback: string,
   timeoutMs = 180_000,
+  /** A body makes this a POST. A What-If has no run id in a URL — it is a
+   *  scenario state, which is far too large to put in a query string. */
+  body?: unknown,
 ): Promise<DownloadedFile> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -2884,7 +2918,12 @@ async function download(
     response = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
       signal: controller.signal,
       credentials: "include",
-      headers: { "X-IPM-Role": activeRole },
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        "X-IPM-Role": activeRole,
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (error) {
     const aborted =
@@ -2902,15 +2941,21 @@ async function download(
 
   if (!response.ok) {
     let code = "http_error";
-    let message = `The workbook could not be generated (status ${response.status}).`;
-    let detail: Record<string, unknown> = {};
+    // The status code names how the message travelled, not what went wrong.
+    // A credit officer reading "(status 422)" learns nothing they can act on,
+    // and the server writes a sentence for every status it returns — this is
+    // only what stands when even that could not be read.
+    let message =
+      "The detailed workbook could not be generated. Nothing was downloaded, "
+      + "and the result on screen is unchanged.";
+    let detail: Record<string, unknown> = { status: response.status };
     try {
       const body = await response.json();
       const payload =
         body.detail && typeof body.detail === "object" ? body.detail : body;
       code = payload.error ?? code;
       message = payload.message ?? message;
-      detail = payload;
+      detail = { status: response.status, ...payload };
     } catch {
       /* a non-JSON error body: keep the fallback message */
     }
@@ -5181,6 +5226,1199 @@ export interface Preferences {
   max_length: number;
 }
 
+
+// ===================================================== What-If Analysis types
+//
+// Mirrored by hand from the Pydantic responses, as everything else in this
+// file is. The scenario STATE is the one shape that travels both ways: the
+// browser owns it, edits it, and posts it back on every run.
+
+export interface WhatIfPeriods {
+  periods: string[];
+  latest: string | null;
+  earliest: string | null;
+  count: number;
+  domain: string;
+  grain: string;
+  aliases: { latest: string | null; earliest: string | null; previous: string | null };
+}
+
+export interface WhatIfJourney {
+  key: string;
+  title: string;
+  summary: string;
+  opens_with: string;
+}
+
+export interface WhatIfCard {
+  id: number;
+  name: string;
+  status: string;
+  version: string;
+  severity: string;
+  created_at: string;
+  last_opened_at?: string | null;
+  period: string;
+  dataset: string;
+  scenario: string;
+  scenario_kinds: string[];
+  population_count?: number | null;
+  baseline_ecl?: number | null;
+  whatif_ecl?: number | null;
+  absolute_change?: number | null;
+  percentage_change?: number | null;
+  ecl_methodology?: string | null;
+  ecl_methodology_version?: string | null;
+  staging_version?: string | null;
+  currency: string;
+}
+
+export interface WhatIfPersistence {
+  version: string;
+  available: boolean;
+  table: string;
+  migration_required: boolean;
+  why_no_migration: string;
+  statuses: string[];
+  recent_limit: number;
+  scoping: string;
+  unavailable_message: string;
+}
+
+export interface WhatIfStagingRule {
+  key: string;
+  name: string;
+  kind: string;
+  threshold: number;
+  floor: number;
+  enabled: boolean;
+  governed: boolean;
+  basis: string;
+  rule: string;
+  note: string;
+}
+
+export interface WhatIfStagingKind {
+  kind: string;
+  label: string;
+  threshold_means: string;
+  threshold_unit: string;
+  has_floor: boolean;
+  floor_means: string;
+  needs: string;
+}
+
+export interface WhatIfStaging {
+  owner: string;
+  policy_version: string;
+  version: string;
+  fingerprint: string;
+  is_default: boolean;
+  combination: string;
+  note: string;
+  scope: string;
+  label: string;
+  scope_note: string;
+  editable: boolean;
+  combination_note: string;
+  rules: WhatIfStagingRule[];
+  default_presumption: string;
+  measurement: Record<string, string>;
+  /** Present on the /staging responses: the two rule sets, side by side. */
+  reported?: WhatIfStaging;
+  whatif?: WhatIfStaging;
+  editable_fields?: string[];
+  combinations?: string[];
+  kinds?: string[];
+  kind_catalogue?: WhatIfStagingKind[];
+}
+
+export interface WhatIfStagingRuleIn {
+  key: string;
+  threshold?: number;
+  floor?: number;
+  enabled?: boolean;
+  name?: string;
+  kind?: string;
+  note?: string;
+  remove?: boolean;
+}
+
+export interface WhatIfStagingIn {
+  rules: WhatIfStagingRuleIn[];
+  combination?: string;
+  note?: string;
+}
+
+export interface WhatIfGateOption {
+  value: string;
+  label: string;
+  available: boolean;
+  summary: string;
+  detail?: string;
+  version?: string;
+  unavailable_because?: string;
+}
+
+export interface WhatIfGate {
+  gate: string;
+  question: string;
+  why: string;
+  options: WhatIfGateOption[];
+  active: string | null;
+  active_label: string | null;
+  free_text: boolean;
+  note: string;
+}
+
+export interface WhatIfShockState {
+  kind: string;
+  magnitude: number;
+  unit: string;
+  target?: string;
+  description?: string;
+}
+
+export interface WhatIfPopulationState {
+  sectors: string[];
+  rating_bands: string[];
+  stages: number[];
+  borrower_ids: string[];
+  watchlist_only: boolean;
+  description?: string;
+}
+
+export interface WhatIfStepState {
+  step_id: string;
+  kind: string;
+  label?: string;
+  instruction: string;
+  interpreted: string;
+  enabled: boolean;
+  created_at?: string;
+  shocks: WhatIfShockState[];
+  population: WhatIfPopulationState;
+  detail: Record<string, unknown>;
+}
+
+export interface WhatIfState {
+  state_version?: string;
+  thread_id?: string;
+  title?: string;
+  period: string;
+  is_baseline?: boolean;
+  steps: WhatIfStepState[];
+  active_steps?: number;
+  kinds?: string[];
+  staging?: WhatIfStaging | WhatIfStagingIn | null;
+  staging_version?: string;
+  methodology?: string | null;
+  model_version?: string | null;
+  macro_version?: string;
+  description?: string;
+  can_undo?: boolean;
+}
+
+/** One measure over one group of a quick analysis. */
+export interface WhatIfAnalysisCell {
+  value: number | null;
+  /** Present on a rate: the exposure-weighted mean beside the plain one. */
+  weighted?: number | null;
+  share_pct?: number;
+  note?: string;
+}
+
+export interface WhatIfAnalysisRow {
+  label: string;
+  cells: Record<string, WhatIfAnalysisCell>;
+  ordinal?: number;
+  performing?: boolean;
+  by_stage?: { label: string; cells: Record<string, WhatIfAnalysisCell> }[];
+}
+
+export interface WhatIfAnalysisBorrower {
+  borrower_id: string;
+  name: string;
+  sector: string;
+  segment: string;
+  rating: string;
+  rating_ordinal: number;
+  stage: number;
+  exposure: number;
+  ecl: number;
+  applicable_pd: number;
+  lgd: number;
+  value: number;
+}
+
+export interface WhatIfAnalysisOption {
+  severity: string;
+  magnitude: number;
+  unit: string;
+  basis: string;
+  because: string;
+  /** The sentence that would configure this shock, ready to be sent back. */
+  instruction: string;
+}
+
+/**
+ * A table CreditProbe computed from the reported book, inside a thread, before
+ * anything was shocked — or, for a "what would be a sensible shock?" question,
+ * the magnitudes the book's own history supports.
+ *
+ * `request` travels back on the next message so a follow-up like "only show
+ * BBB- and weaker" has something to narrow. Without it every follow-up is a
+ * whole question again.
+ */
+export interface WhatIfAnalysis {
+  kind: "breakdown" | "borrowers" | "suggestion";
+  version: string;
+  period: string;
+  currency: string;
+  grain?: string;
+  dimension?: string;
+  dimension_label?: string;
+  columns?: { key: string; label: string; unit: string; kind: string }[];
+  rows?: WhatIfAnalysisRow[] & WhatIfAnalysisBorrower[];
+  total?: WhatIfAnalysisRow;
+  by_stage?: boolean;
+  borrowers: number;
+  population: string;
+  request: Record<string, unknown>;
+  notes: string[];
+  measurement?: string;
+  answer?: {
+    label: string;
+    metric_label: string;
+    value: number | null;
+    unit: string;
+    basis: string;
+    sentence: string;
+  };
+  distribution?: Record<string, Record<string, number | null>>;
+  ordered_by?: { key: string; label: string; unit: string; descending: boolean };
+  shown?: number;
+  concentration_pct?: number;
+  /** Suggestion only. */
+  measure?: string;
+  measure_label?: string;
+  exposure?: number;
+  current?: WhatIfAnalysisCell;
+  history?: {
+    observations: number;
+    quarters: number;
+    quarter_on_quarter: Record<string, number>;
+    year_on_year: Record<string, number>;
+  };
+  options?: WhatIfAnalysisOption[];
+  question?: string;
+  measured_not_chosen?: string;
+  interpretation?: WhatIfInterpretation;
+}
+
+export interface WhatIfInterpretResult {
+  understood: boolean;
+  opens_whatif: boolean;
+  informational: boolean;
+  severity?: string;
+  message?: string;
+  restatement?: string;
+  step?: WhatIfStepState;
+  objective?: string;
+  notes: string[];
+  unread: string[];
+  state: WhatIfState;
+  /** What kind of message this was. Only "modify" may change the scenario. */
+  intent?: WhatIfIntent;
+  changes_state?: boolean;
+  reading?: WhatIfReading;
+  /** Every filter the instruction carried, restated so a population that
+   *  narrowed is visible before an ECL figure appears. */
+  filters?: string[];
+  /** The table this question asked for, computed rather than redirected to.
+   *  Present when the message was a question about the book. */
+  analysis?: WhatIfAnalysis;
+  answers_directly?: boolean;
+}
+
+export interface WhatIfExecuteIn {
+  state: WhatIfState;
+  methodology?: string;
+  instruction?: string;
+  limit?: number;
+}
+
+export interface WhatIfContext {
+  domain: string;
+  dataset: string;
+  period: string;
+  grain: string;
+  currency: string;
+  scenario: string;
+  steps: WhatIfStepState[];
+  population: string;
+  population_count: number;
+  staging_criteria: WhatIfStaging;
+  staging_version: string;
+  reported_staging?: WhatIfStaging;
+  reported_staging_version?: string;
+  whatif_staging?: WhatIfStaging;
+  whatif_staging_version?: string;
+  staging_note?: string;
+  ecl_methodology: string;
+  ecl_methodology_version: string;
+  /** The governed VALUE — "delta" or "ml". This is what travels on a request.
+   *  `ecl_methodology` beside it is display text and must never be sent where
+   *  a value belongs: "ML Model — XGBoost" is eighteen characters, and sending
+   *  it to the export failed a contract that allowed sixteen. */
+  methodology?: string;
+  model_version?: string;
+  methodology_stamp: string;
+  macro_version: string;
+  /** Macro relationships overridden FOR THIS THREAD. Empty when every
+   *  relationship used was the governed CreditProbe reference sensitivity. */
+  sensitivities?: WhatIfSensitivity[];
+  sensitivity_note?: string;
+  baseline_ecl: number;
+  whatif_ecl: number;
+  absolute_change: number;
+  percentage_change: number;
+}
+
+export interface WhatIfFactors {
+  pd_factor: number;
+  lgd_factor: number;
+  ead_factor: number;
+  stage_factor: number;
+  combined_factor: number;
+  rule: string;
+}
+
+export interface WhatIfRunResult {
+  needs_methodology: boolean;
+  gate?: WhatIfGate;
+  state: WhatIfState;
+  run_version?: string;
+  context?: WhatIfContext;
+  summary?: Record<string, number | string>;
+  factors?: WhatIfFactors | null;
+  steps?: { step: string; detail: string; affected: number }[];
+  stage_movement?: {
+    cells: { from: number; to: number; count: number; exposure: number;
+             ecl_before: number; ecl_after: number }[];
+    stages: { stage: number; count_before: number; count_after: number;
+              exposure_before: number; exposure_after: number;
+              ecl_before: number; ecl_after: number }[];
+    moved: number; deteriorated: number; cured: number;
+  };
+  rating_movement?: {
+    rows: { grade: string; count_before: number; count_after: number;
+            exposure_before: number; exposure_after: number;
+            ecl_before: number; ecl_after: number;
+            ecl_leaving: number; ecl_arriving: number;
+            left: number; arrived: number }[];
+    moved: number; note: string;
+  };
+  attribution?: WhatIfAttribution;
+  ml?: {
+    model_version?: string; rows?: number; mean_factor?: number;
+    fell_back_to_delta?: number; in_distribution?: boolean;
+    out_of_distribution?: { feature: string; message: string;
+                            trained_range: number[] }[];
+    warnings?: string[];
+  };
+  /** Wrong with THIS result: a shock that could not be applied, a rule the
+   *  book cannot answer. Shown prominently. */
+  warnings?: string[];
+  /** About the installation, not this result: an optional column absent, and
+   *  the one capability it costs. Shown quietly, and folded away. */
+  notes?: string[];
+  borrowers?: { columns: string[]; rows: Record<string, unknown>[];
+                shown: number; total: number };
+  by_sector?: Record<string, unknown>[];
+  by_rating?: Record<string, unknown>[];
+  by_stage?: Record<string, unknown>[];
+  confirmation?: string;
+  interpretation?: WhatIfInterpretation;
+  recent_id?: number | null;
+  /** The id this result is held under, so a follow-up question is answered
+   *  from THESE figures rather than from a second run. */
+  run_id?: string;
+}
+
+export interface WhatIfInterpretation {
+  /** Present on a reading of a RESULT. A reading of a quick analysis has no
+   *  materiality: nothing was shocked, so there is no movement to size. */
+  materiality?: string;
+  direction?: string;
+  headline: string;
+  /** The engine's own claims, where the reading is about a computed result.
+   *  A quick analysis has a table to point at instead. */
+  findings?: string[];
+  next_questions?: string[];
+  statement: string;
+  /** The written reading. Present when a model wrote it from the evidence
+   *  packet and every figure in the prose was found in that packet. Absent
+   *  when no provider was reachable, in which case `findings` stands alone. */
+  paragraphs?: string[];
+  /** The model that wrote it, or "composed from the result". */
+  written_by?: string;
+  /** True once the prose has been re-read against the evidence packet. */
+  verified?: boolean;
+  version?: string;
+  /** The only thing the writer was allowed to know. Shown on request, so a
+   *  reader can check any sentence against the figures behind it. */
+  evidence?: Record<string, unknown>;
+  used_evidence?: string[];
+}
+
+/**
+ * What a message in a What-If thread is asking for.
+ *
+ * Three families, and the boundary between them is the one that matters: the
+ * ASKS family reads nothing and prices nothing, the READS family reads the
+ * result or the book without touching either, and only the CHANGES family may
+ * move the scenario. A question can never change a number.
+ */
+export type WhatIfIntent =
+  // asks about the product
+  | "help"
+  | "data"
+  | "fields"
+  | "methodology"
+  | "plausibility"
+  | "macro_analysis"
+  // reads the result or the book
+  | "explain"
+  | "view"
+  | "comparison"
+  | "explainability"
+  | "export"
+  // changes the scenario
+  | "scenario"
+  | "modify"
+  | "macro_config";
+
+export interface WhatIfReading {
+  intent: WhatIfIntent;
+  dimension: string;
+  dimension_label: string;
+  stage: number;
+  topic: string;
+  wants_chart: boolean;
+  wants_table: boolean;
+  notes: string[];
+}
+
+export interface WhatIfBreakdown {
+  available: boolean;
+  why?: string;
+  dimension?: string;
+  rows?: Record<string, number | string>[];
+  total_change?: number;
+  groups?: number;
+}
+
+export interface WhatIfStageThree {
+  available: boolean;
+  why?: string;
+  moved?: boolean;
+  change?: number;
+  borrowers_before?: number;
+  borrowers_after?: number;
+  drivers?: { driver: string; borrowers: number; exposure: number;
+              effect: number }[];
+  note?: string;
+}
+
+export interface WhatIfInvestigation {
+  answered: boolean;
+  version?: string;
+  intent: WhatIfIntent;
+  changes_state?: boolean;
+  topic?: string;
+  question?: string;
+  state_changed?: boolean;
+  message?: string;
+  reading?: WhatIfReading;
+  notes?: string[];
+  headline?: { baseline_ecl: number; whatif_ecl: number; change: number;
+               change_pct: number; currency: string };
+  explanation?: string;
+  breakdown?: WhatIfBreakdown;
+  contributors?: { available: boolean; why?: string;
+                   rows?: Record<string, number | string>[];
+                   total_change?: number; shown?: number; of?: number };
+  stage_3?: WhatIfStageThree;
+  measurement_basis?: Record<string, unknown>;
+  stage_movement?: Record<string, unknown>;
+  drivers?: { key: string; label: string; effect: number;
+              share_pct: number; [k: string]: unknown }[];
+  pd_versus_ecl?: { available: boolean; pd_before?: number; pd_after?: number;
+                    pd_change_pct?: number; ecl_change_pct?: number };
+  methodology?: Record<string, unknown>;
+  context?: WhatIfContext;
+  run_id?: string;
+}
+
+export interface WhatIfMethodologyComparison {
+  version: string;
+  scenario: string;
+  currency: string;
+  rows: { method: string; label: string; available: boolean; because?: string;
+          version?: string; baseline_ecl?: number; whatif_ecl?: number;
+          absolute_change?: number; percentage_change?: number;
+          population?: number }[];
+  /** The methodology the reader arrived on, and the one being compared with.
+   *  Only the phrasing follows them — both figures are always computed. */
+  ran: string;
+  compared_with: string;
+  direction: string;
+  /** Neither figure is the right one. Always shown. */
+  statement: string;
+  available?: boolean;
+  why?: string;
+  spread?: number;
+  spread_pct?: number;
+  /** True when the two are within the agreement threshold, in which case the
+   *  product says so rather than manufacturing a difference. */
+  agree?: boolean;
+  agreement_threshold_pct?: number;
+  reading?: string;
+  matched_borrowers?: number;
+  delta_population?: number;
+  ml_population?: number;
+  by_sector?: WhatIfComparisonGroup[];
+  by_rating?: WhatIfComparisonGroup[];
+  by_stage?: WhatIfComparisonGroup[];
+  borrowers?: {
+    borrower_id: string; borrower: string; sector: string; rating: string;
+    stage: number; exposure: number; delta_ecl: number; ml_ecl: number;
+    difference: number; difference_pct: number;
+  }[];
+  borrowers_priced_higher_by_ml?: number;
+  borrowers_priced_lower_by_ml?: number;
+  borrowers_priced_the_same?: number;
+  ml?: { model_version?: string; mean_factor?: number;
+         fell_back_to_delta?: number; in_distribution?: boolean };
+  /** A limit on how far the ML figure should be carried. */
+  out_of_distribution?: { feature: string; message: string }[];
+  warnings?: string[];
+  explanation?: WhatIfComparisonExplanation;
+}
+
+export interface WhatIfComparisonGroup {
+  group: string;
+  borrowers: number;
+  delta_ecl: number;
+  ml_ecl: number;
+  difference: number;
+  share_of_difference_pct: number;
+}
+
+export interface WhatIfComparisonExplanation {
+  version: string;
+  paragraphs: string[];
+  headline: string;
+  where_it_sits?: string[];
+  written_by: string;
+  verified?: boolean;
+  statement: string;
+  /** Present when a written explanation was discarded for stating a figure
+   *  the evidence did not contain. */
+  rejected_because?: string;
+  evidence?: Record<string, unknown>;
+}
+
+export interface WhatIfComparisonMethod {
+  version: string;
+  methods: { method: string; label: string }[];
+  agreement_threshold_pct: number;
+  both_directions: string;
+  statement: string;
+}
+
+export interface WhatIfProfileRow {
+  label: string;
+  count: number;
+  count_pct: number;
+  exposure: number;
+  exposure_pct: number;
+  ecl: number;
+  ecl_pct: number;
+  ecl_coverage_pct: number;
+  avg_pd_12m: number;
+  avg_pd_lifetime: number;
+  avg_pd_applicable: number;
+  weighted_pd_applicable: number;
+  avg_lgd: number;
+  weighted_lgd: number;
+  avg_stage: number;
+  avg_ccf: number | null;
+  [key: string]: unknown;
+}
+
+export interface WhatIfRatingProfile {
+  period: string;
+  currency: string;
+  grain: string;
+  /** The nineteen PERFORMING grades, AAA to C, in the governed order. */
+  grades: string[];
+  /** Those nineteen followed by the default state, which is the row order. */
+  states?: string[];
+  performing_grades: string[];
+  default_grade: string;
+  rows: WhatIfProfileRow[];
+  total: WhatIfProfileRow;
+  borrowers: number;
+  ungraded: number;
+  note: string;
+}
+
+export interface WhatIfStageProfile {
+  period: string;
+  currency: string;
+  grain: string;
+  rows: (WhatIfProfileRow & { stage: number; measured_on: string })[];
+  total: WhatIfProfileRow;
+  borrowers: number;
+}
+
+export interface WhatIfSectorProfile {
+  period: string;
+  currency: string;
+  grain: string;
+  rows: (WhatIfProfileRow & { sector: string; collateral_value: number;
+                              collateral_coverage_pct: number;
+                              avg_haircut_pct: number | null })[];
+  total: WhatIfProfileRow;
+  sectors: string[];
+}
+
+export interface WhatIfDistribution {
+  count: number;
+  mean: number | null;
+  median: number | null;
+  min: number | null;
+  max: number | null;
+  p10: number | null;
+  p25: number | null;
+  p75: number | null;
+  p90: number | null;
+  exposure_weighted_mean: number | null;
+}
+
+export interface WhatIfParameterGroup {
+  label: string;
+  count: number;
+  exposure: number;
+  mean: number;
+  median: number;
+  weighted_mean: number;
+  [key: string]: unknown;
+}
+
+export interface WhatIfParameterBlock {
+  stage: number;
+  measured_on: string;
+  column?: string;
+  borrowers: number;
+  exposure: number;
+  ecl: number;
+  treatment?: string;
+  distribution: WhatIfDistribution;
+  by_rating?: WhatIfParameterGroup[];
+  by_sector?: WhatIfParameterGroup[];
+  by_segment?: WhatIfParameterGroup[];
+  highest?: { borrower_id: string; name: string; sector: string;
+              value: number; exposure: number }[];
+}
+
+export interface WhatIfCollateralType {
+  collateral_type: string;
+  items: number;
+  gross_value: number;
+  haircut_pct: number;
+  post_haircut_value: number;
+  borrowers: number;
+}
+
+export interface WhatIfParameterProfile {
+  period: string;
+  currency: string;
+  parameter: string;
+  grain: string;
+  book_exposure?: number;
+  book_ecl?: number;
+  note?: string;
+  /** PD only. */
+  blocks?: Record<string, WhatIfParameterBlock>;
+  /** LGD and CCF. */
+  distribution?: WhatIfDistribution;
+  borrower_distribution?: WhatIfDistribution;
+  by_stage?: WhatIfParameterGroup[];
+  by_sector?: WhatIfParameterGroup[];
+  by_segment?: WhatIfParameterGroup[];
+  by_product?: (WhatIfParameterGroup & { facilities: number; undrawn: number;
+                                         ead: number })[];
+  secured?: { borrowers: number; exposure: number; ecl: number;
+              distribution: WhatIfDistribution };
+  unsecured?: { borrowers: number; exposure: number; ecl: number;
+                distribution: WhatIfDistribution };
+  collateral_types?: WhatIfCollateralType[];
+  collateral_value?: number;
+  collateral_coverage_pct?: number;
+  facility_count?: number;
+  drawn_exposure?: number;
+  undrawn_commitment?: number;
+  ead?: number;
+}
+
+export interface WhatIfMacroVariable {
+  key: string;
+  name: string;
+  unit: string;
+  adverse_unit: number;
+  adverse_label: string;
+  pd_multiplier: number;
+  lgd_change_pp: number;
+  column: string;
+  basis: string;
+  note: string;
+  direction: string;
+  observed_level: number | null;
+  has_observed_level: boolean;
+  history: { period: string; value: number }[];
+}
+
+export interface WhatIfMacro {
+  owner: string;
+  version: string;
+  effective: string;
+  basis: string;
+  count: number;
+  observed_period: string;
+  limitation: string;
+  variables: WhatIfMacroVariable[];
+}
+
+/**
+ * A sensitivity: what a macro variable is assumed to do to PD and LGD.
+ *
+ * The `source` is load-bearing. A CreditProbe reference sensitivity is a
+ * declared assumption, an estimated one is what this installation's history
+ * shows, and a user-defined one is what somebody chose to assume — and the
+ * three must never be shown looking the same.
+ */
+export interface WhatIfSensitivity {
+  variable: string;
+  source: "reference" | "empirical" | "user";
+  source_label: string;
+  name: string;
+  pd_response_kind: "multiplier" | "absolute_pp";
+  pd_response: number;
+  lgd_response_kind: "multiplier" | "absolute_pp";
+  lgd_response: number;
+  sectors: string[];
+  segments: string[];
+  rating_bands: string[];
+  stages: number[];
+  scoped: boolean;
+  pd_ceiling_pct: number;
+  lgd_ceiling_pct: number;
+  description: string;
+  note?: string;
+}
+
+/** What this installation's history actually shows for one variable. */
+export interface WhatIfMacroFit {
+  variable: string;
+  variable_name: string;
+  unit: string;
+  slope_pct_per_unit: number;
+  intercept_pct: number;
+  correlation: number;
+  r_squared: number;
+  points: number;
+  implied_pd_multiplier: number;
+  configured_pd_multiplier: number;
+  direction_agrees: boolean;
+  strength: string;
+  series: { period: string; macro: number; weighted_pd_pct: number }[];
+  scatter: { from: string; to: string; macro_adverse_units: number;
+             pd_change_pct: number }[];
+  cuts: Record<string, unknown>;
+  note: string;
+  /** Why fifteen changes is evidence and not a calibration. Always shown. */
+  small_sample: string;
+  source: string;
+  source_label: string;
+}
+
+export interface WhatIfMacroAnalysis {
+  fit: WhatIfMacroFit;
+  configured: WhatIfSensitivity;
+  estimated: WhatIfSensitivity;
+  recommendation: { recommends: string; because: string; options: string[] };
+  population: string;
+  choices: { choice: string; label: string; available?: boolean }[];
+}
+
+export interface WhatIfMacroCard {
+  variable: WhatIfMacroVariable;
+  configured: WhatIfSensitivity;
+  method: WhatIfMacroMethod;
+}
+
+export interface WhatIfMacroMethod {
+  version: string;
+  sources: { source: string; label: string }[];
+  response_kinds: { kind: string; means: string }[];
+  small_sample: string;
+  statement: string;
+}
+
+export interface WhatIfSensitivityInForce {
+  sensitivity: WhatIfSensitivity;
+  in_force_for: string;
+  reference_unchanged: WhatIfSensitivity;
+  message: string;
+  state: WhatIfState;
+}
+
+export interface WhatIfMigrationView {
+  labels: string[];
+  rows: { label: string; cells: number[]; total: number }[];
+  column_totals: number[];
+  grand_total: number;
+}
+
+export interface WhatIfMigration {
+  kind: string;
+  opening_period: string;
+  closing_period: string;
+  labels: string[];
+  displayed_shape: string;
+  total_label: string;
+  /** Always "row". Declared so the screen can say what a percentage is OF. */
+  normalisation?: string;
+  reads_as?: string;
+  denominator?: string;
+  views: Record<string, WhatIfMigrationView>;
+  row_normalised: { label: string; cells: number[]; total: number }[];
+  row_normalised_exposure: { label: string; cells: number[]; total: number }[];
+  continuing: { count: number; exposure: number };
+  exited: { count: number; exposure: number };
+  new: { count: number; exposure: number };
+  /** Rating migration only. Default is a STATE and not a grade of the
+   *  nineteen-point performing scale, so it is neither a row nor a column of
+   *  the matrix — which is what lets every row sum to 100% of the population
+   *  that started performing on that grade. These carry what would otherwise
+   *  be lost between the grid and the totals. */
+  to_default?: {
+    count: number;
+    exposure: number;
+    by_opening_grade: Record<string, number>;
+  };
+  from_default?: { count: number; exposure: number };
+  default_at_both_ends?: { count: number; exposure: number };
+  duplicates_collapsed: number;
+  moved?: number;
+  downgraded?: number;
+  upgraded?: number;
+  unchanged?: number;
+  transitions?: Record<string, number>;
+  deteriorated?: number;
+  cured?: number;
+  currency: string;
+  note: string;
+}
+
+export interface WhatIfBorrowerRow {
+  borrower_id: string;
+  name: string;
+  sector: string;
+  segment?: string;
+  rating: string;
+  stage: number;
+  exposure: number;
+  pd_12m: number;
+  pd_lifetime: number;
+  lgd: number;
+  ccf: number | null;
+  collateral_value: number;
+  collateral_coverage_pct: number;
+  ecl: number;
+}
+
+export interface WhatIfBorrowerList {
+  period: string;
+  currency: string;
+  grain: string;
+  rows: WhatIfBorrowerRow[];
+  stage_2_borrowers: number;
+  stage_2_ecl: number;
+}
+
+export interface WhatIfBorrowerHistory {
+  borrower_id: string;
+  name: string;
+  sector: string;
+  currency: string;
+  quarters: number;
+  rows: {
+    period: string; rating: string; rating_numeric: number; stage: number;
+    exposure: number; pd_12m: number; pd_lifetime: number; lgd: number;
+    ecl: number; ecl_coverage_pct: number; collateral_value: number;
+    current_dpd: number; sector: string; name: string;
+  }[];
+}
+
+export interface WhatIfLanding {
+  heading: string;
+  domain: string;
+  restriction: string;
+  periods: string[];
+  latest_period: string | null;
+  journeys: WhatIfJourney[];
+  saved: WhatIfCard[];
+  recent: WhatIfCard[];
+  persistence: WhatIfPersistence;
+  models: {
+    methods: { key: string; name: string; version?: string; available?: boolean;
+               purpose?: string; anchor?: string; formula?: string;
+               owner?: string }[];
+    gate: string;
+  };
+  staging: WhatIfStaging;
+  currency: string;
+}
+
+export interface WhatIfDeltaModel {
+  key: string;
+  name: string;
+  version: string;
+  owner: string;
+  purpose: string;
+  anchor: string;
+  formula: string;
+  as_built: string;
+  mechanics: Record<string, string>;
+  caps: Record<string, string>;
+  worked_example: Record<string, string>;
+  limitations: string[];
+  near_zero_rule: string;
+}
+
+/**
+ * One model with Stage as a feature, or one model per Stage? Both are fitted
+ * on every training run and scored out of time, so the page shows the
+ * comparison that chose rather than a claim about it.
+ */
+/**
+ * The ECL movement split across the drivers of the scenario, by an exact
+ * order-neutral Shapley value. Not SHAP: SHAP explains one ML prediction from
+ * a borrower's features, this explains a scenario's movement from what the
+ * scenario changed.
+ */
+export interface WhatIfAttributionDriver {
+  key: string;
+  label: string;
+  effect: number;
+  share_pct: number;
+  mean_factor: number;
+  borrowers_moved: number;
+}
+
+export interface WhatIfAttribution {
+  available: boolean;
+  why?: string;
+  version?: string;
+  method?: string;
+  currency?: string;
+  note?: string;
+  drivers?: WhatIfAttributionDriver[];
+  unmoved?: string[];
+  baseline_ecl?: number;
+  whatif_ecl?: number;
+  total?: number;
+  measured_total?: number;
+  attributed_total?: number;
+  /** The part of the movement the drivers do not explain. Always present
+   *  when non-zero so the bridge adds up; `material` says whether it is
+   *  large enough to be worth a line rather than the last digit of a
+   *  nine-figure sum. */
+  model_adjustment?: {
+    key: string; label: string; effect: number; note: string;
+    material?: boolean;
+  };
+  reconciliation?: {
+    attributed: number; measured_movement: number; model_adjustment: number;
+    reported_movement: number; difference: number; reconciles: boolean;
+  };
+}
+
+export interface WhatIfStageStudy {
+  available: boolean;
+  why?: string;
+  design?: string;
+  chosen?: string;
+  because?: string[];
+  champion_book?: Record<string, number | null>;
+  challenger_book?: Record<string, number | null>;
+  champion_by_stage?: Record<string, {
+    rows: number; exposure: number; ecl: number;
+    champion?: Record<string, number>;
+  }>;
+  challenger_by_stage?: Record<string, {
+    fitted: boolean; why?: string; training_rows?: number;
+    r2?: number; mae?: number; wape?: number;
+  }>;
+  boundary?: {
+    available: boolean; rows?: number; governed_step: number;
+    champion_step: number; challenger_step?: number;
+    champion_step_error_pct?: number; challenger_step_error_pct?: number;
+  };
+}
+
+export interface WhatIfStageInteraction {
+  feature: string;
+  finding?: string;
+  note?: string;
+  stages: {
+    stage: number; rows: number; base_mean_predicted_rate: number;
+    points: { multiplier: number; mean_predicted_rate: number;
+              relative_to_base: number | null }[];
+  }[];
+}
+
+export interface WhatIfModelCard {
+  version: string;
+  state: string;
+  algorithm: string;
+  target: string;
+  target_definition: string;
+  features: string[];
+  feature_count: number;
+  split: { train: string[]; validation: string[]; out_of_time: string[];
+           excluded: string[]; by: string; why: string };
+  hyperparameters: Record<string, unknown>;
+  seed: number;
+  rows: Record<string, number>;
+  training: Record<string, number | null>;
+  validation: Record<string, number | null>;
+  out_of_time: Record<string, number | null>;
+  slices: Record<string, { label: string; count: number; r2: number | null;
+                           wape: number | null; exposure?: number }[]>;
+  stage_study?: WhatIfStageStudy;
+  importance: { feature: string; gain: number; share_pct: number }[];
+  shap: { features?: { feature: string; mean_abs_shap: number;
+                       share_pct: number }[]; method?: string;
+          rows_sampled?: number; base_value?: number; note?: string };
+  artifact_sha256: string;
+  artifact_bytes: number;
+  artifact_format: string;
+  built_at: string;
+  built_by: string;
+  predecessor: string;
+  activated_at: string;
+  activated_by: string;
+  reason: string;
+  warnings: string[];
+  limitations: string[];
+}
+
+export interface WhatIfMlModel {
+  active: WhatIfModelCard | null;
+  has_active: boolean;
+  versions: { version: string; state: string; built_at: string;
+              predecessor: string;
+              validation: Record<string, number | null>;
+              out_of_time: Record<string, number | null> }[];
+  changelog: Record<string, unknown>[];
+  periods: string[];
+  trained_through: string;
+  newer_periods: string[];
+  retrain_prompt: string;
+  defaults: { development_through: string; train_share: number; seed: number };
+  /** Whether this installation can run XGBoost at all, and what to do if not. */
+  environment?: WhatIfMlEnvironment;
+}
+
+export interface WhatIfMlEnvironment {
+  available: boolean;
+  version: string;
+  platform: string;
+  reason: string;
+  cause: string;
+  command: string;
+  then: string;
+  message: string;
+  fallback: string;
+  preflight_version?: string;
+  python?: string;
+  xgboost_version?: string;
+  statement?: string;
+}
+
+export interface WhatIfMlExplain {
+  version: string;
+  importance: { feature: string; gain: number; share_pct: number }[];
+  shap: WhatIfModelCard["shap"];
+  actual_vs_predicted: { bucket: number; count: number;
+                         mean_predicted: number; mean_actual: number }[];
+  sensitivity: Record<string, {
+    feature: string; base_mean_predicted_rate: number;
+    points: { multiplier: number; mean_predicted_rate: number;
+              relative_to_base: number | null }[];
+    rows_sampled: number; note: string;
+  }>;
+  stage_interaction?: WhatIfStageInteraction;
+  stage_study?: WhatIfStageStudy;
+  slices: WhatIfModelCard["slices"];
+  validation: Record<string, number | null>;
+  out_of_time: Record<string, number | null>;
+  limitations: string[];
+}
+
+export interface WhatIfTrainResult {
+  candidate: WhatIfModelCard;
+  activated: boolean;
+  comparison: {
+    left: string; right: string; left_state: string; right_state: string;
+    rows: { metric: string; left: number | null; right: number | null;
+            right_better: boolean | null }[];
+    note: string;
+  } | null;
+  message: string;
+}
+
+export interface WhatIfExample {
+  model_version: string;
+  predicted_rate: number;
+  features: Record<string, number>;
+  explanation: {
+    base_value: number;
+    prediction: number;
+    contributions: { feature: string; value: number; shap: number }[];
+    note: string;
+  };
+}
+
+/** A query string from the parts that actually have a value.
+
+ * Written once because twenty What-If endpoints take an optional period and
+ * building `?period=&limit=` by hand is how a blank period ends up meaning
+ * something different from an absent one. */
+function qs(parts: Record<string, string | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(parts)) {
+    if (value !== undefined && value !== "") query.set(key, value);
+  }
+  const body = query.toString();
+  return body ? `?${body}` : "";
+}
+
 export const api = {
   // ---- authentication ----
   /**
@@ -6249,9 +7487,11 @@ export const api = {
 
   // ---- What-If / scenarios ----
   whatIfConfiguration: () =>
-    request<WhatIfConfiguration>("/whatif/configuration"),
+    request<WhatIfConfiguration>("/whatif/configuration",
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfScenarios: () =>
-    request<{ scenarios: WhatIfScenario[]; count: number }>("/whatif/scenarios"),
+    request<{ scenarios: WhatIfScenario[]; count: number }>("/whatif/scenarios",
+      { timeoutMs: LAKE_TIMEOUT_MS }),
   runWhatIf: (payload: {
     scenario?: string;
     name?: string;
@@ -6275,11 +7515,13 @@ export const api = {
     request<WhatIfRun>("/whatif/run", {
       method: "POST",
       body: JSON.stringify(payload),
+      timeoutMs: LAKE_TIMEOUT_MS,
     }),
   askWhatIf: (question: string, limit = 100) =>
     request<WhatIfRun & { is_scenario: boolean; message?: string; unread?: string[] }>(
       "/whatif/ask",
-      { method: "POST", body: JSON.stringify({ question, limit }) },
+      { method: "POST", body: JSON.stringify({ question, limit }),
+        timeoutMs: MODEL_TIMEOUT_MS },
     ),
   compareWhatIf: (keys: string[]) =>
     request<{
@@ -6287,7 +7529,173 @@ export const api = {
       rows: (string | number)[][];
       currency: string;
       scenarios: WhatIfScenario[];
-    }>("/whatif/compare", { method: "POST", body: JSON.stringify(keys) }),
+    }>("/whatif/compare", { method: "POST", body: JSON.stringify(keys),
+                            timeoutMs: LAKE_TIMEOUT_MS }),
+
+  // ---- What-If Analysis ----
+  //
+  // The scenario STATE lives in the browser and is posted back on every call.
+  // The server holds no thread: a What-If is a structure, and a structure the
+  // client owns can be edited, undone and replayed without a round trip per
+  // keystroke. Only saving and the Recent list touch the database.
+  whatIfPeriods: () =>
+    request<WhatIfPeriods>("/whatif/periods", { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfLanding: () =>
+    request<WhatIfLanding>("/whatif/landing", { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfRatingProfile: (period = "") =>
+    request<WhatIfRatingProfile>(`/whatif/profile/rating${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfStageProfile: (period = "") =>
+    request<WhatIfStageProfile>(`/whatif/profile/stage${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfSectorProfile: (period = "") =>
+    request<WhatIfSectorProfile>(`/whatif/profile/sector${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  /** Ask a question ABOUT a result. Never changes the scenario. */
+  whatIfInvestigate: (question: string, runId: string, state: WhatIfState) =>
+    request<WhatIfInvestigation>("/whatif/investigate", {
+      method: "POST",
+      body: JSON.stringify({ question, run_id: runId, state }),
+      timeoutMs: MODEL_TIMEOUT_MS,
+    }),
+  whatIfIntents: () =>
+    request<{ version: string; statement: string;
+              intents: { intent: WhatIfIntent; label: string;
+                         changes_state: boolean; examples: string[] }[] }>(
+      "/whatif/investigate/intents"),
+  whatIfParameterProfile: (parameter: string, period = "") =>
+    request<WhatIfParameterProfile>(
+      `/whatif/profile/parameter/${encodeURIComponent(parameter)}${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfMacroProfile: (period = "") =>
+    request<WhatIfMacro>(`/whatif/profile/macro${qs({ period })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  /** The audit-grade workbook for a What-If.
+   *
+   *  Prefers the held result, so the file carries exactly the figures that
+   *  were on the screen rather than a second run of the same scenario. The
+   *  state is sent as well so an expired hold still produces a workbook. */
+  downloadWhatIfDetail: (runId: string, state: WhatIfState,
+                         methodology = "") =>
+    download("/whatif/export", "CreditProbe_what_if_detail.xlsx", 180_000,
+             { run_id: runId, state, methodology }),
+  whatIfMacroMethod: () =>
+    request<WhatIfMacroMethod>("/whatif/macro/method"),
+  whatIfMacroVariable: (variable: string) =>
+    request<WhatIfMacroCard>(`/whatif/macro/${encodeURIComponent(variable)}`),
+  /** Measure this variable against the book. Reads; changes nothing. */
+  whatIfMacroAnalyse: (variable: string, state: WhatIfState) =>
+    request<WhatIfMacroAnalysis>("/whatif/macro/analyse", {
+      method: "POST", body: JSON.stringify({ variable, state }),
+      timeoutMs: MODEL_TIMEOUT_MS }),
+  /** Put a relationship in force FOR THIS THREAD. The governed reference
+   *  matrix is never edited by this. */
+  whatIfMacroConfigure: (sensitivity: Partial<WhatIfSensitivity>,
+                         state: WhatIfState) =>
+    request<WhatIfSensitivityInForce>("/whatif/macro/configure", {
+      method: "POST", body: JSON.stringify({ sensitivity, state }) }),
+  whatIfBorrowers: (period = "", limit = 10) =>
+    request<WhatIfBorrowerList>(
+      `/whatif/profile/borrowers${qs({ period, limit: String(limit) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfBorrowerHistory: (borrowerId: string, quarters = 8) =>
+    request<WhatIfBorrowerHistory>(
+      `/whatif/borrower/${encodeURIComponent(borrowerId)}${qs({ quarters: String(quarters) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfRatingMigration: (period = "", opening = "") =>
+    request<WhatIfMigration>(`/whatif/migration/rating${qs({ period, opening })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfStageMigration: (period = "", opening = "") =>
+    request<WhatIfMigration>(`/whatif/migration/stage${qs({ period, opening })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfStaging: () =>
+    request<WhatIfStaging>("/whatif/staging", { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfStagingPreview: (body: WhatIfStagingIn) =>
+    request<WhatIfStaging>("/whatif/staging",
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfMethodology: (active = "") =>
+    request<WhatIfGate>(`/whatif/methodology${qs({ active })}`),
+  /** Read a message in the thread.
+   *
+   *  `hasResult` is not optional in spirit: the same sentence is a different
+   *  intent depending on what is on screen. "What would the ML model say?"
+   *  with a result behind it is a comparison; without one it is a question
+   *  about the methodology. A thread that does not say which silently
+   *  degrades every intent that only exists after a result. */
+  whatIfInterpret: (instruction: string, state: WhatIfState,
+                    hasResult = false,
+                    /** The quick analysis this thread last computed, so a
+                     *  follow-up has something to narrow. */
+                    analysis?: Record<string, unknown> | null) =>
+    request<WhatIfInterpretResult>("/whatif/interpret",
+      { method: "POST",
+        body: JSON.stringify({ instruction, state,
+                               has_result: hasResult,
+                               analysis: analysis ?? null }),
+        timeoutMs: MODEL_TIMEOUT_MS }),
+  /** Answer an analytical question about the book. Changes nothing. */
+  whatIfAnalyse: (question: string,
+                  previous?: Record<string, unknown> | null,
+                  period = "", interpret = true) =>
+    request<WhatIfAnalysis & { understood: boolean; changes_state: boolean }>(
+      "/whatif/analyse",
+      { method: "POST",
+        body: JSON.stringify({ question, previous: previous ?? null, period,
+                               interpret }),
+        timeoutMs: MODEL_TIMEOUT_MS }),
+  whatIfExecute: (body: WhatIfExecuteIn) =>
+    request<WhatIfRunResult>("/whatif/execute",
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: MODEL_TIMEOUT_MS }),
+  /** Price one scenario both ways.
+   *
+   *  `ran` is the methodology the reader arrived on, so the answer is phrased
+   *  in their direction. It never changes a figure: both are always computed,
+   *  which is what makes the comparison work from either side. */
+  whatIfCompareMethodologies: (state: WhatIfState, ran = "", explain = true) =>
+    request<WhatIfMethodologyComparison>("/whatif/compare-methodologies",
+      { method: "POST", body: JSON.stringify({ state, ran, explain }),
+        timeoutMs: MODEL_TIMEOUT_MS }),
+  whatIfComparisonMethod: () =>
+    request<WhatIfComparisonMethod>("/whatif/compare-methodologies/method"),
+  whatIfSaved: (limit = 24) =>
+    request<{ saved: WhatIfCard[]; count: number; persistence: WhatIfPersistence }>(
+      `/whatif/saved${qs({ limit: String(limit) })}`),
+  whatIfRecent: (limit = 12) =>
+    request<{ recent: WhatIfCard[]; count: number; persistence: WhatIfPersistence }>(
+      `/whatif/recent${qs({ limit: String(limit) })}`),
+  whatIfSave: (body: WhatIfExecuteIn & { name: string }) =>
+    request<{ saved: WhatIfCard; id: number }>("/whatif/save",
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: MODEL_TIMEOUT_MS }),
+  whatIfOpenSaved: (id: number) =>
+    request<{ card: WhatIfCard; state: WhatIfState; stored: Record<string, unknown> }>(
+      `/whatif/saved/${id}`, { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfDeleteSaved: (id: number) =>
+    request<{ deleted: number }>(`/whatif/saved/${id}`, { method: "DELETE" }),
+  whatIfDeltaModel: () =>
+    request<WhatIfDeltaModel>("/whatif/models/delta",
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfMlModel: () =>
+    request<WhatIfMlModel>("/whatif/models/ml", { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfMlExplain: (version = "") =>
+    request<WhatIfMlExplain>(`/whatif/models/ml/explain${qs({ version })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  whatIfMlTrain: (body: {
+    development_through?: string;
+    excluded?: string[];
+    reason?: string;
+    instruction?: string;
+  }) =>
+    request<WhatIfTrainResult>("/whatif/models/ml/train",
+      { method: "POST", body: JSON.stringify(body), timeoutMs: 300_000 }),
+  whatIfMlActivate: (version: string, reason = "") =>
+    request<{ activated: WhatIfModelCard }>("/whatif/models/ml/activate",
+      { method: "POST", body: JSON.stringify({ version, reason }) }),
+  whatIfMlExample: (features: Record<string, unknown>) =>
+    request<WhatIfExample>("/whatif/models/ml/example",
+      { method: "POST", body: JSON.stringify(features), timeoutMs: 60_000 }),
 
   // ---- early warning ----
   earlyWarningTaxonomy: () =>

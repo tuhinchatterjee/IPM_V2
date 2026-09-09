@@ -1,212 +1,427 @@
-# What-If: scenario intelligence over the corporate book
+# What-If Analysis
 
-## The defect this replaced
+Scenario intelligence over the Corporate IFRS 9 book. One question:
 
-What-If was one engine function. It took a preset name, multiplied every
-facility's booked ECL by a factor, and returned five rows of totals. It could
-not answer a single question a credit officer actually asks:
+> **If I change one or more credit-risk assumptions, what happens to the
+> expected credit loss, exactly why does it change, how plausible is that
+> scenario against the evidence we have, and can I defend the answer?**
 
-- what a two-notch downgrade does — because a downgrade is not a multiplier;
-- which Stage 1 borrowers cross into Stage 2 — because it never re-staged;
-- how much of the movement is the rating and how much is the measurement basis
-  — because it never separated them;
-- which names caused it — because it never computed a borrower.
+Everything below exists to make each clause of that sentence answerable.
 
 ---
 
-## Four governed modules
+## The two rules the whole feature is built on
 
-### `backend/ifrs9/policy.py` — one definition of staging and measurement
+**A question never changes a number.** Fourteen intent classes fall into three
+families, and only one of them — `CHANGES` — may touch the scenario. Asking why
+a provision moved cannot move it. The classifier is deterministic, the family
+decides whether the state may be written, and an evaluation corpus of 179
+labelled questions asserts the boundary holds.
 
-The SICR triggers, the default presumption, the scenario weights, the lifetime
-horizon and the measurement basis for each Stage were written once inside the
-universe generator and read by nothing else. That was survivable only while the
-only thing that staged a borrower was the thing that created it.
+**The engine calculates; the model explains.** Every figure on every screen is
+produced by deterministic arithmetic. A model is used only to write prose, it
+is handed an evidence packet and nothing else, and the finished prose is
+re-read for numbers the packet does not contain. A paragraph carrying one is
+discarded rather than shown, because a plausible wrong figure inside a
+professional paragraph is the most expensive failure this product can have.
 
-What-If has to **re-evaluate** staging against a hypothetical PD. A second copy
-of the rules is a second answer waiting to disagree with the first, so the
-policy moved here, the generator imports it, and a test asserts the constants
-are the same objects.
+---
 
-| Trigger | Rule |
+## The book
+
+A Hive-partitioned Parquet lake read through DuckDB, at **obligor grain**: one
+row per borrower per quarter. Staging is assessed on the counterparty, because
+a book that stages one facility of a borrower differently from another is
+describing a bank that does not exist.
+
+| | |
+|---|---|
+| Periods | **16 quarters, Q3 2022 → Q2 2026** |
+| Borrowers, Q2 2026 | 3,241 |
+| Rating scale | **19 grades** — AAA, AA+, AA, AA−, A+, A, A−, BBB+, BBB, BBB−, BB+, BB, BB−, B+, B, B−, CCC, CC, D |
+| Rating stability | **86.5%** quarterly; the average name moves 0.34 notches |
+| Currency | SAR millions |
+| Datasets | `corporate_borrower_360`, `corporate_ifrs9`, `corporate_facilities`, `corporate_collateral`, `corporate_macro` |
+
+`backend/whatif/domain.py` is the only door. Every read in the package goes
+through it, and a dataset outside that list is refused by name rather than
+quietly served.
+
+### Three PDs, and which one is measured
+
+| PD | What it is |
+|---|---|
+| **TTC** | A property of the grade. The through-the-cycle level the masterscale assigns. |
+| **PIT** | A threshold-shift single-factor model with a sector correlation, so a downturn moves a whole sector together. |
+| **Lifetime** | A mean-reverting hazard over 4.2 years, reverting at 0.55 — so a stressed borrower is not assumed to stay stressed for four years. |
+
+```
+ECL = PD_applicable × LGD × EAD × 1.082
+```
+
+Stage 1 is measured on the twelve-month PD, Stages 2 and 3 on lifetime. That
+one line is why a Stage 1 → 2 migration multiplies a provision when nothing
+else about the borrower moved. The 1.082 is the scenario-weighted factor
+(Base 0.50 × 1.00, Upside 0.20 × 0.72, Downside 0.30 × 1.46).
+
+`policy.bounded()` caps a provision at the exposure it provides against: an
+expected loss larger than the amount at risk is not a loss.
+
+### The rating is carried, not recomputed
+
+A grade is a considered assessment, so it moves only when a committee would
+move it: the name is up for its **annual review** (or has drifted far enough to
+be brought forward), the model grade sits at least **3 notches** from the grade
+being carried, and then it travels **one notch** — two when the drift brought it
+forward out of cycle.
+
+Every threshold is read off the book's own drift distribution rather than
+chosen: the model grade wanders a median of 1 notch in a quarter but 2 in a
+year, p75 3 and p90 5, so the review buffer is the annual p75 and the
+out-of-cycle trigger the p90.
+
+Without this the grade was re-binned from a continuous score every quarter, the
+average name moved 1.31 notches, and every AAA borrower was downgraded the
+following quarter because noise at the top of the scale has nowhere else to go.
+
+---
+
+## Staging: two rule sets, never confused
+
+The baseline column is the **reported book**, staged by the governed corporate
+policy. The What-If column is staged by **this thread's rule set**. Both are
+named, versioned and shown on every result, because a reader has to know which
+rules produced which column. No What-If rule ever changes the reported book.
+
+| Governed trigger | Rule |
 |---|---|
 | Relative PD increase | 12-month PD at least **2×** its level at origination **and** at least **2.00pp** higher |
 | Absolute PD level | 12-month PD at or above **13%** |
-| Days past due | **30** or more days past due |
+| Days past due | **30** or more |
 | Default presumption | **90** days past due, or a recorded default event |
 
-Measurement: Stage 1 on twelve-month expected loss, Stages 2 and 3 on lifetime.
-That single line is why a Stage 1 → 2 migration multiplies a provision when
-nothing else about the borrower moved.
+**Improvement is not immediate.** A borrower whose SICR trigger stops firing
+serves a **two-quarter cure probation** before returning to Stage 1;
+deterioration lands at once. That is the curing rule an IFRS 9 book operates,
+and without it a third of Stage 2 exposure cured every quarter on PD movements
+of a hundredth of a point.
 
-### `backend/whatif/masterscale.py` — a notch is worth what the scale says
+Because the staging therefore has a memory, the book carries the probation
+state — the stage its triggers measured, and how many consecutive quarters it
+has been clear — so the governed rule set reproduces it from a single row. It
+does, in every one of the sixteen quarters, and the baseline column of every
+What-If rests on that.
 
-Fourteen grades, twelve PD band edges, read from the bank's own scale. Each
-grade carries the **geometric** mid-point of its band — geometric because the
-bands widen multiplicatively, and an arithmetic mid-point would put almost
-every investment-grade name at the top of its band.
+The What-If default adds two rules a scenario needs and the reported book does
+not: a rating deteriorating by 2 or more notches, and a scenario PD at least
+2× the borrower's pre-scenario PD. A thread may enable, disable, re-threshold
+or recombine any of them, and the composition is stamped on every figure it
+produces.
+
+`backend/ifrs9/policy.py` is the single definition. It is deliberately
+PD-source-agnostic: nothing in it knows or cares whether the PD it is given was
+reported or modelled, which is what makes both sides of the comparison the
+same rule.
+
+---
+
+## Two methodologies, one engine
+
+There is exactly one place a scenario is applied: `engine.run()`. It shocks the
+borrowers, re-reads the staging criteria against the stressed PD, re-measures,
+and hands back the working frame. The methodology decides only how the
+**reported** ECL is moved from there.
+
+**Delta Model.** Read the movement out of that measurement as four factors and
+carry it onto the reported figure:
 
 ```
-AAA  0.03%   BBB+ 0.24%   BB   2.08%   CCC 18.38%
-AA   0.06%   BBB  0.42%   BB-  3.49%   CC  36.77%
-A    0.13%   BBB- 0.72%   B+   5.81%
-             BB+  1.23%   B    9.87%
+What-If ECL = REPORTED ECL × PD factor × LGD factor × EAD factor
 ```
 
-The shock is applied as the **ratio** between two grades' masterscale PDs:
+**ML Model — XGBoost.** A per-Stage ensemble trained at borrower-quarter grain
+on structural features, anchored to the reported book so it estimates a
+*relative* effect and can never restate it. Persisted as native JSON — a format
+that is data, not code — because `.pkl`, `.joblib` and `.pt` are refused on
+import: a pickle is a program.
 
-    stressed_pd = borrower_pd × (masterscale(stressed) / masterscale(opening))
+Both start from the same shocked book, which is what makes the two answers
+genuinely comparable and why there is no second engine to drift away from the
+first.
 
-BBB → BB+ is a **2.939×** factor. A borrower at the strong end of BBB stays at
-the strong end of BBB-: the scale decides how far the band moved, the borrower
-keeps its place inside it. Snapping every downgraded name to its new grade's
-central PD would destroy calibration the bank already has.
+**The gate.** The product asks once per thread, before the first ECL figure,
+which methodology to use. It never chooses quietly.
 
-A downgrade **stops at the weakest performing grade**. Default is an event, not
-something arithmetic produces.
+---
 
-### `backend/whatif/sensitivity.py` — the versioned macro matrix
+## What moved the provision
 
-Eight variables, each with a PD effect per unit shock, an optional LGD effect,
-financial-measure effects, and sector multipliers reconciled against the
-governed sector vocabulary. Owner, version and effective date on every row.
+`backend/whatif/attribution.py` splits the movement by **exact Shapley value**:
+each driver's effect is its average marginal contribution across every order in
+which the factors could have moved. That is the unique attribution that is
+order-neutral, sums exactly to the total, and gives a factor that never moved
+an effect of zero. A test asserts the answer does not depend on the order the
+shocks were written in.
 
-**Each row states its own basis, and none of them says "estimated from default
-data", because none of them was.** Presenting a configured coefficient as an
-empirical fact is the failure mode that discredits every honest figure beside
-it.
+Anything the drivers do not explain is disclosed on its own line rather than
+spread across them, named after the methodology that actually priced it, and
+carries a `material` flag — so the bridge always reconciles while only a
+residual worth reading earns a row.
 
-| Variable | PD effect | Most exposed |
+---
+
+## Plausibility: where a shock sits in the book's own experience
+
+A 20% PD rise and a 2000% one must not be presented identically.
+`backend/whatif/plausibility.py` compares the proposed move against every
+borrower's own quarter-on-quarter and year-on-year movement across the window,
+and returns one of six controlled labels.
+
+| Proposed | Verdict | Because |
 |---|---|---|
-| Policy rates | +6% per 100bps | Real Estate 1.9×, Contracting 1.6× |
-| Real GDP | +10% per 1pp fall | Wholesale & Retail 1.5×, Contracting 1.4× |
-| Oil and commodities | +7% per 20% fall | Oil & Gas 2.4×, Petrochemicals 2.1× |
-| Property values | +3% per 10% fall, **+3.5pp LGD** | Real Estate 2.2× |
-| Shipping disruption | +14% per severity step | Shipping 2.5×, Transport 2.2× |
+| PD +20% | Consistent with recent experience | 42.6% of borrower-quarters saw a move at least this size |
+| PD +200% | Historically plausible | 6.2% did, across 15 of the 16 quarters |
+| PD +2000% | Plausible for selected pockets | 0.23% did, on 0.27% of exposure |
 
-The property row's LGD effect is marked **structural** rather than a management
-assumption: a lower security value recovers less, and that follows from the
-definition rather than from a fitted relationship.
-
-### `backend/whatif/engine.py` — borrower by borrower, then added up
-
-```
-Baseline → Shocks → SICR re-read → Re-stage → Re-measure ECL → Aggregate
-```
-
-Computing a portfolio ECL and allocating it down produces a number no borrower
-can be shown to have caused, and the first question anyone asks about a
-stressed provision is "which names?".
-
-**The base column ties to the accounts.** The baseline is the *reported* ECL,
-not a recomputation of it; only the ratio of the two measurements is modelled:
-
-    stressed_ecl = reported_ecl × (measured_stressed / measured_baseline)
-
-Verified by hand against the source parquet: for CORP-103543 (BBB → BB+), PD
-0.9198 → 1.6140 and ECL 9.88 → 29.05, both matching an independent
-recomputation. The BBB baseline sums to **301.29 against 301.29 reported**. The
-base scenario's incremental ECL is **0.0 exactly**.
+It is a comparison against observed movement, **not a forecast and not a
+probability**. The prompt that writes about it is forbidden from stating a
+likelihood of the scenario occurring, and a test reads the output back for the
+words that would amount to one.
 
 ---
 
-## The SICR finding
+## The ten macro variables
 
-A two-notch BBB downgrade moves **58 of 1,126** borrowers into Stage 2. Not all
-of them, and that is the framework working rather than failing: the relative
-trigger needs a doubling of PD **and** two hundred basis points of absolute
-increase, and a strong investment-grade name clears neither on two notches.
-
-That is worth knowing before a committee. The Stage 2 population is far less
-sensitive to a downgrade cycle than to an outright PD deterioration — a 75% PD
-shock on Stage 1 moves **518 of 2,528**.
-
-The **rating-deterioration assumption** exists and is **offered rather than
-applied**. Turning it on because the question asked about migrations would make
-the answer a tautology: "everyone who fell two notches has a SICR, because we
-assumed a two-notch fall is a SICR." Ask with *"assuming a downgrade is a
-significant increase in credit risk"* and it is applied and stated.
-
----
-
-## Reading a scenario out of a sentence
-
-Two rules the reader will not break.
-
-**A period is never a magnitude.** Time is masked before any number is read, so
-"What happens to ECL in Q1 2026 if PD rises 25%?" produces a 25% PD shock and a
-Q1 2026 window, never a 2026% one.
-
-**A unit is never assumed.** Percentage points come from `pp`, a percentage
-from `%`, basis points from `bps`. A bare number against LGD is read as
-percentage points — how a credit officer states it — and the answer says which
-reading it took.
-
-Two bugs found by running the acceptance questions:
-
-- a trailing `\b` after `%` never matches, because `%` is not a word character
-  and neither is the `?` or space after it. Four questions were silently losing
-  their shock;
-- `_direction` assumed the anchor sat in the middle of its window, which is
-  false near the start of a sentence — so "EBITDA **falls** 15%" was read as a
-  rise and the shock did nothing. The offset is now computed.
-
----
-
-## Twelve configured scenarios
-
-Every one runs against the live book. Selected results, Q2 2026:
-
-| Scenario | Borrowers | Incremental ECL | Stage 2 migrations |
+| Variable | One adverse unit | PD × | LGD +pp |
 |---|---|---|---|
-| Base | 3,244 | 0.0 | 0 |
-| One-notch downgrade | 3,244 | +7.9% | 8 |
-| Two-notch BBB downgrade | 1,126 | **+296.9%** | 58 |
-| PD +25% | 3,244 | +22.2% | 104 |
-| Rates +200bps | 3,244 | +13.3% | 61 |
-| EBITDA −15% with rates +200bps | 3,244 | **+47.6%** | 219 |
-| Collateral −20% | 3,244 | +25.4% | 0 |
-| Shipping disruption | 114 | +33.1% | 9 |
+| GDP Growth Rate | per 1pp fall | 1.10 | 0.75 |
+| Unemployment Rate | per 1pp rise | 1.12 | 1.00 |
+| House Price Index | per 10% fall | 1.06 | 2.50 |
+| Inflation Rate | per 2pp rise | 1.05 | 0.50 |
+| Current Account | per 2pp deterioration | 1.03 | 0.25 |
+| Stock Market Index | per 20% fall | 1.05 | 0.50 |
+| Policy Interest Rate | per 200 bps rise | 1.08 | 0.50 |
+| FX Depreciation | per 10% depreciation | 1.05 | 0.25 |
+| Oil Price | per 20% fall | 1.05 | 0.50 |
+| Corporate Credit Spread | per 100 bps widening | 1.08 | 0.50 |
 
-The collateral scenario producing **zero** migrations is the engine being
-right: a security haircut changes what is recovered, not the likelihood of
-default, so LGD moves and PD does not.
+These are **declared assumptions**, set by the threshold owner. None is an
+IFRS 9 coefficient and none is an econometric estimate fitted to this book, and
+every screen that shows one says so.
+
+### Three kinds of relationship, never shown alike
+
+- **CreditProbe Reference Sensitivity** — the table above. A declared assumption.
+- **Estimated** — what this installation's sixteen quarters actually show,
+  fitted as changes against changes.
+- **User-defined** — what somebody chose to assume, in force **for the thread
+  only**. The governed matrix is never edited, and a user-defined relationship
+  is never called required, regulatory, approved or empirical.
+
+An override travels on the provenance line, on the step that used it, on the
+saved What-If and into the workbook, so a figure computed on somebody's own
+assumption cannot be mistaken for one computed on the governed matrix.
+
+### What the estimates say, and why they are not offered as better
+
+| Variable | Implied multiplier | Configured | R² | Fit |
+|---|---|---|---|---|
+| Corporate Credit Spread | 1.832 | 1.080 | 0.35 | moderate |
+| Current Account | 1.520 | 1.030 | 0.53 | moderate |
+| Oil Price | 1.496 | 1.050 | 0.25 | weak |
+| GDP Growth Rate | 1.181 | 1.100 | 0.22 | weak |
+| Unemployment Rate | 1.220 | 1.120 | 0.08 | no visible relationship |
+| Policy Interest Rate | 1.453 | 1.080 | 0.06 | no visible relationship |
+
+Sixteen quarters give fifteen changes at most. That is enough to see whether a
+relationship runs in the direction the configured sensitivity assumes, and
+roughly how hard. It is **not** a calibration: no confidence interval from
+fifteen points would mean what a reader would take it to mean, and the observed
+series here move together by construction, being generated from one latent
+cycle factor. `recommend()` therefore returns the configured sensitivity in
+every case and says why — evidence, never preference, and never a silent
+substitution.
+
+---
+
+## Comparing the two methodologies
+
+Works in both directions from one object: whichever methodology produced the
+result on screen, the other is one question away, and only the phrasing follows
+the reader — the figures do not.
+
+A spread is where the useful part starts. The comparison carries **where** the
+two disagree — by sector, by rating, by stage, and the borrowers furthest apart
+— and a borrower outside the range the model was trained on reaches the reader
+as a limit on the figure rather than a footnote.
+
+It also reports what the model does at the **stage boundary**, on the reader's
+own scenario. The Stage 1 → Stage 2 step is a change of measurement basis — a
+discontinuity in the arithmetic, not something a borrower's features cause — so
+a model fitting a continuous surface smooths across it and under-prices a
+crossing. That is structural rather than a defect, and it is stated rather than
+tuned away.
+
+It never recommends one. The Delta Model is the governed arithmetic carried
+onto the reported book; the ML model is a fitted estimate anchored to it. Which
+belongs in a submission is a governance decision.
+
+---
+
+## The detailed workbook
+
+Eleven sheets, built from a result rather than from an analysis run.
+
+| Sheet | What it carries |
+|---|---|
+| COVER | Provenance, the result, the reading, and whether the reconciliation passed |
+| SCENARIO | Every step in the order applied, both staging rule sets, the relationships in force |
+| RESULT SUMMARY | The movement, and the same movement by stage, sector and rating |
+| BORROWER DETAIL | Every borrower, every risk parameter before and after |
+| FACILITY DETAIL | The borrower movement **allocated** by IFRS 9 EAD share |
+| ATTRIBUTION | The exact Shapley split, and anything unexplained, named |
+| STAGE MIGRATION | From/to, with exposure and ECL on both sides |
+| RATING MIGRATION | Across the governed masterscale |
+| RECONCILIATION | Nine tie-outs, each a test that passes or fails |
+| METHOD & ASSUMPTIONS | Versions, thresholds, sensitivities, plausibility, limitations |
+| REPRODUCE | The exact state that re-runs it |
+
+Facility grain is an **allocation and says so**, in the sheet's own heading and
+in a column of its own: staging is assessed on the obligor, so there is no
+facility-level measurement to export, and presenting an allocation as a
+measurement is the one thing that sheet must not do. The allocation sums back
+to the borrower figure exactly.
+
+The reconciliation is the load-bearing sheet. A break appears **in the file**
+rather than raising and producing nothing, because an export that refuses to
+exist tells a reader nothing.
+
+A held result is readable only by the person who ran it. Every download is
+audited with its hash, size and row count.
 
 ---
 
 ## Where it is reachable
 
-- **Ask** — any hypothetical routes to `whatif_scenario` before the analytical
-  planner, because a question about rows that do not exist yet has no rows to
-  select.
-- **Stress Testing screen** — configured and custom scenarios, the borrower
-  table, the sector breakdown, the calculation steps, the sensitivity rows, and
-  the three configuration tabs that make the masterscale, the matrix and the
-  staging policy inspectable.
-- **`/api/v1/whatif/*`** — configuration, scenarios, run, ask, compare,
-  sensitivity.
-- **Product knowledge** — four answers explaining the mechanism, including why
-  a downgrade often does *not* move a Stage.
+| | |
+|---|---|
+| Screen | **What-If** in Intelligence — landing page, six guided journeys, and a thread |
+| Chat | Any hypothetical routes to the scenario engine before the analytical planner |
+| API | `/api/v1/whatif/*` — 30+ endpoints, every one behind `RequireAnalyst` |
+| Model configuration | `/what-if/models/delta` and `/what-if/models/ml` |
+
+---
+
+## Integration: running on a book this branch has never seen
+
+The shipped universe is a demo. A real installation replaces it with a
+canonical IFRS 9 domain, and the question that has to be answerable before
+anything is wired is not "does it import" but **what exactly will break, and
+what will each break cost**.
+
+`GET /whatif/integration/contract` is the document somebody reads first: the
+datasets, the required columns, the optional ones with the capability each buys,
+and the assumptions that are not columns at all.
+
+`GET /whatif/integration/readiness` assesses a candidate and returns findings.
+Each names the thing, says whether it **blocks** or **degrades**, and says what
+it costs in the words of somebody using the product.
+
+The most damaging thing a replacement can get wrong is the **grain**. A
+facility-grain book read as an obligor-grain one multiplies every exposure and
+every provision by the number of rows a borrower has, and the result looks
+entirely plausible — so that check blocks rather than warns.
+
+What the report does **not** check: whether the numbers are right. It can
+establish that a column called `pd_12m` exists, is numeric and lies between 0
+and 100. It cannot establish that it is the twelve-month probability of
+default, and it does not claim to.
+
+---
+
+## Measured behaviour, Q2 2026
+
+Delta Model, whole book, 3,241 borrowers:
+
+| Scenario | Incremental ECL | Change | Borrowers moving to a worse stage |
+|---|---|---|---|
+| One-notch downgrade | 14,878.2 | +29.8% | 195 |
+| LGD +5pp | 4,752.7 | +9.5% | 0 |
+| PD +20% | 3,252.0 | +6.5% | 55 |
+| GDP −1pp | 2,518.7 | +5.0% | 24 |
+| Rates +200bp | 1,934.1 | +3.9% | 19 |
+
+The LGD scenario producing **zero** migrations is the engine being right: a
+loss-given-default shock changes what is recovered, not the likelihood of
+default, so the measurement moves and the staging does not.
+
+### Performance
+
+Measured by `scripts/whatif_performance.py`, written to
+`docs/whatif_performance.json`. Median seconds:
+
+| | median | budget |
+|---|---|---|
+| Read the book (cold / warm) | 1.03 / 0.02 | 8.0 / 1.0 |
+| Price a scenario — Delta | 0.66 | 3.0 |
+| Price a scenario — ML | 0.79 | 6.0 |
+| Attribution, 5 shocks | 0.73 | 6.0 |
+| Plausibility (cold / warm) | 2.14 / 0.10 | 8.0 / 1.0 |
+| Macro fit | 0.50 | 5.0 |
+| Both methodologies | 1.52 | 10.0 |
+| Detailed workbook | 6.49 | 30.0 |
+
+A budget is the point at which an interaction stops feeling like an answer, not
+a machine limit. A row over it is reported rather than failed: a timing
+assertion in a test suite is a flake generator.
+
+---
+
+## Is the book credible?
+
+Schema, ranges and reconciliation do not answer that: a book can pass all three
+while a rating moves 1.3 notches a quarter. `docs/what_if_ifrs9_economic_validation.md`
+asks fourteen ordinal and distributional questions instead — rating economics,
+the three PDs through the cycle, staging and both migration matrices, ECL,
+LGD and collateral, EAD, quarter-to-quarter continuity, twenty randomly drawn
+borrowers read over eight quarters, sectors, segments, the macro relationship
+and the default population — plus six What-If scenarios each carrying an
+expectation written before the number was read.
+
+**ECONOMIC VALIDATION: PASS**, 44 of 44 and 50 of 50. It is re-run as a step of
+every readiness cycle, and the properties that would otherwise regress silently
+are asserted in `tests/corporate/test_economic_coherence.py`.
 
 ---
 
 ## What is still open
 
-1. **"These borrowers" resolves to the whole book unless the thread carried
-   identifiers.** The orchestrator passes carried borrower IDs where the
-   conversation state holds them; where it does not, the scenario runs on the
-   population the question names and says so. A dedicated referent pass for
-   scenario follow-ups is not built.
+These are stated rather than engineered around.
 
-2. **Covenant re-testing under stress is reported, not re-evaluated.** The
+1. **Re-scoping a step that already exists is not supported.** "Now restrict
+   that to Contracting" is a modification of the scenario, but the builder
+   reads a population only off a new step. The thread answers it as a question
+   and changes nothing — safe, because it cannot silently move a number, but
+   not what was asked. Recorded as a known gap in the evaluation corpus, with a
+   test that it still behaves as recorded.
+
+2. **A step can be removed but not widened.** The only modification the builder
+   makes is removing a whole step, so a step scoped to a sector is removed
+   entirely rather than re-scoped.
+
+3. **Covenant re-testing under stress is reported, not re-evaluated.** The
    summary counts borrowers already in breach. Re-running covenant tests
    against stressed financials needs the covenant definitions expressed as
-   evaluable expressions, which they are not yet.
+   evaluable expressions, which they are not.
 
-3. **The sensitivity coefficients are management assumptions.** Stated on every
-   row and in every answer. Replacing them with estimated elasticities is a
-   Credit Risk Analytics exercise, not a code change.
+4. **The macro sensitivities are declared assumptions.** Stated on every row
+   and in every answer. The empirical estimates are offered beside them and
+   never instead of them, and the reason is the data: one macro degree of
+   freedom observed sixteen times is not three variables observed fifty-two
+   thousand times.
 
-4. **Scenario saving is in-memory.** `stress_scenarios` exists as a table and
-   the engine's scenarios are typed objects, but persisting a user's custom
-   scenario through the API is not wired.
+5. **`corporate_macro` is generated from one latent cycle factor.** Every
+   observed series is a linear function of it plus noise, so a regression on
+   this data recovers the generator's own arithmetic. The macro lab says so
+   wherever it shows a fit; a canonical domain with genuinely independent
+   series would make those estimates mean what they appear to mean.

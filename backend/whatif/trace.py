@@ -17,6 +17,7 @@ from backend.trace.model import NodeType, TraceGraph, TraceNode
 from backend.whatif import engine as wf
 from backend.whatif import masterscale as ms
 from backend.whatif import sensitivity as sv
+from backend.whatif import staging as st
 
 
 def build(result: wf.Result, question: str) -> TraceGraph:
@@ -88,9 +89,34 @@ def build(result: wf.Result, question: str) -> TraceGraph:
         id="ifrs9_policy", type=NodeType.CERTIFIED_METHOD,
         label=f"IFRS 9 policy {policy.POLICY_VERSION}",
         config={**policy.describe(),
-                "rule": "The same staging and measurement rules produced the "
-                        "reported book and the stressed one."})).mark_ok()
+                "rule": "The same MEASUREMENT rule prices the reported book "
+                        "and the stressed one. The two are STAGED by "
+                        "different rule sets, and both are on this trace."})).mark_ok()
     graph.connect("ifrs9_policy", previous)
+
+    # The two rule sets, as separate nodes. Somebody reading the lineage of a
+    # figure has to be able to see which rules produced the baseline column and
+    # which produced the What-If one, without inferring it.
+    reported_policy = st.reported()
+    graph.add_node(TraceNode(
+        id="staging_reported", type=NodeType.CERTIFIED_METHOD,
+        label=f"{reported_policy.label} {reported_policy.version}",
+        config={**reported_policy.describe(),
+                "rule": "What staged the REPORTED book. The baseline column "
+                        "of this scenario ties to the accounts through it, and "
+                        "no What-If rule changes it."})).mark_ok()
+    graph.connect("staging_reported", previous)
+
+    whatif_policy = getattr(result, "staging", None) or st.default()
+    graph.add_node(TraceNode(
+        id="staging_whatif", type=NodeType.CERTIFIED_METHOD,
+        label=f"{whatif_policy.label} {whatif_policy.version}",
+        config={**whatif_policy.describe(),
+                "rule": "What staged the SCENARIO. Rule A (a two-notch "
+                        "deterioration) and Rule B (a scenario PD at twice the "
+                        "pre-scenario level) are What-If assumptions, not "
+                        "requirements of IFRS 9, and are named as such."})).mark_ok()
+    graph.connect("staging_whatif", previous)
 
     graph.add_node(TraceNode(
         id="result", type=NodeType.RESULT, label="Scenario result",

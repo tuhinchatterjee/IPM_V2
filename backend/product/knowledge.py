@@ -468,17 +468,18 @@ CAPABILITIES: tuple[Capability, ...] = (
         evidence=_datasets_in("External Intelligence")),
     Capability(
         key="stress_testing",
-        name="Stress testing",
-        summary="What the book looks like under a scenario.",
-        does="Applies governed scenarios to the portfolio and reports the "
+        name="What-If Analysis",
+        summary="What the book looks like if an assumption changes.",
+        does="Applies a scenario to the Corporate IFRS 9 book and reports the "
              "movement in exposure, staging and impairment, with the scenario "
-             "definition attached to the result.",
+             "definition, the staging criteria and the ECL methodology "
+             "attached to the result.",
         matters="A stress result nobody can reproduce is a slide, not a "
                 "control. Keeping the scenario governed is what makes the "
                 "number defensible to a regulator.",
         used_by="A risk function runs the annual scenarios and explains the "
                 "impairment impact by sector.",
-        areas=("Analyses",)),
+        areas=("What-If Analysis",)),
     Capability(
         key="scorecard_validation",
         name="Scorecard validation and model risk",
@@ -686,7 +687,7 @@ SCENARIO_EXAMPLES: tuple[str, ...] = (
     "Which portfolios become most vulnerable under this scenario?",
 )
 
-SCENARIO_HEDGE = "as scenarios are configured in Stress Testing"
+SCENARIO_HEDGE = "as scenarios are configured in What-If Analysis"
 
 #: The capabilities named in the opening "I connect the risk picture across..."
 #: sentence, in reading order, BY KEY. Built from the registry so the sentence
@@ -711,7 +712,7 @@ SHORT_NAMES: dict[str, str] = {
     "collateral": "collateral",
     "liquidity": "liquidity",
     "group_risk": "connected exposures",
-    "stress_testing": "stress testing",
+    "stress_testing": "What-If Analysis",
     "external_intelligence": "external intelligence",
     "scorecard_validation": "scorecard validation",
     "data_builder": "the governed data layer",

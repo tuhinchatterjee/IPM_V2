@@ -24,6 +24,12 @@ EAD = "ead"
 FINANCIAL = "financial"
 COLLATERAL = "collateral"
 MACRO = "macro"
+#: Credit conversion factor. Reaches ECL through EAD, never directly.
+CCF = "ccf"
+#: A haircut on collateral. Reaches ECL through LGD.
+HAIRCUT = "haircut"
+#: A direct Stage migration, asked for rather than triggered by a PD move.
+STAGE = "stage"
 
 #: How a magnitude is expressed. Kept explicit because "PD up 25" is ambiguous
 #: and every ambiguity here becomes a number somebody cannot reconcile.
@@ -72,6 +78,57 @@ class Shock:
 
 
 @dataclass(frozen=True)
+class Threshold:
+    """One numeric filter: a field, a comparison and a level.
+
+    "Exposure above SAR 100m" is a filter, and dropping it because the parser
+    only understood the sector is how a scenario aimed at twelve names got
+    applied to the whole book. Every threshold a person states is carried here
+    or the instruction is refused — never quietly widened.
+    """
+
+    field: str
+    operator: str          # "above" | "below" | "at least" | "at most"
+    value: float
+    unit: str = ""         # "SAR mn" | "%" | ""
+
+    def describe(self) -> str:
+        shown = (f"SAR {self.value:,.0f}m" if self.unit == "SAR mn"
+                 else f"{self.value:g}{self.unit}")
+        return f"{LABELS.get(self.field, self.field)} {self.operator} {shown}"
+
+    def apply(self, series: Any) -> Any:
+        if self.operator in ("above",):
+            return series > self.value
+        if self.operator in ("at least",):
+            return series >= self.value
+        if self.operator in ("below",):
+            return series < self.value
+        return series <= self.value
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"field": self.field, "operator": self.operator,
+                "value": self.value, "unit": self.unit,
+                "description": self.describe()}
+
+
+#: Reader-facing names for the fields a threshold may filter on.
+LABELS: dict[str, str] = {
+    "ead": "exposure at default",
+    "drawn_exposure": "drawn exposure",
+    "undrawn_commitment": "undrawn commitment",
+    "final_ecl": "reported ECL",
+    "pd_12m": "12-month PD",
+    "pd_lifetime": "lifetime PD",
+    "lgd": "LGD",
+    "ecl_coverage": "ECL coverage",
+    "collateral_coverage_pct": "collateral coverage",
+    "leverage": "leverage",
+    "dscr": "DSCR",
+}
+
+
+@dataclass(frozen=True)
 class Population:
     """Who the scenario is applied to. Empty means the whole book."""
 
@@ -80,16 +137,25 @@ class Population:
     stages: tuple[int, ...] = ()
     borrower_ids: tuple[str, ...] = ()
     watchlist_only: bool = False
+    #: Numeric filters, all of which must hold.
+    thresholds: tuple[Threshold, ...] = ()
+    #: "the top 20 by EAD" — a rank filter applied after everything else.
+    top_n: int = 0
+    top_by: str = "ead"
 
     @property
     def is_whole_book(self) -> bool:
         return not (self.sectors or self.rating_bands or self.stages
-                    or self.borrower_ids or self.watchlist_only)
+                    or self.borrower_ids or self.watchlist_only
+                    or self.thresholds or self.top_n)
 
     def describe(self) -> str:
         if self.is_whole_book:
             return "the whole corporate book"
         parts = []
+        if self.top_n:
+            parts.append(f"the top {self.top_n} by "
+                         f"{LABELS.get(self.top_by, self.top_by)}")
         if self.rating_bands:
             parts.append(f"{', '.join(self.rating_bands)} borrowers")
         if self.sectors:
@@ -100,6 +166,8 @@ class Population:
             parts.append(f"{len(self.borrower_ids)} named borrowers")
         if self.watchlist_only:
             parts.append("on the watchlist")
+        for threshold in self.thresholds:
+            parts.append(f"with {threshold.describe()}")
         return " ".join(parts) or "the whole corporate book"
 
     def to_dict(self) -> dict[str, Any]:
@@ -108,7 +176,33 @@ class Population:
                 "stages": list(self.stages),
                 "borrower_ids": list(self.borrower_ids),
                 "watchlist_only": self.watchlist_only,
+                "thresholds": [t.to_dict() for t in self.thresholds],
+                "top_n": self.top_n,
+                "top_by": self.top_by,
                 "description": self.describe()}
+
+    def filters(self) -> list[str]:
+        """Every filter, one per line, for the "What I understood" panel."""
+        out = []
+        if self.sectors:
+            out.append(f"Sector: {', '.join(self.sectors)}")
+        if self.rating_bands:
+            out.append(f"Rating: {', '.join(self.rating_bands)}")
+        if self.stages:
+            out.append("Stage: "
+                       + ", ".join(f"Stage {s}" for s in self.stages))
+        if self.watchlist_only:
+            out.append("Watchlist only")
+        for threshold in self.thresholds:
+            said = threshold.describe()
+            out.append(said[:1].upper() + said[1:])
+        if self.top_n:
+            out.append(f"Top {self.top_n} by "
+                       f"{LABELS.get(self.top_by, self.top_by)}")
+        if self.borrower_ids:
+            out.append(f"Named borrowers: {', '.join(self.borrower_ids[:8])}"
+                       + (" …" if len(self.borrower_ids) > 8 else ""))
+        return out or ["The whole corporate book"]
 
 
 @dataclass(frozen=True)

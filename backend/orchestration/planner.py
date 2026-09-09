@@ -102,8 +102,7 @@ INTENTS: list[Intent] = [
         build="_sector_deterioration",
         follow_ups=[
             "Show me the top ten deteriorating borrowers.",
-            "Stress the worst sector.",
-            "Why has Stage 2 increased?",
+                        "Why has Stage 2 increased?",
         ],
     ),
     Intent(
@@ -138,23 +137,7 @@ INTENTS: list[Intent] = [
         follow_ups=[
             "Which sectors deteriorated the most?",
             "Why has Stage 2 increased?",
-            "Stress the Real Estate portfolio.",
-        ],
-    ),
-    Intent(
-        id="stress",
-        focus="scenario impact",
-        patterns=[
-            (r"stress|shock|downturn|scenario|what if|adverse", 6),
-            (r"sensitiv", 3),
-        ],
-        intent_text="Apply a downturn scenario and size the incremental impairment.",
-        build="_stress",
-        follow_ups=[
-            "Which sectors deteriorated the most?",
-            "How has ECL changed?",
-            "Show me the rating transition matrix.",
-        ],
+                    ],
     ),
     Intent(
         id="ecl_change",
@@ -183,8 +166,7 @@ INTENTS: list[Intent] = [
         intent_text="Measure where exposure is concentrated and how much sits in the largest groups.",
         build="_concentration",
         follow_ups=[
-            "Stress the Real Estate portfolio.",
-            "Which sectors deteriorated the most?",
+                        "Which sectors deteriorated the most?",
             "What deteriorated this period?",
         ],
     ),
@@ -227,8 +209,7 @@ INTENTS: list[Intent] = [
         follow_ups=[
             "Show me the top ten deteriorating borrowers.",
             "What deteriorated this period?",
-            "Stress the Real Estate portfolio.",
-        ],
+                    ],
     ),
     Intent(
         id="trend",
@@ -542,20 +523,6 @@ class DemoPlanner:
                      "Borrowers ranked by the severity of their deterioration, with the "
                      "reasons recorded for each.",
                      params={"top_n": self._top_n(lowered, 10)}, filters=filters),
-        ]
-
-    def _stress(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:
-        params: dict[str, Any] = {"scenario": self._scenario(lowered)}
-        # stress_scenario_basic takes the sector as a declared parameter, so a
-        # sector mentioned in the question belongs there rather than in filters.
-        sector = filters.get("sector")
-        remaining = {k: v for k, v in filters.items() if k != "sector"}
-        if isinstance(sector, str):
-            params["sector"] = sector
-        return [
-            PlanStep("stress_scenario_basic", "Scenario impact",
-                     "The scenario's shocks applied to the reported position.",
-                     params=params, filters=remaining),
         ]
 
     def _ecl_change(self, lowered: str, vocab: Vocabulary, filters: dict) -> list[PlanStep]:

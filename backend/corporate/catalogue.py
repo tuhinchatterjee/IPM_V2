@@ -22,7 +22,6 @@ where the resolver reads it, not only in a docstring.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -284,28 +283,81 @@ RELATIONSHIPS: tuple[dict[str, Any], ...] = (
 )
 
 
+def reconcile_published(frames: dict[str, pd.DataFrame]) -> dict[str, Any]:
+    """Bring PUBLISHED Data Builder entries back in line with the rebuilt lake.
+
+    A published dataset in PostgreSQL OVERRIDES the file catalogue entry of the
+    same name — deliberately, because a steward republishing a dataset is a
+    deliberate act. The consequence nobody planned for is that rebuilding the
+    lake with new columns leaves those columns invisible: the Parquet has them,
+    the file catalogue has them, and every analysis is refused with "not a
+    field of dataset" because a database row written months ago does not.
+
+    That is what happened to nine columns of `corporate_borrower_360`, and the
+    failure looked like a bug in the caller rather than a stale catalogue. So
+    the build reconciles: any column the frame carries and the published entry
+    does not is added to the dictionary, typed from the data, and reported.
+    Nothing is ever REMOVED here — a steward's own definition is theirs.
+
+    Silent where there is no database. This is a repair step in a generator,
+    not a migration.
+    """
+    from backend.config import settings
+
+    report: dict[str, Any] = {"available": False, "added": {}, "checked": 0}
+    if not settings.has_database:
+        report["why"] = "No DATABASE_URL, so nothing is published to reconcile."
+        return report
+    try:
+        from backend.db.engine import get_session
+        from backend.services.data_builder import (
+            get_dataset,
+            published_datasets,
+            upsert_field_definition,
+        )
+    except Exception as e:  # pragma: no cover - the DAL must survive this
+        report["why"] = f"Data Builder is unavailable: {e}"
+        return report
+
+    try:
+        with get_session() as session:
+            published = {d.name for d in published_datasets(session)}
+            for name, frame in sorted(frames.items()):
+                if name not in published:
+                    continue
+                report["checked"] += 1
+                known = {f.name for f in get_dataset(session, name).fields}
+                missing = [c for c in frame.columns if c not in known]
+                for column in missing:
+                    upsert_field_definition(
+                        session, name, name=column,
+                        data_type=_TYPES.get(str(frame[column].dtype), "string"),
+                        unit=_unit(column), sensitivity=_sensitivity(column),
+                        business_name=_humanise(column),
+                        source_system=ORIGIN, source_field=column,
+                        definition=_definition(column) or (
+                            "Added by the corporate universe build to match "
+                            "the rebuilt lake."))
+                if missing:
+                    report["added"][name] = missing
+            session.commit()
+        report["available"] = True
+    except Exception as e:  # pragma: no cover - a build must not die on this
+        report["why"] = f"Could not reconcile published datasets: {e}"
+    return report
+
+
 def merge_into_catalogue(frames: dict[str, pd.DataFrame],
                          path: Path | None = None) -> dict[str, Any]:
     """Add the corporate datasets to the governed catalogue, in place."""
     from backend.config import settings
+    from backend.data_access import catalogue_io
 
-    target = path or (settings.metadata_dir / "catalog.json")
-    catalogue: dict[str, Any] = (
-        json.loads(target.read_text("utf-8")) if target.exists()
-        else {"version": "1.0.0", "datasets": []})
-
+    target = path or catalogue_io.path_for(settings.metadata_dir)
     ours = datasets(frames)
     names = {d["name"] for d in ours}
-    kept = [d for d in catalogue.get("datasets", [])
-            if d.get("name") not in names]
-    catalogue["datasets"] = kept + ours
-
-    relationships = [r for r in catalogue.get("relationships", [])
-                     if r.get("from_dataset") not in names]
-    catalogue["relationships"] = relationships + list(RELATIONSHIPS)
-
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(catalogue, indent=2), encoding="utf-8")
+    catalogue = catalogue_io.merge(target.parent, datasets=ours,
+                                   relationships=list(RELATIONSHIPS))
     return {
         "catalogue_version": CATALOGUE_VERSION,
         "path": str(target),

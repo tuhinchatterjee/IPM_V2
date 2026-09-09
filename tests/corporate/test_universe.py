@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from backend.corporate import ORIGIN
+from backend.corporate import ORIGIN, ratingscale
 from backend.corporate import domains as domains_mod
 from backend.corporate import universe as universe_mod
 
@@ -157,13 +157,43 @@ class TestCreditCoherence:
         assert (graded_d == ratings["default_flag"]).all()
 
     def test_worse_ratings_carry_higher_pd(self, universe):
+        """On the grades the book actually populates.
+
+        The ordinal of default is read from the governed scale rather than
+        written in: it was 14 and is now 19, and a test that hardcodes it
+        fails on a scale change for a reason that has nothing to do with what
+        it is checking.
+
+        The strongest grades hold a handful of names across sixteen quarters,
+        and two adjacent medians over a handful of borrowers can cross on
+        idiosyncratic movement alone. That is a fact about sample size; the
+        through-the-cycle ordering below is the one that has to be exact.
+        """
         ifrs9 = universe["corporate_ifrs9"].merge(
             universe["corporate_ratings"][["borrower_id", "period",
                                            "internal_rating_numeric"]],
             on=["borrower_id", "period"])
-        by_grade = ifrs9.groupby("internal_rating_numeric")["pd_12m"].median()
-        performing = by_grade.loc[by_grade.index < 14]
+        grouped = ifrs9.groupby("internal_rating_numeric")["pd_12m"]
+        by_grade = grouped.median()
+        populated = grouped.size() >= 200
+        performing = by_grade.loc[
+            (by_grade.index <= ratingscale.PERFORMING_COUNT) & populated]
+        assert len(performing) >= 12
         assert performing.is_monotonic_increasing, performing.to_dict()
+
+    def test_the_through_the_cycle_scale_is_exactly_ordered(self, universe):
+        """The property the medians above only approximate.
+
+        A grade's through-the-cycle PD is a property of the SCALE, so it
+        carries no sampling noise and no tolerance: nineteen grades, nineteen
+        distinct levels, strictly increasing.
+        """
+        ratings = universe["corporate_ratings"]
+        levels = (ratings.groupby("internal_rating")["ttc_pd_pct"].first()
+                  .reindex(ratingscale.PERFORMING))
+        assert levels.notna().all(), "every grade must appear in the book"
+        assert list(levels.values) == sorted(levels.values)
+        assert len(set(levels.values)) == ratingscale.PERFORMING_COUNT
 
     def test_the_cycle_is_visible_in_the_stage_mix(self, universe):
         ifrs9 = universe["corporate_ifrs9"]

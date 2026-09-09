@@ -85,6 +85,7 @@ import itertools
 import logging
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -376,6 +377,34 @@ _SUBSETS: tuple[frozenset[int], ...] = tuple(
 _WEIGHTS = _weights(len(FACTORS))
 
 
+def subsets(n: int) -> tuple[frozenset[int], ...]:
+    """Every coalition of n factors, as frozensets. Cached for the usual six."""
+    return _SUBSETS if n == len(FACTORS) else _all_subsets(n)
+
+
+def shapley_of(value: Mapping[frozenset[int], float], n: int) -> tuple[float, ...]:
+    """The Shapley value of a coalitional game given as its value function.
+
+    `value` maps every coalition of the n factors to what the total is when
+    exactly those factors have moved. The result holds one effect per factor
+    and sums to ``value[all] - value[none]`` exactly, up to floating point.
+
+    This is the order-neutrality claim itself, and it is separated from
+    `shapley` so that a caller whose game is NOT a single product — a book of
+    borrowers, each with its own factors, summed — attributes its change with
+    the same function rather than with a second, weaker one of its own.
+    """
+    weights = _WEIGHTS if n == len(FACTORS) else _weights(n)
+    effects = [0.0] * n
+    for subset, without in value.items():
+        for index in range(n):
+            if index in subset:
+                continue
+            gain = value[subset | {index}] - without
+            effects[index] += weights[len(subset)] * gain
+    return tuple(effects)
+
+
 def shapley(opening: tuple[float, ...],
             closing: tuple[float, ...]) -> tuple[float, ...]:
     """The order-neutral attribution of a change in a PRODUCT of factors.
@@ -393,21 +422,13 @@ def shapley(opening: tuple[float, ...],
 
     # v(S): the product with the factors in S moved to closing.
     value: dict[frozenset[int], float] = {}
-    for subset in _SUBSETS if n == len(FACTORS) else _all_subsets(n):
+    for subset in subsets(n):
         product = 1.0
         for index in range(n):
             product *= closing[index] if index in subset else opening[index]
         value[subset] = product
 
-    weights = _WEIGHTS if n == len(FACTORS) else _weights(n)
-    effects = [0.0] * n
-    for subset, without in value.items():
-        for index in range(n):
-            if index in subset:
-                continue
-            gain = value[subset | {index}] - without
-            effects[index] += weights[len(subset)] * gain
-    return tuple(effects)
+    return shapley_of(value, n)
 
 
 def _all_subsets(n: int) -> tuple[frozenset[int], ...]:

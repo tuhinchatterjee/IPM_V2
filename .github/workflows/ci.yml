@@ -52,6 +52,19 @@ jobs:
         # means those tests actually run against real Parquet on every push.
         run: uv run python scripts/generate_saudi_universe.py
 
+      - name: Build the Corporate IFRS 9 book
+        # The credit book and the corporate book are different books, and only
+        # the first was built here. Everything that reads Corporate IFRS 9 —
+        # What-If Analysis, the ECL bridge, the Borrower 360 — therefore ran
+        # against a lake that did not contain it.
+        #
+        # It runs SECOND because both builders write the governed catalogue and
+        # the corporate one MERGES into what is already there. Reversing the
+        # order leaves the corporate datasets unregistered, which is not a
+        # failure at build time — it surfaces later as "corporate_borrower_360
+        # is not a governed dataset".
+        run: uv run python scripts/build_corporate_universe.py
+
       - name: Tests (pytest)
         # Runs against the PostgreSQL service above, so the Data Builder and
         # Trace suites execute rather than skipping. The engine, DAL and legacy

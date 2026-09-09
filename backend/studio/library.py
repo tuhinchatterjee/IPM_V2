@@ -924,7 +924,11 @@ STRESS: list[MethodDefinition] = [
     d("stress_scenario_basic", "Management Stress Scenario", C.STRESS,
       "Portfolio impact under a declared set of shocks.",
       aliases=("stress test", "management scenario"),
-      engine="stress_scenario_basic", lifecycle=L.CERTIFIED),
+      lifecycle=L.PREVIEW,
+      limitations="Superseded by What-If Analysis, which runs on the Corporate "
+                  "IFRS 9 book. The legacy engine behind this method used a "
+                  "different book, rating scale and staging rule, so it is no "
+                  "longer bound here."),
     d("ecl_stress", "ECL Stress", C.STRESS,
       "Expected credit loss under stressed assumptions.", output="Comparison"),
     d("pd_stress", "PD Stress", C.STRESS,
