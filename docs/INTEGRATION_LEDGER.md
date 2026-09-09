@@ -204,3 +204,47 @@ runtime dependency, exactly as the plan predicted. Six routers declare
 `UploadFile`, and FastAPI raises at *import* time without it, so a production
 install from `pyproject.toml` alone cannot construct the app. To be promoted to
 a runtime pin during the AI/dependency consolidation.
+
+### Standing up the lake at M1 — what it proved and what it exposed
+
+The full data lake was built on this branch to make the gates real rather than
+skipped. Building it reached the rehearsal's figure exactly and confirmed two
+defects the plan had predicted from reading the code.
+
+**The lake reconciles.** After the Saudi build, the corporate build, the retail
+scorecard build and the SME build: **80 datasets catalogued, 80 on disk, gap
+empty** — the same 80 the rehearsal recorded.
+
+**Generator idempotence, evidenced early.** Re-running
+`scripts/build_corporate_universe.py` over an existing lake rewrote
+`docs/corporate_universe_build.json` with **144 changed lines, every one of them
+a wall-clock timing**. Filtering the timing keys leaves **zero** changed lines:
+dataset counts, relationships, forbidden joins, field lists and every recorded
+figure are byte-identical between runs. The regenerated timings were reverted
+rather than committed, since machine-specific seconds are churn that would make
+a later idempotence check noisier rather than clearer.
+
+**Defect — the SME scorecard has no build script.** `backend/scorecard/sme/build.py`
+is import-only. The only invocation anywhere in the repository is a string
+inside a test's error message. It was run here as
+`python -c "from backend.scorecard.sme import build; build.build()"`. A rebuild
+runbook cannot run that, so `scripts/build_sme_scorecards.py` has to be written.
+
+**Defect — the SME build writes Parquet but does not register.** `build.build()`
+produced `sme_scorecard_monthly_validation`,
+`sme_scorecard_development_reference` and `sme_scorecard_decisions` on disk and
+left the governed catalogue at **77 of 80**. The three datasets existed and were
+invisible. They only appeared after
+`backend.scorecard.sme.catalogue.merge_into_catalogue()` was called by hand,
+which nothing in the build path does.
+
+That call's own summary also confirms the SME audit's central finding from the
+running system rather than from reading source: **`variables_carried: 22,
+variables_declared: 90`.**
+
+**Environment note.** The container has no `.venv`, no `node_modules` and no
+running database at session start, and the chain cannot be installed on the
+container's Python 3.11 (see the M1 entry). The toolchain here is an explicitly
+selected 3.12 interpreter, a local PostgreSQL 16 cluster on port 5433, and
+`npm ci` in `frontend/`. The database was created fresh, which is why the
+inherited `Test Domain` failures may legitimately not reproduce.
