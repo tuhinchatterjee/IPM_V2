@@ -426,12 +426,12 @@ Backend, `tests/early_warning/` + `tests/evals/test_early_warning_brain.py` +
 `tests/api/`, with PostgreSQL running:
 
 ```
-30 failed, 2384 passed, 66 skipped, 8 errors in 376.33s
+30 failed, 2407 passed, 66 skipped, 8 errors in 238.19s
 ```
 
 | | |
 |---|---|
-| Passed | **2,384** |
+| Passed | **2,407** |
 | Non-passing identifiers | **38** (30 failed + 8 errors) |
 | — Forward Risk Signal (Early Warning) | 5 — 2 failed, 3 errors, all pre-existing |
 | — credit-book API fixtures | 33 — 28 failed, 5 errors, all pre-existing |
@@ -454,6 +454,7 @@ Suites that matter here, run individually:
 | `test_opus_plan_contract.py` | 31 passed |
 | `test_closing_reserve.py` | 17 passed |
 | `test_executable_contract.py` | 41 passed |
+| `test_output_allowances.py` | 23 passed |
 | `test_signal_universe.py` | 22 passed |
 | `test_conversation_routing.py` | 76 passed, 1 skipped |
 | `test_conversation_pipeline.py` | 21 passed |
@@ -674,6 +675,75 @@ seven adversarial plans (a nonexistent grouping, an aliased real field, a
 nonexistent measure, a valid field that is the wrong type for grouping, a
 measure used as a partition, a source-domain field not materialised here, and an
 aliased measure) each normalised or repaired before execution.
+
+### Defect 4 — the answer was cut off by CreditProbe's own output caps
+
+The third live run reached every stage on real models and then wrote its
+answer deterministically anyway:
+
+```
+opus_sufficiency_review     claude-opus-5   cut off at the 1000-token limit
+opus_final_interpretation   claude-opus-5   cut off at the 1600-token limit
+```
+
+Both replies were well formed. Both were thrown away.
+
+**Why the caps were wrong.** They were sized for the document. On Opus 5
+adaptive thinking is on by default and its tokens come out of the **same**
+`max_tokens` allowance, so a two-hundred-token sufficiency verdict can be cut
+off at a thousand. A ceiling has to cover the document *and* the reasoning that
+produces it.
+
+Two halves, and the first matters more than the second.
+
+**The documents are compact.** `uncovered` was free text, so a model wrote a
+sentence about each missing part; it is now an enum over the eight analysis
+labels, because which parts are missing is a choice from a closed set. The
+lists on both schemas are bounded (`maxItems`), and both prompts now say
+plainly not to restate the request or repeat figures back.
+
+The input packets stopped duplicating the evidence. The sufficiency stage was
+receiving every figure the packet held and the coverage map's whole dictionary
+— including the proposed next step and the model-call metadata, neither of
+which it reads; it now gets the *names* of the figures produced, because the
+question is which parts were measured rather than what they measured.
+The interpretation stage was receiving `figures` **and** `fact_packs` — the
+packs are where the figures come from, so every number arrived twice and the
+rows a third time. The packs are gone; the rows are capped at ten.
+
+**Then the two ceilings, and only those two.**
+
+| Stage | Was | Now |
+|---|---|---|
+| `opus_sufficiency_review` | 1,000 | **2,000** |
+| `opus_final_interpretation` | 1,600 | **3,000** |
+| every other stage | — | unchanged |
+
+Both stages truncated at their previous caps, which bounds the true size from
+below and says nothing about it from above — so these are the smallest values
+that are *safe* on the evidence available, at the top of the range the brief
+gave. The documents are meanwhile smaller than they were when they did not fit.
+
+**One thing the new bounds caught in testing.** A `maxItems` of 3 rejected a
+four-item list outright, which is the same papercut as refusing a plan for
+writing `"25"` instead of `25`. The generic coercion now **trims a list to its
+bound** rather than discarding the reply. Prose length stayed guidance in the
+prompt rather than a hard `maxLength`: a cap on a paragraph cannot be enforced
+by trimming without cutting mid-word, and discarding a good reading for being
+forty characters long is the failure this whole fix is about.
+
+**Truncation detection is unchanged and still explicit.** A tool call cut off
+at the limit raises a named "cut off at the N-token limit" error, is never
+reported as malformed JSON, and is never retried — it would be cut off again in
+exactly the same place. It costs one charged call, and the closing reserve
+still carries the answer.
+
+`tests/early_warning/test_output_allowances.py`: **23 passed** — the two
+allowances asserted at both ends, no other stage raised, a full verdict and a
+full grounded reading both accepted, the packets proved not to duplicate the
+evidence, list-trimming, truncation still detected and not retried, one
+truncation costing one call with both closing stages still on a model, the
+budget architecture untouched, and both live acceptance targets.
 
 ### What was NOT changed
 

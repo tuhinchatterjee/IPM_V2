@@ -161,7 +161,13 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Say whether the executed evidence answers every part of the "
             "request, and what single further step would close a gap."),
-        max_tokens=1000),
+        # 1,000 truncated a live claude-opus-5 review. The document is small
+        # — a boolean, a list of labels, a phrase or two — so the allowance
+        # was never really sized for the document: on Opus 5 thinking is on
+        # by default and shares this same ceiling, so a verdict of two
+        # hundred tokens can be cut off before it is written. See the note
+        # below the table.
+        max_tokens=2000),
     INTERPRETATION: Stage(
         key=INTERPRETATION, family=OPUS, role="analyst",
         purpose="early_warning_interpretation",
@@ -169,7 +175,11 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Say what the Early Warning result means to a senior credit risk "
             "officer, using only figures the result carries."),
-        max_tokens=1600, closing=True),
+        # 1,600 truncated a live claude-opus-5 reading. This is the longest
+        # prose any stage writes — a direct answer, one or two paragraphs,
+        # and four bounded lists — and it shares its allowance with the
+        # model's own reasoning.
+        max_tokens=3000, closing=True),
     SUMMARY: Stage(
         key=SUMMARY, family=SONNET, role="router",
         purpose="early_warning_summary",
@@ -179,6 +189,29 @@ STAGES: dict[str, Stage] = {
             "answer that was actually supported."),
         max_tokens=700, closing=True),
 }
+
+
+#: Why the two Opus stages have the allowances they do.
+#:
+#: A `max_tokens` ceiling is not a budget for the document. On Opus 5
+#: adaptive thinking is ON by default and its tokens come out of the SAME
+#: allowance, so a stage whose JSON is two hundred tokens can still be cut
+#: off at a thousand — which is exactly what a live run did, on a review and
+#: a reading that were both well formed and both thrown away.
+#:
+#: So each ceiling is the document plus room to think, and each is set per
+#: stage rather than raised globally: pass one is a corrected sentence and
+#: does not need three thousand tokens to produce one.
+#:
+#: The values are the smallest that are SAFE on the evidence available. Both
+#: stages truncated at their previous caps, which bounds the true size from
+#: below and says nothing about it from above; the schemas are now bounded
+#: (`maxItems`, `maxLength`) and the prompts say how short to be, so the
+#: document itself is smaller than it was when it did not fit.
+_ALLOWANCE_NOTE = (
+    "Per-stage output allowances. On Opus 5 thinking shares max_tokens with "
+    "the answer, so each ceiling covers the document and the reasoning that "
+    "produces it.")
 
 
 @dataclass
@@ -362,7 +395,16 @@ def _coerce(value: Any, schema: dict[str, Any]) -> Any:
             # One item where a list was asked for. The model answered the
             # question; it just did not put brackets round it.
             value = [value]
-        return [_coerce(item, items) for item in value]
+        coerced = [_coerce(item, items) for item in value]
+        cap = schema.get("maxItems")
+        if isinstance(cap, int) and len(coerced) > cap:
+            # Four points where three were asked for is not a bad reading, and
+            # discarding the whole answer over the fourth is the same papercut
+            # as refusing a plan for writing "25" instead of 25. Trimming to
+            # the bound moves the value into what the schema already declares;
+            # it never adds one.
+            coerced = coerced[:cap]
+        return coerced
 
     if kind in ("integer", "number") and isinstance(value, str):
         text = value.strip().replace(",", "")

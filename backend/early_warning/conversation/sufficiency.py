@@ -206,7 +206,21 @@ figures do not actually support. You may NOT declare covered a part the \
 coverage map found missing.
 - Name the claims the prose must not make because nothing supports them.
 - Propose at most ONE further analysis, and only if it would close a real gap.
-- Choose how the answer should be presented from the evidence's shape."""
+- Choose how the answer should be presented from the evidence's shape.
+
+BE SHORT
+This is a verdict, not a review. Return the fields and nothing else: no \
+restating the request, no repeating figures back, no explaining your \
+reasoning. `uncovered` is a list of labels. Each unsupported claim is a \
+phrase of a few words. The rationale, if there is one, is a single short \
+sentence."""
+
+#: The parts a request can ask for. `uncovered` is constrained to them rather
+#: than left as free text: this stage decides WHICH parts are missing, and
+#: the answer is one of a closed set of labels. Left open, a model writes a
+#: sentence about each — and the sentences are the output that ran out of
+#: room, not the decision.
+_PARTS: tuple[str, ...] = tuple(COVERED_BY)
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -217,13 +231,17 @@ SCHEMA: dict[str, Any] = {
                             "evidence behind it."),
         },
         "uncovered": {
-            "type": "array", "items": {"type": "string"},
-            "description": "Parts of the request with no evidence behind them.",
+            "type": "array",
+            "items": {"type": "string", "enum": list(_PARTS)},
+            "maxItems": 4,
+            "description": "Which parts have no evidence behind them.",
         },
         "unsupported_claims": {
-            "type": "array", "items": {"type": "string"},
-            "description": ("Claims the prose must not make, because nothing "
-                            "in the result supports them."),
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": 3,
+            "description": ("Claims the prose must not make. A short phrase "
+                            "each, not a sentence."),
         },
         "next_analysis": {
             "type": "string",
@@ -231,7 +249,10 @@ SCHEMA: dict[str, Any] = {
             "description": ("The one further analysis that would close the "
                             "largest gap, or empty."),
         },
-        "next_analysis_rationale": {"type": "string"},
+        "next_analysis_rationale": {
+            "type": "string",
+            "description": "One short sentence. Empty if no further analysis.",
+        },
         "presentation": {
             "type": "string", "enum": ["narrative", "table", "chart"],
             "description": "How this evidence is best shown.",
@@ -248,22 +269,40 @@ def _reviewed_by_model(request: Any, packet: packet_mod.ResultPacket,
 
     from backend.early_warning.conversation import seam as seam_mod
 
+    # What this stage needs to judge coverage, and not one field more.
+    #
+    # It used to receive every figure the packet held and the coverage map's
+    # whole dictionary — including the proposed next step and the model-call
+    # metadata. None of that is read here, and a model shown the entire
+    # result is a model that restates it. The question is which PARTS have
+    # evidence, so the packet carries what evidence EXISTS rather than what
+    # it says.
     context = {
         "request": {
             "normalized": getattr(request, "normalized_business_request", ""),
-            "subquestions": list(getattr(request, "subquestions", []) or []),
+            "subquestions": list(
+                getattr(request, "subquestions", []) or [])[:4],
             "parts_asked_for": list(
                 getattr(request, "requested_analyses", []) or []),
         },
         "steps_that_ran": [
             {"analysis": s.get("analysis"), "grain": s.get("grain"),
-             "rows": s.get("row_count"), "rationale": s.get("rationale")}
+             "rows": s.get("row_count")}
             for s in packet.steps],
-        "figures": dict(packet.figures),
+        # The names of the figures produced, not the figures. Whether a part
+        # was measured is answered by which measures came back.
+        "figures_produced": sorted(packet.figures)[:40],
+        "figure_count": len(packet.figures),
         "row_count": len(packet.rows),
-        "coverage_map": floor.to_dict(),
-        "caveats": list(packet.caveats),
+        "coverage_map": {
+            "complete": floor.complete,
+            "covered": dict(floor.covered),
+            "uncovered": list(floor.uncovered),
+            "presentation": floor.presentation,
+        },
+        "caveats": list(packet.caveats)[:3],
         "revision_affordable": bool(can_revise),
+        "parts_vocabulary": list(_PARTS),
     }
     outcome = seam_mod.call(
         seam_mod.SUFFICIENCY, system=SYSTEM,

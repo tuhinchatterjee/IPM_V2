@@ -87,7 +87,15 @@ matrix. Report it.
 STYLE
 Lead with the answer. One or two paragraphs, no headings, no bullet lists \
 inside the interpretation, no restating the question. British English. Figures \
-exactly as they appear in the result, with their units."""
+exactly as they appear in the result, with their units.
+
+LENGTH
+`direct` is one or two lines. `interpretation` is one or two paragraphs and \
+never more. The lists are short and none of them repeats the interpretation: \
+at most three points, four drivers, three follow-ups, three caveats, a line \
+each. The runtime's own caveats are already attached to the answer — add only \
+what it did not say. Do not restate the result packet back; every figure in \
+it is already true and already shown."""
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -104,23 +112,29 @@ SCHEMA: dict[str, Any] = {
         },
         "points": {
             "type": "array", "items": {"type": "string"},
-            "description": ("At most four observations a credit officer would "
-                            "want flagged, each grounded in the result."),
+            "maxItems": 3,
+            "description": ("Observations a credit officer would want "
+                            "flagged, one line each, none repeating the "
+                            "interpretation."),
         },
         "drivers": {
             "type": "array", "items": {"type": "string"},
+            "maxItems": 4,
             "description": ("What is carrying the position, named by node "
-                            "rather than by number alone."),
+                            "rather than by number alone. A phrase each."),
         },
         "follow_ups": {
             "type": "array", "items": {"type": "string"},
-            "description": ("The next drills, each a specific question this "
+            "maxItems": 3,
+            "description": ("The next drills, each one specific question this "
                             "product can answer."),
         },
         "caveats": {
             "type": "array", "items": {"type": "string"},
+            "maxItems": 3,
             "description": ("What limits what may be concluded — coverage, a "
-                            "partial answer, an uncorroborated signal."),
+                            "partial answer, an uncorroborated signal. Only "
+                            "what the runtime did not already state."),
         },
     },
     "required": ["direct", "interpretation"],
@@ -196,6 +210,12 @@ def _context(question: str, packet: packet_mod.ResultPacket,
              reviewed: Any) -> dict[str, Any]:
     """The packet, and nothing else. No data, no other domain."""
     pack = packet.primary
+    # The evidence ONCE.
+    #
+    # `fact_packs` used to travel alongside `figures`, and the packs are where
+    # the figures come from — so every number arrived twice, and the rows a
+    # third time. A model shown the same evidence three ways spends its
+    # output reconciling the copies, and this stage's output is the answer.
     return {
         "question": question,
         "normalized_request": packet.normalized_request,
@@ -204,12 +224,14 @@ def _context(question: str, packet: packet_mod.ResultPacket,
         "comparison_period": packet.comparison_period,
         "filters": dict(packet.filters),
         "figures": dict(packet.figures),
-        "rows": list(packet.rows)[:25],
-        "fact_packs": [p for p in packet.packs],
-        "provenance": list(packet.provenance),
+        # Ten rows show the shape and the extremes. Twenty-five is a data
+        # export, and the prose may not quote a row it was not going to
+        # mention anyway.
+        "rows": list(packet.rows)[:10],
+        "provenance": list(packet.provenance)[:6],
         "coverage": dict(packet.coverage),
-        "caveats": list(packet.caveats),
-        "governed_actions": list(packet.governed_actions),
+        "caveats": list(packet.caveats)[:4],
+        "governed_actions": list(packet.governed_actions)[:3],
         "escalation_route": dict(packet.escalation),
         "sufficiency": {
             "complete": bool(getattr(reviewed, "complete", True)),
@@ -218,6 +240,9 @@ def _context(question: str, packet: packet_mod.ResultPacket,
                 getattr(reviewed, "unsupported", []) or []),
             "presentation": getattr(reviewed, "presentation", "narrative"),
         },
+        # The floor, and the grounding baseline: the model is shown the
+        # figures a person would write, and prose quoting anything else is
+        # prose that did not come from the result.
         "deterministic_reading": deterministic,
         "steps_that_ran": [
             {"analysis": s.get("analysis"), "rows": s.get("row_count"),

@@ -559,6 +559,43 @@ Prose carrying an ungrounded figure is **discarded**, not annotated. An
 interpretation with one invented sentence, shown under a warning, is still an
 interpretation somebody will paste into a credit paper.
 
+### How much room each stage gets
+
+`max_tokens` is not a budget for the document. On Opus 5 adaptive thinking is
+on by default and its tokens come out of the **same** allowance, so a stage
+whose JSON is two hundred tokens can still be cut off at a thousand — which is
+exactly what a live run did, to a sufficiency verdict and a final reading that
+were both well formed and both discarded.
+
+So each allowance covers the document *and* the reasoning that produces it, and
+each is set per stage rather than raised globally: pass one is a corrected
+sentence and does not need three thousand tokens to produce one.
+
+| Stage | Allowance |
+|---|---|
+| `sonnet_pass_1` | 700 |
+| `sonnet_summary_update` | 700 |
+| `opus_functionality_selection` | 900 |
+| `sonnet_pass_2` | 1,200 |
+| `opus_sufficiency_review` | 2,000 |
+| `opus_plan_repair` | 2,500 |
+| `opus_final_interpretation` | 3,000 |
+| `opus_analysis_plan` | 4,000 |
+
+The documents are kept small at the other end too. `uncovered` on the
+sufficiency schema is an enum over the eight analysis labels rather than free
+text — which parts are missing is a choice from a closed set, and left open a
+model writes a sentence about each. The lists are bounded, the prompts say not
+to restate the request or repeat figures back, and the input packets stopped
+sending the same evidence twice: the sufficiency stage gets the *names* of the
+figures produced rather than the figures, and the interpretation stage no
+longer receives the fact packs alongside the figures they contain.
+
+A list over its bound is **trimmed**, not discarded — four points where three
+were asked for is not a bad reading. Prose length is guidance in the prompt
+rather than a hard cap, because a paragraph limit cannot be enforced by
+trimming without cutting mid-word.
+
 ### Failure costs the stage, never the turn
 
 No provider, no budget left, a provider error, a timeout, a reply that does not
