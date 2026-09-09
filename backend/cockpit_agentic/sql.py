@@ -60,6 +60,7 @@ book to return ten rows -- so the deadline, not the LIMIT, is the control.
 from __future__ import annotations
 
 import re
+import tempfile
 import threading
 import time
 from collections import OrderedDict
@@ -191,6 +192,13 @@ class Session:
             pass
 
 
+#: How much memory one materialised session may use, and how many threads it
+#: gets. Named rather than inline because they are a capacity decision about
+#: the CANONICAL book, not a constant somebody chose once for a 600-facility
+#: demonstration and never revisited.
+SESSION_MEMORY_LIMIT = "1GB"
+SESSION_THREADS = 2
+
 def _build_session(*, scope: scope_mod.Scope,
                    catalog: catalog_mod.Catalog) -> Session:
     """Materialize the authorized relations, then shut the door behind them.
@@ -215,8 +223,14 @@ def _build_session(*, scope: scope_mod.Scope,
             f"mismatch, not an empty portfolio.")
 
     connection = duckdb.connect(database=":memory:")
-    connection.execute("SET threads TO 2")
-    connection.execute("SET memory_limit = '512MB'")
+    connection.execute(f"SET threads TO {SESSION_THREADS}")
+    connection.execute(f"SET memory_limit = '{SESSION_MEMORY_LIMIT}'")
+    # Spill rather than fail. The canonical book is 3,800 borrowers and ~12,800
+    # facilities over sixteen quarters; the limit above was chosen for 250 and
+    # 600. A working set that does not fit is a slower answer, and an answer
+    # that dies mid-materialisation is a Cockpit that will not open.
+    connection.execute(
+        f"SET temp_directory = '{tempfile.gettempdir()}/cockpit_duckdb'")
 
     built: list[str] = []
     for relation in sorted(scope.relations):

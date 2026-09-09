@@ -75,14 +75,21 @@ def run(runtime_factory, question: str, gate: dict, *later: dict):
     return runtime_factory(provider).run(question), provider
 
 
-@pytest.mark.parametrize("destination,route", [
-    ("ews", "/early-warning"),
-    ("what_if", "/stress"),
-    ("scorecard_validation", "/scorecard-validation"),
-    ("lenses", "/lenses"),
+#: Where each referral should land. Read from the registry rather than written
+#: out again, because a literal here is a second place the route lives and the
+#: /stress rename proved which of the two goes stale: the registry moved to
+#: /what-if and this list did not, so the test failed for being right about a
+#: product that had moved on. What is worth asserting is that a referral offers
+#: the route the APPLICATION declares, and that the route is one a browser can
+#: actually reach — both checked below.
+@pytest.mark.parametrize("destination", [
+    "ews", "what_if", "scorecard_validation", "lenses",
 ])
 def test_every_referral_executes_nothing_and_offers_a_real_route(
-        runtime_factory, destination, route):
+        runtime_factory, destination):
+    from backend.cockpit_agentic import registry as registry_mod
+
+    route = registry_mod.entry(destination).route
     outcome, provider = run(
         runtime_factory, "a question owned elsewhere",
         {"decision": "REDIRECT",

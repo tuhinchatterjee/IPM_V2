@@ -79,6 +79,19 @@ def release_dir(dataset_release_id: str) -> Path:
     return root() / str(dataset_release_id)
 
 
+def _one(release: Release, column: str) -> str:
+    """The single value `column` takes across the release, or "" if it varies.
+
+    A release that answered two currencies to this question would be one whose
+    figures cannot be added together, so the honest answer there is no answer.
+    """
+    values: set[str] = set()
+    for frame in release.frames.values():
+        if column in frame.columns:
+            values.update(str(v) for v in frame[column].dropna().unique())
+    return values.pop() if len(values) == 1 else ""
+
+
 def write(release: Release, *, require_flag: bool = True,
           overwrite: bool = False) -> dict[str, Any]:
     """Publish a release. One Parquet file per relation, plus a manifest."""
@@ -117,6 +130,19 @@ def write(release: Release, *, require_flag: bool = True,
                 "cockpit_facility_quarter"]["tenant_id"].dropna().unique()),
         "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "calendar": release.calendar.to_dict(),
+        # Read off the rows rather than taken from a constant. Two releases now
+        # exist in different currencies, and a catalogue that described one
+        # with the other's units would put the wrong denomination beside every
+        # figure on screen — which is the one error nobody would catch by
+        # reading the number.
+        "reporting_currency": _one(release, "reporting_currency"),
+        "amount_scale": _one(release, "amount_scale"),
+        # Whether the per-scenario, per-horizon ECL detail is published. A
+        # canonical release carries no term structure and says so, so the
+        # features that read one can be disabled rather than answered from an
+        # invention.
+        "carries_term_structure": bool(
+            "cockpit_ifrs9_detail" in release.frames),
         "relations": written,
     }
     (directory / MANIFEST).write_text(json.dumps(manifest, indent=2,
@@ -178,7 +204,38 @@ def report() -> dict[str, Any]:
     }
 
 
+def denomination(dataset_release_id: str) -> dict[str, str]:
+    """What this release is reported in, and whether it carries a term
+    structure. Read from the manifest, never assumed.
+    """
+    try:
+        manifest = read_manifest(dataset_release_id)
+    except ReleaseNotFound:
+        return {}
+    out = {}
+    for key in ("reporting_currency", "amount_scale"):
+        value = str(manifest.get(key) or "")
+        if value:
+            out[key] = value
+    return out
+
+
+def carries_term_structure(dataset_release_id: str) -> bool:
+    """Whether the per-scenario, per-horizon ECL detail is published here.
+
+    Absent from the manifest means an older release built before the question
+    was asked, and those all carried one — so the default is True and a
+    canonical release states False explicitly.
+    """
+    try:
+        manifest = read_manifest(dataset_release_id)
+    except ReleaseNotFound:
+        return False
+    return bool(manifest.get("carries_term_structure", True))
+
+
 __all__ = ["FORBIDDEN", "MANIFEST", "ReleaseNotFound", "UnsafeTarget",
-           "check_target", "load_calendar", "read_manifest", "read_relation",
+           "carries_term_structure", "check_target", "denomination",
+           "load_calendar", "read_manifest", "read_relation",
            "relation_path", "release_dir", "releases", "report", "root",
            "write"]

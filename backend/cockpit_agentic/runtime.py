@@ -48,6 +48,7 @@ from backend.cockpit_agentic import scope as scope_mod
 from backend.cockpit_agentic import sonnet as sonnet_mod
 from backend.cockpit_agentic import sql as sql_mod
 from backend.cockpit_agentic import states as st
+from backend.cockpit_agentic import store as release_store
 from backend.cockpit_agentic import tokens as tokens_mod
 from backend.cockpit_agentic.ledger import (
     STOP_CALLS,
@@ -138,7 +139,8 @@ class Runtime:
             principal, dataset_release_id=dataset_release_id)
         self.catalog = catalog_mod.build(
             dataset_release_id=dataset_release_id, calendar=calendar,
-            tenant_id=self.scope.tenant_id)
+            tenant_id=self.scope.tenant_id,
+            **release_store.denomination(dataset_release_id))
         self.coverage = coverage
         # Idempotent: the same request id continues one budget rather than
         # opening a second (section 9.3).

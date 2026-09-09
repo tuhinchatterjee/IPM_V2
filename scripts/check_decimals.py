@@ -58,6 +58,45 @@ class Allowed:
 #: Paths where more than two decimals is CORRECT. Every entry is a claim that
 #: the number never reaches a reader as a figure.
 ALLOWLIST: tuple[Allowed, ...] = (
+    # ---- the four sites the integration examined, each with its argument ----
+    Allowed(
+        "backend/orchestration/rubric.py",
+        "Not a figure. These two sites build the SET OF STRINGS that decides "
+        "whether a number appearing in Early Warning prose is grounded in the "
+        "fact pack behind it. `f\"{value:.4f}\"` is a lookup key, compared "
+        "against and then discarded; nothing formatted here is ever rendered. "
+        "Lowering the precision would make two genuinely different figures "
+        "collide on the same key and let an ungrounded number pass as "
+        "grounded, which is the opposite of what the check wants.",
+        lines=(336, 355)),
+    Allowed(
+        "backend/cockpit_v2/validate.py",
+        "An integrity-check FAILURE message, read by whoever is debugging a "
+        "release that did not validate. It names which contribution was "
+        "largest and by how much; at two decimals two contributions that "
+        "differ in the fourth place both print the same and the message stops "
+        "explaining the failure it exists to explain. This string never "
+        "reaches a user: a release that produces it is not published.",
+        lines=(623,)),
+    Allowed(
+        "backend/cockpit_v2/answer.py",
+        "A coverage ratio, quoted at three decimals BECAUSE the sentence "
+        "states its change in basis points immediately afterwards. 2.093% to "
+        "2.106% is +1.30 bp; rounded to 2.09% and 2.11% the reader is handed "
+        "two numbers that do not reconcile with the third, and a decomposition "
+        "whose parts do not add up reads as a bug rather than as rounding. "
+        "The same argument as backend/whatif/macrolab.py above. Every money "
+        "and count figure in this module goes through the contract.",
+        lines=(1720, 1721)),
+    Allowed(
+        "backend/early_warning/compose.py",
+        "An accelerator MULTIPLIER, at three decimals, where the quantity the "
+        "reader is judging is how far it sits from one. An accelerator of "
+        "1.004 and one of 1.000 are a signal that is being amplified and one "
+        "that is not; at two decimals both print 1.00 and the sentence stops "
+        "saying anything. Identical to the macrolab argument above. The score "
+        "and severity beside it are already at one and zero decimals.",
+        lines=(527,)),
     Allowed(
         "backend/whatif/macrolab.py",
         "PD sensitivity multipliers, at three decimals, and the third one is "

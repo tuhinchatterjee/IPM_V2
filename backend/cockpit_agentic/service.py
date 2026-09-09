@@ -46,7 +46,26 @@ from backend.cockpit_agentic.runtime import Outcome, Runtime
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_RELEASE = "demo-20q-v1"
+#: The release a request pins when it does not name one.
+#:
+#: `canonical-16q-v1` is the CANONICAL corporate book: CORP- and CFAC-
+#: identities, every canonical borrower and facility, SAR in millions, the
+#: sixteen canonical quarters, and Stage, PD, LGD, EAD and reported ECL read
+#: from `corporate_ifrs9_facility` rather than assigned here. It is the release
+#: the rest of the product can be reconciled against, which is why it is the
+#: default.
+#:
+#: `demo-20q-v1` — the Cockpit's own 250-borrower book in INR crore over twenty
+#: quarters from 2021Q3 — still builds and can still be pinned by name, because
+#: the Cockpit's own unit tests and evals were authored against it. It is NOT
+#: the demonstration book and must not be presented as canonical Corporate: its
+#: population, currency, calendar and identifiers all differ from every other
+#: module's.
+DEFAULT_RELEASE = "canonical-16q-v1"
+
+#: The Cockpit's private book, kept buildable and named so a reader can tell
+#: which of the two a figure came from.
+PRIVATE_RELEASE = "demo-20q-v1"
 
 #: Coverage profiles, per release. Computed from the whole release, versioned
 #: with it, and reused rather than recomputed per query (section 5).
@@ -371,5 +390,5 @@ def diagnostics(principal: Any = None,
     return body
 
 
-__all__ = ["Answer", "DEFAULT_RELEASE", "NotAvailable", "ask", "available",
+__all__ = ["Answer", "DEFAULT_RELEASE", "NotAvailable", "PRIVATE_RELEASE", "ask", "available",
            "coverage_for", "diagnostics", "thread_for"]

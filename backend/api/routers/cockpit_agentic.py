@@ -87,7 +87,8 @@ def catalogue(dataset_release_id: str = service.DEFAULT_RELEASE,
     scope = scope_mod.for_principal(principal,
                                     dataset_release_id=dataset_release_id)
     built = catalog_mod.build(dataset_release_id=dataset_release_id,
-                              calendar=calendar, tenant_id=scope.tenant_id)
+                              calendar=calendar, tenant_id=scope.tenant_id,
+                              **store.denomination(dataset_release_id))
     body = built.to_dict()
     # Metadata is scoped too: a listing is filtered BEFORE it is described.
     body["relations"] = {name: block
