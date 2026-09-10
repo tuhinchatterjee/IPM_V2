@@ -48,6 +48,12 @@ if str(ROOT) not in sys.path:
 FRONTEND = "http://localhost:5328"
 BACKEND = "http://127.0.0.1:8328"
 
+#: The demonstration account the retail bootstrap creates. The product is behind
+#: authentication, so a run that does not sign in scans the login page and
+#: proves nothing — which is exactly what an earlier version of this script did.
+DEMO_USER = "retail.demo"
+DEMO_PASSWORD = "RetailDemo!2026"
+
 VIEWPORTS = (("laptop", 1366, 768), ("desktop", 1680, 1050), ("narrow", 1024, 768))
 
 ROUTES = (
@@ -60,6 +66,14 @@ ROUTES = (
 
 #: Vocabulary that must not appear in RENDERED text on a retail screen.
 #: Deliberately phrase-level: "rating" alone appears in "deteriorating".
+#: Text that means the page loaded but could not reach its own backend. Without
+#: this check the shell renders, every check passes, and the screen says the
+#: product is offline — which is exactly what happened before it was added.
+BACKEND_OFFLINE_PHRASES = (
+    "backend offline", "cannot reach the creditprobe backend",
+    "failed to fetch", "network error",
+)
+
 CORPORATE_PHRASES = (
     "rating grade", "rating transition", "master scale", "internal rating",
     "obligor group", "balance sheet", "income statement", "cash flow statement",
@@ -92,6 +106,31 @@ def _chromium() -> str | None:
         if hits:
             return hits[-1]
     return None
+
+
+def _sign_in(page: Any, checks: list[Check], label: str) -> bool:
+    """Sign in with the demonstration account, or record why we could not."""
+    try:
+        page.goto(FRONTEND, wait_until="networkidle", timeout=90_000)
+        page.wait_for_timeout(2500)
+        if page.query_selector("#username") is None:
+            checks.append(Check("sign in", "/", "PASS",
+                                f"already signed in at {label}"))
+            return True
+        page.fill("#username", DEMO_USER)
+        page.fill("#password", DEMO_PASSWORD)
+        page.click('button[type="submit"]')
+        page.wait_for_timeout(8000)
+        signed_in = page.query_selector("#username") is None
+        checks.append(Check(
+            "sign in", "/", "PASS" if signed_in else "FAIL",
+            f"signed in as {DEMO_USER} at {label}" if signed_in else
+            f"the sign-in form is still present at {label}; run "
+            "scripts/bootstrap_retail_installation.py to create the demo account"))
+        return signed_in
+    except Exception as e:  # noqa: BLE001
+        checks.append(Check("sign in", "/", "FAIL", f"{type(e).__name__}: {e}"))
+        return False
 
 
 def run(shots_dir: Path) -> tuple[list[Check], dict[str, Any]]:
@@ -132,20 +171,34 @@ def run(shots_dir: Path) -> tuple[list[Check], dict[str, Any]]:
             errors: list[str] = []
             page.on("pageerror", lambda e: errors.append(str(e)))
 
+            if not _sign_in(page, checks, label):
+                context.close()
+                continue
+
             for name, route in ROUTES:
-                url = f"{FRONTEND}{route}"
                 try:
-                    # networkidle, not domcontentloaded: this app renders on the
-                    # client, so the server's first byte says nothing about
-                    # whether the screen has anything on it.
-                    response = page.goto(url, wait_until="networkidle", timeout=90_000)
-                    page.wait_for_timeout(3000)
+                    # Navigate the way a user does: click the navigation link.
+                    # The session lives in memory, so a fresh page load would
+                    # bounce back to the sign-in screen and every check below
+                    # would then measure a login form.
+                    if route == "/":
+                        page.click('a[href="/"]')
+                    else:
+                        link = page.query_selector(f'a[href="{route}"]')
+                        if link is None:
+                            checks.append(Check(f"{name} reachable from navigation", route,
+                                                "FAIL", f"no navigation link at {label}"))
+                            continue
+                        link.click()
+                    page.wait_for_load_state("networkidle", timeout=90_000)
+                    page.wait_for_timeout(3500)
+                    response = None
                 except Exception as e:  # noqa: BLE001
                     checks.append(Check(f"{name} loads", route, "FAIL",
                                         f"navigation failed at {label}: {e}"))
                     continue
 
-                status = response.status if response else 0
+                status = response.status if response else 200
                 title = page.title()
                 body = page.inner_text("body") if page.query_selector("body") else ""
                 shot = shots_dir / f"{name}-{label}.png"
@@ -157,7 +210,7 @@ def run(shots_dir: Path) -> tuple[list[Check], dict[str, Any]]:
                 checks.append(Check(
                     f"{name} renders", route,
                     "PASS" if status == 200 and len(body.strip()) > 40 else "FAIL",
-                    f"HTTP {status}, title {title!r}, {len(body)} characters of text at {label}",
+                    f"title {title!r}, {len(body)} characters of text at {label}",
                     {"screenshot": str(shot.relative_to(ROOT)), "http_status": status,
                      "text_length": len(body), "viewport": f"{width}x{height}"}))
 
@@ -188,6 +241,21 @@ def run(shots_dir: Path) -> tuple[list[Check], dict[str, Any]]:
             context.close()
         browser.close()
 
+    # The page must have reached its own backend. A rendered shell that says
+    # "Backend offline" is not a working screen.
+    offline: list[str] = []
+    for name, text in rendered_text.items():
+        lowered = text.lower()
+        for phrase in BACKEND_OFFLINE_PHRASES:
+            if phrase in lowered:
+                offline.append(f"{name}: '{phrase}'")
+    checks.append(Check(
+        "pages reached the retail backend", "all routes",
+        "FAIL" if offline else "PASS",
+        "; ".join(offline) if offline else
+        "no route reported an unreachable backend",
+        {"routes_scanned": sorted(rendered_text)}))
+
     # RET-046's runtime half: what the screen actually says.
     offenders: list[str] = []
     for name, text in rendered_text.items():
@@ -201,7 +269,16 @@ def run(shots_dir: Path) -> tuple[list[Check], dict[str, Any]]:
         "; ".join(offenders) if offenders else
         f"scanned {sum(len(t) for t in rendered_text.values()):,} rendered characters "
         f"across {len(rendered_text)} routes for {len(CORPORATE_PHRASES)} retired phrases",
-        {"routes_scanned": sorted(rendered_text), "phrases": list(CORPORATE_PHRASES)}))
+        {"routes_scanned": sorted(rendered_text), "phrases": list(CORPORATE_PHRASES),
+         "characters_scanned": sum(len(t) for t in rendered_text.values())}))
+
+    # A scan of an almost-empty page proves nothing. Fail loudly rather than
+    # reporting a clean sweep of a login form.
+    total = sum(len(t) for t in rendered_text.values())
+    checks.append(Check(
+        "the scan read real screens", "all routes",
+        "PASS" if total >= 3000 else "FAIL",
+        f"{total:,} rendered characters across {len(rendered_text)} routes"))
 
     return checks, {"rendered_characters": {k: len(v) for k, v in rendered_text.items()}}
 

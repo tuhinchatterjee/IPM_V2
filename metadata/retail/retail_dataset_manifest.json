@@ -18,7 +18,7 @@
       ],
       "gross_carrying_amount_sar": 1418870655.12,
       "ecl_final_sar": 17241387.064,
-      "content_hash": "c7f088fa9fab91b30c0eb7eda9e4bdb1aa688e5ab82490201f5120edfbb1b5fb",
+      "content_hash": "8448ced75da1aa3d79f07c83c3a439398f8422329712c71b8911a0fa29ba611a",
       "validation_status": "PASSED"
     },
     {
@@ -35,7 +35,7 @@
       ],
       "gross_carrying_amount_sar": 1428620929.75,
       "ecl_final_sar": 18710158.532,
-      "content_hash": "7dcdaea0d02c2c666f4f5a070f362c9572a957ebc73d61465f2f91169e66acca",
+      "content_hash": "5e3fee177631112617619e6d969902992555f248d446f6d8a81f5acae579522a",
       "validation_status": "PASSED"
     },
     {
@@ -52,7 +52,7 @@
       ],
       "gross_carrying_amount_sar": 1444507788.06,
       "ecl_final_sar": 20246444.112,
-      "content_hash": "bb94fed6b072da3fb089a0dfab63fc1bcbe653773242a194bf9bf15541e94cac",
+      "content_hash": "6c9df01e6569b7a970bd9e902e00427ac72282cd1721bacffd0a3122b2a18bfd",
       "validation_status": "PASSED"
     },
     {
@@ -69,7 +69,7 @@
       ],
       "gross_carrying_amount_sar": 1473703579.42,
       "ecl_final_sar": 21174648.77,
-      "content_hash": "f4a0018a65ef276076c2b368d0353d213fdc8c44e38686bcbd60ed7278512447",
+      "content_hash": "f3fa0048a9c19fcff961f0df68f4be0e8b96063ea754fc6ea010791fc729f643",
       "validation_status": "PASSED"
     },
     {
@@ -86,7 +86,7 @@
       ],
       "gross_carrying_amount_sar": 1487364620.32,
       "ecl_final_sar": 23055203.638,
-      "content_hash": "e32e0829bbbdd0ee8704b68d64795041e16595ac6ad69d146d5d16908c8507d7",
+      "content_hash": "c4fe03bfd25ccd93f88ef16a245171c5ff37240640602bc344a7c8b6240c90d0",
       "validation_status": "PASSED"
     },
     {
@@ -103,7 +103,7 @@
       ],
       "gross_carrying_amount_sar": 1499844727.96,
       "ecl_final_sar": 24309382.748,
-      "content_hash": "82fad0be6cb76d585b7633f170b52a5455cf8b1562fc4dba1ad922d02c016df1",
+      "content_hash": "f9f5b4901b6715708adc4dc9e03fe4a2999846f35d9ed7c9fd790effafd18dca",
       "validation_status": "PASSED"
     },
     {
@@ -120,7 +120,7 @@
       ],
       "gross_carrying_amount_sar": 1520717389.83,
       "ecl_final_sar": 24149264.492,
-      "content_hash": "176780b892981d810f7dfafd218df2ded4d7a85716f1a208d84afecf9c876965",
+      "content_hash": "15743d6386718f84371ceb4131bbc2769aed35483141c49f957e3e47f71d1273",
       "validation_status": "PASSED"
     },
     {
@@ -137,7 +137,7 @@
       ],
       "gross_carrying_amount_sar": 1547526156.57,
       "ecl_final_sar": 22557777.169999998,
-      "content_hash": "d3892badebf5cd7c1fa7d87157542850e8f3dc8e9f8558021851c90bc1532836",
+      "content_hash": "20b0d20577711c13c50f83ed1fb67e77cd08511f260089a52f0882ee5a79a305",
       "validation_status": "PASSED"
     },
     {
@@ -154,7 +154,7 @@
       ],
       "gross_carrying_amount_sar": 1573577897.7399998,
       "ecl_final_sar": 20732659.842,
-      "content_hash": "789098bb87db6c767d898a79a8dc14d3eb84e9e910f093d94c4e7f3e1616a204",
+      "content_hash": "4bae50ec18c00b9b687e26f5d53eecc6def8d3e4b0b4a1de61e8741c1a996a19",
       "validation_status": "PASSED"
     },
     {
@@ -171,7 +171,7 @@
       ],
       "gross_carrying_amount_sar": 1592138451.56,
       "ecl_final_sar": 18840840.676,
-      "content_hash": "0f363297b94f980d4de5a4b977dc18b0d3d7f71a98b54eeff5a48488e5e922fe",
+      "content_hash": "df5bc10795e73a8d73e0ae81273454193fc696a298b87763556d6d3244810a87",
       "validation_status": "PASSED"
     },
     {
@@ -188,7 +188,7 @@
       ],
       "gross_carrying_amount_sar": 1613331805.02,
       "ecl_final_sar": 17104544.31,
-      "content_hash": "810703a04a32cef3d8e6b2c8e7e4e330f529f433e3d041c26595d67f7477f116",
+      "content_hash": "f4dc4d67dbf86cbcabebd15607eab377ef6088ac084c9faf0db3a48118ecc8d3",
       "validation_status": "PASSED"
     },
     {
@@ -205,7 +205,7 @@
       ],
       "gross_carrying_amount_sar": 1648669175.71,
       "ecl_final_sar": 15371778.862,
-      "content_hash": "d52106f5d2c635e06b1b8299562823120595ed3f892a0eaf7dc990eda8eb8275",
+      "content_hash": "aa28aa4ffbfd18dcea94e66f420a20c26027740d5582876b36c8faf355800372",
       "validation_status": "PASSED"
     },
     {
@@ -222,7 +222,7 @@
       ],
       "gross_carrying_amount_sar": 1682846782.9099998,
       "ecl_final_sar": 13578384.282,
-      "content_hash": "0571a8f3f45bd2c1a729cb5cad97625b8df508c241035112723b37e4d8105e68",
+      "content_hash": "bf598c1c1fe05edf604ba7583f2859560d2b78bd6a34a09b8a543d9d20dc5830",
       "validation_status": "PASSED"
     },
     {
@@ -239,7 +239,7 @@
       ],
       "gross_carrying_amount_sar": 1711929687.35,
       "ecl_final_sar": 12626411.675999999,
-      "content_hash": "56e89602b85cff1cb6806a1a727d30ad6f05f28854dd2e6d36be0609a1ba08a2",
+      "content_hash": "9686c86563e002bd8efafa1df48d4371f8d5357b5508b2b674fdd821b4896ae8",
       "validation_status": "PASSED"
     },
     {
@@ -256,7 +256,7 @@
       ],
       "gross_carrying_amount_sar": 1741292112.6399999,
       "ecl_final_sar": 11932410.846,
-      "content_hash": "a198eccd37edb1a05ad2562409ae07ea55f49d8d8b85c008df5d49b0d3fc678a",
+      "content_hash": "2870f58814be98cc34723f9f21a70e5360eb9db43d9a088cde75eb2f95f86ae1",
       "validation_status": "PASSED"
     },
     {
@@ -273,7 +273,7 @@
       ],
       "gross_carrying_amount_sar": 1761109281.3,
       "ecl_final_sar": 11159663.083999999,
-      "content_hash": "e97205e4e7a46a715c5eee302ed42f050843cce5a7beea976a6df29f21de479d",
+      "content_hash": "b4323eb52d551fa48988d2fc5c2a4c3fa415d70c965ba7d25efeee9a23390c16",
       "validation_status": "PASSED"
     },
     {
@@ -290,7 +290,7 @@
       ],
       "gross_carrying_amount_sar": 1797889569.8600001,
       "ecl_final_sar": 10807431.55,
-      "content_hash": "1dda4b0216be040fee57e2b550bd5b73abae26e35ae8bfc108cf8cd68fb18aca",
+      "content_hash": "63a4a73edce4ff9522caa82cb31ad2fc33e9533882967f446e6c2039a9b4e8af",
       "validation_status": "PASSED"
     },
     {
@@ -307,7 +307,7 @@
       ],
       "gross_carrying_amount_sar": 1827507270.01,
       "ecl_final_sar": 10805094.096,
-      "content_hash": "dad372ab1c7f3c2c3913e7b5e5407ef9d16d58bbebd647c5f744835909711872",
+      "content_hash": "9e0f4ea5babc01feb772ad5515a0d4cad5a128acdc7bd48481a2656f2e38fc36",
       "validation_status": "PASSED"
     },
     {
@@ -324,7 +324,7 @@
       ],
       "gross_carrying_amount_sar": 1861703816.19,
       "ecl_final_sar": 10645120.037999999,
-      "content_hash": "7de79ddb99dc42dc5204cdfea6ce0dcb731bb383ee16f34d191b7d40094de421",
+      "content_hash": "dcfc068a269b0e5bf6712bb6d5f8977fceef92a0e09b2af417510fb69a8fd03c",
       "validation_status": "PASSED"
     },
     {
@@ -341,7 +341,7 @@
       ],
       "gross_carrying_amount_sar": 1898355159.05,
       "ecl_final_sar": 10898254.818,
-      "content_hash": "b6d9e8fee671a188bea26abd19088ac0aa712d6c83bff583de2e67fd03aca80d",
+      "content_hash": "ec552c5a4e2a234ac5123fc6e65e53c9230348bc40661f92cae764319c453023",
       "validation_status": "PASSED"
     },
     {
@@ -358,7 +358,7 @@
       ],
       "gross_carrying_amount_sar": 1936566018.9099998,
       "ecl_final_sar": 10889408.080000002,
-      "content_hash": "22b9b80a941dd1b70d84e278746bac6abdd410f1f8a34c05c0948b39d7a2cc6b",
+      "content_hash": "4763d8399243b7d582d4c94b9e6153c0ac77d15fb95252b2b694f5beb06d4738",
       "validation_status": "PASSED"
     },
     {
@@ -375,7 +375,7 @@
       ],
       "gross_carrying_amount_sar": 1962826669.4699998,
       "ecl_final_sar": 11427154.358,
-      "content_hash": "a8b24c5601725149e57e01141dd70c383231970e6a2d9fa002e39c1dbb090bb4",
+      "content_hash": "618c1a4f914cc8c31e79bdce6c1a71cb132548a4ff1f6ba916d269c84ca35543",
       "validation_status": "PASSED"
     },
     {
@@ -392,7 +392,7 @@
       ],
       "gross_carrying_amount_sar": 1998167497.62,
       "ecl_final_sar": 12289511.932,
-      "content_hash": "e06a23971f89bd08cdaa035a8eaca5f618f07d70905ba3599f9ed43bb647fc32",
+      "content_hash": "75c876e2a52531fbf34fd308e5181f62fc7e15f789be29d8f49914553dcb4cdf",
       "validation_status": "PASSED"
     },
     {
@@ -409,7 +409,7 @@
       ],
       "gross_carrying_amount_sar": 2041267163.88,
       "ecl_final_sar": 14069608.378,
-      "content_hash": "697ee16ee85f6034255eb10017938c2bd024004d11ce7bd52314a893225adad6",
+      "content_hash": "d6c95c8a3e28bd66f130b718bcb5bf6f4042fa40ba86b16ec97d23d024f190d0",
       "validation_status": "PASSED"
     },
     {
@@ -426,7 +426,7 @@
       ],
       "gross_carrying_amount_sar": 2082852855.82,
       "ecl_final_sar": 15952108.836,
-      "content_hash": "8c441371fc5c089197d2a3503fd3bef02c043f99c00ef2022dff80ca8d59d377",
+      "content_hash": "c24fc1417fbe7f395f857dc9e2e9959ce1d95601c6d534bedd90fecea13dd48d",
       "validation_status": "PASSED"
     }
   ],
@@ -472,7 +472,7 @@
   "is_synthetic": true,
   "disclosure": "Synthetic Saudi retail demonstration data \u2014 not ANB customer data or approved models.",
   "dataset_name": "retail_facility_month",
-  "dataset_version": "retail-gen-1.0.0+cfg1.0.0+seed20260910",
+  "dataset_version": "r1.0.0-c1.0.0-s20260910",
   "column_count": 546,
   "total_rows": 447853,
   "distinct_customers_all_months": 17994,
@@ -486,6 +486,6 @@
     "affordability_policy_version": "retail-affordability-1.0.0"
   },
   "lifetime_horizon_cap_months": 120,
-  "manifest_hash": "65f49ffe2f2883f2521921d39884aac83b78f488f35ecf8abb3802461591486a",
-  "build_seconds": 208.9
+  "manifest_hash": "375e3436dd600a1bee0de894edcfe7e33f40f4dfaa19b8ee6709f21e1cf0f09f",
+  "build_seconds": 207.7
 }

@@ -24,16 +24,16 @@ A salary interruption is a fact about a PERSON. Raising it once per facility wou
 #### `RET-EWS-011` v1.0.0 — Affordability deterioration
 
 - **Scope** CUSTOMER | **Products** all products | **Severity** HIGH
-- **Trigger** `debt_burden_ratio - origination_debt_burden_ratio >= 0.10 AND debt_burden_ratio >= 0.55`
-- **Threshold** 0.1 ratio, lookback 1 month(s)
+- **Trigger** `debt_burden_ratio - origination_debt_burden_ratio >= 0.15 AND debt_burden_ratio >= 0.65`
+- **Threshold** 0.15 ratio, lookback 1 month(s)
 - **Inputs** `debt_burden_ratio`, `origination_debt_burden_ratio`
 - **Suggested review** Reassess disposable income before any further limit or facility is granted.
 
 #### `RET-EWS-012` v1.0.0 — New external obligations
 
 - **Scope** CUSTOMER | **Products** all products | **Severity** MEDIUM
-- **Trigger** `external_obligations_change_3m_sar >= 1500`
-- **Threshold** 1500.0 SAR/month, lookback 3 month(s)
+- **Trigger** `external_obligations_change_3m_sar >= 2500`
+- **Threshold** 2500.0 SAR/month, lookback 3 month(s)
 - **Inputs** `external_obligations_change_3m_sar`
 - **Suggested review** Confirm the new borrowing and recompute the debt burden.
 
@@ -86,8 +86,8 @@ A salary interruption is a fact about a PERSON. Raising it once per facility wou
 #### `RET-EWS-020` v1.0.0 — Collateral cover deterioration
 
 - **Scope** FACILITY | **Products** AUTO_LOAN, HOME_LOAN | **Severity** MEDIUM
-- **Trigger** `ltv_current_ratio - ltv_origination_ratio >= 0.05 AND ltv_current_ratio >= 0.90`
-- **Threshold** 0.05 ratio, lookback 1 month(s)
+- **Trigger** `ltv_current_ratio - ltv_origination_ratio >= 0.08 AND ltv_current_ratio >= 0.95`
+- **Threshold** 0.08 ratio, lookback 1 month(s)
 - **Inputs** `ltv_current_ratio`, `ltv_origination_ratio`
 - **Suggested review** Revalue the security and check the recovery assumption behind this facility's LGD.
 
@@ -150,8 +150,8 @@ A salary interruption is a fact about a PERSON. Raising it once per facility wou
 #### `RET-EWS-010` v1.0.0 — Personal cash buffer exhausted
 
 - **Scope** CUSTOMER | **Products** all products | **Severity** MEDIUM
-- **Trigger** `balance_buffer_months <= 0.25`
-- **Threshold** 0.25 months, lookback 3 month(s)
+- **Trigger** `balance_buffer_months <= 0.15`
+- **Threshold** 0.15 months, lookback 3 month(s)
 - **Inputs** `balance_buffer_months`
 - **Suggested review** A customer with no buffer misses the next disruption. Review before it happens.
 

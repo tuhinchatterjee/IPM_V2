@@ -368,7 +368,7 @@ def _build() -> Catalogue:
 
     by_name = {d.name: d for d in found}
     headings: list[Domain] = []
-    for heading in bd.DOMAINS:
+    for heading in bd.active_domains():
         under = tuple(d.name for d in found if d.domain == heading.name)
         periods: set[str] = set()
         for name in under:

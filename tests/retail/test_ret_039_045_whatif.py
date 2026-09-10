@@ -77,11 +77,11 @@ class TestRET040ShockSemantics:
 
     def test_relative_twenty_percent_on_two_percent_gives_two_point_four(self):
         anchor = np.array([0.02])
-        assert float(anchor * 1.20) == pytest.approx(0.024)
+        assert (anchor * 1.20)[0] == pytest.approx(0.024)
 
     def test_absolute_two_points_on_two_percent_gives_four(self):
         anchor = np.array([0.02])
-        assert float(anchor + 2.0 / 100.0) == pytest.approx(0.04)
+        assert (anchor + 2.0 / 100.0)[0] == pytest.approx(0.04)
 
     def test_a_pd_increase_raises_ecl_for_performing_facilities(self, retail_book, snapshot, cfg):
         performing = snapshot[snapshot["ifrs9_stage"] < 3]

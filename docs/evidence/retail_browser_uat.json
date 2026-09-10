@@ -1,7 +1,7 @@
 {
   "frontend": "http://localhost:5328",
   "backend": "http://127.0.0.1:8328",
-  "elapsed_seconds": 63.1,
+  "elapsed_seconds": 91.3,
   "viewports": [
     "1366x768",
     "1680x1050",
@@ -15,7 +15,7 @@
     "/workspace"
   ],
   "counts": {
-    "PASS": 41,
+    "PASS": 46,
     "FAIL": 0,
     "SKIPPED": 0
   },
@@ -35,14 +35,21 @@
       "evidence": {}
     },
     {
+      "name": "sign in",
+      "route": "/",
+      "status": "PASS",
+      "detail": "signed in as retail.demo at laptop",
+      "evidence": {}
+    },
+    {
       "name": "home renders",
       "route": "/",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 915 characters of text at laptop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1142 characters of text at laptop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/home-laptop.png",
         "http_status": 200,
-        "text_length": 915,
+        "text_length": 1142,
         "viewport": "1366x768"
       }
     },
@@ -68,11 +75,11 @@
       "name": "data-builder renders",
       "route": "/data-builder",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1205 characters of text at laptop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1673 characters of text at laptop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/data-builder-laptop.png",
         "http_status": 200,
-        "text_length": 1205,
+        "text_length": 1673,
         "viewport": "1366x768"
       }
     },
@@ -91,18 +98,18 @@
       "name": "data-builder navigation present",
       "route": "/data-builder",
       "status": "PASS",
-      "detail": "nav element found, 30 links",
+      "detail": "nav element found, 35 links",
       "evidence": {}
     },
     {
       "name": "what-if renders",
       "route": "/what-if",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 651 characters of text at laptop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 653 characters of text at laptop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/what-if-laptop.png",
         "http_status": 200,
-        "text_length": 651,
+        "text_length": 653,
         "viewport": "1366x768"
       }
     },
@@ -121,18 +128,18 @@
       "name": "what-if navigation present",
       "route": "/what-if",
       "status": "PASS",
-      "detail": "nav element found, 26 links",
+      "detail": "nav element found, 29 links",
       "evidence": {}
     },
     {
       "name": "early-warning renders",
       "route": "/early-warning",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 634 characters of text at laptop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 2330 characters of text at laptop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/early-warning-laptop.png",
         "http_status": 200,
-        "text_length": 634,
+        "text_length": 2330,
         "viewport": "1366x768"
       }
     },
@@ -151,18 +158,18 @@
       "name": "early-warning navigation present",
       "route": "/early-warning",
       "status": "PASS",
-      "detail": "nav element found, 28 links",
+      "detail": "nav element found, 32 links",
       "evidence": {}
     },
     {
       "name": "workspace renders",
       "route": "/workspace",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 815 characters of text at laptop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 810 characters of text at laptop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/workspace-laptop.png",
         "http_status": 200,
-        "text_length": 815,
+        "text_length": 810,
         "viewport": "1366x768"
       }
     },
@@ -181,7 +188,7 @@
       "name": "workspace navigation present",
       "route": "/workspace",
       "status": "PASS",
-      "detail": "nav element found, 30 links",
+      "detail": "nav element found, 33 links",
       "evidence": {}
     },
     {
@@ -192,14 +199,21 @@
       "evidence": {}
     },
     {
+      "name": "sign in",
+      "route": "/",
+      "status": "PASS",
+      "detail": "signed in as retail.demo at desktop",
+      "evidence": {}
+    },
+    {
       "name": "home renders",
       "route": "/",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 915 characters of text at desktop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1142 characters of text at desktop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/home-desktop.png",
         "http_status": 200,
-        "text_length": 915,
+        "text_length": 1142,
         "viewport": "1680x1050"
       }
     },
@@ -218,11 +232,11 @@
       "name": "data-builder renders",
       "route": "/data-builder",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1205 characters of text at desktop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1673 characters of text at desktop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/data-builder-desktop.png",
         "http_status": 200,
-        "text_length": 1205,
+        "text_length": 1673,
         "viewport": "1680x1050"
       }
     },
@@ -241,11 +255,11 @@
       "name": "what-if renders",
       "route": "/what-if",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 651 characters of text at desktop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 653 characters of text at desktop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/what-if-desktop.png",
         "http_status": 200,
-        "text_length": 651,
+        "text_length": 653,
         "viewport": "1680x1050"
       }
     },
@@ -264,11 +278,11 @@
       "name": "early-warning renders",
       "route": "/early-warning",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 634 characters of text at desktop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 2330 characters of text at desktop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/early-warning-desktop.png",
         "http_status": 200,
-        "text_length": 634,
+        "text_length": 2330,
         "viewport": "1680x1050"
       }
     },
@@ -287,11 +301,11 @@
       "name": "workspace renders",
       "route": "/workspace",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 815 characters of text at desktop",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 810 characters of text at desktop",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/workspace-desktop.png",
         "http_status": 200,
-        "text_length": 815,
+        "text_length": 810,
         "viewport": "1680x1050"
       }
     },
@@ -314,14 +328,21 @@
       "evidence": {}
     },
     {
+      "name": "sign in",
+      "route": "/",
+      "status": "PASS",
+      "detail": "signed in as retail.demo at narrow",
+      "evidence": {}
+    },
+    {
       "name": "home renders",
       "route": "/",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 915 characters of text at narrow",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1142 characters of text at narrow",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/home-narrow.png",
         "http_status": 200,
-        "text_length": 915,
+        "text_length": 1142,
         "viewport": "1024x768"
       }
     },
@@ -340,11 +361,11 @@
       "name": "data-builder renders",
       "route": "/data-builder",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1205 characters of text at narrow",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1673 characters of text at narrow",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/data-builder-narrow.png",
         "http_status": 200,
-        "text_length": 1205,
+        "text_length": 1673,
         "viewport": "1024x768"
       }
     },
@@ -363,11 +384,11 @@
       "name": "what-if renders",
       "route": "/what-if",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 651 characters of text at narrow",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 653 characters of text at narrow",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/what-if-narrow.png",
         "http_status": 200,
-        "text_length": 651,
+        "text_length": 653,
         "viewport": "1024x768"
       }
     },
@@ -386,11 +407,11 @@
       "name": "early-warning renders",
       "route": "/early-warning",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 634 characters of text at narrow",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 2330 characters of text at narrow",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/early-warning-narrow.png",
         "http_status": 200,
-        "text_length": 634,
+        "text_length": 2330,
         "viewport": "1024x768"
       }
     },
@@ -409,11 +430,11 @@
       "name": "workspace renders",
       "route": "/workspace",
       "status": "PASS",
-      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 815 characters of text at narrow",
+      "detail": "title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 810 characters of text at narrow",
       "evidence": {
         "screenshot": "docs/evidence/screenshots/workspace-narrow.png",
         "http_status": 200,
-        "text_length": 815,
+        "text_length": 810,
         "viewport": "1024x768"
       }
     },
@@ -436,10 +457,25 @@
       "evidence": {}
     },
     {
+      "name": "pages reached the retail backend",
+      "route": "all routes",
+      "status": "PASS",
+      "detail": "no route reported an unreachable backend",
+      "evidence": {
+        "routes_scanned": [
+          "data-builder",
+          "early-warning",
+          "home",
+          "what-if",
+          "workspace"
+        ]
+      }
+    },
+    {
       "name": "rendered text is retail-only",
       "route": "all routes",
       "status": "PASS",
-      "detail": "scanned 4,220 rendered characters across 5 routes for 15 retired phrases",
+      "detail": "scanned 6,608 rendered characters across 5 routes for 15 retired phrases",
       "evidence": {
         "routes_scanned": [
           "data-builder",
@@ -464,15 +500,23 @@
           "company financials",
           "corporate rating",
           "sector concentration"
-        ]
+        ],
+        "characters_scanned": 6608
       }
+    },
+    {
+      "name": "the scan read real screens",
+      "route": "all routes",
+      "status": "PASS",
+      "detail": "6,608 rendered characters across 5 routes",
+      "evidence": {}
     }
   ],
   "rendered_characters": {
-    "home": 915,
-    "data-builder": 1205,
-    "what-if": 651,
-    "early-warning": 634,
-    "workspace": 815
+    "home": 1142,
+    "data-builder": 1673,
+    "what-if": 653,
+    "early-warning": 2330,
+    "workspace": 810
   }
 }

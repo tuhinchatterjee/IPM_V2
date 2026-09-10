@@ -211,7 +211,9 @@ def _recompute(
 
     # --- LGD and recovery ---------------------------------------------------
     if "collateral_value_pct" in shocks:
-        secured = frame["secured_flag"].fillna(False).to_numpy(dtype=bool)
+        secured = (frame["secured_flag"].fillna(False).to_numpy(dtype=bool)
+                   if "secured_flag" in frame.columns
+                   else np.zeros(len(frame), dtype=bool))
         recovery_rate = np.where(
             secured, np.clip(recovery_rate * (1.0 + float(shocks["collateral_value_pct"])), 0.0, 1.0),
             recovery_rate)
@@ -247,7 +249,9 @@ def _recompute(
         quant = ((~np.isnan(ratio)) & (ratio >= STAGING_POLICY.sicr_pd_ratio_threshold)) | (
             (pd_life - reference) >= STAGING_POLICY.sicr_pd_absolute_threshold)
         backstop = num("dpd") >= STAGING_POLICY.stage2_dpd_backstop
-        defaulted = frame["current_default_flag"].fillna(False).to_numpy(dtype=bool)
+        defaulted = (frame["current_default_flag"].fillna(False).to_numpy(dtype=bool)
+                     if "current_default_flag" in frame.columns
+                     else np.zeros(len(frame), dtype=bool))
         stage = np.where(defaulted, 3, np.where(quant | backstop, 2, 1)).astype("int64")
 
     scenario_ecl: dict[str, np.ndarray] = {}

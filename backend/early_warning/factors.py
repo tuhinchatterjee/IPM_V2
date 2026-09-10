@@ -45,42 +45,52 @@ class FactorFamily:
         return {"id": self.id, "label": self.label, "definition": self.definition}
 
 
+# The six families a retail early-warning signal is built from. The slots are
+# the ones the screen has always had; what they MEAN is retail. A covenant
+# headroom and an internal rating notch are corporate objects with nothing
+# behind them in this installation, so the slots that held them now hold the
+# retail questions in the same positions: can this person still afford the
+# repayment, and is their score already moving?
 FACTOR_FAMILIES: tuple[FactorFamily, ...] = (
     FactorFamily(
         "behaviour",
-        "Behaviour",
-        "How the facility is actually being used and serviced. The earliest "
-        "things to move, and the hardest for a borrower to present differently.",
+        "Repayment behaviour",
+        "How the facility is actually being serviced: days past due, missed "
+        "payments, how much of what fell due was paid, and — on a card — "
+        "utilisation, minimum-payment-only months and cash advances. The "
+        "earliest things to move.",
     ),
     FactorFamily(
         "capacity",
-        "Capacity",
-        "Whether the borrower can service what it owes: cash cover and the room "
-        "left inside its covenants.",
+        "Affordability and income",
+        "Whether the customer can still afford what they owe: verified income "
+        "against total credit obligations, disposable income, and whether the "
+        "salary is still arriving on time.",
     ),
     FactorFamily(
         "rating_dynamics",
-        "Rating dynamics",
-        "The direction the internal rating is already travelling, and how far it "
-        "has come since the facility was written.",
+        "Score dynamics",
+        "The direction the behavioural score is already travelling, and how far "
+        "it has moved since the account was written.",
     ),
     FactorFamily(
         "structure",
-        "Structure",
-        "How the exposure is put together — security, size and utilisation "
-        "headroom — which decides how much a deterioration costs.",
+        "Facility structure",
+        "How the facility is put together — limit, security, remaining tenor and "
+        "any balloon payment ahead — which decides how much a deterioration "
+        "costs and when it lands.",
     ),
     FactorFamily(
         "sentiment",
-        "Sentiment",
-        "Outside-in signals about the borrower that the bank's own records do "
-        "not contain.",
+        "Bureau and external signals",
+        "What the synthetic bureau proxy reports that the bank's own records do "
+        "not contain: external delinquency, new obligations and enquiries.",
     ),
     FactorFamily(
         "cycle",
         "Cycle sensitivity",
-        "The borrower's exposure to the economy it operates in, as the sector's "
-        "historic sensitivity multiplied by where the cycle currently is.",
+        "The customer's exposure to the wider economy, through their employment "
+        "sector and the point the credit cycle is currently at.",
     ),
 )
 

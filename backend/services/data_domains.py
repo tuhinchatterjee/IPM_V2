@@ -275,6 +275,32 @@ def business_domain(*, dataset: str = "", catalogue_domain: str = "") -> str:
     return _BY_CATALOGUE.get((catalogue_domain or "").strip().lower(), UNPLACED)
 
 
+#: Which headings the RETAIL product offers. One, because the retail
+#: installation has one analytical domain.
+RETAIL_DOMAIN_NAMES: tuple[str, ...] = ("Cockpit Data",)
+
+
+def active_domains() -> tuple[BusinessDomain, ...]:
+    """The headings the ACTIVE product shows.
+
+    The corporate headings remain defined above so that an archived record or a
+    migration still parses, but a retail installation does not OFFER them. A
+    Data Builder screen listing "Corporate Ratings — internal grades, rating
+    history and transitions, obligor financial statements" beside the retail
+    book is a promise the product cannot keep, and it is the first thing a head
+    of retail risk would notice.
+    """
+    from backend.retail.profile import is_retail
+    if not is_retail():
+        return DOMAINS
+    wanted = set(RETAIL_DOMAIN_NAMES)
+    return tuple(d for d in DOMAINS if d.name in wanted)
+
+
+def active_domain_names() -> tuple[str, ...]:
+    return tuple(d.name for d in active_domains())
+
+
 def get(name: str) -> BusinessDomain | None:
     for domain in DOMAINS:
         if domain.name == name:
@@ -291,7 +317,7 @@ def placement(entries: list[dict[str, Any]]) -> dict[str, list[str]]:
     hiding it would leave a reader unable to tell "no documents installed"
     from "documents not supported".
     """
-    grouped: dict[str, list[str]] = {name: [] for name in NAMES}
+    grouped: dict[str, list[str]] = {name: [] for name in active_domain_names()}
     grouped[UNPLACED] = []
     for entry in entries:
         name = str(entry.get("name") or "")

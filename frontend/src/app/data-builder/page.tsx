@@ -50,41 +50,20 @@ import { cn } from "@/lib/utils";
 //: all of them.
 const INSTALLED_SHOWN = 8;
 
+// The domains this installation is FOR. One, because CreditProbe is configured
+// for Saudi retail only: it holds one joined facility-level book, and offering a
+// reader "Corporate Ratings — internal grades, external ratings, notch gaps and
+// rating history" as a domain they could create would be a promise the product
+// cannot keep.
 const STANDARD_DOMAINS = [
   {
-    name: "Core Portfolio / Facility",
-    description: "Facilities, limits, exposure, utilisation, collateral and staging.",
-    owner: "Credit Risk Analytics",
-  },
-  {
-    name: "IFRS 9 / ECL",
-    description: "Staging, PD, LGD, EAD, expected credit loss, overlays and coverage.",
-    owner: "Group Finance",
-  },
-  {
-    name: "Corporate Ratings",
-    description: "Internal grades, external ratings, notch gaps and rating history.",
-    owner: "Credit Risk Analytics",
-  },
-  {
-    name: "Retail / SME Scorecards",
-    description: "Scorecard outputs and behavioural indicators for the retail book.",
-    owner: "Retail Risk",
-  },
-  {
-    name: "Documents",
-    description: "Document metadata and the links between papers and the analysis inside them.",
-    owner: "Group Data Office",
-  },
-  {
-    name: "Policies / Knowledge",
-    description: "Policy text, the limits framework and methodology notes.",
-    owner: "Credit Policy",
-  },
-  {
-    name: "CreditProbe Operational Metadata",
-    description: "Runs, traces, versions, usage and audit produced by CreditProbe itself.",
-    owner: "Risk Technology",
+    name: "Cockpit Data",
+    description:
+      "The joined Saudi retail book at each month-end: customer, employment and " +
+      "affordability, facility terms and balances, delinquency and collections, " +
+      "salary and bureau signals, both scorecards with every configured input raw " +
+      "and transformed, and retail IFRS 9 staging, PD, LGD, EAD and scenario ECL.",
+    owner: "Retail Credit Risk Analytics",
   },
 ];
 

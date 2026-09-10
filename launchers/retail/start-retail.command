@@ -91,6 +91,10 @@ export METADATA_DIR="$ROOT/metadata/retail"
 export UPLOAD_DIR="$RUN_DIR/uploads"
 export LOG_DIR="$LOG_DIR"
 export API_PORT="$RETAIL_BACKEND_PORT"
+# The browser calls the backend from the retail frontend's origin. Without
+# this the page loads and every API check passes while the screen says the
+# backend is offline.
+export CORS_ORIGINS="http://localhost:${RETAIL_FRONTEND_PORT},http://127.0.0.1:${RETAIL_FRONTEND_PORT}"
 export CREDITPROBE_PRODUCT_PROFILE="retail"
 
 say ""

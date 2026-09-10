@@ -1,0 +1,353 @@
+........................................................................ [ 20%]
+........................................................................ [ 40%]
+........................................................................ [ 61%]
+...........................F.......FF................................... [ 81%]
+.....F.............F...................................F...FF..FF        [100%]
+=================================== FAILURES ===================================
+_ TestRET038NoCorporateBlocker.test_a_missing_retail_input_yields_a_precise_limitation_not_invented_evidence _
+
+self = Index(['product_code', 'customer_id', 'facility_id', 'snapshot_date',
+       'record_id', 'gross_carrying_amount_sar', 'employer_id', 'region',
+       'missed_payment_count_3m'],
+      dtype='str')
+key = 'forbearance_flag'
+
+    def get_loc(self, key):
+        """
+        Get integer location, slice or boolean mask for requested label.
+    
+        Parameters
+        ----------
+        key : label
+            The key to check its location if it is present in the index.
+    
+        Returns
+        -------
+        int if unique index, slice if monotonic index, else mask
+            Integer location, slice or boolean mask.
+    
+        See Also
+        --------
+        Index.get_slice_bound : Calculate slice bound that corresponds to
+            given label.
+        Index.get_indexer : Computes indexer and mask for new index given
+            the current index.
+        Index.get_non_unique : Returns indexer and masks for new index given
+            the current index.
+        Index.get_indexer_for : Returns an indexer even when non-unique.
+    
+        Examples
+        --------
+        >>> unique_index = pd.Index(list("abc"))
+        >>> unique_index.get_loc("b")
+        1
+    
+        >>> monotonic_index = pd.Index(list("abbc"))
+        >>> monotonic_index.get_loc("b")
+        slice(1, 3, None)
+    
+        >>> non_monotonic_index = pd.Index(list("abcb"))
+        >>> non_monotonic_index.get_loc("b")
+        array([False,  True, False,  True])
+        """
+        casted_key = self._maybe_cast_indexer(key)
+        try:
+>           return self._engine.get_loc(casted_key)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.venv/lib/python3.12/site-packages/pandas/core/indexes/base.py:3641: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+pandas/_libs/index.pyx:168: in pandas._libs.index.IndexEngine.get_loc
+    ???
+pandas/_libs/index.pyx:197: in pandas._libs.index.IndexEngine.get_loc
+    ???
+pandas/_libs/hashtable_class_helper.pxi:7668: in pandas._libs.hashtable.PyObjectHashTable.get_item
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+E   KeyError: 'forbearance_flag'
+
+pandas/_libs/hashtable_class_helper.pxi:7676: KeyError
+
+The above exception was the direct cause of the following exception:
+
+self = <test_ret_034_038_ews.TestRET038NoCorporateBlocker object at 0x7f298d2302c0>
+
+    def test_a_missing_retail_input_yields_a_precise_limitation_not_invented_evidence(self):
+        frame = pd.DataFrame({
+            "product_code": ["CREDIT_CARD"], "customer_id": ["RC-1"], "facility_id": ["RF-1"],
+            "snapshot_date": ["2026-08-31"], "record_id": ["r"],
+            "gross_carrying_amount_sar": [1000.0], "employer_id": [None], "region": ["RIYADH"],
+            "missed_payment_count_3m": [np.nan],
+        })
+>       alerts = ews.evaluate_snapshot(frame)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/retail/test_ret_034_038_ews.py:254: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+backend/retail/ews.py:398: in evaluate_snapshot
+    fired, value, comparator = rule.trigger(applicable, threshold)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/retail/ews.py:271: in <lambda>
+    f["forbearance_flag"].fillna(False).to_numpy(dtype=bool) & (_num(f, "dpd") >= th),
+    ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pandas/core/frame.py:4378: in __getitem__
+    indexer = self.columns.get_loc(key)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Index(['product_code', 'customer_id', 'facility_id', 'snapshot_date',
+       'record_id', 'gross_carrying_amount_sar', 'employer_id', 'region',
+       'missed_payment_count_3m'],
+      dtype='str')
+key = 'forbearance_flag'
+
+    def get_loc(self, key):
+        """
+        Get integer location, slice or boolean mask for requested label.
+    
+        Parameters
+        ----------
+        key : label
+            The key to check its location if it is present in the index.
+    
+        Returns
+        -------
+        int if unique index, slice if monotonic index, else mask
+            Integer location, slice or boolean mask.
+    
+        See Also
+        --------
+        Index.get_slice_bound : Calculate slice bound that corresponds to
+            given label.
+        Index.get_indexer : Computes indexer and mask for new index given
+            the current index.
+        Index.get_non_unique : Returns indexer and masks for new index given
+            the current index.
+        Index.get_indexer_for : Returns an indexer even when non-unique.
+    
+        Examples
+        --------
+        >>> unique_index = pd.Index(list("abc"))
+        >>> unique_index.get_loc("b")
+        1
+    
+        >>> monotonic_index = pd.Index(list("abbc"))
+        >>> monotonic_index.get_loc("b")
+        slice(1, 3, None)
+    
+        >>> non_monotonic_index = pd.Index(list("abcb"))
+        >>> non_monotonic_index.get_loc("b")
+        array([False,  True, False,  True])
+        """
+        casted_key = self._maybe_cast_indexer(key)
+        try:
+            return self._engine.get_loc(casted_key)
+        except KeyError as err:
+            if isinstance(casted_key, slice) or (
+                isinstance(casted_key, abc.Iterable)
+                and any(isinstance(x, slice) for x in casted_key)
+            ):
+                raise InvalidIndexError(key) from err
+>           raise KeyError(key) from err
+E           KeyError: 'forbearance_flag'
+
+.venv/lib/python3.12/site-packages/pandas/core/indexes/base.py:3648: KeyError
+_ TestRET040ShockSemantics.test_relative_twenty_percent_on_two_percent_gives_two_point_four _
+
+self = <test_ret_039_045_whatif.TestRET040ShockSemantics object at 0x7f298d249580>
+
+    def test_relative_twenty_percent_on_two_percent_gives_two_point_four(self):
+        anchor = np.array([0.02])
+>       assert float(anchor * 1.20) == pytest.approx(0.024)
+               ^^^^^^^^^^^^^^^^^^^^
+E       TypeError: only 0-dimensional arrays can be converted to Python scalars
+
+tests/retail/test_ret_039_045_whatif.py:80: TypeError
+_ TestRET040ShockSemantics.test_absolute_two_points_on_two_percent_gives_four __
+
+self = <test_ret_039_045_whatif.TestRET040ShockSemantics object at 0x7f298d2498b0>
+
+    def test_absolute_two_points_on_two_percent_gives_four(self):
+        anchor = np.array([0.02])
+>       assert float(anchor + 2.0 / 100.0) == pytest.approx(0.04)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: only 0-dimensional arrays can be converted to Python scalars
+
+tests/retail/test_ret_039_045_whatif.py:84: TypeError
+_ TestRET046RetailOnlySurface.test_the_retail_source_tree_carries_no_corporate_vocabulary _
+
+self = <test_ret_046_060_surface.TestRET046RetailOnlySurface object at 0x7f298d2962a0>
+
+    def test_the_retail_source_tree_carries_no_corporate_vocabulary(self):
+        """A static scan of the retail product's own code, with the allowlist."""
+        offenders: list[str] = []
+        for path in (ROOT / "backend" / "retail").rglob("*.py"):
+            rel = str(path.relative_to(ROOT))
+            if any(rel.startswith(a) for a in ALLOWLIST):
+                continue
+            text = path.read_text().lower()
+            for token in CORPORATE_VOCABULARY:
+                if token in text:
+                    offenders.append(f"{rel}: {token}")
+>       assert not offenders, offenders
+E       AssertionError: ['backend/retail/schema.py: rating grade', 'backend/retail/catalogue.py: company financials', 'backend/retail/taxonomy.py: balance sheet', 'backend/retail/taxonomy.py: covenant']
+E       assert not ['backend/retail/schema.py: rating grade', 'backend/retail/catalogue.py: company financials', 'backend/retail/taxonomy.py: balance sheet', 'backend/retail/taxonomy.py: covenant']
+
+tests/retail/test_ret_046_060_surface.py:105: AssertionError
+_ TestRET048LayoutPreserved.test_changes_are_confined_to_the_retail_conversion _
+
+self = <test_ret_046_060_surface.TestRET048LayoutPreserved object at 0x7f298d295250>
+
+    def test_changes_are_confined_to_the_retail_conversion(self):
+        changed = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--name-only",
+             "80e74a4e1e5552e73c532849b72329008335b09f", "HEAD"],
+            capture_output=True, text=True, check=True).stdout.split()
+        allowed_prefixes = ("backend/retail/", "tests/retail/", "docs/RETAIL",
+                            "config/retail", "scripts/build_retail_demo.py",
+                            "scripts/check_retail_ready.py", "launchers/retail/",
+                            "metadata/retail/", "data/retail/")
+        touched_elsewhere = [
+            f for f in changed
+            if not f.startswith(allowed_prefixes)
+        ]
+        # A small, named set of shared files carries the retail content swap.
+        expected_shared = {
+            "backend/api/routers/ask.py", "backend/stress_lab.py",
+            "backend/data_access/catalog.py", ".gitignore",
+        }
+        unexpected = set(touched_elsewhere) - expected_shared
+>       assert not unexpected, (
+            f"the conversion changed files outside its scope: {sorted(unexpected)}"
+        )
+E       AssertionError: the conversion changed files outside its scope: ['.env.retail.example', 'backend/api/main.py', 'backend/api/routers/retail.py', 'backend/services/data_domains.py', 'docs/evidence/retail_browser_uat.json', 'docs/evidence/retail_uat_questions.json', 'docs/evidence/screenshots/data-builder-desktop.png', 'docs/evidence/screenshots/data-builder-laptop.png', 'docs/evidence/screenshots/data-builder-narrow.png', 'docs/evidence/screenshots/early-warning-desktop.png', 'docs/evidence/screenshots/early-warning-laptop.png', 'docs/evidence/screenshots/early-warning-narrow.png', 'docs/evidence/screenshots/home-desktop.png', 'docs/evidence/screenshots/home-laptop.png', 'docs/evidence/screenshots/home-narrow.png', 'docs/evidence/screenshots/what-if-desktop.png', 'docs/evidence/screenshots/what-if-laptop.png', 'docs/evidence/screenshots/what-if-narrow.png', 'docs/evidence/screenshots/workspace-desktop.png', 'docs/evidence/screenshots/workspace-laptop.png', 'docs/evidence/screenshots/workspace-narrow.png', 'frontend/src/lib/navigation.ts', 'scripts/bootstrap_retail_installation.py', 'scripts/retail_browser_uat.py', 'scripts/retail_uat_questions.py', 'scripts/write_retail_docs.py', 'scripts/write_retail_traceability.py', 'scripts/write_retail_uat_report.py']
+E       assert not {'.env.retail.example', 'backend/api/main.py', 'backend/api/routers/retail.py', 'backend/services/data_domains.py', 'docs/evidence/retail_browser_uat.json', 'docs/evidence/retail_uat_questions.json', ...}
+
+tests/retail/test_ret_046_060_surface.py:192: AssertionError
+_ TestRET057To060Evidence.test_required_deliverable_exists[docs/RETAIL_UAT_REPORT.md] _
+
+self = <test_ret_046_060_surface.TestRET057To060Evidence object at 0x7f298d2953d0>
+path = 'docs/RETAIL_UAT_REPORT.md'
+
+    @pytest.mark.parametrize("path", DOCS)
+    def test_required_deliverable_exists(self, path):
+>       assert (ROOT / path).exists(), f"{path} is a required deliverable"
+E       AssertionError: docs/RETAIL_UAT_REPORT.md is a required deliverable
+E       assert False
+E        +  where False = exists()
+E        +    where exists = (PosixPath('/home/user/IPM_V2') / 'docs/RETAIL_UAT_REPORT.md').exists
+
+tests/retail/test_ret_046_060_surface.py:418: AssertionError
+_ TestRET057To060Evidence.test_the_report_distinguishes_tested_failed_blocked_and_not_run _
+
+self = <test_ret_046_060_surface.TestRET057To060Evidence object at 0x7f298d2b6090>
+
+    def test_the_report_distinguishes_tested_failed_blocked_and_not_run(self):
+>       text = (ROOT / "docs" / "RETAIL_UAT_REPORT.md").read_text().upper()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/retail/test_ret_046_060_surface.py:426: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/pathlib.py:1029: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/home/user/IPM_V2/docs/RETAIL_UAT_REPORT.md'), mode = 'r'
+buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/user/IPM_V2/docs/RETAIL_UAT_REPORT.md'
+
+/usr/lib/python3.12/pathlib.py:1015: FileNotFoundError
+_________ TestRET057To060Evidence.test_no_unqualified_completion_claim _________
+
+self = <test_ret_046_060_surface.TestRET057To060Evidence object at 0x7f298d2b5850>
+
+    def test_no_unqualified_completion_claim(self):
+        forbidden = ("sama compliant", "anb approved", "auditor certified",
+                     "fully production-ready", "production ready and approved")
+        for path in self.DOCS:
+            if path.endswith("MASTER_SPEC.md"):
+                continue  # the specification quotes these to forbid them
+>           text = (ROOT / path).read_text().lower()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/retail/test_ret_046_060_surface.py:436: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/pathlib.py:1029: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/home/user/IPM_V2/docs/RETAIL_UAT_REPORT.md'), mode = 'r'
+buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/home/user/IPM_V2/docs/RETAIL_UAT_REPORT.md'
+
+/usr/lib/python3.12/pathlib.py:1015: FileNotFoundError
+________ TestRET057To060Evidence.test_start_and_stop_are_safe_to_rerun _________
+
+self = <test_ret_046_060_surface.TestRET057To060Evidence object at 0x7f298d2b4aa0>
+
+    def test_start_and_stop_are_safe_to_rerun(self):
+        start = (ROOT / "launchers" / "retail" / "start-retail.command").read_text()
+        stop = (ROOT / "launchers" / "retail" / "stop-retail.command").read_text()
+        assert "already served by this retail installation" in start
+>       assert "not the retail process, leaving it alone" in stop
+E       assert 'not the retail process, leaving it alone' in '#!/usr/bin/env bash\n#\n# Stop the CreditProbe Saudi retail demonstration — and nothing else.\n#\n# Every process thi...frontend"\nstop_one "$RUN_DIR/backend.pid" "backend"\nprintf \'Done. The frozen presentations were not touched.\\n\'\n'
+
+tests/retail/test_ret_046_060_surface.py:457: AssertionError
+_ TestRET057To060Evidence.test_the_final_commit_carries_the_code_the_docs_describe _
+
+self = <test_ret_046_060_surface.TestRET057To060Evidence object at 0x7f298d2b67e0>
+
+    def test_the_final_commit_carries_the_code_the_docs_describe(self):
+        dirty = subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain",
+             "backend/retail", "tests/retail", "scripts", "launchers", "config"],
+            capture_output=True, text=True, check=True).stdout.strip()
+>       assert not dirty, (
+            "a completion claim must not depend on an earlier commit while later "
+            f"untested changes sit uncommitted:\n{dirty}"
+        )
+E       AssertionError: a completion claim must not depend on an earlier commit while later untested changes sit uncommitted:
+E         M backend/retail/ews.py
+E          M launchers/retail/start-retail.command
+E          M scripts/retail_browser_uat.py
+E          M tests/retail/test_ret_046_060_surface.py
+E       assert not 'M backend/retail/ews.py\n M launchers/retail/start-retail.command\n M scripts/retail_browser_uat.py\n M tests/retail/test_ret_046_060_surface.py'
+
+tests/retail/test_ret_046_060_surface.py:465: AssertionError
+=========================== short test summary info ============================
+FAILED tests/retail/test_ret_034_038_ews.py::TestRET038NoCorporateBlocker::test_a_missing_retail_input_yields_a_precise_limitation_not_invented_evidence
+FAILED tests/retail/test_ret_039_045_whatif.py::TestRET040ShockSemantics::test_relative_twenty_percent_on_two_percent_gives_two_point_four
+FAILED tests/retail/test_ret_039_045_whatif.py::TestRET040ShockSemantics::test_absolute_two_points_on_two_percent_gives_four
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET046RetailOnlySurface::test_the_retail_source_tree_carries_no_corporate_vocabulary
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET048LayoutPreserved::test_changes_are_confined_to_the_retail_conversion
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_required_deliverable_exists[docs/RETAIL_UAT_REPORT.md]
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_the_report_distinguishes_tested_failed_blocked_and_not_run
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_no_unqualified_completion_claim
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_start_and_stop_are_safe_to_rerun
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_the_final_commit_carries_the_code_the_docs_describe

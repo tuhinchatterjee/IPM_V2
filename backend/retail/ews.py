@@ -77,9 +77,22 @@ class Rule:
 
 
 def _num(frame: pd.DataFrame, col: str) -> np.ndarray:
+    """A rule's numeric input, or all-missing when the column is absent.
+
+    A rule whose input is not in the frame must not fire, and must not raise
+    either: a missing feed is a precise limitation, not a crash and not a
+    guessed value.
+    """
     if col not in frame.columns:
         return np.full(len(frame), np.nan)
     return pd.to_numeric(frame[col], errors="coerce").to_numpy(dtype="float64")
+
+
+def _flag(frame: pd.DataFrame, col: str) -> np.ndarray:
+    """A rule's boolean input, or all-False when the column is absent."""
+    if col not in frame.columns:
+        return np.zeros(len(frame), dtype=bool)
+    return frame[col].fillna(False).to_numpy(dtype=bool)
 
 
 def _ge(col: str, *, comparator: str | None = None):
@@ -268,7 +281,7 @@ RULES: tuple[Rule, ...] = (
     Rule("RET-EWS-018", "1.0.0", "Forbearance under strain", "FORBEARANCE",
          FACILITY_SCOPE, ALL_PRODUCTS, ("forbearance_flag", "dpd"), 1, "days", 1.0,
          lambda f, th: (
-             f["forbearance_flag"].fillna(False).to_numpy(dtype=bool) & (_num(f, "dpd") >= th),
+             _flag(f, "forbearance_flag") & (_num(f, "dpd") >= th),
              _num(f, "dpd"), _num(f, "cure_probation_months")),
          "HIGH",
          "A forborne facility is {value:.0f} days past due; the cure conditions are not being met.",
@@ -350,6 +363,30 @@ def rulebook() -> dict[str, Any]:
     }
 
 
+#: The only columns an alert row reads off the canonical frame. Named so the
+#: evaluator can pull seven narrow arrays instead of walking a five-hundred-column
+#: DataFrame row by row: `DataFrame.iterrows` materialises the whole frame as one
+#: object array per call, which turned a single snapshot evaluation into minutes.
+_ALERT_SOURCE_COLUMNS = (
+    "customer_id", "facility_id", "gross_carrying_amount_sar", "record_id",
+    "product_code", "employer_id", "region",
+)
+
+
+def _customer_index(frame: pd.DataFrame) -> tuple[dict[Any, list[str]], dict[Any, float]]:
+    """Each customer's facilities and their total exposure, computed ONCE.
+
+    Rebuilding this per customer per rule was quadratic: thousands of alerts
+    each rescanning a twenty-thousand-row frame.
+    """
+    unique = frame.drop_duplicates("facility_id")
+    facilities = (unique.groupby("customer_id")["facility_id"]
+                  .apply(lambda s: sorted(s.astype(str))).to_dict())
+    exposure = (unique.groupby("customer_id")["gross_carrying_amount_sar"]
+                .sum().round(2).to_dict())
+    return facilities, exposure
+
+
 def evaluate_snapshot(
     frame: pd.DataFrame, *, thresholds: dict[str, float] | None = None,
 ) -> pd.DataFrame:
@@ -360,7 +397,10 @@ def evaluate_snapshot(
     summed once.
     """
     thresholds = thresholds or {}
-    snapshot = frame["snapshot_date"].iloc[0] if len(frame) else None
+    if frame.empty:
+        return pd.DataFrame(columns=_ALERT_COLUMNS)
+    snapshot = frame["snapshot_date"].iloc[0]
+    customer_facilities, customer_exposure = _customer_index(frame)
     out: list[dict[str, Any]] = []
 
     for rule in RULES:
@@ -369,33 +409,39 @@ def evaluate_snapshot(
             continue
         threshold = float(thresholds.get(rule.rule_id, rule.threshold))
         fired, value, comparator = rule.trigger(applicable, threshold)
-        hits = applicable.loc[fired]
-        if hits.empty:
+        if not fired.any():
             continue
+
+        hits = applicable.loc[fired]
+        source = {
+            c: (hits[c].to_numpy() if c in hits.columns
+                else np.full(len(hits), None, dtype=object))
+            for c in _ALERT_SOURCE_COLUMNS
+        }
         values = value[fired]
         comparators = comparator[fired]
 
         if rule.scope == FACILITY_SCOPE:
-            for i, (_, row) in enumerate(hits.iterrows()):
-                out.append(_alert_row(rule, row, snapshot, float(values[i]),
-                                      float(comparators[i]), threshold,
-                                      [str(row["facility_id"])],
-                                      float(row["gross_carrying_amount_sar"])))
+            for i in range(len(hits)):
+                facility_id = str(source["facility_id"][i])
+                out.append(_alert_row(
+                    rule, source, i, snapshot, float(values[i]), float(comparators[i]),
+                    threshold, [facility_id],
+                    float(source["gross_carrying_amount_sar"][i])))
         else:
-            hits = hits.assign(_value=values, _comparator=comparators)
-            for customer_id, group in hits.groupby("customer_id", sort=False):
-                # Every facility this customer holds at this snapshot is
-                # affected, not only the rows the rule matched on, and the
-                # exposure is summed once across distinct facilities.
-                theirs = frame.loc[frame["customer_id"] == customer_id]
-                facilities = sorted(theirs["facility_id"].astype(str).unique())
-                exposure = float(
-                    theirs.drop_duplicates("facility_id")["gross_carrying_amount_sar"].sum())
-                worst = group["_value"].abs().idxmax()
-                row = group.loc[worst]
-                out.append(_alert_row(rule, row, snapshot, float(row["_value"]),
-                                      float(row["_comparator"]), threshold,
-                                      facilities, exposure))
+            # One alert per customer, carrying the worst measurement they show
+            # and every facility they hold.
+            best: dict[Any, int] = {}
+            for i in range(len(hits)):
+                key = source["customer_id"][i]
+                current = best.get(key)
+                if current is None or abs(values[i]) > abs(values[current]):
+                    best[key] = i
+            for key, i in best.items():
+                facilities = customer_facilities.get(key, [])
+                out.append(_alert_row(
+                    rule, source, i, snapshot, float(values[i]), float(comparators[i]),
+                    threshold, facilities, float(customer_exposure.get(key, 0.0))))
 
     if not out:
         return pd.DataFrame(columns=_ALERT_COLUMNS)
@@ -413,10 +459,13 @@ _ALERT_COLUMNS = [
 
 
 def _alert_row(
-    rule: Rule, row: pd.Series, snapshot: Any, value: float, comparator: float,
-    threshold: float, facilities: list[str], exposure: float,
+    rule: Rule, source: dict[str, Any], i: int, snapshot: Any, value: float,
+    comparator: float, threshold: float, facilities: list[str], exposure: float,
 ) -> dict[str, Any]:
-    scope_id = str(row["customer_id"]) if rule.scope == CUSTOMER_SCOPE else str(row["facility_id"])
+    customer_id = str(source["customer_id"][i])
+    raw_facility = source["facility_id"][i]
+    facility_id = None if raw_facility is None else str(raw_facility)
+    scope_id = customer_id if rule.scope == CUSTOMER_SCOPE else facility_id
     try:
         reason = rule.reason_template.format(value=value, comparator=comparator)
     except (ValueError, KeyError):
@@ -429,8 +478,8 @@ def _alert_row(
         "rule_name": rule.name,
         "rule_family": rule.family,
         "scope": rule.scope,
-        "customer_id": str(row["customer_id"]),
-        "facility_id": None if rule.scope == CUSTOMER_SCOPE else str(row["facility_id"]),
+        "customer_id": customer_id,
+        "facility_id": None if rule.scope == CUSTOMER_SCOPE else facility_id,
         "affected_facility_ids": ",".join(facilities),
         "affected_facility_count": len(facilities),
         "snapshot_date": snapshot,
@@ -443,14 +492,14 @@ def _alert_row(
         "threshold_source": rule.threshold_source,
         "prior_comparator": None if np.isnan(comparator) else comparator,
         "unit": rule.unit,
-        "evidence_record_refs": str(row.get("record_id", "")),
+        "evidence_record_refs": str(source["record_id"][i] or ""),
         "evidence_columns": ",".join(rule.features),
         "affected_exposure_sar": round(exposure, 2),
         "reason": reason,
         "recommended_review": rule.recommended_review,
-        "product_code": None if rule.scope == CUSTOMER_SCOPE else row.get("product_code"),
-        "employer_id": row.get("employer_id"),
-        "region": row.get("region"),
+        "product_code": None if rule.scope == CUSTOMER_SCOPE else source["product_code"][i],
+        "employer_id": source["employer_id"][i],
+        "region": source["region"][i],
         "is_synthetic": True,
     }
 
@@ -469,29 +518,28 @@ def reconcile(previous: pd.DataFrame, current: pd.DataFrame) -> pd.DataFrame:
         closed["current_status"] = STATUS_CLOSED
         return closed
 
-    prev = previous.set_index("alert_id", drop=False)
-    cur = current.set_index("alert_id", drop=False)
+    prev = {r["alert_id"]: r for r in previous.to_dict("records")}
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
 
-    merged: list[pd.Series] = []
-    for alert_id, row in cur.iterrows():
-        row = row.copy()
-        if alert_id in prev.index:
-            before = prev.loc[alert_id]
+    for row in current.to_dict("records"):
+        alert_id = row["alert_id"]
+        seen.add(alert_id)
+        before = prev.get(alert_id)
+        if before is not None:
             was_closed = before["current_status"] == STATUS_CLOSED
             row["first_seen_date"] = (
                 row["snapshot_date"] if was_closed else before["first_seen_date"])
             row["current_status"] = STATUS_RETRIGGERED if was_closed else STATUS_UPDATED
         merged.append(row)
 
-    for alert_id, before in prev.iterrows():
-        if alert_id not in cur.index and before["current_status"] != STATUS_CLOSED:
-            closed = before.copy()
+    for alert_id, before in prev.items():
+        if alert_id not in seen and before["current_status"] != STATUS_CLOSED:
+            closed = dict(before)
             closed["current_status"] = STATUS_CLOSED
-            closed["last_seen_date"] = before["last_seen_date"]
             merged.append(closed)
 
-    out = pd.DataFrame(merged)
-    return out.reset_index(drop=True)[_ALERT_COLUMNS]
+    return pd.DataFrame(merged)[_ALERT_COLUMNS]
 
 
 def affected_exposure(alerts: pd.DataFrame) -> float:
@@ -503,13 +551,16 @@ def affected_exposure(alerts: pd.DataFrame) -> float:
     if alerts.empty:
         return 0.0
     seen: dict[str, float] = {}
-    for _, row in alerts.iterrows():
-        if row["current_status"] == STATUS_CLOSED:
+    statuses = alerts["current_status"].to_numpy()
+    id_lists = alerts["affected_facility_ids"].astype(str).to_numpy()
+    exposures = alerts["affected_exposure_sar"].to_numpy(dtype="float64")
+    for status, raw, exposure in zip(statuses, id_lists, exposures):
+        if status == STATUS_CLOSED:
             continue
-        ids = [f for f in str(row["affected_facility_ids"]).split(",") if f]
+        ids = [f for f in raw.split(",") if f]
         if not ids:
             continue
-        share = float(row["affected_exposure_sar"]) / len(ids)
+        share = exposure / len(ids)
         for f in ids:
             seen[f] = max(seen.get(f, 0.0), share)
     return round(sum(seen.values()), 2)
