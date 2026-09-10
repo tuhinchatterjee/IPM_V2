@@ -1,21 +1,11 @@
 # Acceptance gates RET-001..RET-060
 # .venv/bin/python -m pytest tests/retail/ -p no:randomly
-# 2026-09-10T21:28:44Z
+# 2026-09-10T21:39:31Z
 
 ........................................................................ [ 20%]
 ........................................................................ [ 40%]
 ........................................................................ [ 60%]
 ........................................................................ [ 80%]
-................................................................F....... [100%]
-=================================== FAILURES ===================================
-_ TestRET057To060Evidence.test_the_final_commit_carries_the_code_the_docs_describe _
-tests/retail/test_ret_046_060_surface.py:541: in test_the_final_commit_carries_the_code_the_docs_describe
-    assert not dirty, (
-E   AssertionError: a completion claim must not depend on an earlier commit while later untested changes sit uncommitted:
-E     M scripts/write_retail_uat_report.py
-E   assert not 'M scripts/write_retail_uat_report.py'
-=========================== short test summary info ============================
-FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_the_final_commit_carries_the_code_the_docs_describe
-1 failed, 359 passed in 523.72s (0:08:43)
-
-EXIT=0
+........................................................................ [100%]
+360 passed in 526.19s (0:08:46)
+PYTEST_EXIT=0

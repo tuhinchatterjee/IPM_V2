@@ -179,7 +179,7 @@ score-input quality exception — are exercised against constructed frames in
 |---|---|---|
 | Forty-question demonstration UAT | **40 passed, 0 failed** in 699s, against the running installation | `docs/evidence/retail_uat_questions.json` |
 | Real-browser acceptance | **46 passed, 0 failed** in 92s, Chromium at three viewports, signed in | `docs/evidence/retail_browser_uat.json`, `docs/evidence/screenshots/` |
-| Acceptance gates RET-001 to RET-060 | see `docs/RETAIL_UAT_REPORT.md` | `tests/retail/`, `docs/evidence/gates.log` |
+| Acceptance gates RET-001 to RET-060 | **360 passed, 0 failed, 0 skipped, 0 errors** in 527s | `tests/retail/`, `docs/evidence/gates.log`, `docs/RETAIL_REQUIREMENT_TRACEABILITY.md` |
 
 ## 8. What was NOT run, and what remains
 
@@ -209,7 +209,14 @@ not. This is a NOT RUN, not a pass.
    moves into PostgreSQL, that becomes a migration and the graph must be
    inspected first.
 
-## 9. What must not be claimed
+## 9. The final commit
+
+All three suites above were run against the code at the final commit on
+`claude/funny-dirac-6n8f0o`, with a clean working tree. RET-060 checks exactly
+that: it fails if any retail file is uncommitted while a completion claim is
+being made, and it caught two such runs during this work.
+
+## 10. What must not be claimed
 
 This is a synthetic demonstration. It is **not** SAMA compliant, **not** ANB
 approved, **not** auditor certified, and **not** an independent model

@@ -10,7 +10,7 @@
 |---|---|---|
 | Forty-question demonstration UAT (spec §20) | **40 passed**, 0 failed, 0 blocked, 0 not run in 699s | `docs/evidence/retail_uat_questions.json` |
 | Real-browser acceptance (spec §20, RET-051) | **46 passed**, 0 failed, 0 skipped in 91s | `docs/evidence/retail_browser_uat.json`, `docs/evidence/screenshots/` |
-| Acceptance gates RET-001 to RET-060 | **NOT RUN** | — |
+| Acceptance gates RET-001 to RET-060 | **360 passed**, 0 failed, 0 skipped, 0 errors | `tests/retail/`, `docs/RETAIL_REQUIREMENT_TRACEABILITY.md` |
 
 ## How each suite was run
 
@@ -131,7 +131,7 @@ Chromium against `http://localhost:5328` and `http://127.0.0.1:8328`, at 1366x76
 
 ## Failed, blocked and not-run work
 
-- The acceptance gate suite has not been run against this build.
+Nothing failed, was blocked, or was left unrun in these three suites.
 
 ## What these suites do NOT establish
 
