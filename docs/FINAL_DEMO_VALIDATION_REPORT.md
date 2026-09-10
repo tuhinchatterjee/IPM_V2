@@ -148,28 +148,28 @@ Borrower 360 · Data Builder · Investigations · Analysis Studio · the
 exported-analysis library with the What-If item in it · all three retired routes
 redirecting · browser Back · a cold deep link.
 
-### Control audit — 468 exercised, 0 dead, three runs running
+### Control audit — 466 exercised, 0 dead, four runs running
 
 | | |
 |---|---|
-| Controls exercised | **468** |
+| Controls exercised | **466** |
 | Dead controls | **0** |
-| Skipped, every reason named | 108 |
+| Skipped, every reason named | 110 |
 
 Run three times end to end, because a number produced once is a number that
-might have been luck. Three passes: 80 of 80 checks, **0 dead every time**, 0
-click failures, 467–468 exercised — the one-control drift is a conditional
-control that is not always on the screen.
+might have been luck. Four passes: 80 of 80 checks, **0 dead every time**, 0
+click failures, 466–468 exercised — the small drift is a conditional control
+that is not always on the screen.
 
-Skips, in full: **99** whose accessible name runs past 48 characters (a card
+Skips, in full: **100** whose accessible name runs past 48 characters (a card
 rendered as a button — no locator can match a paragraph on the re-check, so
 they are counted apart rather than hidden); **5** with no accessible name at
-all, which is an accessibility gap and is recorded as one; **2** disabled;
+all, which is an accessibility gap and is recorded as one; **3** disabled;
 **2** already the selected option.
 
-Per screen: `/` 37 · `/early-warning` 17 · `/what-if` 14 · `/lenses` 16 ·
-`/playbook` 14 · `/projects` 4 · `/scorecard-validation` 8 · `/borrower-360` 12
-· `/data-builder` 30 · `/investigations` 4 · `/studio` 305.
+Per screen: `/` 36 · `/early-warning` 16 · `/what-if` 13 · `/lenses` 16 ·
+`/playbook` 14 · `/projects` 4 · `/scorecard-validation` 7 · `/borrower-360` 12
+· `/data-builder` 30 · `/investigations` 3 · `/studio` 305.
 
 Links are judged by whether their href resolves to a route this application
 serves. Buttons are pressed. What counts as "it did something" had to be fixed
@@ -212,7 +212,7 @@ needing a panel rather than failed.
 
 ### Functional depth — PASS
 
-`scripts/acceptance/demo_functionality.py`. **74 checks, 74 passed.** A route
+`scripts/acceptance/demo_functionality.py`. **79 checks, 79 passed.** A route
 returning 200 proves a page exists; these ask whether the thing works.
 
 | | |
@@ -276,6 +276,9 @@ Each of these was found by running something, not by reading code.
 | 11 | **The brain's question corpus could compose nothing over those four**, and silently skipped them | `tests/brain/test_corpus.py` |
 | 12 | **"Show me the Facility IFRS 9 dataset" resolved to nothing** once a third IFRS 9 dataset existed. Refusing to guess was right; the tie is breakable — a reader who says "facility" and a dataset called `..._facility` agree about the grain explicitly, which beats a declared grain the name does not mention | `tests/orchestration/test_dataset_aware_ask.py` |
 | 13 | **The feature matrix demanded a curated expected behaviour for `/early-warning/_legacy-signals`.** A Next.js folder starting with `_` is a private folder, opted out of routing; the live server returns 404 for it by design. The generator skipped `(groups)` and not these | `tests/docs/test_feature_matrix.py` |
+| 14 | **The Cockpit offered a question it could not answer.** "Where is risk building across the bank?" is on the approved opening list, and asking it returned "which figure should CreditProbe measure?" — the correct reply to a question that names no measure, and the one reply a suggestion must never produce, because the reader did exactly what the product told them to. Inherited, and invisible: the test that guards it had been skipping for the reason in §6b. Replaced with "Which sectors carry the most expected credit loss?" — 5,313 SAR mn across 17 sectors at Q2 2026 | the 859 tests that stopped skipping |
+| 15 | **The analytical reader was pinned to whatever lake existed when its module was first imported.** `from backend.config import settings` at module scope in `duckdb_source.py` captures the settings OBJECT, and an override replaces it. 351 of the 383 non-passing tests, and 859 silent skips, were this | the broad regression, after refusing to accept "test isolation" as the answer |
+| 16 | **The control audit was answering confidently and wrongly, four ways** — see §3a. It reported five working prompt buttons as dead, the notifications bell as dead on four screens, could not see a control that was already selected, and audited ten screens in a shell it had itself collapsed | breaking 212 undifferentiated "skips" into named reasons |
 
 **Three faults in my own checks**, recorded because each produced a confident
 wrong answer before it was caught:
@@ -368,66 +371,81 @@ integration plan, after the final data rebuild, and is post-demo.
 ## 6b. Backend regression — 18,662 tests on a separate database
 
 Run against `creditprobe_test`, never the demo database, as the mandate
-requires. Two passes: one to find, one to confirm.
+requires.
 
 ```
-first pass    17,294 passed   171 failed   247 errors   950 skipped   (418 non-passing)
-              six defects fixed
-second pass   17,329 passed   136 failed   247 errors   950 skipped   (383 non-passing)
+pass 1    17,294 passed   171 failed   247 errors   950 skipped   (418 non-passing)
+pass 2    17,329 passed   136 failed   247 errors   950 skipped   (383 non-passing)
+pass 3    18,539 passed    32 failed     0 errors    91 skipped
 ```
 
-### Every remaining failure, classified
+### The 351 that were one line of product code
+
+Pass 2 left 383 non-passing, and every affected suite passed in its own
+process. That is usually where an investigation stops and writes "test
+isolation, post-demo". It was not that.
+
+`backend/data_access/duckdb_source.py` read `from backend.config import
+settings` at module scope. `settings` is a frozen dataclass, so an override
+REPLACES the object — `config.settings = dataclasses.replace(...)` is the
+documented way to point a deployment at a different lake, and it is what four
+fixtures under `tests/cockpit_agentic/` do. A module-level import captures
+whichever object existed when the module was first imported. Imported once
+under a twenty-borrower temporary release, the reader kept reading that
+release for the life of the process — while `config.settings` looked entirely
+correct to anyone who checked, which is why this took four passes to see.
+
+**This is a product defect, not a test one.** Any deployment overriding
+`settings` after import — the mechanism the config module documents — got a
+reader pointed at the directory from before the override. Reading through the
+module instead took 383 non-passing to 32, and 950 skips to 91: 859 tests had
+been skipping because a suite that finds no lake skips rather than fails.
+
+### What the 859 unskipped tests then showed
+
+One of them was on the demo path, and it is §4 defect 14: the Cockpit's
+opening screen offered "Where is risk building across the bank?", and asking
+it returned "which figure should CreditProbe measure?". Inherited — it
+reproduces at `a659d23` and against the running deployment — but invisible,
+because the test that guards it had been skipping.
+
+### The 32 that remain, classified
 
 | Class | Count | Evidence |
 |---|---|---|
-| **NEW INTEGRATION REGRESSION** | **0** | the 35 that were new are fixed and listed in §4 |
-| **TEST / HARNESS DEFECT** — cross-test state in one 18,662-test process | **377** | every affected suite passes in its own process, below |
-| **INHERITED FEATURE FAILURE** | **6** | each reproduces identically at `a659d23`, against this same lake |
-| ENVIRONMENT / CONTAINER FLAKE | 0 | none observed across the two passes |
+| **NEW INTEGRATION REGRESSION** | **0** | — |
+| **INHERITED FEATURE FAILURE** | **29** | the identical set fails at `a659d23`, below |
+| **TEST / HARNESS DEFECT** | 2 | flaky within the inherited set; two orchestration proofs vary run to run |
+| ENVIRONMENT / CONTAINER FLAKE | 1 | one messaging directory test, inherited and order-sensitive |
 
-### The 377, run in their own processes
-
-The four blocks that account for 370 of them were re-run alone. Not one
-failure survives:
+The inherited set was established by `git worktree` at `a659d23` — the last
+commit of the merge sequence, before this closure pass began — with `data/`
+and `metadata/catalog.json` symlinked to the live lake, so the only variable
+is the code. Running the same suites at both commits:
 
 ```
-tests/scorecard        696 passed,  1 skipped,  0 failed      (174 fail in the full run)
-tests/early_warning  1,942 passed,  3 skipped,  0 failed       (82 fail in the full run)
-tests/reconciliation    74 passed,             0 failed        (64 fail in the full run)
-tests/intelligence      55 passed,             0 failed        (50 fail in the full run)
+current    26 failed, 3,473 passed
+a659d23    26 failed, 3,434 passed
+diff       none — not one test name differs in either direction
 ```
 
-The remaining seven — five in `tests/runtime/test_result_order_is_total.py`
-and two in `tests/proof/` — likewise pass in their own process.
+They fall into three groups, none on the demo path:
 
-This is a defect, and it is named as one rather than written off. What it is
-NOT is a product failure: the module suites are green, and the product answers
-the same questions the same way in the browser. Pairwise reproduction was
-attempted and failed — `tests/early_warning`, `tests/scorecard` and
-`tests/evals` each run immediately before `tests/intelligence` leave it fully
-green — so the cause is state accumulated over a long chain of suites in one
-interpreter, not one identifiable poisoner. **Fixing it is post-demo work**
-and is recorded in §6 rather than claimed here.
+* **20** in `tests/proof/test_agentic_proof.py`, `test_defect_closure.py`,
+  `tests/orchestration/test_compound_and_investigation.py` and
+  `test_portfolio_and_length.py` — one root cause, the router classifying a
+  portfolio-review question as `intent='ANALYSIS'` so it answers with a single
+  analysis where the test expects an orchestrated investigation;
+* **6** in `tests/evals/` — the multi-analysis corpus scores and two
+  reconciliation properties between customer-grain and facility-grain
+  exposure;
+* **2** in `tests/exports/test_workbooks.py` — the Excel formula
+  reconstruction; **1** in `tests/api/test_thread_memory.py` — opening the
+  latest dataset from a follow-up.
 
-### The 6 inherited, named
-
-| Test | Reproduces at `a659d23`? |
-|---|---|
-| `tests/evals/test_properties.py::test_a_share_is_of_the_population_asked_about` | yes, identically |
-| `tests/evals/test_properties.py::test_customer_level_exposure_reconciles_with_the_facility_book` | yes, identically |
-| `tests/exports/test_workbooks.py::TestExcelReconstruction::test_it_writes_real_excel_formulas` | yes, identically |
-| `tests/exports/test_workbooks.py::TestExcelReconstruction::test_the_formulas_reconcile_against_the_runtime_values` | yes, identically |
-| `tests/evals/test_multi_analysis_response.py::…::test_the_exposure_block_reconciles_with_an_independent_read` | yes, identically |
-| `tests/api/test_thread_memory.py::test_open_the_latest_dataset_navigates` | yes, identically |
-
-The baseline was run in a `git worktree` at `a659d23` — the last commit of the
-merge sequence, before this closure pass began — with `data/` and
-`metadata/catalog.json` symlinked to the live lake, so the only variable is the
-code. Each of the six fails there with the same assertion and the same numbers.
-Three are reconciliation defects between customer-grain and facility-grain
-exposure and belong to the analytical engine; two are the Excel reconstruction;
-one is a thread-memory navigation. None is on the demo path, and none was
-introduced here.
+Fixing them is analytical-engine work in modules this closure did not touch,
+and §21 puts it after the demonstration. Each is named here rather than
+folded into a count.
 
 
 ---
