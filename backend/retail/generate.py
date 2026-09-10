@@ -71,6 +71,10 @@ CATCH_UP_INTERCEPT = 0.95
 CATCH_UP_STRESS_BETA = 0.80
 UTP_INTERCEPT = -8.6
 WRITE_OFF_AFTER_DEFAULT_MONTHS = 15
+#: The column the canonical dataset is partitioned by, and the `period_field`
+#: its catalogue entry declares. Both must agree or a month can be listed and
+#: then not opened.
+PERIOD_FIELD = "reporting_month"
 BUREAU_SCALE_ID = "SYNTH_BUREAU_PROXY_300_900"
 BUREAU_SOURCE_LABEL = "Synthetic bureau proxy"
 
@@ -838,6 +842,7 @@ class RetailSimulation:
         self.h_autopay = _ring(n)
         self.h_balance = _ring(n)
         self.h_enquiries = _ring(n)
+        self.h_behscore = _ring(n)
 
         # Rolling history, customer level
         m = self.cust.n
@@ -1265,15 +1270,22 @@ class RetailSimulation:
         sal = self.h_salary[ci]
         sal_missed = self.h_salary_missed[ci]
         sal_1m = sal[:, -1]
-        sal_prev3 = np.nanmean(sal[:, -4:-1], axis=1) if HISTORY_MONTHS >= 4 else np.nan
-        sal_avg3 = np.nanmean(sal[:, -3:], axis=1)
-        sal_avg6 = np.nanmean(sal[:, -6:], axis=1)
-        with np.errstate(all="ignore"):
-            sal6 = sal[:, -6:]
-            vol = np.where(np.nanmean(sal6, axis=1) > 0,
-                           np.nanstd(sal6, axis=1) / np.where(np.nanmean(sal6, axis=1) > 0,
-                                                              np.nanmean(sal6, axis=1), 1.0),
-                           np.nan)
+        def _safe_mean(block: np.ndarray) -> np.ndarray:
+            counts = (~np.isnan(block)).sum(axis=1)
+            totals = np.nansum(block, axis=1)
+            return np.where(counts == 0, np.nan, totals / np.where(counts == 0, 1, counts))
+
+        sal_prev3 = _safe_mean(sal[:, -4:-1]) if HISTORY_MONTHS >= 4 else np.full(n, np.nan)
+        sal_avg3 = _safe_mean(sal[:, -3:])
+        sal_avg6 = _safe_mean(sal[:, -6:])
+        sal6 = sal[:, -6:]
+        sal6_mean = _safe_mean(sal6)
+        sal6_counts = (~np.isnan(sal6)).sum(axis=1)
+        sal6_var = np.where(
+            sal6_counts == 0, np.nan,
+            np.nansum((sal6 - sal6_mean[:, None]) ** 2, axis=1)
+            / np.where(sal6_counts == 0, 1, sal6_counts))
+        vol = np.where(sal6_mean > 0, np.sqrt(sal6_var) / np.where(sal6_mean > 0, sal6_mean, 1.0), np.nan)
 
         obligations_monthly = np.maximum(
             st.external_obligations + st.scheduled_payment, 1.0)
@@ -1522,7 +1534,10 @@ class RetailSimulation:
         overlay = np.full(n, float(cfg.ecl["management_overlay_sar"]))
         final = ecl_mod.final_ecl(weighted, overlay)
 
+        self.behavioural_score_previous_month = st.behavioural_score_prev.copy()
         st.behavioural_score_prev = np.where(np.isnan(beh_score), st.behavioural_score_prev, beh_score)
+        _push(self.h_behscore, np.where(self.active_now, beh_score, np.nan))
+        st.stage_entry_idx = np.where(stage != st.stage_prev, t, st.stage_entry_idx)
         self.stage_now = stage
 
         out = pd.DataFrame({
@@ -1546,6 +1561,16 @@ class RetailSimulation:
             "ifrs9_pd_source_model": pd_source_label,
             "ifrs9_pd_mapping_version": SCORE_TO_IFRS9_PD_MAPPING_VERSION,
             "pd_ttc_12m": pd_ttc_12m,
+            # The hazard ANCHOR: the 12-month PIT probability the monthly hazard
+            # path was built from, before seasoning. Stored so What-If can
+            # rebuild the identical curve and reproduce the baseline exactly,
+            # rather than approximating it from a cumulative result.
+            "pd_pit_12m_anchor": pd_pit_12m_base_raw,
+            "monthly_discount_rate": mrate,
+            "ecl_remaining_life_months": remaining_life,
+            "ecl_contractual_remaining_months": contractual_remaining,
+            "ecl_undrawn_commitment_sar": undrawn,
+            "ecl_drawn_balance_sar": st.balance,
             "pd_ttc_at_origination_12m": pd_ttc_orig_12m,
             "pd_pit_at_origination_12m": pd_pit_orig_12m,
             "pd_origination_curve_remaining_life": pd_orig_remaining,
@@ -1887,7 +1912,52 @@ class RetailSimulation:
             "calculation_available_at": snap,
         }, index=sources.index)
 
-        frame = pd.concat([base, sources, self.app, beh, self.orig.drop(
+        beh_score = pd.to_numeric(
+            beh.get("beh_score_value", pd.Series(np.nan, index=sources.index)),
+            errors="coerce").to_numpy(dtype="float64")
+        beh_prev = getattr(self, "behavioural_score_previous_month", np.full(n, np.nan))
+        beh_3m_ago = self.h_behscore[:, -4] if HISTORY_MONTHS >= 4 else np.full(n, np.nan)
+
+        # The specification names several fields that the scoring engine emits
+        # under its own prefixed names. Both are kept: the prefixed columns are
+        # the model's own output, and these are the canonical dictionary names
+        # every module, blueprint and export reads.
+        aliases = pd.DataFrame({
+            "application_score_at_origination": pd.to_numeric(
+                self.app["app_score_value"], errors="coerce").to_numpy(),
+            "application_score_model_id": self.app.get("app_model_id"),
+            "application_score_model_version": self.app.get("app_model_version"),
+            "application_score_band": self.app.get("app_score_band_value"),
+            "application_predicted_pd_12m": pd.to_numeric(
+                self.app["app_predicted_pd_12m"], errors="coerce").to_numpy(),
+            "application_transform_version": self.app.get("app_transform_version"),
+            "behavioural_score": beh_score,
+            "behavioural_score_model_id": beh.get("beh_model_id"),
+            "behavioural_score_model_version": beh.get("beh_model_version"),
+            "behavioural_score_band": beh.get("beh_score_band_value"),
+            "behavioural_predicted_pd_12m": pd.to_numeric(
+                beh.get("beh_predicted_pd_12m", pd.Series(np.nan, index=sources.index)),
+                errors="coerce").to_numpy(),
+            "behavioural_transform_version": beh.get("beh_transform_version"),
+            "behavioural_score_previous_month": beh_prev,
+            "behavioural_score_change_3m": np.where(
+                np.isnan(beh_3m_ago) | np.isnan(beh_score), np.nan, beh_score - beh_3m_ago),
+            "score_input_missing_count": (
+                pd.to_numeric(self.app.get("app_input_missing_count"), errors="coerce").fillna(0).to_numpy()
+                + pd.to_numeric(beh.get("beh_input_missing_count", pd.Series(0, index=sources.index)),
+                                errors="coerce").fillna(0).to_numpy()),
+            "score_input_stale_count": np.where(self.thin_history, 1, 0),
+            "returned_payment_count_3m": pd.to_numeric(
+                sources["autopay_failure_count_3m"], errors="coerce").to_numpy(),
+            "stage_entry_date": np.array([
+                self.dates[i] if i >= 0 else None for i in st.stage_entry_idx], dtype=object),
+            "calculation_input_hash": [
+                hashlib.sha256(f"{fid}|{snap.isoformat()}|{dataset_version}".encode()).hexdigest()[:32]
+                for fid in fac.facility_id
+            ],
+        }, index=sources.index)
+
+        frame = pd.concat([base, sources, self.app, beh, aliases, self.orig.drop(
             columns=["facility_id", "application_id", "scheduled_monthly_payment_sar",
                      "bureau_thin_file_flag"]), risk], axis=1)
         frame = frame.loc[:, ~frame.columns.duplicated()]
@@ -2024,9 +2094,17 @@ def build(
     staging.mkdir(parents=True, exist_ok=True)
 
     sim = RetailSimulation(cfg, rng)
-    collected: list[tuple[int, date, pd.DataFrame]] = []
+
+    # Two passes, so peak memory is one month rather than twenty-five. The
+    # first writes each month as it is simulated; the second adds the forward
+    # outcome labels, which cannot exist until the whole history has run.
+    staged: list[tuple[int, date, Path]] = []
     for t, snap, frame in sim.run(dataset_version):
-        collected.append((t, snap, frame))
+        part = staging / f"{PERIOD_FIELD}={snap.year:04d}-{snap.month:02d}"
+        part.mkdir(parents=True, exist_ok=True)
+        path = part / "data.parquet"
+        frame.to_parquet(path, index=False)
+        staged.append((t, snap, path))
         if log_progress:
             logger.info("simulated %s: %d live facilities", snap.isoformat(), len(frame))
 
@@ -2035,8 +2113,10 @@ def build(
     total_rows = 0
     customers_seen: set[str] = set()
     facilities_seen: set[str] = set()
+    column_count = 0
 
-    for t, snap, frame in collected:
+    for t, snap, path in staged:
+        frame = pd.read_parquet(path)
         rows = frame.pop("_facility_row").to_numpy()
         outcomes = _outcome_columns(sim, t, rows, monitoring_as_of)
         outcomes.index = frame.index
@@ -2044,10 +2124,8 @@ def build(
         frame = frame.loc[:, ~frame.columns.duplicated()]
 
         _validate_month(frame, snap)
-
-        part = staging / f"{snap.year:04d}-{snap.month:02d}"
-        part.mkdir(parents=True, exist_ok=True)
-        frame.to_parquet(part / "data.parquet", index=False)
+        frame.to_parquet(path, index=False)
+        column_count = len(frame.columns)
 
         total_rows += len(frame)
         customers_seen.update(frame["customer_id"].tolist())
@@ -2064,6 +2142,7 @@ def build(
             "content_hash": _content_hash(frame),
             "validation_status": "PASSED",
         })
+        del frame
 
     if len(months) != cfg.months:
         raise RuntimeError(
@@ -2079,7 +2158,7 @@ def build(
         **cfg.to_manifest(),
         "dataset_name": dataset_name,
         "dataset_version": dataset_version,
-        "column_count": int(len(collected[0][2].columns) + 20),
+        "column_count": int(column_count),
         "total_rows": total_rows,
         "distinct_customers_all_months": len(customers_seen),
         "distinct_facilities_all_months": len(facilities_seen),
