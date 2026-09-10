@@ -257,17 +257,30 @@ class RunStore:
     # -- connections ----------------------------------------------------
 
     def _connect(self) -> sqlite3.Connection:
+        """A usable connection, or `StorageUnavailable`.
+
+        Wrapped deliberately: a corrupt file, a revoked mount or a full disk
+        must reach the caller as the TYPED outcome the state machine declares,
+        so the run stops with STORAGE_UNAVAILABLE and does not launch the next
+        paid operation. A raw sqlite error here would surface as an
+        unclassified internal failure and send an operator to the wrong place.
+        """
         if self._shared is not None:
             return self._shared
         conn = getattr(self._local, "conn", None)
         if conn is None:
-            conn = sqlite3.connect(self.path, timeout=30.0,
-                                   isolation_level=None)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=FULL")
-            conn.execute("PRAGMA foreign_keys=ON")
-            conn.execute("PRAGMA busy_timeout=30000")
+            try:
+                conn = sqlite3.connect(self.path, timeout=30.0,
+                                       isolation_level=None)
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA synchronous=FULL")
+                conn.execute("PRAGMA foreign_keys=ON")
+                conn.execute("PRAGMA busy_timeout=30000")
+            except sqlite3.Error as exc:
+                raise StorageUnavailable(
+                    f"the V4 state database at {self.path} is not usable: "
+                    f"{exc}") from exc
             self._local.conn = conn
         return conn
 

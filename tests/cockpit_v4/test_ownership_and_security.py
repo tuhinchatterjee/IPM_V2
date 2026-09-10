@@ -37,7 +37,7 @@ def _exec_args(sql: str, mode="DATA_ANALYSIS", owner="COCKPIT",
 # ---- ownership ---------------------------------------------------------
 
 def test_a_referral_settles_without_executing_anything(drive):
-    """V4-AT-021, V4-AT-022. No excluded-domain read, ever."""
+    """V4-AT-021, V4-AT-022, V4-AT-025, V4-AT-029. No excluded-domain read, ever."""
     outcome, provider, _ = drive(
         "Why did this borrower's EWS score rise, and what if PD went up 200bp?",
         [ScriptedResult(tool_calls=[tool_call(
@@ -147,7 +147,7 @@ def test_out_of_domain_and_escape_attempts_are_refused(sql, store_db,
 
 def test_python_is_unavailable_rather_than_silently_run_as_sql(
         store_db, runtime, release_id):
-    """V4-AT-056. No in-process substitute, and no language swap."""
+    """V4-AT-055, V4-AT-056. No in-process substitute, and no language swap."""
     from backend.cockpit_v4.config import STANDARD_LIMITS
     from backend.cockpit_v4.execute_tool import ExecutionService
     from backend.cockpit_v4 import pyrunner

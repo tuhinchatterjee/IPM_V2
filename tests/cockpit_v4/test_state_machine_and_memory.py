@@ -1,5 +1,5 @@
 """
-Pure unit tests. No model, no database, no runner.
+UNIT. Pure unit tests: no model, no database, no runner.
 
 The state-machine test reads the transition registry and proves the property
 the design claims: every cycle consumes something finite. That is a static

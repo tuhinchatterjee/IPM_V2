@@ -35,9 +35,21 @@ from backend.cockpit_v4.worker import Worker
 logger = logging.getLogger(__name__)
 
 #: The demo principal a loopback synthetic-only profile may issue. It is
-#: server-controlled: nothing in a request can name a different tenant.
+#: server-controlled: nothing in a request can name a different tenant, and
+#: the tenant it DOES get is the one the pinned synthetic release actually
+#: contains -- a demo principal scoped to a tenant the release has no rows
+#: for reads as "the portfolio is empty" rather than "you are looking at the
+#: wrong release".
 DEMO_PRINCIPAL = {"id": "v4-local-demo", "tenant": "demo",
                   "name": "Local UAT", "demo": True}
+
+
+def demo_tenant(runtime: Any, cfg: config_mod.V4Config) -> str:
+    """The synthetic release's own tenant, or the documented fallback."""
+    tenants = (getattr(runtime, "release_summary", None) or {}).get("tenants")
+    if isinstance(tenants, (list, tuple)) and tenants:
+        return str(tenants[0])
+    return str(DEMO_PRINCIPAL["tenant"])
 
 
 def startup_sha() -> str:
@@ -58,7 +70,9 @@ def startup_sha() -> str:
         return "unknown"
 
 
-def _demo_resolver(cfg: config_mod.V4Config) -> Any:
+def _demo_resolver(cfg: config_mod.V4Config, runtime: Any = None) -> Any:
+    tenant = demo_tenant(runtime, cfg)
+
     def resolve(request: Request) -> dict[str, Any] | None:
         if not cfg.local_demo_auth:
             return None
@@ -67,7 +81,7 @@ def _demo_resolver(cfg: config_mod.V4Config) -> Any:
         # profile, it is an unauthenticated deployment.
         if client not in ("127.0.0.1", "::1", "localhost", "testclient"):
             return None
-        return dict(DEMO_PRINCIPAL)
+        return {**DEMO_PRINCIPAL, "tenant": tenant}
     return resolve
 
 
@@ -119,7 +133,7 @@ def create_app(cfg: config_mod.V4Config | None = None, *,
     holder = runtime or _Runtime()
     holder.cfg = cfg
 
-    resolver = (_demo_resolver(cfg) if cfg.local_demo_auth
+    resolver = (_demo_resolver(cfg, runtime) if cfg.local_demo_auth
                 else _session_resolver())
     routes.install(store=store, runtime=holder,
                    principal_resolver=resolver, startup_sha=sha)

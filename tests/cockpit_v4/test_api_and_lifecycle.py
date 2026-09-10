@@ -154,7 +154,7 @@ def test_cancellation_is_idempotent_and_does_not_unsettle_a_finished_run(
 
 def test_a_completed_answer_survives_a_delivery_failure(client, store_db,
                                                         runtime):
-    """V4-AT-080. Retrievable by run id, with no second paid run."""
+    """V4-AT-080, V4-AT-097. Retrievable by run id, with no second paid run."""
     from backend.cockpit_v4.worker import Worker
 
     run_id = client.post(f"{P}/runs",
@@ -221,7 +221,7 @@ def test_a_late_worker_cannot_overwrite_a_settled_run(store_db):
 
 
 def test_diagnostics_separates_the_three_capabilities(client):
-    """V4-AT-098 (part). Not one misleading all-green badge."""
+    """V4-AT-002, V4-AT-098. Not one misleading all-green badge."""
     body = client.get(f"{P}/diagnostics").json()
     for key in ("ready_for_product_help", "ready_for_sql_analysis",
                 "ready_for_python_analysis"):

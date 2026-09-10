@@ -34,7 +34,7 @@ ERROR_ID_SHAPE = re.compile(r"^err-[0-9a-f]{12}$")
 
 
 def test_the_incident_reference_matches_v3s_only_generator():
-    """OBSERVED. Exactly one site in V3 emits this shape."""
+    """V4-AT-001. OBSERVED. Exactly one site in V3 emits this shape."""
     from backend.cockpit_agentic import runtime as v3_runtime
 
     source = inspect.getsource(v3_runtime)
@@ -142,7 +142,7 @@ def test_v3_never_persists_the_error_id():
 
 
 def test_v4_persists_an_error_id_and_an_operator_detail(drive, store_db):
-    """REPRODUCED (V4). The same class of failure is diagnosable next time."""
+    """V4-AT-001, V4-AT-069. REPRODUCED (V4). The same class of failure is diagnosable next time."""
     class Exploding:
         """A defect inside the application, not the provider."""
 
