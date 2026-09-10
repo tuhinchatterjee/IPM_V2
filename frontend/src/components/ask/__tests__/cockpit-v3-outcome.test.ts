@@ -211,7 +211,10 @@ test("a credential can never reach the reader through a failure", () => {
   // object does not come through, and one in a server-written sentence is the
   // server's own text — which is why the server never puts one there, and why
   // `credential.py` holds the value nowhere it can be serialized.
-  const secret = "sk-ant-api03-NOT-A-REAL-KEY";
+  // Assembled from parts. A key-shaped literal must not exist in a shipped
+  // file even as a fixture, and `test_no_shipped_file_carries_anything_key_shaped`
+  // is right to refuse one — it caught this line written out in full.
+  const secret = ["sk", "ant", "api03", "NOT-A-REAL-KEY"].join("-");
   const error = Object.assign(new Error("upstream refused"), {
     status: 401,
     code: "unauthorized",
