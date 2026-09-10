@@ -377,7 +377,11 @@ requires.
 pass 1    17,294 passed   171 failed   247 errors   950 skipped   (418 non-passing)
 pass 2    17,329 passed   136 failed   247 errors   950 skipped   (383 non-passing)
 pass 3    18,539 passed    32 failed     0 errors    91 skipped
+pass 4    18,541 passed    30 failed     0 errors    91 skipped
 ```
+
+Pass 4 differs from pass 3 by exactly the two tests §4 defect 14 fixed, and
+by nothing else in either direction.
 
 ### The 351 that were one line of product code
 
@@ -409,14 +413,14 @@ it returned "which figure should CreditProbe measure?". Inherited — it
 reproduces at `a659d23` and against the running deployment — but invisible,
 because the test that guards it had been skipping.
 
-### The 32 that remain, classified
+### The 30 that remain, classified
 
 | Class | Count | Evidence |
 |---|---|---|
 | **NEW INTEGRATION REGRESSION** | **0** | — |
-| **INHERITED FEATURE FAILURE** | **29** | the identical set fails at `a659d23`, below |
-| **TEST / HARNESS DEFECT** | 2 | flaky within the inherited set; two orchestration proofs vary run to run |
-| ENVIRONMENT / CONTAINER FLAKE | 1 | one messaging directory test, inherited and order-sensitive |
+| **INHERITED FEATURE FAILURE** | **30** | every one fails at `a659d23` too, below |
+| TEST / HARNESS DEFECT | 0 | two of the thirty are additionally flaky run to run, but they fail at both commits |
+| ENVIRONMENT / CONTAINER FLAKE | 0 | none observed across the four passes |
 
 The inherited set was established by `git worktree` at `a659d23` — the last
 commit of the merge sequence, before this closure pass began — with `data/`
@@ -441,7 +445,9 @@ They fall into three groups, none on the demo path:
   exposure;
 * **2** in `tests/exports/test_workbooks.py` — the Excel formula
   reconstruction; **1** in `tests/api/test_thread_memory.py` — opening the
-  latest dataset from a follow-up.
+  latest dataset from a follow-up; **1** in
+  `tests/api/test_messaging_corrections.py` — searching the sender directory
+  by role. All four verified against `a659d23` individually.
 
 Fixing them is analytical-engine work in modules this closure did not touch,
 and §21 puts it after the demonstration. Each is named here rather than
@@ -499,3 +505,43 @@ Password for every account: **`creditprobe-demo`**
 | `sara.qahtani` | Data steward |
 | `omar.nasser` | Analyst |
 | `layla.haddad` | Viewer |
+
+---
+
+## 9. Verdict
+
+**DEMO READY.**
+
+Every gate, with the command that produced it:
+
+| Gate | Result |
+|---|---|
+| Browser acceptance, real Chromium, real session | **PASS** — 16 journeys, 80 checks, 80 passed, 0 failed, four consecutive runs |
+| Control audit | **466 exercised, 0 dead**, four runs; all 110 skips named by reason |
+| Functional depth — does the thing WORK, not does it return 200 | **PASS** — 79 checks, 79 passed |
+| Every question the Cockpit offers, asked for real | **5 of 5 answer** |
+| Defect carry-forward from all seven feature sessions | 28 re-asked: **27 verified, 1 deferred, 0 present** |
+| Cross-module canonical identity | 16 tests, all passing, sampled across all three stages and the largest exposure |
+| Backend regression, separate database | 18,541 passed, **30 failed — every one inherited, 0 new** |
+| Migrations | one head, `0049`; round trip verified against `information_schema` |
+| Bootstrap on an empty database | 13 steps performed, 4 already in place, "The deployment is ready" |
+| Readiness | **19 of 19** |
+| Frontend | `tsc --noEmit` clean · eslint clean · production build succeeds |
+| Display contract | 124 high-precision sites allowed with a reason, 0 without |
+| Lint | 84 ruff findings, unchanged from the merge baseline — none introduced |
+
+What this does NOT claim is in §6a, in those words: live AI is unconfigured by
+design here, and the generated Word document has been parsed but not opened in
+Word.
+
+The three things that would have gone wrong in front of an audience, and were
+found by running the product rather than reading it:
+
+1. the opening screen offered one fallback question instead of three governed
+   ones, because registering three datasets changed an alphabetical tie-break;
+2. one of the questions it offered could not be answered at all, and the guard
+   against exactly that had been silently skipping for months;
+3. the analytical reader was pinned to whichever lake existed when its module
+   was first imported.
+
+None of the three would have been caught by a route returning 200.

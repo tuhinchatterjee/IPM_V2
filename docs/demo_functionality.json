@@ -148,7 +148,7 @@
       "section": "What-If",
       "check": "a Delta What-If calculates",
       "ok": true,
-      "detail": "One-notch corporate downgrade \u2014 HTTP 200 in 0.8s"
+      "detail": "One-notch corporate downgrade \u2014 HTTP 200 in 0.7s"
     },
     {
       "section": "What-If",
@@ -424,7 +424,7 @@
       "section": "Downloads",
       "check": "the Early Warning portfolio workbook downloads",
       "ok": true,
-      "detail": "130,443 bytes"
+      "detail": "130,444 bytes"
     },
     {
       "section": "Downloads",
@@ -478,6 +478,6 @@
   "check_count": 79,
   "passed": 79,
   "failed": 0,
-  "duration_seconds": 96.7,
+  "duration_seconds": 6.4,
   "result": "PASS"
 }
