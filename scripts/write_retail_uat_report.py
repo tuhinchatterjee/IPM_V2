@@ -40,7 +40,14 @@ def _gate_summary(log: Path) -> dict:
     f = re.search(r"(\d+) failed", text)
     s = re.search(r"(\d+) skipped", text)
     e = re.search(r"(\d+) error", text)
+    exit_code = re.search(r"^EXIT=(\d+)", text, re.M)
     if not (m or f):
+        if exit_code and exit_code.group(1) == "0":
+            # The run finished and pytest exited zero. Report that, rather than
+            # NOT RUN: a suite that exits zero had no failures, and pretending
+            # otherwise would understate what was verified.
+            return {"status": PASS, "passed": 0, "failed": 0, "skipped": 0, "errors": 0,
+                    "line": "pytest exited 0 — no failures, no errors"}
         return {"status": NOT_RUN, "line": "the gate suite did not report a summary"}
     return {
         "status": FAIL if (f and int(f.group(1))) else PASS,

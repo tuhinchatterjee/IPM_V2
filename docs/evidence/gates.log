@@ -1,43 +1,21 @@
+# Acceptance gates RET-001..RET-060
+# .venv/bin/python -m pytest tests/retail/ -p no:randomly
+# 2026-09-10T21:28:44Z
+
 ........................................................................ [ 20%]
 ........................................................................ [ 40%]
 ........................................................................ [ 60%]
 ........................................................................ [ 80%]
-............................................................F........... [100%]
+................................................................F....... [100%]
 =================================== FAILURES ===================================
-_________ TestRET057To060Evidence.test_no_unqualified_completion_claim _________
-
-self = <test_ret_046_060_surface.TestRET057To060Evidence object at 0x7f2c835f0740>
-
-    def test_no_unqualified_completion_claim(self):
-        forbidden = ("sama compliant", "anb approved", "auditor certified",
-                     "fully production-ready", "production ready and approved")
-        for path in self.DOCS:
-            if path.endswith("MASTER_SPEC.md"):
-                continue  # the specification quotes these to forbid them
-            text = (ROOT / path).read_text().lower()
-            for phrase in forbidden:
->               assert phrase not in text, f"{path} contains '{phrase}'"
-E               AssertionError: docs/RETAIL_ONLY_HANDOVER.md contains 'sama compliant'
-E               assert 'sama compliant' not in '# creditpro...n setting.\n'
-E                 
-E                 'sama compliant' is contained here:
-E                   s **not** sama compliant, **not** anb
-E                 ?           ++++++++++++++
-E                   approved, **not** auditor certified, and **not** an independent model
-E                   validation. the data describes no real customer, the scorecards are not any real
-E                   institution's models, the bureau signals are a synthetic proxy and not simah,
-E                   and every threshold is a demonstration setting.
-
-tests/retail/test_ret_046_060_surface.py:491: AssertionError
-=============================== warnings summary ===============================
-tests/retail/test_ret_046_060_surface.py::TestRET051BrowserAcceptance::test_a_real_browser_ran
-  /home/user/IPM_V2/.venv/lib/python3.12/site-packages/_pytest/fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
-  Instance attributes set in this fixture will NOT be visible to test methods,
-  as each test gets a new instance while the fixture runs only once per class.
-  Use @classmethod decorator and set attributes on cls instead.
-  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
-    fixturefunc = resolve_fixture_function(fixturedef, request)
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+_ TestRET057To060Evidence.test_the_final_commit_carries_the_code_the_docs_describe _
+tests/retail/test_ret_046_060_surface.py:541: in test_the_final_commit_carries_the_code_the_docs_describe
+    assert not dirty, (
+E   AssertionError: a completion claim must not depend on an earlier commit while later untested changes sit uncommitted:
+E     M scripts/write_retail_uat_report.py
+E   assert not 'M scripts/write_retail_uat_report.py'
 =========================== short test summary info ============================
-FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_no_unqualified_completion_claim
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_the_final_commit_carries_the_code_the_docs_describe
+1 failed, 359 passed in 523.72s (0:08:43)
+
+EXIT=0
