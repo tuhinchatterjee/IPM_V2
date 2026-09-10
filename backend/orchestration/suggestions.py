@@ -221,7 +221,13 @@ COCKPIT_AT_ONCE = 3
 #: deployment without a dataset offers the question that does not need it
 #: rather than a question it cannot answer.
 COCKPIT: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Where is risk building across the bank?",
+    # Was "Where is risk building across the bank?", which named no figure.
+    # The reader answered it with "which figure should CreditProbe measure?"
+    # — the RIGHT answer to a question that names no measure, and exactly the
+    # reply this list exists to make impossible. The reader was not at fault;
+    # offering the question was. This wording asks the same thing in governed
+    # language and comes back with one row per sector.
+    ("Which sectors carry the most expected credit loss?",
      ("portfolio_facility",)),
     ("Which exposures have deteriorated this quarter?",
      ("portfolio_facility",)),

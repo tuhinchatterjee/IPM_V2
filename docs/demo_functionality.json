@@ -28,7 +28,37 @@
       "section": "Session",
       "check": "the opening screen offers three approved questions",
       "ok": true,
-      "detail": "3: ['Which borrowers are weakening but are not yet on the watchlist?', 'Where are multiple warning signals appearing together?', 'Where is risk building across the bank?']"
+      "detail": "3: ['Where are multiple warning signals appearing together?', 'Which sectors carry the most expected credit loss?', 'Which exposures have deteriorated this quarter?']"
+    },
+    {
+      "section": "Session",
+      "check": "an offered question answers: Which sectors carry the most expected credit loss?",
+      "ok": true,
+      "detail": "succeeded: 5,313 SAR mn of expected credit loss across 17 sectors at Q2 2026."
+    },
+    {
+      "section": "Session",
+      "check": "an offered question answers: Which exposures have deteriorated this quarter?",
+      "ok": true,
+      "detail": "succeeded: 25 borrowers, ranked by how many of 7 governed deterioration signals each one shows at Q2 "
+    },
+    {
+      "section": "Session",
+      "check": "an offered question answers: What is driving Stage 2 and ECL growth?",
+      "ok": true,
+      "detail": "succeeded: 808 facilities in IFRS 9 stage 2 where ECL rose, between Q2 2025 and Q2 2026. The 500 show"
+    },
+    {
+      "section": "Session",
+      "check": "an offered question answers: Which borrowers are weakening but are not yet on the watchlist?",
+      "ok": true,
+      "detail": "succeeded: 25 borrowers, ranked by how many of 7 governed deterioration signals each one shows at Q2 "
+    },
+    {
+      "section": "Session",
+      "check": "an offered question answers: Where are multiple warning signals appearing together?",
+      "ok": true,
+      "detail": "succeeded: 25 borrowers, ranked by how many of 8 governed credit concern signals each one shows at Q2"
     },
     {
       "section": "Cockpit",
@@ -118,7 +148,7 @@
       "section": "What-If",
       "check": "a Delta What-If calculates",
       "ok": true,
-      "detail": "One-notch corporate downgrade \u2014 HTTP 200 in 0.7s"
+      "detail": "One-notch corporate downgrade \u2014 HTTP 200 in 0.8s"
     },
     {
       "section": "What-If",
@@ -394,7 +424,7 @@
       "section": "Downloads",
       "check": "the Early Warning portfolio workbook downloads",
       "ok": true,
-      "detail": "130,445 bytes"
+      "detail": "130,443 bytes"
     },
     {
       "section": "Downloads",
@@ -445,9 +475,9 @@
       "detail": "HTTP 200"
     }
   ],
-  "check_count": 74,
-  "passed": 74,
+  "check_count": 79,
+  "passed": 79,
   "failed": 0,
-  "duration_seconds": 4.7,
+  "duration_seconds": 96.7,
   "result": "PASS"
 }

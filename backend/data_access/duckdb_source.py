@@ -36,7 +36,7 @@ from typing import Any
 import duckdb
 import pandas as pd
 
-from backend.config import settings
+from backend import config
 from backend.data_access.catalog import Catalog, DatasetDef, get_catalog
 from backend.data_access.context import AnalysisContext
 from backend.data_access.protocol import Aggregation, DataAccessError
@@ -76,7 +76,17 @@ class DuckDBSource:
     name = "duckdb"
 
     def __init__(self, root: Path | None = None, catalog: Catalog | None = None):
-        self.root = root or settings.analytics_dir
+        # Read through the module, never bound at import. `settings` is a
+        # frozen dataclass and an override REPLACES the object —
+        # `config.settings = dataclasses.replace(...)` is the documented way
+        # to point a deployment at a different lake. A `from backend.config
+        # import settings` here captured whichever object existed when this
+        # module was first imported, so a source constructed after an override
+        # still read the directory from before it — and, worse, a module first
+        # imported UNDER an override kept that override for the life of the
+        # process, with `config.settings` looking entirely correct the whole
+        # time.
+        self.root = root or config.settings.analytics_dir
         self._catalog = catalog
         # One connection, guarded by a lock. DuckDB connections are not thread-safe,
         # and FastAPI serves requests on a thread pool.

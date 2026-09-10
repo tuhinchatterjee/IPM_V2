@@ -49,12 +49,48 @@ def cockpit_models(monkeypatch):
     yield
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="package", autouse=True)
+def _leave_the_lake_as_we_found_it():
+    """Drop the process-wide analytical source when this package is done.
+
+    Four fixtures here point `settings.analytics_dir` at a temporary lake and
+    each restores `settings` afterwards, correctly. That is not enough:
+    `backend.data_access.get_data_source()` is cached for the life of the
+    PROCESS and the DuckDB source it returns remembers the root it was
+    constructed with. Built once under a twenty-borrower temporary release, it
+    keeps answering from there long after `settings` has been put back — and
+    `settings` looking right is what made this hard to see.
+
+    In a run of the whole repository that pointed everything downstream at the
+    temporary lake. `tests/api/test_data_release_loop.py` found no published
+    periods at all and thirty tests errored in setup, and the cascade from
+    there is most of what a full-suite run reported as failures. Autouse and
+    package-scoped, so it is set up before every fixture below and torn down
+    after all of them, whatever order they finalise in.
+    """
+    from backend import data_access
+
+    yield
+    data_access.reset_data_source()
+
+
+@pytest.fixture(scope="package")
 def lake(tmp_path_factory):
     """A real published release in an isolated namespace, with a raised input
     cap so the packet fits -- which is exactly the explicitly configured mode
-    docs/cockpit_agentic_v3/CONTEXT_SIZING.md describes."""
-    from backend import config
+    docs/cockpit_agentic_v3/CONTEXT_SIZING.md describes.
+
+    PACKAGE scope, not session. A session-scoped fixture tears down at the end
+    of the whole RUN, so the `analytics_dir` override below stayed in force
+    for every suite that came after this package — and the restore at the
+    bottom, correct as it is, ran far too late to matter. In a run of the
+    whole repository that pointed the rest of the product at a twenty-borrower
+    temporary lake: `tests/api/test_data_release_loop.py` reported no
+    published periods at all, and the cascade from there is most of what a
+    full-suite run shows as failures. Package scope ends the override where
+    the package ends, which is where it was always meant to end.
+    """
+    from backend import config, data_access
 
     base = tmp_path_factory.mktemp("runtimelake")
     original = config.settings
@@ -67,6 +103,15 @@ def lake(tmp_path_factory):
     # set here made three ledger tests pass for the wrong reason.
     config.settings = dataclasses.replace(
         original, cockpit_agentic_v3=True, analytics_dir=base / "analytics")
+    # Restoring `settings` is not enough on its own. `get_data_source()` is
+    # cached for the life of the PROCESS and the DuckDB source it builds
+    # remembers the `analytics_dir` it was constructed with. Build it here,
+    # under a temporary lake, and every later suite in the same run reads that
+    # temporary lake — which is how `tests/api/test_data_release_loop.py`
+    # came to report "corporate_borrower_360 has not been built" against a
+    # deployment where it plainly was. Dropped on the way in and on the way
+    # out, so neither direction can leak.
+    data_access.reset_data_source()
     release = G.build_release(dataset_release_id=RELEASE, borrowers=20,
                               facilities=40)
     G.conform(release)
@@ -76,6 +121,7 @@ def lake(tmp_path_factory):
            "calendar": release.calendar}
     sql.clear_sessions()
     config.settings = original
+    data_access.reset_data_source()
 
 
 @pytest.fixture()

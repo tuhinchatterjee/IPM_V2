@@ -147,6 +147,20 @@ def main(argv: list[str] | None = None) -> int:
           and all(q in approved for q in offered),
           f"{len(offered)}: {offered}")
 
+    # And each one is ASKED. Being on the approved list is a claim; the claim
+    # is that the question answers. "Where is risk building across the bank?"
+    # was on that list and came back "which figure should CreditProbe
+    # measure?" — the right reply to a question that names no measure, and the
+    # one thing a suggestion must never produce, because the reader did
+    # exactly what the product told them to do.
+    for question, _ in sg.COCKPIT:
+        _, answer, _ = c.call("/ask", {"question": question})
+        state = (answer or {}).get("status")
+        said = ((answer or {}).get("narrative") or {}).get("direct_answer") or ""
+        r.add(f"an offered question answers: {question}",
+              state == "succeeded" and not (answer or {}).get("clarification"),
+              f"{state}: {said[:90]}")
+
     # ------------------------------------------------------------ Cockpit
     r.head("Cockpit")
     status, diag, _ = c.call("/cockpit/diagnostics")
