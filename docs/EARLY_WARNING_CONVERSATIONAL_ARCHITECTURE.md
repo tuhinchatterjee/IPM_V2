@@ -367,6 +367,33 @@ reader picks from a dropdown.
 When the budget is exhausted the turn **stops and says what it ran out of**.
 Nothing is invented to fill the gap.
 
+### What a ceiling stops
+
+The step it cannot afford — not the turn. A refusal that ends the turn throws
+away everything already computed in order to report that the next thing was one
+too many, which is a worse outcome than the ceiling was written to prevent. So
+affordability is asked **before** the charge and before the work: a plan step
+that cannot be run is declined, named on the trace, and left out of the packet,
+and the sufficiency review reports it as uncovered like any other gap.
+
+### What `executions` counts
+
+Governed analytical executions **attempted**: one increment per call to the
+executor, charged as the call is made. Never a planned step, never a validated
+step, never a reserved slot. A valid six-step plan under a six-execution ceiling
+runs exactly six and the seventh is refused before it runs; a turn that never
+reached the executor reports zero. The trace and the ledger have to reconstruct
+the same turn, and both carry attempted, succeeded and failed so that they can
+be compared rather than reconciled.
+
+Charged on attempt rather than on success, for the reason model calls are: an
+execution that ran and failed cost what one that ran and worked cost.
+
+Every planned step reaches the executor once before any correction reaches it
+twice. A correction that ran inline would spend the execution a later planned
+step needed, so one failing step could starve a step that would have succeeded.
+Corrections are queued behind the plan and run on what is left.
+
 ### The closing reserve
 
 Two stages are not optional: the final interpretation, and the rolling summary

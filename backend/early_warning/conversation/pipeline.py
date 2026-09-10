@@ -85,6 +85,7 @@ VALIDATION_PASSED = "validation"
 VALIDATION_FAILED = "validation_failed"
 REPAIR_ATTEMPTED = "opus_plan_repair"
 EXECUTION_COMPLETE = "execution"
+EXECUTION_DECLINED = "execution_declined"
 RESULT_PACKET = "result_packet"
 SUFFICIENCY_COMPLETE = "opus_sufficiency_review"
 REVISION_EXECUTED = "revision_executed"
@@ -434,34 +435,78 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
     emit(VALIDATION_PASSED, checked=list(checked.checked),
          steps=len(plan.steps))
 
+    # Every planned step gets its turn at the executor before any correction
+    # gets a second one. An inline retry spends the execution a later planned
+    # step was going to need, so one failing step could starve a step that
+    # would have succeeded — which is how a six-step plan under a
+    # six-execution ceiling stops before its sixth analysis.
     executed: list[ex.Executed] = []
-    for step in plan.steps:
+    deferred: list[plan_mod.Step] = []
+    declined: list[str] = []
+
+    def _attempt(step: plan_mod.Step, *, corrected: bool) -> bool:
+        """Run one step if the ceiling allows it. True if it ran and worked.
+
+        The affordability question is asked BEFORE the charge and before the
+        executor, so the step that cannot run is declined rather than
+        attempted — and an exhausted ceiling ends this step, never the turn.
+        A turn that let `Exhausted` escape from here would throw away every
+        analysis that had already succeeded in order to report that the next
+        one was one too many.
+        """
+        blocked = ledger.why_not("executions")
+        if blocked:
+            declined.append(step.analysis)
+            return False
         ledger.execution()
         try:
-            executed.append(ex.run(step))
+            result = ex.run(step)
         except ex.ExecutionError as failure:
+            ledger.settle_execution(analysis=step.analysis, ok=False,
+                                    reason=failure.code, corrected=corrected)
+            if corrected:
+                return False
             # The last boundary held: the executor refused rather than
             # raising, and the refusal carries what the domain offers
-            # instead. One bounded correction, then the step is left out and
-            # the sufficiency review names the part it could not cover.
+            # instead. One bounded correction, queued behind the rest of the
+            # plan; if it never gets budget the step is left out and the
+            # sufficiency review names the part it could not cover.
             emit(VALIDATION_FAILED, codes=[failure.code],
                  repairable=True, at_step=step.analysis,
                  detail=str(failure), offered=list(failure.offered)[:8])
+            if not ledger.can("repairs"):
+                # Same rule as the executions ceiling: a spent allowance
+                # costs this step its correction, not the turn its answer.
+                return False
             ledger.repair()
-            corrected = _corrected(step, failure)
+            correction = _corrected(step, failure)
             emit(REPAIR_ATTEMPTED, codes=[failure.code],
                  repairs_spent=ledger.repairs,
                  engine="deterministic-step-repair",
-                 corrected=corrected is not None)
-            if corrected is None or not ledger.can("executions"):
-                continue
-            ledger.execution()
-            try:
-                executed.append(ex.run(corrected))
-            except ex.ExecutionError:
-                continue
+                 corrected=correction is not None)
+            if correction is not None:
+                deferred.append(correction)
+            return False
+        executed.append(result)
+        ledger.settle_execution(analysis=step.analysis, ok=True,
+                                rows=result.row_count, corrected=corrected)
+        return True
+
+    for step in plan.steps:
+        _attempt(step, corrected=False)
+    for step in deferred:
+        _attempt(step, corrected=True)
+
+    if declined:
+        emit(EXECUTION_DECLINED, steps=declined[:8], count=len(declined),
+             reason=ledger.why_not("executions") or "execution_declined",
+             executed=len(executed))
     emit(EXECUTION_COMPLETE, steps=len(executed),
-         rows=sum(e.row_count for e in executed))
+         rows=sum(e.row_count for e in executed),
+         attempted=ledger.executions,
+         succeeded=ledger.executions_succeeded,
+         failed=ledger.executions_failed,
+         declined=len(declined))
 
     packet = packet_mod.build(turn.question, request, plan, executed,
                               package=package, budget=ledger.to_dict())
@@ -496,11 +541,21 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
         recheck = val.check(plan_mod.Plan(steps=[step]), package)
         if not recheck.ok:
             break
+        if not ledger.can("executions"):
+            break
         ledger.execution()
         try:
-            executed.append(ex.run(step))
-        except ex.ExecutionError:
+            revised = ex.run(step)
+        except ex.ExecutionError as failure:
+            # A revision spends from the same ledger and settles on it too,
+            # so the executions a revision ran are visible beside the ones
+            # the plan ran rather than folded into an untraceable total.
+            ledger.settle_execution(analysis=step.analysis, ok=False,
+                                    reason=failure.code)
             break
+        executed.append(revised)
+        ledger.settle_execution(analysis=step.analysis, ok=True,
+                                rows=revised.row_count)
         emit(REVISION_EXECUTED, analysis=step.analysis,
              revisions_spent=ledger.revisions)
         plan.steps.append(step)
@@ -821,7 +876,8 @@ def _finish(turn: Turn, request: Any, prior: summary_mod.RollingSummary,
 
 __all__ = ["ANALYTICAL_STAGES", "STAGE_ORDER",
            "CLARIFICATION_ANSWER", "CONTEXT_BUILT",
-           "EXECUTION_COMPLETE", "Event", "FINAL_ANSWER",
+           "EXECUTION_COMPLETE", "EXECUTION_DECLINED", "Event",
+           "FINAL_ANSWER",
            "FUNCTIONALITY_SELECTED", "PLAN_CREATED", "REDIRECT_ANSWER",
            "REPAIR_ATTEMPTED", "REQUEST_STARTED", "RESULT_PACKET",
            "REVISION_EXECUTED", "SONNET_PASS_1", "SONNET_PASS_2",

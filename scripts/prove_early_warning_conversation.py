@@ -116,7 +116,10 @@ def _trace(turn: pipe.Turn) -> None:
           f"{spent['opus_calls']}")
     print(f"  optional left     : "
           f"{budget['optional_model_calls_remaining']}")
-    print(f"  executions        : {spent['executions']}")
+    print(f"  executions        : {budget['executions_attempted']} attempted "
+          f"of {budget['ceilings']['executions']}")
+    print(f"    succeeded       : {budget['executions_succeeded']}")
+    print(f"    failed          : {budget['executions_failed']}")
     print(f"  repairs           : {spent['repairs']}")
     print(f"  revisions         : {spent['revisions']}")
     print(f"  elapsed           : {budget['elapsed_seconds']}s of "
@@ -128,6 +131,21 @@ def _trace(turn: pipe.Turn) -> None:
         "the ledger does not reconcile: charged is not succeeded plus failed")
     assert len(turn.model_calls) <= spent["model_calls"], (
         "more stages claimed a model than the ledger paid for")
+    assert (budget["executions_succeeded"] + budget["executions_failed"]
+            == budget["executions_attempted"] == spent["executions"]), (
+        "the ledger does not reconcile: executions charged is not succeeded "
+        "plus failed")
+    assert len(budget["steps"]) == budget["executions_attempted"], (
+        "an execution was charged that no step accounts for")
+
+    if budget["steps"]:
+        _rule("EVERY EXECUTION (charged, in order)")
+        for step in budget["steps"]:
+            mark = "ok  " if step["ok"] else "FAIL"
+            print(f"  {step['at_seconds']:>7.2f}s  {mark}  "
+                  f"{step['analysis']:<30} {step['rows']:>7} rows"
+                  + ("  (corrected)" if step["corrected"] else "")
+                  + (f"  {step['reason']}" if step["reason"] else ""))
 
     if turn.model_attempts:
         _rule("EVERY ATTEMPT (charged, in order)")

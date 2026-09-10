@@ -114,10 +114,21 @@ class Ledger:
     #: so the two are recorded separately rather than one being inferred.
     model_calls_succeeded: int = 0
     model_calls_failed: int = 0
+    #: The same distinction for executions. `executions` is what was charged,
+    #: and it is charged at the moment a step is about to be run — never for a
+    #: step that was merely planned, validated or queued. So a turn that
+    #: reached the executor zero times reports zero, and one that reports six
+    #: ran six.
+    executions_succeeded: int = 0
+    executions_failed: int = 0
     #: Every attempt, in order, with what served it and how it ended. This is
     #: what lets the ledger be reconstructed from the trace rather than
     #: reconciled by arithmetic.
     calls: list[dict[str, Any]] = field(default_factory=list)
+    #: Every execution attempt, in order, with how it ended. The trace and
+    #: the ledger have to describe the same turn; this is what makes that
+    #: checkable rather than asserted.
+    steps: list[dict[str, Any]] = field(default_factory=list)
     #: Every refusal, so an exhausted turn can say what it ran out of.
     refusals: list[str] = field(default_factory=list)
 
@@ -219,7 +230,38 @@ class Ledger:
         })
 
     def execution(self) -> None:
+        """One governed analytical execution, charged as it is attempted.
+
+        Charged on attempt rather than on success, for the reason model calls
+        are: an execution that ran and failed cost what one that ran and
+        worked cost. What it is emphatically NOT charged for is a planned
+        step, a validated step or a reserved slot — the counter moves only
+        where the executor is about to be called, one increment per call.
+
+        The caller asks `can("executions")` first and declines the step when
+        the answer is no. Letting this raise mid-loop would end the turn on
+        the step that could not run and throw away the ones that did.
+        """
         self._spend("executions")
+
+    def settle_execution(self, *, analysis: str = "", ok: bool,
+                         rows: int = 0, reason: str = "",
+                         corrected: bool = False) -> None:
+        """How the execution that was just charged actually ended.
+
+        `executions = executions_succeeded + executions_failed` holds by
+        construction, so a ledger reporting six executions can be read back
+        as six real attempts against named analyses.
+        """
+        if ok:
+            self.executions_succeeded += 1
+        else:
+            self.executions_failed += 1
+        self.steps.append({
+            "analysis": analysis, "ok": ok, "rows": rows,
+            "reason": reason, "corrected": corrected,
+            "at_seconds": self.elapsed_seconds,
+        })
 
     def repair(self) -> None:
         """A repair spends from the SAME counters the failed attempt did."""
@@ -272,6 +314,12 @@ class Ledger:
             "model_calls_succeeded": self.model_calls_succeeded,
             "model_calls_failed": self.model_calls_failed,
             "calls": [dict(c) for c in self.calls],
+            # Executions, on the same terms: charged at the moment the
+            # executor was called, and settled by how the call ended.
+            "executions_attempted": self.executions,
+            "executions_succeeded": self.executions_succeeded,
+            "executions_failed": self.executions_failed,
+            "steps": [dict(s) for s in self.steps],
             "remaining": self.remaining(),
             "optional_model_calls_remaining": max(
                 0, self._headroom("model_calls", closing=False)
@@ -284,7 +332,10 @@ class Ledger:
                      "budget rather than a per-attempt allowance. Two model "
                      "calls are reserved for the final interpretation and "
                      "the thread summary, so optional work cannot spend the "
-                     "answer."),
+                     "answer. Executions count analyses actually run, never "
+                     "analyses planned or validated: a step the ceiling "
+                     "refuses is declined before it runs and is not "
+                     "charged."),
         }
 
 

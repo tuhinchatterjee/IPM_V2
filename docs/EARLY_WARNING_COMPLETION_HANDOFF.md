@@ -456,6 +456,7 @@ Suites that matter here, run individually:
 | `test_executable_contract.py` | 41 passed |
 | `test_output_allowances.py` | 23 passed |
 | `test_grounding.py` | 32 passed |
+| `test_execution_budget.py` | 20 passed |
 | `test_signal_universe.py` | 22 passed |
 | `test_conversation_routing.py` | 76 passed, 1 skipped |
 | `test_conversation_pipeline.py` | 21 passed |
@@ -468,6 +469,22 @@ where Early Warning loses also asserts that **no analytical stage was reached**.
 
 Frontend: **405 of 405** passing across 41 suites. `tsc --noEmit` clean, lint
 clean, `next build` clean.
+
+### The whole backend suite, before and after the execution-budget fix
+
+The container was rebuilt between sweeps and lost its analytical lake, so both
+sides of this comparison were re-run on the same regenerated data — the numbers
+are not comparable with the narrower sweep above, and the identifiers are what
+matters.
+
+```
+before   22 failed, 10,282 passed, 25 skipped, 0 errors in 1070s
+after    22 failed, 10,302 passed, 25 skipped, 0 errors in 1073s
+```
+
+The failing identifiers are **identical, line for line** — 22 before, 22 after,
+none of them in `tests/early_warning/`. The twenty additional passes are
+`test_execution_budget.py`.
 
 ---
 
@@ -819,13 +836,97 @@ unpublished month refused, invented figures still rejected, the schema
 statistics still rejected, `fact_refs` resolving and not rescuing, and both
 acceptance targets.
 
+### Defect 6 — the execution budget was consumed before execution
+
+The fifth live run reached `validation` with every model stage served by a real
+model and an Opus plan of six analyses — population, movement, diagnosis,
+grouping, concentration, ranking. Standard allows six executions. The turn then
+emitted:
+
+```
+stopped_honestly   this turn's executions budget is spent (6 of 6)
+model calls : 5 charged
+executions  : 6
+```
+
+No `execution` stage. No `result_packet`. No answer. Six executions charged and
+nothing to show for them — a ledger describing a turn that did not happen.
+
+**Where the counter moves.** Exactly one place, and it always did: immediately
+before `execute.run` is called, in the pipeline. There is no pre-charge during
+validation, no reservation function writing to the same field, no second
+accountant between validator and executor, and no `>=`/`>` off-by-one — the
+ceiling comparison was and is correct. A test now pins that: `.execution()`
+appears in one file in `backend/`.
+
+**What was actually wrong.** Two things, neither of them the ceiling.
+
+*The exhaustion escaped the loop.* `ledger.execution()` was called unguarded at
+the top of each iteration; `_spend` raises `Exhausted`; the handler that caught
+it returned `stopped_honestly` — discarding six completed analyses in order to
+report that the next one was one too many. A ceiling is meant to stop the step
+it cannot afford, not the turn. The loop now asks `why_not("executions")`
+**before** charging and before the executor: the step it cannot afford is
+declined, named on a new `execution_declined` event, and the turn carries on to
+its packet, its review and its answer with what ran. The sufficiency review
+names the part it could not cover, as it does for any other uncovered analysis.
+
+*The retry ran inline.* The per-step correction added with the executable
+registry re-ran a corrected step immediately, spending the execution a LATER
+planned step was going to need. One failing step could therefore starve a step
+that would have succeeded, and a six-step plan under a six-execution ceiling
+could stop at five. Corrections are now deferred: every planned step reaches the
+executor once before any correction reaches it twice, and a correction runs only
+on what is left.
+
+**The invariant.** `executions` counts governed analytical executions
+**attempted** — one increment per call to the executor, charged as the call is
+made, never for a step that was merely planned, validated or queued. A valid
+six-step plan under a six-execution ceiling runs exactly six; the seventh is
+refused before it runs. Zero executed steps cannot report six.
+
+Charged on attempt rather than on success, for the reason model calls are: an
+execution that ran and failed cost what one that ran and worked cost. So
+`executions_succeeded` and `executions_failed` are recorded beside it rather
+than inferred from it, and every attempt is settled onto a `steps` list naming
+the analysis, the outcome, the rows and whether it was a correction. The
+`execution` event carries the same four numbers, so **the trace and the ledger
+reconstruct the same turn** and a test compares them from both ends.
+
+**The ceiling was not raised.** Standard is still six executions, Deep still
+fourteen. The fix is sequencing.
+
+| Case | Ceiling | Planned | Executed | Refused |
+|---|---|---|---|---|
+| Five steps | 6 | 5 | 5 | — |
+| Six steps | 6 | 6 | 6 | — |
+| Seven steps | 6 | 7 | 6 | the seventh, before it ran |
+| Validation only | 6 | 6 | 0 | — |
+| What-If redirect | 6 | 0 | 0 | — |
+
+A revision still spends the same counter on the same ledger, and now settles
+onto it too, so a revision's execution is visible beside the plan's rather than
+folded into an untraceable total. A repair still buys no fresh allowance.
+
+`tests/early_warning/test_execution_budget.py`: **20 passed** — the single
+charging site, charge-on-attempt, `charged = succeeded + failed`, the five/six/
+seven-step cases, the refusal naming its resource, the declined analysis absent
+from the packet rather than empty in it, validation costing nothing, a turn that
+never reached the executor reporting zero, a refused plan costing nothing to
+refuse, a failed step charged but not counted as a success, a correction not
+starving a later planned step, revision and repair accounting on one ledger, the
+live Contracting question reaching every closing stage, seven model stages
+served by a model at 7 charged / 7 succeeded / 0 failed, and the ceilings
+unchanged.
+
 ### What was NOT changed
 
 The What-If journey, the functionality gate, the domain locks, the 20-month
 domain, the 2,521-field universe, the 123/105/18 reconciliation, the scoring
-engine, Rawabi at 56 MEDIUM, the Sonnet/Opus assignments, the closing reserve,
-the action and escalation workflow, Messages, Investigations, the reports and
-the thread semantics.
+engine, Rawabi at 56 MEDIUM, the Sonnet/Opus assignments, the eight-call model
+budget, the two-call closing reserve, the execution ceilings, the stage output
+allowances, the numeric grounding guard, the action and escalation workflow,
+Messages, Investigations, the reports and the thread semantics.
 
 ---
 
