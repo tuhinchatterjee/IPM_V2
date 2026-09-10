@@ -136,12 +136,11 @@ def preset_reply(spec: dict, result: dict) -> str:
 # Seeded with a few starters so the lab is never empty on a first visit; the
 # analyst's own questions then displace them, most recent first.
 
-STARTER_QUESTIONS = [
-    "What happens at +300bps?",
-    "Model a 25% fall in real estate",
-    "Which borrowers breach covenants first?",
-    "How much ECL does stagflation add?",
-]
+# Retail sensitivities. A covenant breach and a real-estate sector shock are
+# corporate questions with nothing behind them in this installation.
+from backend.retail.profile import SCENARIO_STARTERS
+
+STARTER_QUESTIONS = list(SCENARIO_STARTERS)
 
 MAX_REMEMBERED = 8
 RECALL_LIMIT = 6

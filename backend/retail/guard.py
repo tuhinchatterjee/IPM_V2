@@ -57,8 +57,14 @@ def is_retail_directory(directory: Path) -> bool:
 def require_retail_directory(directory: Path, *, what: str) -> Path:
     """Prove a directory is the retail installation's, or refuse."""
     directory = Path(directory)
-    lowered = {part.lower() for part in directory.parts}
-    clash = sorted(lowered & set(PROTECTED_PATH_SEGMENTS))
+    lowered = [part.lower() for part in directory.parts]
+    # Substring, not equality: the frozen installations live in directories
+    # called things like `creditprobe_5318` and `demo-5308`, and an exact-match
+    # check would wave both of them straight through.
+    clash = sorted({
+        token for token in PROTECTED_PATH_SEGMENTS
+        for part in lowered if token in part
+    })
     if clash:
         raise RetailTargetRefused(
             f"Refusing to {what} in {directory}: its path names a frozen source "

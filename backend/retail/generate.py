@@ -855,6 +855,11 @@ class RetailSimulation:
             self.cust.base_salary_sar * rng.uniform(0.2, 2.5, size=m), 200.0)
         self.employment_change = np.zeros(m, dtype=bool)
         self.job_loss_reported = np.zeros(m, dtype=bool)
+        # External credit obligations belong to the PERSON, not to one of their
+        # facilities. Held per customer so a customer with three loans has one
+        # obligation figure, one debt burden ratio and one disposable income,
+        # rather than three that disagree.
+        self.cust_external_obligations = self.cust.external_obligations_sar.astype("float64").copy()
 
         # Seeded story: persistent-revolver card cohort.
         self.story_revolver = (
@@ -908,7 +913,12 @@ class RetailSimulation:
             self.employment_change & missed & (rng.random(m) < 0.05)
         )
 
-        obligations = c.external_obligations_sar * growth
+        self.cust_external_obligations = np.maximum(
+            self.cust_external_obligations * (1.0 + INCOME_GROWTH_MONTHLY)
+            + np.where(rng.random(m) < 0.05, rng.uniform(150, 2_400, size=m), 0.0)
+            - np.where(rng.random(m) < 0.035, rng.uniform(100, 1_200, size=m), 0.0),
+            0.0)
+        obligations = self.cust_external_obligations
         outflow = (c.household_expenses_sar * growth) + obligations
         self.cust_bank_balance = np.maximum(
             self.cust_bank_balance * 0.55 + amount - outflow * rng.uniform(0.75, 1.05, size=m),
@@ -1197,11 +1207,7 @@ class RetailSimulation:
         st.bureau_score = np.where(np.isnan(prev), target_bureau, 0.78 * prev + 0.22 * target_bureau)
         st.bureau_score = np.where(self.active_now, np.round(st.bureau_score, 0), st.bureau_score)
 
-        st.external_obligations = np.maximum(
-            st.external_obligations
-            + np.where(rng.random(n) < 0.06, rng.uniform(150, 2_400, size=n), 0.0)
-            - np.where(rng.random(n) < 0.04, rng.uniform(100, 1_200, size=n), 0.0),
-            0.0)
+        st.external_obligations = self.cust_external_obligations[ci]
 
         overlimit_days = np.where(
             is_card & (self.state.utilisation > 1.0),
@@ -1529,7 +1535,20 @@ class RetailSimulation:
             ead_s[s] = res.ead
             ccf_s[s] = np.where(is_card, 0.45 * scen.ead_multiplier[s], np.nan)
 
-        ecl_by_scen = {s: results[s].ecl for s in ecl_mod.SCENARIOS}
+        # Round each scenario ECL to the halala FIRST, then weight the rounded
+        # values. Weighting the unrounded ones and rounding the answer would
+        # leave the published identity — weight * each published scenario ECL —
+        # failing by a fraction of a halala on every row, and by a real number of
+        # riyals once twenty thousand rows are added up. The identity a reader
+        # can check must hold on the numbers they can see.
+        # Precision, stated once. Each SCENARIO ECL is published rounded to the
+        # halala, because that is the figure a reader quotes. The weighted and
+        # final allowance are then the exact weighted combination OF THOSE
+        # PUBLISHED VALUES, carried at full precision and rounded only for
+        # display — so the identity a reader can check on screen holds exactly
+        # rather than to within a rounding error that becomes real riyals once
+        # twenty thousand rows are added up.
+        ecl_by_scen = {s: np.round(results[s].ecl, 2) for s in ecl_mod.SCENARIOS}
         weighted = ecl_mod.weighted_ecl(ecl_by_scen, scen.weights)
         overlay = np.full(n, float(cfg.ecl["management_overlay_sar"]))
         final = ecl_mod.final_ecl(weighted, overlay)
@@ -1594,12 +1613,12 @@ class RetailSimulation:
             "scenario_weight_base": scen.weights["base"],
             "scenario_weight_upturn": scen.weights["upturn"],
             "scenario_weight_downturn": scen.weights["downturn"],
-            "ecl_base_sar": np.round(ecl_by_scen["base"], 2),
-            "ecl_upturn_sar": np.round(ecl_by_scen["upturn"], 2),
-            "ecl_downturn_sar": np.round(ecl_by_scen["downturn"], 2),
-            "ecl_weighted_sar": np.round(weighted, 2),
+            "ecl_base_sar": ecl_by_scen["base"],
+            "ecl_upturn_sar": ecl_by_scen["upturn"],
+            "ecl_downturn_sar": ecl_by_scen["downturn"],
+            "ecl_weighted_sar": weighted,
             "management_overlay_sar": overlay,
-            "ecl_final_sar": np.round(final, 2),
+            "ecl_final_sar": final,
             "ecl_coverage_ratio": ecl_mod.coverage_ratio(final, gca),
             "allowance_scope": "FACILITY_LEVEL_LOSS_ALLOWANCE",
             "ecl_horizon_type": results["base"].horizon_type,
@@ -1646,7 +1665,7 @@ class RetailSimulation:
         other = np.round(cust.other_income_sar[ci] * growth, 2)
         income = salary + other
         expenses = np.round(cust.household_expenses_sar[ci] * growth, 2)
-        external_ob = np.round(st.external_obligations, 2)
+        external_ob = np.round(self.cust_external_obligations[ci], 2)
 
         # Own-bank obligations: this customer's live scheduled instalments,
         # summed once across their facilities.

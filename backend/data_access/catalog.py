@@ -260,10 +260,17 @@ class Catalog:
         try:
             return self._datasets[name]
         except KeyError:
-            raise UnknownDatasetError(
-                f"'{name}' is not a governed dataset. "
-                f"Available: {', '.join(self.names()) or '(none — has the data lake been built?)'}"
-            ) from None
+            pass
+        # A retired identifier gets a scope error naming what this installation
+        # IS, not a near-miss match and not the old portfolio brought back. A
+        # stale URL, a cached request or a bookmarked dataset lands here.
+        from backend.retail.profile import is_retail, is_retired, retail_only_error
+        if is_retail() and is_retired(name):
+            raise UnknownDatasetError(str(retail_only_error(name))) from None
+        raise UnknownDatasetError(
+            f"'{name}' is not a governed dataset. "
+            f"Available: {', '.join(self.names()) or '(none — has the data lake been built?)'}"
+        ) from None
 
     def domains(self) -> dict[str, list[str]]:
         out: dict[str, list[str]] = {}
@@ -372,6 +379,20 @@ def _published_entries_from_db() -> list[dict[str, Any]]:
     except Exception as e:
         logger.warning("Could not read published datasets from PostgreSQL: %s", e)
         return []
+
+
+def active_governed_purposes() -> dict[str, str]:
+    """The purposes the ACTIVE product may resolve.
+
+    The corporate purposes remain defined above as developer history — a
+    migration that referenced one has to keep parsing — but they are not offered,
+    not resolvable and not shown. This function is what the product asks.
+    """
+    from backend.retail.profile import ACTIVE_GOVERNED_PURPOSES, is_retail
+    if not is_retail():
+        return dict(GOVERNED_PURPOSES)
+    from backend.retail.catalogue import RETAIL_PURPOSES
+    return {k: v for k, v in RETAIL_PURPOSES.items() if k in ACTIVE_GOVERNED_PURPOSES}
 
 
 @lru_cache(maxsize=1)

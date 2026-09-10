@@ -92,24 +92,12 @@ def mode() -> dict:
 
 # The questions offered on the Cockpit. Each is one CreditProbe can genuinely answer,
 # which is checked below against the live registry rather than assumed.
-STARTER_QUESTIONS = [
-    {"question": "What deteriorated this period?", "needs": "portfolio_summary",
-     "note": "The standard opening review"},
-    {"question": "Why has Stage 2 increased?", "needs": "stage_migration",
-     "note": "Migration, drivers and impairment consequence"},
-    {"question": "Which sectors deteriorated the most?", "needs": "ecl_movement",
-     "note": "Attribution by sector"},
-    {"question": "Show me the top ten deteriorating borrowers.",
-     "needs": "top_deteriorating_borrowers", "note": "Names, with reasons"},
-    {"question": "Show me the rating transition matrix.",
-     "needs": "rating_transition_matrix", "note": "Empirical transitions"},
-    {"question": "What happens to ECL if Real Estate PD rises 20%?", "needs": "",
-     "note": "A What-If on one sector"},
-    {"question": "How has ECL changed?", "needs": "ecl_movement",
-     "note": "Impairment bridge"},
-    {"question": "Where is the book most concentrated?", "needs": "sector_concentration",
-     "note": "Concentration and its quality"},
-]
+#
+# This installation is Saudi retail only, so the set lives in the retail product
+# profile rather than here: a sector question or a rating transition matrix has
+# nothing to run against, and offering one would be a promise the product cannot
+# keep.
+from backend.retail.profile import STARTER_QUESTIONS  # noqa: E402,F401
 
 
 @router.get("/suggestions", summary="Questions CreditProbe can answer today")
