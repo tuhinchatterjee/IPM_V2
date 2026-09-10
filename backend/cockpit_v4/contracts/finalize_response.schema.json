@@ -1,0 +1,115 @@
+{
+  "type": "object",
+  "properties": {
+    "intent": {
+      "$ref": "#/$defs/Intent"
+    },
+    "disposition": {
+      "type": "string",
+      "enum": [
+        "answer",
+        "partial",
+        "referral",
+        "clarification",
+        "unsupported"
+      ]
+    },
+    "narrative": {
+      "type": "string",
+      "description": "Use typed claim placeholders for numeric portfolio findings."
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Coverage"
+      },
+      "minItems": 0
+    },
+    "numeric_claims": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/NumericClaim"
+      },
+      "minItems": 0
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EvidenceRef"
+      },
+      "minItems": 0
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Table"
+      },
+      "minItems": 0
+    },
+    "charts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Chart"
+      },
+      "minItems": 0,
+      "maxItems": 3
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "suggested_questions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Suggestion"
+      },
+      "minItems": 0,
+      "maxItems": 3
+    },
+    "clarification_question": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "clarification_options": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "referral_owner": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "referral_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "intent",
+    "disposition",
+    "narrative",
+    "coverage",
+    "numeric_claims",
+    "evidence_refs",
+    "tables",
+    "charts",
+    "limitations",
+    "suggested_questions",
+    "clarification_question",
+    "clarification_options",
+    "referral_owner",
+    "referral_reason"
+  ],
+  "additionalProperties": false
+}

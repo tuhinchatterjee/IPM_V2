@@ -1,0 +1,1206 @@
+{
+  "source": "MASTER_BUILD_SPEC.md Appendix C",
+  "count": 100,
+  "cases": [
+    {
+      "id": "V4-AT-001",
+      "group": "diagnosis_and_isolation",
+      "case": "Exact incident reference",
+      "expected": "Correlate err-2569c1be3faa to a recorded exception; otherwise mark root cause unconfirmed.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-002",
+      "group": "diagnosis_and_isolation",
+      "case": "Startup identity",
+      "expected": "Record process startup SHA, branch and runtime ID; do not derive current process code from a later checkout.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-003",
+      "group": "diagnosis_and_isolation",
+      "case": "Separate worktree",
+      "expected": "V4 edits cannot modify the files used by active V3/other-module instances.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-004",
+      "group": "diagnosis_and_isolation",
+      "case": "Port collision",
+      "expected": "Busy V4 port causes clear startup refusal/alternative selection without killing any occupant.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-005",
+      "group": "diagnosis_and_isolation",
+      "case": "Owned process stopping",
+      "expected": "Stop script refuses a reused PID or process with a mismatched command/start time/worktree.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-006",
+      "group": "diagnosis_and_isolation",
+      "case": "Immutable release",
+      "expected": "Existing demo release is validated/reused read-only, never overwritten automatically.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-007",
+      "group": "native_tool_loop",
+      "case": "One-call help",
+      "expected": "Who are you? reaches finalize_response without metadata, SQL, Python, Sonnet or memory generation on the critical path.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-008",
+      "group": "native_tool_loop",
+      "case": "One-call theory",
+      "expected": "PIT vs TTC explanation makes no portfolio assertions or execution calls.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-009",
+      "group": "native_tool_loop",
+      "case": "Schema when needed",
+      "expected": "Missing relevant definitions are requested from inspect_catalog before executable use.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-010",
+      "group": "native_tool_loop",
+      "case": "No gratuitous schema call",
+      "expected": "Sufficient initial metadata allows execution without a compulsory extra discovery round.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-011",
+      "group": "native_tool_loop",
+      "case": "Tool IDs",
+      "expected": "Every accepted tool_use has its own immediately ordered matching tool_result in reused history.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-012",
+      "group": "native_tool_loop",
+      "case": "Partial arguments",
+      "expected": "No streamed/incomplete/truncated tool arguments execute.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-013",
+      "group": "native_tool_loop",
+      "case": "Truncated batch",
+      "expected": "No member of a truncated tool-use response executes before whole-turn validation.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-014",
+      "group": "native_tool_loop",
+      "case": "Invalid structured action",
+      "expected": "Exactly one format recovery is possible; malformed action does not recurse indefinitely.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-015",
+      "group": "native_tool_loop",
+      "case": "Mixed action batch",
+      "expected": "Metadata/execution/finalization combinations forbidden by the contract get no side effects.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-016",
+      "group": "native_tool_loop",
+      "case": "Refusal",
+      "expected": "A provider refusal reaches a safe outcome without alternate-model bypass.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-017",
+      "group": "native_tool_loop",
+      "case": "Unknown stop reason",
+      "expected": "Unknown provider finish reasons fail explicitly, not loop or imply completion.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-018",
+      "group": "ownership_and_language",
+      "case": "Original wording",
+      "expected": "Preserve original names, numbers, dates, negation and language in model input and trace.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-019",
+      "group": "ownership_and_language",
+      "case": "Mixed theory/data",
+      "expected": "Explain DSCR and rank borrowers covers both parts with evidence for the latter.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-020",
+      "group": "ownership_and_language",
+      "case": "EWS theory",
+      "expected": "Generic EWS explanation is allowed without reading EWS data.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-021",
+      "group": "ownership_and_language",
+      "case": "EWS analysis referral",
+      "expected": "Specific EWS score question refers without executing to infer that score.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-022",
+      "group": "ownership_and_language",
+      "case": "What-if referral",
+      "expected": "New PD shock or new ECL simulation does not execute in Cockpit.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-023",
+      "group": "ownership_and_language",
+      "case": "Stored scenario read",
+      "expected": "Reading source-computed baseline/downside results remains allowed.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-024",
+      "group": "ownership_and_language",
+      "case": "Stored vs new rating",
+      "expected": "Stored history can be read; a new score/rating cannot be assigned.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-025",
+      "group": "ownership_and_language",
+      "case": "Disabled destination",
+      "expected": "Disabled scoring workflow is identified honestly; no invented navigation.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-026",
+      "group": "ownership_and_language",
+      "case": "Current facts",
+      "expected": "Current external announcement/rate request does not get a memory-based answer.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-027",
+      "group": "ownership_and_language",
+      "case": "Mode switch",
+      "expected": "Theory -> theory follow-up -> portfolio analysis -> What-if recalculates mode each turn.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-028",
+      "group": "ownership_and_language",
+      "case": "Ambiguous exposure",
+      "expected": "Missing definition is clarified or sourced from an approved dictionary, not silently assumed.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-029",
+      "group": "ownership_and_language",
+      "case": "Excluded subquestion",
+      "expected": "A mixed cross-module request does not quietly drop the excluded portion.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-030",
+      "group": "ownership_and_language",
+      "case": "Multilingual",
+      "expected": "Hindi, Bengali, Arabic and Hinglish fixtures preserve meaning with human-reviewed expected intent.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-031",
+      "group": "domain_and_numerics",
+      "case": "Selective metadata",
+      "expected": "Help does not receive all 991 relation.column definitions or borrower samples.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-032",
+      "group": "domain_and_numerics",
+      "case": "Complete requested definition",
+      "expected": "Selected fields retain full unit, grain, definition, coverage and necessary warnings.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-033",
+      "group": "domain_and_numerics",
+      "case": "Profile denominators",
+      "expected": "Missingness derives from approved actual profiles, not ten sample rows.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-034",
+      "group": "domain_and_numerics",
+      "case": "No outside relations",
+      "expected": "Cross-domain tables, ATTACH/file reads and hidden catalog paths are denied.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-035",
+      "group": "domain_and_numerics",
+      "case": "EAD by sector",
+      "expected": "Latest populated quarter and correct recorded exposure unit match independent oracle.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-036",
+      "group": "domain_and_numerics",
+      "case": "Stage-2 change",
+      "expected": "Four-quarter comparison handles missing/entering/exiting sectors and disclosed measure.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-037",
+      "group": "domain_and_numerics",
+      "case": "Borrower grain",
+      "expected": "Borrower financials are not multiplied by multiple facilities.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-038",
+      "group": "domain_and_numerics",
+      "case": "Shared collateral",
+      "expected": "Whole collateral value is not repeated across allocations.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-039",
+      "group": "domain_and_numerics",
+      "case": "Covenant status",
+      "expected": "Untested/waived/missing results are not silently treated as compliant.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-040",
+      "group": "domain_and_numerics",
+      "case": "Scenario detail",
+      "expected": "Scenario/horizon detail does not multiply booked ECL.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-041",
+      "group": "domain_and_numerics",
+      "case": "Macro vintage",
+      "expected": "Positive offsets remain historical-vintage forecasts; later actuals do not leak.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-042",
+      "group": "domain_and_numerics",
+      "case": "Currency",
+      "expected": "INR/SAR and crore/million are not interchanged; display follows evidence units.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-043",
+      "group": "domain_and_numerics",
+      "case": "Zero vs missing",
+      "expected": "Null, no eligible rows, invalid denominator and genuine zero remain distinguishable.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-044",
+      "group": "domain_and_numerics",
+      "case": "Schema visibility",
+      "expected": "Source columns newly added outside the approved catalog are not automatically exposed.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-045",
+      "group": "domain_and_numerics",
+      "case": "Wide results",
+      "expected": "Oversized outputs have explicit pagination/limit markers and no whole-population claim from a preview.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-046",
+      "group": "execution_and_repair",
+      "case": "Exact authored code",
+      "expected": "Executed code equals the approved Opus-authored source byte-for-byte.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-047",
+      "group": "execution_and_repair",
+      "case": "No dropped steps",
+      "expected": "Overlong plan/batch is rejected to Opus, never clipped into another task.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-048",
+      "group": "execution_and_repair",
+      "case": "No field substitution",
+      "expected": "Described/invalid field ref receives a diagnostic; application does not rewrite it.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-049",
+      "group": "execution_and_repair",
+      "case": "Real repair",
+      "expected": "Real provider generates both failed candidate and corrected query after a truthful diagnostic.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-050",
+      "group": "execution_and_repair",
+      "case": "Failure packet",
+      "expected": "Retains original task/scope, relevant definitions, exact failed code and useful prior results.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-051",
+      "group": "execution_and_repair",
+      "case": "Partial batch",
+      "expected": "Failed step stops dependents; completed earlier results preserve provenance/status.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-052",
+      "group": "execution_and_repair",
+      "case": "No progress",
+      "expected": "Identical deterministic failure is not rerun; counter still advances.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-053",
+      "group": "execution_and_repair",
+      "case": "Transient recovery",
+      "expected": "Recorded environment change can permit retry without evading the five-submission cap.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-054",
+      "group": "execution_and_repair",
+      "case": "SQL sandbox",
+      "expected": "Host/network/extension/configuration escapes are denied by actual isolated execution.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-055",
+      "group": "execution_and_repair",
+      "case": "Python sandbox",
+      "expected": "No network/key/host socket/arbitrary filesystem; process/output/memory bounds enforced.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-056",
+      "group": "execution_and_repair",
+      "case": "Unavailable runner",
+      "expected": "Python/SQL unavailability is explicit, with no in-process substitute.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-057",
+      "group": "budgets",
+      "case": "Five submissions",
+      "expected": "Sixth execute_analysis is impossible; rejected complete candidates count.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-058",
+      "group": "budgets",
+      "case": "Three rounds",
+      "expected": "Fourth post-success execution round is impossible; failed-batch repair uses defined rule.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-059",
+      "group": "budgets",
+      "case": "Call accounting",
+      "expected": "All generation and transport/format retries consume finite ledger entries.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-060",
+      "group": "budgets",
+      "case": "Output accounting",
+      "expected": "Reasoning/output accounting follows verified model semantics; partial output never executed.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-061",
+      "group": "budgets",
+      "case": "Adaptive context",
+      "expected": "A >64k valid affordable request is not refused solely by obsolete V3 caps.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-062",
+      "group": "budgets",
+      "case": "Actual hard limit",
+      "expected": "Essential request that exceeds verified capacity stops with INPUT_CONTEXT_LIMIT.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-063",
+      "group": "budgets",
+      "case": "Cost known",
+      "expected": "Unverified price/cache schedule cannot claim active spend enforcement.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-064",
+      "group": "budgets",
+      "case": "Cancel cost",
+      "expected": "Unknown provider cost remains reserved/pending rather than refunded as zero.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-065",
+      "group": "budgets",
+      "case": "Provider timeout",
+      "expected": "A stalled client cannot outlive the independent run/step watchdog.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-066",
+      "group": "budgets",
+      "case": "No summary budget drain",
+      "expected": "Memory job does not consume or reopen the completed analysis run.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-067",
+      "group": "live_trace_and_lifecycle",
+      "case": "Real arrival",
+      "expected": "Browser receives actual backend progress before final answer, not buffered/fake steps.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-068",
+      "group": "live_trace_and_lifecycle",
+      "case": "Hideable panel",
+      "expected": "Show/Hide state, accessible controls and auto-expansion of the failed step work.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-069",
+      "group": "live_trace_and_lifecycle",
+      "case": "Substep localization",
+      "expected": "Operator can distinguish provider request/response/parse/policy/state/serialization failures.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-070",
+      "group": "live_trace_and_lifecycle",
+      "case": "Secret-safe trace",
+      "expected": "No credentials, cookies, environment dump or private chain-of-thought in public/operator exports.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-071",
+      "group": "live_trace_and_lifecycle",
+      "case": "Duplicate acceptance",
+      "expected": "Same principal/idempotency key/body returns one run and one paid attempt chain.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-072",
+      "group": "live_trace_and_lifecycle",
+      "case": "Conflicting key",
+      "expected": "Same key with a different request body is rejected safely.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-073",
+      "group": "live_trace_and_lifecycle",
+      "case": "Browser reconnect",
+      "expected": "SSE replays in order from a cursor without generating a new answer.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-074",
+      "group": "live_trace_and_lifecycle",
+      "case": "Sequence gap",
+      "expected": "Gap/out-of-retention reconnect falls back to authoritative state, not invented events.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-075",
+      "group": "live_trace_and_lifecycle",
+      "case": "Slow subscriber",
+      "expected": "Bounded delivery buffer cannot block worker or grow indefinitely.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-076",
+      "group": "live_trace_and_lifecycle",
+      "case": "Stale result",
+      "expected": "An older request result cannot replace the newly selected active run.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-077",
+      "group": "live_trace_and_lifecycle",
+      "case": "Cancel race",
+      "expected": "Cancellation and answer-ready races resolve atomically; no duplicate final state.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-078",
+      "group": "live_trace_and_lifecycle",
+      "case": "Worker death",
+      "expected": "Independent supervisor settles an abandoned run; no blind paid-call replay.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-079",
+      "group": "live_trace_and_lifecycle",
+      "case": "Database unavailable",
+      "expected": "Accepted work/next side effect is not claimed without durable state.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-080",
+      "group": "live_trace_and_lifecycle",
+      "case": "Lost delivery",
+      "expected": "Persisted completed answer is retrievable after UI or network failure without a new paid run.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-081",
+      "group": "live_trace_and_lifecycle",
+      "case": "SSE vs 120sec",
+      "expected": "Deep terminal event remains deliverable at server deadline; no whole-stream 120sec abort.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-082",
+      "group": "live_trace_and_lifecycle",
+      "case": "Unknown connection",
+      "expected": "UI reports connection loss and last known stage, not a fabricated server failure.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-083",
+      "group": "memory_and_privacy",
+      "case": "Separate threads",
+      "expected": "No shared hard-coded cockpit-web thread leaks history across users/tabs.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-084",
+      "group": "memory_and_privacy",
+      "case": "Scalar arrays",
+      "expected": "Scalar text normalizes only under allowed contract; never character expansion.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-085",
+      "group": "memory_and_privacy",
+      "case": "Recovery ambiguity",
+      "expected": "Single-character grades/IDs are not rejoined based on length alone.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-086",
+      "group": "memory_and_privacy",
+      "case": "Summary race",
+      "expected": "Older memory task cannot overwrite newer covered-through-turn state.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-087",
+      "group": "memory_and_privacy",
+      "case": "Summary failure",
+      "expected": "Delivered answer is unaffected; exact recent turns remain available.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-088",
+      "group": "memory_and_privacy",
+      "case": "Old referent",
+      "expected": "Authorized old turn can be retrieved without substituting summary speculation.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-089",
+      "group": "memory_and_privacy",
+      "case": "Revocation",
+      "expected": "Permission revocation is enforced at tool/artifact/event access despite pinned release.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-090",
+      "group": "memory_and_privacy",
+      "case": "Tenant isolation",
+      "expected": "Status/SSE/cancel/result/cache cross-tenant requests reveal no unauthorized data.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-091",
+      "group": "memory_and_privacy",
+      "case": "Local demo auth",
+      "expected": "Demo principal cannot authorize non-demo data, other modules or public/production mode.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-092",
+      "group": "memory_and_privacy",
+      "case": "Credential isolation",
+      "expected": "Only COCKPIT_ANTHROPIC_API_KEY serves V4; no shared-key/model fallback.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-093",
+      "group": "final_answer_and_handoff",
+      "case": "Evidence bound numbers",
+      "expected": "Typed numeric claims match exact executed artifacts, unit and precision.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-094",
+      "group": "final_answer_and_handoff",
+      "case": "Final correction",
+      "expected": "Only one answer-only correction; no new execution during that mode.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-095",
+      "group": "final_answer_and_handoff",
+      "case": "Optional chart",
+      "expected": "Invalid chart is dropped without repeating analysis.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-096",
+      "group": "final_answer_and_handoff",
+      "case": "Valid suggestions",
+      "expected": "Suggestions reference available fields/quarters and cannot disguise excluded functions.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-097",
+      "group": "final_answer_and_handoff",
+      "case": "No false delivery claim",
+      "expected": "Generated/sent/rendered are distinct; user history does not claim they saw an unacknowledged answer.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-098",
+      "group": "final_answer_and_handoff",
+      "case": "Safe launch",
+      "expected": "New worktree/runtime/ports are verified; existing demo/Docker/EWS services unaffected.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-099",
+      "group": "final_answer_and_handoff",
+      "case": "Matched baseline",
+      "expected": "Failure IDs and material messages compared under matching configuration; skipped/errors disclosed.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    },
+    {
+      "id": "V4-AT-100",
+      "group": "final_answer_and_handoff",
+      "case": "Live vs fixture",
+      "expected": "Mocks, local estimates, real provider measurements and independent numerical oracles labeled separately.",
+      "evidence": {
+        "mock": "NOT RUN",
+        "real_provider": "NOT RUN",
+        "real_runner": "NOT RUN",
+        "browser": "NOT RUN"
+      }
+    }
+  ]
+}

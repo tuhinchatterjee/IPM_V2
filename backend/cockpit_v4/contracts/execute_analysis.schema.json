@@ -1,0 +1,71 @@
+{
+  "type": "object",
+  "properties": {
+    "intent": {
+      "$ref": "#/$defs/Intent"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "subquestions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "scope": {
+      "$ref": "#/$defs/Scope"
+    },
+    "metadata_receipt_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "fields_required": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "expected_output_grain": {
+      "type": "string"
+    },
+    "expected_units": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "minItems": 1,
+      "maxItems": 8
+    },
+    "repair_of_submission_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "intent",
+    "objective",
+    "subquestions",
+    "scope",
+    "metadata_receipt_ids",
+    "fields_required",
+    "expected_output_grain",
+    "expected_units",
+    "steps",
+    "repair_of_submission_id"
+  ],
+  "additionalProperties": false
+}

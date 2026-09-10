@@ -1,0 +1,68 @@
+{
+  "type": "object",
+  "properties": {
+    "intent": {
+      "$ref": "#/$defs/Intent"
+    },
+    "query": {
+      "type": "string"
+    },
+    "relation_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "field_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "detail": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "discovery",
+          "fields",
+          "relationships",
+          "coverage",
+          "samples"
+        ]
+      },
+      "minItems": 1
+    },
+    "reporting_quarters": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 0
+    },
+    "sample_rows": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "cursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "intent",
+    "query",
+    "relation_ids",
+    "field_ids",
+    "detail",
+    "reporting_quarters",
+    "sample_rows",
+    "cursor"
+  ],
+  "additionalProperties": false
+}
