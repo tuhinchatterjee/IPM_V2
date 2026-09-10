@@ -77,3 +77,6 @@ data/scorecard/
 data/retail/analytics/
 data/retail/curated/
 var/retail/
+
+# The retail installation environment. Real values, never committed.
+.env.retail
