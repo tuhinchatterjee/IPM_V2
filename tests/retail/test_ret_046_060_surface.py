@@ -481,14 +481,37 @@ class TestRET057To060Evidence:
             assert word in text, f"the report must distinguish {word}"
 
     def test_no_unqualified_completion_claim(self):
+        """No document may CLAIM approval it does not have.
+
+        A denial is the opposite of a claim. "This is not SAMA compliant, not
+        ANB approved and not auditor certified" is the sentence the handover is
+        supposed to contain, so the check looks at what precedes the phrase
+        rather than at whether the words appear at all — a blunt substring test
+        would push the documents towards saying nothing about their own limits.
+        """
         forbidden = ("sama compliant", "anb approved", "auditor certified",
                      "fully production-ready", "production ready and approved")
+        negations = ("not ", "never ", "no ", "nor ", "cannot be ", "is not",
+                     "are not", "neither ")
+        offenders: list[str] = []
         for path in self.DOCS:
             if path.endswith("MASTER_SPEC.md"):
-                continue  # the specification quotes these to forbid them
+                continue  # the specification quotes these in order to forbid them
             text = (ROOT / path).read_text().lower()
             for phrase in forbidden:
-                assert phrase not in text, f"{path} contains '{phrase}'"
+                start = 0
+                while True:
+                    at = text.find(phrase, start)
+                    if at < 0:
+                        break
+                    start = at + len(phrase)
+                    # Markdown emphasis sits between the negation and the
+                    # phrase — "**not** SAMA compliant" — so strip it before
+                    # looking back.
+                    lead = text[max(0, at - 40):at].replace("*", "").replace("_", "")
+                    if not any(n in lead for n in negations):
+                        offenders.append(f"{path}: '{phrase}' claimed at offset {at}")
+        assert not offenders, offenders
 
     def test_the_readiness_script_checks_the_important_things(self):
         text = (ROOT / "scripts" / "check_retail_ready.py").read_text()
@@ -533,14 +556,15 @@ class TestRET051BrowserAcceptance:
     EVIDENCE = ROOT / "docs" / "evidence" / "retail_browser_uat.json"
 
     @pytest.fixture(scope="class")
-    def browser_report(self) -> dict:
-        if not self.EVIDENCE.exists():
+    @classmethod
+    def browser_report(cls) -> dict:
+        if not cls.EVIDENCE.exists():
             pytest.skip(
                 "No browser evidence. Start the retail installation and run "
                 "`.venv/bin/python scripts/retail_browser_uat.py`. This gate does "
                 "not pass on a mock."
             )
-        return json.loads(self.EVIDENCE.read_text())
+        return json.loads(cls.EVIDENCE.read_text())
 
     def test_a_real_browser_ran(self, browser_report):
         assert browser_report["checks"], "the report records no checks"

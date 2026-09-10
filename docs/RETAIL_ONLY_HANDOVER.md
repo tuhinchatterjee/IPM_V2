@@ -111,3 +111,108 @@ See `docs/RETAIL_DEMO_GUIDE.md` for the demonstration script, and
 | What was actually run, and what failed? | `docs/RETAIL_UAT_REPORT.md` |
 | How do I put our own data in? | `metadata/retail/retail_data_contract.json` |
 | What was published, exactly? | `metadata/retail/retail_dataset_manifest.json` |
+
+## 6. The numbers, as published
+
+Read from `metadata/retail/retail_dataset_manifest.json`, which is the record of
+what was actually written.
+
+| | |
+|---|---|
+| Domain | **Cockpit Data** (`retail_cockpit`), one domain, one dataset |
+| Dataset | `retail_facility_month`, version `r1.0.0-c1.0.0-s20260910` |
+| Months | **25**, **August 2024 through August 2026** inclusive |
+| Rows | **447,853** across the 25 months |
+| Latest month | **19,745 facilities**, **14,251 customers** |
+| Columns | **546** |
+| Exposure at 2026-08 | **SAR 2,082,852,856** |
+| Loss allowance at 2026-08 | **SAR 15,952,109** (coverage 0.766%) |
+| Product mix at 2026-08 | Personal Finance 7,761 · Credit Card 6,532 · Auto Finance 3,301 · Home Finance 2,151 |
+| Manifest hash | `375e3436dd600a1b` |
+| Build time | 208 seconds, deterministic from seed 20260910 |
+
+### Numerical reconciliation
+
+| Check | Result |
+|---|---|
+| Weighted ECL identity, aggregate at 2026-08 | `0.60·base + 0.20·upturn + 0.20·downturn` = **SAR 15,952,108.84**, equal to the published weighted ECL |
+| Final ECL identity | `weighted + overlay`, max row error **SAR 0.0000** |
+| Scenario ordering, row-wise, every month | **0 violations** of `upturn ≤ base ≤ downturn` |
+| Independent golden fixture (spec §11.5) | base **SAR 100**, upturn **SAR 75**, downturn **SAR 150**, weighted **SAR 105** — exact |
+| ECL bridge, 2026-07 → 2026-08 | opening SAR 14,069,608.38 + contributions SAR 1,882,500.45 = **SAR 15,952,108.83** against closing SAR 15,952,108.84; unexplained residual **SAR 0.01** |
+| Score reconstruction | `base_points + Σ points` reproduces the score to within **1e-6** on every published row of all eight models |
+| What-If neutral parity | delta **−0.52 SAR** on a SAR 8,994,011.87 personal-finance baseline (−0.000006%) |
+| Cross-module | What-If baseline equals the Cockpit total for the same population, to the halala |
+
+### Scorecard monitoring, personal finance
+
+2,553 applications counted once at origination, 2,447 distinct customers,
+87 observed defaults. AUC **0.645**, Gini **0.290** (95% CI 0.162–0.412), KS
+**0.243**. Calibration observed/expected **1.35** — the synthetic scorecard
+under-predicts, which is a finding to discuss rather than one to hide.
+Exclusions reported: 436,343 rows not at origination, 223,896 with an
+incomplete follow-up window, 6,887 already in default.
+
+### Early Warning, August 2026
+
+8,943 alerts across 5,581 customers from 18 of the 20 rules, affecting
+**SAR 984,232,144** of exposure (47.3%), counted once per facility. The two
+rules that do not fire at this snapshot — over-limit activity and the
+score-input quality exception — are exercised against constructed frames in
+`tests/retail/test_ret_034_038_ews.py` so that neither is a dead control.
+
+### What-If
+
+| Scenario | Result |
+|---|---|
+| Neutral, whole book | reproduces the baseline |
+| Personal finance, PD +20% relative | ECL SAR 8,994,012 → 10,161,669 (**+12.98%**) |
+| Personal finance, PD +2 percentage points | ECL → SAR 15,088,559 (**+67.76%**) — different arithmetic, as it must be |
+| PD +150% relative, stages frozen | SAR 30,286,559, stage mix unchanged |
+| PD +150% relative, stages re-evaluated | SAR 36,914,029, 2,432 facilities migrate to Stage 2 |
+| 164 credit-impaired facilities, PD +100% | **unchanged**, with the reason stated |
+| The same facilities, recovery delay +6 months | +5.88% |
+
+## 7. Test evidence
+
+| Suite | Result | Where |
+|---|---|---|
+| Forty-question demonstration UAT | **40 passed, 0 failed** in 699s, against the running installation | `docs/evidence/retail_uat_questions.json` |
+| Real-browser acceptance | **46 passed, 0 failed** in 92s, Chromium at three viewports, signed in | `docs/evidence/retail_browser_uat.json`, `docs/evidence/screenshots/` |
+| Acceptance gates RET-001 to RET-060 | see `docs/RETAIL_UAT_REPORT.md` | `tests/retail/`, `docs/evidence/gates.log` |
+
+## 8. What was NOT run, and what remains
+
+**Not run — no AI provider key is configured in this environment.** The
+model-written half of a Cockpit answer, the prose and the interpretation, was
+not exercised end to end. Every figure the product shows comes from the
+deterministic governed runtime, and that half is tested; the language layer is
+not. This is a NOT RUN, not a pass.
+
+**Remaining work, named rather than left to be discovered:**
+
+1. **Playbook, Lenses and Planner seeded examples.** These modules are
+   structurally intact and reachable, and their corporate sample content was not
+   converted in this pass. They are not part of the demonstration script in
+   `docs/RETAIL_DEMO_GUIDE.md`.
+2. **Customer 360 depth.** The navigation slot is repurposed and the endpoint
+   `GET /api/v1/retail/customer/{id}` returns the full retail position, history
+   and alerts. The screen behind it still renders the previous module's layout.
+3. **Affordability alert volume.** `RET-EWS-011` raises 3,377 alerts at
+   2026-08. The rule is correct — a customer who took a second facility really
+   has a higher debt burden than at the first one's origination — but comparing
+   against origination rather than the prior month makes it fire broadly on a
+   book where customers hold several facilities. The threshold is configurable;
+   a prior-month comparator would be the better rule.
+4. **Alembic migration for the retail namespace.** None was needed: the lake is
+   file-backed Parquet and the catalogue is JSON. If the retail catalogue later
+   moves into PostgreSQL, that becomes a migration and the graph must be
+   inspected first.
+
+## 9. What must not be claimed
+
+This is a synthetic demonstration. It is **not** SAMA compliant, **not** ANB
+approved, **not** auditor certified, and **not** an independent model
+validation. The data describes no real customer, the scorecards are not any real
+institution's models, the bureau signals are a synthetic proxy and not SIMAH,
+and every threshold is a demonstration setting.
