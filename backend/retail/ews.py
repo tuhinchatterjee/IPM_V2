@@ -201,28 +201,28 @@ RULES: tuple[Rule, ...] = (
          "salary_change_3m_ratio <= 0.80"),
 
     Rule("RET-EWS-010", "1.0.0", "Personal cash buffer exhausted", "INCOME",
-         CUSTOMER_SCOPE, ALL_PRODUCTS, ("balance_buffer_months",), 3, "months", 0.25,
+         CUSTOMER_SCOPE, ALL_PRODUCTS, ("balance_buffer_months",), 3, "months", 0.15,
          _le("balance_buffer_months"), "MEDIUM",
          "Average account balance covers only {value:.2f} months of credit obligations.",
          "A customer with no buffer misses the next disruption. Review before it happens.",
-         "balance_buffer_months <= 0.25"),
+         "balance_buffer_months <= 0.15"),
 
     Rule("RET-EWS-011", "1.0.0", "Affordability deterioration", "AFFORDABILITY",
          CUSTOMER_SCOPE, ALL_PRODUCTS,
-         ("debt_burden_ratio", "origination_debt_burden_ratio"), 1, "ratio", 0.10,
-         _worsening("debt_burden_ratio", "origination_debt_burden_ratio", min_now=0.55),
+         ("debt_burden_ratio", "origination_debt_burden_ratio"), 1, "ratio", 0.15,
+         _worsening("debt_burden_ratio", "origination_debt_burden_ratio", min_now=0.65),
          "HIGH",
          "Debt burden has risen from {comparator:.0%} at origination to {value:.0%}.",
          "Reassess disposable income before any further limit or facility is granted.",
-         "debt_burden_ratio - origination_debt_burden_ratio >= 0.10 AND debt_burden_ratio >= 0.55"),
+         "debt_burden_ratio - origination_debt_burden_ratio >= 0.15 AND debt_burden_ratio >= 0.65"),
 
     Rule("RET-EWS-012", "1.0.0", "New external obligations", "AFFORDABILITY",
          CUSTOMER_SCOPE, ALL_PRODUCTS, ("external_obligations_change_3m_sar",), 3,
-         "SAR/month", 1500.0,
+         "SAR/month", 2500.0,
          _ge("external_obligations_change_3m_sar"), "MEDIUM",
          "Verified external monthly obligations rose by SAR {value:,.0f} over three months.",
          "Confirm the new borrowing and recompute the debt burden.",
-         "external_obligations_change_3m_sar >= 1500"),
+         "external_obligations_change_3m_sar >= 2500"),
 
     Rule("RET-EWS-013", "1.0.0", "Behavioural score deterioration", "SCORE",
          FACILITY_SCOPE, ALL_PRODUCTS, ("beh_score_value", "behavioural_score_previous_month"), 3,
@@ -288,11 +288,11 @@ RULES: tuple[Rule, ...] = (
          "months_to_balloon <= 6 AND balance_buffer_months <= 1.0"),
 
     Rule("RET-EWS-020", "1.0.0", "Collateral cover deterioration", "COLLATERAL",
-         FACILITY_SCOPE, SECURED, ("ltv_current_ratio", "ltv_origination_ratio"), 1, "ratio", 0.05,
-         _worsening("ltv_current_ratio", "ltv_origination_ratio", min_now=0.90), "MEDIUM",
+         FACILITY_SCOPE, SECURED, ("ltv_current_ratio", "ltv_origination_ratio"), 1, "ratio", 0.08,
+         _worsening("ltv_current_ratio", "ltv_origination_ratio", min_now=0.95), "MEDIUM",
          "Current loan to value is {value:.0%} against {comparator:.0%} at origination.",
          "Revalue the security and check the recovery assumption behind this facility's LGD.",
-         "ltv_current_ratio - ltv_origination_ratio >= 0.05 AND ltv_current_ratio >= 0.90"),
+         "ltv_current_ratio - ltv_origination_ratio >= 0.08 AND ltv_current_ratio >= 0.95"),
 )
 
 #: Rules that need a portfolio or segment view rather than one row.

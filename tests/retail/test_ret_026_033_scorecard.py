@@ -183,7 +183,7 @@ class TestRET029NoLeakage:
 
     def test_outcome_known_at_is_always_after_the_snapshot(self, retail_book):
         for m in retail_book.months():
-            f = retail_book.month(m)
+            f = retail_book.month(m, ["outcome_known_at", "snapshot_date"])
             assert (pd.to_datetime(f["outcome_known_at"])
                     > pd.to_datetime(f["snapshot_date"])).all(), m
 

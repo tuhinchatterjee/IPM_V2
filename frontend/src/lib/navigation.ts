@@ -288,10 +288,15 @@ export const NAV_ITEMS: NavItem[] = [
 
   // ---- BUILD: what the product is capable of, and what it may read ----
   {
+    // Repurposed, not removed. The slot answered "one borrower and everything
+    // the bank knows about it"; in the Saudi retail product that borrower is a
+    // natural person, so the slot now answers the same question about a retail
+    // customer. It is NOT a corporate group structure: a retail customer has
+    // facilities and an employer, not subsidiaries and guarantors.
     href: "/borrower-360",
-    label: "Borrower 360",
+    label: "Customer 360",
     description:
-      "One corporate borrower and everything the bank knows about it: exposure, ratings, IFRS 9, covenants, collateral and limits, its ownership, control, guarantee and supply relationships, and the quality of the evidence underneath. The six ways of grouping a borrower are shown side by side rather than reconciled into one, because they answer different questions and do not agree.",
+      "One retail customer and everything the book knows about them: every facility they hold, their verified income, obligations and affordability, their application and behavioural scores with the inputs behind them, their delinquency and salary history, the early warnings raised against them, and their share of the loss allowance. Customer-level figures are shown once, not once per facility.",
     icon: Network,
     status: "live",
     phase: "",
@@ -456,6 +461,42 @@ export const NAV_ITEMS: NavItem[] = [
     demo: "admin",
   },
 ];
+
+/**
+ * The Saudi retail product's navigation.
+ *
+ * This installation serves one product, so the navigation is an allowlist
+ * rather than a filter with an escape hatch. A capability that has no retail
+ * meaning is not listed, because a navigation entry is a promise and a screen a
+ * user can reach and cannot use is worse than one that does not exist.
+ */
+export const RETAIL_NAV_HREFS: ReadonlySet<string> = new Set([
+  "/",
+  "/workspace",
+  "/messages",
+  "/projects",
+  "/delivery",
+  "/investigations",
+  "/analyses",
+  "/documents",
+  "/lenses",
+  "/metrics",
+  "/early-warning",
+  "/early-warning/signals",
+  "/what-if",
+  "/borrower-360",
+  "/scorecard-validation",
+  "/studio",
+  "/data-builder",
+  "/trace",
+  "/playbook",
+  "/reviews",
+  "/workflow",
+  "/agent-operations",
+  "/ai-studio",
+  "/users",
+  "/settings",
+]);
 
 export const STATUS_LABEL: Record<CapabilityStatus, string> = {
   live: "Live",

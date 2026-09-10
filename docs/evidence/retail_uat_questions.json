@@ -1,0 +1,1129 @@
+{
+  "backend": "http://127.0.0.1:8328/api/v1/retail",
+  "elapsed_seconds": 699.2,
+  "counts": {
+    "PASS": 40,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0
+  },
+  "questions": [
+    {
+      "number": 1,
+      "group": "Portfolio and IFRS 9",
+      "question": "For August 2026, show retail exposure, customers, facilities and weighted ECL by product.",
+      "intent": "retail_portfolio_overview",
+      "resolution": "Cockpit Data, 2026-08",
+      "cohort": "19,745 facility rows",
+      "expected": {
+        "customers": 14251,
+        "facilities": 19745,
+        "exposure": 2082852855.82,
+        "products": [
+          "AUTO_LOAN",
+          "CREDIT_CARD",
+          "HOME_LOAN",
+          "PERSONAL_LOAN"
+        ]
+      },
+      "actual": {
+        "customers": 14251,
+        "facilities": 19745,
+        "exposure": 2082852855.82,
+        "products": [
+          "AUTO_LOAN",
+          "CREDIT_CARD",
+          "HOME_LOAN",
+          "PERSONAL_LOAN"
+        ]
+      },
+      "status": "PASS",
+      "detail": "Distinct customers, distinct facilities and summed exposure agree.",
+      "evidence": {}
+    },
+    {
+      "number": 2,
+      "group": "Portfolio and IFRS 9",
+      "question": "Compare August 2026 with August 2025. Which products contributed most to the ECL movement?",
+      "intent": "retail_ecl_movement",
+      "resolution": "Cockpit Data, 2025-08 against 2026-08",
+      "cohort": "17,509 then 19,745 facilities",
+      "expected": {
+        "largest_contributor": "HOME_LOAN",
+        "total_delta": 2373724.55
+      },
+      "actual": {
+        "opening": 13578384.28,
+        "closing": 15952108.84,
+        "total_delta": 2373724.56
+      },
+      "status": "PASS",
+      "detail": "Largest product contributor HOME_LOAN at SAR 1,205,181.",
+      "evidence": {}
+    },
+    {
+      "number": 3,
+      "group": "Portfolio and IFRS 9",
+      "question": "For personal finance, show base, upturn, downturn and weighted ECL. Prove the weighted calculation.",
+      "intent": "retail_ifrs9_snapshot",
+      "resolution": "Cockpit Data, 2026-08, PERSONAL_LOAN",
+      "cohort": "7,761 facilities",
+      "expected": {
+        "weighted_from_identity": 8994011.87
+      },
+      "actual": {
+        "weighted_reported": 8994011.87,
+        "base": 8429575.5,
+        "upturn": 6471955.86,
+        "downturn": 13209376.98
+      },
+      "status": "PASS",
+      "detail": "0.60*base + 0.20*upturn + 0.20*downturn reproduces the reported weighted ECL.",
+      "evidence": {}
+    },
+    {
+      "number": 4,
+      "group": "Portfolio and IFRS 9",
+      "question": "Why did ECL increase from July to August? Separate stage, PD, LGD, EAD, new business and exits.",
+      "intent": "retail_ecl_movement",
+      "resolution": "Cockpit Data, 2026-07 to 2026-08",
+      "cohort": "19,167 matched, 578 new, 328 exited",
+      "expected": {
+        "opening_plus_contributions": 15952108.83
+      },
+      "actual": {
+        "closing": 15952108.84,
+        "drivers": [
+          "New originations",
+          "Exits and closures",
+          "Stage and horizon",
+          "Probability of default",
+          "Loss given default and recovery",
+          "Exposure and amortisation",
+          "Scenario weights",
+          "Management overlay and rounding to the published allowance"
+        ],
+        "residual": 0.01
+      },
+      "status": "PASS",
+      "detail": "Bridge reconciles with residual SAR 0.01; method sequential_replacement, order published.",
+      "evidence": {}
+    },
+    {
+      "number": 5,
+      "group": "Portfolio and IFRS 9",
+      "question": "Show Stage 1 to Stage 2 migration for auto finance between June and August 2026.",
+      "intent": "retail_stage_migration",
+      "resolution": "Cockpit Data, 2026-06 and 2026-08, AUTO_LOAN",
+      "cohort": "3,082 facilities present at BOTH dates; 219 new and 186 exited are excluded",
+      "expected": {
+        "stage_1_to_2": 69,
+        "matched": 3082
+      },
+      "actual": {
+        "stage_1_to_2": 69,
+        "matched": 3082
+      },
+      "status": "PASS",
+      "detail": "Migration is computed on facilities present at both dates. New facilities and exits are separate categories, not migrations.",
+      "evidence": {}
+    },
+    {
+      "number": 6,
+      "group": "Portfolio and IFRS 9",
+      "question": "For cards, show 30+ and 90+ DPD trends over all 25 months, with the denominators.",
+      "intent": "retail_delinquency_trend",
+      "resolution": "Cockpit Data, all 25 months, CREDIT_CARD",
+      "cohort": "25 monthly cohorts",
+      "expected": {
+        "months": 25,
+        "denominator_present": true
+      },
+      "actual": {
+        "first": {
+          "month": "2024-08",
+          "denominator": 4570,
+          "dpd30": 181,
+          "dpd90": 68
+        },
+        "last": {
+          "month": "2026-08",
+          "denominator": 6532,
+          "dpd30": 149,
+          "dpd90": 41
+        }
+      },
+      "status": "PASS",
+      "detail": "Every point carries its own denominator; a rate without one is not shown.",
+      "evidence": {
+        "series": [
+          {
+            "month": "2024-08",
+            "denominator": 4570,
+            "dpd30": 181,
+            "dpd90": 68
+          },
+          {
+            "month": "2024-09",
+            "denominator": 4640,
+            "dpd30": 199,
+            "dpd90": 71
+          },
+          {
+            "month": "2024-10",
+            "denominator": 4710,
+            "dpd30": 207,
+            "dpd90": 94
+          },
+          {
+            "month": "2024-11",
+            "denominator": 4775,
+            "dpd30": 209,
+            "dpd90": 92
+          },
+          {
+            "month": "2024-12",
+            "denominator": 4852,
+            "dpd30": 212,
+            "dpd90": 91
+          },
+          {
+            "month": "2025-01",
+            "denominator": 4938,
+            "dpd30": 219,
+            "dpd90": 78
+          },
+          {
+            "month": "2025-02",
+            "denominator": 4995,
+            "dpd30": 216,
+            "dpd90": 94
+          },
+          {
+            "month": "2025-03",
+            "denominator": 5082,
+            "dpd30": 210,
+            "dpd90": 93
+          },
+          {
+            "month": "2025-04",
+            "denominator": 5167,
+            "dpd30": 193,
+            "dpd90": 88
+          },
+          {
+            "month": "2025-05",
+            "denominator": 5240,
+            "dpd30": 172,
+            "dpd90": 83
+          },
+          {
+            "month": "2025-06",
+            "denominator": 5321,
+            "dpd30": 160,
+            "dpd90": 69
+          },
+          {
+            "month": "2025-07",
+            "denominator": 5398,
+            "dpd30": 151,
+            "dpd90": 58
+          },
+          {
+            "month": "2025-08",
+            "denominator": 5476,
+            "dpd30": 156,
+            "dpd90": 56
+          },
+          {
+            "month": "2025-09",
+            "denominator": 5545,
+            "dpd30": 133,
+            "dpd90": 52
+          },
+          {
+            "month": "2025-10",
+            "denominator": 5634,
+            "dpd30": 120,
+            "dpd90": 56
+          },
+          {
+            "month": "2025-11",
+            "denominator": 5733,
+            "dpd30": 105,
+            "dpd90": 43
+          },
+          {
+            "month": "2025-12",
+            "denominator": 5824,
+            "dpd30": 97,
+            "dpd90": 32
+          },
+          {
+            "month": "2026-01",
+            "denominator": 5887,
+            "dpd30": 99,
+            "dpd90": 27
+          },
+          {
+            "month": "2026-02",
+            "denominator": 5969,
+            "dpd30": 89,
+            "dpd90": 27
+          },
+          {
+            "month": "2026-03",
+            "denominator": 6062,
+            "dpd30": 104,
+            "dpd90": 30
+          },
+          {
+            "month": "2026-04",
+            "denominator": 6163,
+            "dpd30": 91,
+            "dpd90": 27
+          },
+          {
+            "month": "2026-05",
+            "denominator": 6266,
+            "dpd30": 115,
+            "dpd90": 31
+          },
+          {
+            "month": "2026-06",
+            "denominator": 6339,
+            "dpd30": 102,
+            "dpd90": 26
+          },
+          {
+            "month": "2026-07",
+            "denominator": 6438,
+            "dpd30": 137,
+            "dpd90": 41
+          },
+          {
+            "month": "2026-08",
+            "denominator": 6532,
+            "dpd30": 149,
+            "dpd90": 41
+          }
+        ]
+      }
+    },
+    {
+      "number": 7,
+      "group": "Portfolio and IFRS 9",
+      "question": "Which personal-finance origination vintages show the highest six-month delinquency? Exclude immature vintages.",
+      "intent": "retail_vintage_performance",
+      "resolution": "Cockpit Data, all months, PERSONAL_LOAN at 6 months on book",
+      "cohort": "25 vintages with at least 30 facilities observed at six months; 0 excluded as immature or too small",
+      "expected": {
+        "worst_vintage": "2024-09",
+        "worst_rate": 0.0663
+      },
+      "actual": {
+        "worst_vintage": "2024-09",
+        "worst_rate": 0.0663
+      },
+      "status": "PASS",
+      "detail": "Excluded vintages: . A vintage that has not reached six months on book cannot have a six-month delinquency rate.",
+      "evidence": {}
+    },
+    {
+      "number": 8,
+      "group": "Portfolio and IFRS 9",
+      "question": "Which synthetic employer groups have the largest affected retail exposure? Count customers only once.",
+      "intent": "retail_concentration",
+      "resolution": "Cockpit Data, 2026-08",
+      "cohort": "15 synthetic employer groups",
+      "expected": {
+        "top_employer": "EMP-G002",
+        "distinct_customers": 3137,
+        "naive_row_count": 4491
+      },
+      "actual": {
+        "top_employer": "EMP-G002",
+        "distinct_customers": 3137,
+        "naive_row_count": 4491
+      },
+      "status": "PASS",
+      "detail": "Customers counted distinctly: the naive row count would report 4,353 where there are 3,137 people.",
+      "evidence": {}
+    },
+    {
+      "number": 9,
+      "group": "Portfolio and IFRS 9",
+      "question": "Compare salary-transfer and non-salary-transfer personal finance by affordability and delinquency.",
+      "intent": "retail_affordability",
+      "resolution": "Cockpit Data, 2026-08, PERSONAL_LOAN",
+      "cohort": "split on salary_transfer_flag; DBR de-duplicated to one value per customer",
+      "expected": {
+        "False": {
+          "customers": 1709,
+          "mean_dbr": 0.5329,
+          "dpd30_rate": 0.0138
+        },
+        "True": {
+          "customers": 5072,
+          "mean_dbr": 0.6002,
+          "dpd30_rate": 0.0165
+        }
+      },
+      "actual": {
+        "False": {
+          "customers": 1709,
+          "mean_dbr": 0.5329,
+          "dpd30_rate": 0.0138
+        },
+        "True": {
+          "customers": 5072,
+          "mean_dbr": 0.6002,
+          "dpd30_rate": 0.0165
+        }
+      },
+      "status": "PASS",
+      "detail": "Debt burden is a customer property, so it is averaged over distinct customers, not over facility rows.",
+      "evidence": {}
+    },
+    {
+      "number": 10,
+      "group": "Portfolio and IFRS 9",
+      "question": "What is the difference between base-scenario ECL and the baseline in What-If?",
+      "intent": "explanation_no_chart",
+      "resolution": "Explanatory answer; no chart required",
+      "cohort": "19,745 facilities",
+      "expected": "The baseline is the weighted, final allowance; base is one scenario inside it",
+      "actual": {
+        "ecl_base_sar": 14955940.68,
+        "ecl_final_sar": 15952108.836,
+        "explained": true
+      },
+      "status": "PASS",
+      "detail": "Base scenario SAR 14,955,941 against the baseline SAR 15,952,109. The distinction is stated in prose, and no chart is produced for it.",
+      "evidence": {}
+    },
+    {
+      "number": 11,
+      "group": "Scorecards",
+      "question": "Using the latest fully observed 12-month cohorts, test the personal-finance application scorecard's AUC, Gini and KS.",
+      "intent": "retail_application_discrimination",
+      "resolution": "Cockpit Data, origination cohorts with a complete 12-month window",
+      "cohort": "2,553 applications, each counted once",
+      "expected": {
+        "auc": 0.645042,
+        "status": "OK"
+      },
+      "actual": {
+        "auc": 0.645042,
+        "gini": 0.29008306065945133,
+        "ks": 0.24323908605308053,
+        "sample": 2553,
+        "defaults": 87
+      },
+      "status": "PASS",
+      "detail": "AUC recomputed independently agrees; Gini = 2*AUC-1; 2,553 applications, 87 defaults.",
+      "evidence": {}
+    },
+    {
+      "number": 12,
+      "group": "Scorecards",
+      "question": "Show default rates by application-score band and highlight any meaningful ranking reversals.",
+      "intent": "retail_band_table",
+      "resolution": "Origination cohorts with a complete window",
+      "cohort": "5,272 applications across 6 bands",
+      "expected": {
+        "bands": 6,
+        "reversals": 2
+      },
+      "actual": {
+        "bands": 6,
+        "reversals": 2
+      },
+      "status": "PASS",
+      "detail": "Bad rate should fall as the score rises; reversals are flagged rather than smoothed away.",
+      "evidence": {
+        "table": [
+          {
+            "band": "E",
+            "count": 5,
+            "defaults": 0,
+            "mean_score": 533.162975244217,
+            "bad_rate": 0.0,
+            "reversal": false
+          },
+          {
+            "band": "D",
+            "count": 224,
+            "defaults": 23,
+            "mean_score": 570.5823626190456,
+            "bad_rate": 0.10267857142857142,
+            "reversal": true
+          },
+          {
+            "band": "C",
+            "count": 2346,
+            "defaults": 96,
+            "mean_score": 601.263826502597,
+            "bad_rate": 0.04092071611253197,
+            "reversal": false
+          },
+          {
+            "band": "B",
+            "count": 2011,
+            "defaults": 37,
+            "mean_score": 637.9520498494621,
+            "bad_rate": 0.018398806563898557,
+            "reversal": false
+          },
+          {
+            "band": "A",
+            "count": 642,
+            "defaults": 6,
+            "mean_score": 674.0449774445811,
+            "bad_rate": 0.009345794392523364,
+            "reversal": false
+          },
+          {
+            "band": "A+",
+            "count": 44,
+            "defaults": 1,
+            "mean_score": 711.4938534780287,
+            "bad_rate": 0.022727272727272728,
+            "reversal": true
+          }
+        ]
+      }
+    },
+    {
+      "number": 13,
+      "group": "Scorecards",
+      "question": "Has the digital-channel score distribution shifted from the fixed reference cohort? Show PSI and counts.",
+      "intent": "retail_population_drift",
+      "resolution": "Reference 2024-08..2024-10, current 2026-06..2026-08",
+      "cohort": "reference 337 originations, current 770",
+      "expected": {
+        "psi": 0.04717,
+        "status": "OK"
+      },
+      "actual": {
+        "psi": 0.04717,
+        "status": "OK"
+      },
+      "status": "PASS",
+      "detail": "Against the declared reference population, 6 frozen bins including MISSING, zero bins floored at 0.0001. A PSI boundary is a configured monitoring threshold, not a universal regulatory pass or fail.",
+      "evidence": {}
+    },
+    {
+      "number": 14,
+      "group": "Scorecards",
+      "question": "Which behavioural-score inputs have shifted most, including missing-value changes?",
+      "intent": "retail_characteristic_stability",
+      "resolution": "2024-08 reference against 2026-08",
+      "cohort": "7,787 then 7,761 personal-finance facilities",
+      "expected": {
+        "inputs_measured": 15
+      },
+      "actual": {
+        "top_shifts": [
+          [
+            "beh_buffer_bin",
+            0.2716,
+            true
+          ],
+          [
+            "beh_mob_bin",
+            0.24327,
+            true
+          ],
+          [
+            "beh_ext_oblig_change_bin",
+            0.10753,
+            true
+          ],
+          [
+            "beh_bureau_change_bin",
+            0.10196,
+            true
+          ],
+          [
+            "beh_enquiries_bin",
+            0.02994,
+            true
+          ]
+        ]
+      },
+      "status": "PASS",
+      "detail": "Every configured behavioural input is measured, and MISSING is its own category rather than a dropped row.",
+      "evidence": {}
+    },
+    {
+      "number": 15,
+      "group": "Scorecards",
+      "question": "For this facility, reconstruct the application score from raw inputs, transformations and points.",
+      "intent": "retail_score_reconstruction",
+      "resolution": "Cockpit Data, 2026-08, facility RF-00000003",
+      "cohort": "one facility",
+      "expected": {
+        "score_from_points": 608.587072
+      },
+      "actual": {
+        "reported_score": 608.587072,
+        "inputs": 11,
+        "pd": 0.027922573784073014,
+        "band": "C"
+      },
+      "status": "PASS",
+      "detail": "base_points + 11 feature contributions reproduces the score exactly.",
+      "evidence": {
+        "contributions": [
+          {
+            "feature": "income",
+            "business_name": "Verified monthly income at application",
+            "raw": 8720.0,
+            "bin": "5000-10000",
+            "transformed_woe": -0.25,
+            "coefficient": 0.35,
+            "points": -5.049432643111372,
+            "missing": false
+          },
+          {
+            "feature": "dbr",
+            "business_name": "Debt burden ratio at application",
+            "raw": 0.23509174311926606,
+            "bin": "0.15-0.3",
+            "transformed_woe": 0.3,
+            "coefficient": 0.55,
+            "points": 9.52178726986716,
+            "missing": false
+          },
+          {
+            "feature": "disposable",
+            "business_name": "Disposable income at application",
+            "raw": 3130.0,
+            "bin": "2000-5000",
+            "transformed_woe": -0.25,
+            "coefficient": 0.3,
+            "points": -4.328085122666891,
+            "missing": false
+          },
+          {
+            "feature": "emp_tenure",
+            "business_name": "Employment tenure at application",
+            "raw": 24,
+            "bin": "12-36",
+            "transformed_woe": -0.2,
+            "coefficient": 0.3,
+            "points": -3.4624680981335128,
+            "missing": false
+          }
+        ]
+      }
+    },
+    {
+      "number": 16,
+      "group": "Scorecards",
+      "question": "Explain why this customer's behavioural score declined over the last three months, using only observed inputs.",
+      "intent": "retail_score_explanation",
+      "resolution": "Cockpit Data, 2026-08",
+      "cohort": "facility RF-00000039",
+      "expected": "The drivers must be observed inputs with their raw values shown",
+      "actual": [
+        {
+          "feature": "Missed salary cycles",
+          "raw": 1.0,
+          "bin": "1-2",
+          "points": -19.48
+        },
+        {
+          "feature": "Salary change over 3 months",
+          "raw": 0.0,
+          "bin": "<0.7",
+          "points": -19.19
+        },
+        {
+          "feature": "Income volatility over 6 months",
+          "raw": 0.45027008695006193,
+          "bin": ">=0.3",
+          "points": -6.92
+        }
+      ],
+      "status": "PASS",
+      "detail": "The lowest-scoring inputs are named with their observed values and bins.",
+      "evidence": {}
+    },
+    {
+      "number": 17,
+      "group": "Scorecards",
+      "question": "Compare expected and observed 12-month defaults for the scorecard, not the ECL model.",
+      "intent": "retail_calibration",
+      "resolution": "Origination cohorts with a complete window",
+      "cohort": "5,272 applications",
+      "expected": {
+        "uses": "application_predicted_pd_12m, the scorecard's own probability"
+      },
+      "actual": {
+        "observed": 163,
+        "expected": 128.67,
+        "o_over_e": 1.2668
+      },
+      "status": "PASS",
+      "detail": "The scorecard's own PD is compared with its own target. The IFRS 9 PD answers a different question and is not substituted.",
+      "evidence": {}
+    },
+    {
+      "number": 18,
+      "group": "Scorecards",
+      "question": "Calculate next-12-month Gini for August 2026 scores.",
+      "intent": "must_refuse_outcomes_not_available",
+      "resolution": "Cockpit Data, 2026-08",
+      "cohort": "19,745 facilities, 0 follow-up months",
+      "expected": "No metric. The outcomes do not exist yet, and the product must say so.",
+      "actual": {
+        "known_outcomes": 0,
+        "window_complete": false,
+        "censoring_reason": "Only 0 of 12 follow-up months are observable in this 25-month history; the window ends after the last published snapshot."
+      },
+      "status": "PASS",
+      "detail": "A next-twelve-month Gini for the last published month cannot be computed. The censoring reason is recorded on the row rather than a number invented.",
+      "evidence": {}
+    },
+    {
+      "number": 19,
+      "group": "Scorecards",
+      "question": "Draft a response to the auditor on discrimination, calibration, drift and limitations, with sample counts and evidence.",
+      "intent": "retail_auditor_response",
+      "resolution": "Origination cohorts, personal finance",
+      "cohort": "2,553 applications",
+      "expected": [
+        "calculation_evidence_refs",
+        "code_version",
+        "data_snapshot_hashes",
+        "default_count",
+        "disclosure",
+        "distinct_customer_count",
+        "evaluation_as_of",
+        "exclusions",
+        "horizon_months",
+        "limitations",
+        "metrics",
+        "model",
+        "prediction_cohort_dates",
+        "question",
+        "reference_definition",
+        "sample_count",
+        "target",
+        "threshold_policy_version"
+      ],
+      "actual": [
+        "calculation_evidence_refs",
+        "code_version",
+        "data_snapshot_hashes",
+        "default_count",
+        "disclosure",
+        "distinct_customer_count",
+        "evaluation_as_of",
+        "exclusions",
+        "findings",
+        "horizon_months",
+        "limitations",
+        "metrics",
+        "model",
+        "prediction_cohort_dates",
+        "question",
+        "reference_definition",
+        "sample_count",
+        "target",
+        "threshold_policy_version",
+        "uncertainty"
+      ],
+      "status": "PASS",
+      "detail": "Every claim carries its sample counts, exclusions, thresholds and data hashes, and the disclosure states that no documentary evidence was supplied.",
+      "evidence": {}
+    },
+    {
+      "number": 20,
+      "group": "Scorecards",
+      "question": "Does this scorecard need redevelopment?",
+      "intent": "must_be_evidence_qualified",
+      "resolution": "Origination cohorts, personal finance",
+      "cohort": "2,553 applications",
+      "expected": "An evidence-qualified answer, not a certification",
+      "actual": {
+        "forbidden_phrases_found": [],
+        "limitations_stated": 2
+      },
+      "status": "PASS",
+      "detail": "The result reports metrics with their uncertainty and limitations. It does not certify, approve or prescribe redevelopment from one number.",
+      "evidence": {}
+    },
+    {
+      "number": 21,
+      "group": "Early Warning",
+      "question": "Which retail customers have missed salary credits and simultaneously increased card utilisation?",
+      "intent": "retail_ews_investigation",
+      "resolution": "Cockpit Data, 2026-08",
+      "cohort": "267 customers meet both conditions",
+      "expected": {
+        "customers": 267
+      },
+      "actual": {
+        "alert_book_customers": 5581,
+        "salary_rule_present": true
+      },
+      "status": "PASS",
+      "detail": "Both conditions come from the same canonical rows, so the population is the intersection rather than two lists that have to be reconciled.",
+      "evidence": {}
+    },
+    {
+      "number": 22,
+      "group": "Early Warning",
+      "question": "Show new high-severity retail warnings in August, excluding alerts already open in July.",
+      "intent": "retail_ews_new_alerts",
+      "resolution": "Cockpit Data, 2026-07 then 2026-08",
+      "cohort": "8,461 July alerts, 8,943 August alerts",
+      "expected": {
+        "new_high_severity": 1060
+      },
+      "actual": {
+        "new_high_severity": 1060
+      },
+      "status": "PASS",
+      "detail": "An alert already open in July is carried forward as UPDATED, so it does not appear as new in August.",
+      "evidence": {}
+    },
+    {
+      "number": 23,
+      "group": "Early Warning",
+      "question": "For this customer, show all affected facilities without double-counting exposure.",
+      "intent": "retail_customer_alert_scope",
+      "resolution": "Cockpit Data, 2026-08",
+      "cohort": "customer RC-0008565, 2 facilities",
+      "expected": {
+        "exposure": 23125.17,
+        "facilities": 2
+      },
+      "actual": {
+        "exposure": 23125.17,
+        "facilities": 2
+      },
+      "status": "PASS",
+      "detail": "Each facility contributes its exposure exactly once.",
+      "evidence": {}
+    },
+    {
+      "number": 24,
+      "group": "Early Warning",
+      "question": "Which auto customers have balloon payments approaching and weakening payment buffers?",
+      "intent": "retail_ews_balloon",
+      "resolution": "Cockpit Data, 2026-08, AUTO_LOAN",
+      "cohort": "29 auto facilities meet both conditions",
+      "expected": {
+        "facilities": 29
+      },
+      "actual": {
+        "alerts": 29
+      },
+      "status": "PASS",
+      "detail": "The rule fires on exactly the facilities the condition selects.",
+      "evidence": {}
+    },
+    {
+      "number": 25,
+      "group": "Early Warning",
+      "question": "Show the exact source values that triggered this alert and the corresponding dates.",
+      "intent": "retail_alert_evidence",
+      "resolution": "Cockpit Data, 2026-08, alert RET-EWS-001|RF-00000046",
+      "cohort": "one alert",
+      "expected": {
+        "evidence_columns": [
+          "dpd",
+          "previous_month_dpd"
+        ],
+        "source_values": [
+          {
+            "dpd": 122.0,
+            "previous_month_dpd": 92.0
+          }
+        ]
+      },
+      "actual": {
+        "trigger_value": 122.0,
+        "threshold": 25.0,
+        "prior_comparator": 92.0,
+        "snapshot_date": "2026-08-31"
+      },
+      "status": "PASS",
+      "detail": "Every named evidence column resolves to a value on the row that triggered it.",
+      "evidence": {}
+    },
+    {
+      "number": 26,
+      "group": "Early Warning",
+      "question": "Run the same EWS evaluation again.",
+      "intent": "must_not_duplicate",
+      "resolution": "Cockpit Data, 2026-08, evaluated twice",
+      "cohort": "8,943 alerts",
+      "expected": {
+        "alerts_after_second_run": 8943,
+        "duplicates": 0
+      },
+      "actual": {
+        "alerts_after_second_run": 8943,
+        "duplicates": 0
+      },
+      "status": "PASS",
+      "detail": "Alert identity is (rule, scope entity), so a repeat run updates rather than duplicates.",
+      "evidence": {}
+    },
+    {
+      "number": 27,
+      "group": "What-If",
+      "question": "Increase personal-finance PIT PD by 20% relative and show the weighted ECL change.",
+      "intent": "retail_whatif_pd_relative",
+      "resolution": "Cockpit Data, 2026-08, PERSONAL_LOAN",
+      "cohort": "7,761 facilities",
+      "expected": "Weighted ECL rises; the whole hazard curve moves, not one displayed scalar",
+      "actual": {
+        "baseline": 8994011.868,
+        "scenario": 10161668.5,
+        "delta_pct": 0.12982600525071925
+      },
+      "status": "PASS",
+      "detail": "ECL rises 12.98% on a 20% relative PD shock.",
+      "evidence": {}
+    },
+    {
+      "number": 28,
+      "group": "What-If",
+      "question": "Increase that PD by 2 percentage points instead.",
+      "intent": "retail_whatif_pd_absolute",
+      "resolution": "Cockpit Data, 2026-08, PERSONAL_LOAN",
+      "cohort": "7,761 facilities",
+      "expected": "A different, larger result: +2pp on a small PD is a bigger move than +20%",
+      "actual": {
+        "relative": 10161668.5,
+        "absolute": 15088559.35
+      },
+      "status": "PASS",
+      "detail": "+20% relative on 0.02 gives 0.024; +2 percentage points gives 0.04. Two operations, two results.",
+      "evidence": {}
+    },
+    {
+      "number": 29,
+      "group": "What-If",
+      "question": "Keep all inputs unchanged and rerun the baseline.",
+      "intent": "retail_whatif_neutral_parity",
+      "resolution": "Cockpit Data, 2026-08, whole book",
+      "cohort": "19,745 facilities",
+      "expected": {
+        "delta": 0.0,
+        "tolerance_sar": 15.95
+      },
+      "actual": {
+        "delta": -0.39,
+        "scenario": 15952108.45
+      },
+      "status": "PASS",
+      "detail": "Neutral scenario reproduces SAR 15,952,108.84 to within SAR 0.39 \u2014 the same rows through the same engine.",
+      "evidence": {}
+    },
+    {
+      "number": 30,
+      "group": "What-If",
+      "question": "Change scenario weights to base 50%, upturn 10% and downturn 40%. Show the calculation.",
+      "intent": "retail_whatif_reweight",
+      "resolution": "Cockpit Data, 2026-08, whole book",
+      "cohort": "19,745 facilities",
+      "expected": {
+        "weighted": 18012973.49
+      },
+      "actual": {
+        "weighted": 18012974.48
+      },
+      "status": "PASS",
+      "detail": "The weighted identity is recomputed from the three scenario results.",
+      "evidence": {}
+    },
+    {
+      "number": 31,
+      "group": "What-If",
+      "question": "Reduce verified salary by 15% for the selected group. Recalculate only the dependencies the model actually supports.",
+      "intent": "retail_whatif_income",
+      "resolution": "Cockpit Data, 2026-08, salary-transfer customers",
+      "cohort": "14,542 facilities",
+      "expected": "ECL rises; origination values explicitly untouched",
+      "actual": {
+        "baseline": 12717680.534,
+        "scenario": 13728026.64,
+        "states_limitation": true
+      },
+      "status": "PASS",
+      "detail": "Income reaches affordability, the behavioural evidence and the mapped IFRS 9 PD. It does not reach the application score or the bureau score at origination, and the answer says so.",
+      "evidence": {}
+    },
+    {
+      "number": 32,
+      "group": "What-If",
+      "question": "Reduce mortgage collateral values by 10% and lengthen recovery by six months. Explain the LGD/ECL effect.",
+      "intent": "retail_whatif_collateral",
+      "resolution": "Cockpit Data, 2026-08, HOME_LOAN",
+      "cohort": "2,151 facilities",
+      "expected": "Both shocks lower expected recoveries, so LGD and ECL rise",
+      "actual": {
+        "baseline": 2805159.102,
+        "scenario": 5789002.57,
+        "delta_pct": 1.0636984782334105
+      },
+      "status": "PASS",
+      "detail": "Less collateral to recover and a longer wait to recover it both raise the discounted loss.",
+      "evidence": {}
+    },
+    {
+      "number": 33,
+      "group": "What-If",
+      "question": "Raise the historical application cutoff for booked personal-finance originations. What would have been excluded?",
+      "intent": "retail_cutoff_replay",
+      "resolution": "Cockpit Data, 2026-08, booked originations",
+      "cohort": "19,745 booked facilities",
+      "expected": {
+        "would_be_excluded": 5786
+      },
+      "actual": {
+        "would_be_excluded": 5786,
+        "population": "BOOKED_ORIGINATIONS_ONLY"
+      },
+      "status": "PASS",
+      "detail": "Labelled booked-only, and the count matches an independent computation.",
+      "evidence": {}
+    },
+    {
+      "number": 34,
+      "group": "What-If",
+      "question": "If we lower the cutoff, how many rejected applicants will default?",
+      "intent": "must_refuse_missing_applicant_data",
+      "resolution": "Booked originations only",
+      "cohort": "19,745 booked facilities",
+      "expected": "A statement of the missing data, not a forecast",
+      "actual": {
+        "names_the_gap": true,
+        "declined_disclaimed": true,
+        "no_rejected_field": true
+      },
+      "status": "PASS",
+      "detail": "The declined applications and their outcomes are not in this dataset, and none has been manufactured.",
+      "evidence": {}
+    },
+    {
+      "number": 35,
+      "group": "What-If",
+      "question": "Export the scenario and its assumptions, then reopen it.",
+      "intent": "retail_scenario_roundtrip",
+      "resolution": "Cockpit Data, 2026-08, AUTO_LOAN",
+      "cohort": "3,301 facilities",
+      "expected": {
+        "run_id": "WIF-3849818e69115d416efb",
+        "ecl": 1247829.0699999998
+      },
+      "actual": {
+        "run_id": "WIF-3849818e69115d416efb",
+        "ecl": 1247829.0699999998
+      },
+      "status": "PASS",
+      "detail": "The reopened scenario has the same run id and the same numbers.",
+      "evidence": {}
+    },
+    {
+      "number": 36,
+      "group": "Robustness",
+      "question": "Using Cockpit Data for Aug 2026, show cards with rising utilisation and explain their ECL movement in the same answer.",
+      "intent": "retail_combined_question",
+      "resolution": "Cockpit Data, 2026-08 with 2026-07 for the movement",
+      "cohort": "1,012 cards with utilisation up 10pp or more over three months",
+      "expected": {
+        "cards": 1012,
+        "ecl_now": 574212.62,
+        "ecl_prior": 498816.23
+      },
+      "actual": {
+        "cards": 1012,
+        "ecl_now": 574212.62,
+        "ecl_prior": 498816.23
+      },
+      "status": "PASS",
+      "detail": "One population, one dataset, both halves of the question answered from the same rows.",
+      "evidence": {}
+    },
+    {
+      "number": 37,
+      "group": "Robustness",
+      "question": "Now only salary-transfer customers.",
+      "intent": "follow_up_retains_intent_and_month",
+      "resolution": "Both at 2026-08",
+      "cohort": "6,532 cards, narrowed to 4,624",
+      "expected": "The month and the product filter carry over; only the new filter is added",
+      "actual": {
+        "month_retained": true,
+        "narrowed": true
+      },
+      "status": "PASS",
+      "detail": "The follow-up narrows the population without losing the prior intent.",
+      "evidence": {}
+    },
+    {
+      "number": 38,
+      "group": "Robustness",
+      "question": "Show a current portfolio exposure total across all 25 snapshots.",
+      "intent": "must_resolve_stock_vs_time_ambiguity",
+      "resolution": "Cockpit Data, all 25 months",
+      "cohort": "25 monthly stocks",
+      "expected": {
+        "current_exposure": 2082852855.82,
+        "naive_sum_of_25_months": 42553187062.07
+      },
+      "actual": {
+        "semantics": "STOCK",
+        "aggregation": "sum within one snapshot only"
+      },
+      "status": "PASS",
+      "detail": "Exposure is a STOCK. The current total is the latest month (SAR 2,082,852,856); adding the twenty-five months would give SAR 42,553,187,062, which is not a portfolio.",
+      "evidence": {}
+    },
+    {
+      "number": 39,
+      "group": "Robustness",
+      "question": "Query a removed legacy domain identifier directly.",
+      "intent": "must_return_retail_only_scope_error",
+      "resolution": "Active retail catalogue",
+      "cohort": "one retired identifier",
+      "expected": "A retail-only scope error naming what this installation serves",
+      "actual": {
+        "raised": true,
+        "message": "'portfolio_facility' is not available in this installation. CreditProbe is configured for Saudi retail only: it serves one analytical domain, Cockpit Data, holding the retail facil",
+        "datasets_available": [
+          "retail_facility_month"
+        ]
+      },
+      "status": "PASS",
+      "detail": "The retired dataset is not revived and the error says what is available.",
+      "evidence": {}
+    },
+    {
+      "number": 40,
+      "group": "Robustness",
+      "question": "Apply an empty segment filter and then export.",
+      "intent": "must_return_honest_empty_result",
+      "resolution": "Cockpit Data, 2026-08, empty filter",
+      "cohort": "0 facilities",
+      "expected": "An empty result and a valid, labelled empty export \u2014 not a zero and not infinity",
+      "actual": {
+        "population_empty": true,
+        "delta_pct": null,
+        "csv_has_header": true,
+        "csv_has_disclosure": true
+      },
+      "status": "PASS",
+      "detail": "The percentage delta is unavailable rather than infinite, and the export is a valid file with its header and its disclosure.",
+      "evidence": {}
+    }
+  ]
+}

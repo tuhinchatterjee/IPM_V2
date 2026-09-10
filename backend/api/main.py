@@ -26,6 +26,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backend.api import auth as auth_router
 from backend.api.routers import agentic as agentic_router
+from backend.api.routers import retail as retail_router
 from backend.api.routers import ask as ask_router
 from backend.api.routers import assurance as assurance_router
 from backend.api.routers import brain as brain_router
@@ -291,6 +292,8 @@ def create_app() -> FastAPI:
     # ---------------------------------------------------------------- routes
 
     app.include_router(auth_router.router, prefix=API_PREFIX)
+
+    app.include_router(retail_router.router, prefix=API_PREFIX)
     app.include_router(health_router.router, prefix=API_PREFIX)
     app.include_router(users_router.router, prefix=API_PREFIX)
     app.include_router(preferences_router.router, prefix=API_PREFIX)

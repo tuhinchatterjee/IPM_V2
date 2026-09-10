@@ -2104,7 +2104,13 @@ def build(
     """
     cfg.validate()
     rng = np.random.default_rng(cfg.seed)
-    dataset_version = f"{cfg.generator_version}+cfg{cfg.config_version}+seed{cfg.seed}"
+    # Complete, and short enough for the governance table's version column
+    # (24 characters). Generator version, configuration version and seed —
+    # the three things that decide the content — in twenty-three.
+    dataset_version = (
+        f"r{cfg.generator_version.rsplit('-', 1)[-1]}"
+        f"-c{cfg.config_version}-s{cfg.seed}"
+    )
 
     target = Path(analytics_dir) / dataset_name
     staging = Path(analytics_dir) / f".{dataset_name}.staging"

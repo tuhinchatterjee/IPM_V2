@@ -1,0 +1,491 @@
+{
+  "config_version": "1.0.0",
+  "generator_version": "retail-gen-1.0.0",
+  "seed": 20260910,
+  "demo_as_of_month": "2026-08",
+  "months": [
+    {
+      "reporting_month": "2024-08",
+      "snapshot_date": "2024-08-31",
+      "rows": 17129,
+      "distinct_customers": 12938,
+      "distinct_facilities": 17129,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1418870655.12,
+      "ecl_final_sar": 17241387.064,
+      "content_hash": "c7f088fa9fab91b30c0eb7eda9e4bdb1aa688e5ab82490201f5120edfbb1b5fb",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2024-09",
+      "snapshot_date": "2024-09-30",
+      "rows": 17110,
+      "distinct_customers": 12912,
+      "distinct_facilities": 17110,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1428620929.75,
+      "ecl_final_sar": 18710158.532,
+      "content_hash": "7dcdaea0d02c2c666f4f5a070f362c9572a957ebc73d61465f2f91169e66acca",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2024-10",
+      "snapshot_date": "2024-10-31",
+      "rows": 17068,
+      "distinct_customers": 12909,
+      "distinct_facilities": 17068,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1444507788.06,
+      "ecl_final_sar": 20246444.112,
+      "content_hash": "bb94fed6b072da3fb089a0dfab63fc1bcbe653773242a194bf9bf15541e94cac",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2024-11",
+      "snapshot_date": "2024-11-30",
+      "rows": 17095,
+      "distinct_customers": 12936,
+      "distinct_facilities": 17095,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1473703579.42,
+      "ecl_final_sar": 21174648.77,
+      "content_hash": "f4a0018a65ef276076c2b368d0353d213fdc8c44e38686bcbd60ed7278512447",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2024-12",
+      "snapshot_date": "2024-12-31",
+      "rows": 17135,
+      "distinct_customers": 12929,
+      "distinct_facilities": 17135,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1487364620.32,
+      "ecl_final_sar": 23055203.638,
+      "content_hash": "e32e0829bbbdd0ee8704b68d64795041e16595ac6ad69d146d5d16908c8507d7",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-01",
+      "snapshot_date": "2025-01-31",
+      "rows": 17167,
+      "distinct_customers": 12958,
+      "distinct_facilities": 17167,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1499844727.96,
+      "ecl_final_sar": 24309382.748,
+      "content_hash": "82fad0be6cb76d585b7633f170b52a5455cf8b1562fc4dba1ad922d02c016df1",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-02",
+      "snapshot_date": "2025-02-28",
+      "rows": 17159,
+      "distinct_customers": 12921,
+      "distinct_facilities": 17159,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1520717389.83,
+      "ecl_final_sar": 24149264.492,
+      "content_hash": "176780b892981d810f7dfafd218df2ded4d7a85716f1a208d84afecf9c876965",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-03",
+      "snapshot_date": "2025-03-31",
+      "rows": 17208,
+      "distinct_customers": 12913,
+      "distinct_facilities": 17208,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1547526156.57,
+      "ecl_final_sar": 22557777.169999998,
+      "content_hash": "d3892badebf5cd7c1fa7d87157542850e8f3dc8e9f8558021851c90bc1532836",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-04",
+      "snapshot_date": "2025-04-30",
+      "rows": 17248,
+      "distinct_customers": 12944,
+      "distinct_facilities": 17248,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1573577897.7399998,
+      "ecl_final_sar": 20732659.842,
+      "content_hash": "789098bb87db6c767d898a79a8dc14d3eb84e9e910f093d94c4e7f3e1616a204",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-05",
+      "snapshot_date": "2025-05-31",
+      "rows": 17313,
+      "distinct_customers": 12994,
+      "distinct_facilities": 17313,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1592138451.56,
+      "ecl_final_sar": 18840840.676,
+      "content_hash": "0f363297b94f980d4de5a4b977dc18b0d3d7f71a98b54eeff5a48488e5e922fe",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-06",
+      "snapshot_date": "2025-06-30",
+      "rows": 17370,
+      "distinct_customers": 13020,
+      "distinct_facilities": 17370,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1613331805.02,
+      "ecl_final_sar": 17104544.31,
+      "content_hash": "810703a04a32cef3d8e6b2c8e7e4e330f529f433e3d041c26595d67f7477f116",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-07",
+      "snapshot_date": "2025-07-31",
+      "rows": 17446,
+      "distinct_customers": 13055,
+      "distinct_facilities": 17446,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1648669175.71,
+      "ecl_final_sar": 15371778.862,
+      "content_hash": "d52106f5d2c635e06b1b8299562823120595ed3f892a0eaf7dc990eda8eb8275",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-08",
+      "snapshot_date": "2025-08-31",
+      "rows": 17509,
+      "distinct_customers": 13136,
+      "distinct_facilities": 17509,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1682846782.9099998,
+      "ecl_final_sar": 13578384.282,
+      "content_hash": "0571a8f3f45bd2c1a729cb5cad97625b8df508c241035112723b37e4d8105e68",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-09",
+      "snapshot_date": "2025-09-30",
+      "rows": 17649,
+      "distinct_customers": 13209,
+      "distinct_facilities": 17649,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1711929687.35,
+      "ecl_final_sar": 12626411.675999999,
+      "content_hash": "56e89602b85cff1cb6806a1a727d30ad6f05f28854dd2e6d36be0609a1ba08a2",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-10",
+      "snapshot_date": "2025-10-31",
+      "rows": 17825,
+      "distinct_customers": 13301,
+      "distinct_facilities": 17825,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1741292112.6399999,
+      "ecl_final_sar": 11932410.846,
+      "content_hash": "a198eccd37edb1a05ad2562409ae07ea55f49d8d8b85c008df5d49b0d3fc678a",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-11",
+      "snapshot_date": "2025-11-30",
+      "rows": 17989,
+      "distinct_customers": 13387,
+      "distinct_facilities": 17989,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1761109281.3,
+      "ecl_final_sar": 11159663.083999999,
+      "content_hash": "e97205e4e7a46a715c5eee302ed42f050843cce5a7beea976a6df29f21de479d",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2025-12",
+      "snapshot_date": "2025-12-31",
+      "rows": 18214,
+      "distinct_customers": 13491,
+      "distinct_facilities": 18214,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1797889569.8600001,
+      "ecl_final_sar": 10807431.55,
+      "content_hash": "1dda4b0216be040fee57e2b550bd5b73abae26e35ae8bfc108cf8cd68fb18aca",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-01",
+      "snapshot_date": "2026-01-31",
+      "rows": 18392,
+      "distinct_customers": 13582,
+      "distinct_facilities": 18392,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1827507270.01,
+      "ecl_final_sar": 10805094.096,
+      "content_hash": "dad372ab1c7f3c2c3913e7b5e5407ef9d16d58bbebd647c5f744835909711872",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-02",
+      "snapshot_date": "2026-02-28",
+      "rows": 18542,
+      "distinct_customers": 13662,
+      "distinct_facilities": 18542,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1861703816.19,
+      "ecl_final_sar": 10645120.037999999,
+      "content_hash": "7de79ddb99dc42dc5204cdfea6ce0dcb731bb383ee16f34d191b7d40094de421",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-03",
+      "snapshot_date": "2026-03-31",
+      "rows": 18732,
+      "distinct_customers": 13753,
+      "distinct_facilities": 18732,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1898355159.05,
+      "ecl_final_sar": 10898254.818,
+      "content_hash": "b6d9e8fee671a188bea26abd19088ac0aa712d6c83bff583de2e67fd03aca80d",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-04",
+      "snapshot_date": "2026-04-30",
+      "rows": 18902,
+      "distinct_customers": 13834,
+      "distinct_facilities": 18902,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1936566018.9099998,
+      "ecl_final_sar": 10889408.080000002,
+      "content_hash": "22b9b80a941dd1b70d84e278746bac6abdd410f1f8a34c05c0948b39d7a2cc6b",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-05",
+      "snapshot_date": "2026-05-31",
+      "rows": 19116,
+      "distinct_customers": 13924,
+      "distinct_facilities": 19116,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1962826669.4699998,
+      "ecl_final_sar": 11427154.358,
+      "content_hash": "a8b24c5601725149e57e01141dd70c383231970e6a2d9fa002e39c1dbb090bb4",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-06",
+      "snapshot_date": "2026-06-30",
+      "rows": 19295,
+      "distinct_customers": 14020,
+      "distinct_facilities": 19295,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 1998167497.62,
+      "ecl_final_sar": 12289511.932,
+      "content_hash": "e06a23971f89bd08cdaa035a8eaca5f618f07d70905ba3599f9ed43bb647fc32",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-07",
+      "snapshot_date": "2026-07-31",
+      "rows": 19495,
+      "distinct_customers": 14123,
+      "distinct_facilities": 19495,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 2041267163.88,
+      "ecl_final_sar": 14069608.378,
+      "content_hash": "697ee16ee85f6034255eb10017938c2bd024004d11ce7bd52314a893225adad6",
+      "validation_status": "PASSED"
+    },
+    {
+      "reporting_month": "2026-08",
+      "snapshot_date": "2026-08-31",
+      "rows": 19745,
+      "distinct_customers": 14251,
+      "distinct_facilities": 19745,
+      "products": [
+        "AUTO_LOAN",
+        "CREDIT_CARD",
+        "HOME_LOAN",
+        "PERSONAL_LOAN"
+      ],
+      "gross_carrying_amount_sar": 2082852855.82,
+      "ecl_final_sar": 15952108.836,
+      "content_hash": "8c441371fc5c089197d2a3503fd3bef02c043f99c00ef2022dff80ca8d59d377",
+      "validation_status": "PASSED"
+    }
+  ],
+  "warmup_months": 12,
+  "first_snapshot": "2024-08-31",
+  "last_snapshot": "2026-08-31",
+  "snapshot_dates": [
+    "2024-08-31",
+    "2024-09-30",
+    "2024-10-31",
+    "2024-11-30",
+    "2024-12-31",
+    "2025-01-31",
+    "2025-02-28",
+    "2025-03-31",
+    "2025-04-30",
+    "2025-05-31",
+    "2025-06-30",
+    "2025-07-31",
+    "2025-08-31",
+    "2025-09-30",
+    "2025-10-31",
+    "2025-11-30",
+    "2025-12-31",
+    "2026-01-31",
+    "2026-02-28",
+    "2026-03-31",
+    "2026-04-30",
+    "2026-05-31",
+    "2026-06-30",
+    "2026-07-31",
+    "2026-08-31"
+  ],
+  "currency": "SAR",
+  "portfolio_country": "SA",
+  "scenario_set_id": "RETAIL_DEMO_SCEN",
+  "scenario_set_version": "1.0.0",
+  "scenario_weights": {
+    "base": 0.6,
+    "upturn": 0.2,
+    "downturn": 0.2
+  },
+  "is_synthetic": true,
+  "disclosure": "Synthetic Saudi retail demonstration data \u2014 not ANB customer data or approved models.",
+  "dataset_name": "retail_facility_month",
+  "dataset_version": "retail-gen-1.0.0+cfg1.0.0+seed20260910",
+  "column_count": 546,
+  "total_rows": 447853,
+  "distinct_customers_all_months": 17994,
+  "distinct_facilities_all_months": 28317,
+  "applications_generated": 38681,
+  "applications_declined_at_cutoff": 7834,
+  "policy": {
+    "staging_policy_version": "retail-staging-1.0.0",
+    "cutoff_policy_version": "retail-cutoff-1.0.0",
+    "recovery_policy_version": "retail-recovery-1.0.0",
+    "affordability_policy_version": "retail-affordability-1.0.0"
+  },
+  "lifetime_horizon_cap_months": 120,
+  "manifest_hash": "65f49ffe2f2883f2521921d39884aac83b78f488f35ecf8abb3802461591486a",
+  "build_seconds": 208.9
+}

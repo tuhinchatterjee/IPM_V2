@@ -1,0 +1,4 @@
+This directory belongs to the CreditProbe Saudi retail-only installation.
+It is written by scripts/build_retail_demo.py and by nothing else.
+Deleting this file makes every retail build command refuse to touch the
+directory, which is the intended failure mode.

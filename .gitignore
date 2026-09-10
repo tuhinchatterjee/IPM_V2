@@ -67,3 +67,13 @@ CreditProbe_*.xlsx.*
 data/analytics/retail_application_scorecard_*/
 data/analytics/retail_behavioral_scorecard_*/
 data/scorecard/
+
+# The generated retail demonstration lake. Reproduced exactly by
+# `scripts/build_retail_demo.py` from config/retail_demo_config.json and its
+# pinned seed, so the generator is committed and the several hundred megabytes
+# of Parquet it produces are not. metadata/retail is committed: the catalogue,
+# the manifest with its per-month hashes, and the data contract are small and
+# are the record of what was published.
+data/retail/analytics/
+data/retail/curated/
+var/retail/

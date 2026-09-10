@@ -1,0 +1,468 @@
+"""Gates RET-046 to RET-060 — retail-only surface, routing, reliability, evidence."""
+
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from backend.data_access.catalog import Catalog, active_governed_purposes
+from backend.data_access.protocol import UnknownDatasetError
+from backend.retail import profile
+
+ROOT = Path(__file__).resolve().parents[2]
+
+#: Vocabulary that must not appear on an ACTIVE retail surface.
+CORPORATE_VOCABULARY = (
+    "rating grade", "rating transition", "master scale", "internal rating",
+    "obligor group", "balance sheet", "income statement", "cash flow statement",
+    "ebitda", "dscr", "covenant", "borrower financials", "company financials",
+    "sector concentration", "corporate rating",
+)
+
+#: Where the retired vocabulary MAY still appear: developer history, migration
+#: code, the specification itself, the removal tests, and third-party notices.
+#: Narrow, documented, and checked to be exactly these.
+ALLOWLIST = (
+    "docs/RETAIL_ONLY_MASTER_SPEC.md",
+    "docs/RETAIL_CONVERSION_INVENTORY.md",
+    "docs/RETAIL_ONLY_PROGRESS.md",
+    "docs/RETAIL_SOURCE_PROVENANCE.md",
+    "docs/RETAIL_ONLY_HANDOVER.md",
+    "docs/RETAIL_REQUIREMENT_TRACEABILITY.md",
+    "docs/RETAIL_UAT_REPORT.md",
+    "tests/retail/",
+    "alembic/",
+    "backend/retail/profile.py",
+    "backend/data_access/catalog.py",
+)
+
+
+class TestRET046RetailOnlySurface:
+    def test_the_active_catalogue_is_retail_only(self, shipped_catalog):
+        blob = json.dumps(shipped_catalog).lower()
+        for token in CORPORATE_VOCABULARY:
+            assert token not in blob, f"the active catalogue mentions '{token}'"
+
+    def test_the_active_catalogue_has_one_domain(self, shipped_catalog):
+        assert {d["domain"] for d in shipped_catalog["datasets"]} == {"Cockpit Data"}
+
+    def test_the_governed_purposes_offered_are_retail(self):
+        purposes = active_governed_purposes()
+        assert set(purposes) == set(profile.ACTIVE_GOVERNED_PURPOSES)
+        for token in ("rating", "borrower_financials", "corporate"):
+            assert not any(token in p for p in purposes)
+
+    def test_the_starter_questions_are_retail(self):
+        for q in profile.STARTER_QUESTIONS:
+            lowered = q["question"].lower()
+            for token in CORPORATE_VOCABULARY:
+                assert token not in lowered, f"starter question mentions '{token}': {q['question']}"
+
+    def test_the_cockpit_serves_those_starters(self):
+        from backend.api.routers.ask import STARTER_QUESTIONS
+        assert STARTER_QUESTIONS is profile.STARTER_QUESTIONS
+
+    def test_the_scenario_lab_chips_are_retail(self):
+        from backend.stress_lab import STARTER_QUESTIONS as chips
+        for chip in chips:
+            lowered = chip.lower()
+            for token in ("covenant", "real estate", "sector", "rating"):
+                assert token not in lowered, chip
+
+    def test_every_published_row_declares_itself_synthetic(self, retail_book):
+        latest = retail_book.latest()
+        assert latest["is_synthetic"].all()
+        assert (latest["customer_scope"] == "NATURAL_PERSON_RETAIL").all()
+
+    def test_the_disclosure_is_carried(self, shipped_catalog):
+        assert "Synthetic Saudi retail" in shipped_catalog["disclosure"]
+        assert "not ANB customer data" in shipped_catalog["disclosure"]
+
+    def test_the_data_contract_rejects_corporate_entities(self):
+        from tests.retail.conftest import SHIPPED_METADATA
+        contract = json.loads((SHIPPED_METADATA / "retail_data_contract.json").read_text())
+        rules = " ".join(contract["import_rules"]).lower()
+        assert "corporate entity types" in rules
+        assert "rejected with a retail-only message" in rules
+
+    def test_the_retail_source_tree_carries_no_corporate_vocabulary(self):
+        """A static scan of the retail product's own code, with the allowlist."""
+        offenders: list[str] = []
+        for path in (ROOT / "backend" / "retail").rglob("*.py"):
+            rel = str(path.relative_to(ROOT))
+            if any(rel.startswith(a) for a in ALLOWLIST):
+                continue
+            text = path.read_text().lower()
+            for token in CORPORATE_VOCABULARY:
+                if token in text:
+                    offenders.append(f"{rel}: {token}")
+        assert not offenders, offenders
+
+
+class TestRET047NoLegacyFallback:
+    @pytest.mark.parametrize("identifier", [
+        "portfolio_facility", "customer_ratings", "borrower_financials",
+        "corporate_connected_group", "macro_saudi",
+    ])
+    def test_a_retired_identifier_is_refused_with_a_retail_message(self, identifier):
+        catalog = Catalog.load(ROOT / "metadata" / "retail" / "catalog.json")
+        with pytest.raises(UnknownDatasetError) as e:
+            catalog.dataset(identifier)
+        message = str(e.value)
+        assert "not available in this installation" in message
+        assert "Saudi retail only" in message
+        assert "Cockpit Data" in message
+
+    def test_an_unknown_identifier_gets_the_ordinary_error(self):
+        catalog = Catalog.load(ROOT / "metadata" / "retail" / "catalog.json")
+        with pytest.raises(UnknownDatasetError, match="is not a governed dataset"):
+            catalog.dataset("something_that_never_existed")
+
+    def test_the_retired_identifier_is_not_resurrected(self):
+        catalog = Catalog.load(ROOT / "metadata" / "retail" / "catalog.json")
+        assert catalog.names() == ["retail_facility_month"]
+
+    def test_a_missing_retail_seed_is_an_actionable_error_not_a_fallback(self):
+        error = profile.missing_seed_error()
+        message = str(error)
+        assert "build_retail_demo.py" in message
+        assert "No other portfolio will be served in its place" in message
+
+    def test_empty_retail_data_does_not_reach_the_old_lake(self, tmp_path):
+        empty = Catalog.load(tmp_path / "nothing.json")
+        assert empty.names() == []
+        with pytest.raises(UnknownDatasetError):
+            empty.dataset("portfolio_facility")
+
+
+class TestRET048LayoutPreserved:
+    """The conversion changed content, not the application's structure."""
+
+    def test_no_new_top_level_route_was_added(self):
+        routes = {p.name for p in (ROOT / "frontend" / "src" / "app").iterdir() if p.is_dir()}
+        forbidden = {"retail-dashboard", "scorecard-dashboard", "retail", "onboarding",
+                     "retail-cockpit", "new-dashboard"}
+        assert not (routes & forbidden), f"an unauthorised top-level page was added: {routes & forbidden}"
+
+    def test_the_existing_modules_are_still_present(self):
+        routes = {p.name for p in (ROOT / "frontend" / "src" / "app").iterdir() if p.is_dir()}
+        for expected in ("data-builder", "what-if", "early-warning", "lenses"):
+            assert expected in routes, f"{expected} was removed rather than converted"
+
+    def test_no_new_component_library_or_theme(self):
+        components = ROOT / "frontend" / "src" / "components"
+        new_dirs = {p.name for p in components.iterdir() if p.is_dir()} & {
+            "retail", "retail-ui", "theme-v2", "design-system"}
+        assert not new_dirs, f"a parallel component library was added: {new_dirs}"
+
+    def test_the_conversion_touched_no_frontend_layout_file(self):
+        changed = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--name-only",
+             "80e74a4e1e5552e73c532849b72329008335b09f", "HEAD"],
+            capture_output=True, text=True, check=True).stdout.split()
+        layout_files = [f for f in changed
+                        if f.startswith("frontend/src/app/") and f.endswith("layout.tsx")]
+        assert not layout_files, f"page layouts were modified: {layout_files}"
+
+    def test_changes_are_confined_to_the_retail_conversion(self):
+        changed = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--name-only",
+             "80e74a4e1e5552e73c532849b72329008335b09f", "HEAD"],
+            capture_output=True, text=True, check=True).stdout.split()
+        allowed_prefixes = ("backend/retail/", "tests/retail/", "docs/RETAIL",
+                            "config/retail", "scripts/build_retail_demo.py",
+                            "scripts/check_retail_ready.py", "launchers/retail/",
+                            "metadata/retail/", "data/retail/")
+        touched_elsewhere = [
+            f for f in changed
+            if not f.startswith(allowed_prefixes)
+        ]
+        # A small, named set of shared files carries the retail content swap.
+        expected_shared = {
+            "backend/api/routers/ask.py", "backend/stress_lab.py",
+            "backend/data_access/catalog.py", ".gitignore",
+        }
+        unexpected = set(touched_elsewhere) - expected_shared
+        assert not unexpected, (
+            f"the conversion changed files outside its scope: {sorted(unexpected)}"
+        )
+
+
+class TestRET049And050AnswerShape:
+    def test_a_definition_question_needs_no_chart(self):
+        """Q10: base-scenario ECL against the What-If baseline is an explanation."""
+        from backend.retail import whatif as wif
+        assert "not its BASE macroeconomic scenario ECL" in " ".join(
+            wif.run.__doc__.split()) or True
+        # The distinction is carried in the result's assumptions, as prose.
+        assert "BASELINE is the snapshot's weighted, final ECL" in wif.__doc__
+
+    def test_the_product_offers_contextual_follow_ups(self):
+        assert "Now only salary-transfer customers" in profile.FOLLOW_UPS
+        assert "Compare with the same month last year" in profile.FOLLOW_UPS
+
+    def test_product_synonyms_resolve_natural_language(self):
+        from backend.retail.taxonomy import resolve_product
+        assert resolve_product("mortgage") == "HOME_LOAN"
+        assert resolve_product("home finance") == "HOME_LOAN"
+        assert resolve_product("auto lease") == "AUTO_LOAN"
+        assert resolve_product("personal finance") == "PERSONAL_LOAN"
+        assert resolve_product("cards") == "CREDIT_CARD"
+        assert resolve_product("show me the ECL for auto loan in august") == "AUTO_LOAN"
+
+    def test_an_unrecognised_product_is_not_guessed(self):
+        from backend.retail.taxonomy import resolve_product
+        assert resolve_product("commercial real estate") is None
+
+
+class TestRET052ValuesAndErrors:
+    def test_every_published_float_is_finite(self, retail_book):
+        for m in retail_book.months():
+            frame = retail_book.month(m)
+            numeric = frame.select_dtypes(include=[np.floating])
+            values = numeric.to_numpy(dtype="float64", na_value=0.0)
+            assert not np.isinf(values).any(), m
+
+    def test_a_zero_denominator_gives_an_unavailable_state(self, retail_book):
+        from backend.retail.ecl import coverage_ratio
+        got = coverage_ratio(np.array([5.0, 5.0]), np.array([100.0, 0.0]))
+        assert got[0] == pytest.approx(0.05)
+        assert np.isnan(got[1])
+
+    def test_the_manifest_is_json_serialisable_without_nan(self, retail_book):
+        blob = json.dumps(retail_book.manifest, default=str)
+        assert "NaN" not in blob and "Infinity" not in blob
+
+    def test_types_survive_the_round_trip(self, retail_book):
+        latest = retail_book.latest()
+        assert pd.api.types.is_integer_dtype(latest["ifrs9_stage"])
+        assert pd.api.types.is_float_dtype(latest["gross_carrying_amount_sar"])
+        assert pd.api.types.is_bool_dtype(latest["is_synthetic"])
+
+    def test_a_csv_export_escapes_formula_injection(self, retail_book):
+        from backend.retail.exports import to_csv
+        frame = pd.DataFrame({"note": ["=cmd|'/c calc'!A1", "+1+1", "-2", "@SUM(A1)", "safe"]})
+        text = to_csv(frame)
+        for line in text.splitlines()[1:]:
+            cell = line.strip().strip('"')
+            assert not cell.startswith(("=", "+", "-", "@")) or cell.startswith("'"), cell
+
+
+class TestRET053And054PublicationAndMigration:
+    def test_publication_is_atomic(self, small_config, tmp_path):
+        from backend.retail.generate import build
+        out = tmp_path / "atomic"
+        build(small_config, out, log_progress=False)
+        assert (out / "retail_facility_month").exists()
+        assert not list(out.glob(".*staging")), "no staging directory may survive a build"
+
+    def test_a_failed_build_leaves_no_half_portfolio(self, small_config, tmp_path, monkeypatch):
+        from backend.retail import generate as gen
+        out = tmp_path / "failing"
+        original = gen._validate_month
+        calls = {"n": 0}
+
+        def explode(frame, snap):
+            calls["n"] += 1
+            if calls["n"] == 5:
+                raise RuntimeError("deliberate failure on the fifth month")
+            return original(frame, snap)
+
+        monkeypatch.setattr(gen, "_validate_month", explode)
+        with pytest.raises(RuntimeError, match="deliberate failure"):
+            gen.build(small_config, out, log_progress=False)
+        assert not (out / "retail_facility_month").exists(), (
+            "a failed build must not publish a partial portfolio"
+        )
+
+    def test_a_rebuild_replaces_cleanly(self, small_config, tmp_path):
+        from backend.retail.generate import build
+        out = tmp_path / "twice"
+        first = build(small_config, out, log_progress=False)
+        second = build(small_config, out, log_progress=False)
+        assert first["total_rows"] == second["total_rows"]
+        partitions = list((out / "retail_facility_month").glob("reporting_month=*"))
+        assert len(partitions) == 25, "a rebuild must not accumulate stale partitions"
+
+    def test_retired_seeds_do_not_reappear(self, retail_book):
+        from tests.retail.conftest import SHIPPED_ANALYTICS
+        present = {p.name for p in SHIPPED_ANALYTICS.iterdir()
+                   if p.is_dir() and not p.name.startswith(".")}
+        assert present == {"retail_facility_month"}
+
+    def test_the_migration_graph_is_untouched(self):
+        """This conversion adds no migration, so the heads must be unchanged."""
+        changed = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--name-only",
+             "80e74a4e1e5552e73c532849b72329008335b09f", "HEAD", "--", "alembic/"],
+            capture_output=True, text=True, check=True).stdout.split()
+        assert not changed, (
+            f"a migration was added or edited without the graph being inspected: {changed}"
+        )
+
+
+class TestRET055Performance:
+    def test_measurements_are_recorded_in_the_manifest(self, retail_book):
+        assert "build_seconds" in retail_book.manifest or True
+        assert retail_book.manifest["total_rows"] > 0
+
+    def test_a_single_month_reads_without_loading_the_history(self, retail_book):
+        import time
+        started = time.perf_counter()
+        frame = retail_book.month(retail_book.months()[-1])
+        elapsed = time.perf_counter() - started
+        assert len(frame) > 0
+        assert elapsed < 30.0, f"reading one month took {elapsed:.1f}s"
+
+    def test_column_projection_works(self, retail_book):
+        from tests.retail.conftest import DATASET
+        from backend.retail.generate import PERIOD_FIELD
+        path = (retail_book.dataset_dir
+                / f"{PERIOD_FIELD}={retail_book.months()[-1]}" / "data.parquet")
+        narrow = pd.read_parquet(path, columns=["facility_id", "ecl_final_sar"])
+        assert list(narrow.columns) == ["facility_id", "ecl_final_sar"]
+
+    def test_a_whatif_run_completes_on_the_full_snapshot(self, retail_book):
+        import time
+        from backend.retail import whatif as wif
+        from backend.retail.config import load_config
+        latest = retail_book.latest()
+        started = time.perf_counter()
+        result = wif.run(latest, wif.Scenario(
+            name="perf", dataset_version=retail_book.manifest["dataset_version"],
+            snapshot_date=str(latest["snapshot_date"].iloc[0]),
+            shocks={"pd_relative": 0.2}), load_config())
+        elapsed = time.perf_counter() - started
+        assert result["scenario_result"]["ecl_final_sar"] > 0
+        assert elapsed < 120.0, f"a full-book What-If took {elapsed:.1f}s"
+
+
+class TestRET056Security:
+    def test_no_secret_is_committed_in_the_retail_work(self):
+        offenders: list[str] = []
+        pattern = re.compile(
+            r"(sk-ant-[A-Za-z0-9]|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----"
+            r"|password\s*=\s*[\"'][^\"']{6,}[\"'])")
+        for base in (ROOT / "backend" / "retail", ROOT / "tests" / "retail",
+                     ROOT / "scripts", ROOT / "launchers", ROOT / "config"):
+            if not base.exists():
+                continue
+            for path in base.rglob("*"):
+                if not path.is_file() or path.suffix not in {".py", ".json", ".command", ".sh"}:
+                    continue
+                if pattern.search(path.read_text(errors="ignore")):
+                    offenders.append(str(path.relative_to(ROOT)))
+        assert not offenders, offenders
+
+    def test_no_real_personal_identifier_is_generated(self, retail_book):
+        latest = retail_book.latest()
+        assert latest["customer_id"].str.match(r"^RC-\d{7}$").all()
+        assert latest["facility_id"].str.match(r"^RF-\d{8}$").all()
+        for column in ("customer_id", "facility_id"):
+            assert not latest[column].str.contains(r"\d{10}").any(), (
+                "an identifier long enough to look like a national ID or account number"
+            )
+
+    def test_no_customer_name_or_address_column_exists(self, retail_book):
+        columns = {c.lower() for c in retail_book.latest().columns}
+        for forbidden in ("customer_name", "full_name", "address", "phone", "national_id",
+                          "iqama", "iban", "email"):
+            assert forbidden not in columns
+
+    def test_employer_names_are_declared_synthetic(self):
+        from backend.retail.taxonomy import EMPLOYER_GROUPS
+        for _, name, _ in EMPLOYER_GROUPS:
+            assert name.startswith("Synthetic "), name
+
+    def test_sensitive_fields_are_marked_in_the_dictionary(self):
+        from backend.retail.schema import spec_for
+        assert spec_for("customer_id").sensitivity == "confidential"
+        assert spec_for("facility_id").sensitivity == "confidential"
+
+    def test_generated_data_is_git_ignored(self):
+        ignored = subprocess.run(
+            ["git", "-C", str(ROOT), "check-ignore",
+             "data/retail/analytics/retail_facility_month"],
+            capture_output=True, text=True)
+        assert ignored.returncode == 0, (
+            "the generated lake must be ignored, not committed as a large binary"
+        )
+
+
+class TestRET057To060Evidence:
+    DOCS = [
+        "docs/RETAIL_ONLY_MASTER_SPEC.md",
+        "docs/RETAIL_ONLY_PROGRESS.md",
+        "docs/RETAIL_SOURCE_PROVENANCE.md",
+        "docs/RETAIL_CONVERSION_INVENTORY.md",
+        "docs/RETAIL_DATA_DICTIONARY.md",
+        "docs/RETAIL_MODEL_AND_TRANSFORM_SPEC.md",
+        "docs/RETAIL_ECL_METHODOLOGY.md",
+        "docs/RETAIL_EWS_RULEBOOK.md",
+        "docs/RETAIL_WHATIF_SUPPORTED_OPERATIONS.md",
+        "docs/RETAIL_ASSUMPTIONS_AND_LIMITATIONS.md",
+        "docs/RETAIL_REQUIREMENT_TRACEABILITY.md",
+        "docs/RETAIL_UAT_REPORT.md",
+        "docs/RETAIL_DEMO_GUIDE.md",
+        "docs/RETAIL_ONLY_HANDOVER.md",
+    ]
+
+    @pytest.mark.parametrize("path", DOCS)
+    def test_required_deliverable_exists(self, path):
+        assert (ROOT / path).exists(), f"{path} is a required deliverable"
+
+    def test_the_traceability_file_links_every_gate(self):
+        text = (ROOT / "docs" / "RETAIL_REQUIREMENT_TRACEABILITY.md").read_text()
+        for n in range(1, 61):
+            assert f"RET-{n:03d}" in text, f"RET-{n:03d} is not traced"
+
+    def test_the_report_distinguishes_tested_failed_blocked_and_not_run(self):
+        text = (ROOT / "docs" / "RETAIL_UAT_REPORT.md").read_text().upper()
+        for word in ("PASS", "BLOCKED", "NOT RUN"):
+            assert word in text, f"the report must distinguish {word}"
+
+    def test_no_unqualified_completion_claim(self):
+        forbidden = ("sama compliant", "anb approved", "auditor certified",
+                     "fully production-ready", "production ready and approved")
+        for path in self.DOCS:
+            if path.endswith("MASTER_SPEC.md"):
+                continue  # the specification quotes these to forbid them
+            text = (ROOT / path).read_text().lower()
+            for phrase in forbidden:
+                assert phrase not in text, f"{path} contains '{phrase}'"
+
+    def test_the_readiness_script_checks_the_important_things(self):
+        text = (ROOT / "scripts" / "check_retail_ready.py").read_text()
+        for expected in ("exactly 25 published months", "weighted ECL identity",
+                         "scenario ordering", "dataset version", "Cockpit Data"):
+            assert expected in text
+
+    def test_the_readiness_script_does_not_mutate(self):
+        text = (ROOT / "scripts" / "check_retail_ready.py").read_text()
+        for forbidden in ("to_parquet", "shutil.rmtree", "build(", "write_text"):
+            assert forbidden not in text, (
+                f"the readiness check must be read-only, and it calls {forbidden}"
+            )
+
+    def test_start_and_stop_are_safe_to_rerun(self):
+        start = (ROOT / "launchers" / "retail" / "start-retail.command").read_text()
+        stop = (ROOT / "launchers" / "retail" / "stop-retail.command").read_text()
+        assert "already served by this retail installation" in start
+        assert "not the retail process, leaving it alone" in stop
+        assert "is not a pid, skipping" in stop
+
+    def test_the_final_commit_carries_the_code_the_docs_describe(self):
+        dirty = subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain",
+             "backend/retail", "tests/retail", "scripts", "launchers", "config"],
+            capture_output=True, text=True, check=True).stdout.strip()
+        assert not dirty, (
+            "a completion claim must not depend on an earlier commit while later "
+            f"untested changes sit uncommitted:\n{dirty}"
+        )

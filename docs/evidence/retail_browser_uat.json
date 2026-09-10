@@ -1,0 +1,478 @@
+{
+  "frontend": "http://localhost:5328",
+  "backend": "http://127.0.0.1:8328",
+  "elapsed_seconds": 63.1,
+  "viewports": [
+    "1366x768",
+    "1680x1050",
+    "1024x768"
+  ],
+  "routes": [
+    "/",
+    "/data-builder",
+    "/what-if",
+    "/early-warning",
+    "/workspace"
+  ],
+  "counts": {
+    "PASS": 41,
+    "FAIL": 0,
+    "SKIPPED": 0
+  },
+  "checks": [
+    {
+      "name": "backend reachable",
+      "route": "http://127.0.0.1:8328",
+      "status": "PASS",
+      "detail": "health returned 200",
+      "evidence": {}
+    },
+    {
+      "name": "frontend reachable",
+      "route": "http://localhost:5328",
+      "status": "PASS",
+      "detail": "returned 200",
+      "evidence": {}
+    },
+    {
+      "name": "home renders",
+      "route": "/",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 915 characters of text at laptop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/home-laptop.png",
+        "http_status": 200,
+        "text_length": 915,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "home no horizontal overflow",
+      "route": "/",
+      "status": "PASS",
+      "detail": "scrollWidth 1351 against clientWidth 1351 at laptop",
+      "evidence": {
+        "scroll": 1351,
+        "client": 1351,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "home navigation present",
+      "route": "/",
+      "status": "PASS",
+      "detail": "nav element found, 29 links",
+      "evidence": {}
+    },
+    {
+      "name": "data-builder renders",
+      "route": "/data-builder",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1205 characters of text at laptop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/data-builder-laptop.png",
+        "http_status": 200,
+        "text_length": 1205,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "data-builder no horizontal overflow",
+      "route": "/data-builder",
+      "status": "PASS",
+      "detail": "scrollWidth 1351 against clientWidth 1351 at laptop",
+      "evidence": {
+        "scroll": 1351,
+        "client": 1351,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "data-builder navigation present",
+      "route": "/data-builder",
+      "status": "PASS",
+      "detail": "nav element found, 30 links",
+      "evidence": {}
+    },
+    {
+      "name": "what-if renders",
+      "route": "/what-if",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 651 characters of text at laptop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/what-if-laptop.png",
+        "http_status": 200,
+        "text_length": 651,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "what-if no horizontal overflow",
+      "route": "/what-if",
+      "status": "PASS",
+      "detail": "scrollWidth 1351 against clientWidth 1351 at laptop",
+      "evidence": {
+        "scroll": 1351,
+        "client": 1351,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "what-if navigation present",
+      "route": "/what-if",
+      "status": "PASS",
+      "detail": "nav element found, 26 links",
+      "evidence": {}
+    },
+    {
+      "name": "early-warning renders",
+      "route": "/early-warning",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 634 characters of text at laptop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/early-warning-laptop.png",
+        "http_status": 200,
+        "text_length": 634,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "early-warning no horizontal overflow",
+      "route": "/early-warning",
+      "status": "PASS",
+      "detail": "scrollWidth 1351 against clientWidth 1351 at laptop",
+      "evidence": {
+        "scroll": 1351,
+        "client": 1351,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "early-warning navigation present",
+      "route": "/early-warning",
+      "status": "PASS",
+      "detail": "nav element found, 28 links",
+      "evidence": {}
+    },
+    {
+      "name": "workspace renders",
+      "route": "/workspace",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 815 characters of text at laptop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/workspace-laptop.png",
+        "http_status": 200,
+        "text_length": 815,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "workspace no horizontal overflow",
+      "route": "/workspace",
+      "status": "PASS",
+      "detail": "scrollWidth 1351 against clientWidth 1351 at laptop",
+      "evidence": {
+        "scroll": 1351,
+        "client": 1351,
+        "viewport": "1366x768"
+      }
+    },
+    {
+      "name": "workspace navigation present",
+      "route": "/workspace",
+      "status": "PASS",
+      "detail": "nav element found, 30 links",
+      "evidence": {}
+    },
+    {
+      "name": "no uncaught page errors",
+      "route": "-",
+      "status": "PASS",
+      "detail": "none at laptop",
+      "evidence": {}
+    },
+    {
+      "name": "home renders",
+      "route": "/",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 915 characters of text at desktop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/home-desktop.png",
+        "http_status": 200,
+        "text_length": 915,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "home no horizontal overflow",
+      "route": "/",
+      "status": "PASS",
+      "detail": "scrollWidth 1665 against clientWidth 1665 at desktop",
+      "evidence": {
+        "scroll": 1665,
+        "client": 1665,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "data-builder renders",
+      "route": "/data-builder",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1205 characters of text at desktop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/data-builder-desktop.png",
+        "http_status": 200,
+        "text_length": 1205,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "data-builder no horizontal overflow",
+      "route": "/data-builder",
+      "status": "PASS",
+      "detail": "scrollWidth 1665 against clientWidth 1665 at desktop",
+      "evidence": {
+        "scroll": 1665,
+        "client": 1665,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "what-if renders",
+      "route": "/what-if",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 651 characters of text at desktop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/what-if-desktop.png",
+        "http_status": 200,
+        "text_length": 651,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "what-if no horizontal overflow",
+      "route": "/what-if",
+      "status": "PASS",
+      "detail": "scrollWidth 1665 against clientWidth 1665 at desktop",
+      "evidence": {
+        "scroll": 1665,
+        "client": 1665,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "early-warning renders",
+      "route": "/early-warning",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 634 characters of text at desktop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/early-warning-desktop.png",
+        "http_status": 200,
+        "text_length": 634,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "early-warning no horizontal overflow",
+      "route": "/early-warning",
+      "status": "PASS",
+      "detail": "scrollWidth 1665 against clientWidth 1665 at desktop",
+      "evidence": {
+        "scroll": 1665,
+        "client": 1665,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "workspace renders",
+      "route": "/workspace",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 815 characters of text at desktop",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/workspace-desktop.png",
+        "http_status": 200,
+        "text_length": 815,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "workspace no horizontal overflow",
+      "route": "/workspace",
+      "status": "PASS",
+      "detail": "scrollWidth 1665 against clientWidth 1665 at desktop",
+      "evidence": {
+        "scroll": 1665,
+        "client": 1665,
+        "viewport": "1680x1050"
+      }
+    },
+    {
+      "name": "no uncaught page errors",
+      "route": "-",
+      "status": "PASS",
+      "detail": "none at desktop",
+      "evidence": {}
+    },
+    {
+      "name": "home renders",
+      "route": "/",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 915 characters of text at narrow",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/home-narrow.png",
+        "http_status": 200,
+        "text_length": 915,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "home no horizontal overflow",
+      "route": "/",
+      "status": "PASS",
+      "detail": "scrollWidth 1009 against clientWidth 1009 at narrow",
+      "evidence": {
+        "scroll": 1009,
+        "client": 1009,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "data-builder renders",
+      "route": "/data-builder",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 1205 characters of text at narrow",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/data-builder-narrow.png",
+        "http_status": 200,
+        "text_length": 1205,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "data-builder no horizontal overflow",
+      "route": "/data-builder",
+      "status": "PASS",
+      "detail": "scrollWidth 1009 against clientWidth 1009 at narrow",
+      "evidence": {
+        "scroll": 1009,
+        "client": 1009,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "what-if renders",
+      "route": "/what-if",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 651 characters of text at narrow",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/what-if-narrow.png",
+        "http_status": 200,
+        "text_length": 651,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "what-if no horizontal overflow",
+      "route": "/what-if",
+      "status": "PASS",
+      "detail": "scrollWidth 1009 against clientWidth 1009 at narrow",
+      "evidence": {
+        "scroll": 1009,
+        "client": 1009,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "early-warning renders",
+      "route": "/early-warning",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 634 characters of text at narrow",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/early-warning-narrow.png",
+        "http_status": 200,
+        "text_length": 634,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "early-warning no horizontal overflow",
+      "route": "/early-warning",
+      "status": "PASS",
+      "detail": "scrollWidth 1009 against clientWidth 1009 at narrow",
+      "evidence": {
+        "scroll": 1009,
+        "client": 1009,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "workspace renders",
+      "route": "/workspace",
+      "status": "PASS",
+      "detail": "HTTP 200, title 'CreditProbe AI \u2014 Credit Portfolio Intelligence', 815 characters of text at narrow",
+      "evidence": {
+        "screenshot": "docs/evidence/screenshots/workspace-narrow.png",
+        "http_status": 200,
+        "text_length": 815,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "workspace no horizontal overflow",
+      "route": "/workspace",
+      "status": "PASS",
+      "detail": "scrollWidth 1009 against clientWidth 1009 at narrow",
+      "evidence": {
+        "scroll": 1009,
+        "client": 1009,
+        "viewport": "1024x768"
+      }
+    },
+    {
+      "name": "no uncaught page errors",
+      "route": "-",
+      "status": "PASS",
+      "detail": "none at narrow",
+      "evidence": {}
+    },
+    {
+      "name": "rendered text is retail-only",
+      "route": "all routes",
+      "status": "PASS",
+      "detail": "scanned 4,220 rendered characters across 5 routes for 15 retired phrases",
+      "evidence": {
+        "routes_scanned": [
+          "data-builder",
+          "early-warning",
+          "home",
+          "what-if",
+          "workspace"
+        ],
+        "phrases": [
+          "rating grade",
+          "rating transition",
+          "master scale",
+          "internal rating",
+          "obligor group",
+          "balance sheet",
+          "income statement",
+          "cash flow statement",
+          "ebitda",
+          "dscr",
+          "covenant breach",
+          "borrower financials",
+          "company financials",
+          "corporate rating",
+          "sector concentration"
+        ]
+      }
+    }
+  ],
+  "rendered_characters": {
+    "home": 915,
+    "data-builder": 1205,
+    "what-if": 651,
+    "early-warning": 634,
+    "workspace": 815
+  }
+}

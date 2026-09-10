@@ -111,7 +111,7 @@ curl -fsS "http://127.0.0.1:$RETAIL_BACKEND_PORT/api/v1/health" >/dev/null 2>&1 
 say "Starting the retail frontend on $RETAIL_FRONTEND_PORT..."
 (
   cd "$ROOT/frontend"
-  NEXT_PUBLIC_API_BASE_URL="http://127.0.0.1:$RETAIL_BACKEND_PORT" \
+  NEXT_PUBLIC_API_URL="http://127.0.0.1:$RETAIL_BACKEND_PORT" \
   PORT="$RETAIL_FRONTEND_PORT" \
   npm run dev >>"$FRONTEND_LOG" 2>&1 &
   echo $! > "$FRONTEND_PIDFILE"

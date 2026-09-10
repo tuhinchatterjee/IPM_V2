@@ -71,6 +71,22 @@ class BusinessDomain:
 # ----------------------------------------------------------------- the nine
 
 DOMAINS: tuple[BusinessDomain, ...] = (
+    # The Saudi retail product's single analytical domain. It is first because
+    # in the retail installation it is the only one that has a dataset: the
+    # corporate headings below remain as code so that a migration or an archived
+    # record still parses, but nothing files under them and nothing creates
+    # them, because the retail catalogue contains no dataset that claims one.
+    BusinessDomain(
+        name="Cockpit Data",
+        description=(
+            "The joined Saudi retail book at each month-end: customer, "
+            "employment and affordability, facility terms and balances, "
+            "delinquency and collections, salary and bureau signals, both "
+            "scorecards with every configured input raw and transformed, and "
+            "retail IFRS 9 staging, PD, LGD, EAD and scenario ECL."),
+        owner="Retail Credit Risk Analytics",
+        catalogue_domains=("Cockpit Data",),
+    ),
     BusinessDomain(
         name="Core Portfolio / Facility",
         description=(

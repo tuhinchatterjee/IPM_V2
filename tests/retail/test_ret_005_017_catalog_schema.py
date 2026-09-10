@@ -76,12 +76,12 @@ class TestRET006Chronology:
 class TestRET007Keys:
     def test_primary_key_unique_in_every_month(self, retail_book):
         for m in retail_book.months():
-            frame = retail_book.month(m)
-            assert not frame[["snapshot_date", "customer_id", "facility_id"]].duplicated().any(), m
+            frame = retail_book.month(m, ["snapshot_date", "customer_id", "facility_id"])
+            assert not frame.duplicated().any(), m
 
     def test_facility_month_key_unique(self, retail_book):
         for m in retail_book.months():
-            assert not retail_book.month(m)["facility_id"].duplicated().any(), m
+            assert not retail_book.month(m, ["facility_id"])["facility_id"].duplicated().any(), m
 
     def test_multi_facility_customers_exist(self, retail_book):
         latest = retail_book.latest()
@@ -250,23 +250,23 @@ class TestRET009SchemaMetadata:
 class TestRET010Chronology:
     def test_no_exposure_before_a_facility_exists(self, retail_book):
         for m in retail_book.months():
-            frame = retail_book.month(m)
+            frame = retail_book.month(m, ["months_on_book", "origination_date", "snapshot_date"])
             assert (frame["months_on_book"] >= 0).all(), m
             assert (pd.to_datetime(frame["origination_date"])
                     <= pd.to_datetime(frame["snapshot_date"])).all(), m
 
     def test_months_on_book_increments_by_one(self, retail_book):
         months = retail_book.months()
-        a = retail_book.month(months[10])[["facility_id", "months_on_book"]]
-        b = retail_book.month(months[11])[["facility_id", "months_on_book"]]
+        a = retail_book.month(months[10], ["facility_id", "months_on_book"])
+        b = retail_book.month(months[11], ["facility_id", "months_on_book"])
         j = a.merge(b, on="facility_id", suffixes=("_a", "_b"))
         assert (j["months_on_book_b"] - j["months_on_book_a"] == 1).all()
 
     def test_remaining_tenor_declines(self, retail_book):
         months = retail_book.months()
         cols = ["facility_id", "remaining_contractual_tenor_months", "product_code"]
-        a = retail_book.month(months[10])[cols]
-        b = retail_book.month(months[11])[cols]
+        a = retail_book.month(months[10], cols)
+        b = retail_book.month(months[11], cols)
         j = a.merge(b, on="facility_id", suffixes=("_a", "_b"))
         j = j[j["product_code_a"] != tax.CREDIT_CARD]
         delta = (pd.to_numeric(j["remaining_contractual_tenor_months_b"])
@@ -299,8 +299,7 @@ class TestRET011OriginationValuesAreFrozen:
 
     @pytest.mark.parametrize("column", FROZEN)
     def test_value_does_not_move_between_snapshots(self, retail_book, column):
-        frames = [retail_book.month(m)[["facility_id", column]] for m in retail_book.months()]
-        stacked = pd.concat(frames, ignore_index=True)
+        stacked = retail_book.all_months(["facility_id", column])
         spread = stacked.groupby("facility_id")[column].nunique(dropna=False)
         assert (spread <= 1).all(), (
             f"{column} is an origination value and changed on {int((spread > 1).sum())} "
@@ -310,8 +309,8 @@ class TestRET011OriginationValuesAreFrozen:
     def test_current_income_does_move(self, retail_book):
         """The control: a current value is allowed to change, and does."""
         months = retail_book.months()
-        a = retail_book.month(months[0])[["facility_id", "verified_total_monthly_income_sar"]]
-        b = retail_book.month(months[-1])[["facility_id", "verified_total_monthly_income_sar"]]
+        a = retail_book.month(months[0], ["facility_id", "verified_total_monthly_income_sar"])
+        b = retail_book.month(months[-1], ["facility_id", "verified_total_monthly_income_sar"])
         j = a.merge(b, on="facility_id", suffixes=("_a", "_b"))
         assert (j["verified_total_monthly_income_sar_a"]
                 != j["verified_total_monthly_income_sar_b"]).any()
@@ -507,7 +506,8 @@ class TestRET016GrainSemantics:
 
     def test_stocks_are_not_summed_across_months(self, retail_book):
         """Exposure at a date is one month's sum, never twenty-five months added up."""
-        per_month = [float(retail_book.month(m)["gross_carrying_amount_sar"].sum())
+        per_month = [float(retail_book.month(m, ["gross_carrying_amount_sar"])
+                           ["gross_carrying_amount_sar"].sum())
                      for m in retail_book.months()]
         latest = per_month[-1]
         assert sum(per_month) > 20 * latest
@@ -539,9 +539,11 @@ class TestRET017Determinism:
             assert a["ecl_final_sar"] == pytest.approx(b["ecl_final_sar"])
 
     def test_reading_the_lake_does_not_regenerate_it(self, retail_book):
-        before = {m: retail_book.month(m)["gross_carrying_amount_sar"].sum()
-                  for m in retail_book.months()[:3]}
+        def read(m: str) -> float:
+            return float(retail_book.month(m, ["gross_carrying_amount_sar"])
+                         ["gross_carrying_amount_sar"].sum())
+
+        before = {m: read(m) for m in retail_book.months()[:3]}
         retail_book._cache.clear()
-        after = {m: retail_book.month(m)["gross_carrying_amount_sar"].sum()
-                 for m in retail_book.months()[:3]}
+        after = {m: read(m) for m in retail_book.months()[:3]}
         assert before == after

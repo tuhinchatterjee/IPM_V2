@@ -56,10 +56,23 @@ class Book:
     def months(self) -> list[str]:
         return sorted(p.name.split("=", 1)[1] for p in self.dataset_dir.glob(f"{PERIOD_FIELD}=*"))
 
-    def month(self, reporting_month: str) -> pd.DataFrame:
+    def path_for(self, reporting_month: str) -> Path:
+        return self.dataset_dir / f"{PERIOD_FIELD}={reporting_month}" / "data.parquet"
+
+    def month(self, reporting_month: str, columns: list[str] | None = None) -> pd.DataFrame:
+        """One month, with optional column projection.
+
+        The cache is deliberately small. A full month of the shipped book is
+        nearly twenty thousand rows across five hundred columns, and holding all
+        twenty-five would cost gigabytes for no benefit: most gates read one or
+        two months, and the ones that sweep the history read a handful of columns.
+        """
+        if columns is not None:
+            return pd.read_parquet(self.path_for(reporting_month), columns=columns)
         if reporting_month not in self._cache:
-            path = self.dataset_dir / f"{PERIOD_FIELD}={reporting_month}" / "data.parquet"
-            self._cache[reporting_month] = pd.read_parquet(path)
+            if len(self._cache) >= 3:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[reporting_month] = pd.read_parquet(self.path_for(reporting_month))
         return self._cache[reporting_month]
 
     def latest(self) -> pd.DataFrame:
@@ -69,10 +82,8 @@ class Book:
         return self.month(self.months()[0])
 
     def all_months(self, columns: list[str] | None = None) -> pd.DataFrame:
-        frames = []
-        for m in self.months():
-            path = self.dataset_dir / f"{PERIOD_FIELD}={m}" / "data.parquet"
-            frames.append(pd.read_parquet(path, columns=columns))
+        """Every published month stacked. Pass `columns`: the whole book is wide."""
+        frames = [pd.read_parquet(self.path_for(m), columns=columns) for m in self.months()]
         return pd.concat(frames, ignore_index=True)
 
 

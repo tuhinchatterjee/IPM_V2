@@ -48,8 +48,9 @@ class TestRET018WeightedIdentity:
         assert float((latest["ecl_weighted_sar"] - expected).abs().max()) <= ROW_TOLERANCE_SAR
 
     def test_aggregate_weighted_identity(self, retail_book):
+        cols = ["ecl_base_sar", "ecl_upturn_sar", "ecl_downturn_sar", "ecl_weighted_sar"]
         for m in retail_book.months():
-            f = retail_book.month(m)
+            f = retail_book.month(m, cols)
             expected = (0.60 * f["ecl_base_sar"].sum() + 0.20 * f["ecl_upturn_sar"].sum()
                         + 0.20 * f["ecl_downturn_sar"].sum())
             assert f["ecl_weighted_sar"].sum() == pytest.approx(expected, abs=1.0), m
@@ -77,8 +78,9 @@ class TestRET018WeightedIdentity:
 
 class TestRET019ScenarioOrdering:
     def test_row_wise_ordering_holds_in_every_month(self, retail_book):
+        cols = ["ecl_upturn_sar", "ecl_base_sar", "ecl_downturn_sar"]
         for m in retail_book.months():
-            f = retail_book.month(m)
+            f = retail_book.month(m, cols)
             bad = ((f["ecl_upturn_sar"] > f["ecl_base_sar"] + ROW_TOLERANCE_SAR)
                    | (f["ecl_base_sar"] > f["ecl_downturn_sar"] + ROW_TOLERANCE_SAR))
             assert int(bad.sum()) == 0, f"{m}: {int(bad.sum())} rows out of order"
@@ -321,8 +323,9 @@ class TestRET024CrossModuleReconciliation:
         assert 0 < exposure <= float(latest["gross_carrying_amount_sar"].sum()) + 0.01
 
     def test_manifest_totals_match_the_parquet(self, retail_book):
+        cols = ["gross_carrying_amount_sar", "ecl_final_sar"]
         for entry in retail_book.manifest["months"]:
-            f = retail_book.month(entry["reporting_month"])
+            f = retail_book.month(entry["reporting_month"], cols)
             assert float(f["gross_carrying_amount_sar"].sum()) == pytest.approx(
                 entry["gross_carrying_amount_sar"], rel=1e-9)
             assert float(f["ecl_final_sar"].sum()) == pytest.approx(
