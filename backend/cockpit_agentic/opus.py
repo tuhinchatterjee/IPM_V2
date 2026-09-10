@@ -59,6 +59,36 @@ class OpusUnavailable(RuntimeError):
     """
 
 
+class OutputTruncated(OpusUnavailable):
+    """The reply reached the output allowance and stopped mid-answer.
+
+    Its own type because the remedy is its own: the provider did exactly what
+    it was told, nothing is wrong with the request, and a caller that can ask
+    for a SHORTER answer should be able to do that rather than reporting a
+    provider failure. Callers that cannot still get an `OpusUnavailable`.
+
+    What it never means is "a shorter answer arrived". A truncated plan is half
+    a plan, and half a SELECT is not something this application may run.
+    """
+
+    def __init__(self, message: str, *, purpose: str, limit: int) -> None:
+        super().__init__(message)
+        self.purpose = purpose
+        self.limit = limit
+
+
+class PlanTruncated(OpusUnavailable):
+    """The planning reply was truncated, and so was the one permitted compact
+    regeneration. The request stops; this application does not write the plan
+    the model could not finish."""
+
+    def __init__(self, message: str, *, attempts: int, limit: int) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+        self.limit = limit
+        self.status = K.PLAN_OUTPUT_TRUNCATED
+
+
 # ------------------------------------------------------------------ schemas
 
 _SCORE = {
@@ -83,23 +113,69 @@ _ALTERNATIVE = {
     "required": ["question", "required_fields"],
 }
 
+#: The plan object, BOUNDED. Every limit here is an orchestration control
+#: from `contracts.PlanBounds` -- stated in the schema so the model is told,
+#: and enforced in `contracts.bound_plan` so a model that ignores the schema
+#: still produces something the runtime can hold.
+#:
+#: What the bounds are for: a planning turn writes executable instructions,
+#: not a credit memo. Live UAT put one aggregation and one ranking into a
+#: 4,096-token planning reply the provider cut off mid-answer, because this
+#: contract asked for narrative reasoning and per-field justification at the
+#: moment the model should have been writing SQL.
 _PLAN = {
     "type": "object",
+    "description": "The execution plan. Be concise: this is a plan, not the "
+                   "final answer. Reference fields by canonical name only -- "
+                   "the dictionary is in front of you and copying its "
+                   "definitions back out wastes the allowance you need for "
+                   "the SQL.",
     "properties": {
-        "plan_id": {"type": "string"},
-        "subquestions": {"type": "array", "items": {"type": "string"}},
-        "fields_required": {"type": "array", "items": {"type": "string"}},
-        "joins_required": {"type": "array", "items": {"type": "string"}},
-        "steps": {"type": "array", "items": {"type": "string"}},
-        "assumptions": {"type": "array", "items": {"type": "string"}},
-        "missingness_handling": {"type": "string"},
-        "expected_output_grain": {"type": "string"},
-        "expected_units": {"type": "string"},
-        # Free text on purpose. There is no method vocabulary and no enum:
-        # constraining this field would be the template this architecture
-        # exists to remove.
-        "method_summary": {"type": "string"},
-        "alternative_method": {"type": "string"},
+        "plan_id": {"type": "string", "maxLength": 40},
+        "subquestions": {
+            "type": "array", "maxItems": K.PLAN_BOUNDS.subquestions,
+            "items": {"type": "string",
+                      "maxLength": K.PLAN_BOUNDS.subquestion_chars}},
+        "fields_required": {
+            "type": "array", "maxItems": K.PLAN_BOUNDS.fields_required,
+            "items": {"type": "string",
+                      "maxLength": K.PLAN_BOUNDS.field_name_chars,
+                      "description": "Canonical name only, e.g. "
+                                     "\"ead_reported\". No description, no "
+                                     "unit, no explanation."}},
+        "joins_required": {
+            "type": "array", "maxItems": K.PLAN_BOUNDS.joins_required,
+            "items": {"type": "string"},
+            "description": "Only if a join is actually needed."},
+        "steps": {
+            "type": "array", "maxItems": K.PLAN_BOUNDS.steps,
+            "items": {"type": "string",
+                      "maxLength": K.PLAN_BOUNDS.plan_step_chars},
+            "description": "One short line per step. Not prose."},
+        "assumptions": {
+            "type": "array", "maxItems": K.PLAN_BOUNDS.assumptions,
+            "items": {"type": "string",
+                      "maxLength": K.PLAN_BOUNDS.assumption_chars},
+            "description": "Only material ones."},
+        "missingness_handling": {
+            "type": "string",
+            "maxLength": K.PLAN_BOUNDS.missingness_handling_chars,
+            "description": "Only if it materially affects the result."},
+        "expected_output_grain": {"type": "string", "maxLength": 200},
+        "expected_units": {"type": "string", "maxLength": 80},
+        # Free text on purpose, and bounded. There is no method vocabulary and
+        # no enum: constraining WHAT the method may be would be the template
+        # this architecture exists to remove. Constraining how many characters
+        # it is described in does not touch the method.
+        "method_summary": {
+            "type": "string", "maxLength": K.PLAN_BOUNDS.method_summary_chars,
+            "description": "What you are doing and why, in a few sentences. "
+                           "Not a justification of every field."},
+        "alternative_method": {
+            "type": "string",
+            "maxLength": K.PLAN_BOUNDS.alternative_method_chars,
+            "description": "Optional. Only if the inputs may turn out to be "
+                           "insufficient."},
     },
     "required": ["plan_id", "subquestions", "method_summary"],
 }
@@ -107,11 +183,16 @@ _PLAN = {
 _STEP = {
     "type": "object",
     "properties": {
-        "step_id": {"type": "string"},
+        "step_id": {"type": "string", "maxLength": 40},
         "language": {"type": "string", "enum": ["sql"]},
+        # NOT bounded, deliberately. A SELECT is exactly as long as
+        # correctness requires; a query trimmed to fit an allowance is a query
+        # that returns the wrong thing.
         "code": {"type": "string",
                  "description": "Exactly one SELECT statement."},
-        "purpose": {"type": "string"},
+        "purpose": {"type": "string",
+                    "maxLength": K.PLAN_BOUNDS.step_purpose_chars,
+                    "description": "One line. What this step is for."},
     },
     "required": ["step_id", "language", "code"],
 }
@@ -446,6 +527,12 @@ class Conversation:
             # prefix, so the catalogue above it stays byte-identical.
             self.messages.append({"role": "user",
                                   "content": self.opening_context()})
+        # The conversation as it stands BEFORE this turn. A turn the provider
+        # cut off leaves an assistant tool_use with no matching tool_result,
+        # and a following request built on that history is malformed -- so a
+        # truncated turn is rolled back to here and the caller may ask again
+        # from a clean point.
+        before = list(self.messages)
         pending = self.messages + [{"role": "user", "content": user}]
         tool = {"name": tool_name, "description": description,
                 "input_schema": schema}
@@ -507,10 +594,18 @@ class Conversation:
             # Section 9.1: a truncated output is INCOMPLETE, not a shorter
             # answer. Treating half a plan as a plan is how a confident wrong
             # analysis gets built.
-            raise OpusUnavailable(
+            #
+            # The partial turn is removed from the history rather than left in
+            # it. Keeping it would leave an unanswered tool_use that makes the
+            # next request malformed, and would spend the allowance of the
+            # retry on re-reading the prose that overran in the first place.
+            self.messages = before
+            self._pending = ""
+            raise OutputTruncated(
                 f"The model's response was cut off at its {limit}-token output "
                 f"limit, so the {purpose} is incomplete. A truncated plan is "
-                f"half a plan, not a smaller one.")
+                f"half a plan, not a smaller one.",
+                purpose=purpose, limit=limit)
 
         for call in result.tool_calls:
             if call["name"] == tool_name:
@@ -781,21 +876,10 @@ def gate(conversation: Conversation, packet: CockpitContextPacket
         public_explanation=str(data.get("public_explanation") or ""))
 
 
-def plan_first_submission(conversation: Conversation,
-                          packet: CockpitContextPacket,
-                          decision: K.FunctionalityDecision) -> dict[str, Any]:
-    """STAGE B. The first analysis, planned with the complete dictionary.
-
-    Reached only for `query_mode = DATA_ANALYSIS` and `owner = COCKPIT` that
-    also passed the server's score test. This is a NEW conversation over the
-    full packet, so the cached prefix it establishes is the one every repair
-    and review turn of this request will reuse.
-
-    Three ways out, all of them explicit: the first step, a targeted
-    clarification, or an honest explanation that this data cannot answer it.
-    There is no fourth, and in particular there is no branch that approximates
-    an answer because the dictionary disappointed it.
-    """
+def _planning_brief(packet: CockpitContextPacket,
+                    decision: K.FunctionalityDecision,
+                    bounds: K.PlanBounds) -> list[str]:
+    """The turn's own message. Everything else Opus needs is in the packet."""
     request = packet.payload["A_request"]
     lines = [
         "The gate has decided this is a Cockpit data analysis. Plan it.",
@@ -822,29 +906,99 @@ def plan_first_submission(conversation: Conversation,
         lines.append("UNRESOLVED AMBIGUITY (do not resolve it by guessing):\n"
                      + "\n".join(f"- {a}"
                                  for a in request["unresolved_ambiguity"]))
+    # Deliberately short. Everything general -- what you have, what a plan is
+    # for, what does not belong in it, the three ways out -- is in the
+    # `opus_plan` contract, which sits in the SYSTEM blocks and is REPLACED on
+    # the next turn. This message is appended to `messages` and is carried for
+    # the rest of the request, so every sentence here is paid for again on
+    # every repair and review turn that follows.
     lines.append(
-        "You now have the COMPLETE field dictionary, the grains and their "
-        "join warnings, the measured coverage, the sample rows and the "
-        "execution contract. Ownership is settled and is not reopened here.")
-    lines.append(
-        "Write the analysis plan and the SQL for its FIRST step only. Every "
-        "field you name must be in the dictionary; a field that is not there "
-        "is not there, and neither a near-name nor a plausible one may stand "
-        "in for it. If the dictionary shows the question needs a choice only "
-        "the user can make, ask it. If it shows this data cannot answer the "
-        "question, say so and stop -- do not approximate it.")
+        f"Be concise: at most {bounds.subquestions} subquestions, "
+        f"{bounds.fields_required} fields, {bounds.steps} steps, canonical "
+        f"field names only.")
+    return lines
 
-    data = conversation.ask(
-        contract="opus_plan", user="\n\n".join(lines), schema=PLAN_SCHEMA,
-        tool_name="analysis_plan",
-        description="The analysis plan and the SQL for its first step.",
-        purpose="opus_plan")
+
+def plan_first_submission(conversation: Conversation,
+                          packet: CockpitContextPacket,
+                          decision: K.FunctionalityDecision, *,
+                          bounds: K.PlanBounds | None = None,
+                          on_retry: Any = None) -> dict[str, Any]:
+    """STAGE B. The first analysis, planned with the complete dictionary.
+
+    Reached only for `query_mode = DATA_ANALYSIS` and `owner = COCKPIT` that
+    also passed the server's score test. This is a NEW conversation over the
+    full packet, so the cached prefix it establishes is the one every repair
+    and review turn of this request will reuse.
+
+    Three ways out, all of them explicit: the first step, a targeted
+    clarification, or an honest explanation that this data cannot answer it.
+    There is no fourth, and in particular there is no branch that approximates
+    an answer because the dictionary disappointed it.
+
+    Truncation, and the one retry
+    -----------------------------
+    A planning reply that reaches the output allowance is INCOMPLETE. It is
+    not sent for execution, it is not treated as a plan, and it does not
+    consume an execution submission -- none has been submitted yet.
+
+    Instead the turn is rolled out of the conversation and Opus is asked ONCE
+    more, with the same context, a notice that its previous response overran,
+    and the instruction to return the smallest complete valid plan. The retry
+    is a provider call and is charged as one; it is not a second analysis
+    round and it does not reset anything.
+
+    OPUS writes that plan. This function has no branch that composes one, and
+    a second truncation raises `PlanTruncated` rather than producing something
+    of its own.
+    """
+    bounds = bounds or K.PLAN_BOUNDS
+    brief = _planning_brief(packet, decision, bounds)
+
+    try:
+        data = conversation.ask(
+            contract="opus_plan", user="\n\n".join(brief), schema=PLAN_SCHEMA,
+            tool_name="analysis_plan",
+            description="The analysis plan and the SQL for its first step.",
+            purpose="opus_plan")
+        attempts, regenerated = 1, False
+    except OutputTruncated as first:
+        logger.info("The Cockpit planning response was truncated at %s "
+                    "tokens; asking for a compact plan once.", first.limit)
+        if on_retry is not None:
+            on_retry(first)
+        compact = list(brief)
+        compact.append(
+            "YOUR PRIOR PLANNING RESPONSE EXCEEDED THE OUTPUT ALLOWANCE and "
+            "was discarded unread. Return the SMALLEST COMPLETE VALID PLAN. "
+            "Do not explain the catalogue, do not repeat field definitions, "
+            "do not justify each field, do not discuss alternatives you are "
+            "not taking, and do not write any final-answer prose. Name the "
+            "fields, state the method in two or three sentences, and write "
+            "the SQL.")
+        try:
+            data = conversation.ask(
+                contract="opus_plan_compact", user="\n\n".join(compact),
+                schema=PLAN_SCHEMA, tool_name="analysis_plan",
+                description="The smallest complete valid execution plan.",
+                purpose="opus_plan_compact")
+        except OutputTruncated as second:
+            # Two attempts is the whole allowance. There is no third, and
+            # nothing here writes the plan the model could not finish.
+            raise PlanTruncated(
+                f"The analysis plan did not fit the {second.limit}-token "
+                f"response allowance, and the one permitted compact "
+                f"regeneration did not either. Nothing was executed.",
+                attempts=2, limit=second.limit) from second
+        attempts, regenerated = 2, True
 
     action = str(data.get("action") or "submit_the_first_step")
-    plan = _plan_from(data.get("plan"), decision)
+    plan_raw, plan_bounded = K.bound_plan(data.get("plan"), bounds)
+    steps_raw, steps_bounded = K.bound_steps(data.get("steps"), bounds)
+    plan = _plan_from(plan_raw, decision)
     submission = None
     if action == "submit_the_first_step":
-        submission = _submission_from(data.get("steps"), plan=plan,
+        submission = _submission_from(steps_raw, plan=plan,
                                       analysis_round=1, submission_number=0)
         if submission is None:
             # It said it was submitting a step and did not supply one. That is
@@ -859,6 +1013,9 @@ def plan_first_submission(conversation: Conversation,
         "clarification_question": str(data.get("clarification_question") or ""),
         "clarification_options": as_text_list(data.get("clarification_options")),
         "explanation": str(data.get("explanation") or ""),
+        "attempts": attempts,
+        "regenerated": regenerated,
+        "bounds_applied": plan_bounded + steps_bounded,
     }
 
 

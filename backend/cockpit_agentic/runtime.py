@@ -82,6 +82,9 @@ class Outcome:
     repair_audits: list[dict[str, Any]] = field(default_factory=list)
     answer_checks: list[dict[str, Any]] = field(default_factory=list)
     models: dict[str, Any] = field(default_factory=dict)
+    #: How the analysis plan was arrived at: generations, whether the compact
+    #: regeneration ran, and what the bounds trimmed.
+    planning: dict[str, Any] = field(default_factory=dict)
     exchange: K.Exchange | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -102,6 +105,7 @@ class Outcome:
             "python_execution": list(self.python_audit),
             "repair_context_audits": list(self.repair_audits),
             "answer_validation": list(self.answer_checks),
+            "planning": dict(self.planning),
             "models": dict(self.models),
         }
 
@@ -171,6 +175,11 @@ class Runtime:
         self.answer_checks: list[dict[str, Any]] = []
         #: The bound that makes the rewrite ONE. Nothing decrements it.
         self.answer_rewrites = 0
+        #: How the plan was arrived at: how many generations it took, whether
+        #: the compact regeneration was used, and what the bounds trimmed.
+        #: Reported, because a plan that was cut to fit is a fact about the
+        #: analysis and not something to absorb quietly.
+        self.planning: dict[str, Any] = {}
         # Resolved at construction, so a misconfigured deployment is caught
         # before any work is done -- but REPORTED through `run`, because a
         # constructor that raises gives the caller an exception where the rest
@@ -204,6 +213,25 @@ class Runtime:
             round=max(1, self.ledger.analysis_rounds),
             round_max=self.ledger.limits.analysis_rounds))
 
+    def _planning_truncated(self, truncation: Any) -> None:
+        """One compact regeneration is about to be asked for.
+
+        The user sees work being refined. They do not see `max_tokens`, a stop
+        reason, a schema or anything else about how the provider ended a turn:
+        section 11 wants progress that names the actual work, and "the model
+        hit its output limit" is not work, it is plumbing. The internals are
+        recorded in `planning` and in `tokens.turns` for an operator.
+        """
+        self.progress.append("Refining the analysis plan")
+        self.machine.history.append(
+            {"state": self.machine.state,
+             "why": "the planning response reached the output allowance; one "
+                    "compact regeneration was requested"})
+        logger.info("Cockpit planning truncated at %s tokens (%s); one "
+                    "compact regeneration follows.",
+                    getattr(truncation, "limit", "?"),
+                    getattr(truncation, "purpose", "?"))
+
     def cancel(self) -> None:
         self.ledger.cancel()
 
@@ -218,6 +246,29 @@ class Runtime:
                              recent_exchanges=recent_exchanges)
         except BudgetExceeded as e:
             return self._budget_stop(e, question)
+        except opus_mod.PlanTruncated as e:
+            # Section 42: one terminal state per guardrail. The output
+            # allowance is a guardrail, and it is not the input cap -- an
+            # operator sent to CONTEXT_TOO_LARGE would look at the packet,
+            # which was never the problem.
+            #
+            # Nothing was executed and no execution submission was consumed:
+            # none had been submitted when the plan failed to arrive.
+            return self._finish(
+                st.STOPPED_OUTPUT_LIMIT,
+                _stop_envelope(
+                    reason=K.PLAN_OUTPUT_TRUNCATED, narrative=str(e),
+                    understood=question,
+                    tried=[f"the analysis plan was requested {e.attempts} "
+                           f"times, and each response reached the "
+                           f"{e.limit:,}-token response allowance"],
+                    help_text=(
+                        "Nothing is wrong with the question and rewording it "
+                        "is unlikely to help: what did not fit was the "
+                        "model's own plan, not anything you asked for. Deep "
+                        "mode allows a longer response where an analysis "
+                        "genuinely needs one, and an operator can see the two "
+                        "attempts in this request's record.")))
         except opus_mod.OpusUnavailable as e:
             # Section 17 and 18: no hidden fallback to the old deterministic
             # engine, and no canned decomposition standing in for a missing
@@ -452,9 +503,20 @@ class Runtime:
         self.conversation = conversation
         self.conversations.append(conversation)
 
+        # The planning turn is bounded: a plan is executable instructions, not
+        # a credit memo, and the step cap comes from the ledger rather than
+        # being repeated here.
         planned = opus_mod.plan_first_submission(
-            conversation, self.context_packet, self.decision)
+            conversation, self.context_packet, self.decision,
+            bounds=K.bounds_for(self.ledger.limits),
+            on_retry=self._planning_truncated)
         self.plan = planned["plan"]
+        self.planning = {
+            "attempts": planned["attempts"],
+            "regenerated": planned["regenerated"],
+            "bounds": K.bounds_for(self.ledger.limits).to_dict(),
+            "bounds_applied": list(planned["bounds_applied"]),
+        }
         if planned["action"] == "ask_a_targeted_clarification":
             return self._clarify(planned["clarification_question"],
                                  planned["clarification_options"])
@@ -1030,6 +1092,7 @@ class Runtime:
             failures=self.failures, budget=self.ledger.to_dict(),
             machine={**self.machine.to_dict(), "progress": self.progress},
             context=self._context_report(),
+            planning=dict(self.planning),
             models=self.models.to_dict() if self.models else {},
             python_audit=list(self.python_audit),
             repair_audits=list(self.repair_audits),
@@ -1071,6 +1134,7 @@ class Runtime:
             machine={**self.machine.to_dict(), "progress": self.progress},
             context=self._context_report(),
             tokens=self._token_report(),
+            planning=dict(self.planning),
             python_audit=list(self.python_audit),
             repair_audits=list(self.repair_audits),
             answer_checks=list(self.answer_checks),

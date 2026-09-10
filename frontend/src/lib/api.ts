@@ -8289,6 +8289,16 @@ export type CockpitV3Answer = {
   thread_id: string;
   history: Record<string, unknown>;
   summary_updated: boolean;
+  /** How the analysis plan was arrived at: how many generations it took,
+   *  whether the one compact regeneration ran after a truncated reply, and
+   *  what the orchestration bounds trimmed. Empty for a request that never
+   *  reached planning. Operator detail — not shown in the progress line. */
+  planning: {
+    attempts: number;
+    regenerated: boolean;
+    bounds: Record<string, number>;
+    bounds_applied: string[];
+  } | Record<string, never>;
   /** Present and non-empty only when this thread's stored rolling summary had
    *  to be repaired before use: which fields were rebuilt from a malformed
    *  value and which could not be and were cleared. Reported rather than

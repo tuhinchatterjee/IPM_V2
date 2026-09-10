@@ -301,7 +301,6 @@ away, which is why `SUMMARIZING` is excluded.
 
 | Event | Condition | Next | Side effect |
 |---|---|---|---|
-| no Cockpit provider credential | `COCKPIT_ANTHROPIC_API_KEY` is unset or empty | `PROVIDER_CREDENTIAL_MISSING` | the stop names the variable and never the value; no fallback to ANTHROPIC_API_KEY or any other credential |
 | deadline reached | clock past the request deadline | `STOPPED_TIME_LIMIT` | the stop names the deadline |
 | user cancelled | cancel flag set on the ledger | `CANCELLED` | in-flight work is stopped; usage is retained |
 | token ceiling reached | cumulative input would exceed it | `STOPPED_TOKEN_LIMIT` | the stop names the ceiling |
@@ -309,8 +308,10 @@ away, which is why `SUMMARIZING` is excluded.
 | model call ceiling reached | no provider calls remain | `STOPPED_EXECUTION_LIMIT` | the stop names what was tried |
 | provider failed | the provider raised | `PROVIDER_ERROR` | no deterministic substitute is produced |
 | model roles unconfigured | either role is unset | `MODEL_CONFIGURATION_MISSING` | the stop names the variable |
+| no Cockpit provider credential | COCKPIT_ANTHROPIC_API_KEY is unset or empty | `PROVIDER_CREDENTIAL_MISSING` | the stop names the variable and never the value; no fallback to ANTHROPIC_API_KEY or any other credential |
 | model refused by provider | the provider will not serve it | `MODEL_UNAVAILABLE` | the stop names the id |
 | packet will not fit | measured above the input cap | `CONTEXT_TOO_LARGE` | nothing is sent |
+| the reply would not fit twice | the model's response reached the output allowance, and the one permitted compact regeneration did too | `STOPPED_OUTPUT_LIMIT` | the partial response is discarded, not executed; no execution submission is consumed and this application writes no replacement |
 | pinned release unavailable | the release cannot be read | `DATA_UNAVAILABLE` | no silent switch to another release |
 | forbidden operation attempted | the engine or sandbox refused a boundary violation | `STOPPED_SECURITY` | the attempt is recorded; nothing runs |
 | unexpected application failure | an unhandled exception | `INTERNAL_ERROR` | stage and error id recorded; no secrets, no stack trace, no fallback |
@@ -330,8 +331,10 @@ away, which is why `SUMMARIZING` is excluded.
 | `STOPPED_COST_LIMIT` |
 | `STOPPED_TIME_LIMIT` |
 | `STOPPED_SECURITY` |
+| `STOPPED_OUTPUT_LIMIT` |
 | `MODEL_CONFIGURATION_MISSING` |
 | `MODEL_UNAVAILABLE` |
+| `PROVIDER_CREDENTIAL_MISSING` |
 | `PROVIDER_ERROR` |
 | `DATA_UNAVAILABLE` |
 | `CONTEXT_TOO_LARGE` |
@@ -340,9 +343,10 @@ away, which is why `SUMMARIZING` is excluded.
 | `CANCELLED` |
 | `INTERNAL_ERROR` |
 
-`INSUFFICIENT_DATA`, `EXECUTION_FAILED`, `PROVIDER_ERROR` and
-`PROVIDER_CREDENTIAL_MISSING` are this implementation's additions to the
-specification's list. Each is distinct from its nearest neighbour:
+`INSUFFICIENT_DATA`, `EXECUTION_FAILED`, `PROVIDER_ERROR`,
+`PROVIDER_CREDENTIAL_MISSING` and `STOPPED_OUTPUT_LIMIT` are this
+implementation's additions to the specification's list. Each is distinct from
+its nearest neighbour:
 `INSUFFICIENT_DATA` is a readable domain that does not hold the answer, where
 `DATA_UNAVAILABLE` is an unreadable release; `EXECUTION_FAILED` is every
 attempt failing for a reason inside the analysis, where
@@ -352,7 +356,10 @@ exist here and `INTERNAL_ERROR` is this application's own defect; and
 `PROVIDER_CREDENTIAL_MISSING` is nobody having configured the Cockpit's own
 credential, where `MODEL_CONFIGURATION_MISSING` is nobody having said which
 model answers — one sends an operator to `COCKPIT_ANTHROPIC_API_KEY` and the
-other to the two model-role variables.
+other to the two model-role variables. `STOPPED_OUTPUT_LIMIT` is the model's
+REPLY not fitting its allowance twice, where `CONTEXT_TOO_LARGE` is the packet
+not fitting the input cap — opposite ends of the same call, and an operator
+sent to the wrong one looks at something that was never the problem.
 
 ### Why no request can run forever
 

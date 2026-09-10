@@ -88,8 +88,10 @@ CONTEXT_VERSION = "3.1.0"
 
 #: The prompt set version. Bumped when any file under `prompts/` changes.
 #: 3.1.0: `opus_gate_and_plan` became `opus_gate` and `opus_plan`, one for each
-#: stage of the context.
-PROMPT_VERSION = "3.1.0"
+#: stage of the context. 3.2.0: `opus_plan` asks for an execution plan rather
+#: than a credit memo, and `opus_plan_compact` is the one regeneration after a
+#: reply that overran its output allowance.
+PROMPT_VERSION = "3.2.0"
 
 #: The one runtime business domain. Every catalog entry, artifact, sample row
 #: and Python input carries it, and anything that does not is refused.

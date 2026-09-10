@@ -72,6 +72,7 @@ test("every governed terminal state is a supported outcome with its own explanat
     "STOPPED_TIME_LIMIT",
     "STOPPED_EXECUTION_LIMIT",
     "STOPPED_ANALYSIS_LIMIT",
+    "STOPPED_OUTPUT_LIMIT",
     "MODEL_UNAVAILABLE",
     "DATA_UNAVAILABLE",
     "PARTIAL",
@@ -98,6 +99,21 @@ test("a budget stop renders the backend's own sentence, not a generic outage", (
 test("a partial answer is still an answer, and a redirect is still a redirect", () => {
   assert.equal(settlementOf(payload("answer", "PARTIAL")), "answer");
   assert.equal(settlementOf(payload("referral", "REDIRECTED")), "referral");
+});
+
+test("a plan the model could not fit in its allowance is a supported stop", () => {
+  // Not a transport error and not CONTEXT_TOO_LARGE: the packet was fine, the
+  // REPLY overran. It arrives as an envelope with the server's own sentence.
+  assert.ok(isSupportedStop("STOPPED_OUTPUT_LIMIT"));
+  const stop = payload(
+    "stop",
+    "STOPPED_OUTPUT_LIMIT",
+    "The analysis plan did not fit the 4,096-token response allowance, and " +
+      "the one permitted compact regeneration did not either. Nothing was " +
+      "executed.",
+  ) as unknown as { answer: { narrative: string } };
+  assert.equal(settlementOf(stop as never), "stop");
+  assert.match(stop.answer.narrative, /Nothing was executed/);
 });
 
 test("the terminal list is the server's, and nothing invented sits in it", () => {

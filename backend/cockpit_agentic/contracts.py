@@ -142,6 +142,11 @@ NO_PROGRESS_DUPLICATE = "NO_PROGRESS_DUPLICATE"
 #: unserveable model is not a degraded mode -- it is the end of the request.
 MODEL_CONFIGURATION_MISSING = "MODEL_CONFIGURATION_MISSING"
 MODEL_UNAVAILABLE = "MODEL_UNAVAILABLE"
+#: The PLANNING response reached the output allowance and stopped mid-answer.
+#: Its own reason, distinct from a provider failure: the provider did exactly
+#: what it was told, and the partial plan is not a smaller plan -- it is half
+#: of one, and half a SELECT is not something this application may run.
+PLAN_OUTPUT_TRUNCATED = "PLAN_OUTPUT_TRUNCATED"
 
 ERROR_CATEGORIES = (
     SYNTAX_ERROR, UNRESOLVED_FIELD, UNRESOLVED_RELATION, INVALID_FILTER_VALUE,
@@ -185,6 +190,195 @@ def _require(condition: bool, message: str) -> None:
 
 def _clean(value: Any) -> str:
     return str(value or "").strip()
+
+
+# ------------------------------------------------ bounds on a PLANNING reply
+
+#: How long a plan field may be, and how many entries it may have.
+#:
+#: These are ORCHESTRATION CONTROLS, not product semantics. Nothing here is
+#: shown to a user, nothing here is a claim about what a good analysis looks
+#: like, and none of it constrains the SQL: a query is exactly as long as
+#: correctness requires it to be.
+#:
+#: They exist because a planning response is not an answer. Live UAT put
+#: "Which sectors saw the largest increase in Stage 2 exposure over the latest
+#: year?" -- one aggregation and one ranking -- into a 4,096-token planning
+#: reply that the provider cut off mid-answer, because the contract asked for
+#: narrative reasoning, per-field justification and a discussion of
+#: alternatives at the moment the model was supposed to be writing executable
+#: instructions. The prose was not wrong; it was in the wrong turn. The final
+#: answer is where interpretation belongs, and its allowance is untouched.
+@dataclass(frozen=True)
+class PlanBounds:
+    """The size of a PLANNING response, as data."""
+
+    subquestions: int = 5
+    fields_required: int = 30
+    joins_required: int = 10
+    assumptions: int = 8
+    #: Overridden per mode from `Limits.steps_per_submission`, which is
+    #: already 6 in Standard and 8 in Deep. Stated here so the plan contract
+    #: and the execution ledger cannot drift apart.
+    steps: int = 6
+    method_summary_chars: int = 600
+    alternative_method_chars: int = 400
+    missingness_handling_chars: int = 400
+    assumption_chars: int = 200
+    plan_step_chars: int = 200
+    subquestion_chars: int = 200
+    step_purpose_chars: int = 300
+    #: A canonical field name. Long enough for `relation.column` on this
+    #: domain's longest names, short enough that a definition cannot hide in
+    #: one.
+    field_name_chars: int = 80
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+PLAN_BOUNDS = PlanBounds()
+
+
+def bounds_for(limits: Any = None) -> PlanBounds:
+    """The bounds for a mode. Only the step count varies, and it comes from
+    the ledger rather than being repeated here."""
+    steps = getattr(limits, "steps_per_submission", 0) or PLAN_BOUNDS.steps
+    return PlanBounds(steps=int(steps))
+
+
+#: What separates a canonical name from a description someone attached to it.
+#: An em dash, an en dash, a hyphen with spaces around it, a colon followed by
+#: a space, or an opening parenthesis.
+_DESCRIPTION_SPLIT = re.compile(r"\s+[\u2014\u2013-]\s+|:\s+|\s+\(")
+
+
+def canonical_field_name(text: Any) -> str:
+    """The field name out of `"sector - the economic sector of the borrower"`.
+
+    The catalogue is INPUT. A plan references a field by its canonical name and
+    does not copy the dictionary's description of it back out; that is bytes
+    spent restating something the model was just given, and at 751 fields it is
+    how a planning reply reaches its output ceiling.
+
+    This does not invent a name and does not correct one. It takes the leading
+    identifier and drops the commentary someone attached to it, which loses
+    nothing: the SQL is what executes, and `fields_required` is the reference
+    list beside it.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    head = _DESCRIPTION_SPLIT.split(raw, maxsplit=1)[0].strip()
+    # Nothing recognisable was split off and it is still prose-length: keep the
+    # first whitespace-delimited token rather than a sentence.
+    if len(head) > PLAN_BOUNDS.field_name_chars and " " in head:
+        head = head.split()[0]
+    return head.strip().strip(",.;`\"'")
+
+
+def _cap_text(value: Any, limit: int) -> tuple[str, bool]:
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text, False
+    # Cut at a word boundary where there is one nearby, so the kept part reads
+    # as a sentence rather than stopping mid-word.
+    cut = text[:limit]
+    space = cut.rfind(" ")
+    if space > limit - 40:
+        cut = cut[:space]
+    return cut.rstrip(" ,;:-") + "...", True
+
+
+def bound_plan(raw: Any, bounds: PlanBounds = PLAN_BOUNDS
+               ) -> tuple[dict[str, Any], list[str]]:
+    """Apply the bounds to a raw plan object, and say what was applied.
+
+    The schema states them so the model is told; this enforces them so a model
+    that did not follow the schema still produces a plan the runtime can hold.
+    Everything trimmed is REPORTED -- `bound_plan` never quietly shortens
+    something and lets it read as what the model wrote.
+
+    What is never touched: the SQL. `steps` here are the plan's own prose
+    descriptions of its steps, not the executable ones.
+    """
+    if not isinstance(raw, dict):
+        return {}, []
+    out = dict(raw)
+    applied: list[str] = []
+
+    def cap_list(key: str, limit: int) -> list[Any]:
+        values = as_text_list(out.get(key))
+        if len(values) > limit:
+            applied.append(f"{key} kept the first {limit} of {len(values)}")
+            values = values[:limit]
+        return values
+
+    subquestions = cap_list("subquestions", bounds.subquestions)
+    out["subquestions"] = [
+        _cap_text(v, bounds.subquestion_chars)[0] for v in subquestions]
+
+    names, rewritten = [], 0
+    for value in cap_list("fields_required", bounds.fields_required):
+        name = canonical_field_name(value)
+        if name and name != str(value).strip():
+            rewritten += 1
+        if name:
+            names.append(name)
+    if rewritten:
+        applied.append(f"{rewritten} field reference(s) carried a description "
+                       f"and were reduced to the canonical name")
+    out["fields_required"] = names
+
+    out["joins_required"] = cap_list("joins_required", bounds.joins_required)
+
+    assumptions = cap_list("assumptions", bounds.assumptions)
+    out["assumptions"] = [_cap_text(a, bounds.assumption_chars)[0]
+                          for a in assumptions]
+
+    out["steps"] = [_cap_text(v, bounds.plan_step_chars)[0]
+                    for v in cap_list("steps", bounds.steps)]
+
+    for key, limit in (("method_summary", bounds.method_summary_chars),
+                       ("alternative_method", bounds.alternative_method_chars),
+                       ("missingness_handling",
+                        bounds.missingness_handling_chars)):
+        text, cut = _cap_text(out.get(key), limit)
+        out[key] = text
+        if cut:
+            applied.append(f"{key} was cut to {limit} characters")
+    return out, applied
+
+
+def bound_steps(raw: Any, bounds: PlanBounds = PLAN_BOUNDS
+                ) -> tuple[list[dict[str, Any]], list[str]]:
+    """Bound the EXECUTABLE steps: how many, and how long their purpose is.
+
+    The `code` is never shortened. A SELECT is as long as correctness needs it
+    to be, and a query trimmed to fit a budget is a query that returns the
+    wrong thing.
+    """
+    if not isinstance(raw, list):
+        return [], []
+    applied: list[str] = []
+    steps = list(raw)
+    if len(steps) > bounds.steps:
+        applied.append(f"steps kept the first {bounds.steps} of {len(steps)}")
+        steps = steps[:bounds.steps]
+    out = []
+    trimmed = 0
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        item = dict(step)
+        purpose, cut = _cap_text(item.get("purpose"), bounds.step_purpose_chars)
+        item["purpose"] = purpose
+        trimmed += 1 if cut else 0
+        out.append(item)
+    if trimmed:
+        applied.append(f"{trimmed} step purpose(s) were cut to "
+                       f"{bounds.step_purpose_chars} characters")
+    return out, applied
 
 
 # ------------------------------------------- text lists from model responses

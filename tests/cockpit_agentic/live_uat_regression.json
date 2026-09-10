@@ -8,9 +8,13 @@
       "expected_query_mode": "PRODUCT_HELP",
       "expected_owner": "COCKPIT",
       "expected_status": "COMPLETED",
-      "expected_stages_built": ["gate"],
+      "expected_stages_built": [
+        "gate"
+      ],
       "full_catalogue_sent": false,
-      "expected_opus_purposes": ["opus_gate"],
+      "expected_opus_purposes": [
+        "opus_gate"
+      ],
       "live_before": {
         "input_tokens": 60530,
         "output_allowance": 4096,
@@ -27,9 +31,13 @@
       "expected_query_mode": "THEORY_CONCEPT",
       "expected_owner": "COCKPIT",
       "expected_status": "COMPLETED",
-      "expected_stages_built": ["gate"],
+      "expected_stages_built": [
+        "gate"
+      ],
       "full_catalogue_sent": false,
-      "expected_opus_purposes": ["opus_gate"],
+      "expected_opus_purposes": [
+        "opus_gate"
+      ],
       "why": "A question about what a term means is answered from stable credit knowledge in the gate turn. Zero SQL, zero Python, zero execution submissions, zero analysis rounds -- structurally, because this branch never reaches the loop that consumes them."
     },
     {
@@ -38,10 +46,74 @@
       "expected_query_mode": "DATA_ANALYSIS",
       "expected_owner": "COCKPIT",
       "expected_status": "COMPLETED",
-      "expected_stages_built": ["gate", "analysis"],
+      "expected_stages_built": [
+        "gate",
+        "analysis"
+      ],
       "full_catalogue_sent": true,
-      "expected_opus_purposes": ["opus_gate", "opus_plan", "opus_review"],
+      "expected_opus_purposes": [
+        "opus_gate",
+        "opus_plan",
+        "opus_review"
+      ],
       "why": "This one needs the book. It is the only route that builds the second, full analytical packet -- and the packet it gets carries the COMPLETE field dictionary, unabridged, exactly as section 7.4 requires."
+    },
+    {
+      "case_id": "uat-4-stage2-increase-by-sector",
+      "question": "Which sectors saw the largest increase in Stage 2 exposure over the latest year?",
+      "expected_query_mode": "DATA_ANALYSIS",
+      "expected_owner": "COCKPIT",
+      "expected_status": "COMPLETED",
+      "expected_stages_built": [
+        "gate",
+        "analysis"
+      ],
+      "full_catalogue_sent": true,
+      "expected_opus_purposes": [
+        "opus_gate",
+        "opus_plan",
+        "opus_review"
+      ],
+      "live_before": {
+        "output_allowance": 4096,
+        "observed": "The planning response reached the 4,096-token output allowance and the provider cut it off mid-answer. The partial plan was discarded, nothing executed, and the request stopped at 'Planning the analysis'.",
+        "reached": [
+          "Reading the question",
+          "Understanding what is being asked",
+          "Gathering the Cockpit data catalogue",
+          "Checking this is a Cockpit question",
+          "Planning the analysis"
+        ],
+        "stopped_with": "The model's response was cut off at its 4096-token output limit so the opus_plan is incomplete."
+      },
+      "expected_plan": [
+        "identify the latest populated quarter",
+        "identify the quarter four quarters earlier",
+        "filter Stage 2",
+        "aggregate the exposure measure by sector",
+        "calculate the change",
+        "rank descending"
+      ],
+      "why": "One aggregation and one ranking. The planning turn writes executable instructions for it; the interpretation belongs in the answer turn, which has its own allowance."
+    },
+    {
+      "case_id": "uat-5-ead-by-sector",
+      "question": "What is total exposure at default by sector in the latest quarter?",
+      "expected_query_mode": "DATA_ANALYSIS",
+      "expected_owner": "COCKPIT",
+      "expected_status": "COMPLETED",
+      "expected_stages_built": [
+        "gate",
+        "analysis"
+      ],
+      "full_catalogue_sent": true,
+      "expected_opus_purposes": [
+        "opus_gate",
+        "opus_plan",
+        "opus_review"
+      ],
+      "why": "A single aggregation with no period arithmetic. If anything is a compact plan, this is."
     }
-  ]
+  ],
+  "plan_bounds_note": "The planning turn is bounded by contracts.PlanBounds and the bounds are stated in the schema and enforced in bound_plan/bound_steps. A planning reply that overruns is regenerated ONCE, compactly, by Opus; a second overrun stops the request as STOPPED_OUTPUT_LIMIT with zero execution submissions consumed. See tests/cockpit_agentic/test_plan_bounds.py."
 }

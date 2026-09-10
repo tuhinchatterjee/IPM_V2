@@ -92,6 +92,11 @@ PROVIDER_CREDENTIAL_MISSING = "PROVIDER_CREDENTIAL_MISSING"
 PROVIDER_ERROR = "PROVIDER_ERROR"
 DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
 CONTEXT_TOO_LARGE = "CONTEXT_TOO_LARGE"
+#: The model's REPLY would not fit the output allowance, twice. The mirror of
+#: CONTEXT_TOO_LARGE, which is about what goes in. Its own state because the
+#: remedy is a different one: the packet is not too big, the response was, and
+#: an operator sent to look at the input cap is an operator who does not fix it.
+STOPPED_OUTPUT_LIMIT = "STOPPED_OUTPUT_LIMIT"
 
 #: The data could not answer it, or the attempts could not.
 INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
@@ -105,6 +110,7 @@ TERMINAL: tuple[str, ...] = (
     COMPLETED, PARTIAL, REDIRECTED, UNSUPPORTED, WAITING_FOR_USER,
     STOPPED_EXECUTION_LIMIT, STOPPED_ANALYSIS_LIMIT, STOPPED_TOKEN_LIMIT,
     STOPPED_COST_LIMIT, STOPPED_TIME_LIMIT, STOPPED_SECURITY,
+    STOPPED_OUTPUT_LIMIT,
     MODEL_CONFIGURATION_MISSING, MODEL_UNAVAILABLE,
     PROVIDER_CREDENTIAL_MISSING, PROVIDER_ERROR, DATA_UNAVAILABLE, CONTEXT_TOO_LARGE, INSUFFICIENT_DATA, EXECUTION_FAILED,
     CANCELLED, INTERNAL_ERROR)
@@ -115,7 +121,8 @@ ALL_STATES: tuple[str, ...] = WORKING + TERMINAL
 #: enumerating them and missing one.
 STOPPED_BY_GUARDRAIL = frozenset({
     STOPPED_EXECUTION_LIMIT, STOPPED_ANALYSIS_LIMIT, STOPPED_TOKEN_LIMIT,
-    STOPPED_COST_LIMIT, STOPPED_TIME_LIMIT, STOPPED_SECURITY})
+    STOPPED_COST_LIMIT, STOPPED_TIME_LIMIT, STOPPED_SECURITY,
+    STOPPED_OUTPUT_LIMIT})
 
 #: A stop that happened before any analysis was possible, versus one that
 #: happened with findings in hand. The renderer says different things.
@@ -193,6 +200,13 @@ def _always(state: str) -> tuple[Edge, ...]:
              MODEL_UNAVAILABLE, "the stop names the id"),
         Edge(state, "packet will not fit", "measured above the input cap",
              CONTEXT_TOO_LARGE, "nothing is sent"),
+        Edge(state, "the reply would not fit twice",
+             "the model's response reached the output allowance, and the one "
+             "permitted compact regeneration did too",
+             STOPPED_OUTPUT_LIMIT,
+             "the partial response is discarded, not executed; no execution "
+             "submission is consumed and this application writes no "
+             "replacement"),
         Edge(state, "pinned release unavailable", "the release cannot be read",
              DATA_UNAVAILABLE, "no silent switch to another release"),
         Edge(state, "forbidden operation attempted",
@@ -457,7 +471,8 @@ __all__ = [
     "Machine", "NORMALIZING_1", "NORMALIZING_2", "PARTIAL", "PLANNING",
     "PROGRESS", "PROVIDER_ERROR", "RECEIVED", "REDIRECTED", "REVIEWING",
     "STOPPED_ANALYSIS_LIMIT", "STOPPED_BY_GUARDRAIL", "STOPPED_COST_LIMIT",
-    "STOPPED_EXECUTION_LIMIT", "STOPPED_SECURITY", "STOPPED_TIME_LIMIT",
+    "STOPPED_EXECUTION_LIMIT", "STOPPED_OUTPUT_LIMIT", "STOPPED_SECURITY",
+    "STOPPED_TIME_LIMIT",
     "STOPPED_TOKEN_LIMIT", "STOPPED_WITHOUT_ANSWER", "SUMMARIZING",
     "TERMINAL", "TRANSITIONS", "UNSUPPORTED", "VALIDATING",
     "WAITING_FOR_USER", "WORKING", "edges_from", "progress", "registry"]

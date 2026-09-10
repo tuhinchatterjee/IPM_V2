@@ -65,6 +65,9 @@ export const V3_TERMINAL_STATUSES = [
   "STOPPED_TIME_LIMIT",
   "STOPPED_EXECUTION_LIMIT",
   "STOPPED_ANALYSIS_LIMIT",
+  // The model's REPLY would not fit its allowance, twice — not the packet not
+  // fitting the input cap, which is CONTEXT_TOO_LARGE below.
+  "STOPPED_OUTPUT_LIMIT",
   "STOPPED_SECURITY",
   "MODEL_CONFIGURATION_MISSING",
   "MODEL_UNAVAILABLE",

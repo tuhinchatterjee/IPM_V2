@@ -207,6 +207,15 @@ DOCUMENTED_EXTRAS = {
                                    "sends an operator to "
                                    "COCKPIT_ANTHROPIC_API_KEY and the other "
                                    "to the two model-role variables.",
+    "STOPPED_OUTPUT_LIMIT": "The model's REPLY reached its output allowance "
+                            "and stopped mid-answer, twice -- the first "
+                            "response and the one permitted compact "
+                            "regeneration. Distinct from CONTEXT_TOO_LARGE, "
+                            "which is the PACKET not fitting the input cap: "
+                            "opposite ends of the same call, and an operator "
+                            "sent to the wrong one looks at something that "
+                            "was never the problem. Nothing partial is "
+                            "executed and no execution submission is spent.",
 }
 
 
@@ -229,7 +238,11 @@ def test_one_terminal_state_per_guardrail():
     assert st.STOPPED_BY_GUARDRAIL == {
         st.STOPPED_EXECUTION_LIMIT, st.STOPPED_ANALYSIS_LIMIT,
         st.STOPPED_TOKEN_LIMIT, st.STOPPED_COST_LIMIT,
-        st.STOPPED_TIME_LIMIT, st.STOPPED_SECURITY}
+        st.STOPPED_TIME_LIMIT, st.STOPPED_SECURITY,
+        # The OUTPUT allowance is a guardrail too, and it is not the input
+        # cap: CONTEXT_TOO_LARGE sends an operator to the packet, which is
+        # not what overran when a planning REPLY did.
+        st.STOPPED_OUTPUT_LIMIT}
 
 
 # ============================== the specific proofs section 43 asks for

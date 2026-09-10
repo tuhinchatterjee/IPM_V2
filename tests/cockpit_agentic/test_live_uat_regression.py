@@ -143,10 +143,115 @@ def test_the_pd_increase_question_gets_the_full_analytical_packet(
     assert "pd_pit_12m" not in json.dumps(gate, default=str)
 
 
+# --------------------------------------------------------------- case four
+
+STAGE2_SQL = (
+    "SELECT sector_name, "
+    "sum(CASE WHEN reporting_quarter = '2026Q2' THEN ead_reported ELSE 0 END) "
+    "- sum(CASE WHEN reporting_quarter = '2025Q2' THEN ead_reported ELSE 0 END)"
+    " AS change_rcy FROM cockpit_facility_quarter WHERE ifrs9_stage = 2 "
+    "AND reporting_quarter IN ('2025Q2', '2026Q2') GROUP BY 1 "
+    "ORDER BY 2 DESC")
+
+
+def _stage_two_run():
+    """The second live failure, and the recovery.
+
+    It stopped at "Planning the analysis" because the planning reply reached
+    the 4,096-token output allowance and the provider cut it off. The plan for
+    one aggregation and one ranking is now a few hundred tokens, and the
+    request runs to an answer.
+    """
+    case = CASES["uat-4-stage2-increase-by-sector"]
+    plan = {"plan_id": "plan-s2",
+            "subquestions": [case["question"]],
+            "fields_required": ["sector_name", "reporting_quarter",
+                                "ifrs9_stage", "ead_reported"],
+            "method_summary": "Sum reported EAD for Stage 2 positions in the "
+                              "latest populated quarter and the quarter four "
+                              "earlier, by sector, and rank the difference.",
+            "expected_output_grain": "one row per sector",
+            "expected_units": "INR crore"}
+    provider = FakeProvider(
+        structured_script=_sonnet(case["question"]),
+        converse_script=[(lambda _r, t=t: t) for t in (
+            {"decision": "PROCEED_COCKPIT", "query_mode": K.DATA_ANALYSIS,
+             "owner": K.OWNER_COCKPIT, "scores": scores(),
+             "public_explanation": "the stored Stage 2 book is the Cockpit's"},
+            {"action": "submit_the_first_step", "plan": plan,
+             "steps": [{"step_id": "s1", "language": "sql",
+                        "code": STAGE2_SQL,
+                        "purpose": "Stage 2 EAD by sector, both quarters"}]},
+            {"decision": "ANSWER",
+             "per_subquestion": [{"subquestion": case["question"],
+                                  "answered": True}],
+             "answer": {"narrative": "Stage 2 exposure rose most in the "
+                                     "sectors in the table.",
+                        "complete": True}})])
+    return provider, case, plan
+
+
+def test_the_stage_two_question_now_plans_compactly_and_reaches_execution(
+        runtime_factory):
+    provider, case, plan = _stage_two_run()
+    outcome = runtime_factory(provider).run(case["question"])
+    _check(case, provider, outcome)
+
+    # It planned in one turn, nothing was trimmed, and it ran.
+    assert outcome.planning["attempts"] == 1
+    assert outcome.planning["regenerated"] is False
+    assert outcome.planning["bounds_applied"] == []
+    assert outcome.results[0].steps[0].executed_code == STAGE2_SQL
+    assert outcome.budget["submissions_used"] == 1
+
+    # The BEFORE the fixture records, and the AFTER measured here.
+    before = case["live_before"]
+    assert before["output_allowance"] == \
+        L.STANDARD_LIMITS.max_opus_output_tokens
+    emitted = len(json.dumps(
+        {"action": "submit_the_first_step", "plan": plan,
+         "steps": [{"step_id": "s1", "language": "sql", "code": STAGE2_SQL,
+                    "purpose": "Stage 2 EAD by sector, both quarters"}]},
+        default=str)) // 4
+    assert emitted < 1_000
+    print(f"\n{case['case_id']}: planning output BEFORE reached "
+          f"{before['output_allowance']:,} tokens and was cut off -> AFTER "
+          f"~{emitted} tokens")
+
+
+def test_a_single_aggregation_plans_in_one_compact_turn(runtime_factory):
+    case = CASES["uat-5-ead-by-sector"]
+    sql = ("SELECT sector_name, sum(ead_reported) AS ead FROM "
+           "cockpit_facility_quarter WHERE reporting_quarter = '2026Q2' "
+           "GROUP BY 1 ORDER BY 2 DESC")
+    _c, provider, outcome = _run(
+        runtime_factory, "uat-5-ead-by-sector",
+        {"decision": "PROCEED_COCKPIT", "query_mode": K.DATA_ANALYSIS,
+         "owner": K.OWNER_COCKPIT, "scores": scores(),
+         "public_explanation": "stored exposure is the Cockpit's",
+         "plan": {"plan_id": "plan-ead", "subquestions": [case["question"]],
+                  "fields_required": ["sector_name", "ead_reported",
+                                      "reporting_quarter"],
+                  "method_summary": "Sum reported EAD by sector for the "
+                                    "latest populated quarter."},
+         "steps": [{"step_id": "s1", "language": "sql", "code": sql}]},
+        {"decision": "ANSWER",
+         "per_subquestion": [{"subquestion": case["question"],
+                              "answered": True}],
+         "answer": {"narrative": "Exposure by sector is in the table.",
+                    "complete": True}})
+    _check(case, provider, outcome)
+    assert outcome.planning["attempts"] == 1
+    assert len(outcome.results[0].steps) == 1
+
+
 # ------------------------------------------------------------- the fixture
 
 def test_the_fixture_says_what_a_mock_cannot_show():
     assert "proves nothing about" in FIXTURE["not_a_quality_claim"]
     assert "BLOCKED/UNVERIFIED" in FIXTURE["not_a_quality_claim"]
     assert set(CASES) == {"uat-1-who-are-you", "uat-2-pit-vs-ttc",
-                          "uat-3-largest-pd-increase"}
+                          "uat-3-largest-pd-increase",
+                          "uat-4-stage2-increase-by-sector",
+                          "uat-5-ead-by-sector"}
+    assert "STOPPED_OUTPUT_LIMIT" in FIXTURE["plan_bounds_note"]

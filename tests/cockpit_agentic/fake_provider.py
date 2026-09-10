@@ -25,6 +25,22 @@ from typing import Any, Callable
 from backend.llm.base import ConverseResult, LLMResult
 
 
+class _Truncate:
+    """A scripted turn that the provider cuts off at max_tokens.
+
+    Returned from a `converse_script` entry instead of a payload. The result is
+    what a real provider gives on truncation: a partial tool_use block, no
+    parsed tool call, and `stop_reason="max_tokens"`.
+    """
+
+    def __repr__(self) -> str:                              # pragma: no cover
+        return "TRUNCATE"
+
+
+#: The sentinel itself. `lambda _r: TRUNCATE` is one truncated turn.
+TRUNCATE = _Truncate()
+
+
 def two_stage(payload: dict[str, Any]) -> list[Any]:
     """Split one gate-and-plan payload into the two Opus stages.
 
@@ -128,6 +144,20 @@ class FakeProvider:
                 f"{purpose!r} (turn {len(self.requests)})")
         payload = self.converse_script.pop(0)(request)
         tool_name = (tools or [{}])[0].get("name", "tool")
+        if payload is TRUNCATE:
+            # What a real provider returns when the reply reaches max_tokens
+            # mid-answer: a partial tool_use block, no parsed call, and
+            # stop_reason="max_tokens". The partial block is deliberately
+            # included, because leaving it in the conversation is exactly the
+            # bug the caller has to avoid.
+            partial = Block(type="tool_use",
+                            id=f"toolu_{len(self.requests):02d}",
+                            name=tool_name, input={})
+            return ConverseResult(
+                assistant_blocks=[partial], text="", stop_reason="max_tokens",
+                tool_calls=[], model=self.model,
+                input_tokens=self.serialized_size(request) // 4,
+                output_tokens=max_tokens)
         block = Block(type="tool_use", id=f"toolu_{len(self.requests):02d}",
                       name=tool_name, input=payload)
         return ConverseResult(
