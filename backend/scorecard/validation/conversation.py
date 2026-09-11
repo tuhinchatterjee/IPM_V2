@@ -158,6 +158,27 @@ _TEST_WORDS: tuple[tuple[str, str], ...] = (
     ("matured", "DATA-MATURITY"),
     ("missing", "DATA-MISSING"),
     ("duplicate", "DATA-DUPLICATES"),
+    # The phrasings the §6 question set actually uses, each of which reached
+    # a "which part of the validation?" clarification because the vocabulary
+    # knew the statistic's NAME and not the question somebody asks for it.
+    ("predicted versus observed", "CAL-BAND"),
+    ("predicted vs observed", "CAL-BAND"),
+    ("by score band", "CAL-BAND"),
+    ("by risk band", "CAL-BAND"),
+    ("band level", "CAL-BAND"),
+    ("out of range", "DATA-MISSING"),
+    ("out-of-range", "DATA-MISSING"),
+    ("score distribution", "STAB-PSI"),
+    ("population shift", "STAB-PSI"),
+    ("reference population", "STAB-PSI"),
+    ("materially shifted", "STAB-PSI"),
+    ("characteristic drift", "STAB-CSI"),
+    ("inputs have drifted", "STAB-CSI"),
+    ("reconstruct", "IMPL-REPLICATE"),
+    ("reconstructed", "IMPL-REPLICATE"),
+    ("transformations", "IMPL-REPLICATE"),
+    ("exception", "USE-OVERRIDE-RATE"),
+    ("exceptions", "USE-OVERRIDE-RATE"),
 )
 
 #: Words that name a category. The categories' own titles are matched too;
@@ -229,17 +250,52 @@ def _words(question: str) -> str:
     return re.sub(r"\s+", " ", (question or "").strip().lower())
 
 
+def scorecard_words() -> tuple[tuple[str, str], ...]:
+    """The phrases that name a scorecard in THIS installation.
+
+    Read from the served registry rather than written down. A retail-only
+    product validates eight scorecards, one application and one behavioural
+    model per product, and "for the personal-finance application scorecard,
+    show AUC" resolved to `retail_application_champion` — a model id this
+    installation does not have, refused with a message listing the eight it
+    does. The right answer was in the registry the whole time.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return _SCORECARD_WORDS
+    from backend.retail import validation_models as retail_validation
+
+    return retail_validation.scorecard_phrases()
+
+
 def which_scorecard(question: str) -> str:
     """The model id the question names, or empty.
 
     Longest phrase first, so "retail behaviour scorecard" does not resolve to
-    the application scorecard on the strength of the word "retail".
+    the application scorecard on the strength of the word "retail", and
+    "personal finance behavioural" does not resolve on "behavioural" alone.
     """
-    text = _words(question)
-    for phrase, model_id in sorted(_SCORECARD_WORDS,
+    # A hyphen between two words is not a different word. "personal-finance
+    # application scorecard" is how the question set writes it and how people
+    # type it, and it resolved to nothing. Normalised here rather than in
+    # `_words`, because a test id — DISC-GINI, STAB-CSI — is matched by the
+    # same lowercased text and its hyphen is part of the name.
+    text = _words(question).replace("-", " ")
+    text = re.sub(r"\s+", " ", text)
+    for phrase, model_id in sorted(scorecard_words(),
                                    key=lambda p: -len(p[0])):
-        if phrase in text:
+        if phrase.replace("-", " ") in text:
             return model_id
+    # A phrase list can only match what is adjacent. Where the installation
+    # can read the product and the kind apart, it does — and only resolves
+    # when the question names both.
+    from backend.retail import profile
+
+    if profile.is_retail():
+        from backend.retail import validation_models as retail_validation
+
+        return retail_validation.resolve_scorecard(question)
     return ""
 
 
@@ -255,6 +311,27 @@ def which_test(question: str) -> str:
         if re.search(rf"\b{re.escape(phrase)}\b", text):
             return test_id
     return ""
+
+
+def which_tests(question: str) -> tuple[str, ...]:
+    """Every test the question names, in registry order.
+
+    "Show AUC, Gini and KS for the latest fully observed cohort" names three,
+    and answering it with one — whichever synonym happened to be longest —
+    answers a third of the question under a heading that does not say so.
+    """
+    text = _words(question)
+    found: list[str] = []
+    for test in test_registry.TESTS:
+        if test.test_id.lower() in text and test.test_id not in found:
+            found.append(test.test_id)
+    for phrase, test_id in sorted(_TEST_WORDS, key=lambda p: -len(p[0])):
+        if test_id in found:
+            continue
+        if re.search(rf"\b{re.escape(phrase)}\b", text):
+            found.append(test_id)
+    order = {t.test_id: i for i, t in enumerate(test_registry.TESTS)}
+    return tuple(sorted(found, key=lambda t: order.get(t, 0)))
 
 
 def which_category(question: str) -> str:
@@ -318,13 +395,26 @@ def read(question: str, *, model_id: str = "") -> Reading | None:
         return None
 
     wanted = which_scorecard(question) or model_id
+    named_tests = which_tests(question)
     test_id = which_test(question)
     category = which_category(question)
 
+    # Several statistics from one category is a request for that category.
+    # Running one of them and calling it the answer is how "show AUC, Gini and
+    # KS" came back as a Gini alone.
+    if len(named_tests) > 1 and not category:
+        categories = {test_registry.get(t).category for t in named_tests}
+        if len(categories) == 1:
+            category = categories.pop()
+            test_id = ""
+
     # --- questions about the module itself, before anything is run ---------
-    if any(phrase in text for phrase in
-           ("which scorecards", "what scorecards", "list the scorecards",
-            "what models", "which models")):
+    # "Which application and behavioural scorecards are present in this retail
+    # demo, by product and model version?" is the first question anybody asks
+    # this screen, and it matched none of these because the nouns are not
+    # adjacent. The words in between are adjectives, not a different question.
+    if re.search(r"\b(?:which|what|list(?: the)?|show(?: me)?|name)\b"
+                 r"[^.?]{0,60}?\b(?:scorecards|models)\b", text):
         return Reading(agent.LIST_MODELS,
                        because="the question asks what is validated here")
 
@@ -409,7 +499,7 @@ CHOICE_SCHEMA: dict[str, Any] = {
         "model_id": {
             "type": "string",
             "enum": [""] + [m.model_id for m in model_registry.all_models()],
-            "description": "Which of the three scorecards, or empty.",
+            "description": "Which scorecard, or empty.",
         },
         "test_id": {
             "type": "string",
@@ -423,7 +513,7 @@ CHOICE_SCHEMA: dict[str, Any] = {
         "in_scope": {
             "type": "boolean",
             "description": ("False when the question is not about validating "
-                            "one of the three scorecards."),
+                            "one of the served scorecards."),
         },
         "because": {
             "type": "string",
@@ -452,7 +542,7 @@ def _system() -> str:
         f"The scorecards:\n{scorecards}\n\n"
         f"The tools:\n{tools}\n\n"
         "Set in_scope false when the question is about anything other than "
-        "validating one of those three scorecards. Do not guess a scorecard "
+        "validating one of those scorecards. Do not guess a scorecard "
         "the question does not name and the screen has not selected — leave "
         "model_id empty and the product will ask.")
 

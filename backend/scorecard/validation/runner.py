@@ -197,6 +197,26 @@ def _read(model: model_registry.Model, dataset: str,
     return pd.concat(frames, ignore_index=True)
 
 
+def reference_population(model: model_registry.Model) -> "Population":
+    """The development population a stability test measures drift against.
+
+    Two shapes, because two installations hold it two ways. A purpose-built
+    validation extract keeps it in its own table, and every period of that
+    table is the reference. A governed book holds it as a WINDOW — the months
+    the model was fitted on — and comparing such a book against every period
+    of itself measures nothing, because the current period is inside the
+    reference.
+    """
+    if model.reference_periods:
+        return population(model, periods=tuple(model.reference_periods),
+                          dataset=model.reference_dataset or model.dataset,
+                          matured_only=False)
+    return population(
+        model, periods=available_periods(model,
+                                         dataset=model.reference_dataset),
+        dataset=model.reference_dataset)
+
+
 def population(model: model_registry.Model, *, periods: tuple[str, ...] = (),
                dataset: str = "", segment: str = "",
                segment_field: str = "",
@@ -218,18 +238,78 @@ def population(model: model_registry.Model, *, periods: tuple[str, ...] = (),
     window and 0.49 on the current one.
     """
     domains.require_validation_domain(model.domain)
+    deduplicate = False
     if periods:
         wanted = periods
     elif matured_only:
         wanted = matured_periods(model)
+        if model.repeated_snapshots and wanted:
+            # The same facility is in every one of these months, with
+            # overlapping twelve-month outcome windows. Concatenating them
+            # does not enlarge the sample, it repeats it — a Gini over 96,661
+            # rows describing 7,700 facilities is a statistic about the book's
+            # tenure distribution as much as about the model.
+            #
+            # Nor is one month the answer. The latest closed cohort of the
+            # home-finance book carries 21 defaults, and every discrimination
+            # and calibration test on it is refused for insufficient sample,
+            # while the book holds thirteen closed cohorts.
+            #
+            # So: every closed cohort, each SUBJECT once, at its most recent
+            # matured observation. No facility is counted twice and none is
+            # thrown away — 31 defaults for home finance, 277 for personal
+            # finance where one month had 135.
+            deduplicate = bool(model.subject_key)
+            if not deduplicate:
+                wanted = (wanted[-1],)
     else:
+        # A distribution question — PSI, CSI, band occupancy — is about the
+        # book as it stands, which is one month and the newest one.
         wanted = available_periods(model)
+        if model.repeated_snapshots and wanted:
+            wanted = (wanted[-1],)
     if not wanted:
         raise PopulationError(
             f"{model.name} has no periods with a realised outcome."
             if matured_only else f"{model.name} has no data.")
 
-    frame = _read(model, dataset or model.dataset, wanted)
+    frame = _read(model, dataset or model.dataset, wanted,
+                  columns=list(model.read_columns()) or None)
+    # The model's OWN population, before any cut a validator asked for.
+    #
+    # Eight scorecards are validated against one book here — an application
+    # and a behavioural model for each product — and each was fitted on its
+    # own product. Reading the whole book for one of them would report the
+    # personal-finance scorecard's discrimination over a population three
+    # quarters of which it never scored.
+    if model.scope_field:
+        if model.scope_field not in frame.columns:
+            raise PopulationError(
+                f"{model.scope_field} is not a field of "
+                f"{dataset or model.dataset}, so {model.name} cannot be "
+                "restricted to the population it was fitted on.")
+        frame = frame[frame[model.scope_field] == model.scope_value]
+    for field_name, value in model.eligibility:
+        if field_name not in frame.columns:
+            raise PopulationError(
+                f"{field_name} is not a field of {dataset or model.dataset}, "
+                f"so {model.name}'s population cannot be scoped to the rows "
+                "it is held accountable for.")
+        frame = frame[frame[field_name] == value]
+    # AFTER every filter, deliberately. Keeping one row per subject before
+    # the eligibility test picks that subject's latest row and then discards
+    # the subject when that row is not eligible — which drops the facility
+    # and, with it, a default it recorded in an earlier cohort. Personal
+    # finance lost 142 of its 277 events that way.
+    if deduplicate and model.subject_key in frame.columns:
+        frame = (frame.sort_values(model.period_field)
+                 .drop_duplicates(model.subject_key, keep="last"))
+    if model.scope_field or model.eligibility:
+        if frame.empty:
+            raise PopulationError(
+                f"{model.name} has no rows: {model.scope_field} = "
+                f"{model.scope_value} matched nothing in "
+                f"{', '.join(wanted)}.")
     if segment and segment_field:
         if segment_field not in frame.columns:
             raise PopulationError(
@@ -505,9 +585,7 @@ def _score_psi(test: test_registry.Test, model: model_registry.Model,
     cannot distinguish a book that moved once from a book that is still
     moving, and the second is the one that needs a decision.
     """
-    reference = population(model, periods=available_periods(
-        model, dataset=model.reference_dataset),
-        dataset=model.reference_dataset)
+    reference = reference_population(model)
     series = _stability_series(
         model, reference.frame,
         lambda frame: kernels.psi(reference.frame, frame,
@@ -543,9 +621,7 @@ def _variable_csi(test: test_registry.Test, model: model_registry.Model,
     an average over eight stable variables and one that has moved reports the
     book as stable, and the one that moved is the finding.
     """
-    reference = population(model, periods=available_periods(
-        model, dataset=model.reference_dataset),
-        dataset=model.reference_dataset)
+    reference = reference_population(model)
     current = population(model, periods=(pool.periods[-1],),
                          matured_only=False)
     rows: list[dict[str, Any]] = []

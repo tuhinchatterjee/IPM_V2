@@ -223,7 +223,8 @@ def _finding_rows(assessed: list[finding_engine.Finding]) -> list[list[str]]:
     return [[
         made.finding_id, made.severity, made.title, made.what,
         made.remediation, made.verify_by,
-        ", ".join(made.evidence), ", ".join(made.cbuae) or "—",
+        ", ".join(made.evidence),
+        ", ".join(regulatory_map.shown_as(r) for r in made.cbuae) or "—",
     ] for made in assessed]
 
 

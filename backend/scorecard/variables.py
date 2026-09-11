@@ -264,6 +264,45 @@ def woe_name(name: str) -> str:
     return f"{name}_woe"
 
 
+#: The spellings a weight-of-evidence column is written with, in order of
+#: precedence.
+#:
+#: `_woe` is this engine's own convention and stays first. `_transformed` is
+#: what the retail scorecard engine writes — the same quantity under the word
+#: that module uses for it — and a validation kernel that only knew the first
+#: spelling reported every characteristic of this installation's eight
+#: scorecards as having no ordering to measure.
+WOE_SUFFIXES: tuple[str, ...] = ("_woe", "_transformed")
+
+#: The spellings a characteristic's RAW value is written with. The bare name
+#: is the convention here; `_raw` is the retail engine's.
+RAW_SUFFIXES: tuple[str, ...] = ("", "_raw")
+
+
+def woe_column(name: str, columns: Any) -> str:
+    """The weight-of-evidence column for this characteristic, or "".
+
+    Resolved against the frame rather than assumed, because the answer is a
+    fact about the data in hand and guessing it wrong is silent: the caller
+    falls back to the raw value, measures a U-shaped variable on its own
+    scale, and reports a discrimination that understates it badly.
+    """
+    held = set(columns)
+    for suffix in WOE_SUFFIXES:
+        if f"{name}{suffix}" in held:
+            return f"{name}{suffix}"
+    return ""
+
+
+def raw_column(name: str, columns: Any) -> str:
+    """The raw-value column for this characteristic, or ""."""
+    held = set(columns)
+    for suffix in RAW_SUFFIXES:
+        if f"{name}{suffix}" in held:
+            return f"{name}{suffix}"
+    return ""
+
+
 def summary() -> dict[str, Any]:
     return {
         "variables_version": VARIABLES_VERSION,

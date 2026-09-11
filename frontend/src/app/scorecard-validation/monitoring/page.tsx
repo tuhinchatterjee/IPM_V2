@@ -66,7 +66,7 @@ const TABS = [
   ["findings", "Findings", "What breached a limit, with the evidence that raised it."],
   ["governance", "Governance", "The validation policy and where each limit came from."],
   ["data", "Data", "Row counts, missingness, key uniqueness and sample sufficiency."],
-  ["reports", "Reports", "Generate and download the CBUAE-aligned validation report and its evidence workbook."],
+  ["reports", "Reports", "Generate and download the validation report and its evidence workbook."],
 ] as const;
 
 type TabId = (typeof TABS)[number][0];
@@ -1497,11 +1497,14 @@ function Reports({
       <Card className="p-4">
         <h3 className="text-sm font-medium">Validation report</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Thirteen sections aligned with the CBUAE Model Management Standards
-          and Guidance section list. Every figure is taken from the
+          Thirteen sections covering documentation, conceptual soundness,
+          discrimination, calibration, stability, characteristic behaviour,
+          implementation and use. Every figure is taken from the
           deterministic engine for this model and month — nothing in the
           report is recalculated, and no language model is asked for a
-          number. CreditProbe does not provide regulatory certification.
+          number. The section list is CreditProbe&rsquo;s own and cites no
+          supervisor&rsquo;s text; CreditProbe does not provide regulatory
+          certification.
         </p>
 
         <div className="mt-3 flex flex-wrap gap-2">

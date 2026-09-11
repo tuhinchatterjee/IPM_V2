@@ -123,6 +123,39 @@ class Model:
     dataset: str = ""
     reference_dataset: str = ""
     decisions_dataset: str = ""
+    #: The periods that ARE the reference population, where the reference is a
+    #: window of the same book rather than a separate table. Empty keeps the
+    #: original behaviour: every period of `reference_dataset`.
+    #:
+    #: This installation validates eight scorecards against one governed book,
+    #: so "the development population" is a set of months rather than a second
+    #: file. Without this a stability test compared the book against itself
+    #: and reported a PSI of nothing.
+    reference_periods: tuple[str, ...] = ()
+    #: A column and value that DEFINE this model's population, as distinct
+    #: from `segmentation_fields`, which are cuts a validator may ask for.
+    #: The personal-finance application scorecard is not the retail
+    #: application scorecard restricted to personal finance for the purposes
+    #: of one chart; it is a different model, fitted separately.
+    scope_field: str = ""
+    scope_value: str = ""
+    #: Further equality tests every row of this model's population must pass.
+    #: `monitoring_eligible_flag = True` is the one that matters here: a book
+    #: carries rows it does not hold the model accountable for, and counting
+    #: them is how a validation sample stops being the model's.
+    eligibility: tuple[tuple[str, Any], ...] = ()
+    #: True where the book repeats the SAME subject in every period.
+    #:
+    #: A purpose-built validation extract has one row per application in its
+    #: cohort month, so "every matured period" is a larger sample. A governed
+    #: monthly book has the same facility in all thirteen, with overlapping
+    #: twelve-month outcome windows, so "every matured period" is the same
+    #: sample counted thirteen times — a Gini over 96,661 rows describing
+    #: 7,700 facilities, and a default count nobody could reconcile.
+    repeated_snapshots: bool = False
+    #: What ONE subject is on such a book, so a cohort can hold each subject
+    #: once. Empty falls back to the latest matured period alone.
+    subject_key: str = ""
     period_field: str = "cohort_month"
     score_column: str = ""
     pd_column: str = ""
@@ -130,6 +163,11 @@ class Model:
     challenger_pd_column: str = ""
     outcome_column: str = ""
     matured_column: str = "is_matured"
+    #: The column stamping which model version scored the row, where the book
+    #: carries one. Named so the projection keeps it: the implementation test
+    #: finds it by pattern, and a pattern cannot match a column that was not
+    #: read.
+    version_column: str = ""
     score_direction: str = HIGHER_IS_BETTER
 
     # ---- what it is -------------------------------------------------------
@@ -195,6 +233,16 @@ class Model:
         approved bins and got nothing would have to decide what to do with
         that, and the only correct decision is to stop.
         """
+        from backend.retail import profile
+
+        if profile.is_retail():
+            # The specification IS a module here, not a file beside the lake:
+            # `backend/retail/scorecards.py` declares every bin, every weight
+            # of evidence and every coefficient, and a serialised copy would
+            # be a second version of the same governed artefact.
+            from backend.retail import validation_models as retail_validation
+
+            return retail_validation.spec_for(self.scorecard_type)
         from backend.scorecard import build as retail_build
         from backend.scorecard.sme import build as sme_build
 
@@ -211,9 +259,14 @@ class Model:
         """
         import json
 
+        from backend.retail import profile
         from backend.scorecard import build as retail_build
         from backend.scorecard import equation as equation_mod
 
+        if profile.is_retail():
+            from backend.retail import validation_models as retail_validation
+
+            return retail_validation.equation_for(self.equation_key)
         if not self.equation_key:
             raise ModelError(
                 f"{self.name} has no published coefficient equation in this "
@@ -230,6 +283,57 @@ class Model:
                 f"{path.name}: {', '.join(sorted(record))}.")
         return equation_mod.Equation.from_dict(
             record[self.equation_key]["equation"])
+
+    def read_columns(self) -> tuple[str, ...]:
+        """The columns a test needs, or () for every column in the file.
+
+        () is the original behaviour and is right for a purpose-built
+        validation extract, which is narrow already. It is wrong for a
+        546-column governed book read over thirteen months, where loading
+        every column costs well over a gigabyte to compute a Gini from two.
+        """
+        if not self.binned_variables:
+            return ()
+        wanted: list[str] = []
+        for name in (self.score_column, self.pd_column,
+                     self.challenger_score_column, self.challenger_pd_column,
+                     self.outcome_column, self.matured_column,
+                     self.period_field, self.scope_field,
+                     *(field_name for field_name, _ in self.eligibility),
+                     self.version_column, "facility_id", "customer_id",
+                     # The stored outputs the implementation test replicates
+                     # against, under both spellings this codebase writes.
+                     f"logit_{self.scorecard_type[:3].lower()}",
+                     f"{self.score_column.rsplit('_', 1)[0]}_logit"
+                     if self.score_column else "",
+                     "performance_window_end"):
+            if name and name not in wanted:
+                wanted.append(name)
+        for name in self.segmentation_fields:
+            if name and name not in wanted:
+                wanted.append(name)
+        for name in self.binned_variables:
+            for suffix in ("", "_raw", "_transformed", "_woe", "_bin",
+                           "_points", "_missing_flag"):
+                wanted.append(f"{name}{suffix}")
+        # Narrowed to what the book actually holds. A projection naming a
+        # column the file does not carry is not a smaller read, it is a
+        # failed one, and the spellings above are deliberately a superset:
+        # two engines write a weight of evidence under two names and this
+        # asks for both rather than choosing.
+        held = self._held_columns()
+        if held:
+            wanted = [name for name in wanted if name in held]
+        return tuple(dict.fromkeys(wanted))
+
+    def _held_columns(self) -> frozenset[str]:
+        """Every column the governed catalogue says this dataset carries."""
+        try:
+            from backend.data_access.catalog import Catalog
+
+            return frozenset(Catalog.load().dataset(self.dataset).fields)
+        except Exception:  # noqa: BLE001 - no catalogue, no projection
+            return frozenset()
 
     def limit_for(self, test_id: str) -> Limit | None:
         for limit in self.limits:
@@ -260,6 +364,12 @@ class Model:
             "status": self.status,
             "dataset": self.dataset,
             "reference_dataset": self.reference_dataset,
+            "reference_periods": list(self.reference_periods),
+            "scope_field": self.scope_field,
+            "scope_value": self.scope_value,
+            "eligibility": [[f, v] for f, v in self.eligibility],
+            "repeated_snapshots": self.repeated_snapshots,
+            "subject_key": self.subject_key,
             "decisions_dataset": self.decisions_dataset,
             "score_direction": self.score_direction,
             "score_range": list(self.score_range),
@@ -334,7 +444,7 @@ def _structural_limits() -> tuple[Limit, ...]:
 #: versioned rather than inherited from an industry rule of thumb, and the
 #: honest way to ship a demonstration is to label the rules of thumb as what
 #: they are.
-def _standard_limits(*, auc: float, gini: float, ks: float,
+def standard_limits(*, auc: float, gini: float, ks: float,
                      oe_high: float, psi: float) -> tuple[Limit, ...]:
     return _structural_limits() + (
         Limit("DISC-AUC", auc, breach_above=False,
@@ -397,7 +507,7 @@ RETAIL_APPLICATION = Model(
         "credit_card_utilisation"),
     registry_key="APPLICATION",
     equation_key="INCUMBENT",
-    limits=_standard_limits(auc=0.70, gini=0.40, ks=0.30, oe_high=1.20,
+    limits=standard_limits(auc=0.70, gini=0.40, ks=0.30, oe_high=1.20,
                             psi=0.25),
 )
 
@@ -443,7 +553,7 @@ RETAIL_BEHAVIOUR = Model(
         "bureau_score_latest", "missed_payment_count_6m", "months_on_book"),
     registry_key="BEHAVIORAL",
     equation_key="INCUMBENT",
-    limits=_standard_limits(auc=0.72, gini=0.44, ks=0.32, oe_high=1.20,
+    limits=standard_limits(auc=0.72, gini=0.44, ks=0.32, oe_high=1.20,
                             psi=0.25),
 )
 
@@ -510,7 +620,7 @@ def _sme() -> Model:
             "sample and has not been refitted since.",
         ),
         registry_key="SME",
-        limits=_standard_limits(auc=0.65, gini=0.30, ks=0.20, oe_high=1.25,
+        limits=standard_limits(auc=0.65, gini=0.30, ks=0.20, oe_high=1.25,
                                 psi=0.25),
     )
 
@@ -519,7 +629,22 @@ _CACHE: dict[str, Model] = {}
 
 
 def all_models() -> tuple[Model, ...]:
-    """The three, and only ever the three."""
+    """The scorecards THIS installation validates, and only those.
+
+    Under the retail profile that is eight — an application and a behavioural
+    scorecard for each of the four products — bound to the one governed retail
+    book. It is not three, and it does not include a Saudi SME scorecard: this
+    is a retail-only product, and publishing an SME model in it is a §26
+    violation whatever the module behind it can do.
+
+    The corporate installation's three are retained unchanged.
+    """
+    from backend.retail import profile
+
+    if profile.is_retail():
+        from backend.retail import validation_models as retail_validation
+
+        return retail_validation.all_models()
     if "sme" not in _CACHE:
         _CACHE["sme"] = _sme()
     return (RETAIL_APPLICATION, RETAIL_BEHAVIOUR, _CACHE["sme"])
@@ -529,7 +654,7 @@ BY_ID: dict[str, Model] = {}
 
 
 def get(model_id: str) -> Model:
-    """One model by id, or a refusal that names the three.
+    """One model by id, or a refusal that names the ones there are.
 
     This is a security boundary as well as a lookup: a tool call arriving
     with a model id from a model-authored parameter reaches here, and there
@@ -541,8 +666,9 @@ def get(model_id: str) -> Model:
             return made
     raise domains.DomainRefused(
         str(model_id), domains.VALIDATION,
-        f"{model_id!r} is not a scorecard this environment validates. The "
-        f"three are: {', '.join(m.model_id for m in all_models())}.")
+        f"{model_id!r} is not a scorecard this environment validates. "
+        f"This installation validates: "
+        f"{', '.join(m.model_id for m in all_models())}.")
 
 
 def for_scorecard_type(scorecard_type: str) -> Model:
@@ -571,5 +697,5 @@ def summary() -> dict[str, Any]:
 __all__ = [
     "HIGHER_IS_BETTER", "LOWER_IS_BETTER", "MODELS_VERSION",
     "RETAIL_APPLICATION", "RETAIL_BEHAVIOUR", "Limit", "Model", "all_models",
-    "for_scorecard_type", "get", "summary",
+    "for_scorecard_type", "get", "standard_limits", "summary",
 ]

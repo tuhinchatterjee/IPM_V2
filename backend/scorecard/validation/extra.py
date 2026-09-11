@@ -34,6 +34,7 @@ from backend.scorecard.validation.runner import (
     handles,
     matured_periods,
     population,
+    reference_population,
 )
 
 #: How many matured cohorts a rolling window covers. Three months is short
@@ -77,6 +78,20 @@ def _measured(test: test_registry.Test, model: model_registry.Model,
 # ============================================================ data quality
 
 
+def _whole_book(model: model_registry.Model, pool: Population) -> Any:
+    """Every period of this model's population, or the pool where that is it."""
+    if not model.repeated_snapshots:
+        return pool.frame
+    parts = []
+    for period in _series_periods(model, pool, every=True):
+        part = _period_slice(model, pool, period)
+        if part is not None and len(part):
+            parts.append(part)
+    if not parts:
+        return pool.frame
+    return pd.concat(parts, ignore_index=True)
+
+
 @handles("DATA-ROWS")
 def _rows(test: test_registry.Test, model: model_registry.Model,
           pool: Population, **kw: Any) -> states.Result:
@@ -86,7 +101,14 @@ def _rows(test: test_registry.Test, model: model_registry.Model,
     that survived several silent filters. This states them, in order, so the
     reader can see where the other thirty thousand rows went.
     """
-    frame = pool.frame
+    # Over the WHOLE book, not over one cohort of it.
+    #
+    # The point of this waterfall is to show where the rows went, and on a
+    # repeated-snapshot book the largest step by far is maturity: twelve of
+    # twenty-five months have no realised outcome yet. Run on a single
+    # immature cohort it read "0 of 7,701 rows survive every filter, 0.0%",
+    # which is true of that month and reads as a statement about the book.
+    frame = _whole_book(model, pool)
     steps: list[dict[str, Any]] = [
         {"step": "rows read", "rows": len(frame), "removed": 0}]
     remaining = len(frame)
@@ -124,6 +146,13 @@ def _rows(test: test_registry.Test, model: model_registry.Model,
         chart={"kind": test_registry.CHART_WATERFALL, "steps": steps}, **kw)
 
 
+def _raw_of(name: str, columns: Any) -> str:
+    """The characteristic's raw-value column under either spelling."""
+    from backend.scorecard import variables as vars_mod
+
+    return vars_mod.raw_column(name, columns)
+
+
 @handles("DATA-MISSING")
 def _missing(test: test_registry.Test, model: model_registry.Model,
              pool: Population, **kw: Any) -> states.Result:
@@ -144,9 +173,23 @@ def _missing(test: test_registry.Test, model: model_registry.Model,
     rows: list[dict[str, Any]] = []
     heat: list[dict[str, Any]] = []
     for name in columns:
-        if name not in pool.frame.columns:
+        # Where the characteristic's raw value lives, and how the book says
+        # it is absent. Two engines write this two ways: a bare column with
+        # nulls in it, and a `<name>_raw` column beside a `<name>_missing_flag`
+        # that states the absence rather than leaving it to be inferred. The
+        # flag wins where it exists, because a raw value imputed before it was
+        # stored is missing and does not read as missing.
+        raw = _raw_of(name, pool.frame.columns)
+        flag = f"{name}_missing_flag"
+        if flag not in pool.frame.columns and not raw:
             continue
-        overall = float(pool.frame[name].isna().mean())
+
+        def absent(frame: Any, _flag: str = flag, _raw: str = raw) -> float:
+            if _flag in frame.columns:
+                return float(frame[_flag].fillna(False).astype(bool).mean())
+            return float(frame[_raw].isna().mean())
+
+        overall = absent(pool.frame)
         special = 0.0
         bin_column = f"{name}_bin"
         if bin_column in pool.frame.columns:
@@ -154,13 +197,14 @@ def _missing(test: test_registry.Test, model: model_registry.Model,
                 pool.frame[bin_column].isin(binning.SPECIAL_BINS).mean())
         rows.append({"variable": name, "missing_rate": round(overall, 6),
                      "special_bin_rate": round(special, 6)})
-        for period in pool.periods:
+        for period in _series_periods(model, pool, every=True):
             part = _period_slice(model, pool, period)
-            if part is None or name not in part.columns:
+            if part is None:
+                continue
+            if flag not in part.columns and raw not in part.columns:
                 continue
             heat.append({"variable": name, "period": period,
-                         "missing_rate": round(
-                             float(part[name].isna().mean()), 6)})
+                         "missing_rate": round(absent(part), 6)})
     if not rows:
         return states.unavailable(
             test.test_id, what="any characteristic to measure",
@@ -229,10 +273,7 @@ def _representative(test: test_registry.Test, model: model_registry.Model,
     is the model being applied to a population it never saw?
     """
     try:
-        reference = population(
-            model, periods=available_periods(
-                model, dataset=model.reference_dataset),
-            dataset=model.reference_dataset)
+        reference = reference_population(model)
     except PopulationError as e:
         return states.unavailable(test.test_id, what=str(e),
                                   **_common(test, model, pool, **kw))
@@ -295,7 +336,11 @@ def _coverage(test: test_registry.Test, model: model_registry.Model,
     field = model.segmentation_fields[0] \
         if model.segmentation_fields else ""
     cells: list[dict[str, Any]] = []
-    for period in pool.periods:
+    # Coverage is about the whole book, cohort by cohort — which cells have
+    # enough MATURED data to say anything. Asked of a single-cohort pool it
+    # reported "0 of 4 cells carry enough matured data", which is a statement
+    # about the current month and reads as a statement about the book.
+    for period in _series_periods(model, pool, every=True):
         part = _period_slice(model, pool, period)
         if part is None:
             continue
@@ -584,7 +629,8 @@ def _rolling(test: test_registry.Test, model: model_registry.Model,
     cohorts together answers the question the single-cohort series cannot:
     is this trending, or is it varying?
     """
-    ready = [p for p in pool.periods if p in set(matured_periods(model))]
+    ready = [p for p in _series_periods(model, pool)
+             if p in set(matured_periods(model))]
     if len(ready) < ROLLING_WINDOW + 1:
         return states.insufficient(
             test.test_id, observations=pool.rows, events=0,
@@ -634,10 +680,31 @@ def _rolling(test: test_registry.Test, model: model_registry.Model,
         lineage={"window_cohorts": ROLLING_WINDOW}, **kw)
 
 
+def _series_periods(model: model_registry.Model, pool: Population, *,
+                    every: bool = False) -> tuple[str, ...]:
+    """The periods a TREND should be drawn over.
+
+    A pool is a cohort. On a book that repeats the same subject every month
+    the cohort is deliberately one period — see `Model.repeated_snapshots` —
+    and a trend drawn over a pool's own periods is then a trend with one
+    point on it, which is reported as insufficient sample on an installation
+    holding thirteen closed cohorts. A trend wants every cohort there is.
+    """
+    if not model.repeated_snapshots:
+        return tuple(pool.periods)
+    if every:
+        # Missingness and coverage want every month the book has, not only
+        # the closed ones: a characteristic that stopped arriving in March is
+        # invisible in a window that ends before March.
+        return available_periods(model) or tuple(pool.periods)
+    closed = matured_periods(model)
+    return closed or tuple(pool.periods)
+
+
 def _per_period(model: model_registry.Model, pool: Population,
                 point_of: Any) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
-    for period in pool.periods:
+    for period in _series_periods(model, pool):
         frame = _period_slice(model, pool, period)
         if frame is None or not len(frame):
             continue
@@ -713,10 +780,7 @@ def _band_stability(test: test_registry.Test, model: model_registry.Model,
     staging decision actually turns on.
     """
     try:
-        reference = population(
-            model, periods=available_periods(
-                model, dataset=model.reference_dataset),
-            dataset=model.reference_dataset)
+        reference = reference_population(model)
     except PopulationError as e:
         return states.unavailable(test.test_id, what=str(e),
                                   **_common(test, model, pool, **kw))
@@ -766,9 +830,22 @@ def _matured(model: model_registry.Model,
     the outcome straight off `pool.frame` would divide the defaults of the
     matured cohorts by the rows of all of them.
     """
-    if pool.periods and set(pool.periods) <= set(matured_periods(model)):
+    closed = set(matured_periods(model))
+    if pool.periods and set(pool.periods) <= closed:
         return pool.frame
-    ready = tuple(p for p in pool.periods if p in set(matured_periods(model)))
+    ready = tuple(p for p in pool.periods if p in closed)
+    if not ready and model.repeated_snapshots:
+        # A book whose maturity is a property of the PERIOD, not of the row.
+        #
+        # These tests run on the current book because they need no outcome to
+        # exist, and then compare the approved shape against one where it
+        # does. On a purpose-built extract the matured rows are inside the
+        # same partition, so this found them. On a governed monthly book the
+        # current month has no matured row at all, and the whole family —
+        # VAR-WOE, VAR-SIGN — came back NOT MATURED on an installation that
+        # holds thirteen closed cohorts.
+        every = matured_periods(model)
+        ready = (every[-1],) if every else ()
     if not ready:
         return None
     try:
@@ -965,6 +1042,24 @@ def _sign(test: test_registry.Test, model: model_registry.Model,
         # its negative. A WoE term in a bad-outcome logit should therefore
         # carry a negative coefficient. The data's own sign comes from
         # whether the WoE separates in the direction the fit assumed.
+        #
+        # But only where the data HAS a direction. A univariate AUC of 0.4497
+        # on 135 events is a coin flip, and calling the difference between it
+        # and 0.5 a sign disagreement — under a STRUCTURAL limit, where the
+        # stated tolerance is zero because there is no defensible non-zero one
+        # — puts nine red rows in front of an auditor on correlations of 0.02.
+        # A sign test against no relationship is not a test, and reporting it
+        # as a structural failure is worse than reporting nothing.
+        #
+        # So the separation has to be distinguishable from none: the
+        # Hanley-McNeil standard error of the AUC, at 95%. The rule is stated
+        # in the result, with each term's own interval, so a reader who wants
+        # a different threshold can see what it would change.
+        error = _auc_standard_error(float(made["auc"]),
+                                    int(made.get("events") or 0),
+                                    int(made.get("observations") or 0))
+        separation = abs(float(made["auc"]) - 0.5)
+        decisive = bool(error) and separation > 1.96 * error
         implied = -1.0 if made["auc"] >= 0.5 else 1.0
         fitted = -1.0 if term.coefficient < 0 else 1.0
         rows.append({
@@ -973,8 +1068,11 @@ def _sign(test: test_registry.Test, model: model_registry.Model,
             "coefficient": round(float(term.coefficient), 8),
             "fitted_sign": "negative" if fitted < 0 else "positive",
             "univariate_auc": made["auc"],
-            "implied_sign": "negative" if implied < 0 else "positive",
-            "agrees": fitted == implied,
+            "univariate_standard_error": round(error, 6),
+            "separation_is_decisive": decisive,
+            "implied_sign": ("negative" if implied < 0 else "positive")
+                            if decisive else "no measurable direction",
+            "agrees": (fitted == implied) if decisive else None,
         })
     if not rows:
         return states.unavailable(
@@ -982,22 +1080,56 @@ def _sign(test: test_registry.Test, model: model_registry.Model,
             what="the fitted columns and a matured outcome to check them on",
             **_common(test, model, pool, **kw))
 
-    against = [r for r in rows if not r["agrees"]]
+    against = [r for r in rows if r["agrees"] is False]
+    checked = [r for r in rows if r["agrees"] is not None]
+    silent = len(rows) - len(checked)
+    unchecked = (f" {silent} of {len(rows)} could not be checked at all: "
+                 "their univariate separation is not distinguishable from "
+                 "none in this population, so there is no direction for a "
+                 "sign to agree or disagree with."
+                 if silent else "")
     return _measured(
         test, model, pool, float(len(against)),
-        detail=(f"{len(against)} of {len(rows)} fitted terms carry a sign the "
-                f"data does not support"
+        detail=(f"{len(against)} of {len(checked)} checkable fitted terms "
+                f"carry a sign the data does not support"
                 + (f": {', '.join(r['variable'] for r in against)}. Each is "
                    "scored against its own univariate relationship, which "
                    "means the model is rewarding what predicts default."
                    if against else
-                   ". Every fitted sign agrees with the univariate "
-                   "relationship in the validation population.")),
+                   ". Every fitted sign that could be checked agrees with the "
+                   "univariate relationship in the validation population.")
+                + unchecked),
         observations=len(pool.frame), table=rows,
+        limitations=(*test.limitations,
+                     "A sign is checked only where the characteristic's own "
+                     "univariate separation is distinguishable from none at "
+                     "95% (Hanley-McNeil). A term with no measurable "
+                     "direction is reported as unchecked rather than as "
+                     "agreeing."),
         lineage={"equation": getattr(equation, "model_name", ""),
                  "specification": getattr(
                      equation, "binning_spec_version", ""),
-                 "measured_on": "weight of evidence"}, **kw)
+                 "measured_on": "weight of evidence",
+                 "rule": "|AUC - 0.5| > 1.96 x SE(AUC)"}, **kw)
+
+
+def _auc_standard_error(auc: float, events: int, observations: int) -> float:
+    """Hanley and McNeil's standard error of an AUC. 0 where it has none.
+
+    Written out rather than approximated by 0.5/sqrt(n): the two disagree
+    most exactly where this is used, on a small event count.
+    """
+    import math
+
+    negatives = observations - events
+    if events <= 1 or negatives <= 1:
+        return 0.0
+    q1 = auc / (2.0 - auc)
+    q2 = 2.0 * auc * auc / (1.0 + auc)
+    variance = (auc * (1.0 - auc)
+                + (events - 1) * (q1 - auc * auc)
+                + (negatives - 1) * (q2 - auc * auc)) / (events * negatives)
+    return math.sqrt(variance) if variance > 0 else 0.0
 
 
 # ========================================================= usage/overrides
@@ -1273,10 +1405,7 @@ def _cc_stability(test: test_registry.Test, model: model_registry.Model,
                   pool: Population, **kw: Any) -> states.Result:
     """Score PSI for both models against the same reference."""
     try:
-        reference = population(
-            model, periods=available_periods(
-                model, dataset=model.reference_dataset),
-            dataset=model.reference_dataset)
+        reference = reference_population(model)
     except PopulationError as e:
         return states.unavailable(test.test_id, what=str(e),
                                   **_common(test, model, pool, **kw))
@@ -1517,7 +1646,8 @@ def _window(test: test_registry.Test, model: model_registry.Model,
     "would last year's window have given this", and only contiguous windows
     answer that.
     """
-    ready = [p for p in pool.periods if p in set(matured_periods(model))]
+    ready = [p for p in _series_periods(model, pool)
+             if p in set(matured_periods(model))]
     if len(ready) < 4:
         return states.insufficient(
             test.test_id, observations=pool.rows, events=0,

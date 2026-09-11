@@ -45,6 +45,7 @@ from typing import Any
 from backend.scorecard.validation import models as model_registry
 from backend.scorecard.validation import registry as test_registry
 from backend.scorecard.validation import runner as _runner
+from backend.scorecard.validation import regulatory
 from backend.scorecard.validation import states
 
 FINDINGS_VERSION = "1.0.0"
@@ -142,6 +143,10 @@ class Finding:
             "evidence": list(self.evidence), "values": dict(self.values),
             "segment": self.segment, "model_id": self.model_id,
             "model_version": self.model_version, "period": self.period,
+            # Shown under the label THIS installation may honestly use. The
+            # internal ids stay on `cbuae` as the join key, and a retail
+            # installation cites no supervisor's text at all.
+            "references": [regulatory.shown_as(r) for r in self.cbuae],
             "cbuae": list(self.cbuae), "pattern": self.pattern,
             "supersedes": list(self.supersedes),
             "confidence": self.confidence,

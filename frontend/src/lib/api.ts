@@ -12736,6 +12736,14 @@ export type ScvTest = {
   charts: string[];
   limitations: string[];
   cbuae: string[];
+  /**
+   * The supervisory references as THIS installation may label them.
+   *
+   * `cbuae` is the join key the registry stores; a retail-only Saudi
+   * deployment does not cite a UAE article, so the label is chosen by the
+   * backend and rendered from here.
+   */
+  references: string[];
   version: string;
 };
 
@@ -12767,6 +12775,8 @@ export type ScvFinding = {
   evidence: string[];
   verify_by: string;
   cbuae: string[];
+  /** The references as this installation labels them. See `ScvTest`. */
+  references: string[];
   values: Record<string, unknown>;
   pattern: string;
   period: string;

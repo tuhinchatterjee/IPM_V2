@@ -84,10 +84,18 @@ class Term:
     #: allowed and warned about: a raw term in a WoE scorecard is almost
     #: always somebody wiring the wrong column.
     transformation: str = "WOE"
+    #: What the weight-of-evidence column is CALLED on the rows this equation
+    #: is checked against. Two engines in this codebase write the same
+    #: quantity under two names — `_woe` here, `_transformed` in the retail
+    #: scorecard engine — and an implementation test that looked only for the
+    #: first could not read a single row of the retail book, so it reported
+    #: the production score as unreplicable rather than replicating it.
+    woe_suffix: str = "_woe"
 
     def column(self) -> str:
-        return (vars_mod.woe_name(self.variable)
-                if self.transformation == "WOE" else self.variable)
+        if self.transformation != "WOE":
+            return self.variable
+        return f"{self.variable}{self.woe_suffix}"
 
     def to_dict(self) -> dict[str, Any]:
         return {"variable": self.variable,
@@ -166,6 +174,25 @@ class Equation:
     binning_spec_version: str = ""
     score_mapping: ScoreMapping | None = None
     output_prefix: str = ""
+    #: What the STORED outputs are called on the rows this equation is checked
+    #: against. Empty keeps the `logit_<prefix>` / `pd_<prefix>` /
+    #: `score_<prefix>` convention this module writes. The retail scorecard
+    #: engine writes `<prefix>_score_logit`, `<prefix>_predicted_pd_12m` and
+    #: `<prefix>_score_value`, and an implementation test that could only
+    #: spell it one way reported the production score as unreplicable on a
+    #: book that carries every term needed to replicate it.
+    stored_logit_column: str = ""
+    stored_pd_column: str = ""
+    stored_score_column: str = ""
+
+    def logit_column(self) -> str:
+        return self.stored_logit_column or f"logit_{self.output_prefix}"
+
+    def pd_column(self) -> str:
+        return self.stored_pd_column or f"pd_{self.output_prefix}"
+
+    def score_column(self) -> str:
+        return self.stored_score_column or f"score_{self.output_prefix}"
 
     @property
     def active_variables(self) -> list[str]:

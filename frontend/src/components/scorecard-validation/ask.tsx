@@ -113,7 +113,7 @@ function ToolResult({ answer, tests }: {
             {test.test_id}
           </span>
           <h4 className="text-sm font-semibold text-text">{test.name}</h4>
-          {test.cbuae.map((reference) => (
+          {(test.references ?? test.cbuae).map((reference) => (
             <Badge key={reference} variant="outline">{reference}</Badge>
           ))}
         </div>

@@ -244,8 +244,20 @@ class Test:
             "comparative": self.comparative, "segmentable": self.segmentable,
             "charts": list(self.charts),
             "limitations": list(self.limitations),
-            "cbuae": list(self.cbuae), "version": self.version,
+            "cbuae": list(self.cbuae),
+            # How each reference is LABELLED in this installation. The ids on
+            # `cbuae` are the join key and stay as they are; a Saudi
+            # retail-only product cites no UAE article, and inventing a SAMA
+            # one in its place would be a fabricated citation.
+            "references": [_shown_as(r) for r in self.cbuae],
+            "version": self.version,
         }
+
+
+def _shown_as(reference: str) -> str:
+    from backend.scorecard.validation import regulatory
+
+    return regulatory.shown_as(reference)
 
 
 def _t(test_id: str, name: str, category: str, purpose: str, method: str,

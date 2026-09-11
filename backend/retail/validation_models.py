@@ -54,6 +54,7 @@ with the reason rather than being hidden.
 
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from typing import Any
 
@@ -85,10 +86,13 @@ PRODUCT_NAMES: dict[str, str] = {
 #: column of the book and every one is a question somebody actually asks:
 #: does this scorecard work as well for salary-transfer customers, for digital
 #: originations, for one segment.
+#: Deliberately NOT `product_label`: each of these models IS one product, so
+#: segmenting by product gives one segment, and a segment test over one
+#: segment is the aggregate with a different heading on it.
 SEGMENTATION: tuple[str, ...] = (
-    "product_label", "customer_segment", "salary_transfer_flag",
-    "origination_channel", "region", "employment_status",
-    "origination_vintage", "application_score_band",
+    "customer_segment", "salary_transfer_flag", "origination_channel",
+    "region", "employment_status", "origination_vintage",
+    "application_score_band", "income_band", "indebtedness_band",
 )
 
 APPLICATION_LIMITS = dict(auc=0.62, gini=0.24, ks=0.18, oe_high=1.20, psi=0.25)
@@ -173,10 +177,22 @@ def _one(kind: str, product: str, card: Any, mdl: Any) -> Any:
         period_field=PERIOD_FIELD,
         scope_field="product_code",
         scope_value=product,
+        # The book carries rows the model is not held accountable for —
+        # closed facilities, facilities excluded from monitoring with a
+        # recorded reason. Counting them would make the validation sample
+        # something other than the model's population.
+        eligibility=(("monitoring_eligible_flag", True),),
+        # The same facility appears in every month of this book with
+        # overlapping twelve-month outcome windows, so a cohort is ONE month,
+        # not all of them. See `Model.repeated_snapshots`.
+        repeated_snapshots=True,
+        subject_key="facility_id",
         score_column=f"{kind}_score_value",
         pd_column=f"{kind}_predicted_pd_12m",
         outcome_column="observed_default_within_window",
         matured_column="performance_window_complete_flag",
+        version_column=("application_score_model_version" if application
+                        else "behavioural_score_model_version"),
         score_direction=mdl.HIGHER_IS_BETTER,
         score_range=(300.0, 900.0),
         base_score=600.0,
@@ -247,9 +263,12 @@ def _variable_binning(key: str, feature: Any, binning: Any) -> Any:
     """
     bins = []
     edges = list(feature.edges)
+    numeric = feature.kind == "numeric"
     for index, label in enumerate(feature.labels):
-        lower = edges[index - 1] if index else None
-        upper = edges[index] if index < len(edges) else None
+        # A categorical characteristic has labels and no edges at all, so the
+        # bounds are not "the edge before this one" — they do not exist.
+        lower = edges[index - 1] if numeric and 0 < index <= len(edges) else None
+        upper = edges[index] if numeric and index < len(edges) else None
         bins.append(binning.Bin(
             bin_id=f"{key}:{label}", label=str(label),
             lower=lower, upper=upper,
@@ -281,19 +300,119 @@ def equation_for(model_id: str) -> Any:
             if card.model_id != wanted:
                 continue
             return equation_mod.Equation(
-                equation_version=card.transform_version,
+                model_name=card.model_id,
                 scorecard_type=("APPLICATION" if card.prefix == "app"
                                 else "BEHAVIORAL"),
                 intercept=float(card.intercept),
-                coefficients={f"{card.prefix}_{f.short}": float(f.coefficient)
-                              for f in card.features},
-                scaling={"factor": sc.FACTOR, "offset": sc.OFFSET,
-                         "base_points": float(card.base_points),
-                         "base_score": sc.BASE_SCORE,
-                         "base_odds": sc.BASE_ODDS_GOOD, "pdo": sc.PDO})
+                terms=[equation_mod.Term(
+                    variable=f"{card.prefix}_{f.short}",
+                    # The retail engine writes `logit = intercept - Σ coef ×
+                    # woe`, because its weight of evidence is signed so that
+                    # HIGHER IS SAFER. This IR writes `logit = intercept + Σ
+                    # coef × woe`. Same model, opposite sign convention on the
+                    # coefficient, and an equation transcribed without the
+                    # flip would replicate every row to the wrong side of the
+                    # scale and report the implementation as broken.
+                    coefficient=-float(f.coefficient),
+                    woe_suffix="_transformed")
+                    for f in card.features],
+                binning_spec_version=card.transform_version,
+                score_mapping=equation_mod.ScoreMapping(
+                    base_score=sc.BASE_SCORE, pdo=sc.PDO,
+                    base_odds=sc.BASE_ODDS_GOOD,
+                    score_direction=equation_mod.HIGHER_SCORE_IS_BETTER,
+                    min_score=sc.SCORE_MIN, max_score=sc.SCORE_MAX),
+                output_prefix=card.prefix,
+                stored_logit_column=f"{card.prefix}_score_logit",
+                stored_pd_column=f"{card.prefix}_predicted_pd_12m",
+                stored_score_column=f"{card.prefix}_score_value")
     raise LookupError(f"{model_id!r} is not one of this installation's "
                       "scorecards.")
 
 
+
+
+#: How a reader names a product, beyond the label itself.
+_PRODUCT_WORDS: dict[str, tuple[str, ...]] = {
+    taxonomy.CREDIT_CARD: ("credit card", "cards", "card"),
+    taxonomy.PERSONAL_LOAN: ("personal finance", "personal loan",
+                             "personal lending", "personal"),
+    taxonomy.AUTO_LOAN: ("auto finance", "auto loan", "car finance",
+                         "vehicle finance", "auto"),
+    taxonomy.HOME_LOAN: ("home finance", "home loan", "mortgage",
+                         "housing finance", "home"),
+}
+
+#: How a reader names the kind of scorecard.
+_KIND_WORDS: dict[str, tuple[str, ...]] = {
+    "app": ("application", "origination", "app"),
+    "beh": ("behavioural", "behavioral", "behaviour", "behavior"),
+}
+
+
+def resolve_scorecard(text: str) -> str:
+    """The model id a question names, reading the PRODUCT and the KIND apart.
+
+    An adjacency rule is not enough. "Has the application-score distribution
+    for personal finance materially shifted?" names both halves and puts six
+    words between them, and a phrase list built from "<product> <kind>"
+    resolved it to nothing — so the module asked which scorecard, having been
+    told.
+
+    Both halves are needed. A question naming only a kind is ambiguous across
+    four products and a question naming only a product is ambiguous across
+    two kinds, and in each case the module's own clarification is the right
+    answer rather than a guess.
+    """
+    lowered = re.sub(r"[\s\-]+", " ", str(text or "").lower())
+
+    def names(words: tuple[str, ...]) -> bool:
+        return any(re.search(rf"\b{re.escape(w)}\b", lowered) for w in words)
+
+    kind = ""
+    for candidate, words in _KIND_WORDS.items():
+        if names(words):
+            kind = candidate
+            break
+    product = ""
+    for candidate, words in _PRODUCT_WORDS.items():
+        if names(words):
+            product = candidate
+            break
+    if not (kind and product):
+        return ""
+    for model in all_models():
+        wanted = "app" if model.scorecard_type == "APPLICATION" else "beh"
+        if wanted == kind and model.scope_value == product:
+            return model.model_id
+    return ""
+
+
+def scorecard_phrases() -> tuple[tuple[str, str], ...]:
+    """Every phrase that names one of the eight, longest-first at use.
+
+    Both orders, because both are written: "personal finance application
+    scorecard" and "application scorecard for personal finance". A phrase
+    that names only the KIND is deliberately absent — with four products it
+    would resolve to whichever happened to sort first, and the module's own
+    clarification ("which scorecard?") is the correct answer to a question
+    that did not say.
+    """
+    out: list[tuple[str, str]] = []
+    for model in all_models():
+        kind = "app" if model.scorecard_type == "APPLICATION" else "beh"
+        for product_word in _PRODUCT_WORDS.get(model.scope_value, ()):
+            for kind_word in _KIND_WORDS[kind]:
+                out.append((f"{product_word} {kind_word}", model.model_id))
+                out.append((f"{kind_word} scorecard for {product_word}",
+                            model.model_id))
+                out.append((f"{kind_word} scorecard on {product_word}",
+                            model.model_id))
+        out.append((model.name.lower(), model.model_id))
+        out.append((model.model_id, model.model_id))
+    return tuple(out)
+
+
 __all__ = ["DATASET", "DEVELOPMENT_MONTHS", "PERIOD_FIELD", "PRODUCT_NAMES",
-           "all_models", "equation_for", "spec_for"]
+           "all_models", "equation_for", "resolve_scorecard",
+           "scorecard_phrases", "spec_for"]

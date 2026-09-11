@@ -57,15 +57,36 @@ AGENT_NAME = "Scorecard Validation Analyst"
 #: What this agent is for, in the words it should use to decline anything
 #: else. Held here rather than in a prompt file because the refusal is a
 #: product decision, not a wording preference.
-SCOPE = (
-    "Independent validation of the three scorecards this deployment "
-    "validates: Retail Application, Retail Behaviour and Saudi SME. It can "
-    "run any of the 48 registered validation tests, explain what each one "
-    "measures, assemble the findings, and draft the validation report."
-)
+def _served_names() -> str:
+    """The scorecards this INSTALLATION validates, named.
+
+    Read rather than written down. The sentence used to say "the three
+    scorecards this deployment validates: Retail Application, Retail
+    Behaviour and Saudi SME" — in a retail-only product, which does not
+    validate an SME scorecard and does not have three.
+    """
+    try:
+        from backend.scorecard.validation import models as model_registry
+
+        return ", ".join(m.name for m in model_registry.all_models())
+    except Exception:  # noqa: BLE001 - a header, not an answer
+        return "the scorecards this deployment validates"
+
+
+def scope() -> str:
+    served = _served_names()
+    return (
+        f"Independent validation of the scorecards this deployment "
+        f"validates: {served}. It can run any of the 48 registered validation "
+        "tests, explain what each one measures, assemble the findings, and "
+        "draft the validation report."
+    )
+
+
+SCOPE = scope()
 
 OUT_OF_SCOPE = (
-    "Anything that is not the validation of one of those three scorecards. "
+    "Anything that is not the validation of one of those scorecards. "
     "Portfolio analysis, provisioning, early warning, borrower questions and "
     "the rest of the platform are answered by the Cockpit, which is a "
     "different surface with different data access."
@@ -85,7 +106,7 @@ SERVICE = "backend.scorecard.validation"
 
 TOOLS: tuple[Tool, ...] = (
     Tool(LIST_MODELS, "List scorecards",
-         "The three scorecards this deployment validates, their governed "
+         "The scorecards this deployment validates, their governed "
          "record, and which tests each one can support.",
          SERVICE, cost="free"),
     Tool(LIST_TESTS, "List validation tests",
@@ -148,7 +169,7 @@ NO_TOOL_FOR: dict[str, str] = {
         "could turn a breach into a pass by asking."),
     "issuing a report or an opinion": (
         "The report tool produces a draft. Issuing it is a person's act."),
-    "any dataset outside the three scorecards": (
+    "any dataset outside the served scorecards": (
         "Every tool reaches the engine through models.get or "
         "runner.population, both of which refuse a domain outside the "
         "three."),
@@ -382,7 +403,7 @@ def invoke(tool_id: str, **parameters: Any) -> dict[str, Any]:
 
 
 def refuse_out_of_domain(question: str) -> dict[str, Any]:
-    """What to say when the question is not about these three scorecards.
+    """What to say when the question is not about these scorecards.
 
     Says where the answer lives rather than only that this is the wrong
     place. A refusal that leaves somebody stuck is a refusal they route

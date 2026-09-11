@@ -418,11 +418,22 @@ class Opinion:
                 "not chosen. The explanation of this result is written by "
                 "the model; the result itself is not — an opinion a model "
                 "could choose is one that moves when the prompt does."),
-            "not_a_certification": (
-                "This is a CBUAE MMS/MMG-aligned validation opinion produced "
-                "by CreditProbe's governed policy. It is not regulatory "
-                "certification and it is not a legal compliance opinion."),
+            "not_a_certification": _not_a_certification(),
         }
+
+
+def _not_a_certification() -> str:
+    """What this opinion is not. Never a supervisor's name where none applies."""
+    from backend.retail import profile
+
+    if profile.is_retail():
+        return ("This is a validation opinion produced by CreditProbe's own "
+                "governed policy. It cites no supervisor's text, it is not "
+                "regulatory certification, and it is not a legal compliance "
+                "opinion.")
+    return ("This is a CBUAE MMS/MMG-aligned validation opinion produced by "
+            "CreditProbe's governed policy. It is not regulatory "
+            "certification and it is not a legal compliance opinion.")
 
 
 #: Which metrics have to be measured before an opinion can be more than

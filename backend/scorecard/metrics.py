@@ -683,9 +683,16 @@ def variable_discrimination(frame: pd.DataFrame, *, variable: str,
     and the model is not using the raw value.
     """
     require_matured(frame, what="Variable discrimination")
-    woe_column = f"{variable}_woe"
-    column = woe_column if woe_column in frame.columns else variable
-    if column not in frame.columns:
+    # Resolved against the frame rather than assumed. The retail scorecard
+    # engine writes the weight of evidence as `<name>_transformed` and the raw
+    # value as `<name>_raw`, and a kernel that knew only this module's own
+    # spelling fell through to the bare name, found nothing, and reported
+    # every characteristic of this installation's scorecards as unmeasurable.
+    from backend.scorecard import variables as vars_mod
+
+    woe_column = vars_mod.woe_column(variable, frame.columns)
+    column = woe_column or vars_mod.raw_column(variable, frame.columns)
+    if not column:
         raise MetricError(f"{variable} is not in this frame")
 
     # A categorical with no approved WoE has no ordering, so it has no AUC
@@ -810,7 +817,6 @@ class Replication:
 def replicate(frame: pd.DataFrame, equation: equation_mod.Equation, *,
               tolerance: float = 1e-6, label: str = "") -> Replication:
     """§33. Recompute logit, PD and score, and compare against stored."""
-    suffix = equation.output_prefix
     logit = pd.Series(equation.intercept, index=frame.index, dtype="float64")
     for term in equation.terms:
         if term.column() not in frame.columns:
@@ -820,21 +826,22 @@ def replicate(frame: pd.DataFrame, equation: equation_mod.Equation, *,
         logit = logit + term.coefficient * frame[term.column()].astype(
             "float64")
 
-    stored_logit = frame.get(f"logit_{suffix}")
+    stored_logit = frame.get(equation.logit_column())
     if stored_logit is None:
-        raise MetricError(f"logit_{suffix} is not stored")
+        raise MetricError(f"{equation.logit_column()} is not stored")
     logit_gap = (logit - stored_logit.astype("float64")).abs()
 
     recomputed_pd = logit.apply(equation_mod.Equation.pd_from_logit)
-    stored_pd = frame.get(f"pd_{suffix}")
+    stored_pd = frame.get(equation.pd_column())
     pd_gap = ((recomputed_pd - stored_pd.astype("float64")).abs()
               if stored_pd is not None else pd.Series([0.0]))
 
     score_gap = pd.Series([0.0])
-    if equation.score_mapping is not None and f"score_{suffix}" in frame:
+    if equation.score_mapping is not None and \
+            equation.score_column() in frame:
         recomputed = logit.apply(equation.score_mapping.score)
         score_gap = (recomputed
-                     - frame[f"score_{suffix}"].astype("float64")).abs()
+                     - frame[equation.score_column()].astype("float64")).abs()
 
     return Replication(
         rows=len(frame),

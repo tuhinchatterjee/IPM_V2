@@ -51,10 +51,26 @@ REPORT_STRUCTURE_VERSION = "cbuae-mms-mmg-aligned-1.0.0"
 #: §0. Stored with every report record, not rendered from a template at
 #: download time: a disclaimer that lives only in a template is one refactor
 #: away from not existing.
+def _section_list_source() -> str:
+    """Whose section list this report's structure follows.
+
+    A retail-only Saudi installation does not align its report structure to
+    United Arab Emirates supervision, and substituting a SAMA reference would
+    be an invented citation rather than a fix. The structure is the engine's
+    own, and says so.
+    """
+    from backend.retail import profile
+
+    if profile.is_retail():
+        return ("Its structure is CreditProbe's own validation section list "
+                "and follows no supervisor's published text. ")
+    return ("Its structure is aligned with the CBUAE Model Management "
+            "Standards and Guidance section list. ")
+
+
 DISCLAIMER = (
     "This report is produced by CreditProbe from the data and models "
-    "described in it. Its structure is aligned with the CBUAE Model "
-    "Management Standards and Guidance section list. CreditProbe does not "
+    "described in it. " + _section_list_source() + "CreditProbe does not "
     "provide regulatory certification or a legal compliance opinion, and "
     "nothing in this report constitutes one. The validation opinion is "
     "derived by the governed policy set out in section 12 from the findings "

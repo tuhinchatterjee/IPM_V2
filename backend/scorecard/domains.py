@@ -76,9 +76,29 @@ SCORECARD_APPLICATION = "scorecard_retail_application"
 SCORECARD_BEHAVIOUR = "scorecard_retail_behaviour"
 SCORECARD_SME = "scorecard_saudi_sme"
 
-SCORECARD_DOMAINS: tuple[str, ...] = (
+#: Every domain this codebase knows how to validate. What a given
+#: INSTALLATION serves is `served_domains()` below, which is narrower.
+DEFINED_DOMAINS: tuple[str, ...] = (
     SCORECARD_APPLICATION, SCORECARD_BEHAVIOUR, SCORECARD_SME,
 )
+
+
+def served_domains() -> tuple[str, ...]:
+    """The scorecard domains this installation actually validates.
+
+    A retail-only product does not validate an SME scorecard, and publishing
+    one — in the module header, in a picker, in a refusal that lists "the
+    three" — is a §26 violation whatever the engine behind it can do. The
+    code for it is retained; it is simply not served here.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return DEFINED_DOMAINS
+    return (SCORECARD_APPLICATION, SCORECARD_BEHAVIOUR)
+
+
+SCORECARD_DOMAINS: tuple[str, ...] = served_domains()
 
 DOMAIN_LABELS: dict[str, str] = {
     SCORECARD_APPLICATION: "Retail Application Scorecard",
@@ -92,9 +112,11 @@ DOMAIN_LABELS: dict[str, str] = {
 #: permissions token and the scorecard type is an engine argument; letting one
 #: be parsed out of the other couples a security boundary to a naming habit.
 DOMAIN_SCORECARD_TYPE: dict[str, str] = {
-    SCORECARD_APPLICATION: "APPLICATION",
-    SCORECARD_BEHAVIOUR: "BEHAVIORAL",
-    SCORECARD_SME: "SME",
+    domain: kind for domain, kind in (
+        (SCORECARD_APPLICATION, "APPLICATION"),
+        (SCORECARD_BEHAVIOUR, "BEHAVIORAL"),
+        (SCORECARD_SME, "SME"),
+    ) if domain in SCORECARD_DOMAINS
 }
 
 SCORECARD_TYPE_DOMAIN: dict[str, str] = {
@@ -172,6 +194,21 @@ DATASET_DOMAIN: dict[str, str] = {
     "sme_scorecard_decisions": SCORECARD_SME,
 }
 
+#: Deliberately NOT extended with `retail_facility_month` under the retail
+#: profile, and the reason matters.
+#:
+#: The restriction here exists because a purpose-built validation extract is a
+#: record-level model population — every variable that went in, and who
+#: defaulted — which a portfolio question has no business reaching. This
+#: installation has no such extract. Its validation module reads the same
+#: published book the Cockpit, the lenses and the Playbook already read, so
+#: there is nothing here to ring-fence, and restricting it would take the
+#: whole product's only dataset away from the whole product.
+#:
+#: What the boundary still does here is the other direction, which is the one
+#: that was always the point: Scorecard Validation reads scorecard domains and
+#: cannot wander into anything else.
+
 
 def restricted_datasets() -> frozenset[str]:
     """Every dataset the general Cockpit may not read."""
@@ -230,7 +267,7 @@ def refusal(dataset: str, scope: str = GENERAL) -> str:
     domain = domain_of(dataset)
     label = DOMAIN_LABELS.get(domain, "a scorecard model")
     if scope in MAY_READ_RESTRICTED:  # pragma: no cover - never refuses here
-        return (f"{dataset} is not one of the three scorecard domains this "
+        return (f"{dataset} is not one of the scorecard domains this "
                 "environment validates.")
     return (
         f"{label} data is not available here. Record-level scorecard "
@@ -281,7 +318,8 @@ def require_validation_domain(domain: str) -> str:
     if not validation_domain_allowed(domain):
         raise DomainRefused(
             str(domain), VALIDATION,
-            f"Scorecard Validation reads three domains — "
+            f"Scorecard Validation reads "
+            f"{len(SCORECARD_DOMAINS)} domains — "
             f"{', '.join(DOMAIN_LABELS[d] for d in SCORECARD_DOMAINS)} — and "
             f"{domain!r} is not one of them. This environment is scoped to "
             "scorecard model risk; portfolio, IFRS 9, covenant, planner and "
@@ -301,7 +339,7 @@ def require_scorecard_type(scorecard_type: str) -> str:
         raise DomainRefused(
             wanted, VALIDATION,
             f"{scorecard_type!r} is not a scorecard this environment "
-            f"validates. The three are "
+            f"validates. This installation validates "
             f"{', '.join(sorted(SCORECARD_TYPE_DOMAIN))}.")
     return wanted
 

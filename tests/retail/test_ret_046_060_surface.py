@@ -374,6 +374,59 @@ class TestRET048LayoutPreserved:
             "frontend/src/app/lenses/cro/page.tsx",
             # The old-to-current What-If fidelity mapping Revision 3 §3 asks for.
             "docs/WHATIF_RETAIL_FIDELITY_MAP.md",
+            # ---------------------------------------------------------------
+            # The overnight UAT. Each of these is a defect found by USING the
+            # product, reproduced, fixed and re-tested, and each is recorded
+            # in docs/RETAIL_OVERNIGHT_DEFECTS.md with its own regression.
+            #
+            # The Cockpit could not answer a rate, a share or a delinquency
+            # question, because a rate is not a column and the planner
+            # composes an analysis out of columns.
+            "backend/orchestration/metric_route.py",
+            "backend/orchestration/absent_attributes.py",
+            "backend/orchestration/semantics.py",
+            "backend/orchestration/analysis_planner.py",
+            # The Cockpit had no Early Warning line and said nothing about why.
+            "frontend/src/components/early-warning/retail-cockpit-strip.tsx",
+            "frontend/src/app/page.tsx",
+            # Five Playbook routes, two of them detail screens, with no Back.
+            "frontend/src/app/playbook/packs/[packId]/page.tsx",
+            "frontend/src/app/playbook/committees/[committeeId]/page.tsx",
+            "frontend/src/app/playbook/committees/page.tsx",
+            "frontend/src/app/playbook/packs/new/page.tsx",
+            # "Stress the retail portfolio" was refused as another book.
+            "backend/whatif/language.py",
+            # ---------------------------------------------------------------
+            # Scorecard Validation Intelligence, which published a Saudi SME
+            # scorecard in a retail-only product, declared its retail models
+            # UAE-jurisdiction, mapped every test to CBUAE articles, and read
+            # three datasets this installation does not build — so all
+            # forty-eight tests answered "not populated in this deployment".
+            #
+            # Each file carries a retail path chosen by the profile; the
+            # corporate wiring, the SME model and the CBUAE mapping are all
+            # retained for the installation they are true of.
+            "backend/retail/validation_models.py",
+            "backend/scorecard/domains.py",
+            "backend/scorecard/validation/models.py",
+            "backend/scorecard/validation/runner.py",
+            "backend/scorecard/validation/extra.py",
+            "backend/scorecard/validation/conversation.py",
+            "backend/scorecard/validation/agent.py",
+            "backend/scorecard/validation/registry.py",
+            "backend/scorecard/validation/regulatory.py",
+            "backend/scorecard/validation/findings.py",
+            "backend/scorecard/validation/report.py",
+            "backend/scorecard/metrics.py",
+            "backend/scorecard/equation.py",
+            "backend/scorecard/variables.py",
+            "backend/scorecard/report.py",
+            "backend/scorecard/report_xlsx.py",
+            "backend/scorecard/policy.py",
+            "frontend/src/components/scorecard-validation/ask.tsx",
+            "frontend/src/components/scorecard-validation/result-card.tsx",
+            "frontend/src/app/scorecard-validation/page.tsx",
+            "frontend/src/app/scorecard-validation/monitoring/page.tsx",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

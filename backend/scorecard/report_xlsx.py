@@ -64,6 +64,14 @@ REGULATORY_MAPPING: tuple[tuple[str, str], ...] = (
 )
 
 
+def _mapping_title() -> str:
+    from backend.retail import profile
+
+    if profile.is_retail():
+        return "Validation topic to report-section mapping"
+    return "CBUAE MMS/MMG-aligned section mapping"
+
+
 def _write(sheet, rows: list[list[Any]], *, title: str, note: str = "",
            columns: list[str] | None = None) -> None:
     """One block: a title, an optional note, a header row and the body."""
@@ -249,7 +257,7 @@ def write(report: report_mod.Report, *,
 
     _write(book.create_sheet("REGULATORY MAPPING"),
            [[topic, section] for topic, section in REGULATORY_MAPPING],
-           title="CBUAE MMS/MMG-aligned section mapping",
+           title=_mapping_title(),
            note=("This maps the topics the standard's section list covers to "
                  "the sections of this report that address them. It is a "
                  "mapping of structure, not an assertion that any threshold "

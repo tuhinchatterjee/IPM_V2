@@ -193,7 +193,7 @@ function FindingCard({ finding }: { finding: ScvFinding }) {
             {test}
           </span>
         ))}
-        {finding.cbuae.map((reference) => (
+        {(finding.references ?? finding.cbuae).map((reference) => (
           <Badge key={reference} variant="outline">{reference}</Badge>
         ))}
       </div>

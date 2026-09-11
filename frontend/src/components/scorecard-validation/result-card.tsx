@@ -276,7 +276,7 @@ export function ResultCard({ result, test, defaultOpen = false }: {
           )}
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
-            {(test?.cbuae ?? []).map((reference) => (
+            {(test?.references ?? test?.cbuae ?? []).map((reference) => (
               <Badge key={reference} variant="outline">{reference}</Badge>
             ))}
             {result.calculation_version && (

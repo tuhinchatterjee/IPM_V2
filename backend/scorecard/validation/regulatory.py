@@ -53,7 +53,74 @@ DISCLAIMER = (
     "auditor as a compliance conclusion."
 )
 
-FRAMEWORK = "CBUAE Model Management Standards and Guidance"
+CBUAE_FRAMEWORK = "CBUAE Model Management Standards and Guidance"
+
+#: What a retail-only, Saudi installation may honestly claim to be mapping to.
+#:
+#: The failure this replaces: every one of the forty-eight tests carried a
+#: CBUAE MMS/MMG article, and the coverage report was published over the API
+#: and rendered on screen under the heading "CBUAE Model Management Standards
+#: and Guidance" — United Arab Emirates supervision, in a Saudi retail
+#: product.
+#:
+#: Substituting SAMA article numbers would be worse than leaving it wrong.
+#: This installation carries no approved Regulatory Knowledge Release for the
+#: Kingdom, so any article number written here would be an invented citation —
+#: precisely the thing the rest of this codebase spends its governance
+#: preventing. What the expectations below actually are is generic
+#: model-validation practice, stated in the engine's own words, and that is
+#: what they are now labelled as.
+GENERIC_FRAMEWORK = (
+    "Generic model-validation expectations, stated by CreditProbe")
+
+NO_APPROVED_SOURCE = (
+    "This installation carries no approved Regulatory Knowledge Release for "
+    "the Kingdom of Saudi Arabia, so nothing here cites a supervisor's text. "
+    "These are generic model-validation expectations written by CreditProbe, "
+    "and the mapping says which tests would evidence each one. A submission "
+    "maps them onto the articles its own supervisor publishes."
+)
+
+#: The neutral label each internal reference is shown under. The article ids
+#: remain the join key on the test registry — a test knows what it evidences,
+#: and renaming that key would be a migration for a display decision.
+GENERIC_REFERENCES: dict[str, str] = {
+    "MMS 4.9": "VE-01 Documentation",
+    "MMS 9.4": "VE-02 Ongoing monitoring",
+    "MMS 10.3": "VE-03 Conceptual soundness",
+    "MMS 10.4": "VE-04 Outcomes analysis",
+    "MMG 2.8": "VE-05 Purpose and design",
+    "MMG 2.9": "VE-06 Use test",
+    "MMG 2.10": "VE-07 Overrides",
+    "MMG 2.11": "VE-08 Independent validation",
+    "MMG 3.9": "VE-09 Calibration",
+}
+
+
+def framework() -> str:
+    """The framework this installation maps to."""
+    from backend.retail import profile
+
+    return GENERIC_FRAMEWORK if profile.is_retail() else CBUAE_FRAMEWORK
+
+
+def shown_as(reference: str) -> str:
+    """How a reference is labelled on screen in this installation."""
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return reference
+    return GENERIC_REFERENCES.get(reference, reference)
+
+
+def framework_note() -> str:
+    """What must be said beside the mapping, where it is not a citation."""
+    from backend.retail import profile
+
+    return NO_APPROVED_SOURCE if profile.is_retail() else ""
+
+
+FRAMEWORK = framework()
 
 SUMMARIES_ARE_A_READING_AID = (
     "The descriptions below are this engine's summary of what each reference "
@@ -102,9 +169,12 @@ class Requirement:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "reference": self.reference, "title": self.title,
+            "reference": shown_as(self.reference),
+            "internal_reference": self.reference,
+            "title": self.title,
             "asks_for": self.asks_for, "kind": self.kind,
-            "framework": FRAMEWORK,
+            "framework": framework(),
+            "framework_note": framework_note(),
             "evidenced_by": list(self.tests()),
             "summary_is_a_reading_aid": SUMMARIES_ARE_A_READING_AID,
         }
@@ -230,7 +300,8 @@ def coverage(results: list[states.Result]) -> dict[str, Any]:
         tally[row["status"]] += 1
     return {
         "regulatory_version": REGULATORY_VERSION,
-        "framework": FRAMEWORK,
+        "framework": framework(),
+        "framework_note": framework_note(),
         "disclaimer": DISCLAIMER,
         "this_is_not_a_compliance_assessment": True,
         "summary_is_a_reading_aid": SUMMARIES_ARE_A_READING_AID,
@@ -245,7 +316,8 @@ def catalogue() -> dict[str, Any]:
     """The map itself, with nothing run. What a reader can inspect first."""
     return {
         "regulatory_version": REGULATORY_VERSION,
-        "framework": FRAMEWORK,
+        "framework": framework(),
+        "framework_note": framework_note(),
         "disclaimer": DISCLAIMER,
         "this_is_not_a_compliance_assessment": True,
         "summary_is_a_reading_aid": SUMMARIES_ARE_A_READING_AID,
@@ -259,6 +331,7 @@ def catalogue() -> dict[str, Any]:
 
 __all__ = [
     "BY_REFERENCE", "DISCLAIMER", "DOCUMENTARY", "EVIDENCED", "FRAMEWORK",
+    "framework", "framework_note", "shown_as",
     "NOT_APPLICABLE", "NOT_EVIDENCED", "PARTIALLY_EVIDENCED", "QUANTITATIVE",
     "REGULATORY_VERSION", "REQUIREMENTS", "STATUSES", "STATUS_MEANING",
     "Requirement", "catalogue", "coverage",
