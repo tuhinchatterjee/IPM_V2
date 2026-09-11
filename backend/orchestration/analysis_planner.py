@@ -600,6 +600,17 @@ def _plan(reading: Reading, context: GovernedContext, *,
     composite = cmp.find(text, catalogue)
     if composite is None and settled_text:
         composite = cmp.find(settled_text, catalogue)
+    if composite is not None and _TRANSITION.search(text):
+        # A sentence that names BOTH endpoints of a state transition is a
+        # migration, and this book answers it exactly. The deterioration
+        # composite matched "How many facilities DETERIORATED from Stage 1 to
+        # Stage 3?" on the verb alone, then refused it — "CreditProbe could
+        # not build that ranking at the level the question asked for" — while
+        # the same question with "moved" answered 7. The verb is the weaker
+        # signal of the two: the stated endpoints say what is being asked.
+        logger.info("A transition is stated, so %s is not the reading of %r.",
+                    composite.composite.key, text[:70])
+        composite = None
     if composite is not None:
         # Within the population the conversation has already settled. §6.
         #
@@ -736,6 +747,21 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # separately, below, as an ordering.
     condition_text = _defining_clauses(text)
     conditions = _conditions(_without_values(condition_text, filters), matches)
+    # A transition this book can express EXACTLY needs no magnitude test
+    # beside it, and the one that was attached contradicted it. "How many
+    # facilities IMPROVED from Stage 2 to Stage 1?" planned the pair
+    # correctly — `ifrs9_stage = 1 AND previous_month_stage = 2` — and then
+    # carried `ifrs9_stage_change < -2` as well, arithmetic that no two-to-one
+    # move satisfies, so the answer was empty. The pair of states IS the
+    # movement; a distance on the same field is a second, incompatible reading
+    # of the same words.
+    _prior_columns = {c for _, c in dm.prior().items()}
+    _pinned = {f for f, _ in filters if f in _prior_columns}
+    if _pinned:
+        _mirrored = {d for d, c in dm.prior().items() if c in _pinned}
+        conditions = [c for c in conditions
+                      if str(getattr(c, "field", "")).removesuffix("_change")
+                      not in _mirrored]
     if carrying and not resolved.matches and state.conditions:
         # The question named no measure of its own — "only show Contracting" —
         # so it is narrowing the analysis that just ran rather than starting a
@@ -807,7 +833,7 @@ def _plan(reading: Reading, context: GovernedContext, *,
     if carrying and continuation is not None and continuation.has_population:
         carried_key = str(continuation.entity_key or "")
     wants_grain = gr.requested(
-        text, dimension=dimension,
+        _without_measure_names(text, matches), dimension=dimension,
         population_grain=gr.GRAIN_OF_KEY.get(carried_key, ""),
         rows_requested=bool(_explicit_top_n(text) or inherited_top_n),
         dimension_is_head=grouping.is_head,
@@ -1492,9 +1518,73 @@ def _shape(reading: Reading, conditions: list[Condition],
 #: investment grade". A question with this shape names two values of one
 #: dimension because it is describing a TRANSITION between them, not asking
 #: for rows that are both at once.
+#: A movement BETWEEN two named states, as opposed to two values of one
+#: dimension named together.
+#:
+#: "deteriorated" and "improved" were missing, so "How many facilities
+#: IMPROVED from Stage 2 to Stage 1?" was not read as a transition at all: the
+#: two stage values stayed as a set, a magnitude reader attached
+#: `ifrs9_stage_change < -2` — arithmetic that no 2-to-1 move satisfies — and
+#: the question returned nothing. They are the words a credit officer uses for
+#: exactly this movement.
+def _without_measure_names(text: str, matches: list[cx.ConceptMatch]) -> str:
+    """The sentence with the phrases that named a MEASURE blanked out.
+
+    A measure's name can contain an entity noun. "What is the average LOAN to
+    value for home finance?" carries `\bloans?\b`, which `grain` reads as a
+    request for one row per facility — so the plan rolled up to one figure,
+    the contract saw facility against portfolio, and the question was refused:
+    "the governed data behind it can only be reported as one row for the whole
+    book". A measure the reader named is not a population they asked for.
+
+    Blanked, not removed, so the rest of the sentence keeps its positions and
+    every other reading of it is unchanged.
+    """
+    said = str(text or "")
+    for match in matches:
+        phrase = str(getattr(match, "phrase", "") or "").strip()
+        if len(phrase) < 3:
+            continue
+        pattern = _re.compile(_re.escape(phrase).replace(r"\ ", r"[\s\-]+"),
+                              _re.IGNORECASE)
+        said = pattern.sub(lambda m: " " * len(m.group(0)), said)
+    return said
+
+
+def _destinations(question: str,
+                  seen: dict[str, list[str]]) -> dict[str, str]:
+    """For each clashing dimension, the value the movement ENDS at.
+
+    The one furthest through the sentence, because that is what "to X" leaves
+    and what every phrasing of a transition puts last: "moved from Stage 1 to
+    Stage 2", "fell from A to B", "Stage 3, down from Stage 2".
+    """
+    text = " " + " ".join(str(question or "").lower().split()) + " "
+    out: dict[str, str] = {}
+    for kind, values in seen.items():
+        if len(set(values)) < 2:
+            continue
+        placed: list[tuple[int, str]] = []
+        for value in dict.fromkeys(values):
+            # As a WHOLE token. A bare `rfind` for "2" matched the 2 in
+            # "August 2026", which sits later in the sentence than "Stage 1"
+            # and made the year decide which stage the movement ended at.
+            found = None
+            for hit in _re.finditer(
+                    r"(?<![\w.])" + _re.escape(str(value).lower())
+                    + r"(?![\w.])", text):
+                found = hit
+            placed.append((found.start() if found is not None else -1, value))
+        placed.sort()
+        if placed[-1][0] >= 0:
+            out[kind] = placed[-1][1]
+    return out
+
+
 _TRANSITION = _re.compile(
     r"\b(?:migrat\w*|mov\w*|transition\w*|shift\w*|slip\w*|fell|fall\w*|"
-    r"rose|ris\w*|downgrad\w*|upgrad\w*|went)\b[^.?!]{0,60}?\bfrom\b",
+    r"rose|ris\w*|downgrad\w*|upgrad\w*|went|deteriorat\w*|improv\w*|"
+    r"worsen\w*|recover\w*|cured?)\b[^.?!]{0,60}?\bfrom\b",
     _re.IGNORECASE)
 
 
@@ -1554,13 +1644,63 @@ def _filters(reading: Reading, context: GovernedContext,
                     max(len(v) for v in seen.values()), sorted(clashing))
         return out
 
+    # Where the book holds the PREVIOUS value on the same row, a transition is
+    # not a compromise at all: it is two conditions on one scan. The retail
+    # book carries `previous_month_stage`, and it agrees with the previous
+    # month's stage on every row of the published lake — so "moved from Stage 1
+    # to Stage 2" is exactly 279 facilities rather than the 1,392 that are in
+    # Stage 2 however long they have been there.
+    prior = dm.prior()
+    exact: list[tuple[str, str]] = []
     kept: list[tuple[str, str]] = []
     dropped: list[str] = []
+    # WHICH value is the destination is decided by where each one sits in the
+    # SENTENCE, not by the order the resolver happened to return them in.
+    # "from Stage 2 to Stage 1" resolved to [1, 2] — sorted — so the last
+    # entry was 1, the destination was read as 1 and the origin as 2, which is
+    # the movement the reader asked about written backwards. It only ever
+    # looked right because "from Stage 1 to Stage 2" sorts the same way it
+    # reads.
+    said = question or reading.objective or ""
+    destination = _destinations(said, seen)
     for kind, value in out:
-        if kind in clashing and value != seen[kind][-1]:
+        if kind in clashing and value != destination.get(kind, seen[kind][-1]):
+            column = prior.get(kind, "")
+            # NOT gated on `permitted`. The prior column is deliberately not a
+            # filterable DIMENSION: making it one let the entity resolver
+            # attach every bare stage number to it as well, so "Stage 2 and
+            # Stage 3 exposure" acquired a restriction on last month's stage
+            # that nobody had asked for. It is a declared companion of the
+            # dimension it mirrors, and it carries that dimension's own values.
+            if column and value in permitted.get(kind, ()):
+                exact.append((column, value))
+                continue
             dropped.append(f"{kind}={value}")
             continue
         kept.append((kind, value))
+    if exact:
+        logger.info("Question describes a transition and the book holds the "
+                    "origin on the row; planning it exactly as %s.", exact)
+        if warnings is not None:
+            # In the reader's words, never the column's. A caveat that says
+            # "previous_month_stage 1" to a credit officer is the same defect
+            # the corporate caveat was already written to avoid.
+            from backend.orchestration.dynamic import FIELD_LABELS
+
+            mirrored = {c: d for d, c in prior.items()}
+            said = ", ".join(
+                f"{FIELD_LABELS.get(mirrored.get(c, c), mirrored.get(c, c).replace('_', ' '))}"
+                f" {v} last month"
+                for c, v in exact)
+            now = ", ".join(
+                f"{FIELD_LABELS.get(k, k.replace('_', ' '))} {v}"
+                for k, v in kept if k in clashing)
+            warnings.append(
+                f"The question describes a movement from {said} to {now} now. "
+                "This book records each facility's previous state on the same "
+                "row, so the answer is the facilities that ARRIVED in the "
+                "period rather than everything now at the destination.")
+        return kept + exact
     logger.info(
         "Question describes a transition and named %s; keeping the "
         "destination and dropping the origin(s) %s, which cannot hold on the "

@@ -121,7 +121,18 @@ WEAK = r"since|between|compared|against"
 #: reading the module exists to make.
 _MIGRATION = re.compile(
     r"\b(?:mov(?:ed|es|ement|ements)|shift(?:ed|s)|transition\w*)\s+"
-    r"(?:in)?to\s+(?!date\b)",
+    r"(?:in)?to\s+(?!date\b)"
+    # "moved FROM Stage 1 TO Stage 2" is the same migration with its origin
+    # stated, and it was not masked: `moved` matched the change vocabulary, the
+    # question was planned as a two-period comparison, and "which customers
+    # moved from Stage 1 to Stage 2 in August 2026?" came back as two rows —
+    # one per month — carrying max(ifrs9_stage). No customers, no movement.
+    #
+    # The operand decides, exactly as the docstring requires: a named STATE is
+    # a migration, and "ECL moved from 5,248 to 5,313" states the endpoints of
+    # a measure movement with the same preposition and must keep its reading.
+    r"|\b(?:mov(?:ed|es|ement|ements)|shift(?:ed|s)|migrat\w*|transition\w*"
+    r"|deteriorat\w*|improv\w*|downgrad\w*|upgrad\w*)\s+from\s+(?![\d.,])",
     re.IGNORECASE)
 
 

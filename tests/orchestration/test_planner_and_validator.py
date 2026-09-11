@@ -255,13 +255,27 @@ class TestATransitionIsNotAConjunction:
         return ctx_mod.retrieve("What is total exposure by IFRS 9 stage?")
 
     def test_the_destination_survives_and_the_origin_does_not(self):
+        """On a book that does not hold the origin, the destination is kept.
+
+        The retail book DOES hold it, on `previous_month_stage`, and there the
+        transition is planned exactly — see
+        `tests/retail/test_ret_overnight_migration.py`. The compromise
+        asserted here is the right answer only where the row carries one
+        endpoint, which is the corporate book.
+        """
         from backend.orchestration import analysis_planner as ap
+        from backend.orchestration import dimensions as dm
 
         question = ("Which borrowers are most likely to migrate from IFRS 9 "
                     "Stage 1 to Stage 2?")
         got = ap._filters(self._reading(question), self._context(), question)
-        assert got == [("ifrs9_stage", "2")], (
-            "a transition must leave one filter - the destination")
+        prior = dm.prior().get("ifrs9_stage", "")
+        if prior:
+            assert got == [("ifrs9_stage", "2"), (prior, "1")], (
+                "where the book holds the origin, a transition is both ends")
+        else:
+            assert got == [("ifrs9_stage", "2")], (
+                "a transition must leave one filter - the destination")
 
     def test_a_set_of_two_stages_is_left_exactly_as_resolved(self):
         """The fix must not have become "always drop all but the last".
@@ -298,11 +312,24 @@ class TestATransitionIsNotAConjunction:
         """
         from backend.orchestration import analysis_planner as ap
 
+        from backend.orchestration import dimensions as dm
+
         question = "Which borrowers moved from Stage 1 to Stage 2?"
         notes: list[str] = []
         ap._filters(self._reading(question), self._context(), question, notes)
         assert notes, "the narrowing was performed without stating it"
         said = " ".join(notes)
+        if dm.prior().get("ifrs9_stage", ""):
+            # Nothing was dropped, so there is no substitution to declare —
+            # what the note says instead is that the answer is the facilities
+            # that ARRIVED, which is the stronger claim and the true one.
+            assert "ARRIVED" in said, (
+                f"the note does not say what was actually answered: {said!r}")
+            assert "IFRS 9 stage 1" in said and "IFRS 9 stage 2" in said, (
+                f"the note does not name both endpoints: {said!r}")
+            assert "previous_month_stage" not in said and "ifrs9_stage" not in said, (
+                f"the note shows a column name to a credit officer: {said!r}")
+            return
         assert "IFRS 9 stage 1" in said and "IFRS 9 stage 2" in said, (
             f"the caveat does not name both endpoints: {said!r}")
         assert "ifrs9_stage" not in said, (

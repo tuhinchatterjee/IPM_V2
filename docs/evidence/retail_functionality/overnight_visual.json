@@ -1,0 +1,408 @@
+{
+  "suite": "overnight_visual",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 353.8,
+  "counts": {
+    "PASS": 16,
+    "FAIL": 3,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_visual-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1440x900-01",
+      "module": "visual",
+      "title": "No screen scrolls sideways at 1440x900",
+      "status": "PASS",
+      "detail": "routes wider than the viewport=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "overflow": {}
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1440x900-02",
+      "module": "visual",
+      "title": "No text is clipped by its own box at 1440x900",
+      "status": "PASS",
+      "detail": "routes with clipped text=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "clipped": {}
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1440x900-03",
+      "module": "visual",
+      "title": "No control is pushed off the screen at 1440x900",
+      "status": "PASS",
+      "detail": "routes with an unreachable control=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "offscreen": {}
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1440x900-04",
+      "module": "visual",
+      "title": "No screen is still loading after it has settled at 1440x900",
+      "status": "PASS",
+      "detail": "routes still loading=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1512x982-01",
+      "module": "visual",
+      "title": "No screen scrolls sideways at 1512x982",
+      "status": "PASS",
+      "detail": "routes wider than the viewport=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "overflow": {}
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1512x982-02",
+      "module": "visual",
+      "title": "No text is clipped by its own box at 1512x982",
+      "status": "PASS",
+      "detail": "routes with clipped text=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "clipped": {}
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1512x982-03",
+      "module": "visual",
+      "title": "No control is pushed off the screen at 1512x982",
+      "status": "PASS",
+      "detail": "routes with an unreachable control=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "offscreen": {}
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-1512x982-04",
+      "module": "visual",
+      "title": "No screen is still loading after it has settled at 1512x982",
+      "status": "PASS",
+      "detail": "routes still loading=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "VIS-05",
+      "module": "visual",
+      "title": "The composer is reachable and its Send is live at both laptop sizes",
+      "status": "PASS",
+      "detail": "problems=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/vis-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-01",
+      "module": "visual",
+      "title": "No chart is drawn for a yes/no question",
+      "status": "PASS",
+      "detail": "answered=True; charts before=0 after=0",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Are there any Stage 3 home-finance facilities in August 2026?",
+        "answer": "\n\nONE QUESTION BACK\n\nCreditProbe read this as a question about one row per facility \u2014 the question names facilities, so each row is a facility \u2014 but the governed data behind it can only be reported as one row for the whole book. Ask for it at that level, or name the breakdown you want.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads quest",
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-02",
+      "module": "visual",
+      "title": "No chart is drawn for a conceptual explanation",
+      "status": "PASS",
+      "detail": "answered=True; charts before=0 after=0",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What does Gini mean?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nRetail facility month-end position (retail_facility_month) carries 546 governed fields at one retail customer's one facility at one month-end.\n\nWhat a field means\nGoverned metadata\nTrace\n\nFIELDS\n\n546\n\nDataset\n\t\nField\n\t\nBusiness Name\n\t\nUnit\n\t\nType\n\t\nDefinition\n\nretail_facility_month\taccount_average_balance_3m_sar\tAccount average balance 3m SAR\tSAR\tnumber\tAverage current-account balance over three months, to this month-end. A CUSTOMER level.\nretail_facility_month\taccount_inflows_1m_sar\tAccount inflows 1m SAR\tSAR\tnumber\tEverything credited to the customer's accounts in this month, salary included. A PERIOD amount: sum it over th",
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-03",
+      "module": "visual",
+      "title": "No chart is drawn for a single fact",
+      "status": "FAIL",
+      "detail": "answered=True; charts before=0 after=1",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What is ECL coverage at August 2026?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nECL Coverage is 0.77% at 2026-08. It is SUM(ecl_final_sar) / SUM(gross_carrying_amount_sar) \u00d7 100.\n\nECL Coverage\nGoverned metadata\nTrace\n\nUNIT\n\npercent\n\nVALUE\n\n0.77\n\nPERIOD\n\n2026-08\n\nFORMATTED\n\n0.77%\n\nMETRIC ID\n\nretail.ecl_coverage\n\nA measure over 1 periods.\n\nAsk about this\nChart\nTable\nMetric\n\t\nECL Coverage\npercent\n\t\nPeriod\n\nECL Coverage\t0.77\t2026-08\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nBreak ECL Coverage down by product\nShow ECL Coverage by customer segment\nHow is ECL Coverage calculated?\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 not v",
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-04",
+      "module": "visual",
+      "title": "A chart is offered for a 25-month trend",
+      "status": "PASS",
+      "detail": "answered=True; charts before=1 after=2",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show the 25-month weighted ECL trend for credit cards.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nCREDIT CARD, CARD \u00b7 2025-08 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nFinal ECL fell from 3,110,069 to 3,061,762 SAR between 2025-08 and 2026-08 \u2014 a change of 48,307 SAR (1.55%).\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\n\nFINAL ECL AT 2026-08\n\n3,061,761.69\nSAR\n\n48,307.36\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n-48,307.36\n\nMATCHING\n\n2\n\nCHANGE PCT\n\n-1.55\n\nCLOSING TOTAL\n\n3,061,761.69\n\nOPENING TOTAL\n\n3,110,069.05\n\nCLOSING PERIOD\n\n2026-08\n\nA measure over ",
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-05",
+      "module": "visual",
+      "title": "A chart is offered for a product ranking",
+      "status": "PASS",
+      "detail": "answered=True; charts before=2 after=3",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show expected credit loss by product at August 2026.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR, 56.38% of the total.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each product at 2026-08. Personal Finance alone accounts for 56.38% of expected credit loss across the 4 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n4 ",
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-06",
+      "module": "visual",
+      "title": "A chart is offered for a stage composition",
+      "status": "FAIL",
+      "detail": "answered=True; charts before=3 after=3",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Break August 2026 exposure into Stage 1, Stage 2 and Stage 3.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nSTAGE 1, STAGE 2, STAGE 3 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, IFRS 9 STAGE\n\n2,082,852,856 SAR of gross carrying amount in Stage 1, Stage 2, Stage 3 at 2026-08.\n\nTOTAL GROSS CARRYING AMOUNT\n\n2,082,852,855.82\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n2,082,852,855.82\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nGross carrying amount\nsar bn\n\t\nIFRS 9 stage\n\n2.08\t3\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but no",
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-07",
+      "module": "visual",
+      "title": "The trend reads in date order",
+      "status": "FAIL",
+      "detail": "0 months on the axis, in order=True; axis reads [] \u2026 []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "months": [],
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PERF-01",
+      "module": "visual",
+      "title": "Nothing takes minutes",
+      "status": "PASS",
+      "detail": "journeys over two minutes=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "timings": {
+          "/ @1440x900": 3.1,
+          "/workspace @1440x900": 3.0,
+          "/messages @1440x900": 3.0,
+          "/projects @1440x900": 3.1,
+          "/investigations @1440x900": 3.1,
+          "/analyses @1440x900": 3.1,
+          "/documents @1440x900": 3.1,
+          "/lenses @1440x900": 3.1,
+          "/metrics @1440x900": 3.1,
+          "/early-warning @1440x900": 3.1,
+          "/early-warning/signals @1440x900": 3.1,
+          "/what-if @1440x900": 3.1,
+          "/borrower-360 @1440x900": 3.1,
+          "/scorecard-validation @1440x900": 3.1,
+          "/studio @1440x900": 3.1,
+          "/data-builder @1440x900": 3.1,
+          "/trace @1440x900": 3.1,
+          "/playbook @1440x900": 3.0,
+          "/reviews @1440x900": 3.0,
+          "/workflow @1440x900": 3.1,
+          "/agent-operations @1440x900": 3.1,
+          "/ai-studio @1440x900": 3.0,
+          "/users @1440x900": 3.1,
+          "/settings @1440x900": 3.1,
+          "/ @1512x982": 3.1,
+          "/workspace @1512x982": 3.1,
+          "/messages @1512x982": 3.1,
+          "/projects @1512x982": 3.1,
+          "/investigations @1512x982": 3.1,
+          "/analyses @1512x982": 3.0,
+          "/documents @1512x982": 3.1,
+          "/lenses @1512x982": 3.1,
+          "/metrics @1512x982": 3.0,
+          "/early-warning @1512x982": 3.1,
+          "/early-warning/signals @1512x982": 3.1,
+          "/what-if @1512x982": 3.1,
+          "/borrower-360 @1512x982": 3.1,
+          "/scorecard-validation @1512x982": 3.0,
+          "/studio @1512x982": 3.1,
+          "/data-builder @1512x982": 3.1,
+          "/trace @1512x982": 3.0,
+          "/playbook @1512x982": 3.2,
+          "/reviews @1512x982": 3.0,
+          "/workflow @1512x982": 3.1,
+          "/agent-operations @1512x982": 3.0,
+          "/ai-studio @1512x982": 3.1,
+          "/users @1512x982": 3.1,
+          "/settings @1512x982": 3.1,
+          "Are there any Stage 3 home-finance facilities in August 2026?": 4.3,
+          "What does Gini mean?": 3.8,
+          "What is ECL coverage at August 2026?": 5.1,
+          "Show the 25-month weighted ECL trend for credit cards.": 6.3,
+          "Show expected credit loss by product at August 2026.": 6.5,
+          "Break August 2026 exposure into Stage 1, Stage 2 and Stage 3.": 7.7,
+          "/early-warning/signals (cold)": 2.6,
+          "/borrower-360 (cold)": 93.2,
+          "/scorecard-validation (cold)": 2.6,
+          "/what-if (cold)": 2.6
+        }
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PERF-02",
+      "module": "visual",
+      "title": "The slowest journeys are recorded for the handover",
+      "status": "PASS",
+      "detail": "/borrower-360 (cold) 93.2s; Break August 2026 exposure into Stage 1, Stage 2 and Stage 3. 7.7s; Show expected credit loss by product at August 2026. 6.5s; Show the 25-month weighted ECL trend for credit cards. 6.3s; What is ECL coverage at August 2026? 5.1s; Are there any Stage 3 home-finance facilities in August 2026? 4.3s; What does Gini mean? 3.8s; /playbook @1512x982 3.2s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "all_timings": {
+          "/ @1440x900": 3.1,
+          "/workspace @1440x900": 3.0,
+          "/messages @1440x900": 3.0,
+          "/projects @1440x900": 3.1,
+          "/investigations @1440x900": 3.1,
+          "/analyses @1440x900": 3.1,
+          "/documents @1440x900": 3.1,
+          "/lenses @1440x900": 3.1,
+          "/metrics @1440x900": 3.1,
+          "/early-warning @1440x900": 3.1,
+          "/early-warning/signals @1440x900": 3.1,
+          "/what-if @1440x900": 3.1,
+          "/borrower-360 @1440x900": 3.1,
+          "/scorecard-validation @1440x900": 3.1,
+          "/studio @1440x900": 3.1,
+          "/data-builder @1440x900": 3.1,
+          "/trace @1440x900": 3.1,
+          "/playbook @1440x900": 3.0,
+          "/reviews @1440x900": 3.0,
+          "/workflow @1440x900": 3.1,
+          "/agent-operations @1440x900": 3.1,
+          "/ai-studio @1440x900": 3.0,
+          "/users @1440x900": 3.1,
+          "/settings @1440x900": 3.1,
+          "/ @1512x982": 3.1,
+          "/workspace @1512x982": 3.1,
+          "/messages @1512x982": 3.1,
+          "/projects @1512x982": 3.1,
+          "/investigations @1512x982": 3.1,
+          "/analyses @1512x982": 3.0,
+          "/documents @1512x982": 3.1,
+          "/lenses @1512x982": 3.1,
+          "/metrics @1512x982": 3.0,
+          "/early-warning @1512x982": 3.1,
+          "/early-warning/signals @1512x982": 3.1,
+          "/what-if @1512x982": 3.1,
+          "/borrower-360 @1512x982": 3.1,
+          "/scorecard-validation @1512x982": 3.0,
+          "/studio @1512x982": 3.1,
+          "/data-builder @1512x982": 3.1,
+          "/trace @1512x982": 3.0,
+          "/playbook @1512x982": 3.2,
+          "/reviews @1512x982": 3.0,
+          "/workflow @1512x982": 3.1,
+          "/agent-operations @1512x982": 3.0,
+          "/ai-studio @1512x982": 3.1,
+          "/users @1512x982": 3.1,
+          "/settings @1512x982": 3.1,
+          "Are there any Stage 3 home-finance facilities in August 2026?": 4.3,
+          "What does Gini mean?": 3.8,
+          "What is ECL coverage at August 2026?": 5.1,
+          "Show the 25-month weighted ECL trend for credit cards.": 6.3,
+          "Show expected credit loss by product at August 2026.": 6.5,
+          "Break August 2026 exposure into Stage 1, Stage 2 and Stage 3.": 7.7,
+          "/early-warning/signals (cold)": 2.6,
+          "/borrower-360 (cold)": 93.2,
+          "/scorecard-validation (cold)": 2.6,
+          "/what-if (cold)": 2.6
+        }
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

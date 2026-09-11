@@ -482,6 +482,14 @@ class TestRET048LayoutPreserved:
             "backend/orchestration/grain.py",
             "backend/orchestration/semantics.py",
             "backend/orchestration/thresholds.py",
+            # ---------------------------------------------------------------
+            # Stage migration — the question IFRS 9 is about — answered 1,392
+            # where the answer is 279; a percentage bound compiled against a
+            # decimal column and matched nothing; a measure's own name read as
+            # a population; a coverage TREND averaged across facilities; and a
+            # composition enumerated rather than named.
+            "backend/orchestration/metric_route.py",
+            "backend/orchestration/movement.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

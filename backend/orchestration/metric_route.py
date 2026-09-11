@@ -104,9 +104,15 @@ _RANKED = re.compile(
 #: Words that make a question a comparison between two points in time. The
 #: metric engine computes one period; asking it to answer a comparison would
 #: mean showing one of the two numbers under a heading promising both.
+#: A COMPARISON between two states of the book, which this engine does not
+#: produce. "trend" and "over time" have been taken out of it: a series of a
+#: governed metric is exactly what the engine does produce, month by month,
+#: and declining it sent "show the ECL coverage trend" to a composer that can
+#: only average the ratio COLUMN — 2.17% where the book's coverage is 0.77%,
+#: over two points where twelve were asked for. See `_TREND` below.
 _COMPARISON = re.compile(
     r"\b(?:vs\.?|versus|compared?\s+(?:to|with)|against|since|between|"
-    r"year\s+on\s+year|month\s+on\s+month|yoy|mom|trend|over\s+time|"
+    r"year\s+on\s+year|month\s+on\s+month|yoy|mom|"
     r"movement|change[ds]?)\b",
     re.IGNORECASE,
 )
@@ -125,6 +131,8 @@ class Routed:
     #: the whole breakdown.
     ranked: bool = True
     period: str = ""
+    #: True where the breakdown IS the period — a series rather than a cut.
+    trend: bool = False
 
     @property
     def metric_id(self) -> str:
@@ -217,6 +225,22 @@ def read(question: str) -> Routed | None:
     from backend.orchestration import semantics
 
     masked = _mask(text, phrase)
+
+    # A TREND of a governed metric is this engine's work, not the composer's.
+    #
+    # It was declined with every other movement, and the composer then did the
+    # only thing it can with a ratio COLUMN: averaged it. "Show the ECL
+    # coverage trend for the last 12 months" came back as the mean of nineteen
+    # thousand per-facility coverage ratios — 2.17% — where the book's coverage
+    # is 0.77%, and over two points rather than twelve. A coverage ratio is
+    # SUM(ECL) / SUM(gross carrying amount), and only the metric knows that.
+    if _TREND.search(text):
+        period_field = _period_field(metric)
+        if period_field:
+            return Routed(metric=metric, phrase=phrase,
+                          dimension=period_field, dimension_phrase="month",
+                          ranked=False, period="", trend=True)
+
     if semantics.find_movement(masked) is not None:
         return None
     if semantics.find_threshold(masked) is not None:
@@ -227,6 +251,54 @@ def read(question: str) -> Routed | None:
                   dimension_phrase=dimension_phrase,
                   ranked=bool(_RANKED.search(text)),
                   period=_period(text, metric))
+
+
+#: A request for the metric AS A SERIES rather than as a figure.
+_TREND = re.compile(
+    r"\btrend\b|\bover time\b|\bmonth by month\b|\bby month\b|"
+    r"\bby reporting month\b|\beach month\b|\bevery month\b|"
+    r"\b(?:last|past|latest)\s+\d+\s+months?\b|\btime series\b|"
+    r"\bhistory\b|\bhow has it (?:moved|changed|developed)\b",
+    re.IGNORECASE)
+
+
+def _windowed(points: list[dict[str, Any]], question: str
+              ) -> list[dict[str, Any]]:
+    """The months the question asked for, where it asked for a window.
+
+    "the last 12 months" asked for twelve and the engine returns every month
+    the book publishes. Twenty-five points under a question about twelve is an
+    honest superset and still not the answer; a window that cannot be read
+    leaves the series whole, which is.
+    """
+    from backend.orchestration import periods as pr
+
+    labels = [str(p.get("label") or "") for p in points]
+    try:
+        intent = pr.read_period_intent(question, labels)
+    except Exception:  # noqa: BLE001 - an unreadable window is the whole series
+        return points
+    opening = str(getattr(intent, "from_period", "") or "")
+    closing = str(getattr(intent, "to_period", "") or "")
+    if not (getattr(intent, "specified", False) and opening and closing):
+        return points
+    kept = [p for p in points
+            if opening <= str(p.get("label") or "") <= closing]
+    return kept or points
+
+
+def _period_field(metric: Any) -> str:
+    """The column the metric's own dataset is partitioned by."""
+    from backend.data_access import get_catalog
+
+    for name in (metric.datasets or ()):
+        try:
+            field = get_catalog().dataset(name).period_field
+        except Exception:  # noqa: BLE001 - an unknown dataset has no period
+            continue
+        if field:
+            return str(field)
+    return ""
 
 
 #: "what share of the book is in Stage 2", "what percentage is Stage 3".
@@ -315,6 +387,7 @@ def _period(question: str, metric: Any) -> str:
 
 
 #: How many groups a breakdown may return before it stops being an answer.
+MAX_PERIODS = 60
 MAX_GROUPS = 25
 
 
@@ -436,12 +509,19 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
     from backend.orchestration.handlers import HandlerResult
 
     metric = routed.metric
-    period = routed.period or service.default_period(metric)
+    period = "" if routed.trend else (routed.period
+                                      or service.default_period(metric))
     try:
         drawn = execution.breakdown(
-            metric.formula, dimension=routed.dimension, period=period,
-            scope=metric.scope, sort="value", direction="desc",
-            limit=MAX_GROUPS, question=question)
+            metric.formula, dimension=routed.dimension,
+            # A series spans every published month, so it names no ONE of
+            # them; a cut is taken at a single reporting date.
+            period="" if routed.trend else period,
+            scope=metric.scope,
+            sort="label" if routed.trend else "value",
+            direction="asc" if routed.trend else "desc",
+            limit=MAX_PERIODS if routed.trend else MAX_GROUPS,
+            question=question)
     except Exception:  # noqa: BLE001 - stated, then the single figure
         logger.exception("The metric breakdown failed for %r", metric.metric_id)
         return None
@@ -449,6 +529,8 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
         return None
     points = [p for p in (drawn.get("points") or [])
               if p.get("value") is not None]
+    if routed.trend:
+        points = _windowed(points, question)
     if not points:
         return None
 
@@ -458,7 +540,24 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
     bottom = ordered[-1]
     unit, places = str(metric.unit), int(metric.decimals)
     where = f" at {period}" if period else ""
-    if routed.ranked:
+    if routed.trend:
+        # A series reads in DATE order, never by size: a trend sorted by value
+        # is a ranking with the x-axis mislabelled.
+        points = sorted(points, key=lambda p: str(p.get("label") or ""))
+        first, last = points[0], points[-1]
+        direction = ("rose" if last["value"] > first["value"] else
+                     "fell" if last["value"] < first["value"] else "was flat")
+        sentence = (
+            f"{metric.name} {direction} from "
+            f"{_format(first['value'], unit, places)} at {first['label']} to "
+            f"{_format(last['value'], unit, places)} at {last['label']}, "
+            f"across {len(points)} reporting months. It is "
+            f"{metric.formula_text}." if metric.formula_text else
+            f"{metric.name} {direction} from "
+            f"{_format(first['value'], unit, places)} at {first['label']} to "
+            f"{_format(last['value'], unit, places)} at {last['label']}, "
+            f"across {len(points)} reporting months.")
+    elif routed.ranked:
         sentence = (
             f"{top['label']} has the highest {metric.name}{where}, at "
             f"{_format(top['value'], unit, places)}. "
@@ -473,11 +572,17 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
     if metric.formula_text:
         sentence += f" Each group is {metric.formula_text}."
 
+    # A series reads in DATE order and a breakdown reads largest first. Both
+    # the sentence and the table have to use the same one, or the "highest"
+    # the prose names is not the first row of the table.
+    shown = points if routed.trend else ordered
     return HandlerResult(
         answer=sentence,
         rows=[{"label": p["label"], "value": p["value"], "rows": p.get("rows", 0)}
-              for p in ordered],
-        columns=[{"name": "label", "label": label, "type": "string"},
+              for p in shown],
+        columns=[{"name": "label",
+                  "label": "Reporting month" if routed.trend else label,
+                  "type": "string"},
                  {"name": "value", "label": metric.name, "type": "number",
                   "unit": metric.unit, "decimals": metric.decimals},
                  {"name": "rows", "label": "Facilities", "type": "number"}],
@@ -489,10 +594,12 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
                               "period": period,
                               "groups": len(ordered)},
                 "source": "metric_catalogue"},
-        # A bar, and only a bar: these are groups on a nominal scale, not a
-        # series over time, and drawing them as a line asserts an order the
-        # dimension does not have.
-        chart={"chart": "bar", "x": "label", "y": ["value"],
+        # A bar for groups on a nominal scale; a LINE for a series, where the
+        # order is the meaning. Drawing a month series as bars loses the shape
+        # a reader is looking for, and drawing nominal groups as a line
+        # asserts an order the dimension does not have.
+        chart={"chart": "line" if routed.trend else "bar",
+               "x": "label", "y": ["value"],
                "chart_first": True, "alternatives": ["table"],
                "reason": (f"one governed metric compared across "
                           f"{label.lower()}")},

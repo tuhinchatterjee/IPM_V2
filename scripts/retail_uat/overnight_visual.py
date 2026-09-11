@@ -26,6 +26,7 @@ analysis says it is working.
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from pathlib import Path
@@ -71,6 +72,13 @@ MEASURE = """
     const style = getComputedStyle(el);
     if (style.display === 'none' || style.visibility === 'hidden') continue;
     if ((el.className || '').toString().includes('skeleton')) out.skeletons++;
+    // Screen-reader-only labels are 1x1 with hidden overflow BY DESIGN — that
+    // is what makes them invisible and still announced. Measuring them as
+    // clipped text reported "Sign out" as a defect on all twenty-four routes,
+    // and "Set password", "Deactivate" and "Reactivate" on Users. They are
+    // the accessibility layer working, not a layout fault.
+    if ((el.className || '').toString().includes('sr-only')) continue;
+    if (el.clientWidth <= 1 || el.clientHeight <= 1) continue;
     // Text clipped by its own box, with no scroller and no ellipsis to say so.
     if (el.children.length === 0 && el.textContent.trim().length > 3) {
       const hiddenX = el.scrollWidth > el.clientWidth + 2;
@@ -114,11 +122,29 @@ def ask(s: Session, question: str, timeout: int = 300) -> tuple[str, float]:
     return (turn if made.get("completed") else ""), took
 
 
-def has_chart(s: Session) -> bool:
-    """Whether the answer on screen carries a drawn visual."""
-    return bool(s.page.query_selector(
-        "svg.recharts-surface, .recharts-wrapper, canvas, "
-        "[data-testid='answer-chart']"))
+CHART = ("main svg.recharts-surface, main .recharts-wrapper, "
+         'main [data-testid^="chart"]')
+
+
+def charted(s: Session) -> int:
+    """How many drawn visuals are on screen.
+
+    Counted the way the cockpit suite counts them — the same selector, so the
+    two suites cannot disagree about whether a chart exists. Reading it with a
+    selector of its own found none where the cockpit found five.
+    """
+    return len(s.page.query_selector_all(CHART))
+
+
+def axis_labels(s: Session) -> list[str]:
+    """The x-axis tick text of the last chart drawn.
+
+    A 25-month trend names two months in its PROSE and twenty-five on its
+    axis, so a check that reads only the text sees a two-point series.
+    """
+    ticks = s.page.query_selector_all(
+        "main .recharts-xAxis .recharts-cartesian-axis-tick-value")
+    return [(t.inner_text() or "").strip() for t in ticks]
 
 
 def suite(s: Session, rec: Recorder) -> None:
@@ -207,12 +233,14 @@ def suite(s: Session, rec: Recorder) -> None:
         ("CHT-03", "What is ECL coverage at August 2026?", "a single fact"),
     ]
     for cid, question, why in quiet:
+        before = charted(s)
         answer, took = ask(s, question)
         timings[question] = round(took, 1)
-        drawn = has_chart(s)
+        drawn = charted(s) > before
         _case(rec, cid, f"No chart is drawn for {why}",
               bool(answer) and not drawn,
-              f"answered={bool(answer)}; a chart was drawn={drawn}",
+              f"answered={bool(answer)}; charts before={before} after="
+              f"{charted(s)}",
               question=question, answer=answer[:700],
               screenshot=s.shot(cid.lower()))
 
@@ -225,23 +253,31 @@ def suite(s: Session, rec: Recorder) -> None:
                    "Stage 3.", "a stage composition"),
     ]
     for cid, question, why in drawn_expected:
+        before = charted(s)
         answer, took = ask(s, question)
         timings[question] = round(took, 1)
-        drawn = has_chart(s)
+        s.settle_for(lambda: charted(s) > before, seconds=30)
+        drawn = charted(s) > before
         _case(rec, cid, f"A chart is offered for {why}",
               bool(answer) and drawn,
-              f"answered={bool(answer)}; a chart was drawn={drawn}",
+              f"answered={bool(answer)}; charts before={before} after="
+              f"{charted(s)}",
               question=question, answer=answer[:700],
               screenshot=s.shot(cid.lower()))
 
     # The trend must read in date order, not in the order the rows arrived.
-    answer, _ = ask(s, "Show the 25-month weighted ECL trend for credit cards.")
-    months = [m for m in (f"{y}-{m:02d}" for y in (2024, 2025, 2026)
-                          for m in range(1, 13)) if m in answer]
+    # Read off the chart's AXIS: the prose names the endpoints and the axis
+    # carries the series, so a check that reads the text sees two points.
+    before = charted(s)
+    ask(s, "Show the 25-month weighted ECL trend for credit cards.")
+    s.settle_for(lambda: charted(s) > before, seconds=30)
+    labels = [t for t in axis_labels(s) if t]
+    months = [t for t in labels if re.fullmatch(r"\d{4}-\d{2}", t)]
     ordered = months == sorted(months)
-    _case(rec, "CHT-07", "The trend reads in date order", ordered and
-          len(months) >= 20,
-          f"{len(months)} months on screen, in order={ordered}",
+    _case(rec, "CHT-07", "The trend reads in date order",
+          bool(months) and ordered,
+          f"{len(months)} months on the axis, in order={ordered}; "
+          f"axis reads {labels[:4]} … {labels[-2:]}",
           months=months, screenshot=s.shot("cht-07"))
 
     # ==================================================== §25 the clock

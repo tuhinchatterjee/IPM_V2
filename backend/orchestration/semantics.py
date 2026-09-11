@@ -638,6 +638,41 @@ def threshold_near(question: str, phrase: str) -> Threshold | None:
     return None
 
 
+#: Units the catalogue holds as a DECIMAL fraction: 0.598, not 59.8.
+_DECIMAL_UNITS = frozenset({"ratio", "probability", "x"})
+
+#: How a reader writes a percentage.
+_PERCENT_SAID = frozenset({"%", "percent", "per cent"})
+
+
+def _to_field_scale(match: Any, threshold: Threshold) -> tuple[float, str]:
+    """The bound in the units the COLUMN is held in, and what was converted.
+
+    The unit was read and discarded, on the reasoning that "1.2x", "15%" and
+    "30 days" all state the governed field's own unit. They do not. A retail
+    book holds `debt_burden_ratio` as a DECIMAL — 0.598, not 59.8 — so
+
+        "customers with a debt burden ratio above 50 percent"
+
+    compiled to `debt_burden_ratio > 50`, which no row in the book satisfies.
+    The answer was empty, and nothing said the bound had been read on a
+    different scale from the column.
+
+    Converted rather than refused, because the reader's phrasing is the
+    conventional one and the catalogue knows both scales. Stated on the
+    answer, because a silently rescaled bound is a silently different
+    question.
+    """
+    unit = str(getattr(threshold, "unit", "") or "").strip().lower()
+    field_unit = str(getattr(match.concept, "unit", "") or "").strip().lower()
+    if unit in _PERCENT_SAID and field_unit in _DECIMAL_UNITS:
+        return threshold.value / 100.0, (
+            f"{threshold.phrase} was read as "
+            f"{threshold.value / 100.0:g} because "
+            f"{match.label} is held as a decimal fraction in this book")
+    return threshold.value, ""
+
+
 def threshold_condition(match: Any, threshold: Threshold | None) -> Any:
     """The level Condition a threshold implies for this concept."""
     from backend.orchestration.dynamic import Condition
@@ -654,9 +689,11 @@ def threshold_condition(match: Any, threshold: Threshold | None) -> Any:
         # the database refuses at the point the answer is due, and that would
         # have been worse if it had silently succeeded.
         return None
+    value, rescaled = _to_field_scale(match, threshold)
     return Condition(
         field=match.field, kind="level", op=threshold.op,
-        value=threshold.value, phrase=threshold.phrase,
+        value=value,
+        phrase=threshold.phrase + (f" ({rescaled})" if rescaled else ""),
         higher_is_worse=concept.higher_is_worse)
 
 

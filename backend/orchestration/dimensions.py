@@ -107,6 +107,30 @@ RETAIL_REFINES: dict[str, str] = {
 }
 
 
+#: Where a dimension's PREVIOUS value is held on the same row.
+#:
+#: "How many facilities migrated from Stage 1 to Stage 2 between July and
+#: August 2026?" was answered **1,392** — every facility in Stage 2 at August,
+#: whether it arrived that month or had been there all year. The planner reads
+#: a transition, keeps the destination, drops the origin and states the
+#: limitation, because "a single row cannot hold both endpoints of a movement".
+#:
+#: On THIS book it can. `retail_facility_month` carries `previous_month_stage`
+#: on every row, and it agrees with the previous month's `ifrs9_stage` on every
+#: row of the published lake. So the transition is a pair of conditions on one
+#: scan, exact and with nothing to apologise for: the answer is 279.
+RETAIL_PRIOR: dict[str, str] = {
+    "ifrs9_stage": "previous_month_stage",
+}
+
+
+def prior() -> dict[str, str]:
+    """Dimension -> the column holding its value at the previous period."""
+    from backend.retail import profile
+
+    return dict(RETAIL_PRIOR) if profile.is_retail() else {}
+
+
 def refines() -> dict[str, str]:
     """Dimension -> the coarser dimension it determines, for this profile."""
     from backend.retail import profile
@@ -167,6 +191,63 @@ _BREAKDOWN = re.compile(
     r"broken down by|split by|by|per|across)\s+(?P<phrase>[a-z0-9][a-z0-9 ]{1,30}?)"
     r"\s*(?:,|\.|;|\?|$|\band\b|\bshow\b|\bwith\b|\bin the\b|\bfor the\b|"
     r"\bat\b|\bover the\b|\bduring\b|\bthis\b|\blast\b)")
+
+#: 3. A breakdown stated by ENUMERATING the groups.
+#:
+#:     "Break August 2026 exposure into Stage 1, Stage 2 and Stage 3."
+#:
+#: names the dimension nowhere and the breakdown unmistakably. Read as a set of
+#: filters it selected all three stages — which is the whole book — and the
+#: answer was ONE ROW: "2,082,852,856 SAR of gross carrying amount in Stage 1,
+#: Stage 2, Stage 3", with a table reading 2.08 against stage 3. The stage
+#: composition is one of the views §22 asks the product to draw, and this is
+#: how people ask for it.
+_ENUMERATED = re.compile(
+    r"\b(?:break|split|divide|separate|spread)\b[^.?!]{0,40}?"
+    r"\b(?:in ?to|between|across|among)\b\s+(?P<values>[^.?!]{3,90})")
+
+#: What separates the enumerated groups.
+_SEPARATOR = re.compile(r"\s*(?:,|\band\b|/|\bvs\.?\b|\bversus\b)\s*")
+
+#: How many of a dimension's values must be named before the enumeration is
+#: read as a breakdown. Two is enough — "split it between Stage 2 and Stage 3"
+#: is a two-bar chart — and one is not an enumeration at all.
+_ENUMERATED_MINIMUM = 2
+
+
+def _enumerated(lowered: str, dimensions: Any) -> tuple[str, str]:
+    """The dimension whose VALUES the sentence lists as the groups."""
+    for match in _ENUMERATED.finditer(lowered):
+        said = [part.strip() for part in
+                _SEPARATOR.split(match.group("values")) if part.strip()]
+        if len(said) < _ENUMERATED_MINIMUM:
+            continue
+        for name in _all_dimensions(dimensions):
+            values = {str(v).lower() for v in _values_of(name, dimensions)}
+            if not values:
+                continue
+            hit = 0
+            for part in said:
+                words = part.split()
+                # "stage 1" and "1" are the same value written two ways, and
+                # the enumerated form drops the dimension's own word after the
+                # first item: "into Stage 1, 2 and 3".
+                if any(" ".join(words[i:]).lower() in values
+                       for i in range(len(words))):
+                    hit += 1
+            if hit >= _ENUMERATED_MINIMUM and hit >= len(said) - 1:
+                return name, ", ".join(said)
+    return "", ""
+
+
+def _all_dimensions(dimensions: Any) -> tuple[str, ...]:
+    """Every dimension name the vocabulary governs."""
+    held = getattr(dimensions, "dimensions", dimensions)
+    try:
+        return tuple(str(k) for k in held)
+    except Exception:  # noqa: BLE001 - an unreadable vocabulary governs none
+        return ()
+
 
 #: 2. The dimension as a modifier of a shape word: "rating distribution".
 _NAMED = re.compile(
@@ -497,6 +578,15 @@ def read(text: str, dimensions: Any = None) -> Resolved:
                     entity=entity, entity_phrase=entity_phrase,
                     because=(f"the question asks for a breakdown by "
                              f"{candidate}"))
+
+    listed, listed_phrase = _enumerated(lowered, dimensions)
+    if listed:
+        return Resolved(
+            dimension=listed, phrase=listed_phrase, rule="breakdown",
+            entity=entity, entity_phrase=entity_phrase,
+            because=(f"the question lists the groups it wants — "
+                     f"{listed_phrase} — which are values of "
+                     f"{readable(listed).lower()}"))
 
     for match in _NAMED.finditer(lowered):
         phrase = match.group("phrase").strip()
