@@ -74,8 +74,11 @@ def suite(s: Session, rec: Recorder) -> None:
     if trace is not None:
         trace.click()
         page.wait_for_load_state("networkidle", timeout=90_000)
-        s.wait_for('[data-testid="back-link"]', seconds=40)
-        opened = "/trace" in page.url
+        # Waited on the URL, not on a control. Both the Trace and the
+        # conversation carry a back-link, so waiting for one matched the page
+        # the test had not left yet and read the URL before it changed.
+        s.settle_for(lambda: "/trace/" in page.url, seconds=40)
+        opened = "/trace/" in page.url
         # The product's own Back control, by its test id. Matching on the
         # word "Back" found nothing: the label is the question the reader came
         # from, which is the point of the control.
@@ -83,7 +86,10 @@ def suite(s: Session, rec: Recorder) -> None:
         if back is not None:
             back.click()
             page.wait_for_load_state("networkidle", timeout=90_000)
-            s.wait_for_text(asked[:40], seconds=40)
+            # The URL, not the text: the Trace screen labels its Back control
+            # with the question the reader came from, so waiting for that
+            # question matched before the browser had left the page.
+            s.wait_for_url("/trace/", seconds=40, absent=True)
         returned = page.url
     body = s.text()
     # Compare the PATH. The product returns to the exact turn — the href ends
@@ -180,12 +186,13 @@ def suite(s: Session, rec: Recorder) -> None:
     s.submit_button().click()
     page.wait_for_timeout(400)
     s.go("/early-warning", settle=2000)
-    # Waited on the DESTINATION rather than on a stopwatch: read too early,
+    # Whether the browser ACTUALLY left is the first question. Read too early,
     # the Cockpit was still on screen and its pending question was reported as
-    # having leaked into Early Warning.
+    # having leaked into Early Warning — a fact about the stopwatch.
+    arrived = s.wait_for_url("/early-warning", seconds=40)
     s.wait_for_text("Forward Risk Signal", seconds=40)
     stray = s.text()
-    leaked = "expected credit loss by IFRS 9 stage" in stray
+    leaked = arrived and "expected credit loss by IFRS 9 stage" in stray
     s.go("/", settle=2500)
     page.wait_for_timeout(2000)
     # Only a NEW submission counts. Counting every call the return page makes
@@ -195,8 +202,9 @@ def suite(s: Session, rec: Recorder) -> None:
     _case(rec, "NAV-08", "Leaving mid-question does not show the answer in "
           "another module, and returning does not resubmit it",
           bool(not leaked and not resubmitted),
-          f"the pending answer appeared in Early Warning={leaked}; returning "
-          f"resubmitted it={resubmitted}",
+          f"the browser reached Early Warning={arrived}; the pending answer "
+          f"appeared there={leaked}; returning resubmitted it={resubmitted}; "
+          f"the page is {page.url}",
           screenshot=s.shot("nav-08"))
 
     # ---------------------------------------------------------------- NAV-10

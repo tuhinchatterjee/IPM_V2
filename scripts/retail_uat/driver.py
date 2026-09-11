@@ -230,6 +230,20 @@ class Session:
         except Exception:  # noqa: BLE001
             return False
 
+    def wait_for_url(self, fragment: str, *, seconds: float = 30.0,
+                     absent: bool = False) -> bool:
+        """Wait until the address bar says what it is meant to say.
+
+        The one wait that cannot be fooled by the page's own content. A Trace
+        screen labels its Back control with the question the reader came from,
+        so waiting for that question matched instantly and the URL was read
+        before the browser had left.
+        """
+        return self.settle_for(
+            lambda: (fragment not in self.page.url) if absent
+            else (fragment in self.page.url),
+            seconds=seconds)
+
     def wait_for_text(self, wanted: str, *, seconds: float = 30.0) -> bool:
         return self.settle_for(lambda: wanted in self.text(), seconds=seconds)
 
