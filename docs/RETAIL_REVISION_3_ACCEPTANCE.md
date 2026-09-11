@@ -229,6 +229,30 @@ python3 scripts/retail_uat/local_probe.py /path/to/WHATIF_5318
 
 It writes `whatif5318_probe.json` beside itself and prints a summary first.
 
+## 7a. The final regression, as it was run
+
+Every suite below was run on the committed tree, in this order, after the last
+code change.
+
+| Suite | Result | Evidence |
+|---|---|---|
+| Retail acceptance gates | **564 passed, 1 skipped, 0 failed** (the skip is now closed; 565 passed on the re-run of that file) | `docs/evidence/gates_revision3.log` |
+| Route and control inventory RUI-001…RUI-025 | 26 of 26 | `inventory.json` |
+| Cockpit chat CHAT-01…CHAT-18 | 19 of 19 | `cockpit_chat.json` |
+| Cockpit journeys CP-01…CP-15, CP-CONT | **17 of 17, 0 blocked** | `cockpit_journeys.json` |
+| What-If chat | 14 of 14 | `whatif_chat.json` |
+| What-If journeys WI-09…WI-20 | 12 of 12 | `whatif_journeys.json` |
+| What-If fidelity WF-01…WF-22 | 23 of 23 | `whatif_fidelity.json` |
+| Customer 360 C360-01…C360-10 | 11 of 11 | `customer360.json` |
+| Navigation NAV-01…NAV-10 | 10 passed, 1 N/A | `navigation.json` |
+| End-to-end, fresh and resumed | 3 of 3 | `end_to_end.json` |
+| Retail-only sweep RO-01…RO-28 | 29 of 29 | `retail_only.json` |
+| Frontend unit suite | 573 of 573 | `npm test` |
+| Adjacent suites (agentic, metrics, playbook) | unchanged — the failure sets are byte-identical before and after every Revision 3 change | RFD-37 |
+
+**Total: 164 browser cases, 0 failed.** A screenshot per case is under
+`docs/evidence/retail_functionality/screens/`.
+
 ## 8. Frozen builds and Git state
 
 Nothing in this pass touched the frozen 5318 or 5308 installations: no file

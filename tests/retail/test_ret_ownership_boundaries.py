@@ -180,7 +180,7 @@ class TestTheRoutesScopeEveryReadAndWriteToTheCaller:
             "is open")
 
     @pytest.mark.parametrize("route", [
-        "whatif_save", "whatif_delete", "whatif_ask", "whatif_run",
+        "whatif_save", "whatif_delete", "whatif_ask", "run_whatif",
         "whatif_cutoff"])
     def test_a_write_or_run_route_requires_more_than_read_access(self, route: str):
         """Reading the book is Commenter; running and writing is Analyst.
@@ -194,9 +194,13 @@ class TestTheRoutesScopeEveryReadAndWriteToTheCaller:
 
         from backend.api.routers import retail as router
 
+        # No skip: a misspelt route name would silently pass as "not on this
+        # build", which is exactly how a permission gate stops guarding
+        # anything without anybody noticing.
         handler = getattr(router, route, None)
-        if handler is None:
-            pytest.skip(f"{route} is not a route on this build")
+        assert handler is not None, (
+            f"'{route}' is not a route on the retail router — the name is "
+            "wrong, or the route was removed")
         source = inspect.getsource(handler)
         assert "RequireAnalyst" in source, (
             f"{route} runs or writes at the router's read-only level")
