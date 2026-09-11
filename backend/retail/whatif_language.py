@@ -166,9 +166,20 @@ def read(question: str, months: list[str] | None = None,
             ask.read_as.append(f"{column.replace('_', ' ')} = {value}")
 
     # A narrowing turn keeps the population of the scenario it narrows, unless
-    # this sentence states its own.
-    for column, value in (carried.get("filters") or {}).items():
-        ask.filters.setdefault(column, value)
+    # this sentence states its own — or unless it WIDENS.
+    #
+    #     "Run a neutral no-change scenario over the whole retail book."
+    #
+    # asked after a credit-card scenario ran over credit cards alone: 4,624
+    # facilities and SAR 2,373,271, under a heading reading "An unchanged
+    # scenario over the whole retail book". The sentence names its scope in so
+    # many words, and the scope it names is everything.
+    if _WHOLE_BOOK.search(said) and "product_code" not in ask.filters:
+        ask.filters.clear()
+        ask.read_as.append("the whole retail book")
+    else:
+        for column, value in (carried.get("filters") or {}).items():
+            ask.filters.setdefault(column, value)
 
     # ---- staging ------------------------------------------------------
     if re.search(r"\bre-?evaluat\w*\s+(?:the\s+)?stag\w+|\ballow\w*\s+migration|"
@@ -347,6 +358,16 @@ def carry_shocks(ask: Ask, carried_shocks: dict[str, Any]) -> None:
         ask.read_as.append(
             "carrying forward " + ", ".join(sorted(kept)) + " from the scenario "
             "on the table")
+
+
+#: A sentence that states its scope as everything. Widening, not narrowing,
+#: and the one thing a carried population must not survive.
+_WHOLE_BOOK = re.compile(
+    r"\b(?:the\s+)?(?:whole|entire|full|complete)\s+"
+    r"(?:retail\s+)?(?:book|portfolio|population)\b|"
+    r"\bacross\s+(?:the\s+)?(?:whole\s+)?(?:retail\s+)?book\b|"
+    r"\ball\s+products\b|\bevery\s+product\b|\bportfolio[- ]wide\b|"
+    r"\bbook\s+as\s+a\s+whole\b", re.IGNORECASE)
 
 
 #: A sentence that asks for the reweighting methodology by name.
@@ -672,10 +693,20 @@ def describe_scenario(ask: Ask) -> list[str]:
 
 
 def describe(ask: Ask) -> str:
-    """What CreditProbe understood, in one line, for the answer to open with."""
-    if not ask.read_as:
-        return "An unchanged scenario over the whole retail book."
-    return "Read as: " + "; ".join(ask.read_as) + "."
+    """What CreditProbe understood, in one line, for the answer to open with.
+
+    The fallback is built from the scenario's OWN fields rather than written
+    out. A turn that read nothing new still inherits the population of the
+    turn before it, and the sentence "An unchanged scenario over the whole
+    retail book" was printed above a run scoped to credit cards. A caption
+    that contradicts the population under it is worse than no caption.
+    """
+    if ask.read_as:
+        return "Read as: " + "; ".join(ask.read_as) + "."
+    scope = describe_scenario(ask)
+    if scope:
+        return "An unchanged scenario over " + "; ".join(scope) + "."
+    return "An unchanged scenario over the whole retail book."
 
 
 def supported_sentence() -> str:

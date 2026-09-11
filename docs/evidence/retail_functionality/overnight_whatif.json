@@ -1,0 +1,248 @@
+{
+  "suite": "overnight_whatif",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 82.0,
+  "counts": {
+    "PASS": 15,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_whatif-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-OPEN",
+      "module": "whatif",
+      "title": "What-If opens on the retail book",
+      "status": "PASS",
+      "detail": "opened=True; corporate wording=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-open.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-01",
+      "module": "whatif",
+      "title": "A PD shock on one product moves ECL from the right baseline",
+      "status": "PASS",
+      "detail": "oracle personal-finance ECL 8,994,012 on screen=True; a higher figure is shown=True; scoped to personal finance=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Increase personal-finance PD by 20% relative in August 2026.",
+        "answer": "\n\nRead as: personal only; PD +20% relative.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 10,161,669\nCHANGE\nSAR 1,167,657 (+12.98%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 10.16m\tSAR 1.17m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nProbe scenario\n2026-08\nSAR",
+        "expected": "8,994,012",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-02",
+      "module": "whatif",
+      "title": "A narrowing turn keeps the shock and narrows the population",
+      "status": "PASS",
+      "detail": "shock retained=True; salary transfer named=True; population smaller than the whole product=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Apply that only to salary-transfer customers.",
+        "answer": "\n\nRead as: salary transfer flag = True; carrying forward pd_relative from the scenario on the table.\n\nBASELINE ECL\nSAR 7,290,521\nWHAT-IF ECL\nSAR 8,200,787\nCHANGE\nSAR 910,266 (+12.49%)\nPOPULATION\n5,879 facilities \u00b7 5,072 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 7.29m\tSAR 8.20m\tSAR 910.3k\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 8,200,787 (+12.49%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReop",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-03",
+      "module": "whatif",
+      "title": "The impact is explained from what moved",
+      "status": "PASS",
+      "detail": "explanation names the shock and the measure=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Explain the ECL impact.",
+        "answer": "\n\nExpected credit loss rose from SAR 7,290,521 to SAR 8,200,787 \u2014 a change of SAR 910,266 (+12.49%).\n\nThe population is product_code=PERSONAL_LOAN; salary_transfer_flag=True, 5,879 facilities held by 5,072 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 910,266.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 8,200,787 (+12.49%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario\n2026-08\nSAR ",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-04",
+      "module": "whatif",
+      "title": "An unsupported unit is refused rather than silently substituted",
+      "status": "PASS",
+      "detail": "states what it cannot do=True; substituted a different shock=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Now add a 5 percentage-point LGD increase for unsecured facilities.",
+        "answer": "\n\nCreditProbe could not read a change in that. A What-If needs something to move and by how much \u2014 running it as written would recompute the published book unchanged and report it as your scenario. Pick one of these, or say what to move and by how much.\n\nIncrease PD by 20% relative\nAdd 2 percentage points to PD\nIncrease LGD by 10% relative\nMove card utilisation up 10 percentage points\nCut verified income by 10%\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 8,200,787 (+12.49%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompar",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-06",
+      "module": "whatif",
+      "title": "The product switches and the shock is kept",
+      "status": "PASS",
+      "detail": "credit card named=True; personal finance dropped=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Run the same 20% relative PD shock for credit cards instead.",
+        "answer": "\n\nRead as: credit cards only; carrying forward pd_relative from the scenario on the table.\n\nBASELINE ECL\nSAR 2,373,271\nWHAT-IF ECL\nSAR 2,666,402\nCHANGE\nSAR 293,132 (+12.35%)\nPOPULATION\n4,624 facilities \u00b7 4,115 customers\nProduct\tBaseline\tWhat-If\tChange\nCREDIT_CARD\tSAR 2.37m\tSAR 2.67m\tSAR 293.1k\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 2,373,271 \u2192 What-If SAR 2,666,402 (+12.35%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\n",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-07",
+      "module": "whatif",
+      "title": "A cutoff replay states the population it can and cannot see",
+      "status": "PASS",
+      "detail": "replay shown=True; population limitation stated=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Replay a personal-finance application cutoff of 620.",
+        "answer": "\n\nRead as: personal only; replay an application-score cutoff of 620 on PERSONAL_LOAN.\n\nA retrospective replay over booked originations only (PERSONAL_LOAN). No expected credit loss is recomputed here.\n\nBOOKED ORIGINATIONS\n7,761\nWOULD BE EXCLUDED\n4,053 (52.2%)\nEXCLUDED EXPOSURE\nSAR 247,615,020\nCUTOFF\nPERSONAL_LOAN 620\n\nWhat the excluded accounts went on to do is NOT KNOWN at 2026-08: no facility in this population has a closed outcome window yet. That is not zero defaults. Ask again at an earlier reporting month.\n\nWhat this replay cannot tell you\nSave What-If\nClear conversation\nBaseline SAR 2,373,271 \u2192 What-If SAR 2,666,402 (+12.35%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 ",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-08",
+      "module": "whatif",
+      "title": "A reweighting with no weights is asked about, not run empty",
+      "status": "PASS",
+      "detail": "clarified=True; the question is about weights=True; weightings offered=3; ran as a neutral scenario=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Shift macro scenario weights toward downturn and show the effect on weighted ECL.",
+        "answer": "ighted ECL.\n\nReweighting the macroeconomic scenarios needs three numbers, and CreditProbe will not choose them. The published weights are base/upturn/downturn = 0.60/0.20/0.20. Pick a reweighting, or type the three weights you want.\n\nMild downturn tilt \u2014 base 0.40, upturn 0.15, downturn 0.45\nSevere downturn tilt \u2014 base 0.30, upturn 0.10, downturn 0.60\nDownturn only \u2014 base 0.00, upturn 0.00, downturn 1.00\nSave What-If\nClear conversation\nBaseline SAR 2,373,271 \u2192 What-If SAR 2,666,402 (+12.35%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelet",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-08B",
+      "module": "whatif",
+      "title": "Clicking a weighting runs it rather than the neutral scenario",
+      "status": "PASS",
+      "detail": "a new result card appeared=True; the weighting is named in it=True; it ran as the unchanged book=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "Read as: CREDIT_CARD only; salary transfer flag = True; PD +20% relative; weights base/upturn/downturn = 0.30/0.10/0.60.\n\nBASELINE ECL\nSAR 2,373,271\nWHAT-IF ECL\nSAR 3,275,090\nCHANGE\nSAR 901,819 (+38.00%)\nPOPULATION\n4,624 facilities \u00b7 4,115 customers\nProduct\tBaseline\tWhat-If\tChange\nCREDIT_CARD\tSAR 2.37m\tSAR 3.28m\tSAR 901.8k\nAssumptions and evidence",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-08b.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-09",
+      "module": "whatif",
+      "title": "A neutral scenario reproduces the published book exactly, and says that is what it did",
+      "status": "PASS",
+      "detail": "whole-book ECL 15,952,109 reproduced=True; labelled as a parity run=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Run a neutral no-change scenario over the whole retail book.",
+        "answer": "\n\nRead as: the whole retail book.\n\nBASELINE ECL\nSAR 15,952,109\nWHAT-IF ECL\nSAR 15,952,109\nCHANGE\nSAR 0 (+0.00%)\nPOPULATION\n19,745 facilities \u00b7 14,251 customers\n\nUnchanged: the rebuild reproduces the published ECL to SAR 0.00 on SAR 15,952,109 (0.0e+0%), no facility differing by more than SAR 0.000 \u2014 inside the declared tolerance of SAR 0.01 per facility.\n\nProduct\tBaseline\tWhat-If\tChange\nAUTO_LOAN\tSAR 1.09m\tSAR 1.09m\tSAR 0\nCREDIT_CARD\tSAR 3.06m\tSAR 3.06m\tSAR 0\nHOME_LOAN\tSAR 2.81m\tSAR 2.81m\tSAR 0\nPERSONAL_LOAN\tSAR 8.99m\tSAR 8.99m\tSAR 0\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 15,952,109 \u2192 What-If SAR 15,952,109 (+0.00%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 ",
+        "expected": "15,952,109",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-10",
+      "module": "whatif",
+      "title": "An unreadable scenario is asked about, never run as a no-op",
+      "status": "PASS",
+      "detail": "clarified=True; scenarios offered=5; ran the published book unchanged and called it a scenario=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Make risk worse.",
+        "answer": "\n\nCreditProbe could not read a change in that. A What-If needs something to move and by how much \u2014 running it as written would recompute the published book unchanged and report it as your scenario. Pick one of these, or say what to move and by how much.\n\nIncrease PD by 20% relative\nAdd 2 percentage points to PD\nIncrease LGD by 10% relative\nMove card utilisation up 10 percentage points\nCut verified income by 10%\nSave What-If\nClear conversation\nBaseline SAR 15,952,109 \u2192 What-If SAR 15,952,109 (+0.00%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompa",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-10.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-10B",
+      "module": "whatif",
+      "title": "Typing the scenario after the clarification runs it",
+      "status": "PASS",
+      "detail": "the typed scenario ran=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Increase personal-finance PD by 10% relative.",
+        "answer": "\n\nRead as: personal only; PD +10% relative.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 9,579,640\nCHANGE\nSAR 585,628 (+6.51%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 9.58m\tSAR 585.6k\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 9,579,640 (+6.51%)\nSaved What-Ifs\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 152727\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061",
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-10b.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-11",
+      "module": "whatif",
+      "title": "The opening book is on screen beside the scenario",
+      "status": "PASS",
+      "detail": "facilities and customers stated=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-11.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-SWEEP",
+      "module": "whatif",
+      "title": "Nothing on this screen belongs to the corporate book",
+      "status": "PASS",
+      "detail": "corporate wording=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wi-sweep.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

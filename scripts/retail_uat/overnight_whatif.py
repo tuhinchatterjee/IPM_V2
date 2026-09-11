@@ -89,7 +89,22 @@ def clarified(s: Session) -> bool:
 
 
 def options(s: Session) -> list[Any]:
-    return s.page.query_selector_all('[data-turn="clarification"] [data-option]')
+    """The buttons of the NEWEST clarification, not of every one on the page.
+
+    A What-If thread keeps its earlier turns, so a page-wide selector returns
+    the options of the first clarification ever asked. Clicking index 1 of
+    that list ran a PD-units answer from six turns earlier and recorded it as
+    the reweighting under test.
+    """
+    cards = s.page.query_selector_all('[data-turn="clarification"]')
+    if not cards:
+        return []
+    return cards[-1].query_selector_all("[data-option]")
+
+
+def clarification_text(s: Session) -> str:
+    cards = s.page.query_selector_all('[data-turn="clarification"]')
+    return cards[-1].inner_text() if cards else ""
 
 
 def suite(s: Session, rec: Recorder) -> None:
@@ -195,24 +210,37 @@ def suite(s: Session, rec: Recorder) -> None:
     turn = a["turn"]
     asked = clarified(s)
     offered = len(options(s))
+    about_weights = said(clarification_text(s), "weight")
     ran_empty = has(turn, BOOK_ECL) and said(turn, "unchanged", "neutral")
     _case(rec, "WI-CHAT-08",
           "A reweighting with no weights is asked about, not run empty",
-          bool(a.get("completed")) and asked and offered >= 2 and not ran_empty,
-          f"clarified={asked}; weightings offered={offered}; ran as a neutral "
-          f"scenario={ran_empty}",
+          bool(a.get("completed")) and asked and about_weights
+          and offered >= 2 and not ran_empty,
+          f"clarified={asked}; the question is about weights={about_weights}; "
+          f"weightings offered={offered}; ran as a neutral scenario="
+          f"{ran_empty}",
           question=q, answer=turn[:1500], screenshot=s.shot("wi-08"))
 
     if offered:
+        before_cards = len(s.page.query_selector_all('[data-turn="result"]'))
         options(s)[1].click()
-        s.page.wait_for_timeout(9000)
-        turn = s.text()
-        weighted = said(turn, "downturn") and not said(turn, "unchanged")
+        s.page.wait_for_timeout(12000)
+        # The NEWEST result card, not the whole page. The page also carries
+        # the saved-scenario list and the methodology reference, and reading
+        # the lot answers a question about the screen rather than about the
+        # run that was just made.
+        cards = s.page.query_selector_all('[data-turn="result"]')
+        newest = cards[-1].inner_text() if cards else ""
+        ran = len(cards) > before_cards
+        weighted = said(newest, "0.60", "downturn")
+        empty = said(newest, "unchanged scenario") or said(
+            newest, "SAR 0 (+0.00%)")
         _case(rec, "WI-CHAT-08B",
               "Clicking a weighting runs it rather than the neutral scenario",
-              weighted,
-              f"the chosen reweighting was applied={weighted}",
-              answer=turn[-2000:], screenshot=s.shot("wi-08b"))
+              ran and weighted and not empty,
+              f"a new result card appeared={ran}; the weighting is named in "
+              f"it={weighted}; it ran as the unchanged book={empty}",
+              answer=newest[:1200], screenshot=s.shot("wi-08b"))
 
     # ------------------------------------------------------------ WI-CHAT-09
     q = "Run a neutral no-change scenario over the whole retail book."
