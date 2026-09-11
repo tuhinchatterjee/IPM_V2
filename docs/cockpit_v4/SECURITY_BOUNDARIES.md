@@ -155,3 +155,45 @@ live value.
 It is also not an instruction channel. Retrieved sections reach the model as
 tool results, under the same rule as dataset text: content is content, never a
 directive.
+
+## The home feed
+
+The attention feed reads the pinned Cockpit V4 release through
+`v3_sql.open_session`, under a scope derived from the principal exactly as an
+analysis is. The release is server-pinned, the tenant comes from the principal,
+and neither can be widened by a request. Its SQL is server-authored and fixed;
+the only thing a request parameterises is `refresh`.
+
+The cache is keyed by `(release_id, tenant_id)`. A tenant can never be served a
+feed computed under another tenant's authorization, and a new release is a new
+key rather than a stale entry someone has to remember to clear.
+
+It reads only the `corporate_cockpit` domain. No Early Warning score, alert or
+trigger is read, imported or imitated to populate it — a test greps the
+executed SQL for those names.
+
+`thread_context`, which carries an attention item into a seeded conversation,
+is written by the server and stamped with the tenant. Reading it requires the
+matching tenant. Nothing in a request or a model response can set it, and its
+contents reach the analyst as CONTEXT, explicitly not as an instruction and
+explicitly not as an answer — the packet tells the analyst to re-derive any
+number it states from its own executed query.
+
+## What is done to a question
+
+`intake.normalize_question` applies Unicode NFC, folds Unicode spaces, removes
+zero-width characters, removes bidirectional override and embedding controls
+(U+202A–U+202E, U+2066–U+2069), normalises line breaks and trims. Nothing else.
+
+The bidi controls are removed because they instruct a renderer to display
+characters in an order other than their logical one: left in place, text reads
+one way to the user and another way to everything downstream. Removing them
+changes no word.
+
+No spelling correction, no translation, no transliteration, no case folding,
+no digit conversion, no abbreviation expansion, no clause reordering. When
+anything at all is changed, the original and a report naming each
+transformation are persisted as run detail and an event says so; when nothing
+is changed — the common case — nothing is recorded, because a trace that
+claims a normalisation that did not happen is the same defect as one that
+hides one.

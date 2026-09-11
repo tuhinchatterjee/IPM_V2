@@ -26,7 +26,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import DEEP, MODES, STANDARD
+from backend.cockpit_v4 import attention
 from backend.cockpit_v4 import config as config_mod
+from backend.cockpit_v4.intake import normalize_question
 from backend.cockpit_v4 import events as ev
 from backend.cockpit_v4 import states as st
 from backend.cockpit_v4.run_store import (IdempotencyConflict, RunStore,
@@ -143,10 +145,14 @@ async def start_run(body: StartRun, request: Request,
             "message": "You already have two requests running."})
 
     deadline_at = _deadline(limits.deadline_seconds)
+    # Mechanical only — Unicode, whitespace, invisible controls. See
+    # `intake.normalize_question`: nothing about the wording, the spelling,
+    # the language or any number is touched here.
+    normalized = normalize_question(body.question)
     try:
         record, created = store.accept_run(
             thread_id=thread_id, tenant_id=str(who.get("tenant") or ""),
-            principal_id=str(who.get("id") or ""), question=body.question,
+            principal_id=str(who.get("id") or ""), question=normalized.text,
             mode=mode, release_id=body.release_id or cfg.release_id,
             ui_filters=dict(body.ui_filters),
             idempotency_key=idempotency_key, body_digest=digest,
@@ -163,11 +169,23 @@ async def start_run(body: StartRun, request: Request,
                         "be stored durably. Nothing is running.")}) from exc
 
     if created:
-        ev.Emitter(store, record.run_id,
-                   started_monotonic=time.monotonic()).append(
+        emitter = ev.Emitter(store, record.run_id,
+                             started_monotonic=time.monotonic())
+        emitter.append(
             ev.RUN_ACCEPTED, stage="accepted", operation="intake",
             status=ev.STATUS_OK,
             public_message=f"Request accepted · release {record.release_id}")
+        if normalized.changed:
+            # Recorded because it happened, and only when it happened. A
+            # trace that says text was normalised when it was not is the
+            # same defect as a trace that hides it.
+            emitter.append(
+                ev.RUN_ACCEPTED, stage="accepted", operation="normalize",
+                status=ev.STATUS_OK,
+                detail_ref=store.put_detail(record.run_id, {
+                    "normalization": normalized.report(),
+                    "original": normalized.original[:8000]}),
+                public_message="Question text normalized (formatting only).")
 
     return _accepted(record, created=created)
 
@@ -253,6 +271,142 @@ async def read_artifact(run_id: str, artifact_id: str,
             "rows": rows,
             "omitted_rows": max(0, record["row_count"] - (offset + len(rows))),
             "executed_code_digest": record["code_digest"]}
+
+
+# ---- the Cockpit home feed ---------------------------------------------
+
+def _attention_session(who: dict[str, Any]) -> tuple[Any, Any, Any]:
+    """The read-only session, catalog and config the feed is computed from.
+
+    Same scope machinery an analysis uses: the release is pinned by the
+    server, the tenant comes from the principal, and neither can be widened
+    by the request.
+    """
+    runtime = _STATE.get("runtime")
+    if runtime is None:
+        raise HTTPException(503, {
+            "error_code": "ATTENTION_UNAVAILABLE",
+            "message": "This runtime has no release open."})
+    from backend.cockpit_agentic import sql as v3_sql
+
+    scope = runtime.scope_for(who)
+    try:
+        session = v3_sql.open_session(scope=scope, catalog=runtime.catalog)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(503, {
+            "error_code": "ATTENTION_UNAVAILABLE",
+            "message": ("The segment attention feed could not read the "
+                        f"pinned release: {exc}")}) from exc
+    return session, runtime, scope
+
+
+def _feed(who: dict[str, Any], *, refresh: bool = False) -> dict[str, Any]:
+    session, runtime, _scope = _attention_session(who)
+    catalog = runtime.catalog
+    currency = " ".join(
+        part for part in (getattr(catalog, "reporting_currency", ""),
+                          getattr(catalog, "amount_scale", "")) if part)
+    calendar = getattr(catalog, "calendar", None)
+    quarters = [str(q) for q in (getattr(calendar, "populated", ()) or ())]
+    try:
+        return attention.cached(
+            session=session, release_id=str(runtime.cfg.release_id),
+            tenant_id=str(who.get("tenant") or ""), quarters=quarters,
+            currency=currency, refresh=refresh)
+    except attention.AttentionUnavailable as exc:
+        # A component-level failure with a reference, never a bare 404 and
+        # never a claim that the backend is down: Ask keeps working.
+        raise HTTPException(503, {
+            "error_code": exc.code, "message": exc.message,
+            "component": "segment_attention_feed",
+            "error_reference": "att-" + hashlib.sha256(
+                exc.message.encode("utf-8")).hexdigest()[:12]}) from exc
+
+
+@router.get("/attention")
+async def attention_feed(refresh: bool = Query(False),
+                         who: dict[str, Any] = Depends(principal)
+                         ) -> dict[str, Any]:
+    """Segments requiring attention, and latest-quarter ECL highlights.
+
+    Deterministic, cached per release and tenant, and free of model calls:
+    rendering this page costs nothing at the provider.
+    """
+    feed = _feed(who, refresh=refresh)
+    public = {k: v for k, v in feed.items() if k not in ("method", "dropped")}
+    public["method_summary"] = {
+        "formula": feed["method"]["formula"],
+        "indicators": len(feed["method"]["indicators"]),
+        "candidates_considered": feed["method"]["candidates_considered"],
+        "candidates_dropped": feed["method"]["candidates_dropped"],
+    }
+    return public
+
+
+@router.get("/attention/{item_id}")
+async def attention_item(item_id: str,
+                         who: dict[str, Any] = Depends(principal)
+                         ) -> dict[str, Any]:
+    """One item with its full technical evidence, for Trace / operator view."""
+    feed = _feed(who)
+    item = attention.find_item(feed, item_id)
+    if item is None:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such attention item."})
+    return {"item": item,
+            "method": feed["method"],
+            "release_id": feed["release_id"],
+            "reporting_quarter": feed["reporting_quarter"],
+            "dropped_for_this_segment": [
+                d for d in feed["dropped"]
+                if d.get("sector") == item.get("segment")]}
+
+
+@router.post("/attention/{item_id}/investigate", status_code=201)
+async def investigate(item_id: str,
+                      who: dict[str, Any] = Depends(principal)
+                      ) -> dict[str, Any]:
+    """Open a V4 thread seeded with this attention item.
+
+    The seed is stored on the THREAD, so the segment, the quarter, the
+    comparison period and the evidence are carried by every turn in it. That
+    is what lets the next question be "show me the customers behind this"
+    rather than the whole sentence again.
+    """
+    feed = _feed(who)
+    item = attention.find_item(feed, item_id)
+    if item is None:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such attention item."})
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    thread_id = store.create_thread(tenant_id=tenant,
+                                    principal_id=str(who.get("id") or ""))
+    seed = {
+        "item_id": item["item_id"],
+        "origin": item["section"],
+        "release_id": feed["release_id"],
+        "headline": item["headline"],
+        "segment": item["segment"],
+        "segment_dimension": item["segment_dimension"],
+        "reporting_quarter": item["reporting_quarter"],
+        "comparison_quarter": item["comparison_quarter"],
+        "comparison_basis": item["comparison_basis"],
+        "metric": item["metric"],
+        "metric_label": item["metric_label"],
+        "issue": item["what_changed"],
+        "why_it_appeared": item["why_it_appeared"],
+        "movement": item["movement"],
+        "key_numbers": item["key_numbers"],
+        "evidence": item["evidence"],
+        "drilldown": item.get("drilldown", {}),
+        "evidence_url": item["evidence_url"],
+    }
+    store.set_thread_context(thread_id, tenant_id=tenant,
+                             kind="attention_item", body=seed)
+    return {"thread_id": thread_id, "item_id": item["item_id"], "seed": seed,
+            "suggested_questions": (item.get("drilldown", {})
+                                    .get("suggested_questions", []))}
 
 
 @router.get("/diagnostics")

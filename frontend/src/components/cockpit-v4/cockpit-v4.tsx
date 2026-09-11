@@ -34,9 +34,16 @@ import {
   watch,
   type RunMode,
 } from "./client";
+import type { AttentionItem } from "./client";
 import { ProcessPanel } from "./process-panel";
 import { initial, reduce } from "./reducer";
 import { ResponsePanel } from "./response-panel";
+
+export type ActiveInvestigation = {
+  threadId: string;
+  item: AttentionItem;
+  suggested: string[];
+};
 
 const MODES: { id: RunMode; label: string; hint: string }[] = [
   {
@@ -54,9 +61,18 @@ const MODES: { id: RunMode; label: string; hint: string }[] = [
 export function CockpitV4({
   operatorView = false,
   initialQuestion = "",
+  investigation = null,
+  onClearInvestigation,
 }: {
   operatorView?: boolean;
   initialQuestion?: string;
+  /**
+   * A conversation opened from an attention card. The thread already holds
+   * the segment, the quarter and the movement server-side; this component
+   * only has to ask into it and say, on screen, what it is asking about.
+   */
+  investigation?: ActiveInvestigation | null;
+  onClearInvestigation?: () => void;
 }) {
   const [view, dispatch] = React.useReducer(reduce, initial());
   const [question, setQuestion] = React.useState(initialQuestion);
@@ -73,6 +89,14 @@ export function CockpitV4({
   //: not be rebuilt every time it changes.
   const threadRef = React.useRef("");
   const acknowledged = React.useRef("");
+
+  // Adopt the seeded thread. The seed itself lives on the server; what the
+  // component needs is the id to ask into.
+  React.useEffect(() => {
+    if (!investigation?.threadId) return;
+    setThreadId(investigation.threadId);
+    threadRef.current = investigation.threadId;
+  }, [investigation?.threadId]);
 
   /** Follow a run that already exists. Used by submit AND by replay. */
   const follow = React.useCallback((runId: string, cursor = 0) => {
@@ -157,7 +181,11 @@ export function CockpitV4({
       setError("");
       stopRef.current?.();
       try {
-        let thread = threadId;
+        // The seeded thread wins, and it is read here rather than from state:
+        // a reader who clicks Investigate Further and types immediately must
+        // land in that conversation, not in a new one an effect had not yet
+        // adopted.
+        let thread = investigation?.threadId || threadId;
         if (!thread) {
           thread = (await createThread()).thread_id;
           setThreadId(thread);
@@ -187,11 +215,71 @@ export function CockpitV4({
         );
       }
     },
-    [busy, follow, mode, threadId],
+    [busy, follow, investigation?.threadId, mode, threadId],
   );
 
   return (
     <div className="space-y-4" data-testid="cockpit-v4">
+      {investigation ? (
+        <div
+          data-testid="investigation-context"
+          data-segment={investigation.item.segment}
+          data-thread-id={investigation.threadId}
+          className="rounded border border-sky-200 bg-sky-50 px-4 py-3"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">
+                Investigating
+              </p>
+              <p className="mt-0.5 text-sm text-sky-900">
+                {investigation.item.headline}
+              </p>
+              <p className="mt-0.5 text-xs text-sky-700">
+                {investigation.item.segment} ·{" "}
+                {investigation.item.reporting_quarter}
+                {investigation.item.comparison_quarter
+                  ? ` vs ${investigation.item.comparison_quarter}`
+                  : ""}{" "}
+                · {investigation.item.movement}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setThreadId("");
+                threadRef.current = "";
+                onClearInvestigation?.();
+              }}
+              data-testid="investigation-clear"
+              className="rounded px-2 py-1 text-xs text-sky-700 hover:bg-sky-100"
+            >
+              Clear
+            </button>
+          </div>
+          {investigation.suggested.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {investigation.suggested.map((text) => (
+                <button
+                  key={text}
+                  type="button"
+                  data-testid="investigation-suggestion"
+                  onClick={() => void ask(text)}
+                  disabled={busy}
+                  className="rounded-full border border-sky-300 bg-white px-3 py-1 text-xs text-sky-800 hover:bg-sky-100 disabled:opacity-40"
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <p className="mt-2 text-[11px] text-sky-700">
+            Follow-up questions are read against this segment and quarter. You
+            do not need to repeat them.
+          </p>
+        </div>
+      ) : null}
+
       <form
         onSubmit={(event) => {
           event.preventDefault();

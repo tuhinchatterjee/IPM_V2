@@ -25,10 +25,16 @@ user question
   → optional memory maintenance, separately bounded
 ```
 
-A Product Help question — "Who are you?", "What is Early Warning?" — finishes
-in **one** generation, with no tool call at all: the ~924-token product
-synopsis is already in the starting context. Only a narrower product question
-costs a second generation, for one `inspect_product_knowledge` retrieval. The
+A BROAD Product Help question — "Who are you?", "What is CreditProbe?", "What
+are the seven functionalities?" — finishes in **one** generation with no tool
+call: the ~924-token synopsis is already in the starting context, and
+`product_knowledge.coverage` withholds `inspect_product_knowledge` from that
+first action so the model is not invited to fetch what is in front of it. A
+question that NAMES product detail the synopsis does not carry — Cockpit, TAC,
+the four layers, Playbook, Graph Data — is offered the tool from the start and
+costs a second generation for the retrieval. The withholding lasts one action:
+the full tool set is restored for every action after the first, so a misjudged
+question can never be stranded. The
 deck is never attached wholesale, and a figure quoted in it is an illustration,
 never a live portfolio value.
 
@@ -44,6 +50,8 @@ about a particular model's behaviour or elapsed time.
 | The analyst (Opus) | understand the original wording, choose mode and owner, choose fields and method, write and repair code, assess evidence, write the answer | grant itself permissions or budget; treat dataset text as instructions |
 | `context.py` | return exact authorized catalog/product/thread facts, paginate, redact | infer a business answer, invent a field, choose a method |
 | `product_knowledge.py` | return exact recorded sections of the versioned pack, with slide provenance | answer a product question itself; surface the historical multi-agent slide as current |
+| `intake.py` | normalise Unicode, whitespace and invisible control characters | correct spelling, translate, transliterate, fold case, expand an abbreviation, or change any number, date or name |
+| `attention.py` | compute a published ranking over the pinned release and carry its evidence | interpret what a movement means, assert a cause, or call a model |
 | `contracts.py` + `execute_tool.py` | validate schema, permissions, safety, grain, limits | rewrite a query, trim a step, substitute a field, compute a substitute answer |
 | `execute_tool.py` runner | execute exactly the approved code in isolation | reach another domain, a credential, the shell, the network or host files |
 | `orchestration.py` | carry messages, match tool ids, persist state, enforce counters and deadlines | repair the plan, the code or the answer; fall back to V3 |
@@ -74,6 +82,10 @@ backend/cockpit_v4/
   catalog_tool.py    inspect_catalog: selective, complete, receipted
   execute_tool.py    execute_analysis: validate whole batch, run exactly
   artifacts.py       read_artifact: exact stored values, tenant-checked
+  attention.py       the home feed: deterministic sector movement ranking
+                     and ECL highlights, server-authored SQL, no model call
+  intake.py          the only thing done to a question before the analyst
+                     reads it: Unicode, whitespace, invisible controls
   product_knowledge.py       inspect_product_knowledge: the versioned pack,
                      its always-on synopsis, and keyword retrieval over it
   product_knowledge.json     the Product Knowledge Pack (generated, reviewed)
@@ -106,6 +118,8 @@ frontend/src/components/cockpit-v4/
   response-panel.tsx answer/referral/clarification/stop
   markdown-parse.ts  Markdown -> a data tree (never an HTML string)
   markdown.tsx       that tree -> React elements; hrefs allow-listed
+  attention-panel.tsx  the two home sections; renders, never computes
+  attention-drawer.tsx the right-side detail card and Investigate Further
   live-run-fixture.ts  the 15 recorded events of a real 29.4s run, so the
                      panel is tested against a trace that actually happened
 

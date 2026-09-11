@@ -582,6 +582,329 @@ if (process.env.V4_BROWSER_SCREENSHOT) {
   }
 }
 
+// ---- the home feed, the drawer, and Investigate Further ----------------
+
+async function openDrawer(page, section = "segments-requiring-attention") {
+  await page.waitForSelector(
+    `[data-testid="${section}"] [data-testid="attention-card"]`,
+    { timeout: 60_000 },
+  );
+  const cards = await page.$$(
+    `[data-testid="${section}"] [data-testid="attention-card"]`,
+  );
+  const headline = (await cards[0].textContent()) ?? "";
+  const segment = await cards[0].getAttribute("data-segment");
+  await cards[0].click();
+  await page.waitForSelector('[data-testid="attention-drawer"]', {
+    timeout: 30_000,
+  });
+  return { count: cards.length, headline, segment };
+}
+
+await test("segments requiring attention loads from the pinned release",
+  async () => {
+    const { context, page, requests } = await openCockpit(browser);
+    try {
+      await page.waitForSelector('[data-testid="segments-requiring-attention"]',
+        { timeout: 60_000 });
+      const cards = await page.$$(
+        '[data-testid="segments-requiring-attention"] [data-testid="attention-card"]',
+      );
+      assert.ok(
+        cards.length >= 1 && cards.length <= 5,
+        `expected up to five segment cards, saw ${cards.length}`,
+      );
+      const segments = await Promise.all(
+        cards.map((card) => card.getAttribute("data-segment")),
+      );
+      assert.equal(
+        new Set(segments).size,
+        segments.length,
+        "five cards must be five different segments",
+      );
+      assert.ok(
+        calls(requests, "/api/v1/cockpit-v4/attention").length >= 1,
+        "the feed comes from the V4 attention endpoint",
+      );
+      assertNoLegacyCalls(requests, "for the attention feed");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("latest-quarter ECL highlights load below it", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    await page.waitForSelector('[data-testid="ecl-highlights"]',
+      { timeout: 60_000 });
+    const cards = await page.$$(
+      '[data-testid="ecl-highlights"] [data-testid="attention-card"]',
+    );
+    assert.ok(cards.length >= 1, "at least one ECL highlight renders");
+    const footnote = await page.textContent('[data-testid="attention-footnote"]');
+    assert.match(footnote ?? "", /no model call/);
+    // Order on the page: attention above highlights.
+    const order = await page.evaluate(() => {
+      const a = document.querySelector('[data-testid="segments-requiring-attention"]');
+      const b = document.querySelector('[data-testid="ecl-highlights"]');
+      if (!a || !b) return "missing";
+      return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
+        ? "attention-first"
+        : "highlights-first";
+    });
+    assert.equal(order, "attention-first");
+  } finally {
+    await context.close();
+  }
+});
+
+await test("clicking a segment card opens the right-side drawer", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    const { headline, segment } = await openDrawer(page);
+    const title = await page.textContent('[data-testid="attention-drawer-title"]');
+    assert.ok(
+      headline.includes(title ?? "__none__"),
+      `drawer title ${title} must match the card that was clicked`,
+    );
+    const why = await page.textContent('[data-testid="attention-drawer-why"]');
+    assert.match(why ?? "", /Why it appeared/);
+    assert.match(why ?? "", /materiality floor|scored/);
+    const numbers = await page.$$(
+      '[data-testid="attention-drawer-numbers"] dd',
+    );
+    assert.ok(numbers.length >= 3, "the drawer shows its key numbers");
+    assert.ok(segment, "the card names its segment");
+    // It is a right-side panel, not a navigation.
+    const box = await (await page.$('[data-testid="attention-drawer"]')).boundingBox();
+    const width = page.viewportSize()?.width ?? 1280;
+    assert.ok(box.x > width / 2, "the drawer sits on the right");
+    assert.match(page.url(), /\/(\?.*)?$/, "the Cockpit was not navigated away");
+  } finally {
+    await context.close();
+  }
+});
+
+await test("the drawer offers borrower drill-down and no invented subsegment",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await openDrawer(page);
+      const drill = await page.textContent(
+        '[data-testid="attention-drawer-drilldown"]',
+      );
+      assert.match(drill ?? "", /no subsegment level/);
+      assert.match(drill ?? "", /borrowers/);
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("possible drivers are stated as association, never as cause",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await openDrawer(page);
+      const drivers = await page
+        .textContent('[data-testid="attention-drawer-drivers"]')
+        .catch(() => "");
+      if (drivers) {
+        for (const causal of ["because", "caused by", "driven by"]) {
+          assert.ok(
+            !drivers.toLowerCase().includes(causal),
+            `a driver claimed cause: "${causal}"`,
+          );
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("Investigate Further opens a seeded V4 thread", async () => {
+  const { context, page, requests } = await openCockpit(browser);
+  try {
+    const { segment } = await openDrawer(page);
+    await page.click('[data-testid="attention-investigate"]');
+    await page.waitForSelector('[data-testid="investigation-context"]', {
+      timeout: 30_000,
+    });
+    const banner = await page.$('[data-testid="investigation-context"]');
+    assert.equal(await banner.getAttribute("data-segment"), segment);
+    const threadId = await banner.getAttribute("data-thread-id");
+    assert.ok(threadId?.startsWith("th-"), `a real thread id, got ${threadId}`);
+    assert.ok(
+      calls(requests, "/investigate").length === 1,
+      "exactly one V4 investigate call",
+    );
+    assertNoLegacyCalls(requests, "for Investigate Further");
+  } finally {
+    await context.close();
+  }
+});
+
+await test("a follow-up uses the seeded context without restating it",
+  async () => {
+    const { context, page, requests, problems } = await openCockpit(browser);
+    try {
+      const { segment } = await openDrawer(page);
+      await page.click('[data-testid="attention-investigate"]');
+      await page.waitForSelector('[data-testid="investigation-context"]',
+        { timeout: 30_000 });
+      const threadId = await page
+        .$('[data-testid="investigation-context"]')
+        .then((el) => el.getAttribute("data-thread-id"));
+
+      const posted = [];
+      page.on("request", (request) => {
+        // Only the SUBMISSION. `/runs/<id>/delivered` and `/runs/<id>/cancel`
+        // are POSTs to a URL containing "/runs" as well.
+        if (request.method() === "POST" && /\/runs$/.test(new URL(request.url()).pathname)) {
+          posted.push(request.postData() ?? "");
+        }
+      });
+
+      await ask(page, "show me the customers behind this");
+      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+
+      assert.equal(posted.length, 1, "one run submitted");
+      const body = JSON.parse(posted[0]);
+      assert.equal(
+        body.thread_id,
+        threadId,
+        "the follow-up runs inside the seeded thread",
+      );
+      assert.equal(body.question, "show me the customers behind this");
+      assert.ok(
+        !body.question.includes(segment ?? "__none__"),
+        "the user did not have to restate the segment",
+      );
+      assertNoLegacyCalls(requests, "for the seeded follow-up");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("the seeded context load appears in the process panel", async () => {
+  const { context, page, problems } = await openCockpit(browser);
+  try {
+    await openDrawer(page);
+    await page.click('[data-testid="attention-investigate"]');
+    await page.waitForSelector('[data-testid="investigation-context"]',
+      { timeout: 30_000 });
+    await ask(page, "show me the customers behind this");
+    await expect(page, '[data-testid="v4-process-panel"]', 30_000, problems);
+    await page.click('[data-testid="v4-toggle-process"]');
+    await expect(page, '[data-testid="v4-process-steps"]', 30_000, problems);
+    // The detail lives in substeps, which are collapsed under their stage
+    // until the reader opens one. Open every stage that has any.
+    const stages = await page.$$('[data-testid="v4-process-steps"] li button[aria-expanded]');
+    for (const stage of stages) {
+      if ((await stage.getAttribute("aria-expanded")) === "false"
+          && !(await stage.isDisabled())) {
+        await stage.click();
+      }
+    }
+    const panel = await page.textContent('[data-testid="v4-process-steps"]');
+    assert.match(
+      panel ?? "",
+      /Investigation context loaded/,
+      "context seeding is a real step and the trace shows it",
+    );
+    assert.ok(
+      !/chain of thought|reasoning:/i.test(panel ?? ""),
+      "the trace shows steps, never the model's reasoning",
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+await test("an ECL highlight opens the same drawer and investigates",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      const { segment } = await openDrawer(page, "ecl-highlights");
+      const numbers = await page.$$(
+        '[data-testid="attention-drawer-numbers"] dd',
+      );
+      assert.ok(numbers.length >= 2, "an ECL highlight shows its numbers");
+      await page.click('[data-testid="attention-investigate"]');
+      await page.waitForSelector('[data-testid="investigation-context"]',
+        { timeout: 30_000 });
+      const banner = await page.$('[data-testid="investigation-context"]');
+      assert.equal(await banner.getAttribute("data-segment"), segment);
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("a refresh keeps the open investigation", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    const { segment } = await openDrawer(page);
+    await page.click('[data-testid="attention-investigate"]');
+    await page.waitForSelector('[data-testid="investigation-context"]',
+      { timeout: 30_000 });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="investigation-context"]',
+      { timeout: 30_000 });
+    const banner = await page.$('[data-testid="investigation-context"]');
+    assert.equal(
+      await banner.getAttribute("data-segment"),
+      segment,
+      "the same investigation comes back after a reload",
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+await test("an attention-feed failure does not break Ask", async () => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const problems = [];
+  page.on("console", (m) => {
+    if (m.type() === "error") problems.push(`console: ${m.text()}`);
+  });
+  try {
+    await page.route("**/api/v1/cockpit-v4/attention**", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          detail: {
+            error_code: "ATTENTION_UNAVAILABLE",
+            message: "the aggregate query did not return.",
+            component: "segment_attention_feed",
+            error_reference: "att-deadbeef1234",
+          },
+        }),
+      }),
+    );
+    await page.goto(`${UI}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="attention-unavailable"]',
+      { timeout: 60_000 });
+    const text = await page.textContent('[data-testid="attention-unavailable"]');
+    assert.match(text ?? "", /Segment attention feed unavailable/);
+    assert.match(text ?? "", /att-deadbeef1234/);
+    assert.ok(
+      !/Not Found|something failed/i.test(text ?? ""),
+      "a component failure is named, not disguised as a 404",
+    );
+
+    await ask(page, "Who are you?");
+    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+  } finally {
+    await context.close();
+  }
+});
+
 await browser.close();
 
 const summary = {

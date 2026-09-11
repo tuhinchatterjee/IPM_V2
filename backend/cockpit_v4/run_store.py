@@ -185,6 +185,14 @@ CREATE TABLE IF NOT EXISTS summaries (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS thread_context (
+  thread_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS details (
   detail_ref TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
@@ -355,6 +363,41 @@ class RunStore:
         if row is None:
             return None, ""
         return self._read_run(conn, row["run_id"]), str(row["body_digest"])
+
+    def set_thread_context(self, thread_id: str, *, tenant_id: str,
+                           kind: str, body: dict[str, Any]) -> None:
+        """Attach a standing context to a conversation.
+
+        Used by Investigate Further: the attention item the thread started
+        from is carried by the THREAD, so every turn in it is read against
+        that segment and quarter without the user retyping them. It is
+        server-written and tenant-stamped; nothing in a request or a model
+        response can set it.
+        """
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO thread_context(thread_id, tenant_id, kind, "
+                "body, created_at) VALUES (?,?,?,?,?) "
+                "ON CONFLICT(thread_id) DO UPDATE SET kind=excluded.kind, "
+                "body=excluded.body, created_at=excluded.created_at",
+                (thread_id, tenant_id, kind,
+                 json.dumps(body, ensure_ascii=False, default=str), _now()))
+
+    def thread_context(self, thread_id: str, *, tenant_id: str = ""
+                       ) -> dict[str, Any] | None:
+        row = self._connect().execute(
+            "SELECT tenant_id, kind, body, created_at FROM thread_context "
+            "WHERE thread_id=?", (thread_id,)).fetchone()
+        if row is None:
+            return None
+        if tenant_id and str(row["tenant_id"]) != tenant_id:
+            return None
+        try:
+            body = json.loads(row["body"])
+        except (TypeError, ValueError):
+            return None
+        return {"kind": str(row["kind"]), "created_at": str(row["created_at"]),
+                "body": body}
 
     def thread_owner(self, thread_id: str) -> tuple[str, str] | None:
         row = self._connect().execute(

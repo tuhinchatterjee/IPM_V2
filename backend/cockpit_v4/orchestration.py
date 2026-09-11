@@ -82,6 +82,13 @@ class Orchestrator:
     emitter: ev.Emitter
     catalog: Any
     cancel_check: Any = None
+    #: The full tool set, held back from the FIRST generation only. Set by
+    #: the worker when `product_knowledge.coverage` says the synopsis
+    #: already covers the question; restored before the second action so a
+    #: misjudged question is never left without the tool it needs.
+    deferred_tools: list[dict[str, Any]] | None = None
+    #: The attention item this conversation was opened from, if any.
+    investigation: dict[str, Any] | None = None
     #: Set once the analyst has been told to correct only its answer.
     answer_only: bool = False
     executed: bool = False
@@ -196,6 +203,17 @@ class Orchestrator:
             ev.CONTEXT_READY, stage="accepted", operation="context",
             status=ev.STATUS_OK,
             public_message="Authorized context assembled.")
+        if self.investigation:
+            # A real step, so it appears in the trace. Seeding is a context
+            # load, not a hidden model action, and the panel says which.
+            self.emitter.append(
+                ev.CONTEXT_READY, stage="accepted",
+                operation="investigation_context", status=ev.STATUS_OK,
+                public_message=(
+                    "Investigation context loaded · "
+                    f"{self.investigation.get('segment', '')} · "
+                    f"{self.investigation.get('reporting_quarter', '')}"
+                    ).strip(" ·"))
 
         while True:
             self._guard()
@@ -213,6 +231,17 @@ class Orchestrator:
 
     def _generate(self):
         reserved = self.ledger.limits.reserved_output_tokens
+        if (self.deferred_tools is not None
+                and self.ledger.counters.generation_attempts >= 1):
+            # Second action onwards: the full tool set, whatever the first
+            # action was. Withholding is a first-action economy, never a
+            # capability the run can lose.
+            self.analyst.tools = self.deferred_tools
+            self.deferred_tools = None
+            self.emitter.append(
+                ev.CONTEXT_READY, stage="understanding",
+                operation="tools_restored", status=ev.STATUS_OK,
+                public_message="Product knowledge lookup available.")
         self.emitter.append(
             ev.MODEL_REQUESTED, stage="understanding", operation="generate",
             status=ev.STATUS_STARTED,

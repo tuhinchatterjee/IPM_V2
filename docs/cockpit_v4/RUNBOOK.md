@@ -246,6 +246,51 @@ ingestion script, review the regenerated Markdown, and run
 questions with 81 assertions over grounding, framing and what must never
 appear.
 
+## The Cockpit home feed
+
+Below the question box the home page carries two analytical sections computed
+from the pinned release: **Segments requiring attention** and **Latest-quarter
+ECL highlights**. Full method in `ATTENTION_METHOD.md`.
+
+What an operator needs to know:
+
+- **No model call.** Rendering the page costs nothing at the provider, and a
+  test asserts `model_calls == 0`.
+- **Cached per release and tenant.** `GET /api/v1/cockpit-v4/attention` serves
+  a cached feed after the first request; `?refresh=true` recomputes. A new
+  release is a new cache key, so there is nothing to clear by hand.
+- **Measured here:** 446 ms for the first request on a cold DuckDB session,
+  64 ms of computation, 2.4 ms median cached, 31 ms on a forced refresh.
+- **Click a card** for the right-side drawer: why it appeared, what changed,
+  the numbers, what moved alongside it, what to review next, the trace, and
+  **Investigate Further**.
+- **Investigate Further** opens a V4 thread seeded with the item. The segment,
+  quarter, comparison period, metric and evidence live on the thread, so the
+  next question can be "show me the customers behind this". The process panel
+  shows *Investigation context loaded* because that step really happens.
+- **Drill-down** goes sector → borrower → facility. This release has no
+  subsegment column and the drawer says so rather than offering a level that
+  does not exist.
+- **If it fails**, the section alone says *Segment attention feed unavailable*
+  with a reference, and Ask keeps working. A dashboard that cannot compute is
+  not a backend that is down, and the header will not say the backend is
+  offline because of it.
+
+Fewer than five cards is a real answer: it means the remaining movements did
+not clear the materiality floor.
+
+## What is done to a question before the analyst reads it
+
+Unicode NFC, whitespace, and invisible or bidirectional control characters.
+Nothing else — no spelling correction, no translation, no case folding, no
+digit conversion. Misspellings, telegraphic phrasing, long paragraphs and
+mixed-language questions reach the analyst as typed, and the analyst is the
+component that infers what was meant.
+
+When anything is changed, the original and a report naming each transformation
+are persisted as run detail and the trace says "Question text normalized
+(formatting only)". When nothing is changed, nothing is recorded.
+
 ## Settings
 
 | Variable | Meaning |

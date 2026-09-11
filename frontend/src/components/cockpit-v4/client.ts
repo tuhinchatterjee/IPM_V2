@@ -172,6 +172,68 @@ export function forgetRun(): void {
   }
 }
 
+/**
+ * Where an open investigation is remembered across a refresh.
+ *
+ * The SEED lives on the server, attached to the thread; this is only the
+ * pointer to it, so a reload comes back to the same conversation instead of
+ * dropping the reader into a blank Ask box after they clicked a card.
+ */
+const ACTIVE_INVESTIGATION_KEY = "cockpit-v4:active-investigation";
+
+export type RememberedInvestigation = {
+  threadId: string;
+  itemId: string;
+  suggested: string[];
+};
+
+export function rememberInvestigation(open: RememberedInvestigation): void {
+  try {
+    sessionStorage.setItem(ACTIVE_INVESTIGATION_KEY, JSON.stringify(open));
+  } catch {
+    /* a browser that refuses storage loses the banner, not the thread */
+  }
+}
+
+export function recallInvestigation(): RememberedInvestigation | null {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_INVESTIGATION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<RememberedInvestigation>;
+    if (typeof parsed.threadId !== "string" || !parsed.threadId) return null;
+    if (typeof parsed.itemId !== "string" || !parsed.itemId) return null;
+    return {
+      threadId: parsed.threadId,
+      itemId: parsed.itemId,
+      suggested: Array.isArray(parsed.suggested)
+        ? parsed.suggested.filter((s): s is string => typeof s === "string")
+        : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function forgetInvestigation(): void {
+  try {
+    sessionStorage.removeItem(ACTIVE_INVESTIGATION_KEY);
+  } catch {
+    /* nothing to clean up */
+  }
+}
+
+/** One item with its full technical evidence. Used to restore after a reload. */
+export async function readAttentionItem(
+  itemId: string,
+): Promise<{ item: AttentionItem }> {
+  return json(
+    await fetch(
+      `${base()}${API_PREFIX}/attention/${encodeURIComponent(itemId)}`,
+      { credentials: "include" },
+    ),
+  );
+}
+
 /** Bounded backoff, then a status fallback. Not an unlimited retry loop. */
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 8000];
 
@@ -322,6 +384,108 @@ export async function acknowledge(runId: string): Promise<void> {
   }).catch(() => {
     /* a failed acknowledgement must never change the analytical status */
   });
+}
+
+// ---- the Cockpit home feed ---------------------------------------------
+
+export type AttentionNumber = {
+  label: string;
+  value: string;
+  raw: number | null;
+};
+
+export type AttentionDriver = {
+  relationship: string;
+  statement: string;
+  metric: string;
+  delta: number | null;
+  strength: number;
+};
+
+export type AttentionDrilldown = {
+  available: string[];
+  unavailable: string[];
+  note: string;
+  borrower_count: number;
+  suggested_questions: string[];
+};
+
+export type AttentionItem = {
+  item_id: string;
+  section: string;
+  headline: string;
+  one_line: string;
+  segment: string;
+  segment_dimension: string;
+  metric: string;
+  metric_label: string;
+  family: string;
+  reporting_quarter: string;
+  comparison_quarter: string;
+  comparison_basis: string;
+  movement: string;
+  severity: string;
+  score: number | null;
+  why_it_appeared: string;
+  what_changed: string;
+  key_numbers: AttentionNumber[];
+  possible_drivers: AttentionDriver[];
+  what_to_review_next: string[];
+  evidence: Record<string, unknown>;
+  evidence_url: string;
+  drilldown?: AttentionDrilldown;
+};
+
+export type AttentionFeed = {
+  release_id: string;
+  reporting_quarter: string;
+  prior_quarter: string;
+  prior_year_quarter: string;
+  reporting_currency: string;
+  generated_at: string;
+  computed_ms: number;
+  model_calls: number;
+  cached: boolean;
+  segments_requiring_attention: AttentionItem[];
+  ecl_highlights: AttentionItem[];
+  segment_note: string;
+  ownership: { functionality: string; basis: string; note: string };
+};
+
+export type InvestigationSeed = {
+  item_id: string;
+  origin: string;
+  release_id: string;
+  headline: string;
+  segment: string;
+  reporting_quarter: string;
+  comparison_quarter: string;
+  metric_label: string;
+  drilldown?: AttentionDrilldown;
+};
+
+/** The two home sections. Deterministic, cached server-side, no model call. */
+export async function readAttention(): Promise<AttentionFeed> {
+  return json(
+    await fetch(`${base()}${API_PREFIX}/attention`, {
+      credentials: "include",
+    }),
+  );
+}
+
+/** Open a thread seeded with this item, so follow-ups keep its context. */
+export async function investigate(itemId: string): Promise<{
+  thread_id: string;
+  item_id: string;
+  seed: InvestigationSeed;
+  suggested_questions: string[];
+}> {
+  return json(
+    await fetch(
+      `${base()}${API_PREFIX}/attention/${encodeURIComponent(itemId)}/investigate`,
+      { method: "POST", credentials: "include" },
+    ),
+  );
 }
 
 export type WatchHandlers = {

@@ -43,6 +43,17 @@ TOPICS: tuple[str, ...] = (
 
 MAX_SECTIONS = 6
 
+#: Topics the always-on synopsis already carries in full enough shape to
+#: answer from. Positioning, the arc, who it is for and the problem, the seven
+#: functionalities with their one-liners and ownership, and the boundaries.
+SYNOPSIS_TOPICS: frozenset[str] = frozenset({
+    "positioning", "arc", "audience", "modules", "boundaries", "governance"})
+
+#: Everything else. Naming one of these is what makes a question worth a
+#: retrieval: a module in full, TAC, the four layers, how two modules differ,
+#: what a supporting capability actually does, or a worked example.
+DEEP_TOPICS: frozenset[str] = frozenset(TOPICS) - SYNOPSIS_TOPICS
+
 
 @lru_cache(maxsize=1)
 def pack() -> dict[str, Any]:
@@ -92,6 +103,47 @@ def synopsis() -> dict[str, Any]:
             "for the four Early Warning intelligence layers, for how two "
             "modules differ, or for worked examples with their slide "
             "references."),
+    }
+
+
+# ---- coverage: is a retrieval worth a generation? ----------------------
+
+#: What `coverage()` returns in `level`.
+COVERAGE_SYNOPSIS = "synopsis"
+COVERAGE_RETRIEVAL = "retrieval"
+
+
+def coverage(question: str) -> dict[str, Any]:
+    """Does the always-on synopsis already cover this question?
+
+    This is the whole of the one-generation policy, and it is deliberately
+    NEGATIVE: a question needs `inspect_product_knowledge` only when it NAMES
+    a topic whose detail the synopsis does not carry. Nothing here has to
+    recognise a broad product question, which is what makes it survive "who r
+    u", "CreditProbe kya karta hai?" and "ما هو CreditProbe" without a
+    language model, a translation step or a list of phrasings to maintain.
+
+    The deep topics are proper nouns — Cockpit, TAC, Playbook, Lenses,
+    What-If, Scorecard Validation, the four layers — and those survive
+    translation and misspelling far better than the question around them.
+
+    Getting it wrong costs nothing that is not already being paid: the tool
+    is restored for every action after the first, so the worst case is the
+    two generations a product question costs today.
+    """
+    named = [t for t in topics_for(question) if t in DEEP_TOPICS]
+    if named:
+        return {
+            "level": COVERAGE_RETRIEVAL,
+            "deep_topics_named": named,
+            "reason": ("The question names product detail the synopsis does "
+                       "not carry."),
+        }
+    return {
+        "level": COVERAGE_SYNOPSIS,
+        "deep_topics_named": [],
+        "reason": ("No product topic beyond what the synopsis in this "
+                   "context already carries."),
     }
 
 
@@ -146,8 +198,14 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "early_warning": ("early warning", "ews", "deterioration", "alert",
                       "escalation"),
     "tac": ("tac", "trigger", "accelerator", "classifier"),
+    # The four layers, by the names the deck gives them. "External
+    # intelligence" is a layer, not a supporting capability, and a question
+    # naming one must retrieve the section that defines it.
     "layers": ("intelligence layer", "four layer", "layer 1", "layer 2",
-               "layer 3", "layer 4", "behavioural intelligence"),
+               "layer 3", "layer 4", "behavioural intelligence",
+               "external intelligence", "credit and financial fundamentals",
+               "graph and relationship intelligence", "relationship "
+               "intelligence"),
     "what_if": ("what-if", "what if", "scenario", "stress", "shock",
                 "downside", "simulate"),
     "scorecard_validation": ("scorecard", "validation", "model health",
@@ -301,5 +359,7 @@ def retrieve(*, query: str = "", topics: tuple[str, ...] = (),
     }
 
 
-__all__ = ["MAX_SECTIONS", "PACK_PATH", "TOPICS", "pack", "retrieve",
-           "synopsis", "topics_for", "version"]
+__all__ = ["COVERAGE_RETRIEVAL", "COVERAGE_SYNOPSIS", "DEEP_TOPICS",
+           "MAX_SECTIONS", "PACK_PATH", "SYNOPSIS_TOPICS", "TOPICS",
+           "coverage", "pack", "retrieve", "synopsis", "topics_for",
+           "version"]

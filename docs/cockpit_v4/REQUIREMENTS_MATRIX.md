@@ -41,6 +41,10 @@ view. **Nothing in this table is marked satisfied by a document.**
 | 31 | References | — | recorded in `MASTER_BUILD_SPEC.md` §31 |
 | PH | Product Help grounded in the deck | `product_knowledge.py`, `product_knowledge.json` (pack `2026-09-11.1`), the always-on synopsis in `context.py`, `inspect_product_knowledge` | `test_product_help_benchmark.py` — 30 questions, 81 assertions; `test_who_are_you_acceptance.py` (7) |
 | PH | Slide 14's multi-agent design is historical, not current | recorded as `HISTORICAL_ARCHITECTURE` / `NOT_CURRENT_V4_ARCHITECTURE`, `applies_to_current_runtime: false`, and not retrievable | benchmark assertions that no retrieval path returns it and no answer describes V4 as multi-agent |
+| PH | Broad Product Help in ONE generation | `product_knowledge.coverage` + `provider_tools(withhold=…)` + the first-action restore in `orchestration._generate` | `test_product_help_semantics.py` (61): 11 broad questions are synopsis-covered, 6 Cockpit and 8 deep questions are not, the tool is absent on action 1 and present on action 2, and "Who are you?" records `generation_attempts == 1` |
+| LANG | Misspelling, telegraphic English, long paragraphs, mixed script | `intake.normalize_question` (mechanical only) + the "How people actually write" section of `prompts/analyst.md` | `test_language_and_intent.py` (40): the typed text reaches the analyst byte-identical, figures/dates/names survive in six scripts, and six phrasings of one data question produce the same oracle-checked number |
+| HOME | Segments requiring attention + latest-quarter ECL highlights | `attention.py`, `routes.attention_feed`, `attention-panel.tsx` | `test_attention_feed.py` (34) against `attention_oracle.py`, an independent pandas implementation; 11 real-Chromium tests; `ATTENTION_METHOD.md` |
+| HOME | Clickable card → right-side drawer → Investigate Further | `attention-drawer.tsx`, `routes.investigate`, `run_store.thread_context`, `context.build(investigation=…)` | browser tests for the drawer, the seeded thread, the follow-up and the reload; API and scripted-run tests for the seed reaching the model and the trace |
 | AQ | Answer quality and Markdown rendering | `prompts/analyst.md` rewritten for a CRO audience; `markdown-parse.ts` → `markdown.tsx` renders to React elements, never an HTML string | `markdown.test.ts` (16), including the `safeHref` allow-list; browser tests 12 and 13 |
 
 ## Explicitly not satisfied
@@ -51,6 +55,8 @@ view. **Nothing in this table is marked satisfied by a document.**
 | §28 G7 — comparative live evidence | **BLOCKED** | same |
 | §12 Python analysis | **UNAVAILABLE** | the jail's escape self-test found network access unblocked; the runner refuses to certify itself |
 | §26 group 8 — Python sandbox escapes | **partially NOT RUN** | escapes cannot be tested against a jail that is not established. SQL escapes are tested and refused. |
+| §9 leverage / DSCR indicators | **NOT IMPLEMENTED** | the fields exist at borrower grain but weighting them to a sector needs a coverage rule this release does not support cleanly; stated in `ATTENTION_METHOD.md` rather than claimed |
+| §14 subsegment drill-down | **NOT AVAILABLE IN THIS RELEASE** | the pinned release has no subsegment column. Stated explicitly on every item and asserted by a test; borrower level is offered instead |
 | §5 annex vs deployed field names | **no gap ledger needed** | the catalog is V3's, unchanged. Nothing was renamed or rebuilt, so there is no divergence to record. |
 
 The browser group is no longer partial: `python3 scripts/cockpit_v4/browser_evidence.py`

@@ -910,8 +910,23 @@ _DESCRIPTIONS = {
 }
 
 
-def provider_tools() -> list[dict[str, Any]]:
-    """The four tool definitions, in the provider's wire shape."""
+def provider_tools(*, withhold: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+    """The tool definitions, in the provider's wire shape.
+
+    `withhold` removes a tool from THIS request only. It exists for exactly
+    one thing: a broad product question whose answer is already covered by
+    the synopsis in the starting context does not need
+    `inspect_product_knowledge` offered on its first action, and offering it
+    is what turned "Who are you?" into two generations. Nothing is withheld
+    for more than one action — see `product_knowledge.coverage`.
+
+    `finalize_response` can never be withheld: withholding it would leave a
+    run with no way to terminate.
+    """
+    blocked = {name for name in withhold if name != TOOL_FINALIZE}
+    if blocked - set(TOOL_NAMES):
+        raise ValueError(f"unknown tool(s) in withhold: "
+                         f"{sorted(blocked - set(TOOL_NAMES))}")
     defs = _defs()
     files = {TOOL_INSPECT: "inspect_catalog.schema.json",
              TOOL_PRODUCT: "inspect_product_knowledge.schema.json",
@@ -920,6 +935,8 @@ def provider_tools() -> list[dict[str, Any]]:
              TOOL_FINALIZE: "finalize_response.schema.json"}
     tools = []
     for name in TOOL_NAMES:
+        if name in blocked:
+            continue
         tools.append({"name": name, "description": _DESCRIPTIONS[name],
                       "input_schema": _inline(_load(files[name]), defs)})
     return tools

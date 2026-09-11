@@ -140,9 +140,9 @@ At handoff:
 
 | Suite | Result |
 |---|---:|
-| V4 backend (`tests/cockpit_v4`) | 292 passed, 0 failed |
-| Frontend unit (`npm test`, 38 suites) | 459 passed, 0 failed |
-| Real Chromium (`browser_evidence.py`) | 14 / 14 passed |
+| V4 backend (`tests/cockpit_v4`) | 427 passed, 0 failed |
+| Frontend unit (`npm test`, 38 suites) | 466 passed, 0 failed |
+| Real Chromium (`browser_evidence.py`) | 25 / 25 passed |
 | V3 regression (`tests/cockpit_agentic`) | 564 passed, 26 skipped, 0 failed |
 | Acceptance coverage | 100 / 100 |
 
@@ -179,3 +179,22 @@ evidence about what Opus will write. That still needs G7.
    session is the owner's decision, not a setting.
 4. Explicit approval to run the ten commissioning cases — and only those. The
    84-question bank is not run automatically by anything here.
+
+## The next live UAT, and what would confirm it
+
+Seven paid tests, to be run by a human on the Mac with an authorized
+credential. **Nothing here runs them.**
+
+| # | Question | What would confirm the fix |
+|---|---|---|
+| 1 | "Who are you?" | ONE generation, no `inspect_product_knowledge`, a polished answer, a truthful trace, and both latency and cost below the recorded 28.048 s / USD 0.19004 |
+| 2 | "What is Cockpit of CreditProbe?" | a Cockpit-scoped answer, grounded in the pack, materially different from the answer to test 1 |
+| 3 | "wat is cockpit of creditporbe" | the same understanding as test 2, with no clarification asked about the spelling |
+| 4 | "CreditProbe ka cockpit kya karta hai?" | understood, and answered in the language it was asked in |
+| 5 | A Segment Requires Attention card → drawer → Investigate Further → "show me the customers behind this" | the seeded segment and quarter are used without restating them |
+| 6 | "What is total exposure at default by sector in the latest quarter?" | the real SQL path, matching `oracles.ead_by_sector` |
+| 7 | "Which sectors saw the largest increase in Stage 2 exposure over the latest year?" | the correct year comparison and ranking, with no silent inner-join loss |
+
+Tests 1–4 are the ones the mock cannot settle: they are about what Opus
+writes, and every automated result in this build is explicitly about what
+CreditProbe puts in front of it and what it does with the answer.

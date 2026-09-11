@@ -74,7 +74,7 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python3 -m pytest tests/cockpit_v4 -q
 
 | tests collected | passed | failures | errors | skipped | elapsed |
 |---:|---:|---:|---:|---:|---:|
-| 292 | 292 | 0 | 0 | 0 | ~8 s |
+| 427 | 427 | 0 | 0 | 0 | ~14 s |
 
 Frontend unit suite — the whole thing, not only the Cockpit:
 
@@ -84,17 +84,17 @@ cd frontend && npm test
 
 | suites | tests | pass | fail |
 |---:|---:|---:|---:|
-| 38 | 459 | 459 | 0 |
+| 38 | 466 | 466 | 0 |
 
-The Cockpit V4 components alone are 51 of those:
+The Cockpit V4 components alone are 58 of those:
 
 ```
 cd frontend && node --test --experimental-strip-types \
   "src/components/cockpit-v4/*.test.ts"
 ```
 
-covering `reducer.test.ts`, `client.test.ts`, `live-trace.test.ts` and
-`markdown.test.ts`.
+covering `reducer.test.ts`, `client.test.ts`, `live-trace.test.ts`,
+`markdown.test.ts` and `attention-client.test.ts`.
 
 ## Defects found and fixed while testing
 
@@ -148,16 +148,37 @@ pack as `historical_architecture`, `status: HISTORICAL_ARCHITECTURE`,
 is deliberately **not retrievable**, so the analyst cannot describe the current
 runtime as multi-agent.
 
+### Fifth round — the home feed, the one-call product path, and real input
+
+| # | Defect | Consequence |
+|---|---|---|
+| 25 | Broad Product Help spent a generation retrieving what the synopsis already carried. The live run `run-53dfe2c6f10c480bb7b2d033273a6427` took 2 generations, 28.048 s and USD 0.19004 to answer "Who are you?". | Every identity question cost twice what it needed to. Fixed deterministically: `product_knowledge.coverage` withholds `inspect_product_knowledge` from the FIRST action unless the question names product detail the synopsis does not carry, and the full set is restored for every action after it. No hard-coded answer, no extra model call, no prompt-only fix. |
+| 26 | The covenant breach share read 0% in 2026Q1 and 48% in 2026Q2 across four sectors at once. | The attention feed's first five cards were four variations of a **data gap**: this release records covenant headroom in alternate quarters, and a quarter with covenant rows but no headroom and no breach date is a quarter where the test was not observed, not one with no breaches. The base now counts observed tests only, and three indicators carry an explicit observation floor. Found by the independent pandas oracle disagreeing with the engine. |
+| 27 | Every large movement scored exactly 100. | `min(1, x/reference)` saturated, so the five biggest issues in the book ranked on a tie-break rather than on size. Replaced with `x/(x+reference)`, which is monotone everywhere. |
+| 28 | Five cards could be five sectors saying the same sentence. | De-duplication was per `(segment, family)` only. A four-pass selection now prefers a new segment AND a new issue type first, so the feed reads as five findings rather than one finding five times. |
+| 29 | "Explain External Intelligence" retrieved nothing. | External intelligence is one of the four Early Warning layers, and the layer keywords did not include the layers' own names. A question the specification lists as a retrieval question fell through to the synopsis. |
+| 30 | The browser stub's turn counter was keyed by question text. | A second run of the same question started at turn 1 and read a tool result that did not exist, so a working seeded investigation surfaced as `PROVIDER_UNAVAILABLE`. A test defect, not a product one — and it was hiding whether the seeded flow worked at all. Now counted from the assistant turns in the request, which is per-conversation and stateless. |
+| 31 | A reader who clicked Investigate Further and typed immediately could land in a new thread. | The seeded thread id was adopted by an effect; `ask` read component state. It now reads the prop directly, so there is no window. |
+
 ### Browser suite
 
 ```
 python3 scripts/cockpit_v4/browser_evidence.py
 ```
 
-Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 14/14 pass.
+Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 25/25 pass.
 Every network request the page makes is recorded, so "never calls the legacy
 flow" is checked rather than asserted. A screenshot of a rendered answer is
 written to `docs/cockpit_v4/evidence/cockpit_v4_answer.png`.
+
+Eleven of the twenty-five cover the home feed end to end: both sections load
+from the pinned release, five cards are five different segments, a click opens
+the right-side drawer with its "why it appeared" and its numbers, the drawer
+offers borrower drill-down and states that the release has no subsegment
+level, drivers never claim cause, Investigate Further opens a real V4 thread,
+a follow-up runs inside that thread without restating the segment, the seeded
+context load appears in the process panel, an ECL highlight does the same, a
+reload keeps the investigation, and a failing feed leaves Ask working.
 
 ## Suite results at handoff
 
@@ -165,15 +186,18 @@ All run in this container, in this order, on the commit being handed off.
 
 | Suite | Command | Result |
 |---|---|---:|
-| V4 backend | `python3 -m pytest tests/cockpit_v4` | **292 passed**, 0 failed |
+| V4 backend | `python3 -m pytest tests/cockpit_v4` | **427 passed**, 0 failed |
 | — launcher + frontend wiring subset | `… test_launcher_safety.py test_frontend_wiring.py` | 43 passed |
 | — Product Help benchmark | `… test_product_help_benchmark.py` | 81 passed |
+| — Product Help semantics / tool policy | `… test_product_help_semantics.py` | 61 passed |
+| — spelling, telegraphic and multilingual input | `… test_language_and_intent.py` | 40 passed |
+| — attention ranking, oracles and seeding | `… test_attention_feed.py` | 34 passed |
 | — tool contract agreement | `… test_tool_contract_agreement.py` | 26 passed |
 | — event contract parity | `… test_event_contract_parity.py` | 5 passed |
 | — "Who are you?" acceptance | `… test_who_are_you_acceptance.py` | 7 passed |
-| Frontend unit | `npm test` (`node --test`, 38 suites) | **459 passed**, 0 failed |
-| — Cockpit V4 components only | `node --test 'src/components/cockpit-v4/*.test.ts'` | 51 passed |
-| Browser (real Chromium) | `python3 scripts/cockpit_v4/browser_evidence.py` | **14/14 passed** |
+| Frontend unit | `npm test` (`node --test`, 38 suites) | **466 passed**, 0 failed |
+| — Cockpit V4 components only | `node --test 'src/components/cockpit-v4/*.test.ts'` | 58 passed |
+| Browser (real Chromium) | `python3 scripts/cockpit_v4/browser_evidence.py` | **25/25 passed** |
 | V3 regression | `python3 -m pytest tests/cockpit_agentic` | **564 passed**, 26 skipped, 0 failed |
 | Acceptance coverage | `python3 scripts/cockpit_v4/acceptance_evidence.py` | 100 / 100 covered |
 

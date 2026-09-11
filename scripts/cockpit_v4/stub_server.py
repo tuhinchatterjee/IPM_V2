@@ -202,7 +202,6 @@ This environment uses synthetic demonstration data rather than a real bank portf
         """One `converse` per turn, scripted from the question under way."""
 
         def __init__(self) -> None:
-            self.turns: dict[str, int] = {}
             self.lock = threading.RLock()
 
         def count_tokens(self, *, system=None, messages=None, tools=None,
@@ -223,10 +222,14 @@ This environment uses synthetic demonstration data rather than a real bank portf
                      allow_retry=True, effort=""):
             assert allow_retry is False
             question = self._question(messages)
-            key = question[:120]
-            with self.lock:
-                turn = self.turns.get(key, 0)
-                self.turns[key] = turn + 1
+            # Which turn of THIS conversation this is, counted from the
+            # history the request carries. A counter keyed by the question
+            # text was shared across runs, so a second run of the same
+            # question started at turn 1 and tried to read a tool result that
+            # did not exist yet -- a stub defect that made a working seeded
+            # investigation look like a provider failure.
+            turn = sum(1 for message in messages
+                       if message.get("role") == "assistant")
 
             # A visible pause so the browser observes progress arriving
             # BEFORE the answer, which is the property under test.

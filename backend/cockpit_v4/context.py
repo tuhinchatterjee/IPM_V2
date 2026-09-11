@@ -101,7 +101,8 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
           dict[str, Any], ui_filters: dict[str, Any] | None = None,
           recent_turns: list[dict[str, Any]] | None = None,
           summary: dict[str, Any] | None = None,
-          location: str = "", capability: Any = None) -> Packet:
+          location: str = "", capability: Any = None,
+          investigation: dict[str, Any] | None = None) -> Packet:
     """Assemble the packet. Never trims the instruction to hit a target."""
     calendar = getattr(catalog, "calendar", None)
     quarters = list(getattr(calendar, "slots", ()) or ())
@@ -150,6 +151,12 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
 
     from backend.cockpit_v4 import product_knowledge as pk
 
+    # Computed here, not guessed by the model: which product detail — if any
+    # — this question names beyond what the synopsis below already carries.
+    # `worker.py` uses the same verdict to decide whether
+    # `inspect_product_knowledge` is offered on the first action.
+    product_coverage = pk.coverage(question)
+
     system_blocks: list[dict[str, Any]] = [
         # Stable prefix first, so a cache write is reusable and a changing
         # budget cannot invalidate it.
@@ -160,6 +167,17 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
             # generation; everything deeper is a tool call away. Attaching
             # the whole pack would be the V3 mistake in a new costume.
             "creditprobe": pk.synopsis(),
+            "product_knowledge_coverage": {
+                **product_coverage,
+                "note": (
+                    "SYNOPSIS means the product facts above already cover "
+                    "this question: answer from them in this action rather "
+                    "than retrieving. RETRIEVAL means the question names "
+                    "detail the synopsis does not carry — read exactly those "
+                    "topics. Either way, if your first action does not "
+                    "finish the run, inspect_product_knowledge is available "
+                    "on every action after it."),
+            },
             "product_functionalities": _registry_compact(),
             "catalog_index": _catalog_index(catalog, scope),
             "catalog_index_note": (
@@ -174,6 +192,19 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
     ]
 
     parts = [f"USER REQUEST (original wording, unmodified):\n{question}"]
+    if investigation:
+        # Seeded by Investigate Further, from a dashboard item the user
+        # clicked. These are recorded facts already computed and shown to
+        # them: the segment, the quarter and the movement are the standing
+        # subject of this conversation, so a follow-up like "show me the
+        # customers behind this" resolves without the user retyping any of
+        # it. It is NOT an answer and NOT an instruction.
+        parts.append(
+            "ACTIVE INVESTIGATION (the user opened this conversation from a "
+            "Cockpit attention card; treat its segment, quarters and metric "
+            "as the standing subject unless the user changes them, and "
+            "re-derive any number you state from your own executed query):\n"
+            + json.dumps(investigation, ensure_ascii=False, default=str))
     if history:
         parts.append(
             "RECENT COMPLETED TURNS IN THIS THREAD (exact records; these "
@@ -194,6 +225,7 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
         first_user_message="\n\n".join(parts),
         payload={"pinned_scope": pinned, "budgets": budget,
                  "recent_turns": history,
+                 "investigation": investigation or {},
                  "principal": {"id": principal.get("id", ""),
                                "tenant": principal.get("tenant", "")}})
 

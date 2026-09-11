@@ -29,7 +29,7 @@ from backend.cockpit_v4.artifacts import ArtifactService
 from backend.cockpit_v4.budgets import Ledger
 from backend.cockpit_v4.catalog_tool import CatalogService
 from backend.cockpit_v4.config import limits_for
-from backend.cockpit_v4.contracts import provider_tools
+from backend.cockpit_v4.contracts import TOOL_PRODUCT, provider_tools
 from backend.cockpit_v4.execute_tool import ExecutionService
 from backend.cockpit_v4.finalization import Finalizer
 from backend.cockpit_v4.orchestration import Orchestrator, Outcome
@@ -113,6 +113,8 @@ class Worker:
             logger.info("V4 SQL session unavailable for run %s: %s",
                         record.run_id, exc)
 
+        seeded = self.store.thread_context(record.thread_id,
+                                           tenant_id=record.tenant_id)
         packet = context_mod.build(
             question=record.question, principal=principal, scope=scope,
             catalog=self.runtime.catalog, limits=limits, mode=record.mode,
@@ -121,12 +123,27 @@ class Worker:
             recent_turns=self.store.recent_turns(
                 record.thread_id, context_mod.DEFAULT_RECENT_TURNS),
             summary=self.store.get_summary(record.thread_id),
-            capability=self.runtime.capability)
+            capability=self.runtime.capability,
+            investigation=(seeded or {}).get("body") if seeded else None)
 
+        # One-generation broad Product Help. When the question names no
+        # product detail beyond the synopsis the packet already carries,
+        # `inspect_product_knowledge` is not offered on the FIRST action —
+        # the live run that cost two generations and 28s spent the first one
+        # retrieving what was already in front of it. The full set is
+        # restored for every action after the first, so a misjudged question
+        # costs nothing that it does not cost today.
+        from backend.cockpit_v4 import product_knowledge as pk
+
+        verdict = pk.coverage(record.question)
+        withhold = ((TOOL_PRODUCT,)
+                    if verdict["level"] == pk.COVERAGE_SYNOPSIS else ())
+        full_tools = provider_tools()
         analyst = Analyst(
             provider=self.runtime.provider,
             capability=self.runtime.capability, ledger=ledger,
-            system=packet.system_blocks, tools=provider_tools())
+            system=packet.system_blocks,
+            tools=provider_tools(withhold=withhold))
         analyst.user(packet.first_user_message)
 
         from backend.cockpit_v4 import pyrunner
@@ -149,7 +166,9 @@ class Worker:
                 release_id=record.release_id, limits=limits),
             emitter=emitter, catalog=self.runtime.catalog,
             cancel_check=lambda: bool(
-                (self.store.get_run(record.run_id) or record).cancel_requested))
+                (self.store.get_run(record.run_id) or record).cancel_requested),
+            deferred_tools=full_tools if withhold else None,
+            investigation=(seeded or {}).get("body") if seeded else None)
         orchestrator._version = record.version
         return orchestrator.run_to_completion()
 
