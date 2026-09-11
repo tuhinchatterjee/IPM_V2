@@ -151,9 +151,9 @@ RETAIL = Committee(
                     "rate and the delinquency measures, and whether the "
                     "movement is concentrated or across the book."),
                 "blocks": [
-                    _kpi("retail.default_rate", "Retail default rate"),
-                    _kpi("retail.dpd_30_balance", "30+ DPD exposure rate"),
-                    _kpi("retail.dpd_90_balance", "90+ DPD exposure rate"),
+                    _kpi("retail.default_rate_current", "Facilities in default"),
+                    _kpi("retail.dpd30_rate", "30+ DPD exposure rate"),
+                    _kpi("retail.dpd90_rate", "90+ DPD exposure rate"),
                     _narrative(
                         "Commentary",
                         "State the direction, then the size, then whether it "
@@ -169,9 +169,9 @@ RETAIL = Committee(
                     "Whether the quality of new business is holding, and "
                     "whether the application scorecard is still separating."),
                 "blocks": [
-                    _kpi("retail.application_bad_rate",
-                         "Application cohort bad rate"),
-                    _kpi("retail.application_gini",
+                    _kpi("retail.observed_default_rate",
+                         "Observed 12-month default rate"),
+                    _kpi("retail.application.gini",
                          "Application scorecard Gini"),
                     _kpi("retail.average_debt_burden",
                          "Average debt burden ratio"),
@@ -185,10 +185,10 @@ RETAIL = Committee(
                            "being done about them.",
                 "required": True,
                 "blocks": [
-                    _kpi("retail.restructured_rate",
-                         "Restructured account rate"),
-                    _kpi("retail.high_utilisation_rate",
-                         "Accounts above 90% utilised"),
+                    _kpi("retail.forbearance_rate",
+                         "Forbearance rate"),
+                    _kpi("retail.card_utilisation",
+                         "Card utilisation"),
                     _narrative(
                         "Commentary",
                         "Whether forbearance is working or deferring."),
@@ -207,49 +207,296 @@ RETAIL = Committee(
         ],
         "materiality": [
             {"key": "retail_default_rate_move",
-             "metric_id": "retail.default_rate",
+             "metric_id": "retail.default_rate_current",
              "comparison": "absolute_change", "threshold": 0.3,
              "direction": "worse", "severity": "HIGH",
              "finding_type": "DETERIORATION",
-             "title": "Retail default rate moved materially"},
+             "title": "Facilities in default moved materially"},
             {"key": "retail_default_rate_band",
-             "metric_id": "retail.default_rate",
-             "comparison": "above", "threshold": 7.0,
+             "metric_id": "retail.default_rate_current",
+             "comparison": "above", "threshold": 2.0,
              "severity": "HIGH", "finding_type": "THRESHOLD_BREACH",
-             "title": "Retail default rate above its agreed ceiling"},
+             "title": "Facilities in default above the agreed ceiling"},
             {"key": "retail_dpd30_move",
-             "metric_id": "retail.dpd_30_balance",
+             "metric_id": "retail.dpd30_rate",
              "comparison": "absolute_change", "threshold": 0.5,
              "direction": "worse", "severity": "MEDIUM",
              "finding_type": "DETERIORATION",
              "title": "30+ DPD exposure rate moved materially"},
             {"key": "application_bad_rate_move",
-             "metric_id": "retail.application_bad_rate",
+             "metric_id": "retail.observed_default_rate",
              "comparison": "absolute_change", "threshold": 0.4,
              "direction": "worse", "severity": "HIGH",
              "finding_type": "DETERIORATION",
-             "title": "Application cohort bad rate deteriorated"},
+             "title": "Observed default rate deteriorated"},
             {"key": "application_gini_floor",
-             "metric_id": "retail.application_gini",
+             "metric_id": "retail.application.gini",
              "comparison": "below", "threshold": 0.35,
              "severity": "HIGH", "finding_type": "MODEL_PERFORMANCE",
              "title": "Application scorecard Gini below its floor"},
             {"key": "restructured_rate_band",
-             "metric_id": "retail.restructured_rate",
-             "comparison": "above", "threshold": 10.0,
+             "metric_id": "retail.forbearance_rate",
+             "comparison": "above", "threshold": 3.0,
              "severity": "MEDIUM", "finding_type": "CONCENTRATION",
-             "title": "Restructured account rate above its band"},
+             "title": "Forbearance rate above its band"},
             # A rule about ABSENCE, not about a number. A pack whose default
             # rate could not be calculated is a pack the committee must not
             # read as though the figure were fine.
             {"key": "default_rate_unavailable",
-             "metric_id": "retail.default_rate",
+             "metric_id": "retail.default_rate_current",
              "comparison": "unavailable", "severity": "CRITICAL",
              "finding_type": "DATA_QUALITY",
-             "title": "The retail default rate has no value this period"},
+             "title": "The default rate has no value this period"},
         ],
     },
 )
+
+RETAIL_IFRS9 = Committee(
+    code="retail-ifrs9-committee",
+    name="Retail IFRS 9 Committee",
+    business_area="Retail IFRS 9",
+    purpose=(
+        "Monthly governance of the retail ECL result: staging, coverage, the "
+        "management overlay, and the judgements behind them."),
+    cadence="MONTHLY",
+    meeting_weekday=3,
+    period_kind="month",
+    previous_meeting=-30,
+    current_meeting=8,
+    current_status="DRAFT",
+    template={
+        "name": "Retail IFRS 9 Monitoring Pack",
+        "code": "retail-ifrs9-pack",
+        "description": (
+            "What the allowance is, what it is a proportion of, how it is "
+            "staged, and how much of it is judgement rather than model."),
+        "sections": [
+            {
+                "key": "the-allowance",
+                "title": "The allowance",
+                "purpose": "The headline figures, and what they are measured "
+                           "against.",
+                "required": True,
+                "narrative_instructions": (
+                    "State the allowance, then the coverage, then the "
+                    "direction of travel. A coverage ratio with no exposure "
+                    "beside it cannot be challenged."),
+                "blocks": [
+                    _kpi("retail.ecl", "Expected credit loss"),
+                    _kpi("retail.gross_carrying_amount", "Gross carrying amount"),
+                    _kpi("retail.ecl_coverage", "ECL coverage"),
+                    _kpi("retail.overlay", "Management overlay"),
+                    _narrative(
+                        "Commentary",
+                        "Direction first, then size, then whether the movement "
+                        "is concentrated in one stage or one product."),
+                ],
+            },
+            {
+                "key": "staging",
+                "title": "Staging and coverage by stage",
+                "purpose": "Where the book sits across the three stages, and "
+                           "whether each is provisioned as its stage implies.",
+                "required": True,
+                "narrative_instructions": (
+                    "Stage 3 is a small share of exposure and a large share of "
+                    "the allowance. Say whether that gap widened."),
+                "blocks": [
+                    _kpi("retail.stage1.share", "Stage 1 share of exposure"),
+                    _kpi("retail.stage2.share", "Stage 2 share of exposure"),
+                    _kpi("retail.stage3.share", "Stage 3 share of exposure"),
+                    _kpi("retail.stage2.coverage", "Stage 2 coverage"),
+                    _kpi("retail.stage3.coverage", "Stage 3 coverage"),
+                    _kpi("retail.sicr_rate", "SICR rate"),
+                    _narrative("Commentary",
+                               "Movement between stages, and what drove it."),
+                ],
+            },
+            {
+                "key": "arrears",
+                "title": "Arrears and write-offs",
+                "purpose": "The outcomes the staging is meant to anticipate.",
+                "required": True,
+                "blocks": [
+                    _kpi("retail.dpd30_rate", "30+ DPD exposure rate"),
+                    _kpi("retail.dpd90_rate", "90+ DPD exposure rate"),
+                    _kpi("retail.overdue_amount", "Amount overdue"),
+                    _kpi("retail.writeoff_month", "Written off this month"),
+                    _narrative("Commentary",
+                               "Whether arrears are running ahead of staging."),
+                ],
+            },
+            {
+                "key": "decisions",
+                "title": "Decisions requested",
+                "purpose": "What the committee is asked to decide.",
+                "required": False,
+                "blocks": [
+                    {"type": "DECISION_REQUEST",
+                     "title": "Decisions for this meeting"},
+                ],
+            },
+        ],
+        "materiality": [
+            {"key": "retail_coverage_move",
+             "metric_id": "retail.ecl_coverage",
+             "comparison": "absolute_change", "threshold": 0.05,
+             "direction": "worse", "severity": "HIGH",
+             "finding_type": "DETERIORATION",
+             "title": "ECL coverage moved materially"},
+            {"key": "retail_stage2_share_band",
+             "metric_id": "retail.stage2.share",
+             "comparison": "above", "threshold": 8.0,
+             "severity": "MEDIUM", "finding_type": "THRESHOLD_BREACH",
+             "title": "Stage 2 share above its agreed band"},
+            {"key": "retail_stage3_coverage_floor",
+             "metric_id": "retail.stage3.coverage",
+             "comparison": "below", "threshold": 30.0,
+             "severity": "CRITICAL", "finding_type": "THRESHOLD_BREACH",
+             "title": "Stage 3 coverage below its floor"},
+            {"key": "retail_sicr_move",
+             "metric_id": "retail.sicr_rate",
+             "comparison": "absolute_change", "threshold": 1.0,
+             "direction": "worse", "severity": "MEDIUM",
+             "finding_type": "DETERIORATION",
+             "title": "SICR rate moved materially"},
+            # A rule about ABSENCE. A pack whose allowance could not be
+            # calculated must not be read as though the figure were fine.
+            {"key": "retail_ecl_unavailable",
+             "metric_id": "retail.ecl",
+             "comparison": "unavailable", "severity": "CRITICAL",
+             "finding_type": "DATA_QUALITY",
+             "title": "The retail allowance has no value this period"},
+        ],
+    },
+)
+
+
+RETAIL_SCORECARD = Committee(
+    code="retail-scorecard-committee",
+    name="Retail Model Risk Committee",
+    business_area="Retail Model Risk",
+    purpose=(
+        "Quarterly assurance on the retail scorecards: whether they still "
+        "rank, whether the level is still right, and whether the population "
+        "they score has moved."),
+    cadence="QUARTERLY",
+    meeting_weekday=4,
+    period_kind="quarter",
+    previous_meeting=-88,
+    current_meeting=14,
+    current_status="DRAFT",
+    template={
+        "name": "Retail Scorecard Assurance Pack",
+        "code": "retail-scorecard-pack",
+        "description": (
+            "Discrimination, calibration and population stability for the "
+            "retail scorecards, over the latest cohort whose twelve-month "
+            "window has closed for every account."),
+        "sections": [
+            {
+                "key": "discrimination",
+                "title": "Discrimination",
+                "purpose": "Whether the scores still separate the accounts "
+                           "that defaulted from those that did not.",
+                "required": True,
+                "narrative_instructions": (
+                    "Name the cohort and its size before the statistic. A Gini "
+                    "on a cohort of four hundred is a different claim from the "
+                    "same Gini on seventeen thousand."),
+                "blocks": [
+                    _kpi("retail.application.gini", "Application Gini"),
+                    _kpi("retail.application.auc", "Application AUC"),
+                    _kpi("retail.application.ks", "Application KS"),
+                    _kpi("retail.behavioural.gini", "Behavioural Gini"),
+                    _kpi("retail.bureau.gini", "Bureau score Gini"),
+                    _narrative(
+                        "Commentary",
+                        "Compare the internal scorecards with the external "
+                        "bureau reference, not only with their own history."),
+                ],
+            },
+            {
+                "key": "calibration",
+                "title": "Calibration",
+                "purpose": "Whether the predicted level is right, which is a "
+                           "different question from whether the ranking is.",
+                "required": True,
+                "narrative_instructions": (
+                    "Predicted against observed on the SAME population. Say "
+                    "plainly that a scorecard can rank well and be badly "
+                    "calibrated, and the reverse."),
+                "blocks": [
+                    _kpi("retail.predicted_pd", "Average predicted PD"),
+                    _kpi("retail.observed_default_rate",
+                         "Observed 12-month default rate"),
+                    _narrative("Commentary",
+                               "State the observed-to-expected ratio and what "
+                               "would have to be true for it to be acceptable."),
+                ],
+            },
+            {
+                "key": "population",
+                "title": "The population being scored",
+                "purpose": "Whether the book the scorecard is applied to has "
+                           "moved away from the one it was built on.",
+                "required": True,
+                "blocks": [
+                    _kpi("retail.average_application_score",
+                         "Average application score"),
+                    _kpi("retail.average_behavioural_score",
+                         "Average behavioural score"),
+                    _kpi("retail.average_bureau_score", "Average bureau score"),
+                    _kpi("retail.average_debt_burden", "Average debt burden"),
+                    _kpi("retail.salary_transfer_rate", "Salary-transfer share"),
+                    _narrative("Commentary",
+                               "A shift in the population is not by itself a "
+                               "model failure; say what it would take to be one."),
+                ],
+            },
+            {
+                "key": "decisions",
+                "title": "Decisions requested",
+                "purpose": "What the committee is asked to decide.",
+                "required": False,
+                "blocks": [
+                    {"type": "DECISION_REQUEST",
+                     "title": "Decisions for this meeting"},
+                ],
+            },
+        ],
+        "materiality": [
+            {"key": "application_gini_floor",
+             "metric_id": "retail.application.gini",
+             "comparison": "below", "threshold": 0.30,
+             "severity": "HIGH", "finding_type": "MODEL_PERFORMANCE",
+             "title": "Application scorecard Gini below its floor"},
+            {"key": "application_gini_move",
+             "metric_id": "retail.application.gini",
+             "comparison": "absolute_change", "threshold": 0.05,
+             "direction": "worse", "severity": "MEDIUM",
+             "finding_type": "MODEL_PERFORMANCE",
+             "title": "Application scorecard Gini fell materially"},
+            {"key": "behavioural_gini_floor",
+             "metric_id": "retail.behavioural.gini",
+             "comparison": "below", "threshold": 0.40,
+             "severity": "HIGH", "finding_type": "MODEL_PERFORMANCE",
+             "title": "Behavioural scorecard Gini below its floor"},
+            {"key": "observed_rate_move",
+             "metric_id": "retail.observed_default_rate",
+             "comparison": "absolute_change", "threshold": 0.5,
+             "direction": "worse", "severity": "HIGH",
+             "finding_type": "DETERIORATION",
+             "title": "Observed default rate deteriorated"},
+            {"key": "application_gini_unavailable",
+             "metric_id": "retail.application.gini",
+             "comparison": "unavailable", "severity": "CRITICAL",
+             "finding_type": "DATA_QUALITY",
+             "title": "The application Gini has no value this cohort"},
+        ],
+    },
+)
+
 
 CORPORATE = Committee(
     code="corporate-credit-committee",
@@ -460,7 +707,8 @@ IFRS9 = Committee(
     },
 )
 
-COMMITTEES: tuple[Committee, ...] = (RETAIL, CORPORATE, IFRS9)
+COMMITTEES: tuple[Committee, ...] = (
+    RETAIL, RETAIL_IFRS9, RETAIL_SCORECARD, CORPORATE, IFRS9)
 
 #: The committees whose packs are built from `corporate.*` metrics over the
 #: corporate book. Retained in `COMMITTEES` — a corporate profile seeds all
@@ -625,6 +873,7 @@ def refresh(session: Any, *, today: date | None = None, dry_run: bool = False,
 
 __all__ = [
     "COMMITTEES", "CORPORATE", "CORPORATE_COMMITTEE_CODES", "Committee",
+    "RETAIL_IFRS9", "RETAIL_SCORECARD",
     "FIELDS", "IFRS9", "Moved", "served_committees",
     "PLAYBOOK_DEMO", "RETAIL", "Refresh", "refresh", "seeded",
 ]

@@ -31,6 +31,7 @@ import { Unavailable } from "@/components/ui/unavailable";
 import { api } from "@/lib/api";
 import type { PlaybookPack } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { BackLink } from "@/components/layout/back-link";
 
 /**
  * One committee pack.
@@ -75,6 +76,13 @@ export default function PackPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5 px-6 py-6">
+      {/* A pack is opened from the Playbook, from a committee, and from a
+          link somebody pasted into a message. On every one of those the only
+          way out was the sidebar or the browser's own Back, because the
+          "Back to Playbook" link on this screen lives inside the state where
+          the pack could NOT be loaded — so it appeared exactly when there was
+          nothing to go back from. */}
+      <BackLink href="/playbook" label="Playbook" />
       <PackHeader pack={data} onChanged={pack.reload} />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">

@@ -30,7 +30,13 @@ export function formatMetric(
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   const places = decimals ?? 2;
   switch (unit) {
+    // "percentage" as well as "percent". The metric catalogue has carried
+    // both spellings, and only one of them was handled — so an ECL coverage
+    // of 0.77% rendered as the bare number "0.77" on every lens tile, which a
+    // reader cannot tell from a ratio of 0.77. A unit that is only sometimes
+    // shown is worse than one that is never shown.
     case "percent":
+    case "percentage":
       return percent(value, places);
     case "currency":
       return money(value, Math.abs(value) >= 1000 ? 0 : places);
@@ -38,13 +44,23 @@ export function formatMetric(
       return count(value);
     case "days":
       return `${count(value)} days`;
+    // A probability is stored as a fraction and read as a percentage: 0.0241
+    // is 2.41%, and showing "0.0241" beside an observed default rate of
+    // "2.10%" invites exactly the comparison it makes impossible.
+    case "probability":
+      return percent(value * 100, Math.min(places, 2));
     case "ratio":
     case "index":
     case "score":
       return value.toFixed(places);
     default:
-      return Number.isInteger(value) ? count(value) : value.toFixed(places);
+      break;
   }
+  // An unrecognised unit is still a unit. Returning the bare number is how
+  // "percentage" disappeared for as long as it did, so anything the switch
+  // does not know keeps its name beside the figure.
+  const text = Number.isInteger(value) ? count(value) : value.toFixed(places);
+  return unit ? `${text} ${unit}` : text;
 }
 
 /**

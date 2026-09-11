@@ -1,0 +1,774 @@
+{
+  "generated_from": "data/retail/analytics/retail_facility_month",
+  "months_published": [
+    "2024-08",
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11",
+    "2025-12",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08"
+  ],
+  "latest_month": "2026-08",
+  "latest_matured_month": "2025-08",
+  "book": {
+    "month": "2026-08",
+    "facilities": 19745,
+    "customers": 14251,
+    "gross_carrying_amount_sar": 2082852855.82,
+    "ead_sar": 2096259474.36,
+    "ecl_final_sar": 15952108.84,
+    "ecl_weighted_sar": 15952108.84,
+    "overlay_sar": 0.0,
+    "ecl_coverage_pct": 0.7659,
+    "undrawn_sar": 103391050.29,
+    "unit": "SAR"
+  },
+  "by_product": {
+    "month": "2026-08",
+    "rows": [
+      {
+        "product_code": "HOME_LOAN",
+        "product_label": "Home Finance",
+        "facilities": 2151,
+        "customers": 2067,
+        "gross_carrying_amount_sar": 1330366315.45,
+        "ecl_final_sar": 2805159.1,
+        "ecl_coverage_pct": 0.2109
+      },
+      {
+        "product_code": "PERSONAL_LOAN",
+        "product_label": "Personal Finance",
+        "facilities": 7761,
+        "customers": 6781,
+        "gross_carrying_amount_sar": 463168889.69,
+        "ecl_final_sar": 8994011.87,
+        "ecl_coverage_pct": 1.9418
+      },
+      {
+        "product_code": "AUTO_LOAN",
+        "product_label": "Auto Finance",
+        "facilities": 3301,
+        "customers": 3117,
+        "gross_carrying_amount_sar": 231191479.6,
+        "ecl_final_sar": 1091176.18,
+        "ecl_coverage_pct": 0.472
+      },
+      {
+        "product_code": "CREDIT_CARD",
+        "product_label": "Credit Card",
+        "facilities": 6532,
+        "customers": 5853,
+        "gross_carrying_amount_sar": 58126171.08,
+        "ecl_final_sar": 3061761.69,
+        "ecl_coverage_pct": 5.2674
+      }
+    ],
+    "total_gca_sar": 2082852855.82,
+    "total_ecl_sar": 15952108.84,
+    "ranking_by_exposure": [
+      "Home Finance",
+      "Personal Finance",
+      "Auto Finance",
+      "Credit Card"
+    ],
+    "unit": "SAR",
+    "note": "One row per facility; customers counted distinct."
+  },
+  "by_stage": {
+    "month": "2026-08",
+    "product": null,
+    "rows": [
+      {
+        "stage": 1,
+        "facilities": 18189,
+        "gross_carrying_amount_sar": 1956170438.72,
+        "ecl_final_sar": 6489536.92,
+        "exposure_share_pct": 93.9178,
+        "ecl_share_pct": 40.6814,
+        "coverage_pct": 0.3317
+      },
+      {
+        "stage": 2,
+        "facilities": 1392,
+        "gross_carrying_amount_sar": 112931304.88,
+        "ecl_final_sar": 4536512.99,
+        "exposure_share_pct": 5.422,
+        "ecl_share_pct": 28.4383,
+        "coverage_pct": 4.0171
+      },
+      {
+        "stage": 3,
+        "facilities": 164,
+        "gross_carrying_amount_sar": 13751112.22,
+        "ecl_final_sar": 4926058.93,
+        "exposure_share_pct": 0.6602,
+        "ecl_share_pct": 30.8803,
+        "coverage_pct": 35.823
+      }
+    ],
+    "most_disproportionate_stage": 3,
+    "note": "A stage contributes disproportionately when its share of ECL exceeds its share of exposure."
+  },
+  "by_stage_personal_finance": {
+    "month": "2026-08",
+    "product": "PERSONAL_LOAN",
+    "rows": [
+      {
+        "stage": 1,
+        "facilities": 7218,
+        "gross_carrying_amount_sar": 428526686.06,
+        "ecl_final_sar": 4093815.37,
+        "exposure_share_pct": 92.5206,
+        "ecl_share_pct": 45.5171,
+        "coverage_pct": 0.9553
+      },
+      {
+        "stage": 2,
+        "facilities": 483,
+        "gross_carrying_amount_sar": 30491507.74,
+        "ecl_final_sar": 2002036.02,
+        "exposure_share_pct": 6.5832,
+        "ecl_share_pct": 22.2597,
+        "coverage_pct": 6.5659
+      },
+      {
+        "stage": 3,
+        "facilities": 60,
+        "gross_carrying_amount_sar": 4150695.89,
+        "ecl_final_sar": 2898160.48,
+        "exposure_share_pct": 0.8962,
+        "ecl_share_pct": 32.2232,
+        "coverage_pct": 69.8235
+      }
+    ],
+    "most_disproportionate_stage": 3,
+    "note": "A stage contributes disproportionately when its share of ECL exceeds its share of exposure."
+  },
+  "movement_whole_book": {
+    "prior_month": "2026-07",
+    "month": "2026-08",
+    "product": null,
+    "ecl_prior_sar": 14069608.38,
+    "ecl_now_sar": 15952108.84,
+    "ecl_change_sar": 1882500.46,
+    "ecl_change_pct": 13.3799,
+    "facilities_prior": 19495,
+    "facilities_now": 19745,
+    "continuing": 19167,
+    "entrants": 578,
+    "exits": 328,
+    "ecl_from_continuing_sar": 1229902.91,
+    "ecl_from_entrants_sar": 863913.68,
+    "ecl_from_exits_sar": -211316.14,
+    "note": "continuing + entrants + exits reconciles to the total change; an entrant is new business, not deterioration."
+  },
+  "movement_personal_finance": {
+    "prior_month": "2026-07",
+    "month": "2026-08",
+    "product": "PERSONAL_LOAN",
+    "ecl_prior_sar": 8012418.68,
+    "ecl_now_sar": 8994011.87,
+    "ecl_change_sar": 981593.19,
+    "ecl_change_pct": 12.2509,
+    "facilities_prior": 7677,
+    "facilities_now": 7761,
+    "continuing": 7464,
+    "entrants": 297,
+    "exits": 213,
+    "ecl_from_continuing_sar": 561978.53,
+    "ecl_from_entrants_sar": 607460.65,
+    "ecl_from_exits_sar": -187845.99,
+    "note": "continuing + entrants + exits reconciles to the total change; an entrant is new business, not deterioration."
+  },
+  "delinquency_by_product": {
+    "month": "2026-08",
+    "by": "product_code",
+    "rows": [
+      {
+        "product_code": "CREDIT_CARD",
+        "facilities": 6532,
+        "gross_carrying_amount_sar": 58126171.08,
+        "dpd30_exposure_pct": 3.6982,
+        "dpd30_count_pct": 2.2811,
+        "dpd60_exposure_pct": 2.1612,
+        "dpd60_count_pct": 1.1482,
+        "dpd90_exposure_pct": 1.3045,
+        "dpd90_count_pct": 0.6277
+      },
+      {
+        "product_code": "PERSONAL_LOAN",
+        "facilities": 7761,
+        "gross_carrying_amount_sar": 463168889.69,
+        "dpd30_exposure_pct": 1.9967,
+        "dpd30_count_pct": 1.5848,
+        "dpd60_exposure_pct": 0.9797,
+        "dpd60_count_pct": 0.8633,
+        "dpd90_exposure_pct": 0.5601,
+        "dpd90_count_pct": 0.4639
+      },
+      {
+        "product_code": "AUTO_LOAN",
+        "facilities": 3301,
+        "gross_carrying_amount_sar": 231191479.6,
+        "dpd30_exposure_pct": 1.8881,
+        "dpd30_count_pct": 1.4238,
+        "dpd60_exposure_pct": 0.8415,
+        "dpd60_count_pct": 0.7271,
+        "dpd90_exposure_pct": 0.4403,
+        "dpd90_count_pct": 0.3938
+      },
+      {
+        "product_code": "HOME_LOAN",
+        "facilities": 2151,
+        "gross_carrying_amount_sar": 1330366315.45,
+        "dpd30_exposure_pct": 1.6209,
+        "dpd30_count_pct": 1.3482,
+        "dpd60_exposure_pct": 1.0719,
+        "dpd60_count_pct": 0.8368,
+        "dpd90_exposure_pct": 0.3863,
+        "dpd90_count_pct": 0.4184
+      }
+    ],
+    "highest_dpd30_by_exposure": "CREDIT_CARD",
+    "note": "By exposure and by count are different measures."
+  },
+  "trend_ecl_credit_card": {
+    "measure": "ecl_final_sar",
+    "product": "CREDIT_CARD",
+    "months": 25,
+    "points": [
+      {
+        "month": "2024-08",
+        "value": 3603699.14
+      },
+      {
+        "month": "2024-09",
+        "value": 4087415.95
+      },
+      {
+        "month": "2024-10",
+        "value": 4474962.64
+      },
+      {
+        "month": "2024-11",
+        "value": 4683200.87
+      },
+      {
+        "month": "2024-12",
+        "value": 4868963.06
+      },
+      {
+        "month": "2025-01",
+        "value": 4868254.71
+      },
+      {
+        "month": "2025-02",
+        "value": 4758518.78
+      },
+      {
+        "month": "2025-03",
+        "value": 4514179.93
+      },
+      {
+        "month": "2025-04",
+        "value": 4259610.92
+      },
+      {
+        "month": "2025-05",
+        "value": 3952780.75
+      },
+      {
+        "month": "2025-06",
+        "value": 3650880.34
+      },
+      {
+        "month": "2025-07",
+        "value": 3434548.62
+      },
+      {
+        "month": "2025-08",
+        "value": 3110069.05
+      },
+      {
+        "month": "2025-09",
+        "value": 2871530.49
+      },
+      {
+        "month": "2025-10",
+        "value": 2714089.23
+      },
+      {
+        "month": "2025-11",
+        "value": 2489065.14
+      },
+      {
+        "month": "2025-12",
+        "value": 2408363.27
+      },
+      {
+        "month": "2026-01",
+        "value": 2148355.27
+      },
+      {
+        "month": "2026-02",
+        "value": 2111960.87
+      },
+      {
+        "month": "2026-03",
+        "value": 2136379.08
+      },
+      {
+        "month": "2026-04",
+        "value": 2157711.82
+      },
+      {
+        "month": "2026-05",
+        "value": 2300036.58
+      },
+      {
+        "month": "2026-06",
+        "value": 2484001.69
+      },
+      {
+        "month": "2026-07",
+        "value": 2817495.31
+      },
+      {
+        "month": "2026-08",
+        "value": 3061761.69
+      }
+    ],
+    "first_month": "2024-08",
+    "last_month": "2026-08",
+    "note": "Every published month, in calendar order, none omitted."
+  },
+  "trend_ecl_whole_book": {
+    "measure": "ecl_final_sar",
+    "product": null,
+    "months": 25,
+    "points": [
+      {
+        "month": "2024-08",
+        "value": 17241387.06
+      },
+      {
+        "month": "2024-09",
+        "value": 18710158.53
+      },
+      {
+        "month": "2024-10",
+        "value": 20246444.11
+      },
+      {
+        "month": "2024-11",
+        "value": 21174648.77
+      },
+      {
+        "month": "2024-12",
+        "value": 23055203.64
+      },
+      {
+        "month": "2025-01",
+        "value": 24309382.75
+      },
+      {
+        "month": "2025-02",
+        "value": 24149264.49
+      },
+      {
+        "month": "2025-03",
+        "value": 22557777.17
+      },
+      {
+        "month": "2025-04",
+        "value": 20732659.84
+      },
+      {
+        "month": "2025-05",
+        "value": 18840840.68
+      },
+      {
+        "month": "2025-06",
+        "value": 17104544.31
+      },
+      {
+        "month": "2025-07",
+        "value": 15371778.86
+      },
+      {
+        "month": "2025-08",
+        "value": 13578384.28
+      },
+      {
+        "month": "2025-09",
+        "value": 12626411.68
+      },
+      {
+        "month": "2025-10",
+        "value": 11932410.85
+      },
+      {
+        "month": "2025-11",
+        "value": 11159663.08
+      },
+      {
+        "month": "2025-12",
+        "value": 10807431.55
+      },
+      {
+        "month": "2026-01",
+        "value": 10805094.1
+      },
+      {
+        "month": "2026-02",
+        "value": 10645120.04
+      },
+      {
+        "month": "2026-03",
+        "value": 10898254.82
+      },
+      {
+        "month": "2026-04",
+        "value": 10889408.08
+      },
+      {
+        "month": "2026-05",
+        "value": 11427154.36
+      },
+      {
+        "month": "2026-06",
+        "value": 12289511.93
+      },
+      {
+        "month": "2026-07",
+        "value": 14069608.38
+      },
+      {
+        "month": "2026-08",
+        "value": 15952108.84
+      }
+    ],
+    "first_month": "2024-08",
+    "last_month": "2026-08",
+    "note": "Every published month, in calendar order, none omitted."
+  },
+  "deterioration_3m": {
+    "from_month": "2026-05",
+    "to_month": "2026-08",
+    "by": "product_subsegment",
+    "rows": [
+      {
+        "segment": "USED",
+        "dpd30_now_pct": 2.0533,
+        "dpd30_then_pct": 0.8006,
+        "change_pp": 1.2527,
+        "exposure_now_sar": 96874000.63
+      },
+      {
+        "segment": "TOP_UP",
+        "dpd30_now_pct": 2.7147,
+        "dpd30_then_pct": 1.6512,
+        "change_pp": 1.0635,
+        "exposure_now_sar": 115866835.49
+      },
+      {
+        "segment": "REFINANCE",
+        "dpd30_now_pct": 1.6407,
+        "dpd30_then_pct": 0.5883,
+        "change_pp": 1.0525,
+        "exposure_now_sar": 301557194.12
+      },
+      {
+        "segment": "FIRST_HOME",
+        "dpd30_now_pct": 1.6852,
+        "dpd30_then_pct": 0.8358,
+        "change_pp": 0.8494,
+        "exposure_now_sar": 866582017.88
+      },
+      {
+        "segment": "CARD",
+        "dpd30_now_pct": 3.6982,
+        "dpd30_then_pct": 2.9361,
+        "change_pp": 0.7621,
+        "exposure_now_sar": 58126171.08
+      },
+      {
+        "segment": "NEW_FINANCE",
+        "dpd30_now_pct": 1.9735,
+        "dpd30_then_pct": 1.4236,
+        "change_pp": 0.5499,
+        "exposure_now_sar": 285417350.93
+      },
+      {
+        "segment": "SECOND_PROPERTY",
+        "dpd30_now_pct": 1.2408,
+        "dpd30_then_pct": 0.7426,
+        "change_pp": 0.4982,
+        "exposure_now_sar": 162227103.45
+      },
+      {
+        "segment": "NEW",
+        "dpd30_now_pct": 1.7689,
+        "dpd30_then_pct": 1.3217,
+        "change_pp": 0.4471,
+        "exposure_now_sar": 134317478.97
+      },
+      {
+        "segment": "REFINANCE_BUYOUT",
+        "dpd30_now_pct": 0.7598,
+        "dpd30_then_pct": 2.0724,
+        "change_pp": -1.3126,
+        "exposure_now_sar": 61884703.27
+      }
+    ],
+    "ranking": [
+      "USED",
+      "TOP_UP",
+      "REFINANCE",
+      "FIRST_HOME",
+      "CARD",
+      "NEW_FINANCE",
+      "SECOND_PROPERTY",
+      "NEW",
+      "REFINANCE_BUYOUT"
+    ],
+    "note": "Percentage-POINT change in the 30+ DPD exposure rate."
+  },
+  "application_discrimination_personal": {
+    "month": "2025-08",
+    "score_field": "application_score_at_origination",
+    "product": "PERSONAL_LOAN",
+    "population": 7060,
+    "defaults": 135,
+    "default_rate_pct": 1.9122,
+    "auc": 0.636373,
+    "gini": 0.272747,
+    "ks": 0.21474,
+    "note": "Matured rows only \u2014 the outcome window has closed. Higher score is better, so a defaulter should rank low.",
+    "limitations": [
+      "Discrimination is the ability to RANK. It says nothing about whether the predicted PD level is right \u2014 that is calibration.",
+      "A cohort with few defaults gives an unstable statistic."
+    ]
+  },
+  "application_discrimination_all": {
+    "month": "2025-08",
+    "score_field": "application_score_at_origination",
+    "product": null,
+    "population": 17238,
+    "defaults": 362,
+    "default_rate_pct": 2.1,
+    "auc": 0.656117,
+    "gini": 0.312234,
+    "ks": 0.246647,
+    "note": "Matured rows only \u2014 the outcome window has closed. Higher score is better, so a defaulter should rank low.",
+    "limitations": [
+      "Discrimination is the ability to RANK. It says nothing about whether the predicted PD level is right \u2014 that is calibration.",
+      "A cohort with few defaults gives an unstable statistic."
+    ]
+  },
+  "behavioural_discrimination_all": {
+    "month": "2025-08",
+    "score_field": "behavioural_score",
+    "product": null,
+    "population": 16293,
+    "defaults": 350,
+    "default_rate_pct": 2.1482,
+    "auc": 0.788989,
+    "gini": 0.577979,
+    "ks": 0.467772,
+    "note": "Matured rows only \u2014 the outcome window has closed. Higher score is better, so a defaulter should rank low.",
+    "limitations": [
+      "Discrimination is the ability to RANK. It says nothing about whether the predicted PD level is right \u2014 that is calibration.",
+      "A cohort with few defaults gives an unstable statistic."
+    ]
+  },
+  "bureau_discrimination_all": {
+    "month": "2025-08",
+    "score_field": "bureau_score_current",
+    "product": null,
+    "population": 17238,
+    "defaults": 362,
+    "default_rate_pct": 2.1,
+    "auc": 0.862493,
+    "gini": 0.724987,
+    "ks": 0.566347,
+    "note": "Matured rows only \u2014 the outcome window has closed. Higher score is better, so a defaulter should rank low.",
+    "limitations": [
+      "Discrimination is the ability to RANK. It says nothing about whether the predicted PD level is right \u2014 that is calibration.",
+      "A cohort with few defaults gives an unstable statistic."
+    ]
+  },
+  "score_band_outcome_personal": {
+    "month": "2025-08",
+    "product": "PERSONAL_LOAN",
+    "band_field": "application_score_band",
+    "rows": [
+      {
+        "band": "A",
+        "facilities": 739,
+        "defaults": 2,
+        "observed_default_pct": 0.2706,
+        "predicted_pd_pct": 0.9227
+      },
+      {
+        "band": "A+",
+        "facilities": 32,
+        "defaults": 0,
+        "observed_default_pct": 0.0,
+        "predicted_pd_pct": 0.7513
+      },
+      {
+        "band": "B",
+        "facilities": 2639,
+        "defaults": 38,
+        "observed_default_pct": 1.4399,
+        "predicted_pd_pct": 1.1928
+      },
+      {
+        "band": "C",
+        "facilities": 3572,
+        "defaults": 89,
+        "observed_default_pct": 2.4916,
+        "predicted_pd_pct": 1.5645
+      },
+      {
+        "band": "D",
+        "facilities": 68,
+        "defaults": 5,
+        "observed_default_pct": 7.3529,
+        "predicted_pd_pct": 2.6153
+      },
+      {
+        "band": "E",
+        "facilities": 10,
+        "defaults": 1,
+        "observed_default_pct": 10.0,
+        "predicted_pd_pct": 1.95
+      }
+    ],
+    "monotonic_decreasing": false,
+    "monotonic_increasing": false,
+    "note": "Observed against predicted on the same matured population \u2014 this is calibration, not discrimination."
+  },
+  "calibration_personal": {
+    "month": "2025-08",
+    "product": "PERSONAL_LOAN",
+    "population": 7060,
+    "observed_default_pct": 1.9122,
+    "predicted_pd_pct": 1.3654,
+    "observed_to_expected": 1.4005,
+    "note": "Above 1.0 means the book defaulted more than the model expected on this cohort."
+  },
+  "calibration_all": {
+    "month": "2025-08",
+    "product": null,
+    "population": 17238,
+    "observed_default_pct": 2.1,
+    "predicted_pd_pct": 1.3193,
+    "observed_to_expected": 1.5918,
+    "note": "Above 1.0 means the book defaulted more than the model expected on this cohort."
+  },
+  "psi_application_score": {
+    "score_field": "application_score_at_origination",
+    "reference_month": "2024-08",
+    "month": "2026-08",
+    "bins": 10,
+    "psi": 0.003381,
+    "reference_population": 17129,
+    "population": 19745,
+    "note": "PSI on quantile bins of the reference month. The 0.10 / 0.25 bands are a common convention, not a regulation."
+  },
+  "whatif_pd20_personal": {
+    "month": "2026-08",
+    "product": "PERSONAL_LOAN",
+    "salary_transfer": null,
+    "shock_relative": 0.2,
+    "facilities": 7761,
+    "customers": 6781,
+    "baseline_ecl_sar": 8994011.868,
+    "baseline_gca_sar": 463168889.69,
+    "average_pd": 0.024036,
+    "stage_counts": {
+      "1": 7218,
+      "2": 483,
+      "3": 60
+    },
+    "note": "Baseline and population only. The stressed figure is the engine's; this fixes what it must be computed over."
+  },
+  "whatif_pd20_personal_salary": {
+    "month": "2026-08",
+    "product": "PERSONAL_LOAN",
+    "salary_transfer": true,
+    "shock_relative": 0.2,
+    "facilities": 5879,
+    "customers": 5072,
+    "baseline_ecl_sar": 7290521.388,
+    "baseline_gca_sar": 354413955.89,
+    "average_pd": 0.025026,
+    "stage_counts": {
+      "1": 5431,
+      "2": 398,
+      "3": 50
+    },
+    "note": "Baseline and population only. The stressed figure is the engine's; this fixes what it must be computed over."
+  },
+  "cutoff_620_personal_latest": {
+    "month": "2026-08",
+    "product": "PERSONAL_LOAN",
+    "cutoff": 620.0,
+    "booked_facilities": 7761,
+    "would_be_excluded": 4053,
+    "would_be_excluded_pct": 52.2227,
+    "excluded_exposure_sar": 247615019.8,
+    "lowest_booked_score": 503.2703,
+    "outcomes_available": false,
+    "note": "Booked originations only, and only the product asked about. It says nothing about declined applicants."
+  },
+  "cutoff_620_personal_matured": {
+    "month": "2025-08",
+    "product": "PERSONAL_LOAN",
+    "cutoff": 620.0,
+    "booked_facilities": 7157,
+    "would_be_excluded": 3723,
+    "would_be_excluded_pct": 52.019,
+    "excluded_exposure_sar": 204876508.02,
+    "lowest_booked_score": 503.2703,
+    "outcomes_available": true,
+    "excluded_default_pct": 2.6323,
+    "retained_default_pct": 1.1648,
+    "note": "Booked originations only, and only the product asked about. It says nothing about declined applicants."
+  },
+  "application_discrimination_salary_transfer": {
+    "month": "2025-08",
+    "population": 5339,
+    "defaults": 106,
+    "gini": 0.26602,
+    "note": "Too few defaults makes this unstable; the count is stated."
+  },
+  "application_discrimination_non_salary_transfer": {
+    "month": "2025-08",
+    "population": 1721,
+    "defaults": 29,
+    "gini": 0.403399,
+    "note": "Too few defaults makes this unstable; the count is stated."
+  }
+}

@@ -97,6 +97,22 @@ CAST: dict[str, dict[str, str]] = {
         "approver": "alex.rahman",
         "viewer": "layla.haddad",
     },
+    demo.RETAIL_IFRS9.code: {
+        "steward": "sara.qahtani",
+        "owner": "ahmed.saleh",
+        "author": "omar.nasser",
+        "reviewer": "sarah.khan",
+        "approver": "alex.rahman",
+        "viewer": "layla.haddad",
+    },
+    demo.RETAIL_SCORECARD.code: {
+        "steward": "sara.qahtani",
+        "owner": "layla.haddad",
+        "author": "ahmed.saleh",
+        "reviewer": "omar.nasser",
+        "approver": "alex.rahman",
+        "viewer": "sarah.khan",
+    },
     demo.CORPORATE.code: {
         "steward": "sara.qahtani",
         "owner": "sarah.khan",
@@ -502,6 +518,42 @@ DECISIONS: dict[str, dict[str, str]] = {
             "Implement the 600 minimum score on unsecured personal loans in "
             "the origination policy, and confirm the change in the following "
             "month's pack."),
+    },
+    demo.RETAIL_IFRS9.code: {
+        "title": "Retain the Stage 2 quantitative SICR threshold as it stands",
+        "question": (
+            "Should the relative PD threshold that moves a facility into "
+            "Stage 2 be retained at its current level for the coming quarter, "
+            "or tightened?"),
+        "recommendation": (
+            "Recommended to retain. Stage 2 coverage is inside its band and "
+            "the arrears measures have not run ahead of the staging, so "
+            "tightening now would move exposure without evidence that the "
+            "current threshold is late."),
+        "impact": (
+            "No change to the allowance. Tightening would move exposure from "
+            "Stage 1 to Stage 2 and raise coverage on the moved balance from "
+            "the Stage 1 level to the Stage 2 level."),
+        "decided": "",
+        "action": "",
+    },
+    demo.RETAIL_SCORECARD.code: {
+        "title": "Commission a redevelopment of the application scorecard",
+        "question": (
+            "Should the personal-finance application scorecard be "
+            "redeveloped on the post-2023 book, or monitored for a further "
+            "two quarters first?"),
+        "recommendation": (
+            "Recommended to commission. Discrimination has been below its "
+            "floor for two consecutive fully observed cohorts, and the "
+            "behavioural score is separating materially better on the same "
+            "population — which points at the origination model rather than "
+            "at the book."),
+        "impact": (
+            "A redevelopment cycle of roughly two quarters. No change to "
+            "origination policy in the meantime; the existing cutoff stands."),
+        "decided": "",
+        "action": "",
     },
     demo.CORPORATE.code: {
         "title": "Move two names from the watchlist to enhanced monitoring",

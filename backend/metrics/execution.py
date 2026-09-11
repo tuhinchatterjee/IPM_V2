@@ -542,6 +542,25 @@ def _function_plan(formula: Formula, *, period: str,
         operations=steps, output="measure")
 
 
+def _dataset_has(formula: Formula, column: str) -> bool:
+    """Whether the dataset this formula reads actually carries a column.
+
+    Asked of the governed catalogue rather than assumed. A missing catalogue or
+    an unknown dataset answers False: the caller's only use of a True is to add
+    an OPTIONAL column to a projection, so being wrong in that direction costs
+    nothing and being wrong the other way costs the whole calculation.
+    """
+    datasets = formula.datasets
+    if not datasets:
+        return False
+    try:
+        from backend.data_access.catalog import Catalog
+
+        return column in (Catalog.load().dataset(datasets[0]).fields or {})
+    except Exception:  # noqa: BLE001 - an unreadable catalogue is not a crash
+        return False
+
+
 def _run_function(formula: Formula, *, period: str,
                   scope: tuple[Any, ...]) -> Calculation:
     """Compute a metric whose value is a governed function of the rows.
@@ -611,9 +630,16 @@ def _run_function(formula: Formula, *, period: str,
         params["direction"] = direction
         columns.append(score)
 
-    # The maturity gate reads this column when it is present, and every one of
-    # these metrics scopes itself to matured rows.
-    if "matured_flag" not in columns:
+    # The maturity gate reads this column WHEN THE DATASET HAS IT, which is
+    # what the sentence above always said and what the code did not do: it
+    # appended the name unconditionally, and the SELECT then failed on any
+    # dataset without it. That was invisible for as long as the only
+    # function-backed metrics read the one extract that carries the column —
+    # and fatal the moment a retail metric read the retail book, where the
+    # maturity of a row is carried by `observed_default_within_window` being
+    # present rather than by a flag. Every one of these metrics scopes itself
+    # to matured rows regardless; this column only lets the kernel check.
+    if "matured_flag" not in columns and _dataset_has(formula, "matured_flag"):
         columns.append("matured_flag")
 
     plan = _function_plan(formula, period=period, scope=scope,

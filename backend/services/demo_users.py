@@ -72,8 +72,13 @@ DEMO_USERS: list[dict[str, str]] = [
         "last_name": "Khan",
         "email": "sarah.khan@example-bank.com",
         "role": "ANALYST",
-        "team": "Corporate Credit",
-        "job_title": "Corporate Credit Manager",
+        # Was "Corporate Credit Manager" on team "Corporate Credit". Nobody
+        # renders `demo_users.py`, so it read as dead configuration — but every
+        # recipient picker, every share dialogue and every message header
+        # renders the TEAM and the JOB TITLE, so a corporate job title was one
+        # click from the Messages screen of a retail-only product.
+        "team": "Retail Credit",
+        "job_title": "Retail Credit Manager",
         "department": "Credit Risk",
     },
     {

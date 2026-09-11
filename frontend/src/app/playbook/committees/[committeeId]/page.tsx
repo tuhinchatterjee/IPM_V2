@@ -20,6 +20,7 @@ import { Unavailable } from "@/components/ui/unavailable";
 import { api } from "@/lib/api";
 import type { PlaybookCommitteeDetail } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { BackLink } from "@/components/layout/back-link";
 
 const ACCESS = [
   { value: "VIEWER", hint: "Reads packs." },
@@ -77,6 +78,10 @@ export default function CommitteePage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-6 py-6">
+      {/* "All committees" in the header is a sideways move, not a way back:
+          a committee reached from the Playbook returned the reader to a list
+          they had not come from. */}
+      <BackLink href="/playbook" label="Playbook" />
       <PageHeader
         title={data.name}
         description={

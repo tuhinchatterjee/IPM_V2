@@ -128,50 +128,67 @@ RETAIL_RISK = LensSpec(
     audience="Head of Retail Credit Risk",
     description=(
         "The retail book as it stands this month: how big it is, how much of "
-        "it is behind, and what the models say about where it is going."),
+        "it is behind, how it is staged and provisioned, and what the models "
+        "say about where it is going."),
     sections=(
         Section(
             title="The book",
-            subtitle="Size and shape before anything is said about quality.",
+            subtitle="Size and shape, before anything is said about quality.",
             tiles=(
-                Tile("retail.balance", "kpi"),
-                Tile("retail.accounts", "kpi"),
-                Tile("retail.average_balance", "kpi"),
-                Tile("retail.utilisation", "kpi"),
+                Tile("retail.gross_carrying_amount", "kpi"),
+                Tile("retail.facilities", "kpi"),
+                Tile("retail.customers", "kpi"),
+                Tile("retail.average_facility_size", "kpi"),
+            )),
+        Section(
+            title="Impairment",
+            subtitle=("The allowance, and what it is a proportion OF. A "
+                      "coverage ratio with no exposure beside it is a number "
+                      "nobody can challenge."),
+            tiles=(
+                Tile("retail.ecl", "kpi"),
+                Tile("retail.ecl_coverage", "kpi"),
+                Tile("retail.ecl", "line"),
+                Tile("retail.overlay", "kpi"),
+            )),
+        Section(
+            title="Staging",
+            subtitle=("Exposure and coverage in each stage. Stage 3 is a small "
+                      "part of the book and a large part of the allowance; the "
+                      "two shares are shown so that is visible rather than "
+                      "inferred."),
+            tiles=(
+                Tile("retail.stage1.share", "bar"),
+                Tile("retail.stage2.share", "bar"),
+                Tile("retail.stage3.share", "bar"),
+                Tile("retail.stage2.coverage", "kpi"),
+                Tile("retail.stage3.coverage", "kpi"),
+                Tile("retail.sicr_rate", "line"),
+                Tile("retail.forbearance_rate", "line"),
             )),
         Section(
             title="Arrears",
-            subtitle=("Each bucket twice: how many customers are behind, and "
-                      "how much money is. A dashboard showing one of those "
-                      "labelled simply '90+ DPD' is read two ways."),
+            subtitle=("Each threshold twice: by EXPOSURE and by ACCOUNT. A "
+                      "dashboard showing one of them labelled simply '90+ DPD' "
+                      "is read two ways by two people in the same meeting."),
             tiles=(
-                Tile("retail.dpd_30_count", "line"),
-                Tile("retail.dpd_30_balance", "line"),
-                Tile("retail.dpd_90_count", "line"),
-                Tile("retail.dpd_90_balance", "line"),
-                Tile("retail.delinquent_balance", "kpi"),
-                Tile("retail.default_rate", "line"),
-            )),
-        Section(
-            title="Stress in the book",
-            subtitle="Behaviour that runs ahead of arrears.",
-            tiles=(
-                Tile("retail.high_utilisation_rate", "kpi"),
-                Tile("retail.missed_payments", "kpi"),
-                Tile("retail.restructured_rate", "kpi"),
+                Tile("retail.dpd30_rate", "line"),
+                Tile("retail.dpd30_count_rate", "line"),
+                Tile("retail.dpd90_rate", "line"),
+                Tile("retail.overdue_amount", "kpi"),
+                Tile("retail.writeoff_month", "line"),
+                Tile("retail.default_rate_current", "kpi"),
             )),
         Section(
             title="What the models say",
-            subtitle=("Scores and predicted PD. These are model output, not "
+            subtitle=("Scores and predicted PD. These are model OUTPUT, not "
                       "outcomes; the arrears band above is the outcome."),
             tiles=(
-                Tile("retail.average_score", "kpi"),
-                Tile("retail.average_bureau_score", "kpi"),
-                Tile("retail.average_pd", "kpi"),
+                Tile("retail.average_application_score", "kpi"),
+                Tile("retail.average_behavioural_score", "kpi"),
+                Tile("retail.average_pd_current", "kpi"),
             )),
     ),
-    absent=("retail.ifrs9.stage_exposure", "retail.ifrs9.ecl",
-            "retail.roll_rate", "retail.cure_rate"),
 )
 
 
@@ -183,47 +200,48 @@ RETAIL_ANALYTICS = LensSpec(
     name="Retail Analytics",
     audience="Head of Retail Analytics and Model Validation",
     description=(
-        "Origination volume and quality, and whether the scorecards are still "
-        "doing what they were built to do."),
+        "Whether the scorecards are still doing their job, and what the book "
+        "they are being asked to score now looks like."),
     sections=(
         Section(
-            title="What came through the door",
-            subtitle="Application volume and size, by application month.",
+            title="Discrimination",
+            subtitle=("Over the latest fully observed cohort — the last month "
+                      "whose twelve-month window has closed for every account, "
+                      "not the last month with any outcome at all. Those are "
+                      "different months and the second one contains only "
+                      "defaults."),
             tiles=(
-                Tile("retail.applications", "line"),
-                Tile("retail.requested_amount", "kpi"),
-                Tile("retail.average_ticket", "kpi"),
+                Tile("retail.application.gini", "kpi"),
+                Tile("retail.application.auc", "kpi"),
+                Tile("retail.application.ks", "kpi"),
+                Tile("retail.behavioural.gini", "kpi"),
+                Tile("retail.bureau.gini", "kpi"),
             )),
         Section(
-            title="Who was asking",
-            subtitle=("Affordability as recorded at application. These are "
-                      "applicant characteristics, not book characteristics."),
+            title="Calibration",
+            subtitle=("Predicted against observed on the SAME population. "
+                      "Discrimination is the ability to rank; this is whether "
+                      "the level is right, and a scorecard can pass one and "
+                      "fail the other."),
             tiles=(
-                Tile("retail.average_loan_to_income", "kpi"),
-                Tile("retail.average_debt_burden", "kpi"),
-                Tile("retail.salary_transfer_rate", "kpi"),
+                Tile("retail.predicted_pd", "kpi"),
+                Tile("retail.observed_default_rate", "kpi"),
+                Tile("retail.observed_default_rate", "line"),
             )),
         Section(
-            title="How the cohorts turned out",
-            subtitle=("Only cohorts whose performance window has closed. A "
-                      "bad rate on a cohort still maturing understates."),
+            title="Who is being scored",
+            subtitle="The population the models are applied to, as it moves.",
             tiles=(
-                Tile("retail.application_bad_rate", "kpi"),
-                Tile("retail.scorecard.matured", "kpi"),
-            )),
-        Section(
-            title="Are the scorecards still working",
-            subtitle=("Discrimination, separation, stability and calibration. "
-                      "A model can rank well and still be badly calibrated, "
-                      "which is why all four are here."),
-            tiles=(
-                Tile("retail.scorecard.gini", "line"),
-                Tile("retail.scorecard.ks", "kpi"),
-                Tile("retail.scorecard.calibration", "kpi"),
-                Tile("retail.application_gini", "kpi"),
+                Tile("retail.average_application_score", "line"),
+                Tile("retail.average_behavioural_score", "line"),
+                Tile("retail.average_bureau_score", "line"),
+                Tile("retail.average_debt_burden", "line"),
+                Tile("retail.salary_transfer_rate", "line"),
+                Tile("retail.secured_share", "kpi"),
+                Tile("retail.card_utilisation", "line"),
+                Tile("retail.undrawn", "kpi"),
             )),
     ),
-    absent=("retail.approval_rate", "retail.scorecard.psi"),
 )
 
 
@@ -328,8 +346,28 @@ def check() -> list[str]:
     """
     from backend.services.lenses import VISUALS
 
-    known = {m.metric_id: m for m in lib.ALL}
-    absent_ids = {u.metric_id for u in lib.UNSUPPORTED}
+    # Against what the library DEFINES, not what this profile serves. Every
+    # lens in `ALL` is checked, including the corporate one that is retained
+    # and withheld, and a corporate lens naming a corporate metric is
+    # well-formed — it is simply not installed here. Checking against the
+    # served set turned "this lens is not for this installation" into
+    # twenty-one spurious defects.
+    # Every metric the product can define under ANY profile, not the subset
+    # this one serves. `ALL` below checks all three shipped lenses, including
+    # the corporate one that is retained and withheld, and a corporate lens
+    # naming a corporate metric is well-formed — it is simply not installed
+    # here. The retail library is applied second so that where the two define
+    # the same id, the one this installation actually runs decides which
+    # visuals are honest.
+    from backend.metrics import retail_library
+
+    known = {m.metric_id: m for m in lib.DEFINED}
+    known.update({m.metric_id: m for m in retail_library.ALL})
+    # Both unsupported lists, for the same reason: a corporate lens declaring a
+    # corporate metric absent is well-formed even where this profile publishes
+    # only the retail absences.
+    absent_ids = ({u.metric_id for u in lib.DEFINED_UNSUPPORTED}
+                  | {u.metric_id for u in lib.RETAIL_UNSUPPORTED})
     problems: list[str] = []
     slugs: set[str] = set()
 
@@ -376,12 +414,42 @@ __all__ = ["LENSES_VERSION", "CRO_LENS", "Tile", "Section", "LensSpec",
 # ------------------------------------------------------------------ seeding
 
 
+#: How a tile's declared visual becomes a panel that can actually draw it.
+#:
+#: The defect this closes. Every tile became a METRIC panel whatever its
+#: visual, and a metric panel computes one scalar. So a tile declared `line`
+#: rendered as a second copy of the same KPI — the Retail Credit Risk lens
+#: showed "Retail Expected Credit Loss 15,952,109" twice, side by side, with
+#: no chart and nothing to say the two were meant to be different. A lens that
+#: asks for a trend and draws a number is not showing a trend.
+#:
+#: A `line` is a trend, so it is drawn across `reporting_month` in calendar
+#: order. A `bar` is a comparison, so it is drawn across the product family —
+#: the one breakdown every retail metric on this book supports and the one a
+#: reader means by "by product".
+TREND_DIMENSION = "reporting_month"
+COMPARISON_DIMENSION = "product_label"
+
+
 def _panels(spec: LensSpec) -> list[Any]:
     from backend.services.lenses import Panel
 
-    return [Panel.metric(tile.metric_id, title=tile.title,
-                         visual=tile.visual, note=tile.note)
-            for tile in spec.tiles]
+    out: list[Any] = []
+    for tile in spec.tiles:
+        if tile.visual == "line":
+            out.append(Panel.chart(
+                tile.metric_id, dimension=TREND_DIMENSION, visual="line",
+                title=tile.title, note=tile.note,
+                sort="label", direction="asc", limit=60))
+        elif tile.visual == "bar":
+            out.append(Panel.chart(
+                tile.metric_id, dimension=COMPARISON_DIMENSION, visual="bar",
+                title=tile.title, note=tile.note,
+                sort="value", direction="desc", limit=20))
+        else:
+            out.append(Panel.metric(tile.metric_id, title=tile.title,
+                                    visual=tile.visual, note=tile.note))
+    return out
 
 
 def install(*, user_id: int | None = None,

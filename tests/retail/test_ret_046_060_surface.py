@@ -352,6 +352,22 @@ class TestRET048LayoutPreserved:
             "scripts/seed_playbook_committees.py",
             "scripts/seed_planner.py",
             "backend/services/demo_workflow.py",
+            # ---------------------------------------------------------------
+            # The overnight UAT. RFD-37: every metric in the shipped library
+            # read a dataset this deployment does not have, so Metrics, Lenses
+            # and the Playbook rendered a dash in every box.
+            "backend/metrics/retail_library.py",   # 46 metrics on the retail book
+            "backend/metrics/library.py",          # serves them under the profile
+            "backend/metrics/lenses.py",           # the two lenses, rewritten
+            "backend/metrics/execution.py",        # matured_flag on any dataset
+            "backend/playbook/demo.py",            # three retail committee packs
+            "scripts/seed_playbook_committees.py",
+            "backend/services/demo_users.py",      # a corporate job title
+            "backend/services/lenses.py",
+            "frontend/src/components/metrics/present.ts",  # the missing %
+            "scripts/retail_uat/",                 # the overnight harness
+            "docs/RETAIL_OVERNIGHT_UAT_MASTER.md",
+            "docs/RETAIL_OVERNIGHT_DEFECTS.md",
             # The CRO Portfolio Lens reads the wholesale book and was offered
             # as a card one click from the Lenses navigation item.
             "frontend/src/app/lenses/page.tsx",

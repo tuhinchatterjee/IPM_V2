@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Unavailable } from "@/components/ui/unavailable";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { BackLink } from "@/components/layout/back-link";
 
 const CADENCES = ["MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL", "AD_HOC"];
 const WEEKDAYS = [
@@ -36,6 +37,7 @@ export default function CommitteesPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-5 px-6 py-6">
+      <BackLink href="/playbook" label="Playbook" />
       <PageHeader
         title="Committees"
         description="The forums CreditProbe produces packs for: what each one is, how often it meets, and who sits on it."

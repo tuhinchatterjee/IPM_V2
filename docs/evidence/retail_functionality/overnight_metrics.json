@@ -1,0 +1,171 @@
+{
+  "suite": "overnight_metrics",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 85.5,
+  "counts": {
+    "PASS": 11,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_metrics-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-01",
+      "module": "metrics-lenses-playbook",
+      "title": "The Lenses index offers the retail lenses and nothing corporate",
+      "status": "PASS",
+      "detail": "lenses offered: ['/lenses/1', '/lenses/2']; corporate wording: []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-01-lenses-index.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-02",
+      "module": "metrics-lenses-playbook",
+      "title": "/lenses/1 renders its tiles with real values, none empty",
+      "status": "PASS",
+      "detail": "0 tile elements; 0 showing an empty mark; 597 numbers on the page; corporate wording []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "href": "/lenses/1",
+        "screenshot": "docs/evidence/retail_functionality/screens/met-02-lens.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-03",
+      "module": "metrics-lenses-playbook",
+      "title": "/lenses/2 renders its tiles with real values, none empty",
+      "status": "PASS",
+      "detail": "0 tile elements; 0 showing an empty mark; 521 numbers on the page; corporate wording []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "href": "/lenses/2",
+        "screenshot": "docs/evidence/retail_functionality/screens/met-03-lens.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-04",
+      "module": "metrics-lenses-playbook",
+      "title": "A figure on the Retail Credit Risk lens reconciles with the independent oracle",
+      "status": "PASS",
+      "detail": "looking for {'facilities': 19745, 'customers': 14251} among the rendered numbers; found {'facilities': True, 'customers': True}",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-04-reconcile.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-05",
+      "module": "metrics-lenses-playbook",
+      "title": "The Metric Catalogue lists the retail metrics and nothing corporate",
+      "status": "PASS",
+      "detail": "found on screen: ['Retail Gross Carrying Amount', 'Retail Expected Credit Loss', 'Application Scorecard Gini']; corporate wording: []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-05-metrics.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-06",
+      "module": "metrics-lenses-playbook",
+      "title": "The Playbook offers three retail committees and nothing corporate",
+      "status": "PASS",
+      "detail": "committees on screen: ['Retail Credit Risk Committee', 'Retail IFRS 9 Committee', 'Retail Model Risk Committee']; corporate wording: []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-06-playbook.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-07",
+      "module": "metrics-lenses-playbook",
+      "title": "A committee pack opens and shows figures rather than placeholders",
+      "status": "PASS",
+      "detail": "opened=True; 87 numbers rendered; corporate wording []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-07-pack.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-08",
+      "module": "metrics-lenses-playbook",
+      "title": "Back from a pack returns to the Playbook",
+      "status": "PASS",
+      "detail": "back control present=True; returned to http://localhost:5328/playbook",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-08-back.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-09",
+      "module": "metrics-lenses-playbook",
+      "title": "A lens tile declared as a trend draws a chart rather than repeating the KPI beside it",
+      "status": "PASS",
+      "detail": "10 chart elements and 30 svg elements in the content region",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-09-charts.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MET-10",
+      "module": "metrics-lenses-playbook",
+      "title": "Percentage tiles carry their unit on screen",
+      "status": "PASS",
+      "detail": "142 percent signs in the content region; the lens carries eleven percentage metrics",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/met-10-units.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

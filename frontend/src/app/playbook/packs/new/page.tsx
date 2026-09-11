@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Unavailable } from "@/components/ui/unavailable";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { BackLink } from "@/components/layout/back-link";
 
 /**
  * Starting a pack.
@@ -88,6 +89,7 @@ function NewPackForm() {
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5 px-6 py-6">
+      <BackLink href="/playbook" label="Playbook" />
       <PageHeader
         title="A new committee pack"
         description="It is laid out from the committee's template, and nothing is calculated until you generate it."

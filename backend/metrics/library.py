@@ -732,7 +732,7 @@ CORPORATE_PORTFOLIO: tuple[MetricDefinition, ...] = (
 
 # ================================================ what is NOT available
 
-UNSUPPORTED: tuple[Unsupported, ...] = (
+DEFINED_UNSUPPORTED: tuple[Unsupported, ...] = (
     Unsupported(
         "retail.ifrs9.stage_exposure", "Retail Stage 1/2/3 Exposure", RETAIL,
         "This deployment has no retail impairment dataset. IFRS 9 staging, "
@@ -796,15 +796,117 @@ UNSUPPORTED: tuple[Unsupported, ...] = (
 )
 
 
-ALL: tuple[MetricDefinition, ...] = (
+#: What a RETAIL installation genuinely cannot calculate from
+#: `retail_facility_month`, and why.
+#:
+#: The list above is about a different deployment and says so out loud: "IFRS 9
+#: staging, ECL and coverage exist for the corporate book only, and a retail
+#: stage ratio computed from corporate data would be a number about a different
+#: portfolio." That was true of the datasets it was written against. It is not
+#: true here — this book carries stage, allowance and coverage on every row —
+#: and the Metric Catalogue was publishing it beside a lens that shows Stage
+#: 1/2/3 share. A catalogue that tells a reader a figure is impossible while the
+#: screen next to it displays that figure is worse than one that says nothing.
+RETAIL_UNSUPPORTED: tuple[Unsupported, ...] = (
+    Unsupported(
+        "retail.approval_rate", "Approval Rate", "Retail Origination",
+        "The book records the facilities that were BOOKED. It holds nothing "
+        "about applications that were declined, so an approval rate cannot be "
+        "derived from it without assuming every application was approved, "
+        "which is what an approval rate is meant to measure.",
+        needs=("a decision outcome on an application-level dataset, including "
+               "the declined applications",)),
+    Unsupported(
+        "retail.roll_rate", "Delinquency Roll Rate", "Retail Delinquency",
+        "A roll rate is a movement of the same facility between two "
+        "consecutive months. The book supports it structurally — the facility "
+        "id is stable across all twenty-five months — but the metric engine "
+        "computes one period at a time, and a movement is not a level. "
+        "CreditProbe does compute retail movement: the ECL bridge at "
+        "`/retail/movement` separates continuing facilities from entrants and "
+        "exits, which is the same question asked properly.",
+        needs=("period-over-period comparison in the metric engine, or the "
+               "existing movement bridge surfaced as a lens panel",)),
+    Unsupported(
+        "retail.cure_rate", "Cure Rate", "Retail Delinquency",
+        "Same reason as the roll rate: curing is a movement between periods, "
+        "not a level within one. The book carries a cure flag per facility, so "
+        "the state is available even though the transition is not.",
+        needs=("period-over-period comparison in the metric engine",)),
+    Unsupported(
+        "retail.scorecard.psi", "Score Population Stability Index",
+        "Retail Scorecard",
+        "PSI compares this period's score distribution against the reference "
+        "distribution the model was built on. That is a comparison of two "
+        "populations, and a metric tile computes one. CreditProbe does report "
+        "it: the scorecard validation module computes PSI against each model's "
+        "declared reference window, where the reference belongs to the model "
+        "rather than to a dashboard setting.",
+        needs=("the scorecard validation module's stability report, surfaced "
+               "as a lens panel",)),
+    Unsupported(
+        "retail.lgd_realised", "Realised Loss Given Default",
+        "Retail IFRS 9",
+        "The book carries MODELLED LGD under each scenario and the amount "
+        "written off in the month. It does not carry the recovery cash "
+        "collected against a written-off facility, so a realised LGD — the "
+        "thing a validator wants to set beside the modelled one — cannot be "
+        "computed from it.",
+        needs=("post-write-off recovery cash flows at facility level",)),
+)
+
+
+def _served_unsupported() -> tuple[Unsupported, ...]:
+    from backend.retail.profile import is_retail
+
+    return RETAIL_UNSUPPORTED if is_retail() else DEFINED_UNSUPPORTED
+
+
+UNSUPPORTED: tuple[Unsupported, ...] = _served_unsupported()
+
+
+#: Everything ever defined here. Retained whole: a corporate profile, or a
+#: deployment that has the two scorecard-validation extracts, serves all of it.
+DEFINED: tuple[MetricDefinition, ...] = (
     RETAIL_PORTFOLIO + RETAIL_DELINQUENCY + RETAIL_QUALITY
     + RETAIL_VALIDATION + RETAIL_ORIGINATION
     + CORPORATE_IFRS9_METRICS + CORPORATE_PORTFOLIO
 )
 
 
+def _served() -> tuple[MetricDefinition, ...]:
+    """The metrics this installation can actually calculate.
+
+    Every definition above reads one of four datasets — the two scorecard
+    validation extracts, the corporate facility position, the corporate staging
+    table — and a retail installation has none of them. The result was not an
+    error anybody saw: Metrics, Lenses and the Playbook rendered perfectly and
+    put a dash in every box, because a metric whose dataset is absent comes
+    back unavailable rather than raising.
+
+    A tile that cannot be calculated is worse than a tile that is not there. It
+    looks like a number that happens to be missing today.
+
+    So under the retail profile this serves `backend.metrics.retail_library`,
+    which is written against `retail_facility_month` — the one governed dataset
+    this deployment holds — and every entry of which was reconciled against an
+    independent aggregation of the Parquet before it was written down.
+    """
+    from backend.retail.profile import is_retail
+
+    if not is_retail():
+        return DEFINED
+    from backend.metrics import retail_library
+
+    return retail_library.ALL
+
+
+ALL: tuple[MetricDefinition, ...] = _served()
+
+
 __all__ = [
-    "LIBRARY_VERSION", "ALL", "UNSUPPORTED",
+    "LIBRARY_VERSION", "ALL", "DEFINED", "UNSUPPORTED",
+    "DEFINED_UNSUPPORTED", "RETAIL_UNSUPPORTED",
     "RETAIL", "RETAIL_ANALYTICS", "CORPORATE_IFRS9", "CORPORATE",
     "RETAIL_PORTFOLIO", "RETAIL_DELINQUENCY", "RETAIL_QUALITY",
     "RETAIL_VALIDATION", "RETAIL_ORIGINATION",

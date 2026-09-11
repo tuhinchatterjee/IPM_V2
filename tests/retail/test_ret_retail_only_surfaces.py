@@ -308,7 +308,41 @@ class TestTheBootstrapCannotReinstallARetiredSurface:
     def test_the_corporate_committees_are_retained_as_code(self):
         from backend.playbook import demo
 
-        assert len(demo.COMMITTEES) == 3
+        # Five now: three retail packs — Portfolio, IFRS 9, Scorecard
+        # Assurance — plus the two corporate committees, retained and withheld.
+        assert len(demo.COMMITTEES) == 5
+        codes = {c.code for c in demo.COMMITTEES}
+        assert demo.CORPORATE_COMMITTEE_CODES <= codes
+
+    def test_three_retail_packs_are_served(self):
+        """§10 asks for a Portfolio, an IFRS 9 and a Scorecard pack, and until
+        this pass the Playbook had one committee whose every tile was empty."""
+        from backend.playbook import demo
+
+        served = {c.code for c in demo.served_committees()}
+        assert served == {"retail-credit-risk-committee",
+                          "retail-ifrs9-committee",
+                          "retail-scorecard-committee"}
+
+    def test_every_pack_block_names_a_metric_this_installation_serves(self):
+        """A committee pack whose KPI names a retired metric shows a dash."""
+        from backend.metrics import library as metric_library
+        from backend.playbook import demo
+
+        served = {m.metric_id for m in metric_library.ALL}
+        for committee in demo.served_committees():
+            for section in committee.template["sections"]:
+                for block in section["blocks"]:
+                    if block.get("type") != "KPI":
+                        continue
+                    metric_id = block["config"]["metric_id"]
+                    assert metric_id in served, (
+                        f"{committee.code} shows {metric_id}, which is not "
+                        "served here")
+            for rule in committee.template["materiality"]:
+                assert rule["metric_id"] in served, (
+                    f"{committee.code} has a materiality rule on "
+                    f"{rule['metric_id']}, which is not served here")
 
     def test_the_seeded_delivery_plan_is_retail(self):
         import datetime
