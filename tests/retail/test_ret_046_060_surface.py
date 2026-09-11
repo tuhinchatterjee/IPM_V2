@@ -506,6 +506,11 @@ class TestRET048LayoutPreserved:
             # planned exactly rather than by dropping the origin. Both
             # expectations are kept, chosen by the profile.
             "tests/orchestration/test_planner_and_validator.py",
+            # §22. A 25-month trend answered with two points, drawn as a
+            # horizontal bar ranking, and no composed answer ever opening as
+            # a chart because the gate's decision never reached the screen.
+            "backend/orchestration/presentation.py",
+            "frontend/src/components/analytics/result-view.tsx",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

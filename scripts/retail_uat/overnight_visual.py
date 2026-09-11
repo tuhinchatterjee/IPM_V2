@@ -122,17 +122,21 @@ def ask(s: Session, question: str, timeout: int = 300) -> tuple[str, float]:
     return (turn if made.get("completed") else ""), took
 
 
-CHART = ("main svg.recharts-surface, main .recharts-wrapper, "
-         'main [data-testid^="chart"]')
+#: A chart FRAME. It wraps the chart or the table, whichever is showing, so
+#: its presence proves nothing about whether a chart was drawn — which is how
+#: "no chart for a single fact" came back as a failure over an answer that had
+#: drawn none, and how three trend checks passed over answers that had drawn
+#: none either.
+FRAME = 'main [data-testid="chart-surface"]'
+
+#: A chart that is actually BEING SHOWN. The frame takes `role="application"`
+#: and a "Chart." aria-label only when the chart, rather than the table, is
+#: the visible half.
+CHART = 'main [data-testid="chart-surface"][role="application"]'
 
 
 def charted(s: Session) -> int:
-    """How many drawn visuals are on screen.
-
-    Counted the way the cockpit suite counts them — the same selector, so the
-    two suites cannot disagree about whether a chart exists. Reading it with a
-    selector of its own found none where the cockpit found five.
-    """
+    """How many charts are DRAWN on screen, not how many frames exist."""
     return len(s.page.query_selector_all(CHART))
 
 
@@ -142,9 +146,11 @@ def axis_labels(s: Session) -> list[str]:
     A 25-month trend names two months in its PROSE and twenty-five on its
     axis, so a check that reads only the text sees a two-point series.
     """
-    ticks = s.page.query_selector_all(
-        "main .recharts-xAxis .recharts-cartesian-axis-tick-value")
-    return [(t.inner_text() or "").strip() for t in ticks]
+    charts = s.page.query_selector_all(CHART)
+    if not charts:
+        return []
+    return [(t.inner_text() or "").strip()
+            for t in charts[-1].query_selector_all("text")]
 
 
 def suite(s: Session, rec: Recorder) -> None:

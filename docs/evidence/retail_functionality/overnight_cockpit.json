@@ -2,7 +2,7 @@
   "suite": "overnight_cockpit",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 293.5,
+  "elapsed_seconds": 287.2,
   "counts": {
     "PASS": 18,
     "FAIL": 0,
@@ -51,7 +51,7 @@
       "actual": null,
       "evidence": {
         "question": "Break August 2026 exposure and ECL into Stage 1, Stage 2 and Stage 3. Which stage contributes disproportionately to ECL?",
-        "answer": "Which stage contributes disproportionately to ECL?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 2 answered; 1 partly answered\n1 analysis performed\nBreak August 2026 exposure and ECL into Stage 1, Stage 2 and Stage 3Answered\nWhich stage contributes disproportionately to ECLFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nSTAGE 1, STAGE 2, STAGE 3 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS, IFRS 9 STAGE\n\nThe 10 largest facilities in IFRS 9 stage 1, IFRS 9 stage 2, IFRS 9 stage 3 by gross carrying amount at 2026-08.\n\nCREDITPROBE INTERPRETATION\n\nShares are of Stage 1, Stage 2, Stage 3 exposure, not of the whole book \u2014 the question asked about that population. The population is concentrated: together hold 64.67% of gross carrying amount.\n\nLARGEST GROSS CARRYING AMOUNT\n\n2,673,104.61\nSAR\n\nRanked from the governed book\nDynamic analysis\nSave as a method\nTrace\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n10\n\n2 measures across 10 groups.\n\nAsk about this\nChart\nTable\nGross carrying amount\n\t\nExpected credit loss\nsar\n\t\nIFRS 9 stage\n\t\nExpected credit loss share\n%\n\t\nFacility id\n\n2.7SAR mn\t184,755\t2\t1.16\tRF-00034781\n1.5SAR mn\t174,958\t3\t1.10\tRF-00004054\n1.4SAR mn\t172,238\t3\t1.08\tRF-00033737\n2.2SAR mn\t169,343\t2\t1.06\tRF-00005855\n218,920SAR\t152,323\t3\t0.95\tRF-00008798\n183,331SAR\t128,528\t3\t0.81\tRF-00004035\n1.2SAR mn\t127,974\t3\t0.80\tRF-00024234\n179,083SAR\t124,594\t3\t0.78\tRF-00004686\n171,919SAR\t119,795\t3\t0.75\tRF-00031931\n161,",
+        "answer": "Which stage contributes disproportionately to ECL?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 2 answered; 1 partly answered\n1 analysis performed\nBreak August 2026 exposure and ECL into Stage 1, Stage 2 and Stage 3Answered\nWhich stage contributes disproportionately to ECLFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nSTAGE 1, STAGE 2, STAGE 3 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\n2,082,852,856 SAR of gross carrying amount in Stage 1, Stage 2, Stage 3 across 3 stages at 2026-08.\n\nLARGEST CONTRIBUTOR\n\n1 is the largest at 1,956,170,439 SAR.\n\n1\n1,956,170,438.72\n\nCREDITPROBE INTERPRETATION\n\nOrdered by expected credit loss, largest first. The figures are sums across every facility in each stage at 2026-08. IFRS 9 stage 1 alone accounts for 93.92% of gross carrying amount across the 3 shown.\n\nTOTAL GROSS CARRYING AMOUNT\n\n2,082,852,855.82\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n2,082,852,855.82\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n3\n\n2 measures across 3 groups.\n\nAsk about this\nChart\nTable\nIFRS 9 stage\n\t\nGross carrying amount\n\t\nExpected credit loss\nsar mn\n\t\nExpected credit loss share\n%\n\n1\t1.96SAR bn\t6.5\t40.68\n3\t13.8SAR mn\t4.9\t30.88\n2\t112.9SAR mn\t4.5\t28.44\n3 rows\n4 of 5 columns\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certifie",
         "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-02.png"
       },
       "seconds": 0.0,
@@ -67,7 +67,7 @@
       "actual": null,
       "evidence": {
         "question": "Now only personal finance.",
-        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE, STAGE 1, STAGE 2, STAGE 3 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS, IFRS 9 STAGE\n\n463,168,890 SAR of gross carrying amount in Personal Finance, Stage 1, Stage 2, Stage 3 at 2026-08.\n\nTOTAL GROSS CARRYING AMOUNT\n\n463,168,889.69\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n463,168,889.69\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nGross carrying amount\nsar mn\n\t\nExpected credit loss\nsar mn\n\t\nIFRS 9 stage\n\t\nProduct label\n\n463.2\t9.0\t3\tPersonal Finance\n1 row\nColumns\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 5-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nANALYSES USED (1)\n\u2014 what produced these figures\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nBreak that down by product.\nHow has gross carrying amount moved over the latest year?\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 all 7 checks passed\nTrace\n\nLIMITED EVIDENCE\n5 of 5 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a ",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n3 IFRS9_STAGES CARRIED FROM THE PREVIOUS ANSWER \u00b7 PERSONAL FINANCE, STAGE 1, STAGE 2, STAGE 3 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\n463,168,890 SAR of gross carrying amount in Personal Finance, Stage 1, Stage 2, Stage 3 across 3 stages at 2026-08.\n\nLARGEST CONTRIBUTOR\n\n1 is the largest at 428,526,686 SAR, 92.52% of the total.\n\n1\n428,526,686.06\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each stage at 2026-08. IFRS 9 stage 1 alone accounts for 92.52% of gross carrying amount across the 3 shown. This covers the 3 carried forward from the previous answer, not the whole book.\n\nTOTAL GROSS CARRYING AMOUNT\n\n463,168,889.69\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n463,168,889.69\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n3\n\n2 measures across 3 groups.\n\nAsk about this\nChart\nTable\nIFRS 9 stage\n\t\nGross carrying amount\nsar mn\n\t\nExpected credit loss\nsar mn\n\t\nGross carrying amount share\n%\n\t\nProduct label\n\n1\t428.5\t4.1\t92.52\tPersonal Finance\n2\t30.5\t2.0\t6.58\tPersonal Finance\n3\t4.2\t2.9\t0.90\tPersonal Finance\n3 rows\n5 of 6 columns\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The",
         "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-03.png"
       },
       "seconds": 0.0,
@@ -83,7 +83,7 @@
       "actual": null,
       "evidence": {
         "question": "Compare that with July.",
-        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE, STAGE 1, STAGE 2, STAGE 3 \u00b7 2026-07 TO 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS, IFRS 9 STAGE\n\nGross carrying amount was unchanged from 0.00 to 0.00 SAR between 2026-07 and 2026-08 \u2014 a change of 0.00 SAR.\n\nCREDITPROBE INTERPRETATION\n\nNo customer met every condition over this window. That is the answer rather than a gap: relaxing any one of them would return a population.\n\nGROSS CARRYING AMOUNT AT 2026-08\n\n0\nSAR\n\n0\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n0\n\nMATCHING\n\n0\n\nCLOSING TOTAL\n\n0\n\nOPENING TOTAL\n\n0\n\nCLOSING PERIOD\n\n2026-08\n\nOPENING PERIOD\n\n2026-07\n\nNo rows returned.\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 4-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nANALYSES USED (1)\n\u2014 what produced these figures\n2026-07 \u2192 2026-08\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nShow the same test across the whole book.\nWhat data does CreditProbe hold on this?\n\nCompleted by Portfolio Risk Lead \u2014",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n3 IFRS9_STAGES CARRIED FROM THE PREVIOUS ANSWER \u00b7 PERSONAL FINANCE, STAGE 1, STAGE 2, STAGE 3 \u00b7 2026-07 TO 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\nGross carrying amount was unchanged from 0.00 to 0.00 SAR between 2026-07 and 2026-08 \u2014 a change of 0.00 SAR.\n\nCREDITPROBE INTERPRETATION\n\nNo customer met every condition over this window. That is the answer rather than a gap: relaxing any one of them would return a population.\n\nGROSS CARRYING AMOUNT AT 2026-08\n\n0\nSAR\n\n0\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n0\n\nMATCHING\n\n0\n\nCLOSING TOTAL\n\n0\n\nOPENING TOTAL\n\n0\n\nCLOSING PERIOD\n\n2026-08\n\nOPENING PERIOD\n\n2026-07\n\nNo rows returned.\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 4-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nANALYSES USED (1)\n\u2014 what produced these figures\n2026-07 \u2192 2026-08\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nShow the same test across the whole book.\nWhat data does CreditPr",
         "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-04.png"
       },
       "seconds": 0.0,
@@ -94,7 +94,7 @@
       "module": "cockpit-chat",
       "title": "The movement is explained from things this book contains, with no invented driver",
       "status": "PASS",
-      "detail": "names a real driver=True; invented drivers=[]; charts=2",
+      "detail": "names a real driver=True; invented drivers=[]; charts=3",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -142,7 +142,7 @@
       "module": "cockpit-chat",
       "title": "A yes/no question is answered concisely and without a meaningless chart",
       "status": "PASS",
-      "detail": "138 words; charts before=4 after=4",
+      "detail": "138 words; charts before=5 after=5",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -158,7 +158,7 @@
       "module": "cockpit-chat",
       "title": "A 25-month trend is shown in order, with a chart",
       "status": "PASS",
-      "detail": "2 distinct months named; charts=5; oracle's last point 2026-08 = 3,061,762; present=True",
+      "detail": "2 distinct months named; charts=6; oracle's last point 2026-08 = 3,061,762; present=True",
       "expected": null,
       "actual": null,
       "evidence": {

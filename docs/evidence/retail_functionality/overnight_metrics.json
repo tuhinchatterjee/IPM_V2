@@ -2,7 +2,7 @@
   "suite": "overnight_metrics",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 88.8,
+  "elapsed_seconds": 92.5,
   "counts": {
     "PASS": 11,
     "FAIL": 0,

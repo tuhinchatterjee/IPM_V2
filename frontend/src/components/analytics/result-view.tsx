@@ -442,7 +442,11 @@ function ResultBody({
             maxRows={compact ? 6 : 25}
             runId={run.analysis_run_id}
             onAsk={onAsk}
-            chartFirst={run.visual?.chart_first ?? null}
+            // From the RESULT, which is where the backend sends it, falling
+            // back to the run for a certified engine that carries it there.
+            // Reading only the run meant the gate's decision never reached
+            // the screen and every composed answer opened as a table.
+            chartFirst={result?.visual?.chart_first ?? run.visual?.chart_first ?? null}
           />
         </div>
       );

@@ -2,7 +2,7 @@
   "suite": "overnight_early_warning",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 58.6,
+  "elapsed_seconds": 59.2,
   "counts": {
     "PASS": 12,
     "FAIL": 0,

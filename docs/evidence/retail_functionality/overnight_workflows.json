@@ -2,7 +2,7 @@
   "suite": "overnight_workflows",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 114.5,
+  "elapsed_seconds": 114.9,
   "counts": {
     "PASS": 20,
     "FAIL": 0,
@@ -46,7 +46,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": " for August 2026\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each product at 2026-08. Personal Finance alone accounts for 56.38% of expected credit loss across the 4 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n4 groups, one measure.\n\nAsk about this\nChart\nTable\nProduct label\n\t\nExpected credit loss\nsar mn\n\nPersonal Fi",
+        "answer": " for August 2026\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR, 56.38% of the total.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each product at 2026-08. Personal Finance alone accounts for 56.38% of expected credit loss across the 4 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n4 groups, one measure.\n\nAsk about this\nChart\nTable\nPersonal Finance\nCredit Card\nHome F",
         "screenshot": "docs/evidence/retail_functionality/screens/th-01.png"
       },
       "seconds": 0.0,
@@ -62,7 +62,7 @@
       "actual": null,
       "evidence": {
         "question": "Which stage contributes most of that?",
-        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.\n0",
         "screenshot": "docs/evidence/retail_functionality/screens/th-02.png"
       },
       "seconds": 0.0,
@@ -78,7 +78,7 @@
       "actual": null,
       "evidence": {
         "question": "Narrow it to personal finance.",
-        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.\n0",
         "screenshot": "docs/evidence/retail_functionality/screens/th-03.png"
       },
       "seconds": 0.0,
@@ -94,7 +94,7 @@
       "actual": null,
       "evidence": {
         "question": "How did it move since July 2026?",
-        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each product at 2026-08. Personal Finance alone accounts for 56.38% of expected credit loss across the 4 shown. This covers the 4 carried forward from the previous answer, not the whole book.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n4 groups, one",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\nFinal ECL rose from 14,069,608 to 15,952,109 SAR between 2026-07 and 2026-08 \u2014 a change of 1,882,500 SAR (13.38%).\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance carries the largest final ECL at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted. Personal Finance alone accounts for 29.96% of expected credit loss at 2026-07 across the 8 shown. Personal Finance, Personal Finance sit well outside the rest \u2014 the typical expected credit loss at 2026-07 h",
         "screenshot": "docs/evidence/retail_functionality/screens/th-04.png"
       },
       "seconds": 0.0,
@@ -131,7 +131,7 @@
       "module": "workflows",
       "title": "Reopening carries the conversation, not only the title",
       "status": "PASS",
-      "detail": "the reopened thread renders 6259 characters",
+      "detail": "the reopened thread renders 6587 characters",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -185,7 +185,7 @@
       "module": "workflows",
       "title": "Every block on the pack carries a figure rather than a dash",
       "status": "PASS",
-      "detail": "90 figures and 1 empty markers on the page",
+      "detail": "92 figures and 1 empty markers on the page",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -254,7 +254,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "subject": "UAT 194213 retail scorecard review",
+        "subject": "UAT 230007 retail scorecard review",
         "screenshot": "docs/evidence/retail_functionality/screens/msg-02.png"
       },
       "seconds": 0.0,
@@ -269,7 +269,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "subject": "UAT 194213 retail scorecard review",
+        "subject": "UAT 230007 retail scorecard review",
         "screenshot": "docs/evidence/retail_functionality/screens/msg-03.png"
       },
       "seconds": 0.0,

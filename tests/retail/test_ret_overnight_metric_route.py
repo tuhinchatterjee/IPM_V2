@@ -132,7 +132,6 @@ class TestTheRouteDeclinesWhatThePlannerDoesBetter:
         # A movement or a comparison, which this engine cannot express.
         "Did the 30+ DPD rate rise since July?",
         "30+ DPD rate in July 2026 vs August 2026",
-        "Show the trend in ECL coverage",
         # A single word that is an adjective here, not a metric name.
         "What is secured exposure?",
         "What is our exposure at default?",
@@ -319,3 +318,37 @@ class TestAFieldTheQuestionGroupsByIsNotInheritedAsAFilter:
         from backend.orchestration.analysis_planner import _groups_by
 
         assert _groups_by(text, field) is False
+
+
+class TestATRENDIsThisEnginesWorkAfterAll:
+    """A trend was declined with every other movement, and should not have been.
+
+    "Show the trend in ECL coverage" fell through to the composer, and the
+    only thing a composer can do with a ratio COLUMN is average it: the answer
+    was 2.17%, the mean of nineteen thousand per-facility coverage ratios,
+    where the book's coverage is 0.77%. A coverage ratio is SUM(ECL) over
+    SUM(gross carrying amount), and only the metric definition knows that.
+
+    A COMPARISON between two states still falls through — that is a different
+    request and this engine does not express it.
+    """
+
+    @pytest.mark.parametrize("question", [
+        "Show the trend in ECL coverage",
+        "Show the ECL coverage trend for the last 12 months",
+        "Show ECL coverage by month",
+        "Show me the 30+ DPD rate over time",
+    ])
+    def test_a_series_is_routed_to_the_engine(self, question):
+        routed = mr.read(question)
+        assert routed is not None, "a trend fell through to the composer"
+        assert routed.trend
+        assert routed.dimension == "reporting_month"
+
+    @pytest.mark.parametrize("question", [
+        "Did the 30+ DPD rate rise since July?",
+        "30+ DPD rate in July 2026 vs August 2026",
+        "How has ECL coverage changed since July 2026?",
+    ])
+    def test_a_comparison_still_falls_through(self, question):
+        assert mr.read(question) is None

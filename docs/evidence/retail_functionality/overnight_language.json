@@ -2,7 +2,7 @@
   "suite": "overnight_language",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 108.3,
+  "elapsed_seconds": 112.0,
   "counts": {
     "PASS": 13,
     "FAIL": 0,

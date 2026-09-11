@@ -217,3 +217,75 @@ class TestARankingSumsTheSubjectSFacilities:
         want = list(book.groupby("customer_id").ecl_final_sar.sum()
                     .sort_values(ascending=False).index[:10])
         assert [r["customer_id"] for r in got] == want
+
+
+class TestATrendIsTheWholeSeries:
+    """"Show the 25-month weighted ECL trend for credit cards" — §22's first
+    named visual, and one of §5's questions — was answered with TWO points,
+    2025-08 and 2026-08, under the sentence "final ECL fell from 3,110,069 to
+    3,061,762 between 2025-08 and 2026-08". The reader asked for twenty-five
+    months, got two, and the two were not even the ends of the window they
+    named.
+
+    And the period column was typed TEXT, because only `period` and `*_period`
+    were recognised as reporting-date spellings — so the visualisation gate,
+    which draws a LINE over an ordered period axis, never saw one. A monthly
+    series was drawn as a horizontal bar ranking.
+    """
+
+    def _result(self, question: str) -> dict:
+        from backend.orchestration.executor import answer_investigation
+
+        inv, _ = answer_investigation(question, persist=False)
+        return inv.to_dict()["steps"][0]["result"]
+
+    def test_a_twenty_five_month_trend_has_twenty_five_points(self, book):
+        res = self._result("Show the 25-month weighted ECL trend for credit "
+                           "cards.")
+        rows = res["rows"]
+        assert len(rows) == 25
+        months = [r["reporting_month"] for r in rows]
+        assert months == sorted(months), "a series must read in date order"
+        assert months[0] == "2024-08" and months[-1] == "2026-08"
+
+    def test_a_named_length_is_honoured(self):
+        assert len(self._result("Show the 12-month ECL trend.")["rows"]) == 12
+
+    def test_the_figures_are_the_book_s(self):
+        import glob
+
+        rows = self._result("Show the 25-month weighted ECL trend for credit "
+                            "cards.")["rows"]
+        got = {r["reporting_month"]: round(float(r["ecl_final_sar"]), 2)
+               for r in rows}
+        want = {}
+        for path in sorted(glob.glob(
+                "data/retail/analytics/retail_facility_month/"
+                "reporting_month=*/*.parquet")):
+            month = path.split("reporting_month=")[1].split("/")[0]
+            frame = pd.read_parquet(path,
+                                    columns=["ecl_final_sar", "product_label"])
+            want[month] = round(float(
+                frame[frame.product_label == "Credit Card"]
+                .ecl_final_sar.sum()), 2)
+        assert got == want
+
+    def test_a_two_period_comparison_is_still_two_periods(self):
+        res = self._result("How did ECL move between July and August 2026?")
+        assert len(res["rows"]) == 2
+
+    def test_a_period_axis_is_drawn_as_a_line(self):
+        res = self._result("Show the 25-month weighted ECL trend for credit "
+                           "cards.")
+        assert res["visual"]["chart"] == "line", (
+            "a monthly series drawn as a horizontal bar ranking puts the "
+            "months in order of size")
+        assert res["visual"]["chart_first"] is True
+
+    def test_the_period_column_is_typed_as_a_period(self):
+        res = self._result("Show the 25-month weighted ECL trend for credit "
+                           "cards.")
+        period = [c for c in res["columns"]
+                  if c["name"] == "reporting_month"][0]
+        assert period["semantic"] == "period", (
+            "typed as text, the visualisation gate never sees a period axis")

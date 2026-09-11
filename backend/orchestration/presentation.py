@@ -355,7 +355,18 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
                       semantic=IDENTITY, is_identity=True, origin=origin,
                       decimals=0, rank=RANK_SUBJECT)
 
-    if lowered in ("period", "_asof_period") or lowered.endswith("_period"):
+    # The column a book records its reporting date in. `period` and
+    # `*_period` were the only spellings recognised, so a monthly book that
+    # calls it `reporting_month` had its period column typed as TEXT — and the
+    # visualisation gate, which draws a LINE over an ordered period axis,
+    # never saw one. A 25-month ECL series was drawn as a horizontal bar
+    # ranking, "a ranking of named rows reads horizontally", with the months
+    # in order of size.
+    if (lowered in ("period", "_asof_period", "reporting_month",
+                    "snapshot_date", "as_of_date", "reporting_date",
+                    "reporting_period", "month", "asof_month")
+            or lowered.endswith("_period")
+            or lowered.endswith("_reporting_month")):
         return Column(name=name, label=_KNOWN_LABELS.get(lowered, _humanise(name)),
                       semantic=PERIOD, origin=origin, decimals=0,
                       rank=RANK_LINEAGE if lowered.startswith("_") else RANK_PERIOD,

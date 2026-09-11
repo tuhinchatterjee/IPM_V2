@@ -222,6 +222,15 @@ export interface EngineResult {
   query?: { sql: string; parameters: unknown[] } | null;
   reading?: DynamicReading;
   /**
+   * Where the visualisation gate's decision ACTUALLY arrives.
+   *
+   * It is declared on the run as well, and the screen read it from there —
+   * so `chartFirst` was always null, `openingView` always answered "table",
+   * and no composed analysis ever opened as a chart. A 25-month trend, which
+   * the gate marks `chart_first`, arrived as twenty-five rows of numbers.
+   */
+  visual?: { chart?: string; chart_first?: boolean; reason?: string } | null;
+  /**
    * What each column is, not only what it is called.
    *
    * The backend's presentation contract: label, semantic type, unit,

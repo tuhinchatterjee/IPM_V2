@@ -3843,6 +3843,36 @@ def _list_of(items: Any) -> str:
     return ", ".join(found[:-1]) + " and " + found[-1]
 
 
+#: A request for the measure AT EVERY reporting date, rather than at two.
+_SERIES = _re.compile(
+    r"\btrend\b|\bover time\b|\bmonth by month\b|\bby month\b|"
+    r"\bby reporting month\b|\beach month\b|\bevery month\b|"
+    r"\btime series\b|\bhistory\b|\bseries\b|"
+    r"\b\d+[- ]month\b|\bmonthly\b",
+    _re.IGNORECASE)
+
+
+def _asks_for_a_series(text: str) -> bool:
+    """Whether the question asks for the whole series rather than two dates."""
+    return bool(_SERIES.search(str(text or "")))
+
+
+#: "the 25-month trend", "a 12 month history" — the length the reader named.
+_MONTHS_NAMED = _re.compile(r"\b(\d{1,3})[\s-]*month", _re.IGNORECASE)
+
+
+def _months_named(text: str) -> int:
+    """How many reporting months the question asked for, or 0."""
+    found = _MONTHS_NAMED.search(str(text or ""))
+    if found is None:
+        return 0
+    try:
+        wanted = int(found.group(1))
+    except ValueError:
+        return 0
+    return wanted if 2 <= wanted <= 600 else 0
+
+
 def _movement(reading: Reading, context: GovernedContext, text: str,
               matches: list[cx.ConceptMatch], filters: list[tuple[str, str]],
               dimension: str, catalogue: Any, *,
@@ -3915,13 +3945,41 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
                    "alias": dataset},
         "label": f"Read {dataset}",
     }]
-    where = [{"column": period_field, "op": "in",
-              "value": [opening, closing]}]
+    # A TREND is every month between the ends, not the two ends.
+    #
+    # "Show the 25-month weighted ECL trend for credit cards" — §22's first
+    # named visual and one of §5's questions — was answered with TWO points,
+    # 2025-08 and 2026-08, under the sentence "final ECL fell from 3,110,069
+    # to 3,061,762 between 2025-08 and 2026-08". The reader asked for
+    # twenty-five months, got two, and the two were not even the ends of the
+    # window they named.
+    #
+    # The plan already groups by the period column, so a series is the same
+    # plan with every published period in the filter. The narration still
+    # reads the two ends and says what happened between them, which is true
+    # of a series as well as of a pair.
+    series = _asks_for_a_series(text)
+    months = [opening, closing]
+    if series and published:
+        # A named LENGTH opens the window. "the 25-month trend" asked for
+        # twenty-five and the default two-period window gave twelve, so the
+        # series was right and shorter than the question. Clipped to what the
+        # book publishes rather than invented.
+        wanted = _months_named(text)
+        first = opening
+        if wanted and closing in published:
+            at = published.index(closing)
+            first = published[max(0, at - (wanted - 1))]
+        months = [m for m in published if first <= m <= closing] or months
+        if months:
+            opening = months[0]
+    where = [{"column": period_field, "op": "in", "value": months}]
     where += [{"column": f, "op": "=", "value": v} for f, v in filters]
     operations.append({
         "id": "scoped", "op": "FILTER", "inputs": ["source"],
         "params": {"where": where},
-        "label": (f"Keep {opening} and {closing}"
+        "label": ((f"Keep every reporting date from {opening} to {closing}"
+                   if len(months) > 2 else f"Keep {opening} and {closing}")
                   + (", " + ", ".join(v for _, v in filters) if filters else "")),
     })
     group_by = [period_field] + ([dimension] if dimension else [])
@@ -3934,17 +3992,30 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
         "label": ("Total at each reporting date"
                   + (f", by {dimension}" if dimension else "")),
     })
-    # Not sorted by period: "Q1 2026" sorts before "Q4 2025" as text, and a
-    # movement read in the wrong direction is a sign error. The rows are
-    # matched to their periods by name where they are read.
+    # Not sorted by period for a PAIR: "Q1 2026" sorts before "Q4 2025" as
+    # text, and a movement read in the wrong direction is a sign error. The
+    # rows are matched to their periods by name where they are read.
+    #
+    # A SERIES is sorted by period, ascending, because the order IS the
+    # meaning: a trend drawn in order of size is a ranking with the axis
+    # mislabelled. The retail book's periods are `YYYY-MM`, which sorts
+    # chronologically as text; where they are not, the series is left in the
+    # size order the pair uses rather than put in a wrong order.
+    chronological = len(months) > 2 and all(
+        _re.fullmatch(r"\d{4}-\d{2}", m) for m in months)
     operations.append({
         "id": "result", "op": "SORT", "inputs": ["totals"],
-        "params": {"by": [{"column": measures[0].field, "direction": "desc"}]},
-        "label": f"Largest {measures[0].label} first",
+        "params": {"by": ([{"column": period_field, "direction": "asc"}]
+                          if chronological else
+                          [{"column": measures[0].field, "direction": "desc"}])},
+        "label": ("In reporting date order" if chronological
+                  else f"Largest {measures[0].label} first"),
     })
 
     label = measures[0].label
-    summary = (f"How {label} moved between {opening} and {closing}"
+    summary = ((f"{label} at each of the {len(months)} reporting dates from "
+                f"{opening} to {closing}" if len(months) > 2
+                else f"How {label} moved between {opening} and {closing}")
                + (f", by {dimension}" if dimension else "") + ".")
     warnings: list[str] = []
     if assumed:

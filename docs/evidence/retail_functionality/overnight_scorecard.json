@@ -2,7 +2,7 @@
   "suite": "overnight_scorecard",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 274.3,
+  "elapsed_seconds": 278.4,
   "counts": {
     "PASS": 14,
     "FAIL": 0,
