@@ -209,3 +209,101 @@ def test_a_write_then_read_pair_never_disagrees_over_many_rounds(client, cast):
         assert read.json()["plan"]["overview"]["name"] == wanted, (
             f"round {round_number}: wrote {wanted!r}, read back "
             f"{read.json()['plan']['overview']['name']!r}")
+
+
+# --------------------------------- §16: the value written is the value read
+
+
+#: (command, payload, where it lands in the plan, the completeness sentence
+#: that must disappear once it is set)
+FIELDS = [
+    ("set_overview", {"name": "LGD Model Redevelopment"},
+     ("overview", "name"), "The project has no name."),
+    ("set_overview", {"code": "LGDMR-UAT"},
+     ("overview", "code"), "The project has no code."),
+    ("set_governance", {"sponsor_id": "@alice"},
+     ("governance", "sponsor_id"), "The project has no sponsor."),
+    ("set_governance", {"manager_id": "@alice"},
+     ("governance", "manager_id"), "The project has no manager."),
+    ("set_governance", {"escalation_id": "@alice"},
+     ("governance", "escalation_id"), "There is nobody to escalate to."),
+    ("set_governance", {"start_date": "2026-02-02"},
+     ("governance", "start_date"), "The project has no start date."),
+    ("set_governance", {"target_end_date": "2026-09-30"},
+     ("governance", "target_end_date"),
+     "The project has no target completion date."),
+]
+
+
+def test_after_every_field_the_draft_and_the_completeness_agree(client, cast):
+    """The exact UAT sequence, one field at a time.
+
+    After each save: what the API says the plan holds, what the completeness
+    engine says about it, and what the progress panel counts must be three
+    views of one document. This test fails if any two of them drift apart.
+    """
+    started = client.post(f"{PREFIX}/copilot/drafts",
+                          headers=headers(cast["alice"]),
+                          json={"name": "Field by field"})
+    key = started.json()["key"]
+    gone: list[str] = []
+
+    for command, payload, (section, _field), sentence in FIELDS:
+        sent = {k: (cast["alice"] if v == "@alice" else v)
+                for k, v in payload.items()}
+        saved = client.post(f"{PREFIX}/copilot/drafts/{key}/apply",
+                            headers=headers(cast["alice"]),
+                            json={"command": command, "payload": sent})
+        assert saved.status_code == 200, saved.text
+
+        read = client.get(f"{PREFIX}/copilot/drafts/{key}",
+                          headers=headers(cast["alice"]))
+        found = read.json()
+        for name, value in sent.items():
+            assert found["plan"][section][name] == value, (
+                f"{command}.{name}: wrote {value!r}, the draft holds "
+                f"{found['plan'][section][name]!r}")
+
+        gone.append(sentence)
+        said = [note["message"] for note in found["completeness"]["blockers"]]
+        for stale in gone:
+            assert stale not in said, (
+                f"{stale!r} is still on screen after the field was set")
+
+        # And the progress panel counts the same document.
+        counted = found["progress"]
+        assert counted["required_remaining"] == \
+            len(found["completeness"]["blockers"])
+        assert counted["sentence"].endswith("sections complete")
+
+
+def test_the_read_carries_progress_and_guidance_for_the_same_plan(
+        client, cast):
+    started = client.post(f"{PREFIX}/copilot/drafts",
+                          headers=headers(cast["alice"]),
+                          json={"name": "Guided"})
+    key = started.json()["key"]
+    found = client.get(f"{PREFIX}/copilot/drafts/{key}",
+                       headers=headers(cast["alice"])).json()
+
+    assert len(found["progress"]["sections"]) == 8
+    # The draft was started with a name, so the name and its derived code
+    # are already in place and the first thing still wanted is the sponsor.
+    assert found["guidance"]["next"]["field"] == "governance.sponsor_id"
+    assert found["guidance"]["readiness"]["message"].startswith(
+        "Publish unavailable —")
+    assert [row["key"] for row in found["agentic_settings"]]
+
+
+def test_a_field_the_draft_does_not_have_is_refused_not_dropped(client, cast):
+    """§3. A payload key nobody reads is UI and draft disagreeing, silently."""
+    started = client.post(f"{PREFIX}/copilot/drafts",
+                          headers=headers(cast["alice"]),
+                          json={"name": "Strays"})
+    key = started.json()["key"]
+    refused = client.post(f"{PREFIX}/copilot/drafts/{key}/apply",
+                          headers=headers(cast["alice"]),
+                          json={"command": "set_governance",
+                                "payload": {"escalation_contact_id": 1}})
+    assert refused.status_code == 422, refused.text
+    assert "escalation_contact_id" in refused.json()["detail"]["message"]

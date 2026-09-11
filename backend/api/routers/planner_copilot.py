@@ -46,6 +46,7 @@ from backend.planner import language as lang
 from backend.planner import policy as pol
 from backend.planner import reading as rd
 from backend.planner import scope as sc
+from backend.planner import setup as su
 
 logger = logging.getLogger(__name__)
 
@@ -140,15 +141,24 @@ def read_draft(key: str, session: Session = Depends(get_db),
                principal: Principal = RequireAnalyst) -> dict:
     row = _run(lambda: dr.load(session, principal, key))
     plan = row.plan or dr.empty()
+    # Everybody this plan names, so a screen can print "Priya Raman" beside a
+    # task without holding the whole staff directory. On an installation with
+    # five thousand people, that directory is not a list a browser should be
+    # asked to keep.
+    people = dr.people_named(session, plan)
+    names = {int(row_["user_id"]): row_["name"] for row_ in people}
+    # Completeness, progress and guidance are computed here, from THIS plan,
+    # in the same request that returns it. They cannot disagree with the
+    # fields beside them, because there is nothing in between to go stale.
     return {**dr.to_dict(row),
             "completeness": dr.check(plan).to_dict(),
+            "progress": su.progress(plan, names=names, status=row.status),
+            "guidance": su.guidance(plan, names=names, step=row.step,
+                                    status=row.status),
             "catalogue": dr.catalogue(plan),
-            # Everybody this plan names, so a screen can print "Priya Raman"
-            # beside a task without holding the whole staff directory. On an
-            # installation with five thousand people, that directory is not a
-            # list a browser should be asked to keep.
-            "people": dr.people_named(session, plan),
-            "agentic_choices": pol.choices()}
+            "people": people,
+            "agentic_choices": pol.choices(),
+            "agentic_settings": pol.settings()}
 
 
 class ApplyIn(BaseModel):

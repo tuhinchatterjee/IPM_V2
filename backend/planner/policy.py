@@ -452,6 +452,69 @@ def describe(agentic: Agentic) -> dict[str, Any]:
     }
 
 
+#: Every custom setting, in the words the person setting it reads, with the
+#: bounds the engine will enforce anyway. One list: the panel renders from it
+#: and `custom()` validates against it, so a field cannot appear on screen
+#: that the policy does not have, and a bound cannot be shown that the server
+#: does not apply.
+_SETTINGS: tuple[dict[str, Any], ...] = (
+    {"key": "reminder_days", "kind": "days_list",
+     "label": "Remind the owner this many days before the date",
+     "help": "For example 7, 3, 1 and 0. Zero is the due date itself."},
+    {"key": "due_soon_days", "kind": "days",
+     "label": "Treat a task as due soon this many days out",
+     "help": "How far ahead the agent starts paying attention."},
+    {"key": "imminent_days", "kind": "days",
+     "label": "Treat a task as imminent this many days out",
+     "help": "Inside this window, silence is chased rather than noted."},
+    {"key": "stale_after_days", "kind": "days",
+     "label": "Call a task stale after this many days without an update",
+     "help": "The agent asks the owner where it stands."},
+    {"key": "chase_no_progress_days", "kind": "days",
+     "label": "Chase an imminent task with no progress after this many days"},
+    {"key": "overdue_every_days", "kind": "days",
+     "label": "Once a date has passed, chase the owner every this many days"},
+    {"key": "escalate_after_days", "kind": "days_or_never",
+     "label": "Escalate an overdue task after this many days",
+     "help": "Never means lateness alone is never escalated automatically."},
+    {"key": "escalate_blocked_after_days", "kind": "days_or_never",
+     "label": "Escalate a blocked task after this many days",
+     "help": "A block needs somebody outside the team to move."},
+    {"key": "notify_sponsor_after_days", "kind": "days_or_never",
+     "label": "Tell the sponsor when a delay is unresolved after this long",
+     "help": "The last rung. It cannot be shorter than the escalation "
+             "threshold, or the sponsor hears before the escalation owner."},
+    {"key": "milestone_escalate_before_days", "kind": "days_or_never",
+     "label": "Warn about a milestone at risk this many days before its date"},
+    {"key": "amber_overdue_count", "kind": "days",
+     "label": "Turn the project amber at this many overdue tasks",
+     "help": "Volume alone, whether or not any of them is critical."},
+    {"key": "dependency_slip_days", "kind": "days",
+     "label": "Treat a late dependency as a schedule threat after this long",
+     "help": "Below this it is recorded as a slip rather than a threat."},
+    {"key": "milestone_horizon_days", "kind": "days",
+     "label": "Look this many days ahead of a milestone for unfinished work"},
+    {"key": "notify_manager_on_critical_path", "kind": "flag",
+     "label": "Tell the project manager when the critical path is at risk"},
+    {"key": "remind_reviewers", "kind": "flag",
+     "label": "Remind reviewers about reviews they owe"},
+)
+
+
+def settings() -> list[dict[str, Any]]:
+    """The custom fields, with bounds and the Standard value as the default."""
+    base = _PRESETS[MODE_STANDARD]
+    shown = describe(base)
+    out: list[dict[str, Any]] = []
+    for spec in _SETTINGS:
+        key = spec["key"]
+        low, high = _BOUNDS.get(key, (0, 0))
+        out.append({**spec, "default": shown.get(key),
+                    "minimum": low if key in _BOUNDS else None,
+                    "maximum": high if key in _BOUNDS else None})
+    return out
+
+
 def choices() -> list[dict[str, Any]]:
     """The four modes, described, for the setup screen."""
     return [
@@ -467,5 +530,5 @@ __all__ = [
     "Agentic", "CUSTOM_KEYS", "Escalation", "MODES", "MODE_CRITICAL",
     "MODE_CUSTOM", "MODE_LABELS", "MODE_LIGHT", "MODE_NOTES", "MODE_STANDARD",
     "POLICY_VERSION", "PolicyError", "choices", "custom", "describe", "of",
-    "preset", "resolve", "sentence", "stamp",
+    "preset", "resolve", "sentence", "settings", "stamp",
 ]

@@ -116,17 +116,27 @@ class DraftError(ValueError):
 
 @dataclass
 class Note:
-    """One completeness finding."""
+    """One completeness finding.
+
+    `field` is what makes it clickable. A note that says the project has no
+    sponsor and cannot say WHERE the sponsor is set leaves the reader to find
+    it, and on a form of eight steps that is a search. It is an address in the
+    plan — `governance.sponsor_id`, `milestone.M01.owner_id` — which the form
+    turns into the element to scroll to and focus. Empty when the finding is
+    about the plan rather than about a field, such as a loop in the
+    dependencies.
+    """
 
     level: str
     scope: str
     code: str
     message: str
     fix: str = ""
+    field: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {"level": self.level, "scope": self.scope, "code": self.code,
-                "message": self.message, "fix": self.fix}
+                "message": self.message, "fix": self.fix, "field": self.field}
 
 
 @dataclass
@@ -538,11 +548,13 @@ def check(plan: dict[str, Any]) -> Completeness:
     overview = plan.get("overview") or {}
     governance = plan.get("governance") or {}
 
-    def blocker(scope: str, code: str, message: str, fix: str = "") -> None:
-        found.notes.append(Note(BLOCKER, scope, code, message, fix))
+    def blocker(scope: str, code: str, message: str, fix: str = "",
+                field: str = "") -> None:
+        found.notes.append(Note(BLOCKER, scope, code, message, fix, field))
 
-    def warn(scope: str, code: str, message: str, fix: str = "") -> None:
-        found.notes.append(Note(WARNING, scope, code, message, fix))
+    def warn(scope: str, code: str, message: str, fix: str = "",
+             field: str = "") -> None:
+        found.notes.append(Note(WARNING, scope, code, message, fix, field))
 
     # ---- what the project IS
     #
@@ -552,52 +564,61 @@ def check(plan: dict[str, Any]) -> Completeness:
     # question or lets its own through.
     if not str(overview.get("name") or "").strip():
         blocker("overview", "", "The project has no name.",
-                "Give it a name a committee would recognise.")
+                "Give it a name a committee would recognise.",
+                "overview.name")
     if not str(overview.get("code") or "").strip():
         blocker("overview", "", "The project has no code.",
-                "A code is how people refer to it in chat and in exports.")
+                "A code is how people refer to it in chat and in exports.",
+                "overview.code")
     if not str(overview.get("description") or "").strip():
         warn("overview", "", "There is no overview.",
-             "One sentence is enough, and it is what the agent quotes back.")
+             "One sentence is enough, and it is what the agent quotes back.",
+             "overview.description")
     if not str(overview.get("objective") or "").strip():
         warn("overview", "", "There is no objective.",
-             "What has to be true for this to be finished?")
+             "What has to be true for this to be finished?",
+             "overview.objective")
 
     # ---- who is answerable, and when it runs
     for key, label in (("sponsor_id", "sponsor"), ("manager_id", "manager")):
         if not governance.get(key):
             blocker("governance", "", f"The project has no {label}.",
-                    f"Name a {label}: the agent escalates through them.")
+                    f"Name a {label}: the agent escalates through them.",
+                    f"governance.{key}")
     if not governance.get("owner_id"):
         warn("governance", "", "The project has no owner.",
              "Often the manager; say so explicitly and the plan reads better.")
     if not governance.get("escalation_id"):
         blocker("governance", "", "There is nobody to escalate to.",
                 "This is the last stop when a task's own escalation owner has "
-                "not resolved something.")
+                "not resolved something.", "governance.escalation_id")
     start = _as_date(governance.get("start_date"), "Project start")
     end = _as_date(governance.get("target_end_date"), "Target completion")
     if not start:
-        blocker("governance", "", "The project has no start date.")
+        blocker("governance", "", "The project has no start date.", "",
+                "governance.start_date")
     if not end:
-        blocker("governance", "", "The project has no target completion date.")
+        blocker("governance", "", "The project has no target completion "
+                "date.", "", "governance.target_end_date")
     if start and end and end < start:
         blocker("governance", "",
                 f"The project would finish on {end}, before it starts "
-                f"on {start}.")
+                f"on {start}.", "", "governance.target_end_date")
 
     # ---- the agentic policy
     agentic = plan.get("agentic") or {}
     try:
         policy_mod.resolve(agentic.get("mode", ""), agentic.get("policy"))
     except policy_mod.PolicyError as exc:
-        blocker("agentic", "", f"The monitoring policy is not valid: {exc}")
+        blocker("agentic", "", f"The monitoring policy is not valid: {exc}",
+                "", "agentic.mode")
 
     # ---- milestones
     milestones = milestones_of(plan)
     if not milestones:
         blocker("milestones", "", "The plan has no milestones.",
-                "A project with no milestone has nothing to be judged against.")
+                "A project with no milestone has nothing to be judged "
+                "against.", "milestones.add")
     seen: set[str] = set()
     for milestone in milestones:
         code = str(milestone.get("code") or "")
@@ -608,31 +629,36 @@ def check(plan: dict[str, Any]) -> Completeness:
             blocker("milestone", code, f"Two milestones share the code {code}.")
         seen.add(code)
         if not str(milestone.get("name") or "").strip():
-            blocker("milestone", code, f"{code} has no name.")
+            blocker("milestone", code, f"{code} has no name.", "",
+                    f"milestone.{code}.name")
         if not milestone.get("owner_id"):
             blocker("milestone", code, f"{code} has no owner.",
-                    "Somebody has to be answerable for it.")
+                    "Somebody has to be answerable for it.",
+                    f"milestone.{code}.owner_id")
         m_start = _as_date(milestone.get("start_date"), "Milestone start")
         m_end = _as_date(milestone.get("target_date"), "Milestone date")
         if not m_end:
-            blocker("milestone", code, f"{code} has no target date.")
+            blocker("milestone", code, f"{code} has no target date.", "",
+                    f"milestone.{code}.target_date")
         if m_start and m_end and m_end < m_start:
             blocker("milestone", code,
                     f"{code} would end on {m_end}, before it starts on "
-                    f"{m_start}.")
+                    f"{m_start}.", "", f"milestone.{code}.target_date")
         if m_end and end and m_end > end:
             warn("milestone", code,
                  f"{code} ends on {m_end}, after the project's target "
-                 f"completion of {end}.")
+                 f"completion of {end}.", "", f"milestone.{code}.target_date")
         if m_start and start and m_start < start:
             warn("milestone", code,
                  f"{code} starts on {m_start}, before the project starts "
-                 f"on {start}.")
+                 f"on {start}.", "", f"milestone.{code}.start_date")
         if not escalation_for(plan, code)["user_id"]:
-            warn("milestone", code, f"{code} has nobody to escalate to.")
+            warn("milestone", code, f"{code} has nobody to escalate to.",
+                 "", f"milestone.{code}.escalation_id")
         if not tasks_of(plan, code):
             warn("milestone", code, f"{code} has no tasks under it.",
-                 "A milestone with no work is a date with nothing behind it.")
+                 "A milestone with no work is a date with nothing behind it.",
+                 f"tasks.{code}.add")
 
     # ---- tasks
     for task in tasks_of(plan):
@@ -644,19 +670,21 @@ def check(plan: dict[str, Any]) -> Completeness:
             blocker("task", code, f"Two items share the code {code}.")
         seen.add(code)
         if not str(task.get("title") or "").strip():
-            blocker("task", code, f"{code} has no title.")
+            blocker("task", code, f"{code} has no title.", "",
+                    f"task.{code}.title")
         if not task.get("owner_id"):
             blocker("task", code, f"{code} has no owner.",
                     "The agent reminds the owner; a task with none is a task "
-                    "nobody is asked about.")
+                    "nobody is asked about.", f"task.{code}.owner_id")
         due = _as_date(task.get("due_date"), "Task due date")
         if not due:
-            blocker("task", code, f"{code} has no due date.")
+            blocker("task", code, f"{code} has no due date.", "",
+                    f"task.{code}.due_date")
         t_start = _as_date(task.get("start_date"), "Task start")
         if t_start and due and due < t_start:
             blocker("task", code,
                     f"{code} would finish on {due}, before it starts on "
-                    f"{t_start}.")
+                    f"{t_start}.", "", f"task.{code}.due_date")
         parent = item(plan, str(task.get("milestone_code") or ""))
         if parent is None:
             blocker("task", code, f"{code} is not under any milestone.")
@@ -665,10 +693,12 @@ def check(plan: dict[str, Any]) -> Completeness:
             if due and m_end and due > m_end:
                 warn("task", code,
                      f"{code} is due on {due}, after its milestone "
-                     f"{parent.get('code')} on {m_end}.")
+                     f"{parent.get('code')} on {m_end}.", "",
+                     f"task.{code}.due_date")
         if not str(task.get("description") or "").strip():
             warn("task", code, f"{code} has no description.",
-                 "The owner reads this when they are reminded.")
+                 "The owner reads this when they are reminded.",
+                 f"task.{code}.description")
 
     # ---- links
     for link in links_of(plan):
@@ -681,7 +711,8 @@ def check(plan: dict[str, Any]) -> Completeness:
         # something the person publishing should see once more.
         if str(link.get("notes") or "").strip():
             warn("link", f"{before}->{after}", str(link["notes"]),
-                 "Either move the dates or publish knowing they overlap.")
+                 "Either move the dates or publish knowing they overlap.",
+                 f"link.{before}->{after}")
     ids = _synthetic(plan)
     views = [
         control.DependencyView(
