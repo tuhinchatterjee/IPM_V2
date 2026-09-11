@@ -261,12 +261,24 @@ def test_the_whole_seven_turn_journey_resolves(a_real_group):
     scopes = [t.answer.get("scope") for t in turns]
 
     assert scopes[0] == "group", "the named sector was not opened"
-    # "which names drive it" stays IN that sector rather than widening to
-    # the book, and it actually names them.
-    assert scopes[1] == "group", f"the sector was lost: {scopes}"
+    # "Which names drive it?" is a RANKING reading — the question is about the
+    # obligors, not about the population they sit in.
+    #
+    # This used to assert `scope == "group"` and look for a "largest exposure
+    # first" sentence bolted onto a population answer, which was the patch for
+    # a missing composer. The ranking composer now answers the question it was
+    # asked, so the assertion is the stronger one: the reading is a ranking,
+    # the names are named, and the sector is still the sector.
+    assert scopes[1] == "ranking", f"the ranking reading was lost: {scopes}"
+    assert turns[1].packet.primary.label == a_real_group, (
+        f"the sector was lost: {turns[1].packet.primary.label}")
     named = " ".join(turns[1].answer.get("points") or [])
-    assert "largest exposure first" in named, (
+    assert any(str(row.get("customer_name") or "") in named
+               for row in turns[1].packet.rows), (
         "the reader asked which names and was given a population summary")
+    assert all(str(row.get("sector") or a_real_group) == a_real_group
+               for row in turns[1].packet.rows), (
+        "the ranking widened past the sector the thread was about")
 
     assert scopes[2] == "borrower", "'the weakest one' resolved to nothing"
     obligor = summary["customer_name"]

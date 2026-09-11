@@ -414,7 +414,11 @@ _ANALYSIS: tuple[tuple[str, str], ...] = (
     (r"\bevidence\b|\bbehind\b|\bshow me the\b|\blineage\b|\bsource\b",
      "evidence"),
     (r"\bgroup\w*\b[^.?]*\bby\b|\bbroken? down by\b|\bsplit by\b|"
-     r"\bcut by\b|\bby (the )?(internal )?(segment|sector|grade|rating|"
+     r"\bcut by\b|\bdistribution by\b|\bmix by\b|"
+     # "by RISK band" and "by SEVERITY band" name the field in two words, and
+     # the single-word alternation below never reached the second one.
+     r"\bby (the )?(risk|severity|ews|rating|credit) (band|grade|rating)\b|"
+     r"\bby (the )?(internal )?(segment|sector|grade|rating|"
      r"stage|region|band|severity|layer|utilisation|relationship manager)\b|"
      # "Which segments have deteriorated most?" names no "by" and is still a
      # grouping: the reader wants the book cut that way and ranked. Answering
@@ -574,8 +578,20 @@ def _read_deterministic(
         grouped = re.search(
             r"\bby (?:the )?((?:internal |ifrs ?9 )?\w+(?: \w+)?)", lowered)
         if grouped:
-            grouping = grouped.group(1).strip()
-        else:
+            # The phrase can run past the field: "by sector for obligors at
+            # High" captured "sector for", which resolves to nothing, so the
+            # grouping was dropped and the question was answered at population
+            # level instead — the reader asked for a cut of the book and got
+            # the book.
+            #
+            # Two words are needed for "internal rating" and "dominant layer",
+            # so the length cannot simply be one. The governed registry
+            # arbitrates instead of the regex guessing: the longest prefix
+            # that IS a grouping wins, and a phrase that is not one at any
+            # length falls through to the message below rather than being
+            # passed on as if it were a field.
+            grouping = _longest_grouping(grouped.group(1).strip())
+        if not grouping:
             # The "which segments..." form names the grouping as its subject
             # rather than after a "by".
             plural = re.search(
@@ -627,6 +643,17 @@ def _read_deterministic(
         inherited[group["field"]] = group["value"]
         if group["value"] not in entities:
             entities.append(group["value"])
+
+    # A SEVERITY BAND named in the question is a filter on the population,
+    # exactly as it is when the reader sets it on the screen.
+    #
+    # Without this, "show exposure by sector for obligors at High or Very
+    # High" was answered for every obligor in every sector. The answer was
+    # arithmetically right and about a different question, which is the worst
+    # kind of wrong: nothing on screen says the filter was dropped.
+    band = _named_band(text)
+    if band and not inherited.get("band"):
+        inherited["band"] = band
 
     # "Open the weakest one" and "which names drive it" both point INTO the
     # current scope rather than away from it. Recorded so the planner can
@@ -772,6 +799,42 @@ def _published_periods() -> list[str]:
         return [str(p) for p in svc.periods()]
     except Exception:  # noqa: BLE001 - an unreadable domain offers none
         return []
+
+
+#: The severity bands, as a reader writes them. "High or above" and "high+"
+#: are the same filter said two other ways.
+_HIGH_PLUS = re.compile(
+    r"\b(?:high or very high|very high or high|high and very high|"
+    r"high or above|high\+|at high or above)\b", re.I)
+
+
+def _named_band(text: str) -> str:
+    """The COMPOUND severity filter a question names, or "".
+
+    Only the compound. A single band — "at Very High", "the Medium names" —
+    is already resolved by `_named_group`, which checks it against the
+    domain's own band values and records it under its canonical column; doing
+    it twice here would be a second resolver for one thing, and the two would
+    eventually disagree.
+
+    "High or Very High" is the case that resolver cannot express, because it
+    is two values and no single column value means both. It is returned as
+    `high_plus`, which is the name the executor already knows it by.
+    """
+    return "high_plus" if _HIGH_PLUS.search(text or "") else ""
+
+
+def _longest_grouping(phrase: str) -> str:
+    """The longest leading part of `phrase` that names a real grouping."""
+    from backend.early_warning import executable as ex
+
+    words = [w for w in phrase.split() if w]
+    for size in range(len(words), 0, -1):
+        candidate = " ".join(words[:size])
+        if ex.supports(ex.normalise(candidate, role=ex.GROUP_BY),
+                       role=ex.GROUP_BY):
+            return candidate
+    return ""
 
 
 def _grouping_fields() -> list[str]:

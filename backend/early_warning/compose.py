@@ -1031,8 +1031,87 @@ def diagnosis(pack: ff.FactPack) -> Composed:
                            "reason": "a population partition"})
 
 
+def ranking(pack: ff.FactPack) -> Composed:
+    """Which obligors — by name, in the order that matters.
+
+    The reading a "which names?" question actually asks for, and the one the
+    product did not have. Every other scope here answers a question about a
+    POPULATION: what is it worth, how has it moved, what does it have in
+    common. "Which obligors are High or Very High?" is not that question, and
+    answering it with the portfolio's average score answers a different one
+    while looking like an answer.
+
+    Ordered by exposure at high severity rather than by score, because the
+    reader asking which names drive a book is asking which ones matter, and a
+    very high score on a small exposure does not.
+    """
+    f = pack.figures or {}
+    rows = list(pack.rows or [])
+    if not rows:
+        return Composed(
+            direct=("No obligor in this population meets that filter, so "
+                    "there are no names to list."),
+            interpretation=(
+                "That is a finding rather than an empty result: the filter "
+                "ran against the published month and matched nothing."),
+            follow_ups=["Show the risk-band distribution.",
+                        "Widen this to the whole book."],
+            caveats=pack.caveats)
+
+    total = f.get("high_plus_count")
+    shown = len(rows)
+    lead = rows[0]
+    lead_name = str(lead.get("customer_name") or lead.get("customer_id") or "")
+    exposure = sum(float(r.get("exposure") or 0) for r in rows)
+
+    counted = (f"{total} obligors in {pack.label} sit at high or above"
+               if isinstance(total, (int, float)) and total
+               else f"{shown} obligors in {pack.label} match")
+    direct = (
+        f"{counted}. The {shown} largest by exposure are listed, led by "
+        f"{lead_name} at "
+        f"{_band_phrase(float(lead.get('ews_score') or 0), str(lead.get('ews_band') or ''))} "
+        f"on {_money(float(lead.get('exposure') or 0))}; the {shown} together "
+        f"carry {_money(exposure)}.")
+
+    paras = [
+        "They are ordered by exposure rather than by score: a very high score "
+        "on a small line is a smaller problem than a high score on a large "
+        "one, and the order a reader acts in follows the money."
+    ]
+    nodes = [str(r.get("dominant_subcategory") or "") for r in rows
+             if r.get("dominant_subcategory")]
+    if nodes:
+        common = max(set(nodes), key=nodes.count)
+        paras.append(
+            f"{nodes.count(common)} of the {shown} share {common} as their "
+            f"dominant sub-category, which is worth testing as a common "
+            f"condition before treating them as unrelated cases.")
+    else:
+        paras.append(
+            "No single sub-category dominates the list, so treat them as "
+            "separate cases until a diagnosis says otherwise.")
+
+    points = [
+        f"{str(r.get('customer_name') or r.get('customer_id'))} — "
+        f"{_band_phrase(float(r.get('ews_score') or 0), str(r.get('ews_band') or ''))}, "
+        f"{_money(float(r.get('exposure') or 0))}"
+        for r in rows[:10]]
+
+    return Composed(
+        direct=direct, interpretation=_sentence(paras), points=points,
+        follow_ups=["Why is the first one flagged?",
+                    "What should I do about these names?",
+                    "Is this concentrated or broad-based?"],
+        caveats=pack.caveats,
+        # A ranked list is a table. A chart of ten bars sorted by the column
+        # they are already sorted by adds nothing the list does not say.
+        chart={})
+
+
 #: Which composer answers which scope.
 COMPOSERS = {
+    "ranking": ranking,
     "portfolio": portfolio, "level": level, "group": group,
     "borrower": borrower, "layer": layer, "evidence": evidence,
     "movement": movement, "comparison": comparison, "diagnosis": diagnosis,
@@ -1049,4 +1128,5 @@ def compose(pack: ff.FactPack) -> Composed:
 
 
 __all__ = ["Composed", "COMPOSERS", "compose", "portfolio", "level", "group",
-           "borrower", "layer", "evidence", "movement", "comparison"]
+           "borrower", "layer", "evidence", "movement", "comparison",
+           "ranking"]

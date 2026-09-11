@@ -69,10 +69,28 @@ class ResultPacket:
 
     budget: dict[str, Any] = field(default_factory=dict)
 
+    #: Which analysis the request asked for. The plan decides it; the packet
+    #: carries it so the headline can be about that rather than about
+    #: whichever step ran first.
+    intent: str = ""
+    #: Index into `packs` of the one the answer is chiefly about.
+    primary_index: int = 0
+
     @property
     def primary(self) -> ff.FactPack | None:
-        """The pack the answer is chiefly about."""
-        return self.packs[0] if self.packs else None
+        """The pack the answer is chiefly about.
+
+        Not `packs[0]`. Every population-scoped plan reads the population
+        first as context, so "the first pack" meant the answer was always
+        about the population — a reader who asked which obligors are High was
+        told the portfolio's average score, and one who asked for the ten
+        biggest risers was told the same thing again.
+        """
+        if not self.packs:
+            return None
+        if 0 <= self.primary_index < len(self.packs):
+            return self.packs[self.primary_index]
+        return self.packs[0]
 
     def numbers(self) -> list[float]:
         """Every figure any sentence may state. What the rubric checks."""
@@ -93,6 +111,7 @@ class ResultPacket:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "intent": self.intent,
             "request": {
                 "question": self.question,
                 "normalized_request": self.normalized_request,
@@ -133,8 +152,17 @@ def build(question: str, request: Any, plan: plan_mod.Plan,
                                         "") or question),
         plan=plan.to_dict(),
         output_grain=plan.output_grain,
+        intent=str(getattr(plan, "intent", "") or ""),
         budget=dict(budget or {}),
     )
+
+    # Which run the answer is chiefly about: the one that ran the analysis the
+    # request asked for, falling back to the first that produced anything.
+    # Chosen BEFORE the loop so the headline figures, rows, period and filters
+    # all come from the same step — a headline whose numbers came from one
+    # analysis and whose rows came from another is two answers wearing one
+    # sentence.
+    headline = _headline(executed, packet.intent)
 
     for run in executed:
         packet.steps.append(run.to_dict())
@@ -146,16 +174,18 @@ def build(question: str, request: Any, plan: plan_mod.Plan,
             "duration_ms": run.duration_ms,
         })
         if run.pack is not None:
+            if run is headline:
+                packet.primary_index = len(packet.packs)
             packet.packs.append(run.pack)
             packet.provenance.extend(run.pack.provenance)
             for caveat in run.pack.caveats:
                 if caveat not in packet.caveats:
                     packet.caveats.append(caveat)
-        # The first step that produced figures sets the packet's headline;
-        # later steps add theirs under their own analysis name, so two steps
-        # cannot silently overwrite each other's numbers.
+        # The headline step sets the packet's figures; every other step adds
+        # its own under its analysis name, so two steps cannot silently
+        # overwrite each other's numbers.
         if run.figures:
-            if not packet.figures:
+            if run is headline:
                 packet.figures.update(run.figures)
                 packet.period = run.step.period or packet.period
                 packet.comparison_period = (run.step.comparison_period
@@ -163,8 +193,15 @@ def build(question: str, request: Any, plan: plan_mod.Plan,
                 packet.filters = dict(run.step.filters or {})
             else:
                 packet.figures[run.step.analysis] = dict(run.figures)
-        if run.rows and not packet.rows:
+        if run.rows and run is headline:
             packet.rows = list(run.rows)
+    # A headline step that produced no rows of its own still deserves the
+    # supporting context: the ranking's names under a movement reading, say.
+    if not packet.rows:
+        for run in executed:
+            if run.rows:
+                packet.rows = list(run.rows)
+                break
 
     packet.coverage = dict(package.coverage)
     if not packet.period:
@@ -172,6 +209,24 @@ def build(question: str, request: Any, plan: plan_mod.Plan,
 
     _add_governed(packet)
     return packet
+
+
+def _headline(executed: list[ex.Executed], intent: str) -> Any:
+    """The run the answer is chiefly about.
+
+    The analysis the request asked for, if it ran and produced something.
+    Otherwise the first run that produced anything at all, which is what the
+    packet did before intent was carried — so a plan whose intent never ran
+    still gets an answer rather than an empty one.
+    """
+    useful = [r for r in executed if r.figures or r.pack is not None]
+    if not useful:
+        return executed[0] if executed else None
+    wanted = str(intent or "").strip().lower()
+    for run in useful:
+        if str(run.step.analysis).strip().lower() == wanted:
+            return run
+    return useful[0]
 
 
 def _add_governed(packet: ResultPacket) -> None:

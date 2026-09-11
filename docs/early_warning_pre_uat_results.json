@@ -1,0 +1,1630 @@
+{
+  "verdict": "NOT_READY_FOR_MANUAL_UAT",
+  "reasons": [
+    "No AI provider credential in this environment: every real-provider acceptance criterion is BLOCKED, not passed.",
+    "Three P1 defects remain open (P1-A external-intelligence layer constraint, P1-B band-transition analysis, and the P2 presentation set)."
+  ],
+  "branch": "claude/early-warning-rebuild-v2-3lnttn",
+  "commit_at_start": "c75b549",
+  "commit_at_report": "c75b549999f730bdf0f75e2456dd876dd747efe3",
+  "provider": {
+    "configured": false,
+    "detail": "ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN unset; no ant profile; ant CLI absent. Deterministic governed reader served every stage."
+  },
+  "dataset": {
+    "domain": "early_warning",
+    "grain": "customer_id x month_end",
+    "periods": 20,
+    "range": [
+      "2024-11",
+      "2026-06"
+    ],
+    "current": "2026-06",
+    "obligors": 300,
+    "borrower_month_rows": 6000,
+    "sectors": 17,
+    "methodology_version": "ews-v2.1.0"
+  },
+  "methodology_invariants": {
+    "signal_inventory_rows": 123,
+    "scored": 105,
+    "dropped_merged_replaced": 18,
+    "ta_role_signals": 77,
+    "c_role_signals": 46,
+    "active_classifiers": 23,
+    "trigger_definitions": 67,
+    "accelerator_dimensions": {
+      "magnitude": 0.3,
+      "velocity": 0.2,
+      "persistence": 0.2,
+      "repetition": 0.1,
+      "corroboration": 0.2
+    },
+    "ta_layer_weights": {
+      "L1": 0.4,
+      "L2": 0.15,
+      "L3": 0.3,
+      "L4": 0.15
+    },
+    "classifier_layer_weights": {
+      "L2": 0.85,
+      "L4": 0.15
+    },
+    "net_notch_cap": 2,
+    "points_per_notch": 8,
+    "status": "PASS"
+  },
+  "rawabi_regression": {
+    "status": "PASS",
+    "final_ews": 56,
+    "band": "MEDIUM",
+    "anchor": 72,
+    "net_notches": -2
+  },
+  "data_coherence": {
+    "status": "PASS",
+    "assertions": 17,
+    "rows_checked": 6000,
+    "score_reconciliation": {
+      "matched_arithmetic": 4959,
+      "explained_by_override": 1041,
+      "unexplained": 0
+    }
+  },
+  "defects_fixed": [
+    {
+      "id": "P0-1",
+      "severity": "P0",
+      "title": "Headline followed execution order, not the question",
+      "detail": "ResultPacket.primary returned packs[0]; every population-first plan answered with the portfolio summary.",
+      "files": [
+        "backend/early_warning/conversation/packet.py",
+        "backend/early_warning/conversation/plan.py"
+      ]
+    },
+    {
+      "id": "P0-2",
+      "severity": "P0",
+      "title": "No composer for a ranking",
+      "detail": "Ranking rows existed in the packet and nothing wrote them.",
+      "files": [
+        "backend/early_warning/compose.py",
+        "backend/early_warning/conversation/execute.py",
+        "backend/early_warning/conversation/pipeline.py"
+      ]
+    },
+    {
+      "id": "P0-3",
+      "severity": "P0",
+      "title": "Movement blamed unpublished periods for an unsupported filter",
+      "detail": "contribution_by_layer returned None for any non-column filter; the caller printed 'One of those periods is not published'. Both were published.",
+      "files": [
+        "backend/early_warning/facts.py"
+      ]
+    },
+    {
+      "id": "P1-4",
+      "severity": "P1",
+      "title": "Grouping phrase over-captured ('sector for')",
+      "files": [
+        "backend/early_warning/conversation/normalise.py"
+      ]
+    },
+    {
+      "id": "P1-5",
+      "severity": "P1",
+      "title": "A band named in the question was not read as a filter",
+      "files": [
+        "backend/early_warning/conversation/normalise.py",
+        "backend/early_warning/conversation/plan.py"
+      ]
+    },
+    {
+      "id": "P1-6",
+      "severity": "P1",
+      "title": "The grouping step ignored filters",
+      "files": [
+        "backend/early_warning/facts.py",
+        "backend/early_warning/conversation/execute.py"
+      ]
+    },
+    {
+      "id": "P1-7",
+      "severity": "P1",
+      "title": "EWS band questions routed to Cockpit",
+      "files": [
+        "backend/early_warning/functionality.py"
+      ]
+    },
+    {
+      "id": "P1-8",
+      "severity": "P1",
+      "title": "'distribution by risk band' resolved to no grouping",
+      "files": [
+        "backend/early_warning/executable.py",
+        "backend/early_warning/conversation/normalise.py"
+      ]
+    },
+    {
+      "id": "P1-9",
+      "severity": "P1",
+      "title": "A bare band name resolved to classifier_band",
+      "files": [
+        "backend/early_warning/ask.py"
+      ]
+    },
+    {
+      "id": "P1-10",
+      "severity": "P1",
+      "title": "Four stage output allowances below a proven truncation level",
+      "detail": "summary 700->2000, pass_1 700->1500, pass_2 1200->1500, functionality 900->2000; MINIMUM_ALLOWANCE floor added.",
+      "files": [
+        "backend/early_warning/conversation/seam.py"
+      ]
+    }
+  ],
+  "defects_open": [
+    {
+      "id": "P1-A",
+      "severity": "P1",
+      "title": "'external intelligence' is not read as an L3 layer constraint",
+      "repro": "Which obligors currently have external-intelligence warning signals? -> generic high-risk ranking, requested_layer is None."
+    },
+    {
+      "id": "P1-B",
+      "severity": "P1",
+      "title": "No band-transition analysis",
+      "repro": "How many obligors changed risk band in the latest month? -> 20-month score movement. Oracle: 2 changed, 1 worse, 1 better, 298 unchanged."
+    },
+    {
+      "id": "P2-C",
+      "severity": "P2",
+      "title": "Band-distribution answer names no period and no population total"
+    },
+    {
+      "id": "P2-D",
+      "severity": "P2",
+      "title": "'across 1 obligors' pluralisation"
+    },
+    {
+      "id": "P2-E",
+      "severity": "P2",
+      "title": "Data realism: 10 distinct EWS scores, 169/300 at exactly 0.0, MEDIUM band empty",
+      "detail": "Engine is correct - the 5x5 anchor matrix plus integer notches quantises by construction, and Rawabi reproduces. A data-generation decision, not a code fix."
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "E01",
+      "question": "What is the current Early Warning distribution by risk band?",
+      "elapsed_s": 4.36,
+      "answered": true,
+      "scope": "level",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 1,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "Grouped by early warning band, the weakest is VERY_HIGH at 95.0 (very high) across 10 obligors and SAR 6.2bn.",
+      "interpretation": "The three weakest are VERY_HIGH at 95.0, HIGH at 60.0 and LOW at 22.3, together carrying SAR 23.0bn. The comparison worth making is not the ranking but whether each group's average reflects a common condition or one or two names: a group whose high-risk exposure sits in a minority of obligors is a single-name problem wearing a group's label.",
+      "checks": [
+        {
+          "what": "answered",
+          "pass": true,
+          "detail": "level"
+        },
+        {
+          "what": "current period stated",
+          "pass": false,
+          "detail": "periods named: set()"
+        },
+        {
+          "what": "obligor count reconciles",
+          "pass": false,
+          "detail": "expected 300 in prose"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": false,
+          "detail": [
+            "22.3",
+            "23.0"
+          ]
+        },
+        {
+          "what": "no EWS execution skipped",
+          "pass": true,
+          "detail": {
+            "model_calls": 0,
+            "sonnet_calls": 0,
+            "opus_calls": 0,
+            "executions": 1,
+            "repairs": 0,
+            "revisions": 0
+          }
+        }
+      ],
+      "pass": false,
+      "notes": "",
+      "scores": {
+        "accuracy": null,
+        "grounding": 0
+      },
+      "oracle": {
+        "period": "2026-06",
+        "obligors": 300,
+        "total_exposure": 118760.18,
+        "bands": {
+          "VERY_LOW": {
+            "obligors": 244,
+            "exposure": 95713.28
+          },
+          "LOW": {
+            "obligors": 4,
+            "exposure": 2805.25
+          },
+          "MEDIUM": {
+            "obligors": 0,
+            "exposure": 0.0
+          },
+          "HIGH": {
+            "obligors": 42,
+            "exposure": 14032.13
+          },
+          "VERY_HIGH": {
+            "obligors": 10,
+            "exposure": 6209.52
+          }
+        },
+        "high_plus_obligors": 52,
+        "high_plus_exposure": 20241.65
+      }
+    },
+    {
+      "id": "E02",
+      "question": "Which obligors are currently High or Very High?",
+      "elapsed_s": 1.21,
+      "answered": true,
+      "scope": "ranking",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 2,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "52 obligors in the corporate portfolio sit at high or above. The 10 largest by exposure are listed, led by Al Rabia Contracting 8 at 95.0 (very high) on SAR 3.7bn; the 10 together carry SAR 13.0bn.",
+      "interpretation": "They are ordered by exposure rather than by score: a very high score on a small line is a smaller problem than a high score on a large one, and the order a reader acts in follows the money. 4 of the 10 share L1.1 as their dominant sub-category, which is worth testing as a common condition before treating them as unrelated cases.",
+      "checks": [
+        {
+          "what": "answered",
+          "pass": true,
+          "detail": "ranking"
+        },
+        {
+          "what": "count reconciles",
+          "pass": true,
+          "detail": "expected 52"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": true,
+          "detail": []
+        },
+        {
+          "what": "returned names are real high-risk names",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "pass": true,
+      "notes": "",
+      "scores": {},
+      "oracle": {
+        "period": "2026-06",
+        "count": 52,
+        "exposure": 20241.65,
+        "names": [
+          {
+            "customer_id": "CORP-101102",
+            "customer_name": "Firdaus Ventures 3",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 445.37
+          },
+          {
+            "customer_id": "CORP-101195",
+            "customer_name": "Safwa Investment 2",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 285.29
+          },
+          {
+            "customer_id": "CORP-100721",
+            "customer_name": "Takamul Group 2",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 184.53
+          },
+          {
+            "customer_id": "CORP-100512",
+            "customer_name": "Gulf Contracting 2",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 9.4
+          },
+          {
+            "customer_id": "CORP-102241",
+            "customer_name": "Riyada Manufacturing 7",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 246.72
+          },
+          {
+            "customer_id": "CORP-101822",
+            "customer_name": "Al Faisal Enterprises 3",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 525.19
+          },
+          {
+            "customer_id": "CORP-103465",
+            "customer_name": "Al Rabia Contracting 8",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 3675.39
+          },
+          {
+            "customer_id": "CORP-103147",
+            "customer_name": "Safwa Investment 8",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 43.17
+          },
+          {
+            "customer_id": "CORP-102003",
+            "customer_name": "Al Rabia Trading 4",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 783.23
+          },
+          {
+            "customer_id": "CORP-101651",
+            "customer_name": "Tadawi Group 4",
+            "ews_score": 95.0,
+            "band": "VERY_HIGH",
+            "exposure": 11.23
+          },
+          {
+            "customer_id": "CORP-100274",
+            "customer_name": "Sahara Partners",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 25.43
+          },
+          {
+            "customer_id": "CORP-100180",
+            "customer_name": "Nakheel Investment",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 1008.76
+          },
+          {
+            "customer_id": "CORP-100796",
+            "customer_name": "Safwa Services 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 98.79
+          },
+          {
+            "customer_id": "CORP-100761",
+            "customer_name": "Firdaus Manufacturing",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 812.64
+          },
+          {
+            "customer_id": "CORP-100156",
+            "customer_name": "Zahra Enterprises",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 216.94
+          },
+          {
+            "customer_id": "CORP-100038",
+            "customer_name": "Mabani Industrial",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 313.25
+          },
+          {
+            "customer_id": "CORP-100550",
+            "customer_name": "Al Rabia Holding",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 90.51
+          },
+          {
+            "customer_id": "CORP-100552",
+            "customer_name": "Rawabi Investment 3",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 1269.25
+          },
+          {
+            "customer_id": "CORP-100367",
+            "customer_name": "Rawabi Group",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 33.21
+          },
+          {
+            "customer_id": "CORP-100355",
+            "customer_name": "Nakheel Logistics 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 119.52
+          },
+          {
+            "customer_id": "CORP-101329",
+            "customer_name": "Rawabi Ventures 4",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 135.39
+          },
+          {
+            "customer_id": "CORP-101266",
+            "customer_name": "Masar Logistics",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 86.73
+          },
+          {
+            "customer_id": "CORP-101212",
+            "customer_name": "Zahra Manufacturing 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 456.08
+          },
+          {
+            "customer_id": "CORP-101117",
+            "customer_name": "Peninsula Services 3",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 130.71
+          },
+          {
+            "customer_id": "CORP-100935",
+            "customer_name": "Al Rabia Resources",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 3.6
+          },
+          {
+            "customer_id": "CORP-100990",
+            "customer_name": "Al Rabia Manufacturing 3",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 201.05
+          },
+          {
+            "customer_id": "CORP-101545",
+            "customer_name": "Peninsula Services 6",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 156.39
+          },
+          {
+            "customer_id": "CORP-101448",
+            "customer_name": "Hijaz Group 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 78.3
+          },
+          {
+            "customer_id": "CORP-101592",
+            "customer_name": "Takamul Logistics 7",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 1086.61
+          },
+          {
+            "customer_id": "CORP-101588",
+            "customer_name": "Ithmar Development 4",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 20.68
+          },
+          {
+            "customer_id": "CORP-101662",
+            "customer_name": "Firdaus Projects 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 570.02
+          },
+          {
+            "customer_id": "CORP-101697",
+            "customer_name": "Al Nahda Holding 5",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 121.09
+          },
+          {
+            "customer_id": "CORP-101769",
+            "customer_name": "Riyada Manufacturing 5",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 64.77
+          },
+          {
+            "customer_id": "CORP-101583",
+            "customer_name": "Tadawi Partners 6",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 68.66
+          },
+          {
+            "customer_id": "CORP-101482",
+            "customer_name": "Andalus Partners 6",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 1136.56
+          },
+          {
+            "customer_id": "CORP-101455",
+            "customer_name": "Al Nahda Projects 3",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 139.07
+          },
+          {
+            "customer_id": "CORP-102056",
+            "customer_name": "Peninsula Trading 3",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 173.45
+          },
+          {
+            "customer_id": "CORP-102033",
+            "customer_name": "Shorouk Ventures 8",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 268.96
+          },
+          {
+            "customer_id": "CORP-101765",
+            "customer_name": "Tadawi Projects 3",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 85.19
+          },
+          {
+            "customer_id": "CORP-102072",
+            "customer_name": "Yamama Trading 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 21.2
+          },
+          {
+            "customer_id": "CORP-102342",
+            "customer_name": "Riyada Trading 6",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 128.07
+          },
+          {
+            "customer_id": "CORP-102391",
+            "customer_name": "Qasr Partners 4",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 258.66
+          },
+          {
+            "customer_id": "CORP-102113",
+            "customer_name": "Firdaus Development 4",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 995.17
+          },
+          {
+            "customer_id": "CORP-102176",
+            "customer_name": "Marafiq Development 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 1416.15
+          },
+          {
+            "customer_id": "CORP-102583",
+            "customer_name": "Shorouk Contracting 5",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 235.94
+          },
+          {
+            "customer_id": "CORP-102535",
+            "customer_name": "Wafra Resources 5",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 42.93
+          },
+          {
+            "customer_id": "CORP-102760",
+            "customer_name": "Hijaz Group 6",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 42.52
+          },
+          {
+            "customer_id": "CORP-102893",
+            "customer_name": "Gulf Partners 6",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 837.69
+          },
+          {
+            "customer_id": "CORP-103063",
+            "customer_name": "Rawabi Partners 8",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 112.67
+          },
+          {
+            "customer_id": "CORP-103017",
+            "customer_name": "Arabian Ventures 2",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 23.98
+          },
+          {
+            "customer_id": "CORP-103133",
+            "customer_name": "Zahra Enterprises 13",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 459.86
+          },
+          {
+            "customer_id": "CORP-103103",
+            "customer_name": "Gulf Holding 6",
+            "ews_score": 60.0,
+            "band": "HIGH",
+            "exposure": 485.68
+          }
+        ]
+      }
+    },
+    {
+      "id": "E03",
+      "question": "Show the 10 obligors whose Early Warning score has risen the most over the last 12 months.",
+      "elapsed_s": 1.06,
+      "answered": true,
+      "scope": "movement",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 2,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "The score moved -0.8 points between 2025-06 and 2026-06, from 71.5 to 70.7.",
+      "interpretation": "By layer: Layer 1, internal behavioural -5.07 and Layer 3, external intelligence +0.73. Layer 1, internal behavioural accounts for most of it, moving -12.7 at a published weight of 0.4.",
+      "checks": [
+        {
+          "what": "answered",
+          "pass": true,
+          "detail": "movement"
+        },
+        {
+          "what": "12-month window used",
+          "pass": true,
+          "detail": "expected 2025-06"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": false,
+          "detail": [
+            "-0.8",
+            "-5.07",
+            "-12.7"
+          ]
+        },
+        {
+          "what": "rows returned",
+          "pass": true,
+          "detail": 4
+        }
+      ],
+      "pass": false,
+      "notes": "",
+      "scores": {},
+      "oracle": {
+        "from_period": "2025-06",
+        "to_period": "2026-06",
+        "months": 12,
+        "rows": [
+          {
+            "customer_id": "CORP-100512",
+            "customer_name": "Gulf Contracting 2",
+            "then": 8.0,
+            "now": 95.0,
+            "movement": 87.0,
+            "band": "VERY_HIGH"
+          },
+          {
+            "customer_id": "CORP-102003",
+            "customer_name": "Al Rabia Trading 4",
+            "then": 8.0,
+            "now": 95.0,
+            "movement": 87.0,
+            "band": "VERY_HIGH"
+          },
+          {
+            "customer_id": "CORP-101651",
+            "customer_name": "Tadawi Group 4",
+            "then": 16.0,
+            "now": 95.0,
+            "movement": 79.0,
+            "band": "VERY_HIGH"
+          },
+          {
+            "customer_id": "CORP-101102",
+            "customer_name": "Firdaus Ventures 3",
+            "then": 20.0,
+            "now": 95.0,
+            "movement": 75.0,
+            "band": "VERY_HIGH"
+          },
+          {
+            "customer_id": "CORP-103147",
+            "customer_name": "Safwa Investment 8",
+            "then": 24.0,
+            "now": 95.0,
+            "movement": 71.0,
+            "band": "VERY_HIGH"
+          },
+          {
+            "customer_id": "CORP-102760",
+            "customer_name": "Hijaz Group 6",
+            "then": 0.0,
+            "now": 60.0,
+            "movement": 60.0,
+            "band": "HIGH"
+          },
+          {
+            "customer_id": "CORP-101765",
+            "customer_name": "Tadawi Projects 3",
+            "then": 0.0,
+            "now": 60.0,
+            "movement": 60.0,
+            "band": "HIGH"
+          },
+          {
+            "customer_id": "CORP-100990",
+            "customer_name": "Al Rabia Manufacturing 3",
+            "then": 0.0,
+            "now": 60.0,
+            "movement": 60.0,
+            "band": "HIGH"
+          },
+          {
+            "customer_id": "CORP-100355",
+            "customer_name": "Nakheel Logistics 2",
+            "then": 0.0,
+            "now": 60.0,
+            "movement": 60.0,
+            "band": "HIGH"
+          },
+          {
+            "customer_id": "CORP-100761",
+            "customer_name": "Firdaus Manufacturing",
+            "then": 4.0,
+            "now": 60.0,
+            "movement": 56.0,
+            "band": "HIGH"
+          }
+        ]
+      }
+    },
+    {
+      "id": "E04",
+      "question": "Which sectors currently have the highest Early Warning risk?",
+      "elapsed_s": 0.32,
+      "answered": true,
+      "scope": "level",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 1,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "Grouped by sector, the weakest is Government-Related Entities at 95.0 (very high) across 1 obligors and SAR 3.7bn.",
+      "interpretation": "The three weakest are Government-Related Entities at 95.0, Hospitality & Tourism at 86.5 and Financial Services at 84.2, together carrying SAR 4.3bn. The comparison worth making is not the ranking but whether each group's average reflects a common condition or one or two names: a group whose high-risk exposure sits in a minority of obligors is a single-name problem wearing a group's label.",
+      "checks": [
+        {
+          "what": "answered",
+          "pass": true,
+          "detail": "level"
+        },
+        {
+          "what": "names the measure it ranked by",
+          "pass": true,
+          "detail": "no measure named"
+        },
+        {
+          "what": "top sector is a real top sector",
+          "pass": true,
+          "detail": "expected 'Contracting' (mean) or 'Government-Related Entities' (high+ exposure)"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "pass": true,
+      "notes": "",
+      "scores": {},
+      "oracle": {
+        "period": "2026-06",
+        "by_mean_score": [
+          {
+            "sector": "Contracting",
+            "mean_ews": 28.83
+          },
+          {
+            "sector": "Shipping",
+            "mean_ews": 27.62
+          },
+          {
+            "sector": "Hospitality & Tourism",
+            "mean_ews": 27.17
+          },
+          {
+            "sector": "Wholesale & Retail Trade",
+            "mean_ews": 21.85
+          },
+          {
+            "sector": "Real Estate",
+            "mean_ews": 20.91
+          },
+          {
+            "sector": "Mining & Metals",
+            "mean_ews": 15.56
+          },
+          {
+            "sector": "Financial Services",
+            "mean_ews": 14.69
+          },
+          {
+            "sector": "Manufacturing",
+            "mean_ews": 10.32
+          },
+          {
+            "sector": "Government-Related Entities",
+            "mean_ews": 7.69
+          },
+          {
+            "sector": "Agriculture & Food",
+            "mean_ews": 7.47
+          },
+          {
+            "sector": "Petrochemicals",
+            "mean_ews": 6.86
+          },
+          {
+            "sector": "Telecommunications",
+            "mean_ews": 6.0
+          },
+          {
+            "sector": "Oil & Gas",
+            "mean_ews": 5.6
+          },
+          {
+            "sector": "Transport & Logistics",
+            "mean_ews": 3.75
+          },
+          {
+            "sector": "Utilities",
+            "mean_ews": 3.14
+          },
+          {
+            "sector": "Healthcare",
+            "mean_ews": 1.41
+          },
+          {
+            "sector": "Education",
+            "mean_ews": 1.33
+          }
+        ],
+        "by_exposure_weighted_score": [
+          {
+            "sector": "Shipping",
+            "weighted_ews": 35.66
+          },
+          {
+            "sector": "Contracting",
+            "weighted_ews": 33.21
+          },
+          {
+            "sector": "Government-Related Entities",
+            "weighted_ews": 30.73
+          },
+          {
+            "sector": "Wholesale & Retail Trade",
+            "weighted_ews": 26.66
+          },
+          {
+            "sector": "Financial Services",
+            "weighted_ews": 22.83
+          },
+          {
+            "sector": "Real Estate",
+            "weighted_ews": 21.57
+          },
+          {
+            "sector": "Mining & Metals",
+            "weighted_ews": 20.49
+          },
+          {
+            "sector": "Petrochemicals",
+            "weighted_ews": 11.44
+          },
+          {
+            "sector": "Manufacturing",
+            "weighted_ews": 10.93
+          },
+          {
+            "sector": "Hospitality & Tourism",
+            "weighted_ews": 8.7
+          },
+          {
+            "sector": "Agriculture & Food",
+            "weighted_ews": 5.75
+          },
+          {
+            "sector": "Utilities",
+            "weighted_ews": 3.11
+          },
+          {
+            "sector": "Oil & Gas",
+            "weighted_ews": 2.28
+          },
+          {
+            "sector": "Transport & Logistics",
+            "weighted_ews": 1.92
+          },
+          {
+            "sector": "Education",
+            "weighted_ews": 1.76
+          },
+          {
+            "sector": "Telecommunications",
+            "weighted_ews": 1.14
+          },
+          {
+            "sector": "Healthcare",
+            "weighted_ews": 0.69
+          }
+        ],
+        "by_high_plus_exposure": [
+          {
+            "sector": "Government-Related Entities",
+            "exposure": 3675.39
+          },
+          {
+            "sector": "Real Estate",
+            "exposure": 3350.4
+          },
+          {
+            "sector": "Wholesale & Retail Trade",
+            "exposure": 3191.68
+          },
+          {
+            "sector": "Contracting",
+            "exposure": 2976.72
+          },
+          {
+            "sector": "Petrochemicals",
+            "exposure": 1974.25
+          },
+          {
+            "sector": "Shipping",
+            "exposure": 1889.0
+          },
+          {
+            "sector": "Manufacturing",
+            "exposure": 1239.68
+          },
+          {
+            "sector": "Mining & Metals",
+            "exposure": 994.83
+          },
+          {
+            "sector": "Financial Services",
+            "exposure": 644.76
+          },
+          {
+            "sector": "Oil & Gas",
+            "exposure": 128.07
+          },
+          {
+            "sector": "Telecommunications",
+            "exposure": 119.52
+          },
+          {
+            "sector": "Agriculture & Food",
+            "exposure": 42.52
+          },
+          {
+            "sector": "Hospitality & Tourism",
+            "exposure": 14.83
+          }
+        ],
+        "obligors_per_sector": {
+          "Agriculture & Food": 15,
+          "Contracting": 30,
+          "Education": 3,
+          "Financial Services": 16,
+          "Government-Related Entities": 16,
+          "Healthcare": 17,
+          "Hospitality & Tourism": 6,
+          "Manufacturing": 31,
+          "Mining & Metals": 16,
+          "Oil & Gas": 15,
+          "Petrochemicals": 21,
+          "Real Estate": 33,
+          "Shipping": 13,
+          "Telecommunications": 12,
+          "Transport & Logistics": 16,
+          "Utilities": 14,
+          "Wholesale & Retail Trade": 26
+        }
+      }
+    },
+    {
+      "id": "E05",
+      "question": "Which obligors currently have external-intelligence warning signals?",
+      "elapsed_s": 1.32,
+      "answered": true,
+      "scope": "ranking",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 2,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "52 obligors in the corporate portfolio sit at high or above. The 10 largest by exposure are listed, led by Al Rabia Contracting 8 at 95.0 (very high) on SAR 3.7bn; the 10 together carry SAR 13.0bn.",
+      "interpretation": "They are ordered by exposure rather than by score: a very high score on a small line is a smaller problem than a high score on a large one, and the order a reader acts in follows the money. 4 of the 10 share L1.1 as their dominant sub-category, which is worth testing as a common condition before treating them as unrelated cases.",
+      "checks": [
+        {
+          "what": "answered or stated a limitation",
+          "pass": true,
+          "detail": "ranking"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": false,
+          "detail": [
+            "995.2",
+            "837.7",
+            "812.6",
+            "783.2"
+          ]
+        },
+        {
+          "what": "did not silently use total EWS as L3",
+          "pass": false,
+          "detail": "no external-intelligence language"
+        }
+      ],
+      "pass": false,
+      "notes": "",
+      "scores": {},
+      "oracle": {
+        "note": "L3 external intelligence; oracle checks layer scores only",
+        "l3_positive_count": 17,
+        "l3_names": [
+          "Firdaus Development 6",
+          "Firdaus Resources 5",
+          "Gulf Enterprises 2",
+          "Hijaz Holding 4",
+          "Mabani Projects 4",
+          "Marafiq Development 2",
+          "Masar Resources",
+          "Nakheel Investment",
+          "Peninsula Projects 7",
+          "Qasr Services 6",
+          "Rawabi Enterprises 6",
+          "Rawabi Resources 6",
+          "Safwa Group 13",
+          "Tamimi Partners 6",
+          "Zahra Enterprises",
+          "Zahra Enterprises 13",
+          "Zahra Manufacturing 2"
+        ]
+      }
+    },
+    {
+      "id": "E06",
+      "question": "Which sectors have the highest external-intelligence score?",
+      "elapsed_s": 0.34,
+      "answered": true,
+      "scope": "level",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 1,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "Grouped by sector, the weakest is Government-Related Entities at 95.0 (very high) across 1 obligors and SAR 3.7bn.",
+      "interpretation": "The three weakest are Government-Related Entities at 95.0, Hospitality & Tourism at 86.5 and Financial Services at 84.2, together carrying SAR 4.3bn. The comparison worth making is not the ranking but whether each group's average reflects a common condition or one or two names: a group whose high-risk exposure sits in a minority of obligors is a single-name problem wearing a group's label.",
+      "checks": [
+        {
+          "what": "answered or stated a limitation",
+          "pass": true,
+          "detail": "level"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": false,
+          "detail": [
+            "86.5",
+            "20.2"
+          ]
+        }
+      ],
+      "pass": false,
+      "notes": "",
+      "scores": {},
+      "oracle": {
+        "mean_l3_by_sector": {
+          "Agriculture & Food": 0.0,
+          "Contracting": 0.42,
+          "Education": 0.0,
+          "Financial Services": 0.0,
+          "Government-Related Entities": 0.0,
+          "Healthcare": 0.378,
+          "Hospitality & Tourism": 0.0,
+          "Manufacturing": 0.685,
+          "Mining & Metals": 0.0,
+          "Oil & Gas": 1.4,
+          "Petrochemicals": 0.211,
+          "Real Estate": 1.302,
+          "Shipping": 0.0,
+          "Telecommunications": 0.0,
+          "Transport & Logistics": 0.0,
+          "Utilities": 0.0,
+          "Wholesale & Retail Trade": 2.707
+        },
+        "top": "Wholesale & Retail Trade"
+      }
+    },
+    {
+      "id": "E07",
+      "question": "Show exposure by sector for obligors at High or Very High.",
+      "elapsed_s": 0.33,
+      "answered": true,
+      "scope": "level",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 1,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "Grouped by sector, the weakest is Government-Related Entities at 95.0 (very high) across 1 obligors and SAR 3.7bn.",
+      "interpretation": "The three weakest are Government-Related Entities at 95.0, Hospitality & Tourism at 86.5 and Financial Services at 84.2, together carrying SAR 4.3bn. The comparison worth making is not the ranking but whether each group's average reflects a common condition or one or two names: a group whose high-risk exposure sits in a minority of obligors is a single-name problem wearing a group's label.",
+      "checks": [
+        {
+          "what": "answered",
+          "pass": true,
+          "detail": "level"
+        },
+        {
+          "what": "band filter honoured",
+          "pass": true,
+          "detail": "expected 52 high+ obligors"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": true,
+          "detail": []
+        }
+      ],
+      "pass": true,
+      "notes": "",
+      "scores": {},
+      "oracle": {
+        "period": "2026-06",
+        "total_obligors": 52,
+        "total_exposure": 20241.65,
+        "rows": [
+          {
+            "sector": "Government-Related Entities",
+            "obligors": 1,
+            "exposure": 3675.39
+          },
+          {
+            "sector": "Real Estate",
+            "obligors": 9,
+            "exposure": 3350.4
+          },
+          {
+            "sector": "Wholesale & Retail Trade",
+            "obligors": 9,
+            "exposure": 3191.68
+          },
+          {
+            "sector": "Contracting",
+            "obligors": 11,
+            "exposure": 2976.72
+          },
+          {
+            "sector": "Petrochemicals",
+            "obligors": 2,
+            "exposure": 1974.25
+          },
+          {
+            "sector": "Shipping",
+            "obligors": 5,
+            "exposure": 1889.0
+          },
+          {
+            "sector": "Manufacturing",
+            "obligors": 4,
+            "exposure": 1239.68
+          },
+          {
+            "sector": "Mining & Metals",
+            "obligors": 3,
+            "exposure": 994.83
+          },
+          {
+            "sector": "Financial Services",
+            "obligors": 3,
+            "exposure": 644.76
+          },
+          {
+            "sector": "Oil & Gas",
+            "obligors": 1,
+            "exposure": 128.07
+          },
+          {
+            "sector": "Telecommunications",
+            "obligors": 1,
+            "exposure": 119.52
+          },
+          {
+            "sector": "Agriculture & Food",
+            "obligors": 1,
+            "exposure": 42.52
+          },
+          {
+            "sector": "Hospitality & Tourism",
+            "obligors": 2,
+            "exposure": 14.83
+          }
+        ]
+      }
+    },
+    {
+      "id": "E08",
+      "question": "How many obligors changed risk band in the latest month?",
+      "elapsed_s": 1.07,
+      "answered": true,
+      "scope": "movement",
+      "redirected": false,
+      "selected": "early_warning",
+      "executions": 2,
+      "model_calls": 0,
+      "stages": [
+        "request_started",
+        "stage_started",
+        "sonnet_pass_1",
+        "stage_started",
+        "sonnet_pass_2",
+        "stage_started",
+        "ews_context_built",
+        "stage_started",
+        "opus_functionality_selection",
+        "stage_started",
+        "opus_analysis_plan",
+        "stage_started",
+        "validation",
+        "stage_started",
+        "execution_step",
+        "execution_step",
+        "execution",
+        "result_packet",
+        "stage_started",
+        "opus_sufficiency_review",
+        "stage_started",
+        "opus_final_interpretation",
+        "stage_started",
+        "sonnet_summary_update",
+        "thread_persisted"
+      ],
+      "direct": "The score moved -0.7 points between 2024-11 and 2026-06, from 71.4 to 70.7.",
+      "interpretation": "By layer: Layer 1, internal behavioural -3.27 and Layer 3, external intelligence +0.47. Layer 1, internal behavioural accounts for most of it, moving -8.2 at a published weight of 0.4.",
+      "checks": [
+        {
+          "what": "answered",
+          "pass": true,
+          "detail": "movement"
+        },
+        {
+          "what": "transition count reconciles",
+          "pass": true,
+          "detail": "expected 2 changed"
+        },
+        {
+          "what": "compares the last two published months",
+          "pass": true,
+          "detail": "expected 2026-05 / 2026-06"
+        },
+        {
+          "what": "no ungrounded figure",
+          "pass": false,
+          "detail": [
+            "-0.7",
+            "-3.27",
+            "-8.2"
+          ]
+        }
+      ],
+      "pass": false,
+      "notes": "",
+      "scores": {},
+      "oracle": {
+        "from_period": "2026-05",
+        "to_period": "2026-06",
+        "changed": 2,
+        "deteriorated": 1,
+        "improved": 1,
+        "unchanged": 298,
+        "moves": [
+          {
+            "customer_id": "CORP-101848",
+            "customer_name": "Rawabi Resources 6",
+            "from": "VERY_LOW",
+            "to": "LOW"
+          },
+          {
+            "customer_id": "CORP-103444",
+            "customer_name": "Mabani Projects 12",
+            "from": "LOW",
+            "to": "VERY_LOW"
+          }
+        ]
+      }
+    }
+  ],
+  "verified": [
+    "methodology invariants",
+    "Rawabi regression",
+    "data coherence",
+    "E01 band distribution",
+    "E02 high/very high list",
+    "E04 sector ranking",
+    "E07 exposure by sector high+",
+    "cross-product routing 9/9",
+    "What-If zero EWS executions",
+    "movement decomposition",
+    "Contracting 6-month premise challenge",
+    "browser UI desktop and 390px"
+  ],
+  "not_verified": [
+    "Levels 2-5 beyond the above",
+    "thread chain 1",
+    "thread chain 2",
+    "clarification",
+    "noisy and mixed-language input",
+    "messaging",
+    "escalation",
+    "investigations",
+    "reports and exports",
+    "navigation and history",
+    "ten adversarial variants",
+    "performance timings"
+  ],
+  "blocked": [
+    "all real-provider acceptance criteria (no credential in this environment)"
+  ],
+  "evidence": {
+    "screenshots": "docs/evidence/pre-uat/",
+    "report": "docs/EARLY_WARNING_PRE_UAT_REPORT.md",
+    "tests": [
+      "tests/early_warning/test_data_coherence.py",
+      "tests/early_warning/test_answer_addresses_the_question.py",
+      "tests/early_warning/test_output_allowances_floor.py"
+    ]
+  },
+  "regression": {
+    "backend": {
+      "failed": 22,
+      "passed": 10428,
+      "skipped": 25,
+      "errors": 0,
+      "baseline_failed": 22,
+      "baseline_passed": 10368,
+      "failing_identifiers": "identical to baseline, line for line",
+      "none_in": "tests/early_warning/"
+    },
+    "frontend": {
+      "tests": 429,
+      "passed": 429,
+      "failed": 0
+    },
+    "typecheck": "clean",
+    "lint": "clean",
+    "production_build": "clean"
+  }
+}

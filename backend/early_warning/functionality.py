@@ -92,7 +92,22 @@ CATALOGUE: tuple[Functionality, ...] = (
             (r"why (is|are|has|have|did).*(flag|score|deteriorat|mov|ris|f[ae]ll)", 2.0),
             (r"\bevidence\b|\bcorroborat\w*", 1.5),
             (r"escalat\w*|remediat\w*|what should i do", 2.0),
-            (r"high risk|very high|severity band", 1.5),
+            (r"high risk|severity band", 1.5),
+            # The BAND NAMES, weighted to beat a generic portfolio phrase.
+            #
+            # "Show exposure by sector for obligors at High or Very High" was
+            # routed to the Cockpit, because "exposure by" scored 2.5 there
+            # and the band vocabulary scored 1.5 here. But High and Very High
+            # are Early Warning's own output: no other product in CreditProbe
+            # assigns an obligor to a severity band, so a question that
+            # filters on one is asking this product for its population,
+            # whatever measure it then wants summed.
+            #
+            # Deliberately the band NAMES rather than the word "high": "a very
+            # high exposure" is not a band, and "Stage 2 exposure by sector"
+            # carries none of these and still belongs to the Cockpit.
+            (r"\b(?:high or very high|very high or high|high or above|"
+             r"high and very high|high\+|very high)\b", 2.5),
             (r"driver|driving|dominant", 1.5),
             (r"\bcure\b|\bdecay\b|persistence hold", 2.5),
         ),

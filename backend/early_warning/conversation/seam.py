@@ -117,7 +117,12 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Return the same question in clean English. Correct spelling, "
             "transcription noise and translation only. Resolve nothing."),
-        max_tokens=700),
+        # 700 was below the level a thinking-by-default model has
+        # already been observed to truncate at. Sonnet 5 runs adaptive
+        # thinking when the request omits `thinking` — which this seam does —
+        # so the corrected sentence shares its allowance with the reasoning
+        # that produced it, exactly as the two Opus stages did.
+        max_tokens=1500),
     PASS_2: Stage(
         key=PASS_2, family=SONNET, role="router",
         purpose="early_warning_request",
@@ -125,7 +130,11 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Say what is being asked: which parts, over what scope, for which "
             "period, and what remains genuinely unclear."),
-        max_tokens=1200),
+        # Raised with pass one, and for the same reason. This document is the
+        # LARGER of the two — subquestions, requested analyses, scope, two
+        # periods, ambiguities — so an allowance below pass one's would be the
+        # wrong way round.
+        max_tokens=1500),
     FUNCTIONALITY: Stage(
         key=FUNCTIONALITY, family=OPUS, role="complex_planner",
         purpose="early_warning_functionality",
@@ -133,7 +142,12 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Decide which CreditProbe functionality owns this request, before "
             "any analysis is planned."),
-        max_tokens=900),
+        # 900 sat BELOW the 1,000 that demonstrably truncated the
+        # sufficiency review on the same model family. The gate decides who
+        # owns the question, so a stage that falls back here is a stage that
+        # decides ownership deterministically — which is the one decision
+        # this architecture most wants a model to make well.
+        max_tokens=2000),
     PLAN: Stage(
         key=PLAN, family=OPUS, role="complex_planner",
         purpose="early_warning_plan",
@@ -187,17 +201,32 @@ STAGES: dict[str, Stage] = {
         tool_description=(
             "Update the rolling analytical summary of this thread from the "
             "answer that was actually supported."),
-        max_tokens=700, closing=True),
+        # 700 truncated a live claude-sonnet-5 summary. The document is three
+        # short lines, a list of what is still open and up to four follow-up
+        # questions — a couple of hundred tokens — but Sonnet 5 runs adaptive
+        # thinking when the request omits `thinking`, and those tokens come
+        # out of this same ceiling.
+        #
+        # Losing this stage is quiet and expensive: the summary is what lets
+        # the NEXT turn resolve "it", so a thread whose summary fell back
+        # keeps answering, and keeps answering slightly the wrong question.
+        max_tokens=2000, closing=True),
 }
 
 
 #: Why the two Opus stages have the allowances they do.
 #:
-#: A `max_tokens` ceiling is not a budget for the document. On Opus 5
-#: adaptive thinking is ON by default and its tokens come out of the SAME
-#: allowance, so a stage whose JSON is two hundred tokens can still be cut
-#: off at a thousand — which is exactly what a live run did, on a review and
-#: a reading that were both well formed and both thrown away.
+#: A `max_tokens` ceiling is not a budget for the document. On Opus 5 AND on
+#: Sonnet 5 adaptive thinking is ON whenever the request omits `thinking` —
+#: which this seam does — and those tokens come out of the SAME allowance. So
+#: a stage whose JSON is two hundred tokens can still be cut off at a
+#: thousand, which is exactly what live runs did: on an Opus review, an Opus
+#: reading and a Sonnet summary that were all well formed and all thrown away.
+#:
+#: The floor below exists because that lesson kept being relearned one stage
+#: at a time. `opus_sufficiency_review` truncated at 1,000 and was raised;
+#: `opus_functionality_selection` was then left sitting at 900, below a level
+#: already proven to fail on the same model. A number, not a memory.
 #:
 #: So each ceiling is the document plus room to think, and each is set per
 #: stage rather than raised globally: pass one is a corrected sentence and
@@ -208,6 +237,16 @@ STAGES: dict[str, Stage] = {
 #: below and says nothing about it from above; the schemas are now bounded
 #: (`maxItems`, `maxLength`) and the prompts say how short to be, so the
 #: document itself is smaller than it was when it did not fit.
+#: No stage may be given less than this.
+#:
+#: 1,000 is the largest allowance any stage has been OBSERVED to truncate at,
+#: so anything at or below it is known-unsafe rather than merely untested.
+#: 1,500 is that bound with room above it. This is a floor, not a target: a
+#: stage still gets the allowance its own document needs, and the test beside
+#: this asserts the floor holds so the next stage added cannot quietly sit
+#: under it.
+MINIMUM_ALLOWANCE = 1500
+
 _ALLOWANCE_NOTE = (
     "Per-stage output allowances. On Opus 5 thinking shares max_tokens with "
     "the answer, so each ceiling covers the document and the reasoning that "
@@ -584,6 +623,7 @@ def _settle(ledger: budget_mod.Ledger | None, stage: Stage,
 
 __all__ = ["DETERMINISTIC", "FUNCTIONALITY", "INTERPRETATION", "MODEL",
            "OPUS", "Outcome", "PASS_1", "PASS_2", "PLAN", "REPAIR", "SONNET",
+           "MINIMUM_ALLOWANCE",
            "STAGES", "SUFFICIENCY", "SUMMARY", "Stage", "call", "family_of",
            "provider_available", "routing"]
 

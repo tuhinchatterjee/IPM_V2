@@ -139,6 +139,19 @@ GROUPING_ALIASES: dict[str, str] = {
     "utilisation": "utilisation_band",
     "utilisation_pct": "utilisation_band",
     "usage": "utilisation_band",
+    # The severity band as a reader NAMES it, where `FIELD_ALIASES` below
+    # does not already have the spelling. "Distribution by risk band" is the
+    # first question anybody asks of this product, and "risk band" resolved to
+    # nothing — so the grouping was dropped and the question was answered at
+    # population level, without the five band counts it asked for.
+    #
+    # Only the spellings the field map does not already carry: "band",
+    # "severity" and "severity_band" are there, and repeating them here would
+    # put one capability in two registries, which is the thing this module
+    # exists to stop.
+    "risk_band": "ews_band",
+    "ews_score_band": "ews_band",
+    "credit_band": "ews_band",
 }
 
 #: The roles a field can be used in. Named because the answer differs by

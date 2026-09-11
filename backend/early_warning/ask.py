@@ -325,12 +325,30 @@ def resolve_level(question: str) -> str | None:
     return found[1] if found else None
 
 
+#: Which field wins when the same value names several.
+#:
+#: "MEDIUM" is a value of `ews_band`, `ta_band` AND `classifier_band`, and the
+#: longest-token rule cannot separate them — so the winner was whichever field
+#: the level registry happened to list first, which was the classifier band.
+#: "Show me the Medium risk names" then filtered on a band the reader had not
+#: asked about and the product does not headline.
+#:
+#: A reader who says a band without qualifying it means the Early Warning
+#: band. Where they DO qualify it — "the Medium T&A names" — the longer token
+#: on the qualified field still wins, because that rule is checked first.
+_FIELD_PREFERENCE: dict[str, int] = {
+    "ews_band": 3,
+    "sector": 2, "segment": 2, "region": 2, "internal_rating": 2,
+    "ta_band": 1, "classifier_band": 1,
+}
+
+
 def resolve_group(question: str, period: str | None = None
                    ) -> tuple[str, str] | None:
     """Find a named group — a segment, a grade, a region — in the question."""
     bm = ff._with_derived(svc.borrower_month(period))
     asked = _norm(question)
-    best: tuple[int, str, str] | None = None
+    best: tuple[int, int, str, str] | None = None
     for field_name in ff.LEVEL_FIELDS:
         if field_name not in bm.columns:
             continue
@@ -339,9 +357,10 @@ def resolve_group(question: str, period: str | None = None
             if not token or len(token) < 3:
                 continue
             if re.search(rf"\b{re.escape(token)}\b", asked):
-                if best is None or len(token) > best[0]:
-                    best = (len(token), field_name, str(value))
-    return (best[1], best[2]) if best else None
+                rank = (len(token), _FIELD_PREFERENCE.get(field_name, 0))
+                if best is None or rank > (best[0], best[1]):
+                    best = (rank[0], rank[1], field_name, str(value))
+    return (best[2], best[3]) if best else None
 
 
 def resolve_layer(question: str) -> str | None:

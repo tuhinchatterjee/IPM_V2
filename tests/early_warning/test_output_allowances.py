@@ -156,18 +156,29 @@ def test_the_two_stages_that_truncated_have_room_now():
 
 
 def test_no_other_stage_was_raised():
-    """Not a global ceiling lift. Pass one is a corrected sentence."""
+    """Not a global ceiling lift.
+
+    These two were sized on their own documents and have never truncated, so
+    a change that simply set every stage to one number fails here.
+
+    The four stages this test used to pin at 700/1200/900/700 have since been
+    raised, on their own evidence rather than as collateral: Sonnet 5 also
+    runs adaptive thinking when the request omits `thinking`, so the two
+    Sonnet stages shared the defect the Opus ones had, and the ownership gate
+    was left sitting at 900 — BELOW the 1,000 that had already been proven to
+    truncate on the same family. `test_output_allowances_floor.py` holds that
+    line now, with a floor rather than a list of numbers, so the next stage
+    added cannot quietly slip under it.
+    """
     unchanged = {
-        seam_mod.PASS_1: 700,
-        seam_mod.PASS_2: 1200,
-        seam_mod.FUNCTIONALITY: 900,
         seam_mod.PLAN: 4000,
         seam_mod.REPAIR: 2500,
-        seam_mod.SUMMARY: 700,
     }
     for key, expected in unchanged.items():
         assert seam_mod.STAGES[key].max_tokens == expected, (
             f"{key} was raised as collateral")
+    # And the raise was not a levelling: the allowances are still distinct.
+    assert len({s.max_tokens for s in seam_mod.STAGES.values()}) >= 4
 
 
 def test_every_allowance_is_stage_specific():

@@ -790,9 +790,14 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
     # A reader who asked "which names drive it?" needs the names. The
     # ranking step returned them; without this they sit in the packet while
     # the answer restates the population the reader was already looking at.
-    ranked = _ranked_obligors(packet)
-    if ranked:
-        points.insert(0, ranked)
+    #
+    # Not when the reading IS the ranking, though. This line predates the
+    # ranking composer and was the patch for its absence — keeping both
+    # prints the names twice, once as a sentence and once as a list.
+    if pack.scope != "ranking":
+        ranked = _ranked_obligors(packet)
+        if ranked:
+            points.insert(0, ranked)
 
     out = {
         "answered": True,

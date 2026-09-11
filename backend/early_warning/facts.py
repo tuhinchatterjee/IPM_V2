@@ -341,11 +341,16 @@ def contribution_by_layer(from_period: str, to_period: str,
     if start.empty or end.empty:
         return None
     if where:
-        for column, value in where.items():
-            if column not in start.columns:
-                return None
-            start = start[start[column].astype(str) == str(value)]
-            end = end[end[column].astype(str) == str(value)]
+        # The same narrowing every other scope uses, so a filter this
+        # function does not store as a column — `high_plus` is derived — is
+        # applied rather than treated as a missing period.
+        #
+        # It used to `return None` for any column it did not recognise, and
+        # the caller then told the reader "one of those periods is not
+        # published". Both periods were published. A thread that had asked
+        # about High and Very High obligors carried that filter into the next
+        # question, and the answer blamed the data.
+        start, end = _narrow(start, where), _narrow(end, where)
     if start.empty or end.empty:
         return None
 
@@ -530,17 +535,54 @@ def portfolio(period: str | None = None) -> FactPack:
     )
 
 
-def level(field_name: str, period: str | None = None) -> FactPack:
+def _narrow(frame, only: dict[str, Any] | None):
+    """The slice a question asked for, applied to a borrower-month frame.
+
+    Unknown keys are ignored rather than raising: the validator has already
+    refused a field this domain does not have, and a filter that survives to
+    here and does not match a column is a filter on a derived flag that this
+    frame does not carry.
+    """
+    if not only:
+        return frame
+    out = frame
+    for key, value in only.items():
+        if key == "high_plus":
+            # Derived here rather than assumed: `_with_derived` adds the
+            # grouping columns, not the severity flag, so asking for a column
+            # that is not there would drop the filter silently — which is the
+            # defect this whole path exists to close.
+            if value and "ews_band" in out.columns:
+                bands = out["ews_band"].astype(str).str.upper().str.replace(
+                    " ", "_")
+                out = out[bands.isin(("HIGH", "VERY_HIGH"))]
+            continue
+        if key in out.columns:
+            out = out[out[key].astype(str).str.upper()
+                      == str(value).upper()] if out[key].dtype == object \
+                else out[out[key] == value]
+    return out
+
+
+def level(field_name: str, period: str | None = None, *,
+          only: dict[str, Any] | None = None) -> FactPack:
     """The book grouped by one field — segment, grade, stage, region, and so on.
 
     The grouping is not fixed to segment. Any attribute that partitions the
     book can become the level, which is what lets the same screen answer
     "how does this look by grade?" without a second screen existing.
+
+    `only` narrows the population BEFORE grouping, so "exposure by sector for
+    obligors at High or Very High" groups the high-risk names rather than the
+    whole book. Without it the filter in the question was silently dropped and
+    the answer described a wider population than the one that was asked about
+    — arithmetically right, and about a different question.
     """
     period = period or svc.latest_period()
     if field_name not in LEVEL_FIELDS:
         raise UnsupportedLevel(field_name)
     bm = _with_derived(svc.borrower_month(period))
+    bm = _narrow(bm, only)
     if field_name not in bm.columns:
         # The registry says this level exists and the frame does not have it.
         # That is a build or a derivation problem rather than a bad request,
@@ -750,6 +792,11 @@ def signal_evidence(customer_id: str, signal_key: str,
     )
 
 
+def _both_published(*periods: str) -> bool:
+    published = set(svc.periods())
+    return all(p in published for p in periods if p)
+
+
 def movement(period_from: str | None = None, period_to: str | None = None,
              where: dict[str, str] | None = None) -> FactPack:
     """What moved, and which layer accounts for it."""
@@ -759,8 +806,17 @@ def movement(period_from: str | None = None, period_to: str | None = None,
     found = contribution_by_layer(period_from, period_to, where=where)
     figures: dict[str, Any] = found or {
         "from_period": period_from, "to_period": period_to,
-        "unavailable": "One of those periods is not published, so the "
-                       "contribution cannot be decomposed.",
+        # Say which of the two things went wrong. "One of those periods is
+        # not published" was printed for an unpublished period AND for a
+        # population that the filter emptied, and a reader told the data is
+        # missing when their filter matched nobody goes looking in the wrong
+        # place.
+        "unavailable": (
+            "One of those periods is not published, so the contribution "
+            "cannot be decomposed."
+            if not _both_published(period_from, period_to) else
+            "No obligor matches that filter in both periods, so there is "
+            "nothing to decompose between them."),
     }
     return FactPack(
         scope="movement",

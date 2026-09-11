@@ -250,11 +250,17 @@ def _run(step: plan_mod.Step) -> Executed:
                                f"[{step.comparison_period} -> {step.period}]")
 
     if analysis == plan_mod.GROUPING:
-        pack = ff.level(step.group_by, step.period)
+        # The slice the question asked for is applied before the grouping,
+        # not after and not at all: "exposure by sector for obligors at High
+        # or Very High" is a cut of the high-risk population, not of the book.
+        only = dict(step.filters or {})
+        pack = ff.level(step.group_by, step.period, only=only or None)
+        where = ", ".join(f"{k}={v!r}" for k, v in only.items())
         return _done(step, started, figures=dict(pack.figures),
                      rows=list(pack.rows), grain="group_month", pack=pack,
                      statement=f"early_warning_borrower_month[{step.period}] "
-                               f"grouped by {step.group_by}")
+                               + (f"where {where} " if where else "")
+                               + f"grouped by {step.group_by}")
 
     frame = _frame(step)
     figures = _population_figures(frame)
@@ -281,9 +287,27 @@ def _run(step: plan_mod.Step) -> Executed:
     # answer to be led by whichever later step happened to produce one.
     where = ", ".join(f"{k}={v!r}" for k, v in (step.filters or {}).items())
     pack = _population_pack(step)
+    found = _rows(frame, step)
+
+    if step.analysis == plan_mod.RANKING and pack is not None:
+        # A ranking is about the NAMES, and until this existed it was not.
+        #
+        # The ranking step reuses the population frame, so it used to return
+        # the population's own pack — and the answer that came back to "which
+        # obligors are High or Very High?" was the portfolio's average score.
+        # The names were in the rows the whole time; nothing was written from
+        # them, because no pack said this reading was about them.
+        pack = ff.FactPack(
+            scope="ranking",
+            label=pack.label, period=pack.period,
+            figures={**dict(pack.figures), "named": len(found),
+                     "ordered_by": step.order_by or "exposure"},
+            rows=list(found),
+            provenance=list(pack.provenance), caveats=list(pack.caveats))
+
     return _done(step, started,
                  figures=dict(pack.figures) if pack else figures,
-                 rows=_rows(frame, step), grain="population_month", pack=pack,
+                 rows=found, grain="population_month", pack=pack,
                  statement=f"early_warning_borrower_month[{step.period}]"
                            + (f" where {where}" if where else ""))
 

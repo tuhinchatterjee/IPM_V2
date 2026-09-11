@@ -266,10 +266,17 @@ def _build_deterministic(request: Any,
     if "grouping" in analyses or grouping:
         resolved = _resolve_grouping(grouping, package)
         if resolved:
+            # A cut of the book still honours the slice the question asked
+            # for. Without the filters, "exposure by sector for obligors at
+            # High or Very High" was answered for every obligor in every
+            # sector — right arithmetic, different question, and nothing on
+            # screen to say the filter had been dropped.
+            cut = dict(_population_filters(inherited, scope))
             steps.append(Step(
                 analysis=GROUPING, period=period, group_by=resolved,
-                measures=list(BASE_MEASURES),
-                rationale=f"The question asks for the book cut by {resolved}."))
+                filters=cut, measures=list(BASE_MEASURES),
+                rationale=(f"The question asks for the book cut by {resolved}"
+                           + (f", within {cut}." if cut else "."))))
             return Plan(steps=steps, output_grain="group_month",
                         intent="grouping", notes=notes)
         notes.append(
@@ -325,20 +332,53 @@ def _build_deterministic(request: Any,
             rationale=("The question asks what the population has in common, "
                        "which is a partition rather than a count of the most "
                        "frequent driver.")))
+    # What the plan is ABOUT is the analysis that was asked for, not the one
+    # that happens to run first.
+    #
+    # The population step is scene-setting — its own rationale says so, "the
+    # ground every remaining reading stands on" — and it is prepended to every
+    # plan in this branch. Reporting `population` as the intent whenever it is
+    # present made a ranking request, a movement request and a concentration
+    # request all describe themselves as population requests, and the packet
+    # then wrote its headline from the population pack. The reader asked which
+    # obligors are High and was told the portfolio's average score.
+    answered = [step.analysis for step in steps if step.analysis != POPULATION]
     return Plan(steps=steps, output_grain="population_month",
-                intent=analysis or "population", notes=notes)
+                intent=analysis or (answered[0] if answered else POPULATION),
+                notes=notes)
 
 
 def _population_filters(inherited: dict[str, Any], scope: str
                          ) -> dict[str, Any]:
     """The slice of the book the question is about, from the screen."""
     out: dict[str, Any] = {}
+    # "High or Very High" is ONE filter said as two bands, and the executor
+    # already understands it under its own name.
+    #
+    # It wins over a single band value, because when both are present the
+    # single one is an artefact: the group resolver matched "Very High" out
+    # of the phrase "High or Very High" and recorded it as though the reader
+    # had asked for that band alone. Applying both would narrow the answer to
+    # the half of the filter that resolved.
+    if str(inherited.get("band") or "").lower() == "high_plus":
+        out["high_plus"] = True
+
     for key, column in (("segment", "segment"), ("sector", "sector"),
                         ("region", "region"),
                         ("internal_rating", "internal_rating"),
+                        # A single band resolved out of the question arrives
+                        # under its canonical column name, because the group
+                        # resolver checks it against the domain's own values.
+                        ("ews_band", "ews_band"),
                         ("band", "ews_band")):
         value = inherited.get(key)
-        if value:
+        if not value:
+            continue
+        if column == "ews_band":
+            if out.get("high_plus") or str(value).lower() == "high_plus":
+                continue
+            out["ews_band"] = value
+        else:
             out[column] = value
     del scope
     return out
