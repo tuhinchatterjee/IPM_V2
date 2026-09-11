@@ -74,7 +74,7 @@
           "testid": "attention-filter-SEGMENTS"
         },
         {
-          "label": "Borrowers0",
+          "label": "Customers0",
           "disabled": false,
           "testid": "attention-filter-BORROWERS"
         },
@@ -213,20 +213,20 @@
           "href": "/investigations"
         },
         {
-          "label": "Show exposure by retail product for August 2026 2",
-          "href": "/investigations/50"
+          "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
+          "href": "/investigations/125"
         },
         {
           "label": "Show exposure by retail product for August 2026 2",
-          "href": "/investigations/49"
+          "href": "/investigations/124"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 2",
+          "href": "/investigations/123"
         },
         {
           "label": "What data do you have in Retail facility month-end position? 2",
-          "href": "/investigations/48"
-        },
-        {
-          "label": "Show expected credit loss by IFRS 9 stage for August 2026 2",
-          "href": "/investigations/47"
+          "href": "/investigations/122"
         }
       ],
       "inputs": [
@@ -242,14 +242,14 @@
         "All0",
         "Portfolio0",
         "Segments0",
-        "Borrowers0",
+        "Customers0",
         "Data0"
       ],
       "details": [],
       "tables": 0,
       "empty_state": true,
       "refused": false,
-      "characters": 1401,
+      "characters": 1428,
       "opened": true,
       "url": "http://localhost:5328/",
       "console_errors": [],
@@ -424,24 +424,24 @@
           "href": "/investigations"
         },
         {
-          "label": "Show exposure by retail product for August 2026 6:45 AM",
-          "href": "/analysis/119"
+          "label": "Explain that result more simply. 7:46 AM",
+          "href": "/analysis/252"
         },
         {
-          "label": "Show exposure by retail product for August 2026 6:45 AM",
-          "href": "/analysis/118"
+          "label": "Assess the personal finance application scorecard on the latest fully observed c",
+          "href": "/analysis/251"
         },
         {
-          "label": "What data do you have in Retail facility month-end position? 6:45 AM",
-          "href": "/analysis/117"
+          "label": "Compare with July 2026 7:45 AM",
+          "href": "/analysis/250"
         },
         {
-          "label": "Show expected credit loss by IFRS 9 stage for August 2026 6:44 AM",
-          "href": "/analysis/116"
+          "label": "Now only personal finance 7:45 AM",
+          "href": "/analysis/249"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/analysis/115"
+          "href": "/analysis/248"
         }
       ],
       "inputs": [],
@@ -451,7 +451,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": false,
-      "characters": 1114,
+      "characters": 1068,
       "opened": true,
       "url": "http://localhost:5328/workspace",
       "console_errors": [],
@@ -1077,26 +1077,6 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: Show exposure by retail product for August 2026",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show exposure by retail product for August 2026",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: What data do you have in Retail facility month-end position?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show expected credit loss by IFRS 9 stage for August 2026",
-          "disabled": false,
-          "testid": ""
-        },
-        {
           "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
           "disabled": false,
           "testid": ""
@@ -1127,62 +1107,177 @@
           "testid": ""
         },
         {
+          "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for July 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026 where the pr",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Explain credit-card utilisation and show which customers wor",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Calculate the next-12-month Gini for applications originated",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Assess personal-finance application-scorecard discrimination",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show scorecard performance.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for July 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026 where the pr",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Explain credit-card utilisation and show which customers wor",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Calculate the next-12-month Gini for applications originated",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Assess personal-finance application-scorecard discrimination",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show scorecard performance.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Break that down by product",
+          "disabled": false,
+          "testid": ""
+        },
+        {
           "label": "Open investigation: Show exposure by retail product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Show exposure by retail product for August 2026",
+          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: What data do you have in Retail facility month-end position?",
+          "label": "Open investigation: How did expected credit loss move from July to August?",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Show expected credit loss by IFRS 9 stage for August 2026",
+          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
+          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Show expected credit loss by product for August 2026",
+          "label": "Open investigation: How did expected credit loss move from July to August?",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "label": "Open investigation: How has expected credit loss moved from July to August?",
           "disabled": false,
           "testid": ""
         },
@@ -1197,32 +1292,27 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "label": "Open investigation: How did expected credit loss move from July to August for pe",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show exposure by retail product for August 2026.",
+          "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
           "disabled": false,
           "testid": ""
         },
@@ -1232,97 +1322,7 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: How many customers are in each retail product at August 2026",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
           "disabled": false,
           "testid": ""
         }
@@ -1448,7 +1448,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": true,
-      "characters": 12434,
+      "characters": 11645,
       "opened": true,
       "url": "http://localhost:5328/investigations",
       "console_errors": [],
@@ -2585,7 +2585,82 @@
         {
           "label": "Reopen",
           "disabled": false,
+          "testid": "retail-whatif-reopen-8"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-8"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-8"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-8"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-7"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-7"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-7"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-7"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-5"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-5"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-5"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-5"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
           "testid": "retail-whatif-reopen-3"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-3"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-3"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-3"
         },
         {
           "label": "Reopen",
@@ -2593,9 +2668,39 @@
           "testid": "retail-whatif-reopen-2"
         },
         {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-2"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-2"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-2"
+        },
+        {
           "label": "Reopen",
           "disabled": false,
           "testid": "retail-whatif-reopen-1"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-1"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-1"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-1"
         }
       ],
       "links": [
@@ -2714,6 +2819,42 @@
           "type": "textarea",
           "testid": "whatif-composer",
           "disabled": false
+        },
+        {
+          "label": "Compare NAV-03 test scenario (3)",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-8",
+          "disabled": false
+        },
+        {
+          "label": "Compare WIJ-19 065924",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-7",
+          "disabled": false
+        },
+        {
+          "label": "Compare WIJ-19 065528",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-5",
+          "disabled": false
+        },
+        {
+          "label": "Compare NAV-03 test scenario (2)",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-3",
+          "disabled": false
+        },
+        {
+          "label": "Compare NAV-03 test scenario",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-2",
+          "disabled": false
+        },
+        {
+          "label": "Compare Probe scenario",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-1",
+          "disabled": false
         }
       ],
       "selects": [
@@ -2754,7 +2895,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": false,
-      "characters": 2651,
+      "characters": 3014,
       "opened": true,
       "url": "http://localhost:5328/what-if",
       "console_errors": [],
@@ -3394,20 +3535,8 @@
           "href": "/studio/delinquency_rate"
         },
         {
-          "label": "Downgrade Rate The share of customers downgraded in a period.",
-          "href": "/studio/downgrade_rate"
-        },
-        {
-          "label": "DPD Migration Exposure moving between arrears buckets across two periods.",
-          "href": "/studio/dpd_migration"
-        },
-        {
           "label": "ECL Change Decomposition Opening ECL to closing ECL through its drivers, attribu",
           "href": "/studio/ecl_change_decomposition"
-        },
-        {
-          "label": "ECL Contribution Each sector or borrower's share of the total ECL movement.",
-          "href": "/studio/ecl_contribution"
         },
         {
           "label": "ECL Coverage Expected credit loss as a percentage of exposure at default.",
@@ -3420,14 +3549,6 @@
         {
           "label": "ECL Movement The change in expected credit loss between two periods, decomposed.",
           "href": "/studio/ecl_movement"
-        },
-        {
-          "label": "Exposure by Obligor Exposure aggregated to the obligor, across all their facilit",
-          "href": "/studio/exposure_concentration_by_obligor"
-        },
-        {
-          "label": "Geographic Concentration Exposure distribution across regions or countries.",
-          "href": "/studio/geographic_concentration"
         },
         {
           "label": "Macroeconomic Context The macro series the portfolio lends into.",
@@ -3446,48 +3567,12 @@
           "href": "/studio/portfolio_trend"
         },
         {
-          "label": "Product Concentration Exposure distribution across products.",
-          "href": "/studio/product_concentration"
-        },
-        {
-          "label": "Rating Actions Upgrades, downgrades, affirmations and new ratings in a period.",
-          "href": "/studio/rating_actions"
-        },
-        {
-          "label": "Rating Distribution Exposure and customers across internal rating grades.",
-          "href": "/studio/rating_distribution"
-        },
-        {
-          "label": "Rating Migration Movement between rating grades across two periods.",
-          "href": "/studio/rating_migration"
-        },
-        {
-          "label": "Rating Transition Matrix The full from-grade to to-grade transition matrix, as c",
-          "href": "/studio/rating_transition_matrix"
-        },
-        {
-          "label": "Sector Concentration Exposure distribution across industry sectors.",
-          "href": "/studio/sector_concentration"
-        },
-        {
           "label": "SICR Trigger Breakdown Which significant-increase triggers fired, separately.",
           "href": "/studio/sicr_trigger_breakdown"
         },
         {
-          "label": "Single Name Concentration The largest single obligor exposure as a share of the ",
-          "href": "/studio/single_name_concentration"
-        },
-        {
-          "label": "Stage 1 to 2 Migration Exposure moving from Stage 1 to Stage 2 between periods.",
-          "href": "/studio/stage_1_to_2_migration"
-        },
-        {
           "label": "Stage 2 Share Stage 2 exposure as a percentage of the total.",
           "href": "/studio/stage_2_share"
-        },
-        {
-          "label": "Stage 2 to 3 Migration Exposure moving from Stage 2 to Stage 3 between periods.",
-          "href": "/studio/stage_2_to_3_migration"
         },
         {
           "label": "Stage 3 Share Stage 3 exposure as a percentage of the total.",
@@ -3498,28 +3583,8 @@
           "href": "/studio/stage_distribution"
         },
         {
-          "label": "Stage Migration Flow Stage movements drawn as a flow between opening and closing",
-          "href": "/studio/stage_migration_flow"
-        },
-        {
-          "label": "Stage Migration Matrix The full opening-stage to closing-stage transition matrix",
-          "href": "/studio/stage_migration_matrix"
-        },
-        {
-          "label": "Top Deteriorating Borrowers The borrowers whose position worsened most between t",
-          "href": "/studio/top_deteriorating_borrowers"
-        },
-        {
-          "label": "Top-N Concentration The share of exposure held by the largest N obligors.",
-          "href": "/studio/top_n_concentration"
-        },
-        {
           "label": "Total Exposure at Default The sum of exposure at default across the portfolio at",
           "href": "/studio/total_ead"
-        },
-        {
-          "label": "Upgrade Rate The share of customers upgraded in a period.",
-          "href": "/studio/upgrade_rate"
         },
         {
           "label": "Utilisation Drift Change in utilisation between two reporting periods.",
@@ -3554,16 +3619,8 @@
           "href": "/studio/dpd90_by_product"
         },
         {
-          "label": "90+ Delinquency by Rating Grade 90+ Delinquency broken down by rating grade.",
-          "href": "/studio/dpd90_by_rating"
-        },
-        {
           "label": "90+ Delinquency by Region 90+ Delinquency broken down by region.",
           "href": "/studio/dpd90_by_region"
-        },
-        {
-          "label": "90+ Delinquency by Sector 90+ Delinquency broken down by sector.",
-          "href": "/studio/dpd90_by_sector"
         },
         {
           "label": "90+ Delinquency by Segment 90+ Delinquency broken down by segment.",
@@ -3602,16 +3659,8 @@
           "href": "/studio/arrears_by_product"
         },
         {
-          "label": "Arrears by Rating Grade Arrears broken down by rating grade.",
-          "href": "/studio/arrears_by_rating"
-        },
-        {
           "label": "Arrears by Region Arrears broken down by region.",
           "href": "/studio/arrears_by_region"
-        },
-        {
-          "label": "Arrears by Sector Arrears broken down by sector.",
-          "href": "/studio/arrears_by_sector"
         },
         {
           "label": "Arrears by Segment Arrears broken down by segment.",
@@ -3642,16 +3691,8 @@
           "href": "/studio/lgd_by_product"
         },
         {
-          "label": "Average LGD by Rating Grade Average LGD broken down by rating grade.",
-          "href": "/studio/lgd_by_rating"
-        },
-        {
           "label": "Average LGD by Region Average LGD broken down by region.",
           "href": "/studio/lgd_by_region"
-        },
-        {
-          "label": "Average LGD by Sector Average LGD broken down by sector.",
-          "href": "/studio/lgd_by_sector"
         },
         {
           "label": "Average LGD by Segment Average LGD broken down by segment.",
@@ -3660,38 +3701,6 @@
         {
           "label": "Average LGD by Vintage Average LGD broken down by vintage.",
           "href": "/studio/lgd_by_vintage"
-        },
-        {
-          "label": "Average PD by Country Average PD broken down by country.",
-          "href": "/studio/pd_by_country"
-        },
-        {
-          "label": "Average PD by IFRS 9 Stage Average PD broken down by ifrs 9 stage.",
-          "href": "/studio/pd_by_stage"
-        },
-        {
-          "label": "Average PD by Product Average PD broken down by product.",
-          "href": "/studio/pd_by_product"
-        },
-        {
-          "label": "Average PD by Rating Grade Average PD broken down by rating grade.",
-          "href": "/studio/pd_by_rating"
-        },
-        {
-          "label": "Average PD by Region Average PD broken down by region.",
-          "href": "/studio/pd_by_region"
-        },
-        {
-          "label": "Average PD by Sector Average PD broken down by sector.",
-          "href": "/studio/pd_by_sector"
-        },
-        {
-          "label": "Average PD by Segment Average PD broken down by segment.",
-          "href": "/studio/pd_by_segment"
-        },
-        {
-          "label": "Average PD by Vintage Average PD broken down by vintage.",
-          "href": "/studio/pd_by_vintage"
         },
         {
           "label": "Book Growth Decomposition Growth split into new lending, runoff and drawdown.",
@@ -3714,10 +3723,6 @@
           "href": "/studio/cohort_default_rate"
         },
         {
-          "label": "Cohort Migration Rating or stage movement within a fixed cohort.",
-          "href": "/studio/cohort_migration"
-        },
-        {
           "label": "Collateral Coverage by Country Collateral Coverage broken down by country.",
           "href": "/studio/collateral_by_country"
         },
@@ -3730,16 +3735,8 @@
           "href": "/studio/collateral_by_product"
         },
         {
-          "label": "Collateral Coverage by Rating Grade Collateral Coverage broken down by rating gr",
-          "href": "/studio/collateral_by_rating"
-        },
-        {
           "label": "Collateral Coverage by Region Collateral Coverage broken down by region.",
           "href": "/studio/collateral_by_region"
-        },
-        {
-          "label": "Collateral Coverage by Sector Collateral Coverage broken down by sector.",
-          "href": "/studio/collateral_by_sector"
         },
         {
           "label": "Collateral Coverage by Segment Collateral Coverage broken down by segment.",
@@ -3774,20 +3771,8 @@
           "href": "/studio/portfolio_composition_shift"
         },
         {
-          "label": "Concentration Change Change in concentration between two reporting periods.",
-          "href": "/studio/concentration_change"
-        },
-        {
           "label": "Concentration Threshold Breach Concentrations exceeding the threshold set by app",
           "href": "/studio/concentration_threshold_breach"
-        },
-        {
-          "label": "Connected Group Concentration Exposure aggregated across a connected group of bo",
-          "href": "/studio/group_concentration"
-        },
-        {
-          "label": "Connected Party Exposure Exposure to parties connected to the bank.",
-          "href": "/studio/connected_party_exposure"
         },
         {
           "label": "Consecutive Deterioration Names that worsened in two or more consecutive periods",
@@ -3796,38 +3781,6 @@
         {
           "label": "Cost of Risk Impairment charge as a rate on average exposure.",
           "href": "/studio/cost_of_risk"
-        },
-        {
-          "label": "Country Limit Utilisation Country exposure against its approved limit.",
-          "href": "/studio/country_limit_utilisation"
-        },
-        {
-          "label": "Covenant and Rating Together Names where covenant headroom is thin and the ratin",
-          "href": "/studio/covenant_and_rating_together"
-        },
-        {
-          "label": "Covenant Breach Rate The share of facilities in breach of a financial covenant.",
-          "href": "/studio/covenant_breach_rate"
-        },
-        {
-          "label": "Covenant Breach Severity How far past the threshold a breach is.",
-          "href": "/studio/covenant_breach_severity"
-        },
-        {
-          "label": "Covenant Cure Rate Breaches remedied within the cure period.",
-          "href": "/studio/covenant_cure_rate"
-        },
-        {
-          "label": "Covenant Deterioration Reduction in headroom between periods.",
-          "href": "/studio/covenant_deterioration"
-        },
-        {
-          "label": "Covenant Headroom Distance between the current ratio and its covenant threshold.",
-          "href": "/studio/covenant_headroom"
-        },
-        {
-          "label": "Covenant Test Calendar When each covenant is next tested.",
-          "href": "/studio/covenant_test_calendar"
         },
         {
           "label": "Coverage Change Change in coverage between two reporting periods.",
@@ -3858,14 +3811,6 @@
           "href": "/studio/dpd_change"
         },
         {
-          "label": "Deterioration Breadth How many names are deteriorating, as against how much expo",
-          "href": "/studio/deterioration_breadth"
-        },
-        {
-          "label": "DSCR Covenant Position Debt service coverage against its covenant threshold.",
-          "href": "/studio/dscr_covenant_position"
-        },
-        {
           "label": "Duplicate Key Rate Keys appearing more than once where the grain says they shoul",
           "href": "/studio/duplicate_key_rate"
         },
@@ -3886,16 +3831,8 @@
           "href": "/studio/ecl_coverage_by_product"
         },
         {
-          "label": "ECL Coverage by Rating Grade ECL Coverage broken down by rating grade.",
-          "href": "/studio/ecl_coverage_by_rating"
-        },
-        {
           "label": "ECL Coverage by Region ECL Coverage broken down by region.",
           "href": "/studio/ecl_coverage_by_region"
-        },
-        {
-          "label": "ECL Coverage by Sector ECL Coverage broken down by sector.",
-          "href": "/studio/ecl_coverage_by_sector"
         },
         {
           "label": "ECL Coverage by Segment ECL Coverage broken down by segment.",
@@ -3942,16 +3879,8 @@
           "href": "/studio/ead_by_product"
         },
         {
-          "label": "Exposure by Rating Grade Exposure broken down by rating grade.",
-          "href": "/studio/ead_by_rating"
-        },
-        {
           "label": "Exposure by Region Exposure broken down by region.",
           "href": "/studio/ead_by_region"
-        },
-        {
-          "label": "Exposure by Sector Exposure broken down by sector.",
-          "href": "/studio/ead_by_sector"
         },
         {
           "label": "Exposure by Segment Exposure split across customer segments.",
@@ -4006,20 +3935,8 @@
           "href": "/studio/early_warning_signal"
         },
         {
-          "label": "Gini Coefficient Inequality of the exposure distribution.",
-          "href": "/studio/gini_coefficient"
-        },
-        {
-          "label": "Grade Monotonicity Whether realised default rates increase monotonically across ",
-          "href": "/studio/grade_monotonicity"
-        },
-        {
           "label": "Haircut Impact Coverage after applying valuation haircuts.",
           "href": "/studio/haircut_impact"
-        },
-        {
-          "label": "Herfindahl-Hirschman Index The sum of squared exposure shares, as a concentratio",
-          "href": "/studio/herfindahl_index"
         },
         {
           "label": "High Utilisation Watchlist Facilities drawn unusually heavily against their limi",
@@ -4028,26 +3945,6 @@
         {
           "label": "Identifier Continuity Whether facility and customer identifiers persist across p",
           "href": "/studio/identifier_continuity"
-        },
-        {
-          "label": "Interest Cover Position Interest coverage against its covenant threshold.",
-          "href": "/studio/interest_cover_position"
-        },
-        {
-          "label": "Internal versus External Notch Gap Difference between the internal grade and the",
-          "href": "/studio/notch_gap_internal_external"
-        },
-        {
-          "label": "Large Exposure Count Number of exposures above the large-exposure threshold.",
-          "href": "/studio/large_exposure_count"
-        },
-        {
-          "label": "Large Exposure Share Exposure above the regulatory large-exposure threshold, as ",
-          "href": "/studio/large_exposure_share"
-        },
-        {
-          "label": "Leverage Covenant Position Net leverage against its covenant threshold.",
-          "href": "/studio/leverage_covenant_position"
         },
         {
           "label": "LGD Change Change in lgd between two reporting periods.",
@@ -4072,10 +3969,6 @@
         {
           "label": "Limit Drawdown Spike Sudden increases in utilisation.",
           "href": "/studio/limit_drawdown_spike"
-        },
-        {
-          "label": "Limit Headroom Remaining capacity under approved limits.",
-          "href": "/studio/limit_headroom"
         },
         {
           "label": "Loan to Value Exposure as a percentage of collateral value.",
@@ -4104,18 +3997,6 @@
         {
           "label": "Months on Book Distribution The age profile of the portfolio.",
           "href": "/studio/months_on_book_distribution"
-        },
-        {
-          "label": "Multi-notch Downgrade Customers downgraded by two or more notches.",
-          "href": "/studio/multi_notch_downgrade"
-        },
-        {
-          "label": "Name Concentration Capital Add-on Capital uplift for single-name concentration.",
-          "href": "/studio/name_concentration_capital"
-        },
-        {
-          "label": "Near-Breach Rate Facilities within a defined margin of breaching.",
-          "href": "/studio/near_breach_rate"
         },
         {
           "label": "Net Credit Loss Write-offs less recoveries.",
@@ -4154,16 +4035,8 @@
           "href": "/studio/npl_by_product"
         },
         {
-          "label": "NPL Ratio by Rating Grade NPL Ratio broken down by rating grade.",
-          "href": "/studio/npl_by_rating"
-        },
-        {
           "label": "NPL Ratio by Region NPL Ratio broken down by region.",
           "href": "/studio/npl_by_region"
-        },
-        {
-          "label": "NPL Ratio by Sector NPL Ratio broken down by sector.",
-          "href": "/studio/npl_by_sector"
         },
         {
           "label": "NPL Ratio by Segment NPL Ratio broken down by segment.",
@@ -4186,10 +4059,6 @@
           "href": "/studio/one_year_forward_odr"
         },
         {
-          "label": "Origination Quality Rating and financial profile of new lending by period.",
-          "href": "/studio/origination_quality"
-        },
-        {
           "label": "Orphan Rate Records in one dataset with no match in the dataset they should join",
           "href": "/studio/orphan_rate"
         },
@@ -4200,14 +4069,6 @@
         {
           "label": "Payment Behaviour Shift Change in payment timing or amount ahead of formal arrea",
           "href": "/studio/payment_behaviour_shift"
-        },
-        {
-          "label": "PD by Grade Average probability of default within each rating grade.",
-          "href": "/studio/pd_by_grade"
-        },
-        {
-          "label": "PD Change Change in pd between two reporting periods.",
-          "href": "/studio/pd_change"
         },
         {
           "label": "PD Movement Change in probability of default between periods.",
@@ -4230,10 +4091,6 @@
           "href": "/studio/portfolio_yield"
         },
         {
-          "label": "Product Limit Utilisation Product exposure against its limit.",
-          "href": "/studio/product_limit_utilisation"
-        },
-        {
           "label": "Provision Adequacy Coverage compared against realised loss experience.",
           "href": "/studio/provision_adequacy"
         },
@@ -4242,40 +4099,8 @@
           "href": "/studio/provision_charge"
         },
         {
-          "label": "Quality Migration Summary Every migration measure in one view.",
-          "href": "/studio/quality_migration_summary"
-        },
-        {
           "label": "RAROC Risk-adjusted return on capital.",
           "href": "/studio/raroc"
-        },
-        {
-          "label": "Rating Coverage The share of exposure carrying a current internal rating.",
-          "href": "/studio/rating_coverage"
-        },
-        {
-          "label": "Rating Distribution Change Change in rating distribution between two reporting p",
-          "href": "/studio/rating_change"
-        },
-        {
-          "label": "Rating Drift Net notch movement across the portfolio.",
-          "href": "/studio/rating_drift"
-        },
-        {
-          "label": "Rating Momentum Direction of rating movement sustained across several periods.",
-          "href": "/studio/rating_momentum"
-        },
-        {
-          "label": "Rating Override Rate The share of ratings overridden from the model output.",
-          "href": "/studio/rating_override_rate"
-        },
-        {
-          "label": "Rating Stability The share of customers whose grade is unchanged.",
-          "href": "/studio/rating_stability"
-        },
-        {
-          "label": "Rating Staleness Time since the last rating review.",
-          "href": "/studio/rating_staleness"
         },
         {
           "label": "Re-default Rate The share of cured exposures that returned to default within a h",
@@ -4318,14 +4143,6 @@
           "href": "/studio/risk_adjusted_return"
         },
         {
-          "label": "Roll Forward The full opening-to-closing movement across arrears buckets.",
-          "href": "/studio/roll_forward"
-        },
-        {
-          "label": "Roll Rate The share of a delinquency bucket that moves to the next bucket.",
-          "href": "/studio/roll_rate"
-        },
-        {
           "label": "Scenario Comparison Two or more scenarios side by side.",
           "href": "/studio/scenario_comparison"
         },
@@ -4338,22 +4155,6 @@
           "href": "/studio/seasoning_curve"
         },
         {
-          "label": "Sector Appetite Headroom Remaining capacity within each sector limit.",
-          "href": "/studio/sector_appetite_headroom"
-        },
-        {
-          "label": "Sector Correlation Co-movement of default experience across sectors.",
-          "href": "/studio/sector_correlation"
-        },
-        {
-          "label": "Sector Limit Utilisation Sector exposure against its approved limit.",
-          "href": "/studio/sector_limit_utilisation"
-        },
-        {
-          "label": "Sector Stress A shock applied to one sector rather than the whole book.",
-          "href": "/studio/sector_stress"
-        },
-        {
           "label": "Sensitivity Analysis How the result moves as one assumption moves.",
           "href": "/studio/sensitivity_analysis"
         },
@@ -4364,10 +4165,6 @@
         {
           "label": "Signal Lead Time How far in advance of default a signal fired.",
           "href": "/studio/signal_lead_time"
-        },
-        {
-          "label": "Single Name Limit Utilisation Obligor exposure against the single-name limit.",
-          "href": "/studio/single_name_limit"
         },
         {
           "label": "Six-Month Forward ODR As the one-year measure, over a two-quarter horizon.",
@@ -4394,16 +4191,8 @@
           "href": "/studio/stage2_by_product"
         },
         {
-          "label": "Stage 2 Share by Rating Grade Stage 2 Share broken down by rating grade.",
-          "href": "/studio/stage2_by_rating"
-        },
-        {
           "label": "Stage 2 Share by Region Stage 2 Share broken down by region.",
           "href": "/studio/stage2_by_region"
-        },
-        {
-          "label": "Stage 2 Share by Sector Stage 2 Share broken down by sector.",
-          "href": "/studio/stage2_by_sector"
         },
         {
           "label": "Stage 2 Share by Segment Stage 2 Share broken down by segment.",
@@ -4430,16 +4219,8 @@
           "href": "/studio/stage3_by_product"
         },
         {
-          "label": "Stage 3 Share by Rating Grade Stage 3 Share broken down by rating grade.",
-          "href": "/studio/stage3_by_rating"
-        },
-        {
           "label": "Stage 3 Share by Region Stage 3 Share broken down by region.",
           "href": "/studio/stage3_by_region"
-        },
-        {
-          "label": "Stage 3 Share by Sector Stage 3 Share broken down by sector.",
-          "href": "/studio/stage3_by_sector"
         },
         {
           "label": "Stage 3 Share by Segment Stage 3 Share broken down by segment.",
@@ -4458,14 +4239,6 @@
           "href": "/studio/stage_cure"
         },
         {
-          "label": "Temporary Excess Approved excesses over limit and their expiry.",
-          "href": "/studio/temporary_excess"
-        },
-        {
-          "label": "Tenor Limit Utilisation Long-tenor exposure against its limit.",
-          "href": "/studio/tenor_limit_utilisation"
-        },
-        {
           "label": "Three-Month Forward ODR As the one-year measure, over a one-quarter horizon.",
           "href": "/studio/three_month_forward_odr"
         },
@@ -4482,28 +4255,12 @@
           "href": "/studio/top_borrowers_by_coverage_gap"
         },
         {
-          "label": "Top Borrowers by Downgrade The largest borrowers ranked by downgrade.",
-          "href": "/studio/top_borrowers_by_downgrade"
-        },
-        {
           "label": "Top Borrowers by ECL The largest borrowers ranked by ecl.",
           "href": "/studio/top_borrowers_by_ecl"
         },
         {
           "label": "Top Borrowers by ECL Increase The largest borrowers ranked by ecl increase.",
           "href": "/studio/top_borrowers_by_ecl_increase"
-        },
-        {
-          "label": "Top Borrowers by Exposure The largest borrowers ranked by exposure.",
-          "href": "/studio/top_borrowers_by_ead"
-        },
-        {
-          "label": "Top Borrowers by Limit Excess The largest borrowers ranked by limit excess.",
-          "href": "/studio/top_borrowers_by_limit_excess"
-        },
-        {
-          "label": "Top Borrowers by PD Increase The largest borrowers ranked by pd increase.",
-          "href": "/studio/top_borrowers_by_pd_increase"
         },
         {
           "label": "Top Borrowers by Uncovered Exposure The largest borrowers ranked by uncovered ex",
@@ -4534,16 +4291,8 @@
           "href": "/studio/utilisation_by_product"
         },
         {
-          "label": "Utilisation by Rating Grade Utilisation broken down by rating grade.",
-          "href": "/studio/utilisation_by_rating"
-        },
-        {
           "label": "Utilisation by Region Utilisation broken down by region.",
           "href": "/studio/utilisation_by_region"
-        },
-        {
-          "label": "Utilisation by Sector Utilisation broken down by sector.",
-          "href": "/studio/utilisation_by_sector"
         },
         {
           "label": "Utilisation by Segment Utilisation broken down by segment.",
@@ -4570,6 +4319,74 @@
           "href": "/studio/vintage_delinquency"
         },
         {
+          "label": "Vintage Loss Rate Realised loss by origination cohort.",
+          "href": "/studio/vintage_loss_rate"
+        },
+        {
+          "label": "Vintage Prepayment Early repayment by origination cohort.",
+          "href": "/studio/vintage_prepayment"
+        },
+        {
+          "label": "Vintage Utilisation Drawdown behaviour by origination cohort.",
+          "href": "/studio/vintage_utilisation"
+        },
+        {
+          "label": "Warning Capture Rate The share of defaults that were flagged in advance.",
+          "href": "/studio/warning_capture_rate"
+        },
+        {
+          "label": "Watchlist Cure Watchlist names returning to normal monitoring.",
+          "href": "/studio/watchlist_cure"
+        },
+        {
+          "label": "Watchlist Entry Rate New watchlist entries as a share of the performing book.",
+          "href": "/studio/watchlist_entry_rate"
+        },
+        {
+          "label": "Watchlist Exit Rate Names leaving the watchlist as a share of the opening watchl",
+          "href": "/studio/watchlist_exit_rate"
+        },
+        {
+          "label": "Watchlist Exposure Change Change in watchlist exposure between two reporting per",
+          "href": "/studio/watchlist_change"
+        },
+        {
+          "label": "Watchlist Share by Country Watchlist Share broken down by country.",
+          "href": "/studio/watchlist_by_country"
+        },
+        {
+          "label": "Watchlist Share by IFRS 9 Stage Watchlist Share broken down by ifrs 9 stage.",
+          "href": "/studio/watchlist_by_stage"
+        },
+        {
+          "label": "Watchlist Share by Product Watchlist Share broken down by product.",
+          "href": "/studio/watchlist_by_product"
+        },
+        {
+          "label": "Watchlist Share by Region Watchlist Share broken down by region.",
+          "href": "/studio/watchlist_by_region"
+        },
+        {
+          "label": "Watchlist Share by Segment Watchlist Share broken down by segment.",
+          "href": "/studio/watchlist_by_segment"
+        },
+        {
+          "label": "Watchlist Share by Vintage Watchlist Share broken down by vintage.",
+          "href": "/studio/watchlist_by_vintage"
+        },
+        {
+          "label": "Watchlist Tenure How long names have been on the watchlist.",
+          "href": "/studio/watchlist_tenure"
+        },
+        {
+          "label": "Watchlist to Default Watchlist names that subsequently defaulted.",
+          "href": "/studio/watchlist_to_default"
+        },
+        {
+          "label": "Write-off Rate Exposure written off as a share of the opening book.",
+          "href": "/studio/write_off_rate"
+        },
+        {
           "label": "the engine registry",
           "href": "/engine-builder"
         }
@@ -4589,21 +4406,16 @@
             "",
             "Portfolio Quality",
             "Default & Delinquency",
-            "Ratings",
             "IFRS 9 / Impairment",
-            "Migration",
-            "Concentration",
             "Watchlist",
             "Early Warning",
             "Collateral",
-            "Covenants",
             "Exposure / Utilisation",
             "Vintage / Cohort",
             "Recovery / Cure",
             "Risk Appetite",
             "Stress / Scenario",
-            "Return / Profitability",
-            "Limits / Large Exposure"
+            "Return / Profitability"
           ],
           "testid": ""
         },
@@ -4629,7 +4441,7 @@
       "tables": 1,
       "empty_state": false,
       "refused": false,
-      "characters": 41631,
+      "characters": 30869,
       "opened": true,
       "url": "http://localhost:5328/studio",
       "console_errors": [],
@@ -5013,52 +4825,52 @@
           "href": "/?focus=ask"
         },
         {
-          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/119"
+          "label": "Explain that result more simply. application score for Personal Finance across t",
+          "href": "/trace/252"
         },
         {
-          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/118"
+          "label": "Assess the personal finance application scorecard on the latest fully observed c",
+          "href": "/trace/251"
         },
         {
-          "label": "What data do you have in Retail facility month-end position? the question asks a",
-          "href": "/trace/117"
+          "label": "Compare with July 2026 How gross carrying amount moved between 2026-07 and 2026-",
+          "href": "/trace/250"
         },
         {
-          "label": "Show expected credit loss by IFRS 9 stage for August 2026 final ECL by ifrs9 sta",
-          "href": "/trace/116"
-        },
-        {
-          "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/trace/115"
-        },
-        {
-          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/114"
-        },
-        {
-          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/113"
-        },
-        {
-          "label": "What data do you have in Retail facility month-end position? the question asks a",
-          "href": "/trace/112"
-        },
-        {
-          "label": "Show expected credit loss by IFRS 9 stage for August 2026 final ECL by ifrs9 sta",
-          "href": "/trace/111"
+          "label": "Now only personal finance gross carrying amount, final ECL by product label for ",
+          "href": "/trace/249"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/trace/110"
+          "href": "/trace/248"
         },
         {
           "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/109"
+          "href": "/trace/247"
         },
         {
           "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/108"
+          "href": "/trace/246"
+        },
+        {
+          "label": "What data do you have in Retail facility month-end position? the question asks a",
+          "href": "/trace/245"
+        },
+        {
+          "label": "Show expected credit loss by IFRS 9 stage for August 2026 final ECL by ifrs9 sta",
+          "href": "/trace/244"
+        },
+        {
+          "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
+          "href": "/trace/243"
+        },
+        {
+          "label": "Draft an evidence-backed response to the auditor about this scorecard's continui",
+          "href": "/trace/242"
+        },
+        {
+          "label": "Show the evidence gross carrying amount, final ECL by product label for Personal",
+          "href": "/trace/241"
         }
       ],
       "inputs": [],
@@ -5068,7 +4880,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": true,
-      "characters": 2857,
+      "characters": 3131,
       "opened": true,
       "url": "http://localhost:5328/trace",
       "console_errors": [],

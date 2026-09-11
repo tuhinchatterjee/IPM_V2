@@ -2,7 +2,7 @@
   "suite": "whatif_journeys",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 111.3,
+  "elapsed_seconds": 111.6,
   "counts": {
     "PASS": 12,
     "FAIL": 0,
@@ -34,7 +34,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "\n\nExpected credit loss rose from SAR 8,994,012 to SAR 10,161,668 \u2014 a change of SAR 1,167,657 (+12.98%).\n\nThe population is product_code=PERSONAL_LOAN, 7,761 facilities held by 6,781 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 1,167,657.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nProbe scenario\n2026-08\nSAR 8,994,012 \u2192 SAR 10",
+        "answer": "\n\nExpected credit loss rose from SAR 8,994,012 to SAR 10,161,668 \u2014 a change of SAR 1,167,657 (+12.98%).\n\nThe population is product_code=PERSONAL_LOAN, 7,761 facilities held by 6,781 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 1,167,657.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065528\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (2)\n2026-08\nSAR 8,994,012 \u2192 SAR ",
         "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-09.png"
       },
       "seconds": 0.0,
@@ -64,9 +64,9 @@
       "actual": null,
       "evidence": {
         "record": {
-          "id": 6,
-          "name": "WIJ-11 065924",
-          "created_at": "2026-09-11T06:59:59.514890+00:00",
+          "id": 9,
+          "name": "WIJ-11 075452",
+          "created_at": "2026-09-11T07:55:27.062814+00:00",
           "month": "2026-08",
           "question": "Increase PD by 2 percentage points for credit cards.",
           "run_id": "WIF-567a1eb032d0f3c6d8e3",
@@ -122,7 +122,7 @@
       "module": "what-if",
       "title": "Two SAVED runs are compared as themselves, with any difference in month, population or methodology stated",
       "status": "PASS",
-      "detail": "compared WIJ-11 065924 with WIJ-19 065924; comparable=True; differences=[]",
+      "detail": "compared WIJ-11 075452 with WIJ-19 075452; comparable=True; differences=[]",
       "expected": null,
       "actual": null,
       "evidence": {},
@@ -191,7 +191,7 @@
       "module": "what-if",
       "title": "DESTRUCTIVE \u2014 Delete removes the record this suite created and nothing else",
       "status": "PASS",
-      "detail": "the test-owned record 6 was deleted=True; every other saved run survived=True",
+      "detail": "the test-owned record 9 was deleted=True; every other saved run survived=True",
       "expected": null,
       "actual": null,
       "evidence": {},

@@ -1,0 +1,57 @@
+{
+  "suite": "end_to_end",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 77.5,
+  "counts": {
+    "PASS": 3,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/end_to_end-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "E2E-01",
+      "module": "end-to-end",
+      "title": "One uninterrupted demonstration journey in a fresh session: the book, a question, a narrowing, a comparison, the evidence and back, a scorecard question, and a scenario",
+      "status": "PASS",
+      "detail": "Data Builder shows the Cockpit Data domain=True; the portfolio question answered=True; the narrowing answered=True; the period comparison answered=True; the evidence opened and returned=True; the scorecard question answered with its limits=True; the scenario ran=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/e2e-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "E2E-02",
+      "module": "end-to-end",
+      "title": "The same conversation, reopened in a NEW session: the transcript, the month and the result are restored and it can be continued",
+      "status": "PASS",
+      "detail": "the session was really destroyed=True; signed in again=True; the transcript, month and result came back=True; a further turn answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/e2e-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}
