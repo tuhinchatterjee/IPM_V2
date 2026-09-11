@@ -86,7 +86,7 @@ export function RetailWhatIf() {
         return {
           filters: turn.body.scenario.filters,
           shocks: turn.body.scenario.shocks,
-          month: turn.body.month ?? month,
+          month: turn.body.snapshot_month ?? month,
         };
       }
     }
@@ -146,7 +146,7 @@ export function RetailWhatIf() {
       const body = await api.retailWhatIfSave({
         name: saveName || (last.question ?? "What-If"),
         question: last.question ?? "",
-        month: last.month ?? month,
+        month: last.snapshot_month ?? month,
         run: last as unknown as Record<string, unknown>,
       });
       setSaved((rows) => [body.saved, ...rows]);
@@ -546,6 +546,124 @@ function TurnView({
     );
   }
 
+  if (body.kind === "cutoff") {
+    const rate = (defaults?: number, known?: number) =>
+      known && known > 0 && defaults !== undefined
+        ? `${((defaults / known) * 100).toFixed(2)}%`
+        : "—";
+    return (
+      <Card data-turn="cutoff" data-testid="retail-whatif-cutoff">
+        <CardContent className="space-y-4 pt-4">
+          <p className="text-[12px] text-text-secondary">
+            {body.read_as && body.read_as.length
+              ? `Read as: ${body.read_as.join("; ")}.`
+              : "An application-score cutoff replay."}
+          </p>
+          {/* Said before the figures, not after them. This is a count over the
+              accounts that WERE booked — not a revaluation of the book, and not
+              a statement about anyone who was declined. */}
+          <p className="text-[12px] text-text-primary">
+            A retrospective replay over booked originations only
+            {body.products && body.products.length
+              ? ` (${body.products.join(", ")})`
+              : ""}
+            . No expected credit loss is recomputed here.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Figure
+              label="Booked originations"
+              value={count(body.booked_facilities)}
+            />
+            <Figure
+              label="Would be excluded"
+              value={`${count(body.would_be_excluded)}${
+                body.would_be_excluded_pct !== null
+                && body.would_be_excluded_pct !== undefined
+                  ? ` (${(body.would_be_excluded_pct * 100).toFixed(1)}%)`
+                  : ""
+              }`}
+            />
+            <Figure
+              label="Excluded exposure"
+              value={sar(body.excluded_exposure_sar)}
+            />
+            <Figure
+              label="Cutoff"
+              value={Object.entries(body.new_cutoff ?? {})
+                .map(([code, level]) => `${code} ${level}`)
+                .join(", ") || "—"}
+            />
+          </div>
+
+          {body.outcomes_available ? (
+            <table className="w-full text-[12px]"
+                   data-testid="retail-whatif-cutoff-outcomes">
+              <thead>
+                <tr className="text-left text-text-muted">
+                  <th className="py-1">Group</th>
+                  <th className="py-1 text-right">Closed outcome window</th>
+                  <th className="py-1 text-right">Observed defaults</th>
+                  <th className="py-1 text-right">Default rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-border">
+                  <td className="py-1">Would have been excluded</td>
+                  <td className="py-1 text-right">
+                    {count(body.excluded_with_known_outcome)}
+                  </td>
+                  <td className="py-1 text-right">
+                    {count(body.excluded_observed_defaults)}
+                  </td>
+                  <td className="py-1 text-right">
+                    {rate(body.excluded_observed_defaults,
+                          body.excluded_with_known_outcome)}
+                  </td>
+                </tr>
+                <tr className="border-t border-border">
+                  <td className="py-1">Retained</td>
+                  <td className="py-1 text-right">
+                    {count(body.retained_with_known_outcome)}
+                  </td>
+                  <td className="py-1 text-right">
+                    {count(body.retained_observed_defaults)}
+                  </td>
+                  <td className="py-1 text-right">
+                    {rate(body.retained_observed_defaults,
+                          body.retained_with_known_outcome)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          ) : (
+            // Not a table of zeros. An unknown outcome and a clean book look
+            // identical once both are printed as 0.
+            <p className="text-[12px] text-warning"
+               data-testid="retail-whatif-cutoff-no-outcomes">
+              What the excluded accounts went on to do is NOT KNOWN at{" "}
+              {body.snapshot_month}: no facility in this population has a closed outcome
+              window yet. That is not zero defaults. Ask again at an earlier
+              reporting month.
+            </p>
+          )}
+
+          {body.limitations && body.limitations.length ? (
+            <details>
+              <summary className="cursor-pointer text-[12px] text-text-secondary">
+                What this replay cannot tell you
+              </summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-[12px] text-text-secondary">
+                {body.limitations.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (body.kind === "refusal" || body.kind === "invalid") {
     return (
       <Card className="border-warning/40" data-turn={body.kind}>
@@ -576,7 +694,7 @@ function TurnView({
 
         {body.population_empty ? (
           <p className="text-[13px] text-text-primary">
-            No facility matches that population at {body.month}. This is an
+            No facility matches that population at {body.snapshot_month}. This is an
             empty result, not a zero: there is nothing to shock.
           </p>
         ) : (

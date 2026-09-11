@@ -650,6 +650,50 @@ AGENTS: tuple[Agent, ...] = (
 
 _BY_ID: dict[str, Agent] = {a.agent_id: a for a in AGENTS}
 
+#: Specialists whose subject matter does not exist in a retail installation.
+#:
+#: Their definitions stay here — the conversion is a profile, not a fork, and a
+#: corporate profile serves all thirteen. But a retail installation was listing
+#: them as ACTIVE teams on Agent Operations with nothing for them to do: the
+#: active retail catalogue publishes no `rating`, `dscr` or `leverage` concept
+#: for Ratings & Financials, no covenant `headroom` for Covenant & Collateral,
+#: and none of the twelve ownership and network concepts the Relationship Graph
+#: reads — its own definition says the graph is built over the corporate book.
+#:
+#: An idle team is not a harmless one. It is a corporate surface a reader can
+#: open, with corporate purposes and corporate methods named on it, in a product
+#: that is supposed to hold none.
+RETIRED_IN_RETAIL_AGENTS: frozenset[str] = frozenset({
+    RATINGS_FINANCIALS.agent_id,
+    COVENANTS.agent_id,
+    RELATIONSHIP_GRAPH.agent_id,
+})
+
+#: The domains those specialists own, retired with them so the domain list on
+#: the same screen does not name what no agent serves.
+RETIRED_IN_RETAIL_DOMAINS: frozenset[str] = frozenset({
+    DOMAIN_RATINGS, DOMAIN_COVENANTS, DOMAIN_RELATIONSHIP,
+})
+
+
+def _retail() -> bool:
+    from backend.retail.profile import is_retail
+
+    return is_retail()
+
+
+def served_agents() -> tuple[Agent, ...]:
+    """Every agent this installation actually serves, in registry order."""
+    if not _retail():
+        return AGENTS
+    return tuple(a for a in AGENTS if a.agent_id not in RETIRED_IN_RETAIL_AGENTS)
+
+
+def served_domains() -> tuple[str, ...]:
+    if not _retail():
+        return DOMAINS
+    return tuple(d for d in DOMAINS if d not in RETIRED_IN_RETAIL_DOMAINS)
+
 #: Which specialist owns each governed domain, for delegation. The Credit
 #: Analyst is the fallback and deliberately owns none: a domain with no
 #: specialist is answered by a generalist, not left unanswered.
@@ -677,14 +721,15 @@ def require(agent_id: str) -> Agent:
 
 
 def all_agents(*, status: str = ACTIVE) -> tuple[Agent, ...]:
-    return tuple(a for a in AGENTS if not status or a.status == status)
+    return tuple(a for a in served_agents() if not status or a.status == status)
 
 
 def specialists() -> tuple[Agent, ...]:
     """Everyone the Chief Orchestrator may delegate to — which is everyone
     except itself. An orchestrator that can delegate to an orchestrator is the
     recursion §73 asks to be prevented, and preventing it here costs nothing."""
-    return tuple(a for a in AGENTS if a.agent_id != CHIEF_ORCHESTRATOR.agent_id)
+    return tuple(a for a in served_agents()
+                 if a.agent_id != CHIEF_ORCHESTRATOR.agent_id)
 
 
 def agent_for_domain(domain: str) -> Agent:
@@ -705,7 +750,7 @@ def agents_for(concepts: list[str] | tuple[str, ...]) -> tuple[Agent, ...]:
         domain = domain_of(str(concept))
         if domain:
             wanted.add(agent_for_domain(domain).agent_id)
-    return tuple(a for a in AGENTS if a.agent_id in wanted)
+    return tuple(a for a in served_agents() if a.agent_id in wanted)
 
 
 def fingerprint() -> str:
@@ -720,14 +765,18 @@ def catalogue() -> dict[str, Any]:
     return {
         "version": VERSION,
         "fingerprint": fingerprint(),
-        "agents": [a.to_dict() for a in AGENTS],
+        "agents": [a.to_dict() for a in served_agents()],
         "domains": [{"id": d, "label": DOMAIN_LABELS[d],
-                     "concepts": list(concepts_in(d))} for d in DOMAINS],
+                     "concepts": list(concepts_in(d))} for d in served_domains()],
     }
 
 
 __all__ = [
     "ACTIVE",
+    "RETIRED_IN_RETAIL_AGENTS",
+    "RETIRED_IN_RETAIL_DOMAINS",
+    "served_agents",
+    "served_domains",
     "AGENTS",
     "CHIEF_ORCHESTRATOR",
     "CONCEPT_DOMAIN",

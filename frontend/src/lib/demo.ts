@@ -267,6 +267,10 @@ export function findProject(id: string): Project | undefined {
 // ==================================================================== documents
 
 export interface DocumentRecord {
+  /** The dataset, month and figures this paper is drawn from. A committee
+   *  paper with no basis is a placeholder nobody can check; naming the book
+   *  and the month is what makes the placeholder honest about its scope. */
+  basis?: string;
   id: string;
   title: string;
   kind: string;
@@ -279,50 +283,54 @@ export interface DocumentRecord {
 
 export const DOCUMENTS: DocumentRecord[] = [
   {
-    id: "march-2026-cro-review",
-    title: "March 2026 CRO Portfolio Review",
+    id: "august-2026-retail-cro-review",
+    title: "August 2026 Retail Portfolio Review",
     kind: "Board Risk Committee paper",
-    owner: "Head of Credit Risk",
+    owner: "Head of Retail Credit Risk",
     status: "in_review",
-    updated: "2026-03-31",
-    project: "March 2026 Portfolio Review",
+    updated: "2026-08-31",
+    project: "August 2026 Retail Portfolio Review",
+    basis: "retail_facility_month · 2026-08 · 19,745 facilities held by 14,251 customers",
     sections: [
       "Executive summary",
-      "Portfolio position",
+      "The retail book by product",
       "Staging and coverage",
-      "Concentration",
-      "Deteriorating names",
+      "Delinquency and collections",
+      "Affordability and indebtedness",
       "Scenario sensitivity",
       "Recommendations",
     ],
   },
   {
-    id: "real-estate-sector-review",
-    title: "Real Estate Sector Review",
-    kind: "Sector committee paper",
-    owner: "Sector Credit Head",
+    id: "retail-scorecard-monitoring",
+    title: "Retail Scorecard Monitoring Pack",
+    kind: "Model Risk Committee pack",
+    owner: "Retail Model Risk",
     status: "draft",
-    updated: "2026-03-28",
-    project: "Real Estate Deep Dive",
+    updated: "2026-08-28",
+    project: "Retail Scorecard Monitoring",
+    basis: "retail_facility_month · matured 12-month cohorts to 2025-08 · application and behavioural scorecards",
     sections: [
-      "Sector overview",
-      "Exposure and concentration",
-      "Deterioration",
-      "Collateral and coverage",
-      "Limit recommendation",
+      "Discrimination — AUC, Gini and KS",
+      "Population stability by score band",
+      "Score-to-PD calibration",
+      "Application cutoff replay on booked originations",
+      "Override and exception reporting",
     ],
   },
   {
-    id: "ifrs9-committee-pack",
-    title: "IFRS 9 Committee Pack",
+    id: "retail-ifrs9-committee-pack",
+    title: "Retail IFRS 9 Committee Pack",
     kind: "IFRS 9 Committee pack",
     owner: "IFRS 9 Reporting",
     status: "approved",
-    updated: "2026-03-30",
-    project: "IFRS 9 ECL Review",
+    updated: "2026-08-30",
+    project: "Retail IFRS 9 ECL Review",
+    basis: "retail_facility_month · 2026-07 to 2026-08 bridge · SAR 15,952,108.84 final allowance at 2026-08",
     sections: [
-      "ECL movement",
-      "Staging",
+      "ECL movement, with entrants and exits kept separate",
+      "Staging and SICR triggers",
+      "Scenario weighting and the weighted identity",
       "Overlay usage",
       "Model performance",
       "Governance",

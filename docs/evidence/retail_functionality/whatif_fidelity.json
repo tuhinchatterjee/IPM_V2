@@ -1,0 +1,399 @@
+{
+  "suite": "whatif_fidelity",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 128.1,
+  "counts": {
+    "PASS": 23,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif_fidelity-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-01",
+      "module": "what-if-fidelity",
+      "title": "The navigation link serves the RETAIL What-If, not the corporate one",
+      "status": "PASS",
+      "detail": "opened=True retail screen present=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-01-landing.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-02",
+      "module": "what-if-fidelity",
+      "title": "The screen names every methodology the engine implements, and both staging modes",
+      "status": "PASS",
+      "detail": "12 of 12 advertised on screen; missing=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "advertised": [
+          "pd_relative",
+          "pd_absolute_pp",
+          "lgd_relative",
+          "collateral_value_pct",
+          "recovery_delay_months",
+          "utilisation_pp",
+          "ccf_absolute",
+          "scenario_weights",
+          "income_pct",
+          "behavioural_score_points",
+          "staging_mode",
+          "cutoff_replay"
+        ]
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-03",
+      "module": "what-if-fidelity",
+      "title": "No corporate rating or sector vocabulary is reachable on the screen",
+      "status": "PASS",
+      "detail": "none found",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "corporate_wording": []
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-04",
+      "module": "what-if-fidelity",
+      "title": "'pd_relative' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['PD +20% relative']; neutral=False; baseline=[8994012.0] whatif=[10161669.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Increase PD by 20% relative for personal finance",
+        "methodology": "pd_relative",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-04-pd-relative.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-05",
+      "module": "what-if-fidelity",
+      "title": "'pd_absolute_pp' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['PD +2 percentage points']; neutral=False; baseline=[8994012.0] whatif=[15088559.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Increase PD by 2 percentage points for personal finance",
+        "methodology": "pd_absolute_pp",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-05-pd-absolute-pp.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-06",
+      "module": "what-if-fidelity",
+      "title": "'lgd_relative' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['LGD +10% relative']; neutral=False; baseline=[8994012.0] whatif=[9603597.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Increase LGD by 10% for personal finance",
+        "methodology": "lgd_relative",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-06-lgd-relative.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-07",
+      "module": "what-if-fidelity",
+      "title": "'collateral_value_pct' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['collateral values -10% relative']; neutral=False; baseline=[2805159.0] whatif=[5206274.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Reduce mortgage collateral values by 10%",
+        "methodology": "collateral_value_pct",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-07-collateral-value-pct.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-08",
+      "module": "what-if-fidelity",
+      "title": "'recovery_delay_months' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['recovery delayed 6 months']; neutral=False; baseline=[2805159.0] whatif=[3452635.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Delay recovery by 6 months for mortgages",
+        "methodology": "recovery_delay_months",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-08-recovery-delay-months.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-09",
+      "module": "what-if-fidelity",
+      "title": "'utilisation_pp' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['card utilisation +15 percentage points']; neutral=False; baseline=[15952109.0] whatif=[16335179.0]; 5s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Increase card utilisation by 15 percentage points",
+        "methodology": "utilisation_pp",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-09-utilisation-pp.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-10",
+      "module": "what-if-fidelity",
+      "title": "'ccf_absolute' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['credit conversion factor set to 0.60']; neutral=False; baseline=[3061762.0] whatif=[3301346.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Set the CCF to 60% for credit cards",
+        "methodology": "ccf_absolute",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-10-ccf-absolute.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-11",
+      "module": "what-if-fidelity",
+      "title": "'income_pct' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['verified income -15% relative']; neutral=False; baseline=[12717681.0] whatif=[13728027.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Reduce verified salary by 15% for salary-transfer customers",
+        "methodology": "income_pct",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-11-income-pct.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-12",
+      "module": "what-if-fidelity",
+      "title": "'behavioural_score_points' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['behavioural score -30 points']; neutral=False; baseline=[8994012.0] whatif=[12336267.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Reduce the behavioural score by 30 points for personal finance",
+        "methodology": "behavioural_score_points",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-12-behavioural-score-points.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-13",
+      "module": "what-if-fidelity",
+      "title": "'scenario_weights' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['weights base/upturn/downturn']; neutral=False; baseline=[15952109.0] whatif=[18012974.0]; 5s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Change scenario weights to base 50%, upturn 10%, downturn 40%",
+        "methodology": "scenario_weights",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-13-scenario-weights.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-14",
+      "module": "what-if-fidelity",
+      "title": "'staging_mode' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['staging re-evaluated']; neutral=False; baseline=[8994012.0] whatif=[10286068.0]; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Increase PD by 20% relative for personal finance and re-evaluate staging",
+        "methodology": "staging_mode",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-14-staging-mode.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-15",
+      "module": "what-if-fidelity",
+      "title": "'cutoff_replay' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
+      "status": "PASS",
+      "detail": "read_as matched ['replay an application-score cutoff of 620']; neutral=False; cutoff card present=True, booked-only stated=True; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "sentence": "Replay an application cutoff of 620 on personal finance",
+        "methodology": "cutoff_replay",
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-15-cutoff-replay.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-16",
+      "module": "what-if-fidelity",
+      "title": "A narrowing follow-up keeps the shock it narrows instead of answering with the published book",
+      "status": "PASS",
+      "detail": "first run [8994012.0, 10161669.0]; narrowed run [7290521.0, 8200787.0]; population stated=True; carry stated=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-16-narrowed.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-17",
+      "module": "what-if-fidelity",
+      "title": "A replacement replaces the earlier shock rather than compounding on top of it",
+      "status": "PASS",
+      "detail": "narrowed what-if=[8200787.0]; replaced what-if=[11926161.0]; relative shock still shown=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-17-replaced.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-18",
+      "module": "what-if-fidelity",
+      "title": "The replaced run and the same scenario asked from scratch reach the SAME figures \u2014 replacement is not almost-replacement",
+      "status": "PASS",
+      "detail": "after replacement=[7290521.0, 11926161.0]; from scratch=[7290521.0, 11926161.0]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-18-fresh.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-19",
+      "module": "what-if-fidelity",
+      "title": "An ambiguous unit is answered with a question offering both readings, not with a guess",
+      "status": "PASS",
+      "detail": "clarification shown=True; options=2",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-19-clarification.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-20",
+      "module": "what-if-fidelity",
+      "title": "Clicking a reading runs EXACTLY that reading, with nothing carried underneath it",
+      "status": "PASS",
+      "detail": "percentage-point reading on screen=True; relative reading also present=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-20-chosen.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-21",
+      "module": "what-if-fidelity",
+      "title": "A retired corporate operation is refused WHOLE, with the list of what this engine does implement",
+      "status": "PASS",
+      "detail": "refusal card=True; reason stated=True; supported list shown=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/wf-21-refusal.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WF-22",
+      "module": "what-if-fidelity",
+      "title": "A direct link to a retired corporate What-If route lands on a meaningful in-app fallback, not on a corporate screen over a book that is not served",
+      "status": "PASS",
+      "detail": "/what-if/thread: fallback=True link=True corporate=False; /what-if/models/delta: fallback=True link=True corporate=False; /what-if/models/ml: fallback=True link=True corporate=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "routes": [
+          {
+            "route": "/what-if/thread",
+            "fallback": true,
+            "link_back": true,
+            "heading_matched": true,
+            "corporate_screen_rendered": false,
+            "screenshot": "docs/evidence/retail_functionality/screens/wf-22-what-if-thread.png"
+          },
+          {
+            "route": "/what-if/models/delta",
+            "fallback": true,
+            "link_back": true,
+            "heading_matched": true,
+            "corporate_screen_rendered": false,
+            "screenshot": "docs/evidence/retail_functionality/screens/wf-22-what-if-models-delta.png"
+          },
+          {
+            "route": "/what-if/models/ml",
+            "fallback": true,
+            "link_back": true,
+            "heading_matched": true,
+            "corporate_screen_rendered": false,
+            "screenshot": "docs/evidence/retail_functionality/screens/wf-22-what-if-models-ml.png"
+          }
+        ]
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

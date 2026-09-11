@@ -5972,8 +5972,12 @@ export interface RetailWhatIfTotals {
 }
 
 export interface RetailWhatIfTurn {
-  kind: "result" | "clarification" | "refusal" | "invalid" | "explanation";
-  month?: string;
+  kind: "result" | "clarification" | "refusal" | "invalid" | "explanation" | "cutoff";
+  /** The month this turn actually ran on. The envelope names it
+   *  `snapshot_month`; there is no `month` on a turn, and reading one gave
+   *  "at undefined" on screen and saved runs under whatever month the select
+   *  happened to hold rather than the month the sentence named. */
+  snapshot_month?: string;
   question?: string;
   read_as?: string[];
   neutral?: boolean;
@@ -6016,6 +6020,24 @@ export interface RetailWhatIfTurn {
     within_tolerance: boolean;
     explanation: string;
   } | null;
+  /** `kind: "cutoff"` — an application-score cutoff replayed over the booked
+   *  originations. Counted, not revalued: this is not an ECL scenario. */
+  methodology?: string;
+  population?: string;
+  products?: string[];
+  new_cutoff?: Record<string, number>;
+  booked_facilities?: number;
+  would_be_excluded?: number;
+  would_be_excluded_pct?: number | null;
+  excluded_exposure_sar?: number;
+  lowest_booked_score?: Record<string, number>;
+  cutoffs_below_the_policy_in_force?: string[];
+  outcome_known_facilities?: number;
+  outcomes_available?: boolean;
+  excluded_with_known_outcome?: number;
+  excluded_observed_defaults?: number;
+  retained_with_known_outcome?: number;
+  retained_observed_defaults?: number;
   assumptions?: string[];
   limitations?: string[];
   /** An explanation of the run already on the table. */

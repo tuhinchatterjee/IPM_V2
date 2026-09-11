@@ -691,8 +691,14 @@ def whatif_ask(payload: AskIn,
         ask.shocks.update(dict(payload.chosen.get("shocks") or {}))
         for column, value in (payload.carried.get("filters") or {}).items():
             ask.filters.setdefault(column, value)
-        ask.shocks.update({k: v for k, v in (payload.carried.get("shocks") or {}).items()
-                           if k not in ask.shocks})
+        # Family-aware, so answering a units question with "percentage points"
+        # does not leave the carried relative PD increase sitting under it.
+        lang.carry_shocks(ask, dict(payload.carried.get("shocks") or {}))
+        # A scenario assembled from a CLICK has to describe itself. The button
+        # label is not a sentence this parser can read, so without this the
+        # result card captioned a two-percentage-point shock on personal
+        # finance as "an unchanged scenario over the whole retail book".
+        ask.read_as = lang.describe_scenario(ask)
 
     month = _resolve_month(payload.month or ask.month or None)
 
@@ -721,6 +727,39 @@ def whatif_ask(payload: AskIn,
                 "scenario. It reads: " + "; ".join(ask.unsupported)
                 + ". What this retail engine implements: "
                 + lang.supported_sentence() + "."),
+        })
+
+    if ask.cutoff is not None:
+        # Two analyses, not one. A cutoff replay COUNTS booked originations
+        # against a threshold; a shock REBUILDS expected credit loss on the
+        # book as it stands. They read different populations and answer
+        # different questions, so a sentence asking for both is answered with
+        # that fact rather than with whichever half ran first.
+        if ask.shocks or ask.scenario_weights is not None:
+            return json_safe({
+                **_envelope(month),
+                "kind": "invalid",
+                "question": payload.question,
+                "message": (
+                    "That sentence asks for two different analyses at once. A "
+                    "cutoff replay counts the originations that WERE booked "
+                    "against a score threshold; an ECL shock rebuilds the book "
+                    "as it stands today. They run over different populations "
+                    "and neither is a step in the other, so CreditProbe will "
+                    "not combine them. Ask for one, then the other."),
+                "read_as": ask.read_as,
+                "scenario_so_far": ask.to_dict(),
+            })
+        cutoff_frame = _read(month, ["facility_id", "product_code",
+                                     "application_score_at_origination",
+                                     "gross_carrying_amount_sar",
+                                     "observed_default_within_window"])
+        return json_safe({
+            **_envelope(month),
+            "kind": "cutoff",
+            "question": payload.question,
+            "read_as": ask.read_as,
+            **wif.cutoff_replay(cutoff_frame, ask.cutoff),
         })
 
     frame = _read(month)

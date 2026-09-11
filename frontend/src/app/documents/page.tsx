@@ -35,9 +35,17 @@ export default function DocumentsPage() {
               </div>
               <h3 className="text-sm font-semibold text-text-primary">{d.title}</h3>
               <p className="mt-1 text-xs text-text-muted">{d.kind}</p>
-              <p className="mt-3 flex-1 text-xs text-text-muted">
+              <p className="mt-2 text-xs text-text-muted">
                 {d.sections.length} sections · {d.owner}
               </p>
+              {/* The book and the month this paper is drawn from. A committee
+                  paper whose scope is not stated cannot be checked against
+                  anything, placeholder or not. */}
+              {d.basis ? (
+                <p className="mt-2 flex-1 text-[11px] text-text-muted">{d.basis}</p>
+              ) : (
+                <span className="flex-1" />
+              )}
               <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-[11px] text-text-muted">
                 <span>{d.updated}</span>
                 <span className="inline-flex items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">

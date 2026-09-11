@@ -13,9 +13,11 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Unavailable } from "@/components/ui/unavailable";
 import { api } from "@/lib/api";
+import { isRetail } from "@/lib/profile";
 import { useAsync } from "@/lib/hooks";
+import { RetiredScreen } from "@/components/layout/retired-screen";
 
-export default function DeltaModelPage() {
+function CorporateDeltaModelPage() {
   const model = useAsync(() => api.whatIfDeltaModel(), []);
   const data = model.data;
 
@@ -132,4 +134,23 @@ export default function DeltaModelPage() {
       ) : null}
     </div>
   );
+}
+
+
+// This installation is retail-only. The corporate screen above is kept as code
+// — the conversion is a profile, not a fork — but it is not reachable here:
+// without this guard a bookmark or a pasted link still opened it, over a book
+// that is retired, above a 503 from an endpoint with nothing behind it.
+export default function DeltaModelPage() {
+  if (isRetail()) {
+    return (
+      <RetiredScreen
+        title={"Delta Model configuration"}
+        reason={"The Delta and ML model configuration belongs to the Corporate IFRS 9 engine. The retail What-If runs one documented methodology over the retail book and names its version on every result."}
+        insteadHref={"/what-if"}
+        insteadLabel={"What-If Analysis"}
+      />
+    );
+  }
+  return <CorporateDeltaModelPage />;
 }

@@ -40,7 +40,8 @@ export default function DocumentPage({ params }: { params: Promise<{ id: string 
 
       <PageHeader
         title={doc.title}
-        description={`${doc.kind} · ${doc.owner} · last updated ${doc.updated}`}
+        description={`${doc.kind} · ${doc.owner} · last updated ${doc.updated}`
+          + (doc.basis ? ` · drawn from ${doc.basis}` : "")}
         status="preview"
         phase="Placeholder by design"
         actions={

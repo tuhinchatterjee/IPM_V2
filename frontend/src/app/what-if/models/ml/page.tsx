@@ -27,6 +27,8 @@ import { Composer, Figure, count, pct } from "@/components/whatif/parts";
 import type { WhatIfExample, WhatIfMlExplain, WhatIfTrainResult } from "@/lib/api";
 import { ApiError, api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { isRetail } from "@/lib/profile";
+import { RetiredScreen } from "@/components/layout/retired-screen";
 
 /** The Client X example the product asks for, at the values it specifies. */
 const CLIENT_X: Record<string, unknown> = {
@@ -55,7 +57,7 @@ function metric(body: Record<string, number | null> | undefined, key: string, di
   return value === null || value === undefined ? "—" : Number(value).toFixed(digits);
 }
 
-export default function MlModelPage() {
+function CorporateMlModelPage() {
   const model = useAsync(() => api.whatIfMlModel(), []);
   const [tab, setTab] = React.useState("card");
   const [explain, setExplain] = React.useState<WhatIfMlExplain | null>(null);
@@ -799,4 +801,23 @@ export default function MlModelPage() {
       ) : null}
     </div>
   );
+}
+
+
+// This installation is retail-only. The corporate screen above is kept as code
+// — the conversion is a profile, not a fork — but it is not reachable here:
+// without this guard a bookmark or a pasted link still opened it, over a book
+// that is retired, above a 503 from an endpoint with nothing behind it.
+export default function MlModelPage() {
+  if (isRetail()) {
+    return (
+      <RetiredScreen
+        title={"ML Model configuration"}
+        reason={"The ML model is trained on Corporate IFRS 9 outcomes and is not part of this retail installation. The retail What-If runs one documented methodology over the retail book and names its version on every result."}
+        insteadHref={"/what-if"}
+        insteadLabel={"What-If Analysis"}
+      />
+    );
+  }
+  return <CorporateMlModelPage />;
 }

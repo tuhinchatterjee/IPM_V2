@@ -98,6 +98,10 @@ class Ask:
     unsupported: list[str] = field(default_factory=list)
     #: What was read, in the words the answer will use.
     read_as: list[str] = field(default_factory=list)
+    #: An application-score cutoff to replay, by product code. This is NOT a
+    #: shock: `cutoff_replay` is a retrospective count over booked originations,
+    #: not a revaluation of the book, so it never joins `shocks`.
+    cutoff: dict[str, float] | None = None
 
     @property
     def needs_clarification(self) -> bool:
@@ -105,7 +109,8 @@ class Ask:
 
     @property
     def is_neutral(self) -> bool:
-        return not self.shocks and self.scenario_weights is None
+        return (not self.shocks and self.scenario_weights is None
+                and self.cutoff is None)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -117,6 +122,7 @@ class Ask:
             "question": self.question, "options": list(self.options),
             "unsupported": list(self.unsupported),
             "read_as": list(self.read_as),
+            "cutoff": dict(self.cutoff) if self.cutoff else None,
         }
 
 
@@ -181,15 +187,140 @@ def read(question: str, months: list[str] | None = None,
             "weights base/upturn/downturn = "
             + "/".join(f"{weights[s]:.2f}" for s in ("base", "upturn", "downturn")))
 
+    # ---- application-score cutoff replay -------------------------------
+    #
+    # Read BEFORE the shocks, because a cutoff replay is a different analysis
+    # over a different population — the booked originations, counted — and not
+    # a shock this engine can fold into an ECL rebuild. Reading it first is
+    # what stops "replay a cutoff of 620" from falling through every shock
+    # pattern, matching none, and being run as a neutral scenario.
+    _cutoff(said, ask)
+
     # ---- shocks -------------------------------------------------------
     _shocks(said, ask)
     if ask.needs_clarification:
         return ask
 
+    # A narrowing turn keeps the SHOCKS of the scenario it narrows, as it
+    # already keeps its population. Only when the sentence refers back: a bare
+    # new sentence starts a new scenario.
+    if _BACKREF.search(said) and not ask.cutoff:
+        carry_shocks(ask, dict(carried.get("shocks") or {}))
+        if carried.get("scenario_weights") and ask.scenario_weights is None:
+            ask.scenario_weights = dict(carried["scenario_weights"])
+            ask.read_as.append("carrying forward the scenario weights")
+
     unsupported = _unsupported(said, ask)
     if unsupported:
         ask.unsupported = unsupported
     return ask
+
+
+#: How a person names the application-score cutoff. "Cut-off", "score floor",
+#: "minimum application score" and "approval threshold" are the same control.
+_CUTOFF_SUBJECT = (r"(?:application[- ]score\s+)?cut[- ]?off|score\s+floor|"
+                   r"minimum\s+application\s+score|approval\s+threshold")
+
+
+def _cutoff(said: str, ask: Ask) -> None:
+    """An application-score cutoff to replay, and the products to replay it on.
+
+    The defect this closes
+    ----------------------
+        "Replay an application cutoff of 620 on personal finance."
+
+    named a methodology the screen advertises, matched no shock pattern, and
+    was therefore run as a scenario with no shocks — the published book,
+    returned under the reader's question as though it were the answer. An
+    advertised capability that silently answers with the baseline is worse
+    than one that is not offered.
+    """
+    match = re.search(
+        rf"\b(?:{_CUTOFF_SUBJECT})\b[^.;]{{0,30}}?{_NUMBER}", said)
+    if not match:
+        match = re.search(
+            rf"{_NUMBER}\s*(?:points?\s*)?\b(?:{_CUTOFF_SUBJECT})\b", said)
+    if not match:
+        return
+    score = float(match.group(1))
+
+    # A cutoff is a point on the application score scale. A number that cannot
+    # be one is a misread sentence, not a scenario: say so rather than replay
+    # a threshold of 20.
+    if not 300.0 <= score <= 900.0:
+        ask.unsupported.append(
+            f"an application-score cutoff of {score:g} — the application score "
+            "runs from 300 to 900, so this is not a point on it")
+        return
+
+    products = ([str(ask.filters["product_code"])]
+                if ask.filters.get("product_code") else list(_ALL_PRODUCTS))
+    ask.cutoff = {code: score for code in products}
+    ask.read_as.append(
+        f"replay an application-score cutoff of {score:g} on "
+        + ("the whole book" if len(products) > 1 else products[0]))
+
+
+#: Every governed retail product a cutoff can be replayed on, in one place so
+#: the whole-book reading names the same set the engine validates against.
+_ALL_PRODUCTS: tuple[str, ...] = tuple(sorted(set(PRODUCTS.values())))
+
+
+#: Shocks that are the same CONTROL expressed two ways. A new sentence naming
+#: one of a family replaces the carried other — "instead, two percentage points"
+#: must not leave the earlier relative increase sitting underneath it.
+SHOCK_FAMILIES: dict[str, str] = {
+    "pd_relative": "pd",
+    "pd_absolute_pp": "pd",
+}
+
+
+def family(shock: str) -> str:
+    return SHOCK_FAMILIES.get(shock, shock)
+
+
+#: A sentence that continues the scenario on the table rather than starting a
+#: new one. "Apply the same shock only to salary-transfer customers" narrows
+#: THAT scenario; "show me credit cards" does not.
+_BACKREF = re.compile(
+    r"\bthe same\b|\bsame shock\b|\bthat shock\b|\bthis shock\b|"
+    r"\bagain\b|\bas above\b|\bonly (?:to|for|on)\b|\brestrict\w*\b|"
+    r"\bnarrow\w*\b|\bjust (?:to|for)\b|\blimit (?:it|this|that)\b|"
+    r"\bnow (?:only|just)\b|\bkeep (?:the|that|this)\b")
+
+
+def carry_shocks(ask: Ask, carried_shocks: dict[str, Any]) -> None:
+    """Keep the shocks of the scenario being narrowed, without compounding them.
+
+    The defect this closes
+    ----------------------
+        "Increase PD by 20% relative for personal finance."
+        "Apply the same shock only to salary-transfer customers."
+
+    The second sentence narrowed the population correctly and DROPPED the 20%,
+    so the screen answered a request to re-apply a shock with the untouched
+    published book — a neutral run, labelled as the reader's scenario. The
+    engine promises an instruction is never dropped; this is where the
+    conversational half was breaking it.
+
+    A shock the new sentence states wins: a sentence naming any PD shock
+    replaces a carried PD shock of either unit, so "instead, two percentage
+    points" does not silently sit on top of the earlier relative increase.
+    """
+    claimed = {family(name) for name in ask.shocks}
+    kept: list[str] = []
+    for name, value in (carried_shocks or {}).items():
+        if name not in wif.SUPPORTED_METHODOLOGIES:
+            continue
+        if family(name) in claimed:
+            continue
+        ask.shocks[name] = value
+        claimed.add(family(name))
+        kept.append(name)
+    if kept:
+        ask.read_as.append(
+            "carrying forward " + ", ".join(sorted(kept)) + " from the scenario "
+            "on the table")
 
 
 def _weights(said: str) -> dict[str, float] | None:
@@ -367,6 +498,69 @@ def wants_explanation(question: str) -> bool:
     # for an explanation with it.
     probe = read(said, [])
     return not probe.shocks and probe.scenario_weights is None
+
+
+#: How each shock reads back to the person who asked for it, so a scenario
+#: assembled from a CLICK describes itself in the same words as one that was
+#: typed.
+def _say_shock(name: str, value: Any) -> str:
+    number = float(value)
+    if name == "pd_relative":
+        return f"PD {number * 100:+g}% relative"
+    if name == "pd_absolute_pp":
+        return f"PD {number:+g} percentage points"
+    if name == "lgd_relative":
+        return f"LGD {number * 100:+g}% relative"
+    if name == "collateral_value_pct":
+        return f"collateral values {number * 100:+g}% relative"
+    if name == "income_pct":
+        return f"verified income {number * 100:+g}% relative"
+    if name == "utilisation_pp":
+        return f"card utilisation {number:+g} percentage points"
+    if name == "recovery_delay_months":
+        return f"recovery delayed {number:g} months"
+    if name == "ccf_absolute":
+        return f"credit conversion factor set to {number:.2f}"
+    if name == "behavioural_score_points":
+        return f"behavioural score {number:+g} points"
+    return f"{name} {number:g}"
+
+
+def describe_scenario(ask: Ask) -> list[str]:
+    """What a resolved scenario says about itself, rebuilt from its own fields.
+
+    The defect this closes
+    ----------------------
+    Answering "do you mean 2 percent or 2 percentage points?" by CLICKING a
+    button produced a run whose `read_as` was empty, because the button's label
+    was parsed as a fresh sentence and named nothing. The screen falls back to
+    "An unchanged scenario over the whole retail book" when nothing was read —
+    so a two-percentage-point shock on personal finance was captioned as the
+    untouched book. The figures were right and the sentence above them was not,
+    which is the harder error to catch.
+    """
+    lines: list[str] = []
+    product = ask.filters.get("product_code")
+    if product:
+        lines.append(f"{product} only")
+    for column, value in ask.filters.items():
+        if column == "product_code":
+            continue
+        lines.append(f"{column.replace('_', ' ')} = {value}")
+    for name, value in ask.shocks.items():
+        lines.append(_say_shock(name, value))
+    if ask.scenario_weights:
+        lines.append("weights base/upturn/downturn = " + "/".join(
+            f"{ask.scenario_weights.get(s, 0.0):.2f}"
+            for s in ("base", "upturn", "downturn")))
+    if ask.staging_mode == wif.REEVALUATE_STAGE:
+        lines.append("staging re-evaluated")
+    if ask.cutoff:
+        level = next(iter(ask.cutoff.values()))
+        lines.append(f"replay an application-score cutoff of {level:g} on "
+                     + ("the whole book" if len(ask.cutoff) > 1
+                        else next(iter(ask.cutoff))))
+    return lines
 
 
 def describe(ask: Ask) -> str:

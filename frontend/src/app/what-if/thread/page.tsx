@@ -71,7 +71,9 @@ import type {
   WhatIfAnalysis,
 } from "@/lib/api";
 import { api } from "@/lib/api";
+import { isRetail } from "@/lib/profile";
 import { AnalysisAnswer } from "@/components/whatif/analysis-table";
+import { RetiredScreen } from "@/components/layout/retired-screen";
 
 type Turn =
   | { kind: "said"; text: string }
@@ -123,7 +125,7 @@ function emptyState(period: string, title: string): WhatIfState {
   return { period, title, steps: [] };
 }
 
-export default function WhatIfThreadPage() {
+function CorporateWhatIfThreadPage() {
   const params = useSearchParams();
   const router = useRouter();
   const journey = params.get("journey") ?? "";
@@ -1104,4 +1106,23 @@ export default function WhatIfThreadPage() {
       </Card>
     </div>
   );
+}
+
+
+// This installation is retail-only. The corporate screen above is kept as code
+// — the conversion is a profile, not a fork — but it is not reachable here:
+// without this guard a bookmark or a pasted link still opened it, over a book
+// that is retired, above a 503 from an endpoint with nothing behind it.
+export default function WhatIfThreadPage() {
+  if (isRetail()) {
+    return (
+      <RetiredScreen
+        title={"What-If thread"}
+        reason={"A What-If thread runs on the Corporate IFRS 9 book — rating notches, sector stress and a borrower-level master scale. This installation serves the Saudi retail book, which has scorecards and no rating scale, so that thread cannot be opened here."}
+        insteadHref={"/what-if"}
+        insteadLabel={"What-If Analysis"}
+      />
+    );
+  }
+  return <CorporateWhatIfThreadPage />;
 }

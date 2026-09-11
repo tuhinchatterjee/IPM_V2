@@ -62,15 +62,23 @@ SUPPORTED_METHODOLOGIES: dict[str, str] = {
 
 #: What a NEUTRAL scenario — no shocks, published weights — must reproduce.
 #:
-#: Not zero, and the reason is stated rather than absorbed. The published book
-#: holds money on a 0.002 SAR grid; the recomputation is continuous, so a
-#: facility's rebuilt ECL lands beside its published value rather than on it.
-#: Across the personal-finance book at 2026-08 that is SAR 0.52 on SAR
-#: 8,994,011.87 — six parts in a hundred million — and no facility differs by
-#: more than one halala.
+#: Zero, on every row, and that is a claim about arithmetic rather than about
+#: materiality. The build publishes each SCENARIO ECL rounded to the halala and
+#: then carries the weighted and final allowance as the exact weighted
+#: combination of those published values. This rebuild does the same, so a
+#: neutral scenario returns the published figure itself.
 #:
-#: Declared here so a run can be CHECKED against it and say so, rather than
-#: having the difference hidden by rounding the answer to match the input.
+#: It did not always. The rebuild used to round the weighted and final values a
+#: second time to the halala, which the build never does. With weights
+#: 0.6/0.2/0.2 over per-scenario values on a 0.01 grid, the published allowance
+#: sits on a 0.002 grid — gcd(0.6, 0.2, 0.2) × 0.01 — and snapping that to 0.01
+#: displaces every row by up to 0.004. Across the personal-finance book at
+#: 2026-08 the row displacements summed to |SAR 17.86| and netted to SAR −0.52
+#: on SAR 8,994,011.87. The net was small and the per-row error was not, which
+#: is why "six parts in a hundred million" was never evidence of the cause.
+#:
+#: The bound below is kept as a GUARD, not as an allowance: it is what a run is
+#: checked against so a future regression is reported rather than absorbed.
 PARITY_PER_FACILITY_SAR = 0.01
 PARITY_RELATIVE_TOTAL = 1e-6
 
@@ -286,7 +294,19 @@ def _recompute(
         ))
         scenario_ecl[s] = np.round(res.ecl, 2)
 
-    weighted = np.round(ecl_mod.weighted_ecl(scenario_ecl, weights), 2)
+    # NOT rounded, and that is the whole of the parity story.
+    #
+    # The build publishes each SCENARIO ECL rounded to the halala — that is the
+    # figure a reader quotes — and then carries the weighted and final
+    # allowance as the EXACT weighted combination of those published values, so
+    # the identity on screen holds rather than nearly holding. This rebuild
+    # rounded the weighted and final values a second time, to the halala, which
+    # the build never does. With weights 0.6/0.2/0.2 over values on a 0.01
+    # grid, the published allowance lands on a 0.002 grid; snapping it to 0.01
+    # moved every row by up to 0.004 and left SAR 0.52 across the
+    # personal-finance book. Doing the same arithmetic as the build reproduces
+    # the published figure exactly, on every row.
+    weighted = ecl_mod.weighted_ecl(scenario_ecl, weights)
     overlay = np.nan_to_num(num("management_overlay_sar"), nan=0.0)
     return {
         "stage": stage,
@@ -295,7 +315,7 @@ def _recompute(
         "ecl_upturn": scenario_ecl["upturn"],
         "ecl_downturn": scenario_ecl["downturn"],
         "ecl_weighted": weighted,
-        "ecl_final": np.round(weighted + overlay, 2),
+        "ecl_final": ecl_mod.final_ecl(weighted, overlay),
     }
 
 
@@ -477,44 +497,107 @@ def cutoff_replay(
     """Replay a different application-score cutoff over the BOOKED originations.
 
     What this can say: which historically funded accounts a tighter cutoff would
-    have excluded, and what those accounts actually went on to do.
+    have excluded, and — where the outcome window has closed — what those
+    accounts actually went on to do.
 
     What it cannot say, and does not pretend to: the bank's future approval
     rate, the loss a tighter policy would have avoided, or anything at all about
     customers who were declined. This dataset contains booked facilities. The
     declined applications and their outcomes are not in it, and no row is
     invented to fill the gap.
+
+    Three things this deliberately refuses to do
+    --------------------------------------------
+    **It does not count products the cutoff was not asked about.** A cutoff
+    named for personal finance is replayed on personal finance. Leaving the
+    other products in the denominator turned "one in five personal-finance
+    accounts" into "one in five accounts", which is a different and smaller
+    number about a different book.
+
+    **It does not report an unknown outcome as a zero.** At the latest month no
+    facility's outcome window has closed yet, so every default count would be
+    0 — indistinguishable, on the page, from a clean book. The counts are
+    omitted and their absence is stated instead.
+
+    **It does not treat a cutoff below the policy in force as an insight.** Such
+    a cutoff excludes nobody; the accounts it would have ADDED were never
+    booked, so this data cannot speak to it at all.
     """
     booked = frame.drop_duplicates("facility_id").copy()
+
+    # Only the products the cutoff was asked about. Anything else is not in
+    # this question, and must not sit in its denominator.
+    asked = [str(code) for code in new_cutoff]
+    booked = booked[booked["product_code"].astype(str).isin(asked)]
+
     score = pd.to_numeric(booked["application_score_at_origination"], errors="coerce")
-    cutoff = booked["product_code"].map(new_cutoff)
-    excluded = score < cutoff
+    cutoff = booked["product_code"].astype(str).map(
+        {str(k): float(v) for k, v in new_cutoff.items()})
+    excluded = (score < cutoff).fillna(False)
 
     outcome = booked["observed_default_within_window"]
     known = outcome.notna()
 
-    return {
+    # The lowest score that WAS booked, per product. Without it a reader cannot
+    # tell whether the cutoff they asked about was already below the policy in
+    # force — in which case the replay excludes nobody and the honest answer is
+    # that this data cannot speak to it, not a tidy row of zeros.
+    floors = {
+        str(code): float(group.min())
+        for code, group in score.groupby(booked["product_code"].astype(str))
+        if group.notna().any()
+    }
+    inert = sorted(code for code, level in new_cutoff.items()
+                   if str(code) in floors and float(level) <= floors[str(code)])
+
+    limitations = [
+        "This is a retrospective replay over accounts that WERE booked. It is not the bank's "
+        "future approval rate.",
+        "It is descriptive, not causal: the excluded accounts differ from the retained ones in "
+        "more than their score.",
+        "It says nothing about applicants who were declined. Their applications and outcomes "
+        "are not in this dataset, and none has been manufactured.",
+        "A LOWER cutoff cannot be evaluated at all from this data: the accounts it would have "
+        "approved were never booked, so their outcomes do not exist.",
+    ]
+    if inert:
+        limitations.insert(0, (
+            "A cutoff at or below the lowest score actually booked excludes nobody, so this "
+            "replay says nothing about " + ", ".join(inert) + ". The lowest booked score there is "
+            + ", ".join(f"{code} {floors[code]:.0f}" for code in inert) + "."))
+
+    out: dict[str, Any] = {
         "methodology": "cutoff_replay",
         "population": "BOOKED_ORIGINATIONS_ONLY",
-        "new_cutoff": dict(new_cutoff),
+        "products": sorted(asked),
+        "new_cutoff": {str(k): float(v) for k, v in new_cutoff.items()},
         "booked_facilities": int(len(booked)),
         "would_be_excluded": int(excluded.sum()),
         "would_be_excluded_pct": float(excluded.mean()) if len(booked) else None,
-        "excluded_exposure_sar": float(booked.loc[excluded, "gross_carrying_amount_sar"].sum()),
-        "excluded_with_known_outcome": int((excluded & known).sum()),
-        "excluded_observed_defaults": int(
-            booked.loc[excluded & known, "observed_default_within_window"].astype(bool).sum()),
-        "retained_with_known_outcome": int((~excluded & known).sum()),
-        "retained_observed_defaults": int(
-            booked.loc[~excluded & known, "observed_default_within_window"].astype(bool).sum()),
-        "limitations": [
-            "This is a retrospective replay over accounts that WERE booked. It is not the bank's "
-            "future approval rate.",
-            "It is descriptive, not causal: the excluded accounts differ from the retained ones in "
-            "more than their score.",
-            "It says nothing about applicants who were declined. Their applications and outcomes "
-            "are not in this dataset, and none has been manufactured.",
-            "A LOWER cutoff cannot be evaluated at all from this data: the accounts it would have "
-            "approved were never booked, so their outcomes do not exist.",
-        ],
+        "excluded_exposure_sar": float(
+            booked.loc[excluded, "gross_carrying_amount_sar"].sum()),
+        "lowest_booked_score": floors,
+        "cutoffs_below_the_policy_in_force": inert,
+        "outcome_known_facilities": int(known.sum()),
+        "outcomes_available": bool(known.any()),
     }
+
+    if known.any():
+        out.update({
+            "excluded_with_known_outcome": int((excluded & known).sum()),
+            "excluded_observed_defaults": int(
+                booked.loc[excluded & known, "observed_default_within_window"].astype(bool).sum()),
+            "retained_with_known_outcome": int((~excluded & known).sum()),
+            "retained_observed_defaults": int(
+                booked.loc[~excluded & known, "observed_default_within_window"].astype(bool).sum()),
+        })
+    else:
+        # Not zero defaults — no closed outcome window. Reporting 0 here would
+        # read on the page as a book that never defaulted.
+        limitations.insert(0, (
+            "No facility in this population has a closed outcome window at this month, so what "
+            "the excluded accounts went on to do is NOT KNOWN here — it is not zero. Ask the "
+            "same question at an earlier reporting month, where the window has closed."))
+
+    out["limitations"] = limitations
+    return out
