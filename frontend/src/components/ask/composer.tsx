@@ -133,6 +133,11 @@ export function Composer({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => {
+              // An Enter pressed to CHOOSE a candidate in an IME — Arabic and
+              // CJK keyboards both — is not an Enter pressed to ask. Without
+              // this guard the half-composed word is submitted and the rest of
+              // the sentence lands in an empty composer.
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 if (value.trim() && !busy) onSubmit(value.trim());

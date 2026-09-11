@@ -226,6 +226,18 @@ class AnalysisBuild:
         }
 
 
+def _plural(word: str) -> str:
+    """The plural of a grain word. "Facilitys" was the column heading."""
+    text = str(word or "").strip()
+    if not text:
+        return text
+    if text.endswith("y") and text[-2:-1].lower() not in "aeiou":
+        return text[:-1] + "ies"
+    if text.endswith(("s", "x", "z", "ch", "sh")):
+        return text + "es"
+    return text + "s"
+
+
 def _count_match(dataset: str, column: str, key: str, grain: str,
                  phrase: str) -> cx.ConceptMatch:
     """A ConceptMatch that counts distinct rows at the grain.
@@ -244,7 +256,7 @@ def _count_match(dataset: str, column: str, key: str, grain: str,
         definition=f"Distinct values counted in the column {key}",
         is_default=True)
     concept = cx.Concept(
-        id=COUNT_CONCEPT, label=f"{grain}s", pattern="",
+        id=COUNT_CONCEPT, label=_plural(grain), pattern="",
         candidates=(candidate,), higher_is_worse=False, unit="")
     return cx.ConceptMatch(
         concept=concept, candidate=candidate, phrase=phrase,
@@ -578,12 +590,15 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # narrowed — and refused there if none can be.
     lists_entities = grouping.entity in ("customer", "facility")
     if not matches and not count_grain and not lists_entities:
+        # The examples come from the ACTIVE registry. Hardcoding them offered
+        # "internal rating" on a retail installation that retired ratings, so
+        # the clarification named a concept the product would then refuse.
+        _examples = ", ".join(c.label for c in cx.CONCEPTS[:4]) or "a governed measure"
         raise CannotPlan(
             "No governed measure was named.",
             clarification=(
-                "Which figure should CreditProbe measure? Name one of the "
-                "governed concepts — exposure at default, expected credit "
-                "loss, internal rating, days past due — and it will compose "
+                f"Which figure should CreditProbe measure? Name one of the "
+                f"governed concepts — {_examples} — and it will compose "
                 "the analysis."))
 
     # Limitations the FILTER resolution created, which the build does not
@@ -721,9 +736,33 @@ def _plan(reading: Reading, context: GovernedContext, *,
         text, dimension=dimension,
         population_grain=gr.GRAIN_OF_KEY.get(carried_key, ""),
         rows_requested=bool(_explicit_top_n(text) or inherited_top_n),
-        dimension_is_head=grouping.is_head)
+        dimension_is_head=grouping.is_head,
+        # An entity noun that is not the HEAD of the request — "customers" and
+        # "facilities" in a list of measures — does not decide the grain when
+        # the question also says what to break the answer down by.
+        entity_is_head=bool(grouping.entity))
     if wants_grain.grain == gr.PORTFOLIO and shape == RANKING:
         shape = AGGREGATE
+
+    # "Compare with July 2026", asked of an analysis already at August 2026.
+    # The sentence names ONE period and the conversation settled the other, so
+    # the pair is the two of them. Without this the comparison fell through to
+    # the governed twelve-month default and answered a question nobody asked,
+    # in a thread where both ends were already on the table.
+    if carrying and not period and shape in (COHORT, MOVEMENT) and state:
+        from backend.orchestration import periods as pdx
+
+        settled = (state.closing_period
+                   or (state.periods[-1] if state.periods else ""))
+        available = list(context.periods or [])
+        intent = pdx.read_period_intent(text, available)
+        said = [p for p in intent.named_periods if p != settled]
+        if settled in available and len(said) == 1 and said[0] in available:
+            pair = sorted({said[0], settled}, key=available.index)
+            period = (pair[0], pair[-1])
+            if continuation is not None:
+                continuation.inherited["comparison"] = (
+                    f"{pair[0]} → {pair[-1]}")
 
     if carrying and not reading.periods and not period and state.opening_period \
             and state.closing_period and shape in (COHORT, MOVEMENT):
@@ -1040,7 +1079,7 @@ def _fallback_dataset(state: cv.ConversationState | None) -> str:
     """
     if state is not None and state.datasets:
         return state.datasets[0]
-    return multi.DEFAULT_BASE
+    return multi.default_base()
 
 
 def _replaces(text: str) -> bool:
@@ -1082,6 +1121,49 @@ def _count_subject(text: str) -> str:
     if re.search(r"\b(?:facilities|facility|accounts?|loans?)\b", lowered):
         return "facility"
     return ""
+
+
+def _count_subjects(text: str) -> list[str]:
+    """Entity nouns named as ITEMS in a list of measures.
+
+    The failure this prevents
+    -------------------------
+        "Show exposure, customers, facilities and weighted ECL by retail
+         product"
+
+    asks for four columns. Two of them are counts — how many customers, how
+    many facilities — and the planner had no way to read an entity noun as a
+    measure unless the question said "number of" or "how many". So the answer
+    came back with two of the four columns, and said so: "1 of 2 answered, 1
+    partly answered". Half an answer to a question that was perfectly clear.
+
+    Deliberately narrow. The nouns must be ITEMS in a list that also carries a
+    non-entity item, which is what makes them columns rather than the thing the
+    answer has one row of: "show the ten largest customers by product" is a
+    list of customers and returns nothing here.
+    """
+    lowered = " ".join(str(text or "").lower().split())
+    clause = re.split(r"\b(?:by|per|for each|for every|grouped by|split by)\b",
+                      lowered)[0]
+    items = [part.strip() for part in re.split(r",|\band\b", clause)
+             if part.strip()]
+    if len(items) < 2:
+        return []
+
+    subjects: list[str] = []
+    measures = 0
+    for item in items:
+        words = item.split()
+        last = words[-1] if words else ""
+        if re.fullmatch(r"customers?|borrowers?|clients?|obligors?|names?", last):
+            if "customer" not in subjects:
+                subjects.append("customer")
+        elif re.fullmatch(r"facilities|facility|accounts?|loans?", last):
+            if "facility" not in subjects:
+                subjects.append("facility")
+        else:
+            measures += 1
+    return subjects if (subjects and measures) else []
 
 
 def _wants_count(text: str, reading: Reading) -> bool:
@@ -1735,12 +1817,45 @@ _ENTITY_KEYS = frozenset({"customer_id", "borrower_id", "account_id"})
 
 _GRAIN_OF_KEY: dict[str, str] = {"customer_id": "customer",
                                  "account_id": "facility",
+                                 "facility_id": "facility",
                                  "sector": "sector"}
 
+#: The columns that can carry each grain, best first. A facility is keyed on
+#: `account_id` in the corporate book and on `facility_id` in the retail one,
+#: and a mapping that knew only the first turned every retail question naming
+#: facilities into "the governed data can only be reported as one row per
+#: customer" — a refusal produced by a column name, not by the data.
+_GRAIN_COLUMNS: dict[str, tuple[str, ...]] = {
+    "customer": ("customer_id",),
+    "facility": ("facility_id", "account_id"),
+    "sector": ("sector",),
+}
 
-def _grain_key(grain: str) -> str:
-    return {"customer": "customer_id", "facility": "account_id",
-            "sector": "sector"}.get(grain, "customer_id")
+
+def _fields_of(dataset: str) -> set[str]:
+    """The columns a dataset carries, for resolving a grain to a real key."""
+    try:
+        from backend.data_access.catalog import get_catalog
+
+        return set(get_catalog().dataset(dataset).fields)
+    except Exception:  # noqa: BLE001 - an unknown dataset has no columns
+        return set()
+
+
+def _grain_key(grain: str, available: Any = None) -> str:
+    """The column that carries this grain in the dataset being read.
+
+    `available` is the dataset's columns. When it is given, the first candidate
+    the dataset actually has wins; without it the first candidate is returned so
+    the old single-value behaviour is preserved for callers that have no
+    column list to hand.
+    """
+    candidates = _GRAIN_COLUMNS.get(grain, ("customer_id",))
+    if available is not None:
+        for column in candidates:
+            if column in available:
+                return column
+    return candidates[0]
 
 
 def _period_for(reading: Reading, context: GovernedContext,
@@ -2041,22 +2156,33 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         carried_grain = _GRAIN_OF_KEY.get(population.entity_key, "")
         if carried_grain:
             grain = carried_grain
-    key = _grain_key(grain)
+    key = _grain_key(grain, available)
     if key not in available:
         # The dataset cannot be reported at that grain. Fall back to whatever
         # it IS keyed on rather than inventing a column.
-        key = next((k for k in ("customer_id", "account_id")
+        key = next((k for k in ("customer_id", "facility_id", "account_id")
                     if k in available), "")
 
     # What a count would count, decided before the scan is built so the column
     # can be read. "Number of CUSTOMERS by sector" counts customer_id while
     # grouping by sector; reusing the group key instead gives a column of ones.
     counted, count_key = "", ""
+    counts: list[tuple[str, str]] = []
+    subjects: list[str] = []
     if count_grain:
-        counted = _count_subject(text) or inherited_count_of or grain
-        count_key = _grain_key(counted)
-        if count_key not in available:
-            counted, count_key = grain, key
+        subjects = [_count_subject(text) or inherited_count_of or grain]
+    elif dimension:
+        # Entity nouns listed among the measures are columns of counts, one per
+        # group — not the grain of the answer, which the breakdown already set.
+        subjects = _count_subjects(text)
+    for subject in subjects:
+        subject_key = _grain_key(subject, available)
+        if subject_key in available and (subject, subject_key) not in counts:
+            counts.append((subject, subject_key))
+    if count_grain and not counts and key:
+        counts = [(grain, key)]
+    if counts:
+        counted, count_key = counts[0]
 
     warnings: list[str] = []
     # Level tests the question stated — "on the watchlist", "headroom below
@@ -2173,7 +2299,10 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     wanted_fields = {key, *filter_fields, *condition_fields,
                      *([dimension] if dimension else []),
                      *([population.entity_key] if scoped else []),
-                     *([count_key] if count_key else []),
+                     # Every key a count column reads, not only the first:
+                     # a facility count whose key was never scanned counts a
+                     # column that is not there.
+                     *[subject_key for _, subject_key in counts],
                      *[m.field for m in base_measures]}
     if enrichment.active:
         # Two things a plain single-dataset plan does not need. The columns the
@@ -2315,10 +2444,20 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         label = "Aggregate across the population"
 
     count_column = ""
-    if count_key:
-        count_column = f"{counted}_count"
-        measures.insert(0, (count_column, _count_match(
-            base, count_column, count_key, counted, f"number of {counted}s")))
+    for index, (subject, subject_key) in enumerate(counts):
+        column = f"{subject}_count"
+        match = _count_match(base, column, subject_key, subject,
+                             f"number of {_plural(subject)}")
+        # A question ABOUT a count leads with it. A count named alongside other
+        # measures is one column among them, and putting it first makes the
+        # headline figure — and the "largest" the answer names — a tally when
+        # the question led with money.
+        if count_grain:
+            measures.insert(index, (column, match))
+        else:
+            measures.append((column, match))
+        if not count_column:
+            count_column = column
 
     aggregates = [
         {"function": _rollup_for(m),
@@ -2565,6 +2704,23 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         period=period, dimension=dimension, top_n=top_n, warnings=warnings,
         summary=summary, joins=joins, grain_contract=contract,
     )
+
+
+def _breakdown_examples(limit: int = 3) -> list[str]:
+    """A few breakdowns THIS installation governs, for a clarification.
+
+    The list used to be written into the sentence — "sector, region or
+    segment". A retail installation governs none of those, so the one question
+    the product asked in order to be helpful named three things the book does
+    not have.
+    """
+    try:
+        from backend.orchestration.dimensions import readable
+        from backend.orchestration.vocabulary import filterable_dimensions
+
+        return [readable(name) for name in filterable_dimensions()[:limit]]
+    except Exception:  # noqa: BLE001 - no vocabulary, no examples
+        return ["a governed dimension"]
 
 
 def _period_field(catalogue: Any, dataset: str) -> str:
@@ -3322,9 +3478,27 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
     a column, so grouping by it gives both totals from one pass, and there is
     no join to lose rows at.
     """
+    if not matches:
+        # "Compare with July 2026" names no measure of its own: it carries the
+        # one the conversation is already about. When nothing was carried
+        # either there is nothing to move, and the honest answer says so.
+        # Reading `matches[0]` regardless raised IndexError, which reached the
+        # user as "The AI interpretation failed validation: list index out of
+        # range" — an internal defect dressed as a reading problem.
+        raise CannotPlan(
+            "The question asks for a comparison but names no measure.",
+            clarification=(
+                "Which figure should CreditProbe compare between those two "
+                "periods? Name it — for example expected credit loss or "
+                "gross carrying amount — and it will build the comparison."))
     dataset = matches[0].dataset
     fields_of = {d.name: set(d.fields) for d in catalogue.all()}
     available = fields_of.get(dataset, set())
+    # The column this dataset actually records its reporting date in. The
+    # movement plan used the literal name "period": a monthly book that calls
+    # it `reporting_month` was refused with "retail_facility_month is not
+    # reported by period", which is the opposite of true.
+    period_field = _period_field(catalogue, dataset)
 
     annual_only = all(_is_annual(m.dataset, context) for m in matches)
     if period:
@@ -3345,7 +3519,7 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
                                f"{published[0]} to {published[-1]}; it has no "
                                f"{name} period at {value}."))
 
-    if "period" not in available:
+    if period_field not in available:
         raise CannotPlan(f"{dataset} is not reported by period.")
 
     measures = [m for m in matches if m.dataset == dataset
@@ -3357,7 +3531,7 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
         dimension = ""
     filters = [(f, v) for f, v in filters if f in available]
 
-    read_fields = sorted({"period", *[f for f, _ in filters],
+    read_fields = sorted({period_field, *[f for f, _ in filters],
                           *([dimension] if dimension else []),
                           *[m.field for m in measures]} & available)
     operations: list[dict[str, Any]] = [{
@@ -3366,7 +3540,8 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
                    "alias": dataset},
         "label": f"Read {dataset}",
     }]
-    where = [{"column": "period", "op": "in", "value": [opening, closing]}]
+    where = [{"column": period_field, "op": "in",
+              "value": [opening, closing]}]
     where += [{"column": f, "op": "=", "value": v} for f, v in filters]
     operations.append({
         "id": "scoped", "op": "FILTER", "inputs": ["source"],
@@ -3374,7 +3549,7 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
         "label": (f"Keep {opening} and {closing}"
                   + (", " + ", ".join(v for _, v in filters) if filters else "")),
     })
-    group_by = ["period"] + ([dimension] if dimension else [])
+    group_by = [period_field] + ([dimension] if dimension else [])
     operations.append({
         "id": "totals", "op": "GROUP", "inputs": ["scoped"],
         "params": {"by": group_by,
@@ -3527,7 +3702,10 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
     # sector came back at exactly 100% — a share that is its own total.
     filters = [(f, v) for f, v in filters if f in available and f != field]
 
-    read_fields = sorted({"period", field, measure.field,
+    # Same rule as the movement plan: the reporting date lives in the column
+    # the catalogue declares, which is not called "period" in every book.
+    period_field = _period_field(catalogue, dataset)
+    read_fields = sorted({period_field, field, measure.field,
                           *[f for f, _ in filters],
                           *([dimension] if dimension else [])} & available)
     operations: list[dict[str, Any]] = [{
@@ -3535,7 +3713,8 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
         "params": {"dataset": dataset, "fields": read_fields, "alias": dataset},
         "label": f"Read {dataset}",
     }]
-    where = [{"column": "period", "op": "in", "value": [opening, closing]}]
+    where = [{"column": period_field, "op": "in",
+              "value": [opening, closing]}]
     where += [{"column": f, "op": "=", "value": v} for f, v in filters]
     operations.append({
         "id": "scoped", "op": "FILTER", "inputs": ["source"],
@@ -3544,7 +3723,7 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
     })
 
     def conditional(name: str, at: str, qualified: bool) -> dict[str, Any]:
-        clauses = [{"column": "period", "op": "=", "value": at}]
+        clauses = [{"column": period_field, "op": "=", "value": at}]
         if qualified:
             clauses.append({"column": field, "op": "=", "value": value})
         return {"function": "sum_where", "column": measure.field,
@@ -3554,7 +3733,8 @@ def _conditional_share(reading: Reading, context: GovernedContext, text: str,
         raise CannotPlan(
             "A share by group needs a group to break it down by.",
             clarification=("Which breakdown should CreditProbe use for that "
-                           "share — sector, region or segment?"))
+                           "share? Name a governed dimension — for example "
+                           + ", ".join(_breakdown_examples()) + "."))
 
     operations.append({
         "id": "shares", "op": "GROUP", "inputs": ["scoped"],
@@ -3681,7 +3861,7 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
         grain = _GRAIN_OF_KEY.get(population.entity_key, grain)
     if grain == "sector":
         grain = "customer"
-    key = _grain_key(grain)
+    key = _grain_key(grain, _fields_of(matches[0].dataset))
 
     by_field = {m.field: m for m in matches}
     bindings = [multi.Binding(condition=c, match=by_field[c.field])
@@ -3696,7 +3876,7 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
                                     higher_is_worse=match.concept.higher_is_worse),
                 match=match))
 
-    base = multi.DEFAULT_BASE
+    base = multi.default_base()
     targets = sorted({b.dataset for b in bindings} - {base})
     graph = build_graph(_relationship_rows(context))
     resolution = resolve(graph, base=base, targets=targets)

@@ -102,6 +102,14 @@ _MODIFY: tuple[tuple[str, str, str], ...] = (
      cv.MODIFY_PREVIOUS, "cut the previous result to a different size"),
     (rf"^\s*(?:the\s+)?{_COUNT}\s+(?:{_SUPERLATIVE})\b",
      cv.MODIFY_PREVIOUS, "cut the previous result to a different size"),
+    # "Compare with July 2026" changes the PERIOD of the analysis that just
+    # ran and keeps everything else. Read as a new request it named no measure
+    # at all, so the product asked which figure to compare — one turn after
+    # computing it.
+    (r"^\s*(?:and\s+|now\s+|then\s+)?(?:how\s+does\s+)?(?:that|this|it|those|"
+     r"these)?\s*compared?\s*(?:it|this|that|those|these)?\s*"
+     r"(?:with|to|against|versus)\b",
+     cv.MODIFY_PERIOD, "compare the previous analysis with another period"),
     (r"\bexclude\b", cv.MODIFY_PREVIOUS, "exclude part of the previous result"),
     (r"\bdrop\b", cv.MODIFY_PREVIOUS, "drop part of the previous result"),
 )
@@ -217,6 +225,13 @@ _ABOUT_RESULT: tuple[str, ...] = (
     r"^\s*explain (?:that|this|it|the result)\b",
     r"^\s*what (?:is|'s) driving\b",
     r"^\s*how come\b",
+    # The product's own suggested follow-up. "Show the evidence" under an
+    # answer means the evidence for THAT answer; read as a new request it
+    # named no measure and came back asking which figure to measure — the
+    # product failing to answer a question it had just offered to be asked.
+    r"^\s*(?:now\s+)?show (?:me )?(?:the )?(?:evidence|workings?|calculation|"
+    r"trace|proof|detail)\b",
+    r"^\s*(?:what|where) (?:is|'s) the evidence\b",
 )
 
 #: Throwing the current population away and starting from the whole book.

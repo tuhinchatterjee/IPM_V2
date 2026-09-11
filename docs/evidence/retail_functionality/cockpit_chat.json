@@ -1,0 +1,202 @@
+{
+  "suite": "cockpit_chat",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 37.3,
+  "counts": {
+    "PASS": 14,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit_chat-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-01",
+      "module": "cockpit",
+      "title": "Composer is visible, enabled, focusable, and the scope and provider state are readable",
+      "status": "PASS",
+      "detail": "visible/enabled=True focused=True state shown=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-05",
+      "module": "cockpit",
+      "title": "Empty and whitespace-only input cannot be sent and makes no analysis call",
+      "status": "PASS",
+      "detail": "empty disabled=True blank disabled=True calls made=0",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-02",
+      "module": "cockpit",
+      "title": "Typing a real question and clicking Ask makes ONE submission and returns the answer to that question",
+      "status": "PASS",
+      "detail": "completed=True echoed=True posts=['/agentic/officer', '/agentic/officer', '/investigations'] seconds=2.1",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-02.png",
+        "seconds": 2.0684802532196045
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-18",
+      "module": "cockpit",
+      "title": "Submission is acknowledged and the answer completes inside a bounded time on this environment",
+      "status": "PASS",
+      "detail": "first answer completed in 2.1s (bound 240s); no unbounded spinner",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "seconds": 2.0684802532196045
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-03",
+      "module": "cockpit",
+      "title": "Shift+Enter makes a new line and plain Enter sends",
+      "status": "PASS",
+      "detail": "shift+enter kept the draft on a new line=True; enter submitted=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-08",
+      "module": "cockpit",
+      "title": "A double click and an Enter on top of it submit the question once",
+      "status": "PASS",
+      "detail": "submissions recorded: ['/investigations/11/messages']",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-07",
+      "module": "cockpit",
+      "title": "After completion the composer and Ask are usable again and no progress indicator is left running",
+      "status": "PASS",
+      "detail": "composer enabled=True; Ask disabled on an empty draft=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-09",
+      "module": "cockpit",
+      "title": "A follow-up resolves against the conversation and the answer echoes the resolved scope",
+      "status": "PASS",
+      "detail": "completed=True; the answer names the narrowed scope=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-10",
+      "module": "cockpit",
+      "title": "A period change between messages is applied to the carried scope rather than a stale cached result",
+      "status": "PASS",
+      "detail": "completed=True; the answer names the compared period=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-10.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-04",
+      "module": "cockpit",
+      "title": "A pasted multi-line instruction keeps its content and resolves its scope",
+      "status": "PASS",
+      "detail": "pasted text preserved=True; answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-15",
+      "module": "cockpit",
+      "title": "The answer's table, figures, units and evidence link agree with the response",
+      "status": "PASS",
+      "detail": "the rendered answer carries a Trace and units on its figures",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-15.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-16",
+      "module": "cockpit",
+      "title": "A long transcript stays readable: earlier evidence can be scrolled to and the composer stays reachable",
+      "status": "PASS",
+      "detail": "transcript height=900px; composer reachable at the bottom=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHAT-17",
+      "module": "cockpit",
+      "title": "Every extra control the answer shows is present and advertised truthfully",
+      "status": "PASS",
+      "detail": "controls found on the answer: {'Trace': True, 'Save analysis': True, 'Project': True, 'Download results': True}",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

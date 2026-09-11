@@ -70,7 +70,34 @@ logger = logging.getLogger(__name__)
 #: The dataset an analysis starts from. The facility position is the hub of the
 #: governed model — almost everything joins to it — so it is where a path
 #: search begins unless the question is plainly about something else.
-DEFAULT_BASE = "portfolio_facility"
+CORPORATE_DEFAULT_BASE = "portfolio_facility"
+
+
+def default_base() -> str:
+    """The dataset to read when the question named no measure at all.
+
+    The failure this prevents
+    -------------------------
+        "How many facilities are in each IFRS 9 stage?"
+
+    was refused with "the governed data behind it can only be reported as one
+    row for the whole book". A pure count names no measure, so nothing points
+    at a dataset and the planner fell back to a constant — the CORPORATE
+    facility book, which this installation retired. It carries no fields, so
+    the breakdown had nothing to group by and the key had nothing to count.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return CORPORATE_DEFAULT_BASE
+    from backend.retail import CANONICAL_DATASET
+
+    return CANONICAL_DATASET
+
+
+#: The name corporate code imports. In a retail installation it resolves to the
+#: retail book.
+DEFAULT_BASE = default_base()
 
 #: Mirrors the runtime's own limits, checked here so a question is refused
 #: with an explanation rather than by the compiler with a stack trace.
@@ -98,6 +125,7 @@ GRAIN_KEY = {CUSTOMER: "customer_id", FACILITY: "account_id", SECTOR: "sector"}
 #: side has to be rolled up before it is joined. Read from the catalogue's grain
 #: sentence where it can be, and stated here where the sentence is prose.
 DATASET_GRAIN = {
+    "retail_facility_month": FACILITY,
     "portfolio_facility": FACILITY,
     "ifrs9_staging": FACILITY,
     "facility_delinquency": FACILITY,

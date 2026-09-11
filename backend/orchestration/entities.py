@@ -177,6 +177,14 @@ def unresolved_names(question: str, context: Any) -> list[str]:
         for value in values
         for word in re.findall(r"[a-z0-9]+", str(value).lower())
     }
+    # The names of the DATA are governed vocabulary too — the domain heading,
+    # the dataset and its business name. The product tells the user to type
+    # them: "Cockpit Data" is the heading on the Data Builder screen and the
+    # opening words of the Cockpit's own suggested questions. Without this,
+    # "Use Cockpit Data for August 2026" was read as a question about a
+    # borrower called Cockpit Data and refused, on a turn where the only
+    # unrecognised thing was the name of the book itself.
+    governed |= _catalogue_vocabulary()
 
     # A name does not span a sentence. Without this, "Something seems wrong
     # with Contracting. Investigate it." reads "Contracting. Investigate" as one
@@ -225,6 +233,69 @@ def unresolved_names(question: str, context: Any) -> list[str]:
             continue
         candidates.append(phrase)
     return candidates
+
+
+#: The catalogue vocabulary, held only once a real catalogue read has produced
+#: one. Deliberately not an `lru_cache`: the read goes to PostgreSQL, and
+#: caching an EMPTY answer from a turn taken before the database was reachable
+#: would leave the product refusing its own domain heading for the life of the
+#: process — the exact failure this vocabulary exists to prevent, made
+#: permanent and intermittent at once.
+_CATALOGUE_WORDS: frozenset[str] | None = None
+
+
+def _catalogue_vocabulary() -> frozenset[str]:
+    """Every word of every governed dataset, domain and business name."""
+    global _CATALOGUE_WORDS
+    if _CATALOGUE_WORDS is not None:
+        return _CATALOGUE_WORDS
+
+    words: set[str] = set(_shipped_catalogue_vocabulary())
+    published = False
+    try:
+        from backend.data_access.catalog import get_catalog
+
+        datasets = list(get_catalog().all())
+        for dataset in datasets:
+            for text in (dataset.name, dataset.domain, dataset.business_name):
+                words.update(re.findall(r"[a-z0-9]+", str(text or "").lower()))
+        published = bool(datasets)
+    except Exception as e:  # noqa: BLE001 - nothing published yet
+        logger.warning("Could not read the catalogue vocabulary: %s", e)
+
+    if published:
+        _CATALOGUE_WORDS = frozenset(words)
+    return frozenset(words)
+
+
+@functools.lru_cache(maxsize=1)
+def _shipped_catalogue_vocabulary() -> frozenset[str]:
+    """The same names, read from the catalogue file the build ships.
+
+    The domain heading and the dataset names are decided when the book is BUILT,
+    not when it is published, and the file that records them sits next to the
+    running code. Reading it means the words the product itself puts on screen
+    and into its own suggested questions are governed vocabulary from the first
+    turn, whether or not the catalogue table has been read yet.
+    """
+    words: set[str] = set()
+    try:
+        import json
+
+        from backend.config import settings
+        from backend.data_access.catalogue_io import CATALOGUE_FILE
+
+        path = settings.metadata_dir / CATALOGUE_FILE
+        if not path.exists():
+            return frozenset()
+        document = json.loads(path.read_text())
+        for dataset in document.get("datasets", []) or []:
+            for key in ("name", "domain", "business_name"):
+                words.update(
+                    re.findall(r"[a-z0-9]+", str(dataset.get(key) or "").lower()))
+    except Exception as e:  # noqa: BLE001 - no catalogue file shipped
+        logger.warning("Could not read the shipped catalogue vocabulary: %s", e)
+    return frozenset(words)
 
 
 def known_borrower(name: str) -> str | None:
@@ -305,6 +376,19 @@ _NOT_A_NAME = frozenset({
     # nobody typed.
     "has", "have", "had", "was", "were", "will", "would", "should", "shall",
     "may", "might", "must", "am", "be", "been", "being",
+    # -- the calendar. A retail book is selected by month, so "August 2026",
+    # "for Q2", "since January" and "compare with July" are typed constantly.
+    # Without these, the FIRST question the product's own suggested prompts
+    # tell a user to ask — "Use Cockpit Data for August 2026..." — came back as
+    # "CreditProbe could not find August in the published data".
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december",
+    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct",
+    "nov", "dec",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+    "sunday", "today", "yesterday", "month", "months", "quarter", "quarters",
+    "year", "years", "ytd", "qtd", "mtd", "latest", "last", "previous",
+    "prior", "current", "next", "period", "periods", "snapshot", "vintage",
     # -- analytical vocabulary that is a concept, never an obligor
     "sicr", "ecl", "pd", "lgd", "ead", "dpd", "ebitda", "raroc", "npl",
     "watchlist", "covenant", "collateral", "utilisation", "utilization",

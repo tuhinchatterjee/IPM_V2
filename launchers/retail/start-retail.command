@@ -115,7 +115,13 @@ curl -fsS "http://127.0.0.1:$RETAIL_BACKEND_PORT/api/v1/health" >/dev/null 2>&1 
 say "Starting the retail frontend on $RETAIL_FRONTEND_PORT..."
 (
   cd "$ROOT/frontend"
-  NEXT_PUBLIC_API_URL="http://127.0.0.1:$RETAIL_BACKEND_PORT" \
+  # The SAME hostname the browser is opened at, below. The session cookie is
+  # host-only and SameSite=Lax, so a page served from localhost calling an API
+  # at 127.0.0.1 is a CROSS-SITE request: the browser withholds the cookie and
+  # every authenticated call answers 401. The screen then says "You are signed
+  # out" while the backend is perfectly healthy, and both chat boxes are dead.
+  # Host must match; the port does not matter to a cookie.
+  NEXT_PUBLIC_API_URL="http://localhost:$RETAIL_BACKEND_PORT" \
   PORT="$RETAIL_FRONTEND_PORT" \
   npm run dev >>"$FRONTEND_LOG" 2>&1 &
   echo $! > "$FRONTEND_PIDFILE"

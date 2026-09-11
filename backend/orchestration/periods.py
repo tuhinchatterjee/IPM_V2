@@ -239,6 +239,77 @@ def _normalise(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", str(text).lower()).split())
 
 
+#: Month names as people write them, reduced to the month number. Keyed on the
+#: first three letters so "sep", "sept" and "september" all land in one place.
+_MONTH_NUMBER: dict[str, int] = {
+    name: number for number, name in enumerate(MONTH_NAMES.split("|"), start=1)
+}
+
+#: A month written in words, e.g. "August 2026" or "aug 2026".
+_NAMED_MONTH = re.compile(rf"\b({MONTH_NAMES})[a-z]*\s+(\d{{4}})\b", re.I)
+
+
+def period_year(label: str) -> str:
+    """The four-digit year a published period label belongs to.
+
+    The failure this prevents
+    -------------------------
+    The year used to be read as the last four characters of the label. That is
+    right for "Q1 2026" and "Aug 2026" and silently wrong for the ISO labels a
+    monthly book publishes: "2026-08" yielded "6-08", so no year the question
+    could name was ever a year the data held, and EVERY retail question naming
+    one was reported back as a period that does not exist.
+    """
+    text = str(label).strip()
+    for pattern, group in ((ISO_MONTH, 1), (QUARTER, 2), (MONTH, 2), (YEAR, 2)):
+        match = pattern.match(text)
+        if match:
+            return match.group(group)
+    return text[-4:]
+
+
+def _month_index(periods: list[str]) -> dict[tuple[str, int], str]:
+    """(year, month number) -> the label the data publishes for that month."""
+    index: dict[tuple[str, int], str] = {}
+    for period in periods:
+        text = str(period).strip()
+        iso = ISO_MONTH.match(text)
+        if iso:
+            index[(iso.group(1), int(iso.group(2)))] = period
+            continue
+        spelled = MONTH.match(text)
+        if spelled:
+            number = _MONTH_NUMBER.get(spelled.group(1).lower()[:3])
+            if number:
+                index[(spelled.group(2), number)] = period
+    return index
+
+
+def _canonical_periods(lowered: str, periods: list[str]) -> str:
+    """Rewrite months written in words into the labels the data publishes.
+
+    The failure this prevents
+    -------------------------
+        "Show exposure by retail product for August 2026"
+
+    was answered as at whatever period the governed default picked, because the
+    period reader only ever matched labels that appear in the question VERBATIM.
+    A monthly book publishes "2026-08"; nobody types that. The question read as
+    though it had named no period at all, and the month on the answer was not
+    the month that was asked for.
+    """
+    index = _month_index(periods)
+    if not index:
+        return lowered
+
+    def swap(match: re.Match[str]) -> str:
+        number = _MONTH_NUMBER.get(match.group(1).lower()[:3], 0)
+        label = index.get((match.group(2), number))
+        return f" {_normalise(label)} " if label else match.group(0)
+
+    return _NAMED_MONTH.sub(swap, lowered)
+
+
 #: A reporting period as people write one. Matched against the question so a
 #: period the data does NOT have can be told apart from no period at all.
 #:
@@ -276,7 +347,7 @@ def unavailable(question: str, periods: list[str]) -> str:
     if not periods:
         return ""
     known = {_normalise(p) for p in periods}
-    years = {p.strip()[-4:] for p in periods}
+    years = {period_year(p) for p in periods}
 
     for pattern, exact in _PERIOD_SHAPED:
         for match in pattern.finditer(str(question or "")):
@@ -297,9 +368,10 @@ def read_period_intent(question: str, periods: list[str]) -> PeriodIntent:
     if not periods:
         return PeriodIntent(specified=False, source="no periods available")
 
-    lowered = " " + _normalise(question) + " "
+    lowered = _canonical_periods(" " + _normalise(question) + " ", periods)
 
-    # 1. Periods named outright, e.g. "Q1 2026 vs Q4 2025".
+    # 1. Periods named outright, e.g. "Q1 2026 vs Q4 2025", or written in
+    #    words and rewritten just above into the labels the data publishes.
     named = [p for p in periods if f" {_normalise(p)} " in lowered]
     if len(named) >= 2:
         ordered = [p for p in periods if p in named]

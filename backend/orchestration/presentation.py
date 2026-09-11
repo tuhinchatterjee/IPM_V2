@@ -47,6 +47,18 @@ PERIOD = "period"
 WHOLE_UNITS_ABOVE = 1000.0
 
 
+def _plural_label(word: str) -> str:
+    """The plural of a column heading. "Facilitys" was the heading on screen."""
+    text = str(word or "").strip()
+    if not text:
+        return text
+    if text.endswith(("y", "Y")) and text[-2:-1].lower() not in "aeiou":
+        return text[:-1] + "ies"
+    if text.lower().endswith(("s", "x", "z", "ch", "sh")):
+        return text + "es"
+    return text + "s"
+
+
 @dataclass
 class Column:
     """One column, as something to render rather than a name and a type."""
@@ -394,7 +406,7 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
     counted = _COUNT.match(lowered)
     if counted:
         return Column(name=name,
-                      label=f"{_humanise(counted.group('base'))}s",
+                      label=_plural_label(_humanise(counted.group("base"))),
                       semantic=COUNT, decimals=0, align="right",
                       role="a distinct count", origin=origin,
                       rank=RANK_PRIMARY)

@@ -768,6 +768,17 @@ def _opening(label: str) -> str:
     return text[:1].upper() + text[1:]
 
 
+def _period_column(build: ap.AnalysisBuild) -> str:
+    """The column a two-period plan groups its reporting dates by."""
+    for operation in (build.plan.get("operations") or []):
+        if str(operation.get("op") or "") != "GROUP":
+            continue
+        by = list((operation.get("params") or {}).get("by") or [])
+        if by:
+            return str(by[0])
+    return "period"
+
+
 def _primary_column(build: ap.AnalysisBuild, runtime: Any) -> str:
     """The measure column as the result actually named it.
 
@@ -837,15 +848,21 @@ def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     # something the prose works out for itself.
     if build.shape == ap.MOVEMENT and not build.conditions and build.matches:
         column = build.matches[0].field
-        by_period = {str(r.get("period")): r for r in runtime.rows
-                     if r.get("period")}
+        # The column the ROWS record their reporting date in. Read off the
+        # plan, not assumed to be called "period": a monthly book calls it
+        # `reporting_month`, and looking up a key that is not there made both
+        # ends of every movement zero — "Final ECL was unchanged from 0.00 to
+        # 0.00" above two rows that plainly showed 14.1m and 16.0m.
+        period_column = _period_column(build)
+        by_period = {str(r.get(period_column)): r for r in runtime.rows
+                     if r.get(period_column)}
         if build.dimension:
             opening_total = sum(
                 float(r.get(column) or 0.0) for r in runtime.rows
-                if str(r.get("period")) == build.opening)
+                if str(r.get(period_column)) == build.opening)
             closing_total = sum(
                 float(r.get(column) or 0.0) for r in runtime.rows
-                if str(r.get("period")) == build.closing)
+                if str(r.get(period_column)) == build.closing)
         else:
             opening_total = float(
                 (by_period.get(build.opening) or {}).get(column) or 0.0)
@@ -952,6 +969,9 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
 
     metrics: list[Metric] = []
     findings: list[Finding] = []
+    #: Limits the SHAPE of this answer imposes, gathered where they are known
+    #: and folded into the caveats the reader sees.
+    shape_caveats: list[str] = []
 
     composite = ((build.plan or {}).get("meta") or {}).get("composite") or {}
     if composite:
@@ -997,15 +1017,36 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             direct = f"{_fmt(total)} {subject}{where} at {build.period}."
         metrics.append(Metric(label=f"Total {label}", value=round(total, 2),
                               unit=unit, direction="neutral"))
-        if rows and build.dimension and isinstance(
-                rows[0].get(column), (int, float)):
-            top = rows[0]
+        # A distinct count summed across groups is a total only when nothing is
+        # in two groups at once. A retail customer holds a card AND a personal
+        # finance, so "customers by product" adds to more than the book has,
+        # and a figure that reads as a portfolio total when it is not is worse
+        # than no figure at all. Said, rather than quietly dropped.
+        if build.dimension and measure is not None and \
+                getattr(measure.concept, "id", "") == ap.COUNT_CONCEPT:
+            shape_caveats.append(
+                f"{label} are counted once within each "
+                f"{_dimension_word(build)}. One that appears in more than one "
+                f"{_dimension_word(build)} is counted in each, so the column "
+                f"does not add up to a portfolio total.")
+        # The LARGEST row by the measure the sentence is about — not the first
+        # row on screen. A table carrying two measures is ordered by one of
+        # them, and reading "the largest" off row zero named Personal Finance
+        # as the largest product in a table where Home Finance held three times
+        # as much. The figure quoted was real; the claim around it was false.
+        ranked = [r for r in rows
+                  if build.dimension and isinstance(r.get(column), (int, float))]
+        if ranked:
+            top = max(ranked, key=lambda r: float(r[column]))
             share = top.get(f"{column}_share_pct")
             share_text = (f", {figures.percent(share)} of the total"
                           if isinstance(share, (int, float)) else "")
+            # A count has no unit, and "6,781 ." is what a trailing unit
+            # slot looks like when there is nothing to put in it.
+            measured = f"{_fmt(top[column])} {unit}".strip()
             findings.append(Finding(
                 text=(f"{top.get(build.dimension)} is the largest at "
-                      f"{_fmt(top[column])} {unit}{share_text}."),
+                      f"{measured}{share_text}."),
                 tone="neutral",
                 evidence=[_evidence(str(top.get(build.dimension)),
                                     round(float(top[column]), 2), unit,
@@ -1180,7 +1221,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     if noticed:
         interpretation = " ".join(x for x in (interpretation, noticed) if x)
 
-    caveats = notable(runtime.warnings) + list(build.warnings)
+    caveats = notable(runtime.warnings) + list(build.warnings) + shape_caveats
 
     # A question about whether a pattern holds is ANSWERED by the pattern. The
     # aggregate that was computed to find it is the evidence, not the answer,
@@ -1732,9 +1773,45 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
         # one, because it is the sentence a reader checks the figures against.
         how = ("averages" if _aggregation_of(build, _primary_column(build, runtime))
                == "avg" else "sums")
-        return (f"Ordered largest first. The figures are {how} across every "
-                f"facility in each {_dimension_word(build)} at "
+        return (f"{_ordering_note(build, runtime)}The figures are {how} across "
+                f"every facility in each {_dimension_word(build)} at "
                 f"{build.period}.")
+    return ""
+
+
+def _ordering_note(build: ap.AnalysisBuild, runtime: Any) -> str:
+    """How the rows are ordered, checked against the rows themselves.
+
+    The sentence used to say "Ordered largest first" unconditionally. A table
+    carrying two measures is ordered by ONE of them — "exposure and weighted
+    ECL by product" is ordered by ECL, because that is the measure the question
+    ended on — and under that sentence the first row read as the largest
+    exposure when it was not. Saying which measure the order follows costs four
+    words and removes the contradiction.
+    """
+    rows = list(getattr(runtime, "rows", None) or [])
+    if len(rows) < 2:
+        return ""
+    presented = _presented(runtime, build)
+    columns = [str(c.get("name")) for c in presented]
+    primary = _primary_column(build, runtime)
+
+    def descends(name: str) -> bool:
+        values = [r.get(name) for r in rows]
+        if not all(isinstance(v, (int, float)) for v in values):
+            return False
+        return all(float(a) >= float(b) for a, b in zip(values, values[1:]))
+
+    if primary and descends(primary):
+        return "Ordered largest first. "
+    for name in columns:
+        if name == primary or name == build.dimension:
+            continue
+        if descends(name):
+            label = next((str(c["label"]).lower() for c in presented
+                          if c.get("name") == name and c.get("label")),
+                         name.replace("_", " "))
+            return f"Ordered by {label}, largest first. "
     return ""
 
 
@@ -1758,7 +1835,10 @@ def _dimension_word(build: ap.AnalysisBuild) -> str:
         if raw.startswith(prefix):
             raw = raw[len(prefix):]
             break
-    return raw.replace("_", " ")
+    # "across 4 product labels" names the COLUMN. A person asked for products.
+    from backend.orchestration.dimensions import readable
+
+    return readable(raw)
 
 
 def _fmt(value: Any) -> str:

@@ -1930,13 +1930,20 @@ export function Composer({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            // Same contract as the Cockpit composer: Enter asks, Shift+Enter
+            // starts a new line. This box used to need Cmd/Ctrl+Enter, so a
+            // user who had just been talking to the Cockpit pressed Enter
+            // here, got a blank line, pressed it again, and concluded the
+            // What-If chat was dead. Nothing on screen said otherwise.
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              onSubmit();
+              if (value.trim() && !busy) onSubmit();
             }
           }}
           rows={2}
           placeholder={placeholder}
+          aria-label="Ask What-If about a scenario"
           data-testid="whatif-composer"
           className="min-h-[52px] flex-1 resize-y rounded-md border border-border bg-surface px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
         />
@@ -1944,6 +1951,7 @@ export function Composer({
           {busy ? "Working…" : "Send"}
         </Button>
       </div>
+      <p className="text-[11px] text-text-muted">Enter to send · Shift+Enter for a new line</p>
       {suggestions.length ? (
         <div className="flex flex-wrap gap-1.5">
           {suggestions.map((s) => (

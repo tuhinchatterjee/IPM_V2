@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # The dimensions a question may filter on. Low-cardinality governed fields only:
 # an account id is not something anyone asks a question about.
-FILTERABLE_DIMENSIONS = [
+CORPORATE_FILTERABLE_DIMENSIONS = [
     "sector",
     "region",
     "segment",
@@ -44,6 +44,31 @@ FILTERABLE_DIMENSIONS = [
     "country",
     "ifrs9_stage",
 ]
+
+
+def filterable_dimensions() -> list[str]:
+    """The dimensions THIS installation governs."""
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return list(CORPORATE_FILTERABLE_DIMENSIONS)
+    return list(profile.RETAIL_DIMENSIONS)
+
+
+def facility_dataset() -> str:
+    """The dataset the vocabulary reads its dimension values from."""
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return FACILITY
+    from backend.retail import CANONICAL_DATASET
+
+    return CANONICAL_DATASET
+
+
+#: Kept as the name the corporate code imports. In a retail installation it
+#: resolves to the retail book's own dimensions.
+FILTERABLE_DIMENSIONS = filterable_dimensions()
 
 MAX_VALUES_PER_DIMENSION = 60
 
@@ -166,27 +191,48 @@ def _dimension_values(period: str | None) -> dict[str, list[str]]:
     if period is None:
         return {}
     source = get_data_source()
+    dataset = facility_dataset()
     try:
         from backend.data_access import get_catalog
 
-        spec = get_catalog().dataset(FACILITY)
+        spec = get_catalog().dataset(dataset)
     except Exception:  # pragma: no cover - catalogue unavailable
         return {}
 
+    measure = "ead" if "ead" in spec.fields else _first_measure(spec)
     ctx = AnalysisContext(period=period)
     out: dict[str, list[str]] = {}
-    for name in FILTERABLE_DIMENSIONS:
+    for name in filterable_dimensions():
         if name not in spec.fields:
             continue
         try:
-            frame = source.aggregate(FACILITY, context=ctx, group_by=[name],
-                                     measures={"ead": "sum"}, period=period)
+            frame = source.aggregate(dataset, context=ctx, group_by=[name],
+                                     measures={measure: "sum"}, period=period)
         except DataAccessError:
             continue
         values = [str(v) for v in frame[name].dropna().tolist()][:MAX_VALUES_PER_DIMENSION]
         if values:
             out[name] = values
     return out
+
+
+def _first_measure(spec: Any) -> str:
+    """Any numeric field, purely to make the DISTINCT-values read a valid query.
+
+    The values are what matter here, not the measure: the aggregate exists to
+    ask the governed reader which values of a dimension are present in the
+    period, and a book that does not happen to call its exposure `ead` must
+    still be able to answer that.
+    """
+    for candidate in ("gross_carrying_amount", "exposure_at_default",
+                      "outstanding_balance", "ecl_amount"):
+        if candidate in spec.fields:
+            return candidate
+    for name, field_spec in spec.fields.items():
+        if str(getattr(field_spec, "data_type", "")).lower() in (
+                "number", "numeric", "float", "integer", "int", "decimal"):
+            return name
+    return "ead"
 
 
 @lru_cache(maxsize=1)
@@ -198,7 +244,7 @@ def get_vocabulary() -> Vocabulary:
     """
     periods: list[str] = []
     try:
-        periods = list(get_data_source().periods(FACILITY))
+        periods = list(get_data_source().periods(facility_dataset()))
     except Exception as e:  # pragma: no cover - no data published yet
         logger.warning("Vocabulary could not read periods: %s", e)
 

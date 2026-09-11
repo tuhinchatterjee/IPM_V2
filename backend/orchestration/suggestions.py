@@ -136,7 +136,7 @@ def _about_the_distribution(build: Any, rows: list[dict[str, Any]]) -> list[str]
     """Questions about a result grouped by something."""
     dimension = str(getattr(build, "dimension", "") or "")
     if not dimension:
-        return ["Break that down by sector."]
+        return [f"Break that down by {_default_breakdown()}."]
 
     out: list[str] = []
     leader = _leader(dimension, rows)
@@ -144,9 +144,29 @@ def _about_the_distribution(build: Any, rows: list[dict[str, Any]]) -> list[str]
         # The outlier has a name, and naming it is what makes the suggestion
         # feel like it was written about this result rather than about results.
         out.append(f"Show the largest customers in {leader}.")
-    out.append(f"Show each {dimension.replace('_', ' ')} as a share of the "
-               "portfolio.")
+    from backend.orchestration.dimensions import readable
+
+    out.append(f"Show each {readable(dimension)} as a share of the portfolio.")
     return out
+
+
+def _default_breakdown() -> str:
+    """The breakdown to offer when the result is not grouped by anything.
+
+    The failure this prevents: the suggestion under every ungrouped retail
+    answer read "Break that down by sector." Sector is a corporate dimension
+    this installation retired — clicking it asked a question the book cannot
+    answer, under an answer that was otherwise correct.
+    """
+    try:
+        from backend.orchestration.vocabulary import filterable_dimensions
+
+        governed = filterable_dimensions()
+    except Exception:  # noqa: BLE001 - no vocabulary, no suggestion
+        return "product"
+    from backend.orchestration.dimensions import readable
+
+    return readable(governed[0]) if governed else "product"
 
 
 def _leader(dimension: str, rows: list[dict[str, Any]]) -> str:

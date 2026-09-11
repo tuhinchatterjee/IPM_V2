@@ -31,7 +31,11 @@ from backend.orchestration.schema import (
     PlanRejected,
     PlanStep,
 )
-from backend.orchestration.vocabulary import FILTERABLE_DIMENSIONS, Vocabulary, get_vocabulary
+from backend.orchestration.vocabulary import (
+    Vocabulary,
+    filterable_dimensions,
+    get_vocabulary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +83,15 @@ def validate_step(step: PlanStep, vocab: Vocabulary | None = None) -> list[str]:
             )
 
     # Filters: governed dimensions only, and only values present in the data.
+    # Read per call rather than at import: the allowed set belongs to the
+    # installation's own book, and a module-level copy taken before the
+    # catalogue was readable outlives the thing it describes.
+    allowed = filterable_dimensions()
     for dimension, value in (step.filters or {}).items():
-        if dimension not in FILTERABLE_DIMENSIONS:
+        if dimension not in allowed:
             problems.append(
                 f"'{dimension}' is not a dimension CreditProbe allows filtering on. "
-                f"Allowed: {', '.join(FILTERABLE_DIMENSIONS)}."
+                f"Allowed: {', '.join(allowed)}."
             )
             continue
         known = vocab.dimensions.get(dimension)

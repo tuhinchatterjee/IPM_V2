@@ -85,6 +85,22 @@ ALIASES: dict[str, tuple[str, ...]] = {
                     "ifrs9 stage", "staging", "impairment stage"),
 }
 
+
+def aliases() -> dict[str, tuple[str, ...]]:
+    """The spellings THIS installation's dimensions are written with.
+
+    A retail book's columns are not the corporate book's columns, and the words
+    are not the same either: "by retail product" is `product_label`, and there
+    is no `product_type` to reach. Without this the phrase resolved to nothing
+    and the answer was returned at the source grain — one row per facility
+    under a heading that promised products.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return ALIASES
+    return {**ALIASES, **profile.RETAIL_DIMENSION_ALIASES}
+
 #: What one row is when the head noun is an entity rather than a dimension.
 #: Mirrors `grain`'s own vocabulary rather than restating it: this module only
 #: needs to know that the noun was an entity, and which one.
@@ -186,6 +202,18 @@ class Resolved:
                 "entity_phrase": self.entity_phrase, "because": self.because}
 
 
+def readable(name: str) -> str:
+    """The dimension as a person writes it: `product_label` is "product".
+
+    The governed field name is what the data calls it; the first alias is what
+    a credit officer calls it, which is the right thing to put in a suggestion
+    or a clarification the user is meant to click.
+    """
+    for alias in aliases().get(name, ()):  # the plainest spelling, first
+        return alias
+    return str(name or "").replace("_", " ")
+
+
 def _singular(word: str) -> str:
     if word.endswith("ies") and len(word) > 4:
         return word[:-3] + "y"
@@ -218,8 +246,9 @@ def _as_dimension(phrase: str, dimensions: Any) -> str:
     singular = " ".join(_singular(w) for w in words.split())
     names = list(getattr(dimensions, "dimensions", dimensions) or [])
 
+    table = aliases()
     for name in names:
-        forms = _spellings(name) | set(ALIASES.get(name, ()))
+        forms = _spellings(name) | set(table.get(name, ()))
         if words in forms or singular in forms:
             return name
     # A dimension the installation does not carry may still be a governed

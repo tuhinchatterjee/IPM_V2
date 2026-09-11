@@ -142,7 +142,7 @@ def _c(dataset: str, field_: str, definition: str, *qualifiers: str,
 #: "ead" to every dataset carrying a column of that name and would have no
 #: opinion about which one an impairment question means — which is the entire
 #: value of having one.
-CONCEPTS: tuple[Concept, ...] = (
+CORPORATE_CONCEPTS: tuple[Concept, ...] = (
     Concept(
         id="ecl", label="expected credit loss",
         pattern=r"expected credit loss|\becl\b|impairment|provision(?:ing)?",
@@ -931,10 +931,37 @@ CONCEPTS_V2: tuple[Concept, ...] = (
                        "facility.", default=True),)),
 )
 
-#: The whole vocabulary. Built here rather than in two places so the match
-#: index below cannot see a different set of concepts from the one the rest of
-#: the product reads.
-CONCEPTS = CONCEPTS + CONCEPTS_V2
+#: The whole corporate vocabulary, both halves joined.
+CORPORATE_CONCEPTS = CORPORATE_CONCEPTS + CONCEPTS_V2
+
+
+def active_concepts() -> tuple[Concept, ...]:
+    """The concepts this installation actually understands.
+
+    The corporate concepts above remain as code: a migration, an archived
+    answer and the removal tests all still have to parse them. They are not
+    OFFERED. The retail installation binds every concept to
+    `retail_facility_month`, because the corporate datasets they name do not
+    exist here — and a reader whose concepts all point at retired datasets
+    cannot plan any analysis at all, which is how a fully converted data layer
+    still answered "Which figure should CreditProbe measure?" to every question
+    put to it, with a list of corporate measures.
+
+    The import is deferred into the function so that `Concept`, `Candidate` and
+    `_c` — which the retail registry builds on — are defined before it loads.
+    """
+    from backend.retail.profile import is_retail
+
+    if not is_retail():
+        return CORPORATE_CONCEPTS
+    from backend.orchestration.retail_concepts import RETAIL_CONCEPTS
+
+    return RETAIL_CONCEPTS
+
+
+#: What the rest of the product reads. Built here, once, so the match index
+#: below cannot see a different set from the one every other consumer gets.
+CONCEPTS: tuple[Concept, ...] = active_concepts()
 
 #: Sorted longest-pattern-first so a specific phrase wins over a general one.
 _ORDERED = tuple(sorted(CONCEPTS, key=lambda c: -len(c.pattern)))

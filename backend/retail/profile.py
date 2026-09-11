@@ -152,6 +152,86 @@ FOLLOW_UPS: tuple[str, ...] = (
     "Show the evidence",
 )
 
+#: The governed fields a retail question may break an answer down by, or filter
+#: on, in the order a credit officer reaches for them.
+#:
+#: The failure this prevents
+#: -------------------------
+#:     "Show exposure, customers, facilities and weighted ECL by retail product"
+#:
+#: came back as ten FACILITIES. The planner's filterable-dimension list still
+#: named the corporate book's columns — sector, region, segment, product_type,
+#: rating_bucket, country — none of which the retail dataset carries, so the
+#: installation governed NO dimensions at all: "by retail product" resolved to
+#: nothing, the question fell through to the source grain, and "only personal
+#: finance" had nothing to filter on either.
+#:
+#: Every entry is a real low-cardinality column of `retail_facility_month`.
+RETAIL_DIMENSIONS: tuple[str, ...] = (
+    "product_label",
+    "product_subsegment",
+    "customer_segment",
+    "region_label",
+    "city",
+    "origination_channel",
+    "employment_status",
+    "employer_sector",
+    "income_band",
+    "indebtedness_band",
+    "age_band",
+    "dpd_bucket",
+    "collections_stage",
+    "utilisation_band",
+    "ltv_band",
+    "application_score_band",
+    "behavioural_score_band",
+    "collateral_type",
+    "facility_status",
+    "ifrs9_stage",
+)
+
+#: How a credit officer writes each of those dimensions. Only the spellings the
+#: field name does not already carry: `product_label` is reached by "product
+#: label" without help, and "retail product" is the phrase people actually type.
+RETAIL_DIMENSION_ALIASES: dict[str, tuple[str, ...]] = {
+    "product_label": ("product", "products", "retail product", "retail products",
+                      "product family", "product families", "product type",
+                      "product types"),
+    "product_subsegment": ("subsegment", "sub segment", "sub-segment"),
+    "customer_segment": ("segment", "segments", "customer segments",
+                         "client segment", "wealth segment"),
+    "region_label": ("region", "regions", "province", "provinces", "geography",
+                     "geographies", "area", "areas"),
+    "city": ("cities", "town", "towns"),
+    "origination_channel": ("channel", "channels", "origination channels",
+                            "acquisition channel", "sourcing channel"),
+    "employment_status": ("employment", "employment type", "employer type",
+                          "employment types"),
+    "employer_sector": ("sector", "sectors", "industry", "industries",
+                        "employment sector", "employer industry"),
+    "income_band": ("income", "income bands", "salary band", "salary bands"),
+    "indebtedness_band": ("indebtedness", "dbr band", "dbr bands",
+                          "debt burden band", "debt burden bands"),
+    "age_band": ("age", "age bands", "age group", "age groups"),
+    "dpd_bucket": ("dpd", "dpd buckets", "delinquency bucket",
+                   "delinquency buckets", "arrears bucket", "arrears buckets",
+                   "bucket", "buckets"),
+    "collections_stage": ("collections", "collection stage", "collection stages",
+                          "collections stages"),
+    "utilisation_band": ("utilisation", "utilization", "utilisation bands",
+                         "card utilisation band"),
+    "ltv_band": ("ltv", "ltv bands", "loan to value band"),
+    "application_score_band": ("application score bands", "application band",
+                               "application bands"),
+    "behavioural_score_band": ("behavioural score bands", "behavioral score band",
+                               "behavioural band", "behavioural bands"),
+    "collateral_type": ("collateral", "collateral types", "security type"),
+    "facility_status": ("status", "facility statuses"),
+    "ifrs9_stage": ("stage", "stages", "ifrs 9 stage", "ifrs 9 stages",
+                    "ifrs9 stage", "staging", "impairment stage"),
+}
+
+
 #: The disclosure that travels with every seeded example and generated report.
 DISCLOSURE = (
     "Synthetic Saudi retail demonstration data — not ANB customer data or "

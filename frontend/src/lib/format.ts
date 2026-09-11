@@ -217,6 +217,9 @@ export function scrubDebris(prose: string): string {
 }
 
 /** What a column IS, as the backend's presentation contract describes it. */
+/** Above this, whole-unit money is read without decimals. */
+const WHOLE_MONEY = 1000;
+
 export interface ColumnSpec {
   name: string;
   label?: string;
@@ -330,6 +333,43 @@ export function scaleMoney(
   scale = "mn",
 ): Figure {
   const abs = Math.abs(value);
+
+  // A book kept in WHOLE currency units, which is how the retail book
+  // publishes. Without this branch such a figure was read as millions: a
+  // product holding 463,168,890 SAR was shown as "463,169" under a header
+  // reading "SAR bn" — a million times too large, and the largest product in
+  // the book by a distance was not the one the answer named.
+  if (scale === "" || scale === "1" || scale === "unit" || scale === "units") {
+    if (abs >= 1_000_000_000) {
+      return {
+        text: (value / 1_000_000_000).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+        unit: `${currency} bn`,
+        scaled: true,
+      };
+    }
+    if (abs >= 1_000_000) {
+      return {
+        text: (value / 1_000_000).toLocaleString("en-US", {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        }),
+        unit: `${currency} mn`,
+        scaled: true,
+      };
+    }
+    return {
+      text: value.toLocaleString("en-US", {
+        minimumFractionDigits: abs >= WHOLE_MONEY ? 0 : 2,
+        maximumFractionDigits: abs >= WHOLE_MONEY ? 0 : 2,
+      }),
+      unit: currency,
+      scaled: false,
+    };
+  }
+
   if (scale === "mn" && abs >= 1000) {
     const billions = value / 1000;
     // At a hundred billion the decimal stops earning its place. Both bounds
@@ -384,9 +424,14 @@ export function figure(value: unknown, column?: ColumnSpec | null): Figure {
   // and it reached the interface because this formatter trusted the metadata.
   const declared = Math.min(MAX_DECIMALS, Math.max(0, column?.decimals ?? 2));
 
-  if (semantic === "money" || unit === "SAR mn" || unit === "SAR mn") {
-    const [currency, scale] = unit.split(" ");
-    return scaleMoney(value, column?.currency ?? currency ?? "USD", scale ?? "mn");
+  if (semantic === "money" || unit === "SAR mn" || unit === "USD mn") {
+    const [currency, unitScale] = unit.split(" ");
+    // The column says what scale its figures are already in. Reading that off
+    // the unit string alone left a column whose unit is a plain "SAR" with no
+    // scale at all, and it defaulted to millions — silently, and wrongly, for
+    // every book that publishes whole units.
+    const scale = column?.scale ?? unitScale ?? "";
+    return scaleMoney(value, column?.currency ?? currency ?? "USD", scale);
   }
   if (unit === "%" || semantic === "percent" || semantic === "share") {
     return { text: value.toFixed(declared), unit: "%", scaled: false };

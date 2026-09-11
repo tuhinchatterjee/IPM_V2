@@ -1480,8 +1480,12 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
         # Execution-guided repair. The first plan did not compose; the model is
         # asked again with the VALIDATION ERRORS — never with an expected
         # answer, which would be teaching to the test — and at most once.
-        logger.info("Composing failed for %r (%s); escalating to repair.",
-                    question, e)
+        # With the traceback. An unexpected exception here is a DEFECT, and
+        # the log line that recorded only its message — "list index out of
+        # range" — was the only trace of it anywhere: the user saw a refusal,
+        # the log saw a sentence, and nobody could see where it came from.
+        logger.exception("Composing failed for %r (%s); escalating to repair.",
+                         question, e)
         repaired = _repair_plan(answered, question, reading, context, state,
                                 continuation, period, str(e))
         if repaired is None:

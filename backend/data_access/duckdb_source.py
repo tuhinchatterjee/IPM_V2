@@ -526,6 +526,15 @@ def _period_sort_key(period: str) -> tuple[int, int]:
     m = re.match(r"^Q([1-4])\s+(\d{4})$", text)
     if m:
         return (int(m.group(2)), int(m.group(1)))
+    # A MONTHLY dataset labels its periods "YYYY-MM". Without this every month
+    # returned the same unknown key, sorted() kept whatever order the
+    # filesystem happened to hand back, and "the latest period" became
+    # arbitrary — so a question naming August 2026 was answered as at May 2025
+    # with nothing on screen looking wrong. The retail book is monthly, and its
+    # twenty-five partitions are the whole product.
+    m = re.match(r"^(\d{4})-(\d{2})$", text)
+    if m:
+        return (int(m.group(1)), int(m.group(2)))
     # An annual dataset labels its periods with the year alone. Sorting those as
     # unknown would leave a rating history in whatever order the filesystem
     # happened to return, which is no order at all.
