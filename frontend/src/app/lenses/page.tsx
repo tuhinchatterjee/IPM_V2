@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { isRetail } from "@/lib/profile";
 
 /**
  * The Lens library.
@@ -92,33 +93,39 @@ export default function LensesPage() {
         {error && <p className="mt-2 text-xs text-negative">{error}</p>}
       </Card>
 
-      <section>
-        <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
-          Built for the executive
-        </h2>
-        <Link href="/lenses/cro" className="group block">
-          <Card className="flex flex-col p-5 transition-colors hover:bg-surface-hover">
-            <div className="mb-2 flex items-start justify-between gap-3">
-              <LayoutGrid className="size-5 shrink-0 text-text-muted" aria-hidden />
-              <Badge variant="accent">Live</Badge>
-            </div>
-            <h3 className="text-sm font-semibold text-text-primary">
-              CRO Portfolio Lens
-            </h3>
-            <p className="mt-1.5 text-xs leading-relaxed text-text-muted">
-              The monthly executive view: position, staging, coverage,
-              concentration, migration and the names driving deterioration —
-              arranged as an argument rather than a grid of tiles.
-            </p>
-            <p className="mt-3 flex items-center justify-between border-t border-border pt-3 text-[11px] text-text-muted">
-              Chief Risk Officer · Board Risk Committee
-              <span className="inline-flex items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
-                Open <ArrowRight className="size-3" aria-hidden />
-              </span>
-            </p>
-          </Card>
-        </Link>
-      </section>
+      {/* The CRO Portfolio Lens reads the WHOLESALE book. Offering the card
+          in a retail-only installation puts a retired surface one click from
+          a navigation item — the route itself answers, but the product should
+          not be the thing that sends a reader there. */}
+      {isRetail() ? null : (
+        <section>
+          <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            Built for the executive
+          </h2>
+          <Link href="/lenses/cro" className="group block">
+            <Card className="flex flex-col p-5 transition-colors hover:bg-surface-hover">
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <LayoutGrid className="size-5 shrink-0 text-text-muted" aria-hidden />
+                <Badge variant="accent">Live</Badge>
+              </div>
+              <h3 className="text-sm font-semibold text-text-primary">
+                CRO Portfolio Lens
+              </h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-text-muted">
+                The monthly executive view: position, staging, coverage,
+                concentration, migration and the names driving deterioration —
+                arranged as an argument rather than a grid of tiles.
+              </p>
+              <p className="mt-3 flex items-center justify-between border-t border-border pt-3 text-[11px] text-text-muted">
+                Chief Risk Officer · Board Risk Committee
+                <span className="inline-flex items-center gap-1 font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">
+                  Open <ArrowRight className="size-3" aria-hidden />
+                </span>
+              </p>
+            </Card>
+          </Link>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">

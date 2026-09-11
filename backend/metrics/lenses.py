@@ -298,6 +298,23 @@ CORPORATE_IFRS9 = LensSpec(
 
 ALL: tuple[LensSpec, ...] = (RETAIL_RISK, RETAIL_ANALYTICS, CORPORATE_IFRS9)
 
+#: Shipped lenses that read the corporate book. Retained in `ALL` — a corporate
+#: profile installs all three — and withheld from what a RETAIL installation
+#: seeds, because the bootstrap runs on every fresh deployment and would put a
+#: Corporate IFRS 9 lens in the Lens catalogue of a product that holds no
+#: corporate book. The bootstrap path is exactly where a retired surface comes
+#: back: nobody types its URL, the installer creates it.
+CORPORATE_LENS_SLUGS: frozenset[str] = frozenset({CORPORATE_IFRS9.slug})
+
+
+def served() -> tuple[LensSpec, ...]:
+    """The lenses this installation seeds and offers."""
+    from backend.retail.profile import is_retail
+
+    if not is_retail():
+        return ALL
+    return tuple(spec for spec in ALL if spec.slug not in CORPORATE_LENS_SLUGS)
+
 
 # ------------------------------------------------------------------- proving
 
@@ -352,6 +369,7 @@ def check() -> list[str]:
 
 __all__ = ["LENSES_VERSION", "CRO_LENS", "Tile", "Section", "LensSpec",
            "RETAIL_RISK", "RETAIL_ANALYTICS", "CORPORATE_IFRS9", "ALL",
+           "CORPORATE_LENS_SLUGS", "served",
            "check", "install"]
 
 
@@ -385,7 +403,7 @@ def install(*, user_id: int | None = None,
             + "\n- ".join(problems))
 
     installed: list[dict[str, Any]] = []
-    for spec in ALL:
+    for spec in served():
         panels = _panels(spec)
         try:
             existing = service.by_slug(spec.slug)

@@ -105,8 +105,11 @@ SEEDS: tuple[dict[str, Any], ...] = (
                         "specialists only on what it finds."),
         "trigger": ON_PUBLISH,
         "scope": "portfolio",
-        "agents": ["portfolio_risk", "ifrs9", "ratings_financials",
-                   "delinquency", "validation"],
+        # No ratings specialist: this installation serves a retail book with
+        # scorecards and no rating master scale, so a schedule naming one would
+        # wake a team with nothing to read. `served_agents` below also filters
+        # a schedule that was persisted before it was retired.
+        "agents": ["portfolio_risk", "ifrs9", "delinquency", "validation"],
         "data_requirement": [screening.FACILITIES],
         "approval_policy": DRAFT_ONLY,
         "enabled": True,
@@ -322,11 +325,15 @@ def view(schedule: AgentSchedule) -> dict[str, Any]:
                                             schedule.trigger),
         "scope": schedule.scope,
         "scope_detail": dict(schedule.scope_detail or {}),
+        # Only specialists this installation serves. A schedule row persisted
+        # before a specialist was retired still names it, and rendering that
+        # name put "Ratings & Financials" on the Agent Operations screen of a
+        # retail-only product — from the database rather than from the code, so
+        # editing the seed alone would not have removed it.
         "agents": [
-            {"agent_id": a,
-             "name": (registry.agent(a).business_name
-                      if registry.agent(a) else a)}
-            for a in (schedule.agents or [])],
+            {"agent_id": a, "name": registry.require(a).business_name}
+            for a in (schedule.agents or [])
+            if registry.agent(a) in registry.served_agents()],
         "methods": list(schedule.methods or []),
         "data_requirement": list(schedule.data_requirement or []),
         "approval_policy": schedule.approval_policy,

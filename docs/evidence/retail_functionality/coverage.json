@@ -1,0 +1,287 @@
+{
+  "suites": {
+    "cockpit_chat": {
+      "passed": 19,
+      "failed": [],
+      "total": 19
+    },
+    "cockpit_journeys": {
+      "passed": 16,
+      "failed": [],
+      "total": 17
+    },
+    "customer360": {
+      "passed": 11,
+      "failed": [],
+      "total": 11
+    },
+    "end_to_end": {
+      "passed": 3,
+      "failed": [],
+      "total": 3
+    },
+    "inventory": {
+      "passed": 26,
+      "failed": [],
+      "total": 26
+    },
+    "navigation": {
+      "passed": 10,
+      "failed": [],
+      "total": 11
+    },
+    "retail_only": {
+      "passed": 29,
+      "failed": [],
+      "total": 29
+    },
+    "whatif_chat": {
+      "passed": 14,
+      "failed": [],
+      "total": 14
+    },
+    "whatif_fidelity": {
+      "passed": 23,
+      "failed": [],
+      "total": 23
+    },
+    "whatif_journeys": {
+      "passed": 12,
+      "failed": [],
+      "total": 12
+    }
+  },
+  "operations": {
+    "open": {
+      "meaning": "Open a route and read what it renders",
+      "proved_by": [
+        "customer360",
+        "inventory",
+        "navigation",
+        "retail_only"
+      ]
+    },
+    "ask": {
+      "meaning": "Ask a question in a composer and get an answer",
+      "proved_by": [
+        "cockpit_chat",
+        "cockpit_journeys",
+        "end_to_end",
+        "whatif_chat",
+        "whatif_fidelity"
+      ]
+    },
+    "run": {
+      "meaning": "Run a calculation and read its result",
+      "proved_by": [
+        "cockpit_chat",
+        "cockpit_journeys",
+        "end_to_end",
+        "whatif_chat",
+        "whatif_fidelity",
+        "whatif_journeys"
+      ]
+    },
+    "filter": {
+      "meaning": "Narrow a list or change its reporting month",
+      "proved_by": [
+        "customer360",
+        "whatif_journeys"
+      ]
+    },
+    "drill": {
+      "meaning": "Open a row and read the record behind it",
+      "proved_by": [
+        "cockpit_journeys",
+        "customer360",
+        "retail_only"
+      ]
+    },
+    "save": {
+      "meaning": "Keep a result under a name",
+      "proved_by": [
+        "end_to_end",
+        "whatif_journeys"
+      ]
+    },
+    "reopen": {
+      "meaning": "Reopen something kept, as it was kept",
+      "proved_by": [
+        "end_to_end",
+        "whatif_journeys"
+      ]
+    },
+    "compare": {
+      "meaning": "Put two results side by side",
+      "proved_by": [
+        "whatif_journeys"
+      ]
+    },
+    "export": {
+      "meaning": "Download a result and read the file back",
+      "proved_by": [
+        "cockpit_journeys",
+        "whatif_journeys"
+      ]
+    },
+    "delete": {
+      "meaning": "Remove something this test created",
+      "proved_by": [
+        "whatif_journeys"
+      ]
+    },
+    "return": {
+      "meaning": "Go back and arrive where you left, with state intact",
+      "proved_by": [
+        "cockpit_journeys",
+        "customer360",
+        "end_to_end",
+        "navigation",
+        "retail_only",
+        "whatif_fidelity",
+        "whatif_journeys"
+      ]
+    },
+    "refuse": {
+      "meaning": "Ask for something unsupported and be refused whole",
+      "proved_by": [
+        "cockpit_chat",
+        "whatif_chat",
+        "whatif_fidelity"
+      ]
+    },
+    "recover": {
+      "meaning": "Reach a bad state and be given a way out",
+      "proved_by": [
+        "cockpit_journeys",
+        "customer360",
+        "whatif_fidelity"
+      ]
+    }
+  },
+  "uncovered_operations": [],
+  "routes_opened": {
+    "/": [
+      "inventory:RUI-001",
+      "retail_only:RO-07"
+    ],
+    "/agent-operations": [
+      "inventory:RUI-022"
+    ],
+    "/agent/operations": [
+      "inventory:RUI-022"
+    ],
+    "/ai-studio": [
+      "inventory:RUI-023",
+      "retail_only:RO-23"
+    ],
+    "/ai/studio": [
+      "inventory:RUI-023"
+    ],
+    "/analyses": [
+      "inventory:RUI-007",
+      "retail_only:RO-17"
+    ],
+    "/borrower-360": [
+      "cockpit_journeys:CP-10",
+      "inventory:RUI-014",
+      "retail_only:RO-13"
+    ],
+    "/borrower/360": [
+      "inventory:RUI-014"
+    ],
+    "/data-builder": [
+      "inventory:RUI-017",
+      "retail_only:RO-28"
+    ],
+    "/data/builder": [
+      "inventory:RUI-017"
+    ],
+    "/delivery": [
+      "inventory:RUI-005",
+      "retail_only:RO-16"
+    ],
+    "/documents": [
+      "inventory:RUI-008",
+      "retail_only:RO-09"
+    ],
+    "/early-warning": [
+      "inventory:RUI-011",
+      "retail_only:RO-11"
+    ],
+    "/early-warning/signals": [
+      "inventory:RUI-012",
+      "retail_only:RO-12"
+    ],
+    "/early/warning": [
+      "inventory:RUI-011"
+    ],
+    "/early/warning/signals": [
+      "inventory:RUI-012"
+    ],
+    "/investigations": [
+      "inventory:RUI-006",
+      "retail_only:RO-18"
+    ],
+    "/lenses": [
+      "inventory:RUI-009",
+      "retail_only:RO-08"
+    ],
+    "/messages": [
+      "inventory:RUI-003",
+      "retail_only:RO-26"
+    ],
+    "/metrics": [
+      "inventory:RUI-010",
+      "retail_only:RO-19"
+    ],
+    "/playbook": [
+      "inventory:RUI-019",
+      "retail_only:RO-14"
+    ],
+    "/projects": [
+      "inventory:RUI-004",
+      "retail_only:RO-15"
+    ],
+    "/reviews": [
+      "inventory:RUI-020",
+      "retail_only:RO-21"
+    ],
+    "/scorecard-validation": [
+      "inventory:RUI-015",
+      "retail_only:RO-24"
+    ],
+    "/scorecard/validation": [
+      "inventory:RUI-015"
+    ],
+    "/settings": [
+      "inventory:RUI-025"
+    ],
+    "/studio": [
+      "inventory:RUI-016",
+      "retail_only:RO-22"
+    ],
+    "/trace": [
+      "inventory:RUI-018",
+      "retail_only:RO-25"
+    ],
+    "/users": [
+      "inventory:RUI-024"
+    ],
+    "/what-if": [
+      "inventory:RUI-013",
+      "retail_only:RO-10"
+    ],
+    "/what/if": [
+      "inventory:RUI-013"
+    ],
+    "/workflow": [
+      "inventory:RUI-021",
+      "retail_only:RO-27"
+    ],
+    "/workspace": [
+      "inventory:RUI-002",
+      "retail_only:RO-20"
+    ]
+  }
+}

@@ -136,17 +136,17 @@ def plan(today: date) -> dict[str, Any]:
     return {
         "project": {
             "code": PROJECT_CODE,
-            "name": "IFRS 9 Model Redevelopment",
+            "name": "Retail Scorecard and IFRS 9 Redevelopment",
             "status": "ACTIVE", "priority": "HIGH",
-            "objective": "Rebuild the corporate PD, LGD and EAD models on the "
-                         "post-2023 data, and have the redeveloped ECL "
+            "objective": "Rebuild the retail application and behavioural "
+                         "scorecards and the retail PD, LGD and EAD models on "
+                         "the post-2023 book, and have the redeveloped ECL "
                          "approved by the Model Committee before year end.",
-            "business_context": "The current corporate PD model was "
-                                "calibrated on a pre-pandemic window and has "
-                                "been failing its annual back-test on the "
-                                "shipping and real-estate books for two "
-                                "cycles. Validation has raised it as a "
-                                "high-severity finding.",
+            "business_context": "The application scorecard was calibrated on a "
+                                "pre-pandemic window and has been failing its "
+                                "annual back-test on personal finance and "
+                                "credit cards for two cycles. Validation has "
+                                "raised it as a high-severity finding.",
             "start_date": d(-120), "target_end_date": d(140),
             "reporting_cadence": "WEEKLY", "stale_after_days": 7,
         },
@@ -159,8 +159,8 @@ def plan(today: date) -> dict[str, Any]:
             ("lena.brandt", "REVIEWER", "VIEWER"),
         ],
         "workstreams": [
-            ("WS-DATA", "Data foundation", "tom.whitfield", 1, -120, -40),
-            ("WS-PD", "PD redevelopment", "daniel.okafor", 2, -70, 40),
+            ("WS-DATA", "Retail data foundation", "tom.whitfield", 1, -120, -40),
+            ("WS-PD", "Scorecard and PD redevelopment", "daniel.okafor", 2, -70, 40),
             ("WS-LGD", "LGD and EAD", "daniel.okafor", 3, -40, 70),
             ("WS-ECL", "ECL engine and staging", "priya.raman", 4, 0, 100),
             ("WS-VAL", "Validation and approval", "lena.brandt", 5, 60, 130),
@@ -170,10 +170,10 @@ def plan(today: date) -> dict[str, Any]:
         "tasks": [
             # code, title, ws, parent, owner, status, %, start, due, weight,
             # critical, blocked, reason, next step
-            ("T-101", "Assemble the corporate default history",
+            ("T-101", "Assemble the retail default history",
              "WS-DATA", None, "tom.whitfield", "COMPLETED", 100, -120, -95,
              3, True, False, "", ""),
-            ("T-102", "Reconcile defaults to the finance ledger",
+            ("T-102", "Reconcile write-offs to the finance ledger",
              "WS-DATA", None, "samir.khoury", "COMPLETED", 100, -100, -80,
              2, False, False, "", ""),
             ("T-103", "Build the macro-economic panel",
@@ -183,37 +183,38 @@ def plan(today: date) -> dict[str, Any]:
              "WS-DATA", None, "lena.brandt", "COMPLETED", 100, -75, -55,
              1, False, False, "", ""),
 
-            ("T-201", "Single-factor analysis on the corporate book",
+            ("T-201", "Single-factor analysis on the retail book",
              "WS-PD", None, "daniel.okafor", "COMPLETED", 100, -70, -50,
              2, False, False, "", ""),
-            ("T-202", "Candidate PD model fitting",
+            ("T-202", "Candidate scorecard fitting",
              "WS-PD", None, "daniel.okafor", "IN_PROGRESS", 70, -50, 10,
              4, True, False, "",
              "Two candidates left; picking on Gini and stability."),
-            ("T-202a", "Shipping sub-portfolio segmentation",
+            ("T-202a", "Personal finance segmentation",
              "WS-PD", "T-202", "daniel.okafor", "IN_PROGRESS", 60, -40, 5,
-             1, False, False, "", "Waiting on the vessel-age field."),
-            ("T-202b", "Real-estate sub-portfolio segmentation",
+             1, False, False, "",
+             "Waiting on the salary-transfer history field."),
+            ("T-202b", "Credit card segmentation",
              "WS-PD", "T-202", "daniel.okafor", "IN_PROGRESS", 45, -40, 8,
              1, False, False, "", ""),
             ("T-203", "PD calibration to the long-run average",
              "WS-PD", None, "priya.raman", "NOT_STARTED", 0, 10, 30,
              2, True, False, "", ""),
-            ("T-204", "PD back-test pack",
+            ("T-204", "Scorecard back-test pack",
              "WS-PD", None, "daniel.okafor", "NOT_STARTED", 0, 25, 45,
              2, False, False, "", ""),
 
-            ("T-301", "LGD workout data extraction",
+            ("T-301", "Collections and recovery data extraction",
              "WS-LGD", None, "tom.whitfield", "IN_PROGRESS", 80, -40, -6,
              3, True, False, "",
              "Two recovery files still to load."),
-            ("T-302", "Collateral haircut review",
+            ("T-302", "Mortgage collateral haircut review",
              "WS-LGD", None, "samir.khoury", "BLOCKED", 20, -30, 12,
              2, False, True,
              "Waiting on the updated valuation policy from Credit Policy; "
              "chased 4 October, no date given.",
              "Escalate at the next steering committee."),
-            ("T-303", "EAD / CCF estimation",
+            ("T-303", "Card CCF estimation on undrawn limits",
              "WS-LGD", None, "daniel.okafor", "NOT_STARTED", 0, 15, 50,
              2, False, False, "", ""),
 
@@ -230,7 +231,7 @@ def plan(today: date) -> dict[str, Any]:
              "WS-ECL", None, "samir.khoury", "NOT_STARTED", 0, 65, 85,
              3, True, False, "", ""),
 
-            ("T-501", "Independent validation of the PD model",
+            ("T-501", "Independent validation of the scorecards",
              "WS-VAL", None, "lena.brandt", "NOT_STARTED", 0, 45, 80,
              3, True, False, "", ""),
             ("T-502", "Independent validation of LGD and EAD",
@@ -249,14 +250,14 @@ def plan(today: date) -> dict[str, Any]:
             ("T-603", "Finance sign-off on the parallel run",
              "WS-IMPL", None, "samir.khoury", "NOT_STARTED", 0, 130, 140,
              1, False, False, "", ""),
-            ("T-604", "Decommission the old model",
+            ("T-604", "Decommission the old scorecard",
              "WS-IMPL", None, "tom.whitfield", "NOT_STARTED", 0, 138, 145,
              1, False, False, "", ""),
         ],
         "milestones": [
             ("M-1", "Data foundation complete", "WS-DATA", "tom.whitfield",
              -55, "ACHIEVED", True),
-            ("M-2", "PD model selected", "WS-PD", "daniel.okafor", 12,
+            ("M-2", "Scorecard selected", "WS-PD", "daniel.okafor", 12,
              "PENDING", True),
             ("M-3", "Full ECL model built", "WS-ECL", "priya.raman", 70,
              "PENDING", True),
@@ -292,28 +293,29 @@ def plan(today: date) -> dict[str, Any]:
              "HIGH", "OPEN", "priya.raman", 30,
              "Agree a named deputy with Analytics before the end of the "
              "month; front-load the calibration work.", ""),
-            ("RISK", "Workout recovery data is incomplete before 2019",
-             "Two years of recovery cases were archived without the "
-             "collateral realisation dates, which weakens the LGD sample.",
+            ("RISK", "Recovery data is incomplete before 2019",
+             "Two years of collections cases were archived without the "
+             "settlement dates, which weakens the LGD sample.",
              "MEDIUM", "OPEN", "tom.whitfield", 20,
              "Use the shorter window and disclose the limitation in the "
              "validation pack.", ""),
-            ("DECISION", "Which staging approach for the shipping book",
+            ("DECISION", "Which staging approach for revolving cards",
              "The current SICR test uses a relative PD threshold that puts "
-             "most of the shipping book into Stage 2 permanently. Committee "
-             "needs to decide between a segment-specific threshold and an "
-             "absolute floor.",
+             "most of the revolving card book into Stage 2 permanently. "
+             "Committee needs to decide between a product-specific threshold "
+             "and an absolute floor.",
              "HIGH", "OPEN", "amina.hassan", 25,
              "", ""),
-            ("DECISION", "Model scope: corporate only, or corporate and SME",
-             "Extending to SME adds roughly six weeks. Decided at the "
-             "September steering committee: corporate only for this cycle.",
+            ("DECISION", "Model scope: secured products in or out",
+             "Extending to home and auto finance adds roughly six weeks. "
+             "Decided at the September steering committee: unsecured only for "
+             "this cycle.",
              "MEDIUM", "CLOSED", "amina.hassan", -30, "",
-             "Corporate only. SME to be scheduled separately in the next "
-             "model plan."),
+             "Unsecured only. Home and auto to be scheduled separately in the "
+             "next model plan."),
             ("ISSUE", "Valuation policy not issued",
-             "Collateral haircut work cannot start until Credit Policy "
-             "issues the updated valuation policy.",
+             "Mortgage collateral haircut work cannot start until Credit "
+             "Policy issues the updated valuation policy.",
              "HIGH", "OPEN", "samir.khoury", 10,
              "Raised at steering; Credit Policy to confirm a date.", ""),
             ("ASSUMPTION", "Macro scenarios remain the group set",
@@ -326,26 +328,26 @@ def plan(today: date) -> dict[str, Any]:
         #: answer. Each is (task code or None, author, days ago, narrative).
         "updates": [
             (None, "priya.raman", 13,
-             "Steering committee held. Scope confirmed as corporate only for "
-             "this cycle; SME deferred."),
+             "Steering committee held. Scope confirmed as unsecured only for "
+             "this cycle; home and auto deferred."),
             ("T-301", "tom.whitfield", 11,
-             "Workout extraction at 60%. The 2018-19 recovery files are "
-             "missing collateral realisation dates."),
+             "Collections extraction at 60%. The 2018-19 recovery files are "
+             "missing settlement dates."),
             ("T-202", "daniel.okafor", 9,
              "Four candidate specifications fitted. Gini on the holdout is "
              "0.61 to 0.68; stability is the differentiator."),
             ("T-302", "samir.khoury", 8,
              "Still no valuation policy from Credit Policy. Chased again."),
             ("T-202a", "daniel.okafor", 6,
-             "Shipping segmentation needs the vessel-age field, which is not "
-             "in the extract. Raised with Tom."),
+             "Personal finance segmentation needs the salary-transfer history "
+             "field, which is not in the extract. Raised with Tom."),
             ("T-301", "tom.whitfield", 5,
              "Extraction at 80%. Two recovery files left to load."),
             (None, "priya.raman", 4,
-             "Weekly report: PD on track for M-2, LGD at risk on the "
+             "Weekly report: scorecard on track for M-2, LGD at risk on the "
              "valuation policy, no change to the end date."),
             ("T-402", "priya.raman", 2,
-             "Drafted the quantitative SICR test. Needs the shipping "
+             "Drafted the quantitative SICR test. Needs the revolving-card "
              "decision before it can be finalised."),
             ("T-202", "daniel.okafor", 1,
              "Down to two candidates. Selection meeting booked."),

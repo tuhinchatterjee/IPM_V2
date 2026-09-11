@@ -462,6 +462,30 @@ IFRS9 = Committee(
 
 COMMITTEES: tuple[Committee, ...] = (RETAIL, CORPORATE, IFRS9)
 
+#: The committees whose packs are built from `corporate.*` metrics over the
+#: corporate book. Retained in `COMMITTEES` — a corporate profile seeds all
+#: three — and withheld from what a RETAIL installation seeds.
+#:
+#: The IFRS 9 Impairment Committee is here for the same reason as the Corporate
+#: Credit Committee, and it is worth saying why, because a retail book plainly
+#: HAS impairment. Every tile and every threshold in its pack names a
+#: `corporate.ifrs9.*` metric, and the governed metric library publishes no
+#: retail equivalent: its own docstring says the retail datasets are "not enough
+#: for retail IFRS 9". Seeding the committee anyway would put an IFRS 9
+#: governance pack in front of a reader with nothing calculable behind a single
+#: tile. That is recorded as an open gap rather than papered over with a
+#: committee that cannot meet.
+CORPORATE_COMMITTEE_CODES: frozenset[str] = frozenset({CORPORATE.code, IFRS9.code})
+
+
+def served_committees() -> tuple[Committee, ...]:
+    """The committees this installation seeds."""
+    from backend.retail.profile import is_retail
+
+    if not is_retail():
+        return COMMITTEES
+    return tuple(c for c in COMMITTEES if c.code not in CORPORATE_COMMITTEE_CODES)
+
 
 # ---------------------------------------------------------------- refreshing
 
@@ -600,6 +624,7 @@ def refresh(session: Any, *, today: date | None = None, dry_run: bool = False,
 
 
 __all__ = [
-    "COMMITTEES", "CORPORATE", "Committee", "FIELDS", "IFRS9", "Moved",
+    "COMMITTEES", "CORPORATE", "CORPORATE_COMMITTEE_CODES", "Committee",
+    "FIELDS", "IFRS9", "Moved", "served_committees",
     "PLAYBOOK_DEMO", "RETAIL", "Refresh", "refresh", "seeded",
 ]

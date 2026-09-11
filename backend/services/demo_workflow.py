@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 #: identity. Kept here rather than derived from the subject text so that
 #: rewording a covering note does not silently seed a second copy.
 SEED_KEYS = (
-    "seed:shipping-review",
+    "seed:delinquency-review",
     "seed:ecl-review",
 )
 
@@ -50,7 +50,7 @@ SEED_KEYS = (
 #: name one. The book the product is actually about, so the example message is
 #: about something a reviewer recognises — and, more importantly, the SAME
 #: thing on every call.
-PREFERRED_RELEASE_DATASET = "portfolio_facility"
+PREFERRED_RELEASE_DATASET = "retail_facility_month"
 
 
 @dataclass
@@ -100,14 +100,14 @@ def _an_investigation(session: Any, sender_id: int) -> str:
     refusal later means the seed picks a workable object instead of failing on
     whichever one happened to be newest.
 
-    Preference for a title mentioning shipping, so the covering note and the
-    card agree.
+    Preference for a title mentioning card delinquency, so the covering note
+    and the card agree.
     """
     from backend.models.platform import Investigation
     from backend.services import collaboration as collab
 
     for stmt in (
-        select(Investigation).where(Investigation.title.ilike("%shipping%"))
+        select(Investigation).where(Investigation.title.ilike("%card%"))
         .order_by(Investigation.id.desc()).limit(20),
         select(Investigation).order_by(Investigation.id.desc()).limit(20),
     ):
@@ -180,9 +180,9 @@ def seed(session: Any) -> SeededWorkflow:
         result.skipped.append("demonstration accounts are not present")
         return result
 
-    # 1. Corporate Credit Manager → Head of Credit Risk Analytics, with the
+    # 1. Retail Credit Manager → Head of Credit Risk Analytics, with the
     #    governed objects the note is about.
-    subject = "Shipping deterioration — please review"
+    subject = "Card delinquency deterioration — please review"
     if _already(session, subject, sarah.id):
         result.kept.append(subject)
     else:
@@ -196,17 +196,17 @@ def seed(session: Any) -> SeededWorkflow:
             attachments.append({"type": "analysis", "object_id": analysis})
         collab.send_message(
             session, sender_id=sarah.id, to=[alex.id], subject=subject,
-            body=("Please review the attached shipping work before tomorrow's "
+            body=("Please review the attached card work before tomorrow's "
                   "portfolio review.\n\n"
-                  "Two names moved more than I expected between the quarters, "
-                  "and I would rather we agreed a line before the committee "
-                  "than during it."),
+                  "Two product families moved more than I expected between the "
+                  "months, and I would rather we agreed a line before the "
+                  "committee than during it."),
             attachments=attachments, request_type=REQ_REVIEW, priority=PRIORITY_HIGH,
         )
         result.created.append(subject)
 
     # 2. IFRS 9 Manager → the same reader, for information rather than review.
-    subject = "Q2 ECL decomposition — for your information"
+    subject = "Monthly ECL decomposition — for your information"
     if _already(session, subject, ahmed.id):
         result.kept.append(subject)
     else:
@@ -216,7 +216,7 @@ def seed(session: Any) -> SeededWorkflow:
             attachments.append({"type": "analysis", "object_id": analysis})
         collab.send_message(
             session, sender_id=ahmed.id, to=[alex.id], subject=subject,
-            body=("The Q2 decomposition is reconciled and attached. Nothing "
+            body=("The monthly decomposition is reconciled and attached. Nothing "
                   "needs a decision from you — sending it so the committee "
                   "pack does not arrive as a surprise."),
             attachments=attachments, request_type=REQ_FYI,

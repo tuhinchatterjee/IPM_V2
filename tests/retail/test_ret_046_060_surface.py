@@ -295,6 +295,45 @@ class TestRET048LayoutPreserved:
             "frontend/src/lib/__tests__/retail-money-scale.test.ts",
             "frontend/src/app/what-if/page.tsx",
             "frontend/src/app/what-if/retail-whatif.tsx",
+            # ---------------------------------------------------------------
+            # Revision 3. Each is a surface the conversion had left serving
+            # the corporate book, found by opening it rather than by reading
+            # it, and each carries a retail path chosen by the profile.
+            #
+            # Customer 360 and Early Warning called the corporate endpoints and
+            # returned 503 data_not_built, so the screen was unreachable in the
+            # shipped product.
+            "frontend/src/app/borrower-360/page.tsx",
+            "frontend/src/app/borrower-360/retail-customer.tsx",
+            "frontend/src/app/early-warning/signals/page.tsx",
+            "frontend/src/app/early-warning/signals/retail-signals.tsx",
+            # The three corporate What-If routes answered under the retail
+            # profile: not in the navigation is not unreachable, and a bookmark
+            # opened rating notches over a book that does not exist here.
+            "frontend/src/app/what-if/thread/page.tsx",
+            "frontend/src/app/what-if/models/delta/page.tsx",
+            "frontend/src/app/what-if/models/ml/page.tsx",
+            "frontend/src/components/layout/retired-screen.tsx",
+            # Agent Operations published three corporate teams as ACTIVE, and
+            # the document library shipped a Real Estate Sector Review.
+            "backend/agentic/registry.py",
+            "frontend/src/lib/demo.ts",
+            "frontend/src/app/documents/page.tsx",
+            "frontend/src/app/documents/[id]/page.tsx",
+            # The bootstrap seeds, which reinstall on every fresh deployment:
+            # a Corporate IFRS 9 lens, two corporate committees, a corporate
+            # model-redevelopment plan and a shipping-review thread.
+            "backend/metrics/lenses.py",
+            "backend/playbook/demo.py",
+            "scripts/seed_playbook_committees.py",
+            "scripts/seed_planner.py",
+            "backend/services/demo_workflow.py",
+            # The CRO Portfolio Lens reads the wholesale book and was offered
+            # as a card one click from the Lenses navigation item.
+            "frontend/src/app/lenses/page.tsx",
+            "frontend/src/app/lenses/cro/page.tsx",
+            # The old-to-current What-If fidelity mapping Revision 3 §3 asks for.
+            "docs/WHATIF_RETAIL_FIDELITY_MAP.md",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

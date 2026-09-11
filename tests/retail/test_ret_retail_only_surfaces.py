@@ -76,6 +76,58 @@ class TestTheAgentRegistryServesOnlyTeamsWithAnActiveBook:
             ["rating", "dscr", "leverage", "headroom", "connected_group", "ubo"])}
         assert chosen.isdisjoint(registry.RETIRED_IN_RETAIL_AGENTS)
 
+    def test_a_served_team_does_not_advertise_a_retired_domain(self):
+        """The leak a code search misses.
+
+        Eight retained specialists still carry a grant over every domain they
+        would read on the corporate book. Published unfiltered, that put
+        "Ratings & Financials" and "Relationship Graph" on the card of every
+        one of them — a permission over data that is not here, which reads on
+        screen as a capability.
+        """
+        for agent in registry.served_agents():
+            published = set(agent.to_dict()["allowed_data_domains"])
+            assert published.isdisjoint(registry.RETIRED_IN_RETAIL_DOMAINS), (
+                f"{agent.business_name} advertises "
+                f"{sorted(published & registry.RETIRED_IN_RETAIL_DOMAINS)}")
+            labels = set(agent.domain_labels)
+            assert "Ratings & Financials" not in labels
+            assert "Covenants & Collateral" not in labels
+            assert "Relationship Graph" not in labels
+
+    def test_a_grant_over_a_retired_domain_does_not_permit_a_read(self):
+        for agent in registry.AGENTS:
+            for domain in registry.RETIRED_IN_RETAIL_DOMAINS:
+                assert not agent.may_read(domain), (
+                    f"{agent.agent_id} may read {domain}")
+
+    def test_the_seeded_schedules_wake_no_retired_specialist(self):
+        from backend.agentic import schedules
+
+        served = {a.agent_id for a in registry.served_agents()}
+        for seed in schedules.SEEDS:
+            for agent_id in seed.get("agents", []):
+                assert agent_id in served, (
+                    f"the schedule {seed['name']!r} wakes {agent_id}, which "
+                    "this installation does not serve")
+
+    def test_a_schedule_persisted_before_a_retirement_is_filtered_on_read(self):
+        """Editing the seed alone would not have removed it.
+
+        The row was already in the database naming `ratings_financials`, so the
+        name reached the Agent Operations screen from storage rather than from
+        code. The serialiser has to filter, not just the seed.
+        """
+        import inspect
+
+        from backend.agentic import schedules
+
+        source = inspect.getsource(schedules)
+        at = source.index('"agents": [\n            {"agent_id"')
+        block = source[at:at + 400]
+        assert "served_agents()" in block, (
+            "a schedule renders whatever agent id it stored")
+
     def test_they_are_retired_rather_than_deleted(self):
         """A corporate profile must still be able to serve all thirteen."""
         assert len(registry.AGENTS) == 13
@@ -154,6 +206,28 @@ class TestTheCorporateWhatIfRoutesDoNotServeTheirScreen:
         assert re.search(r"return <Corporate\w+ />", source), route
 
 
+class TestTheCroLensIsNotOfferedOrServed:
+    """The worst place for a retired surface: not a bookmark somebody kept, a
+    card the product offers one click from a navigation item."""
+
+    def test_the_route_answers_instead_of_rendering_the_wholesale_book(self):
+        source = (FRONTEND / "app" / "lenses" / "cro" / "page.tsx").read_text()
+        assert "isRetail()" in source
+        assert "RetiredScreen" in source
+
+    def test_the_hand_built_screen_is_retained_as_code(self):
+        source = (FRONTEND / "app" / "lenses" / "cro" / "page.tsx").read_text()
+        assert re.search(r"function Corporate\w+\(", source)
+
+    def test_the_lenses_index_does_not_offer_the_card(self):
+        source = (FRONTEND / "app" / "lenses" / "page.tsx").read_text()
+        assert 'href="/lenses/cro"' in source, "the corporate card was deleted"
+        card = source[source.index("Built for the executive"):]
+        before = source[:source.index("Built for the executive")]
+        assert "isRetail() ? null : (" in before[-600:], (
+            "the CRO card is offered unconditionally")
+
+
 class TestTheWhatIfScreenOffersNothingTheRetailBookCannotRun:
     def test_the_starters_are_all_runnable_sentences(self):
         from backend.retail import whatif_language as lang
@@ -169,3 +243,101 @@ class TestTheWhatIfScreenOffersNothingTheRetailBookCannotRun:
         joined = " ".join(profile.SCENARIO_STARTERS).lower()
         for word in ("notch", "rating", "sector", "covenant", "downgrade"):
             assert word not in joined, word
+
+
+class TestTheBootstrapCannotReinstallARetiredSurface:
+    """The path a retired surface comes back on.
+
+    Nobody types the URL of a Corporate IFRS 9 lens. The installer creates it:
+    the bootstrap runs on every fresh deployment, and until this pass it seeded
+    a Corporate IFRS 9 lens, a Corporate Credit Committee, an IFRS 9 committee
+    whose every tile names a `corporate.ifrs9.*` metric, a corporate
+    model-redevelopment delivery plan and a shipping-review conversation into a
+    retail-only product.
+    """
+
+    def test_the_corporate_lens_is_not_seeded(self):
+        from backend.metrics import lenses
+
+        served = {spec.slug for spec in lenses.served()}
+        assert "corporate-ifrs9" not in served
+        assert "retail-credit-risk" in served
+        assert "retail-analytics" in served
+
+    def test_the_corporate_lens_is_retained_as_code(self):
+        from backend.metrics import lenses
+
+        assert lenses.CORPORATE_IFRS9 in lenses.ALL
+        assert len(lenses.ALL) == 3
+
+    def test_no_seeded_lens_reads_a_corporate_metric(self):
+        from backend.metrics import lenses
+
+        for spec in lenses.served():
+            for tile in spec.tiles:
+                assert not tile.metric_id.startswith("corporate."), (
+                    f"{spec.slug} reads {tile.metric_id}")
+
+    def test_the_corporate_committees_are_not_seeded(self):
+        from backend.playbook import demo
+
+        served = {c.code for c in demo.served_committees()}
+        assert "corporate-credit-committee" not in served
+        assert "ifrs9-impairment-committee" not in served
+        assert "retail-credit-risk-committee" in served
+
+    def test_the_corporate_committees_are_retained_as_code(self):
+        from backend.playbook import demo
+
+        assert len(demo.COMMITTEES) == 3
+
+    def test_the_seeded_delivery_plan_is_retail(self):
+        import datetime
+
+        import scripts.seed_planner as planner
+
+        plan = planner.plan(datetime.date.today())
+        text = repr(plan).lower()
+        for word in ("corporate", "shipping", "real-estate", "real estate",
+                     "vessel", "sector", "notch", "covenant", "obligor"):
+            assert word not in text, word
+        assert "retail" in plan["project"]["name"].lower()
+
+    def test_the_seeded_plan_still_demonstrates_every_planner_feature(self):
+        """Retail content, not a thinner plan: the shape has to survive."""
+        import datetime
+
+        import scripts.seed_planner as planner
+
+        plan = planner.plan(datetime.date.today())
+        statuses = {t[5] for t in plan["tasks"]}
+        assert {"COMPLETED", "IN_PROGRESS", "NOT_STARTED", "BLOCKED"} <= statuses
+        kinds = {r[0] for r in plan["raid"]}
+        assert {"RISK", "DECISION", "ISSUE", "ASSUMPTION"} <= kinds
+        assert any(r[0] == "DECISION" and r[4] == "OPEN" for r in plan["raid"])
+        assert any(r[0] == "DECISION" and r[4] == "CLOSED" for r in plan["raid"])
+        assert any(t[11] for t in plan["tasks"]), "no task is on the critical path"
+        assert any(t[12] for t in plan["tasks"]), "no task is blocked"
+        assert len(plan["milestones"]) >= 5
+        assert len(plan["dependencies"]) >= 15
+        assert len(plan["updates"]) >= 8
+
+    def test_the_seeded_conversations_are_retail(self):
+        from backend.services import demo_workflow
+
+        source = Path(demo_workflow.__file__).read_text()
+        for word in ("shipping", "Corporate", "portfolio_facility"):
+            assert word not in source, word
+        assert demo_workflow.PREFERRED_RELEASE_DATASET == "retail_facility_month"
+
+    def test_the_release_notification_names_a_dataset_this_product_serves(self):
+        from backend.retail import profile
+        from backend.services import demo_workflow
+
+        assert not profile.is_retired(demo_workflow.PREFERRED_RELEASE_DATASET)
+
+    def test_the_seed_keys_do_not_name_a_retired_subject(self):
+        from backend.services import demo_workflow
+
+        joined = " ".join(demo_workflow.SEED_KEYS)
+        assert "shipping" not in joined

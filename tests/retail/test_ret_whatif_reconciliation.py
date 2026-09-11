@@ -241,3 +241,41 @@ class TestExportsCarryTheSamePrecisionAndScopeAsTheScreen:
         source = inspect.getsource(router.whatif_export)
         assert "wif.run(" not in source, (
             "an export that recomputes can disagree with the screen it came from")
+
+    def test_the_export_writes_the_stored_figure_not_a_rounded_one(self):
+        """The screen rounds for DISPLAY. A reconciliation file must not.
+
+        `sar()` on the screen shows SAR 8,994,012; the file has to carry
+        8994011.868, or the number somebody reconciles against is not the
+        number the run produced.
+        """
+        import inspect
+
+        from backend.api.routers import retail as router
+
+        source = inspect.getsource(router.whatif_export)
+        for field in ("ecl_final_sar", "facilities", "customers"):
+            assert field in source, f"the export omits {field}"
+        # No rounding, formatting or scaling between the stored run and the file.
+        for suspect in ("round(", ":,.0f", ":,.2f", "/ 1000", "/ 1_000_000"):
+            assert suspect not in source, (
+                f"the export applies {suspect!r} to a stored figure")
+
+    def test_the_export_names_the_scope_it_was_computed_over(self):
+        """A figure with no population is not reconcilable against anything."""
+        import inspect
+
+        from backend.api.routers import retail as router
+
+        source = inspect.getsource(router.whatif_export)
+        for named in ("Population filters", "Reporting month", "Dataset version",
+                      "Snapshot date", "Methodology", "Staging mode", "Run id"):
+            assert named in source, f"the export does not name the {named}"
+
+    def test_the_export_carries_the_assumptions_and_limitations_of_its_run(self):
+        import inspect
+
+        from backend.api.routers import retail as router
+
+        source = inspect.getsource(router.whatif_export)
+        assert "assumptions" in source and "limitations" in source

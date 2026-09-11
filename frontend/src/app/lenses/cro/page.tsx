@@ -24,6 +24,8 @@ import { byUnit, money, percent } from "@/lib/format";
 import { useAnalysis } from "@/lib/hooks";
 import { fromLens, linkBack } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
+import { isRetail } from "@/lib/profile";
+import { RetiredScreen } from "@/components/layout/retired-screen";
 
 /**
  * CRO Portfolio Lens.
@@ -59,7 +61,7 @@ function moved(value: number | null, up = "risen", down = "fallen", flat = "held
   return flat;
 }
 
-export default function CroLensPage() {
+function CorporateCroLensPage() {
   const summary = useAnalysis("portfolio_summary", {
     params: { period: "latest", compare_period: "previous" },
   });
@@ -599,4 +601,28 @@ function MigrationSplit({ run }: { run: AnalysisRunResponse }) {
       </p>
     </div>
   );
+}
+
+
+// This installation is retail-only. The CRO Portfolio Lens is a hand-built
+// screen over the WHOLESALE book — sector concentration, largest-obligor share,
+// the names driving deterioration — and none of that exists here. It was one
+// click from the Lenses navigation item, which is the worst place for a
+// retired surface to sit: not a bookmark somebody kept, a card the product
+// offers.
+export default function CroLensPage() {
+  if (isRetail()) {
+    return (
+      <RetiredScreen
+        title="CRO Portfolio Lens"
+        reason={"The CRO Portfolio Lens is built over the wholesale book — "
+          + "sector concentration, largest-obligor share and the names driving "
+          + "deterioration. This installation serves the Saudi retail book, "
+          + "which has none of those, so the lens has nothing to read."}
+        insteadHref="/lenses"
+        insteadLabel="Lenses"
+      />
+    );
+  }
+  return <CorporateCroLensPage />;
 }

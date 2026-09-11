@@ -183,14 +183,28 @@ class Agent:
     certification_state: str = UNREVIEWED
 
     @property
+    def served_data_domains(self) -> tuple[str, ...]:
+        """The domains this agent may read AND this installation serves.
+
+        A retained specialist's grant still lists every domain it would read on
+        the corporate book. Published unfiltered, that put "Ratings &
+        Financials" and "Relationship Graph" on the card of eight retail teams
+        on the Agent Operations screen — a permission advertised over data that
+        is not here, which reads as a capability rather than as a grant with
+        nothing behind it.
+        """
+        return tuple(d for d in self.allowed_data_domains if d in served_domains())
+
+    @property
     def domain_labels(self) -> tuple[str, ...]:
-        return tuple(DOMAIN_LABELS.get(d, d) for d in self.allowed_data_domains)
+        return tuple(DOMAIN_LABELS.get(d, d) for d in self.served_data_domains)
 
     def may_use(self, tool_id: str) -> bool:
         return tool_id in self.allowed_tools
 
     def may_read(self, domain: str) -> bool:
-        return domain in self.allowed_data_domains
+        """A grant is not enough: the domain has to be one this product serves."""
+        return domain in self.allowed_data_domains and domain in served_domains()
 
     def needs_approval_for(self, action: str) -> bool:
         return action in self.human_approval_requirements
@@ -204,7 +218,7 @@ class Agent:
             "when_not_to_use": list(self.when_not_to_use),
             "allowed_capabilities": list(self.allowed_capabilities),
             "allowed_tools": list(self.allowed_tools),
-            "allowed_data_domains": list(self.allowed_data_domains),
+            "allowed_data_domains": list(self.served_data_domains),
             "domain_labels": list(self.domain_labels),
             "allowed_methods": list(self.allowed_methods),
             "input_contract": list(self.input_contract),

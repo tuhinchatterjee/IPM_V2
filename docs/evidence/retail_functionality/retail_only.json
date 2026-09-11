@@ -1,0 +1,461 @@
+{
+  "suite": "retail_only",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 111.7,
+  "counts": {
+    "PASS": 29,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/retail_only-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-01",
+      "module": "retail-only",
+      "title": "The Lenses index does not offer the CRO Portfolio Lens, which reads the wholesale book",
+      "status": "PASS",
+      "detail": "opened=True; CRO card offered=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-01-lenses.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-02",
+      "module": "retail-only",
+      "title": "A direct link to the CRO Portfolio Lens answers with a fallback rather than rendering the wholesale book",
+      "status": "PASS",
+      "detail": "fallback=True; link back=True; wholesale view rendered=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-02-cro.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-03",
+      "module": "retail-only",
+      "title": "Agent Operations publishes no team whose subject matter this book does not contain",
+      "status": "PASS",
+      "detail": "status=200; 10 teams served; retired teams still published=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "teams": [
+          "Data Steward",
+          "Credit Analyst",
+          "IFRS 9",
+          "Delinquency & Collections",
+          "Portfolio Risk",
+          "Early Warning",
+          "Stress & Scenario",
+          "Validation & Assurance",
+          "Workflow Coordinator",
+          "Chief Orchestrator"
+        ],
+        "domains": [
+          "Data",
+          "Exposure",
+          "IFRS 9",
+          "Delinquency",
+          "Portfolio"
+        ]
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-04",
+      "module": "retail-only",
+      "title": "None of the retired teams is named on the Agent Operations screen",
+      "status": "PASS",
+      "detail": "retired teams on screen=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-04-agent-ops.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-05",
+      "module": "retail-only",
+      "title": "Every seeded committee paper is retail and names the book and month it is drawn from",
+      "status": "PASS",
+      "detail": "opened=True; corporate wording=[]; dataset named on the cards=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-05-documents.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-06",
+      "module": "retail-only",
+      "title": "An opened paper is retail throughout, and Back returns to the library",
+      "status": "PASS",
+      "detail": "corporate wording=[]; back control=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-06-document.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-07",
+      "module": "retail-only",
+      "title": "/ shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-07-.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-08",
+      "module": "retail-only",
+      "title": "/lenses shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/lenses",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-08-lenses.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-09",
+      "module": "retail-only",
+      "title": "/documents shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/documents",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-09-documents.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-10",
+      "module": "retail-only",
+      "title": "/what-if shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/what-if",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-10-what-if.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-11",
+      "module": "retail-only",
+      "title": "/early-warning shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/early-warning",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-11-early-warning.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-12",
+      "module": "retail-only",
+      "title": "/early-warning/signals shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/early-warning/signals",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-12-early-warning-signals.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-13",
+      "module": "retail-only",
+      "title": "/borrower-360 shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/borrower-360",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-13-borrower-360.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-14",
+      "module": "retail-only",
+      "title": "/playbook shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/playbook",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-14-playbook.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-15",
+      "module": "retail-only",
+      "title": "/projects shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/projects",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-15-projects.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-16",
+      "module": "retail-only",
+      "title": "/delivery shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/delivery",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-16-delivery.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-17",
+      "module": "retail-only",
+      "title": "/analyses shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/analyses",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-17-analyses.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-18",
+      "module": "retail-only",
+      "title": "/investigations shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/investigations",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-18-investigations.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-19",
+      "module": "retail-only",
+      "title": "/metrics shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/metrics",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-19-metrics.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-20",
+      "module": "retail-only",
+      "title": "/workspace shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/workspace",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-20-workspace.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-21",
+      "module": "retail-only",
+      "title": "/reviews shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/reviews",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-21-reviews.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-22",
+      "module": "retail-only",
+      "title": "/studio shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/studio",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-22-studio.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-23",
+      "module": "retail-only",
+      "title": "/ai-studio shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/ai-studio",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-23-ai-studio.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-24",
+      "module": "retail-only",
+      "title": "/scorecard-validation shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/scorecard-validation",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-24-scorecard-validation.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-25",
+      "module": "retail-only",
+      "title": "/trace shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/trace",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-25-trace.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-26",
+      "module": "retail-only",
+      "title": "/messages shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/messages",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-26-messages.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-27",
+      "module": "retail-only",
+      "title": "/workflow shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/workflow",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-27-workflow.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RO-28",
+      "module": "retail-only",
+      "title": "/data-builder shows no corporate example, team or terminology",
+      "status": "PASS",
+      "detail": "none of the retired vocabulary is on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/data-builder",
+        "screenshot": "docs/evidence/retail_functionality/screens/ro-28-data-builder.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

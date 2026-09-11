@@ -700,7 +700,8 @@ def build(*, reset: bool = False, check: bool = False) -> Report:
                 for name, number in _sections_and_figures(
                         session, code).items():
                     report.counts[f"{code}.{name}"] = number
-            missing = [s.code for s in demo.COMMITTEES if s.code not in present]
+            missing = [s.code for s in demo.served_committees()
+                       if s.code not in present]
             if missing:
                 report.notes.append(
                     f"Not built: {', '.join(sorted(missing))}.")
@@ -710,7 +711,7 @@ def build(*, reset: bool = False, check: bool = False) -> Report:
             _remove(session, report)
             present = set()
 
-        for spec in demo.COMMITTEES:
+        for spec in demo.served_committees():
             if spec.code in present:
                 report.present.append(spec.code)
                 continue
