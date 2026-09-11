@@ -32,6 +32,9 @@ import {
 import { borrower360Href } from "@/lib/borrower-link";
 import * as ewFormat from "@/lib/early-warning-format";
 import { useAsync } from "@/lib/hooks";
+import { isRetail } from "@/lib/profile";
+
+import { RetailSignals } from "./retail-signals";
 import { cn } from "@/lib/utils";
 
 /**
@@ -57,7 +60,10 @@ import { cn } from "@/lib/utils";
 export default function SignalsPage() {
   return (
     <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
-      <Signals />
+      {/* The corporate watchlist below reads a book this installation
+          retired, and answers 503. The retail rulebook is the same screen on
+          the same route, against the book that is published. */}
+      {isRetail() ? <RetailSignals /> : <Signals />}
     </React.Suspense>
   );
 }

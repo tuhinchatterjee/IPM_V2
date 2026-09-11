@@ -1,0 +1,170 @@
+{
+  "suite": "customer360",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 84.7,
+  "counts": {
+    "PASS": 11,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/customer360-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-01",
+      "module": "customer-360",
+      "title": "The Early Warning list opens, filters by severity, and every row names the rule, what it measured and what to do",
+      "status": "PASS",
+      "detail": "the list opened=True; a severity filter exists=True; a family filter exists=True; 25 alerts listed after filtering to HIGH",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-01-signals.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-02",
+      "module": "customer-360",
+      "title": "An alert opens the customer it was raised against",
+      "status": "PASS",
+      "detail": "the alert carried a link to its customer=True; the customer screen rendered=True; url=http://localhost:5328/borrower-360?borrower=RC-0017728&period=2026-08&returnTo=%2Fearly-wa",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "alert": "RET-EWS-001|RF-00000046",
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-02-opened.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-03",
+      "module": "customer-360",
+      "title": "The customer's exposure, allowance and facility count agree with the book, and customer values are reported once",
+      "status": "PASS",
+      "detail": "the header carries RC-0020621, 6 facilities, SAR 1,228,496 and SAR 29,206.24=True; the screen says income and obligations are customer values reported once=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-03-customer.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-04",
+      "module": "customer-360",
+      "title": "Every facility is listed with its product, balance, DPD and stage, and one can be opened",
+      "status": "PASS",
+      "detail": "4 distinct products on the facility table (['Auto Finance', 'Credit Card', 'Home Finance', 'Personal Finance']); opening a facility moved to its scores=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-04-facilities.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-05",
+      "module": "customer-360",
+      "title": "Both scorecards name their model, version and date, and the origination inputs are not shown as current ones",
+      "status": "PASS",
+      "detail": "a model id and version are on screen=True; the application card says its inputs are as at origination and the behavioural card says this month-end=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-05-scores.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-06",
+      "module": "customer-360",
+      "title": "The monthly history shows every published month for this customer, with balances, DPD, stage and score",
+      "status": "PASS",
+      "detail": "25 months in the history table; it spans the published range=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-06-history.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-07",
+      "module": "customer-360",
+      "title": "The customer's own warnings are listed with the rule that raised them and the facility they concern",
+      "status": "PASS",
+      "detail": "6 warnings listed; each names its rule=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-07-warnings.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-08",
+      "module": "customer-360",
+      "title": "Changing the month re-reads the same customer at that month rather than clearing the screen",
+      "status": "PASS",
+      "detail": "the header states the month it is showing=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-08-earlier-month.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-09",
+      "module": "customer-360",
+      "title": "Back from the customer returns to the SAME filtered Early Warning list",
+      "status": "PASS",
+      "detail": "a Back control was present=True; it returned to the signals list=True; the severity filter reads 'ALL'",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-09-back.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "C360-10",
+      "module": "customer-360",
+      "title": "An unknown customer id gives a recoverable state with the search still usable, not a crash or an endless loader",
+      "status": "PASS",
+      "detail": "the screen explains rather than hangs=True; the search box is still there=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/c360-10-missing.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

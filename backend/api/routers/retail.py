@@ -220,6 +220,39 @@ def customers(q: str = Query("", max_length=64), month: str | None = Query(None)
                       "customers": grouped.to_dict("records")})
 
 
+def _bureau(theirs: pd.DataFrame) -> dict[str, Any]:
+    """The customer's bureau readings, as the book actually holds them."""
+    scores = pd.to_numeric(theirs.get("bureau_score_current"),
+                           errors="coerce").dropna()
+    changes = pd.to_numeric(theirs.get("bureau_score_change_3m"),
+                            errors="coerce").dropna()
+    if scores.empty:
+        return {"bureau_score_current": None, "bureau_score_change_3m": None,
+                "bureau_score_low": None, "bureau_score_high": None,
+                "bureau_observations": 0,
+                "bureau_basis": "No bureau reading is published for this "
+                                "customer at this month."}
+    low, high = float(scores.min()), float(scores.max())
+    return {
+        # The LOWEST reading, named as such: a credit decision reads the worst
+        # evidence it has, and an average of bureau observations is not a
+        # bureau score.
+        "bureau_score_current": low,
+        "bureau_score_change_3m": (float(changes.min()) if not changes.empty
+                                   else None),
+        "bureau_score_low": low,
+        "bureau_score_high": high,
+        "bureau_observations": int(len(scores)),
+        "bureau_basis": (
+            f"{len(scores)} bureau observations are recorded against this "
+            f"customer's facilities at this month-end"
+            + (f", ranging {low:.0f} to {high:.0f}. The LOWEST is shown: a "
+               "decision reads the worst evidence it holds, and an average of "
+               "bureau observations is not a bureau score."
+               if high > low else ". They agree.")),
+    }
+
+
 @router.get("/customer/{customer_id}", summary="One retail customer, in full")
 def customer(customer_id: str, month: str | None = Query(None)) -> dict:
     """Everything the book knows about one natural person at one month-end.
@@ -267,8 +300,13 @@ def customer(customer_id: str, month: str | None = Query(None)) -> dict:
         "debt_burden_ratio": head.get("debt_burden_ratio"),
         "income_band": head.get("income_band"),
         "indebtedness_band": head.get("indebtedness_band"),
-        "bureau_score_current": head.get("bureau_score_current"),
-        "bureau_score_change_3m": head.get("bureau_score_change_3m"),
+        # The bureau reading is recorded per FACILITY observation in this
+        # synthetic book, and a customer with six facilities carries six of
+        # them — 600 to 651 for one person at 2026-08. Reporting the first row's
+        # value as "the customer's bureau score" would present one arbitrary
+        # observation as a fact about the person, so the spread is reported and
+        # the screen says what it is.
+        **_bureau(theirs),
         "bureau_source_label": head.get("bureau_source_label"),
         "bureau_scale_id": head.get("bureau_score_scale_id"),
         "salary_missed_cycle_count_3m": head.get("salary_missed_cycle_count_3m"),

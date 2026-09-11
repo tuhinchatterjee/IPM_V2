@@ -22,6 +22,9 @@ import type {
 import { borrowerFrom, periodFrom } from "@/lib/borrower-link";
 import { byUnit, humanise } from "@/lib/format";
 import { useAsync } from "@/lib/hooks";
+import { isRetail } from "@/lib/profile";
+
+import { RetailCustomer360 } from "./retail-customer";
 import { cn } from "@/lib/utils";
 
 /**
@@ -1374,7 +1377,11 @@ function PortfolioTable({
 export default function Borrower360Page() {
   return (
     <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
-      <Borrower360Screen />
+      {/* This installation serves the retail book. The corporate screen below
+          is kept as code — the conversion is a profile, not a fork — but it
+          reads /corporate/*, which answers 503 here because the book behind it
+          was retired, and a page of empty panels is worse than no page. */}
+      {isRetail() ? <RetailCustomer360 /> : <Borrower360Screen />}
     </React.Suspense>
   );
 }

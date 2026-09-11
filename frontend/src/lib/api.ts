@@ -5763,6 +5763,154 @@ function qs(parts: Record<string, string | undefined>): string {
 }
 
 
+
+/* ------------------------------------------------------- retail Customer 360 */
+
+export interface RetailCustomerRow {
+  customer_id: string;
+  facilities: number;
+  exposure_sar: number;
+  worst_stage: number;
+  region: string;
+  employment: string;
+  segment: string;
+}
+
+export interface RetailCustomerSearch {
+  snapshot_month: string;
+  dataset_version: string;
+  disclosure: string;
+  count: number;
+  customers: RetailCustomerRow[];
+}
+
+export interface RetailAlert {
+  alert_id: string;
+  rule_id: string;
+  rule_version: string;
+  rulebook_version: string;
+  rule_name: string;
+  rule_family: string;
+  severity: string;
+  scope: string;
+  customer_id: string;
+  facility_id?: string | null;
+  affected_facility_ids?: string | null;
+  affected_facility_count?: number;
+  affected_exposure_sar?: number | null;
+  snapshot_date?: string;
+  first_seen_date?: string;
+  last_seen_date?: string;
+  current_status?: string;
+  /** What was measured, and against what. The rulebook's own sentence. */
+  reason?: string;
+  recommended_review?: string;
+  trigger_value?: number | null;
+  prior_comparator?: number | null;
+  threshold?: number | null;
+  threshold_source?: string;
+  unit?: string;
+  evidence_columns?: string;
+  evidence_record_refs?: string;
+  product_code?: string | null;
+  region?: string | null;
+  [key: string]: unknown;
+}
+
+export interface RetailCustomer {
+  snapshot_month: string;
+  dataset: string;
+  dataset_version: string;
+  disclosure: string;
+  customer: Record<string, unknown>;
+  facility_count: number;
+  exposure_sar: number;
+  ecl_final_sar: number;
+  facilities: Record<string, unknown>[];
+  history: {
+    reporting_month: string;
+    facilities: number;
+    gross_carrying_amount_sar: number;
+    ecl_final_sar: number;
+    max_dpd: number | null;
+    worst_stage: number | null;
+    behavioural_score: number | null;
+    salary_credit_sar: number | null;
+  }[];
+  alerts: RetailAlert[];
+  notes?: string[];
+}
+
+export interface RetailScoreBlock {
+  model_id: string;
+  model_version: string;
+  transform_version?: string;
+  target_event?: string;
+  horizon_months?: number;
+  score_direction?: string;
+  base_points?: number | null;
+  points_total?: number | null;
+  logit?: number | null;
+  predicted_pd_12m?: number | null;
+  score?: number | null;
+  score_unclipped?: number | null;
+  score_band?: string | null;
+  scale?: unknown;
+  as_at?: string | null;
+  contributions?: {
+    feature: string;
+    business_name?: string;
+    raw: unknown;
+    bin?: string | null;
+    transformed_woe?: number | null;
+    coefficient?: number | null;
+    points?: number | null;
+    missing?: boolean;
+  }[];
+  [key: string]: unknown;
+}
+
+export interface RetailFacilityScore {
+  snapshot_month: string;
+  dataset_version: string;
+  disclosure: string;
+  facility_id: string;
+  product_code: string;
+  product_label: string;
+  application?: RetailScoreBlock | null;
+  behavioural?: RetailScoreBlock | null;
+  notes?: string[];
+}
+
+export interface RetailEarlyWarning {
+  snapshot_month: string;
+  dataset_version: string;
+  disclosure: string;
+  rulebook_version: string;
+  alert_count: number;
+  distinct_customers: number;
+  affected_exposure_sar: number;
+  portfolio_exposure_sar: number;
+  by_rule: { rule_id: string; rule_name: string; severity: string;
+             alerts: number }[];
+  alerts: RetailAlert[];
+  notes?: string[];
+}
+
+export interface RetailManifest {
+  domain_display: string;
+  dataset: string;
+  dataset_version: string;
+  snapshot_month: string;
+  /** One entry per published month, newest last. */
+  months: { reporting_month: string; rows: number;
+            distinct_customers: number; distinct_facilities: number;
+            validation_status: string; content_hash: string }[];
+  month_count: number;
+  disclosure: string;
+  [key: string]: unknown;
+}
+
 /* ---------------------------------------------------------------- retail What-If */
 
 export interface RetailWhatIfCard {
@@ -6797,6 +6945,30 @@ export const api = {
   // The server holds no thread: a What-If is a structure, and a structure the
   // client owns can be edited, undone and replayed without a round trip per
   // keystroke. Only saving and the Recent list touch the database.
+  // ---- retail Customer 360 ----
+  //
+  // The screen at /borrower-360 reads these. The corporate endpoints it used
+  // to read answer 503 on this installation, because the book behind them was
+  // retired by the conversion.
+  retailCustomers: (q: string, month: string, limit = 25) =>
+    request<RetailCustomerSearch>(
+      `/retail/customers${qs({ q, month, limit: String(limit) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailCustomer: (customerId: string, month: string) =>
+    request<RetailCustomer>(
+      `/retail/customer/${encodeURIComponent(customerId)}${qs({ month })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailFacilityScore: (facilityId: string, month: string) =>
+    request<RetailFacilityScore>(
+      `/retail/facility/${encodeURIComponent(facilityId)}/score${qs({ month })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailEarlyWarning: (month: string, severity = "", limit = 200) =>
+    request<RetailEarlyWarning>(
+      `/retail/early-warning${qs({ month, severity, limit: String(limit) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailManifest: () =>
+    request<RetailManifest>("/retail/manifest", { timeoutMs: LAKE_TIMEOUT_MS }),
+
   // ---- retail What-If ----
   //
   // The retail engine's own surface. The corporate What-If above reads the
