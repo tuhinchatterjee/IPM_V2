@@ -689,6 +689,13 @@ def whatif_ask(payload: AskIn,
         ask.question = ""
         ask.options = []
         ask.shocks.update(dict(payload.chosen.get("shocks") or {}))
+        # A chosen option may BE a reweighting rather than a shock. Without
+        # this, clicking "Severe downturn tilt" applied no weights at all and
+        # ran the neutral scenario the clarification existed to prevent.
+        chosen_weights = payload.chosen.get("scenario_weights")
+        if chosen_weights:
+            ask.scenario_weights = {name: float(value)
+                                    for name, value in chosen_weights.items()}
         for column, value in (payload.carried.get("filters") or {}).items():
             ask.filters.setdefault(column, value)
         # Family-aware, so answering a units question with "percentage points"

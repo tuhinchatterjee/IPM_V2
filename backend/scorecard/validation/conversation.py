@@ -408,6 +408,26 @@ def read(question: str, *, model_id: str = "") -> Reading | None:
             category = categories.pop()
             test_id = ""
 
+    # --- a question about what a statistic MEANS ---------------------------
+    #
+    # "Gini has fallen. Does that mean the predicted PDs are wrong?" and "Your
+    # Gini is acceptable, so why are you concerned?" are questions four and
+    # nineteen of the assurance set, and both were answered "Which
+    # scorecard?" — because neither names one, and neither is about one. A
+    # module that can compute forty-eight statistics and cannot say what any
+    # of them means is a calculator with a chat box.
+    #
+    # Checked first, and narrowly: the register refuses any sentence that is
+    # asking for a figure, so "what is the Gini?" still runs the test.
+    from backend.scorecard.validation import principles
+
+    principle = principles.read(question)
+    if principle is not None:
+        return Reading(agent.EXPLAIN_PRINCIPLE,
+                       {"principle_id": principle.principle_id},
+                       because=("the question asks what a statistic means "
+                                "rather than what its value is"))
+
     # --- questions about the module itself, before anything is run ---------
     # "Which application and behavioural scorecards are present in this retail
     # demo, by product and model version?" is the first question anybody asks

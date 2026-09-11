@@ -92,6 +92,7 @@ OUT_OF_SCOPE = (
     "different surface with different data access."
 )
 
+EXPLAIN_PRINCIPLE = "scv_explain_principle"
 LIST_MODELS = "scv_list_models"
 LIST_TESTS = "scv_list_tests"
 EXPLAIN_TEST = "scv_explain_test"
@@ -105,6 +106,14 @@ DRAFT_REPORT = "scv_draft_report"
 SERVICE = "backend.scorecard.validation"
 
 TOOLS: tuple[Tool, ...] = (
+    Tool(EXPLAIN_PRINCIPLE, "Explain a validation principle",
+         "What a validation statistic means, and what it does not mean. "
+         "Answers the conceptual questions — whether a fallen Gini implies "
+         "the PDs are wrong, whether an acceptable Gini is enough — from a "
+         "written register, naming the tests that would settle the question "
+         "on a particular model. Reads no data and returns no figure.",
+         SERVICE, parameters=("principle_id",), required=("principle_id",),
+         cost="free"),
     Tool(LIST_MODELS, "List scorecards",
          "The scorecards this deployment validates, their governed "
          "record, and which tests each one can support.",
@@ -321,6 +330,18 @@ def invoke(tool_id: str, **parameters: Any) -> dict[str, Any]:
                   "title": test_registry.BY_CATEGORY_KEY[c].title}
                  for c in test_registry.CATEGORIES])
         return {"category": category, "tests": [t.to_dict() for t in wanted]}
+
+    if tool_id == EXPLAIN_PRINCIPLE:
+        from backend.scorecard.validation import principles
+
+        found = principles.BY_ID.get(str(given["principle_id"]))
+        if found is None:
+            raise Clarify(
+                f"{given['principle_id']!r} is not a registered validation "
+                "principle.",
+                [{"principle_id": p.principle_id, "question": p.question}
+                 for p in principles.PRINCIPLES])
+        return {"principle": found.to_dict()}
 
     if tool_id == EXPLAIN_TEST:
         found = _test(given["test_id"])

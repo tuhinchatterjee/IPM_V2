@@ -501,7 +501,13 @@ function TurnView({
                 variant="outline"
                 data-option={option.id}
                 onClick={() =>
-                  onChoose(option.label, { shocks: option.shocks })
+                  onChoose(option.label, {
+                    shocks: option.shocks,
+                    // An option may BE a reweighting rather than a shock.
+                    // Sending only `shocks` dropped the weights and ran the
+                    // neutral scenario the clarification existed to prevent.
+                    scenario_weights: option.scenario_weights ?? null,
+                  })
                 }
               >
                 {option.label}

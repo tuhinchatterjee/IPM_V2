@@ -5,7 +5,13 @@ import * as React from "react";
 import { ResultCard } from "@/components/scorecard-validation/result-card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import type { ScvAnswer, ScvResult, ScvTest } from "@/lib/api";
+import type {
+  ScvAnswer,
+  ScvModel,
+  ScvPrinciple,
+  ScvResult,
+  ScvTest,
+} from "@/lib/api";
 import { humanise } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +108,54 @@ function ToolResult({ answer, tests }: {
     );
   }
 
+  if (tool === "scv_explain_principle") {
+    const principle = result.principle as ScvPrinciple | undefined;
+    if (!principle) return null;
+    return (
+      <div
+        data-testid="scv-principle"
+        className="space-y-3 rounded-lg border border-border bg-surface p-4"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">Principle</Badge>
+          <h4 className="text-sm font-semibold text-text">
+            {principle.question}
+          </h4>
+        </div>
+        <p className="text-sm leading-relaxed text-text">{principle.answer}</p>
+        {principle.caution && (
+          <div className="space-y-1 border-t border-border pt-3">
+            <h5 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+              And the other way round
+            </h5>
+            <p className="text-sm leading-relaxed text-text-muted">
+              {principle.caution}
+            </p>
+          </div>
+        )}
+        {principle.settled_by.length > 0 && (
+          <div className="space-y-1 border-t border-border pt-3">
+            <h5 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+              What would settle it on this scorecard
+            </h5>
+            <ul className="space-y-1 text-sm leading-relaxed text-text-muted">
+              {principle.settled_by.map((test) => (
+                <li key={test.test_id}>
+                  <span className="font-mono text-[11px]">{test.test_id}</span>
+                  {" — "}
+                  {test.purpose}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p className="border-t border-border pt-3 text-[11px] leading-relaxed text-text-muted">
+          {principle.this_is_not_a_figure}
+        </p>
+      </div>
+    );
+  }
+
   if (tool === "scv_explain_test") {
     const test = result.test as ScvTest | undefined;
     const blind = (result.cannot_tell_you ?? []) as string[];
@@ -142,10 +196,58 @@ function ToolResult({ answer, tests }: {
     );
   }
 
-  // Everything else — the periods, the model list, the regulatory map, the
-  // report draft — is rendered as its own governed document rather than
-  // summarised. A key/value reading of a payload is honest; a sentence about
-  // it is not.
+  if (tool === "scv_list_models") {
+    const scorecards = (result.scorecards ?? []) as ScvModel[];
+    if (scorecards.length === 0) return null;
+    return (
+      <div
+        data-testid="scv-model-list"
+        className="overflow-x-auto rounded-lg border border-border bg-surface"
+      >
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-text-muted">
+              <th className="px-3 py-2 font-semibold">Scorecard</th>
+              <th className="px-3 py-2 font-semibold">Type</th>
+              <th className="px-3 py-2 font-semibold">Version</th>
+              <th className="px-3 py-2 font-semibold">Reference</th>
+              <th className="px-3 py-2 font-semibold">Portfolio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scorecards.map((model) => (
+              <tr key={model.model_id} className="border-b border-border/60 last:border-0">
+                <td className="px-3 py-2 text-text">{model.name}</td>
+                <td className="px-3 py-2 text-text-muted">
+                  {model.scorecard_type === "APPLICATION"
+                    ? "Application"
+                    : "Behavioural"}
+                </td>
+                <td className="px-3 py-2 font-mono text-[12px] text-text-muted">
+                  {model.version}
+                </td>
+                <td className="px-3 py-2 font-mono text-[12px] text-text-muted">
+                  {model.reference_number}
+                </td>
+                <td className="px-3 py-2 text-text-muted">{model.portfolio}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Everything else — the periods, the regulatory map, the report draft — is
+  // rendered as its own governed document rather than summarised. A
+  // key/value reading of a payload is honest; a sentence about it is not.
+  //
+  // What is NOT honest is `String(value)` over an array of objects, which is
+  // what the model list came back as: eight scorecards rendered as
+  // "[object Object], [object Object], …" in answer to the first question
+  // anybody asks this screen. A value this renderer cannot read is shown as
+  // the JSON it is, so a reader sees the content rather than the word
+  // "object".
   return (
     <div className="space-y-2 rounded-lg border border-border bg-surface p-4">
       {Object.entries(result).map(([key, value]) => (
@@ -154,18 +256,36 @@ function ToolResult({ answer, tests }: {
             {humanise(key)}
           </h5>
           <p className="break-words text-sm leading-relaxed text-text-muted">
-            {Array.isArray(value)
-              ? value.length > 12
-                ? `${value.slice(0, 12).map(String).join(", ")} … and ${value.length - 12} more`
-                : value.map(String).join(", ")
-              : typeof value === "object" && value !== null
-                ? JSON.stringify(value)
-                : String(value)}
+            {readable(value)}
           </p>
         </div>
       ))}
     </div>
   );
+}
+
+/**
+ * A payload value as text, never as "[object Object]".
+ *
+ * A scalar reads as itself, a list of scalars as a sentence, and anything
+ * structured as its JSON — which is dense but true. The one rendering that is
+ * never acceptable is the name of a JavaScript type where content belongs.
+ */
+function readable(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "none";
+    const structured = value.some(
+      (entry) => typeof entry === "object" && entry !== null,
+    );
+    if (structured) return JSON.stringify(value);
+    const shown = value.slice(0, 12).map(String).join(", ");
+    return value.length > 12
+      ? `${shown} … and ${value.length - 12} more`
+      : shown;
+  }
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
 }
 
 function AnswerBody({ answer, tests, onFollowUp }: {
@@ -284,6 +404,8 @@ export function Ask({ modelId, tests, className }: {
         className="flex gap-2"
       >
         <input
+          data-testid="scv-composer"
+          aria-label="Ask a question about validating this scorecard"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Ask about validating this scorecard"

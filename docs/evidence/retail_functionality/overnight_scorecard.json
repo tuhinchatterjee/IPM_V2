@@ -1,0 +1,233 @@
+{
+  "suite": "overnight_scorecard",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 225.2,
+  "counts": {
+    "PASS": 9,
+    "FAIL": 5,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_scorecard-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-OPEN",
+      "module": "scorecard",
+      "title": "Scorecard Validation opens and names this installation's scorecards",
+      "status": "PASS",
+      "detail": "opened=True; foreign content=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-open.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-01",
+      "module": "scorecard",
+      "title": "Every scorecard this installation runs is listed, by product and version",
+      "status": "FAIL",
+      "detail": "products named=0 of 4; both kinds=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Which application and behavioural scorecards are present in this retail demo, by product and model version?",
+        "answer": "l demo, by product and model version?\n\nDETERMINISTIC READER\nscv_list_models\n\u2014 the question asks what is validated here\nSCORECARDS\n\n[object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object]\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score is better\n\nA cohort whose performance window has not closed has no realised outcome. It is reported as NOT YET MATURED, never as zero defaults.\n\nRun full validation\nDraft report (Word)\n\nA full run executes every applicable test over every period. On the larger books that is a minute or more of computation, most of it in the bootstrap resampling. Run it deliberately, not on a page refresh.\n\nWhat a validation asks\nData & Representativeness\n\nIs this data complete, current, and representative of what the model was built for?\n\nnot run\nConceptual Soundness & Design\n\nIs the design defensible, documented and used as intended?\n\nn",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-02",
+      "module": "scorecard",
+      "title": "All three discrimination statistics, on a cohort whose window has closed",
+      "status": "FAIL",
+      "detail": "statistics on screen=1 of 3; cohort stated=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "For the personal-finance application scorecard, show AUC, Gini and KS for the latest fully observed 12-month cohort.",
+        "answer": "for the latest fully observed 12-month cohort.\n\nRunning the tests\u2026\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score is better\n\nA cohort whose performance window has not closed has no realised outcome. It is reported as NOT YET MATURED, never as zero defaults.\n\nRun full validation\nDraft report (Word)\n\nA full run executes every applicable test over every period. On the larger books that is a minute or more of computation, most of it in the bootstrap resampling. Run it deliberately, not on a page refresh.\n\nWhat a validation asks\nData & Representativeness\n\nIs this data complete, current, and representative of what the model was built for?\n\nnot run\nConceptual Soundness & Design\n\nIs the design defensible, documented and used as intended?\n\nnot run\ndocumentary\nDiscrimination\n\nDoes this model rank risk?\n\nnot run\nCalibration & Accuracy\n\nAre the predicted default rates right, not just ordered right?\n\nnot run\nStability\n\nIs the model still looking at the same kind of book?\n\nnot run\nRobustness & Sensitivity\n\nHow much does the answer depend on choices we happened to make?\n\nnot run\nVariables & Binning\n\nW",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-04",
+      "module": "scorecard",
+      "title": "Discrimination and calibration are separated rather than conflated",
+      "status": "PASS",
+      "detail": "names both concepts and distinguishes them=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Gini has fallen. Does that mean the predicted PDs are wrong?",
+        "answer": "\n\nNo, not necessarily, and the two questions have to be kept apart. Discrimination \u2014 Gini, AUC, KS \u2014 asks whether the score puts the accounts that defaulted below the accounts that did not. Calibration asks whether the probability attached to each score is the rate those accounts actually defaulted at. A model can rank perfectly and be calibrated to the wrong level, and a model can be calibrated on average while ranking no better than chance. A fall in Gini says the ORDERING has weakened. Whether the probabilities are wrong is answered by observed against expected, by the band-level comparison, and by the calibration slope \u2014 and it is entirely possible for those to be sound in the same period in which Gini fell.\n\nAND THE OTHER WAY ROUND\n\nA fall in Gini between two cohorts is not automatically a deterioration either: on a few hundred events the statistic moves several points on sampling alone, which is what the confidence interval and the rolling window are for.\n\nWHAT WOULD SETTLE IT ON THIS SCORECARD\nDISC-GINI \u2014 The same separation, on the scale most credit teams quote.\nCAL-OE \u2014 Whether the predicted default rate matches the realised one.\nCAL-BAND \u2014 Where in the score range the prediction is wrong.\nCAL-SLOPE \u2014 Whether the prediction is wrong by a constant or by a factor.\nCAL-BRIER \u2014 Overall accuracy of the predicted probabilities.\n\nThis is a statement about what the statistics mean. It is true before any data is read, and it is not a result about any model. The tests named be",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-05",
+      "module": "scorecard",
+      "title": "Predicted against observed, band by band",
+      "status": "PASS",
+      "detail": "bands, predicted and observed all present=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show predicted versus observed default by score band for the personal finance application scorecard.",
+        "answer": "finance application scorecard.\n\nDETERMINISTIC READER\nscv_run_test\n\u2014 the question names CAL-BAND\nCAL-BAND\nCalibration by score band\nNO APPROVED LIMIT\n0.0069\nmeasured, but no governed limit to compare it against\n\nBand-level RMSE 0.00693 across 10 score bands. HIGH EVIDENCE.\n\n2024-08..2025-08 \u00b7 10,170 rows \u00b7 277 defaults\n\nHide evidence\nWHAT THIS ASKS\n\nWhere in the score range the prediction is wrong.\n\nObservedPredicted\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n0\n0.02\n0.04\n0.06\n0.08\nInstitutional\nSignal\nMonochrome\nContrast\n\nPredicted against realised, band by band. Discrimination asks whether the ordering is right; this asks whether the LEVEL is. A model can rank perfectly and still price every facility wrongly, and the two bars diverging in the same direction across every band is exactly that.\n\nBAND\tOBSERVATIONS\tEVENTS\tOBSERVED DEFAULT RATE\tAVERAGE PREDICTED PD\tSCORE FROM\tSCORE TO\tEVIDENCE\n1.0000\t1,017.0000\t7.0000\t0.0069\t0.0093\t660.0913\t715.4908\tINSUFFICIENT EVIDENCE\n2.0000\t1,013.0000\t18.0000\t0.0178\t0.0133\t645.5201\t660.0913\tLOW EVIDENCE\n3.0000\t1,020.0000\t20.0000\t0.0196\t0.0164\t634.4113\t645.5201\tLOW EVIDENCE\n4.0000\t1,017.0000\t15.0000\t0.0147\t0.0195\t625.7551\t634.4113\tLOW EVIDENCE\n5.0000\t1,012.0000\t23.0000\t0.0227\t0.0225\t617.3875\t625.6109\tLOW EVIDENCE\n6.0000\t1,021.0000\t20.0000\t0.0196\t0.0257\t609.7412\t617.2432\tLOW EVIDENCE\n7.0000\t1,005.0000\t27.0000\t0.0269\t0.0291\t602.8163\t609.7412\tLOW EVIDENCE\n8.0000\t1,016.0000\t41.0000\t0.0404\t0.0329\t595.1700\t602.6720\tMODERATE EVIDENCE\n9.0000\t1,025.0000\t41.0000\t0.0400\t0.0374\t",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-07",
+      "module": "scorecard",
+      "title": "Population stability, with its threshold labelled as a convention rather than as law",
+      "status": "PASS",
+      "detail": "stability measure=True; threshold labelled=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Has the application-score distribution for personal finance materially shifted from the reference population?",
+        "answer": " shifted from the reference population?\n\nDETERMINISTIC READER\nscv_run_test\n\u2014 the question names STAB-PSI\nSTAB-PSI\nScore population stability index\nPASS\n0.0019\nlimit 0.2500(demo policy)\n\nScore PSI 0.0019 for 2026-08 against the development population, across 25 periods (0.0002 at the start of the series). A population shift is not a performance deterioration: it says the book changed, not that the model failed.\n\n2026-08 \u00b7 vs 2024-08..2025-01 \u00b7 7,701 rows\n\nHide evidence\nWHAT THIS ASKS\n\nWhether the score distribution has moved away from the reference.\n\nINDEX BY MONTH\n2024-08\n2024-10\n2024-12\n2025-02\n2025-04\n2025-06\n2025-08\n2025-10\n2025-12\n2026-02\n2026-04\n2026-06\n2026-08\n0\n0.00075\n0.0015\n0.00225\n0.003\nInstitutional\nSignal\nMonochrome\nContrast\nWHERE THE SHIFT IS\n-0.009\n-0.0045\n0\n0.0045\n0.009\n8\n6\n0\n9\n5\n1\n7\n4\n3\n2\nInstitutional\nSignal\nMonochrome\nContrast\n\nMeasured against the frozen development population, never against last month, and read against a limit of 0.25. A baseline that moves forward is how a book drifts a long way from what was approved while passing stability testing every quarter.\n\nPERIOD\tINDEX\tOBSERVATIONS\n2024-08\t0.0002\t7,661.0000\n2024-09\t0.0001\t7,566.0000\n2024-10\t0.0001\t7,470.0000\n2024-11\t0.0000\t7,415.0000\n2024-12\t0.0001\t7,360.0000\n2025-01\t0.0003\t7,293.0000\n2025-02\t0.0004\t7,249.0000\n2025-03\t0.0004\t7,187.0000\n2025-04\t0.0003\t7,139.0000\n2025-05\t0.0005\t7,125.0000\n2025-06\t0.0008\t7,097.0000\n2025-07\t0.0012\t7,094.0000\n2025-08\t0.0016\t7,060.0000\n2025-09\t0.0014\t7,116.0000\n2025-10",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-08",
+      "module": "scorecard",
+      "title": "The characteristic that moved is named",
+      "status": "FAIL",
+      "detail": "a characteristic is named=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Which application-score inputs for personal finance have drifted most?",
+        "answer": "\n\nRunning the tests\u2026\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score is better\n\nA cohort whose performance window has not closed has no realised outcome. It is reported as NOT YET MATURED, never as zero defaults.\n\nRun full validation\nDraft report (Word)\n\nA full run executes every applicable test over every period. On the larger books that is a minute or more of computation, most of it in the bootstrap resampling. Run it deliberately, not on a page refresh.\n\nWhat a validation asks\nData & Representativeness\n\nIs this data complete, current, and representative of what the model was built for?\n\nnot run\nConceptual Soundness & Design\n\nIs the design defensible, documented and used as intended?\n\nnot run\ndocumentary\nDiscrimination\n\nDoes this model rank risk?\n\nnot run\nCalibration & Accuracy\n\nAre the predicted default rates right, not just ordered right?\n\nnot run\nStability\n\nIs the model still looking at the same kind of book?\n\nnot run\nRobustness & Sensitivity\n\nHow much does the answer depend on choices we happened to make?\n\nnot run\nVariables & Binning\n\nWhich variables are doing the work, and which h",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-09",
+      "module": "scorecard",
+      "title": "Missingness is reported per characteristic",
+      "status": "FAIL",
+      "detail": "missingness named against a characteristic=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Which scorecard inputs for the personal finance application scorecard show the largest increase in missing or out-of-range values?",
+        "answer": "show the largest increase in missing or out-of-range values?\n\nRunning the tests\u2026\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score is better\n\nA cohort whose performance window has not closed has no realised outcome. It is reported as NOT YET MATURED, never as zero defaults.\n\nRun full validation\nDraft report (Word)\n\nA full run executes every applicable test over every period. On the larger books that is a minute or more of computation, most of it in the bootstrap resampling. Run it deliberately, not on a page refresh.\n\nWhat a validation asks\nData & Representativeness\n\nIs this data complete, current, and representative of what the model was built for?\n\nnot run\nConceptual Soundness & Design\n\nIs the design defensible, documented and used as intended?\n\nnot run\ndocumentary\nDiscrimination\n\nDoes this model rank risk?\n\nnot run\nCalibration & Accuracy\n\nAre the predicted default rates right, not just ordered right?\n\nnot run\nStability\n\nIs the model still looking at the same kind of book?\n\nnot run\nRobustness & Sensitivity\n\nHow much does the answer depend on choices we happened to make?\n\nnot run\nVariable",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-10",
+      "module": "scorecard",
+      "title": "A segmented answer that states its evidence",
+      "status": "PASS",
+      "detail": "segmented=True; evidence stated=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Does the personal-finance application scorecard discriminate differently for salary-transfer versus non-salary-transfer customers?",
+        "answer": "ly for salary-transfer versus non-salary-transfer customers?\n\nRunning the tests\u2026\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score is better\n\nA cohort whose performance window has not closed has no realised outcome. It is reported as NOT YET MATURED, never as zero defaults.\n\nRun full validation\nDraft report (Word)\n\nA full run executes every applicable test over every period. On the larger books that is a minute or more of computation, most of it in the bootstrap resampling. Run it deliberately, not on a page refresh.\n\nWhat a validation asks\nData & Representativeness\n\nIs this data complete, current, and representative of what the model was built for?\n\nnot run\nConceptual Soundness & Design\n\nIs the design defensible, documented and used as intended?\n\nnot run\ndocumentary\nDiscrimination\n\nDoes this model rank risk?\n\nnot run\nCalibration & Accuracy\n\nAre the predicted default rates right, not just ordered right?\n\nnot run\nStability\n\nIs the model still looking at the same kind of book?\n\nnot run\nRobustness & Sensitivity\n\nHow much does the answer depend on choices we happened to make?\n\nnot run\nVariable",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-10.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-13",
+      "module": "scorecard",
+      "title": "The production score is reconstructed from the approved specification and reconciles",
+      "status": "PASS",
+      "detail": "replication reported=True; reconciles=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Is the production score implementation for the personal finance application scorecard consistent with the configured transformations on the sampled records?",
+        "answer": "ation scorecard consistent with the configured transformations on the sampled records?\n\nDETERMINISTIC READER\nscv_run_test\n\u2014 the question names IMPL-REPLICATE\nIMPL-REPLICATE\nIndependent score replication\nPASS\n0.0000\nlimit 0.0000(structural)\n\n0 of 7,701 rows do not reproduce from the approved specification within 1e-06, 0.0000%. Largest logit difference 0, largest score difference 0. The production score is the score the specification describes.\n\n2026-08 \u00b7 7,701 rows\n\nHide evidence\nWHAT THIS ASKS\n\nWhether the production score is the score the specification describes.\n\nROWS\tMISMATCHES\tBIN MISMATCHES\tMAX LOGIT DIFFERENCE\tMAX PD DIFFERENCE\tMAX SCORE DIFFERENCE\tTOLERANCE\n7,701.0000\t0.0000\t0.0000\t0.0000\t0.0000\t0.0000\t0.0000\nHOW IT WAS CALCULATED\n\nRecompute the score from the approved bins and coefficients and compare row by row. Every mismatch is reported with the first divergent step.\n\nVE-04 Outcomes analysis\nVE-08 Independent validation\ncalculation 1.0.0\nhigher score is better\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDO",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-13.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-16",
+      "module": "scorecard",
+      "title": "An untestable question is refused with its reason, not answered anyway",
+      "status": "FAIL",
+      "detail": "states why it cannot be tested=True; answered anyway=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Do we have evidence that policy overrides or exceptions are weakening observed performance of the personal finance application scorecard?",
+        "answer": "observed performance of the personal finance application scorecard?\n\nDETERMINISTIC READER\nscv_run_test\n\u2014 the question names USE-OVERRIDE-RATE\nUSE-OVERRIDE-RATE\nOverride rate\nNOT APPLICABLE\n\nPersonal Finance Application Scorecard does not support this test: it needs the recorded credit decisions and overrides.\n\nHide evidence\nWHAT THIS ASKS\n\nHow often the recorded decision departs from the score.\n\nHOW IT WAS CALCULATED\n\nOverride count over decisions, by score band and by period.\n\nWHAT THIS DOES NOT TELL YOU\n\u2014 A high override rate is not automatically wrong. What matters is direction, concentration, and how the overridden cases performed.\nVE-04 Outcomes analysis\nVE-07 Overrides\ncalculation 1.0.0\nhigher score is better\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score is better\n\nA cohort whose performance window has not closed has no realised outcome. It is reported as NOT YET MATURED, never as zero defaults.\n\nRun full validation\nDraf",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-16.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-18",
+      "module": "scorecard",
+      "title": "The auditor answer rests on computed figures and claims no approval",
+      "status": "PASS",
+      "detail": "figures and sample stated=True; approval claimed=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "An auditor asks: demonstrate that the personal finance application scorecard retains adequate discriminatory power.",
+        "answer": "recard retains adequate discriminatory power.\n\nDETERMINISTIC READER\nscv_run_category\n\u2014 the question is a discrimination question\nDISC-AUC\nArea under the ROC curve\nWARNING\n0.6565\nlimit 0.6200(demo policy)\n\nArea under the ROC curve is 0.6565 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\n\n2024-08..2025-08 \u00b7 10,170 rows \u00b7 277 defaults\n\nEvidence\nDISC-LIFT\nLift and cumulative gains\nNO APPROVED LIMIT\n2.3466\nmeasured, but no governed limit to compare it against\n\nThe worst decile carries 2.35x the portfolio default rate.\n\n2024-08..2025-08 \u00b7 10,170 rows\n\nEvidence\nDISC-TREND\nDiscrimination through time\nNO APPROVED LIMIT\n-0.0072\nmeasured, but no governed limit to compare it against\n\nAUC moved from 0.6435 in 2024-08 to 0.6364 in 2025-08, a change of -0.0072 across 13 measurable cohorts.\n\n2024-08..2025-08 \u00b7 10,170 rows\n\nEvidence\nDISC-KS\nKolmogorov-Smirnov statistic\nPASS\n0.2556\nlimit 0.1800(demo policy)\n\nKolmogorov-Smirnov statistic is 0.2556 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\n\n2024-08..2025-08 \u00b7 10,170 rows \u00b7 277 defaults\n\nEvidence\nDISC-GINI\nGini coefficient\nPASS\n0.3130\nlimit 0.2400(demo policy)\n\nGini coefficient is 0.3130 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\n\n2024-08..2025-08 \u00b7 10,170 rows \u00b7 277 defaults\n\nEvidence\nDISC-RANK\nRank ordering by score band\nPASS\n0.0000\n\nThe observed default rate falls monotonically across every score band.\n\n2024-08..2025-08 \u00b7 10,170 rows\n\nEvidence\n\nEvery figure in this answer was computed by the v",
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-18.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SC-SWEEP",
+      "module": "scorecard",
+      "title": "Nothing on this screen belongs to another jurisdiction or another book",
+      "status": "PASS",
+      "detail": "foreign content after the whole session=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/sc-sweep.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

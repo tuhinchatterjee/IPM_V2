@@ -33,6 +33,7 @@ DEMO_PASSWORD = "RetailDemo!2026"
 
 COCKPIT_COMPOSER = 'textarea[aria-label="Ask CreditProbe a question about the portfolio"]'
 WHATIF_COMPOSER = 'textarea[data-testid="whatif-composer"]'
+SCORECARD_COMPOSER = 'input[data-testid="scv-composer"]'
 
 #: The submit button BELONGING to each composer, found from the composer
 #: itself. A page-wide `button:has-text("Ask")` matched "Ask about this" in the
@@ -42,6 +43,8 @@ SUBMIT_OF: dict[str, str] = {
     COCKPIT_COMPOSER: ('xpath=//textarea[@aria-label="Ask CreditProbe a question '
                        'about the portfolio"]/following-sibling::div//button'),
     WHATIF_COMPOSER: 'xpath=//textarea[@data-testid="whatif-composer"]/../button',
+    SCORECARD_COMPOSER: ('xpath=//input[@data-testid="scv-composer"]'
+                         '/following-sibling::button'),
 }
 
 PASS, FAIL, BLOCKED, NOT_RUN, NA = "PASS", "FAIL", "BLOCKED", "NOT RUN", "NOT APPLICABLE"
@@ -318,7 +321,14 @@ class Session:
 
 
 def _busy(body: str) -> bool:
-    return any(w in body for w in ("Thinking", "Working", "Composing", "Running the analysis"))
+    return any(w in body for w in ("Thinking", "Working", "Composing",
+                                   "Running the analysis",
+                                   # Scorecard Validation's own word. Without
+                                   # it a category run — eight tests, a
+                                   # bootstrap among them — was read
+                                   # mid-flight and three cases recorded the
+                                   # spinner as the answer.
+                                   "Running the tests"))
 
 
 def answer_region(body: str) -> str:

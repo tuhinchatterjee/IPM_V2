@@ -186,6 +186,19 @@ def read(question: str, months: list[str] | None = None,
         ask.read_as.append(
             "weights base/upturn/downturn = "
             + "/".join(f"{weights[s]:.2f}" for s in ("base", "upturn", "downturn")))
+    elif _NAMES_WEIGHTS.search(said):
+        # The methodology is named and the numbers are not.
+        #
+        #     "Shift macro scenario weights toward downturn and show the
+        #      effect on weighted ECL."
+        #
+        # is one of the questions this engine exists to answer, and it came
+        # back as a NEUTRAL run: no weights parsed, no shock parsed, so the
+        # published book was recomputed unchanged and reported as the
+        # scenario. A reweighting with no weights is not a reweighting, and
+        # three numbers are not something to guess at — so they are offered.
+        _ask_for_weights(said, ask)
+        return ask
 
     # ---- application-score cutoff replay -------------------------------
     #
@@ -213,6 +226,19 @@ def read(question: str, months: list[str] | None = None,
     unsupported = _unsupported(said, ask)
     if unsupported:
         ask.unsupported = unsupported
+        return ask
+
+    # A sentence that named no operation, and did not ask for none.
+    #
+    #     "Make risk worse."
+    #
+    # was answered "ECL 15,952,109 → 15,952,109" — a scenario that changed
+    # nothing, presented as a run. A reader takes that for "this shock has no
+    # impact", which is the opposite of what happened: nothing in the sentence
+    # was understood. A neutral run is a legitimate and important scenario —
+    # it is the parity check — but only where somebody ASKED for one.
+    if ask.is_neutral and not _EXPLICITLY_NEUTRAL.search(said) and said:
+        _ask_for_a_shock(ask)
     return ask
 
 
@@ -321,6 +347,88 @@ def carry_shocks(ask: Ask, carried_shocks: dict[str, Any]) -> None:
         ask.read_as.append(
             "carrying forward " + ", ".join(sorted(kept)) + " from the scenario "
             "on the table")
+
+
+#: A sentence that asks for the reweighting methodology by name.
+_NAMES_WEIGHTS = re.compile(
+    r"\b(?:scenario|macro(?:economic)?)\s+weight|"
+    r"\bweight\w*\s+(?:toward|towards|to)\s+(?:the\s+)?"
+    r"(?:down[- ]?turn|downside|adverse|up[- ]?turn|upside|base)|"
+    r"\b(?:shift|move|reweight|re-weight)\w*\s+(?:the\s+)?"
+    r"(?:macro|scenario)\b", re.IGNORECASE)
+
+#: A sentence that ASKED for no change. The parity check is a real scenario
+#: and must keep working; what must not happen is an unreadable sentence being
+#: treated as a request for one.
+_EXPLICITLY_NEUTRAL = re.compile(
+    r"\bneutral\b|\bno[- ]change\b|\bunchanged\b|\bparity\b|"
+    r"\bbaseline only\b|\bwithout any (?:shock|change)\b|"
+    r"\bleave everything (?:as it is|unchanged)\b|"
+    r"\bdo(?:es)? not change anything\b", re.IGNORECASE)
+
+def _published_weights() -> dict[str, float]:
+    """The weights the book was computed with, read rather than restated.
+
+    Offering alternatives against a hard-coded set would eventually offer a
+    "movement from the published weights" that is not one.
+    """
+    try:
+        from backend.retail.config import load_config
+
+        return {name: float(value)
+                for name, value in load_config().scenarios.weights.items()}
+    except Exception:  # noqa: BLE001 - the offer still works without it
+        return {}
+
+_WEIGHT_CHOICES: tuple[tuple[str, str, dict[str, float]], ...] = (
+    ("mild", "Mild downturn tilt — base 0.40, upturn 0.15, downturn 0.45",
+     {"base": 0.40, "upturn": 0.15, "downturn": 0.45}),
+    ("severe", "Severe downturn tilt — base 0.30, upturn 0.10, downturn 0.60",
+     {"base": 0.30, "upturn": 0.10, "downturn": 0.60}),
+    ("downturn_only", "Downturn only — base 0.00, upturn 0.00, downturn 1.00",
+     {"base": 0.00, "upturn": 0.00, "downturn": 1.00}),
+)
+
+
+def _ask_for_weights(said: str, ask: "Ask") -> None:
+    """Offer three reweightings rather than inventing one."""
+    current = _published_weights()
+    published = ("/".join(f"{current.get(s, 0.0):.2f}"
+                          for s in ("base", "upturn", "downturn"))
+                 if current else "")
+    ask.question = (
+        "Reweighting the macroeconomic scenarios needs three numbers, and "
+        "CreditProbe will not choose them."
+        + (f" The published weights are base/upturn/downturn = {published}."
+           if published else "")
+        + " Pick a reweighting, or type the three weights you want.")
+    ask.options = [
+        {"id": key, "label": label, "shocks": {},
+         "scenario_weights": dict(weights)}
+        for key, label, weights in _WEIGHT_CHOICES
+    ]
+
+
+def _ask_for_a_shock(ask: "Ask") -> None:
+    """Offer the engine's own scenarios rather than running an empty one."""
+    ask.question = (
+        "CreditProbe could not read a change in that. A What-If needs "
+        "something to move and by how much — running it as written would "
+        "recompute the published book unchanged and report it as your "
+        "scenario. Pick one of these, or say what to move and by how much.")
+    ask.options = [
+        {"id": "pd20", "label": "Increase PD by 20% relative",
+         "shocks": {"pd_relative": 0.20}},
+        {"id": "pd2pp", "label": "Add 2 percentage points to PD",
+         "shocks": {"pd_absolute_pp": 2.0}},
+        {"id": "lgd10", "label": "Increase LGD by 10% relative",
+         "shocks": {"lgd_relative": 0.10}},
+        {"id": "util10",
+         "label": "Move card utilisation up 10 percentage points",
+         "shocks": {"utilisation_pp": 10.0}},
+        {"id": "income10", "label": "Cut verified income by 10%",
+         "shocks": {"income_pct": -0.10}},
+    ]
 
 
 def _weights(said: str) -> dict[str, float] | None:

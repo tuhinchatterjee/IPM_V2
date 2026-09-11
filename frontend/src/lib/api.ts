@@ -5982,7 +5982,13 @@ export interface RetailWhatIfTurn {
   read_as?: string[];
   neutral?: boolean;
   message?: string;
-  options?: { id: string; label: string; shocks: Record<string, number> }[];
+  options?: {
+    id: string;
+    label: string;
+    shocks: Record<string, number>;
+    /** Set where the option IS a reweighting rather than a shock. */
+    scenario_weights?: Record<string, number> | null;
+  }[];
   unsupported?: string[];
   supported?: Record<string, string>;
   scenario_so_far?: Record<string, unknown>;
@@ -12745,6 +12751,23 @@ export type ScvTest = {
    */
   references: string[];
   version: string;
+};
+
+/**
+ * A conceptual answer: what a statistic means, and what it does not.
+ *
+ * Carries no figure by construction. The tests named in `settled_by` are what
+ * would answer the same question about a particular scorecard, which is the
+ * difference between a principle and an aphorism.
+ */
+export type ScvPrinciple = {
+  principles_version: string;
+  principle_id: string;
+  question: string;
+  answer: string;
+  caution: string;
+  settled_by: { test_id: string; name: string; purpose: string }[];
+  this_is_not_a_figure: string;
 };
 
 export type ScvCategory = {
