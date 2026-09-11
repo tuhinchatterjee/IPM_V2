@@ -130,9 +130,11 @@ def start_draft(payload: DraftIn, session: Session = Depends(get_db),
 
 @router.get("/drafts", summary="Plans you are still writing")
 def list_drafts(draft_status: str = Query(default="", alias="status"),
+                limit: int = Query(default=50, ge=1, le=500),
                 session: Session = Depends(get_db),
                 principal: Principal = RequireAnalyst) -> dict:
-    rows = _run(lambda: dr.list_for(session, principal, status=draft_status))
+    rows = _run(lambda: dr.list_for(session, principal, status=draft_status,
+                                    limit=limit))
     return {"drafts": [dr.to_dict(row) for row in rows]}
 
 

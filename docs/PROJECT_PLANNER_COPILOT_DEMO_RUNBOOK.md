@@ -50,18 +50,35 @@ started and has not published — then Closed.
 
 ## Act 2 — creating a project (8 minutes)
 
-**Create new project → Start the setup.** Eight steps, and say so.
+**Create new project → Start the setup.** Eight steps, and say so. Point at
+the bar across the top before typing anything:
 
-**Step 1.** Name it *LGD Model Redevelopment*. Type a code that already
-exists — `IFRS9-REDEV` — and press **Next**.
+> "Eight sections, and it will tell you where you are in them the whole way
+> through. One of eight is complete — the agentic policy has a default, which
+> is a decision the product has made and states in words rather than a blank
+> it hopes you notice."
+
+**Step 1.** Name it *LGD Model Redevelopment*. Do not press anything.
+
+> "That saved. It says so, once, in one place — and there is no Save button
+> on any section of this form. The one in the bar is a way to leave."
+
+Now type a code that already exists — `IFRS9-REDEV` — and press **Next**.
 
 > "It stops here, on step one, and tells you the code is taken and by what.
 > Not on step eight after you have filled in forty fields."
 
 Fix the code. Next.
 
-**Step 2.** Sponsor, project manager, owner, escalation contact. Type into
-the search box above a picker.
+**Step 2.** Before filling anything in, read the panel on the right and press
+the line that says **The project has no sponsor.**
+
+> "Every one of those is a button, and it lands on the field it names. A
+> warning that cannot tell you where the thing it is complaining about lives
+> is half a warning."
+
+Sponsor, project manager, owner, escalation contact. Type into the search box
+above a picker.
 
 > "This searches. On a bank with five thousand staff, a dropdown is a wall."
 
@@ -71,8 +88,21 @@ Set the target completion BEFORE the start date and press Next.
 
 Fix it. Next.
 
+Fill in the six fields, then point at the bar again:
+
+> "Two of eight, and People and governance now reads back the sponsor, the
+> manager and the dates rather than showing you six boxes you have already
+> filled. The section you are working on is the only one open."
+
 **Step 3.** The four policies, each described in the words it will behave in.
-Choose **Critical** and read the sentence.
+Press **Custom** first.
+
+> "Fifteen thresholds, each one something the agent actually reads, each one
+> bounded — and the paragraph underneath is the policy read back in the words
+> it will behave in. Before this, choosing Custom picked a label and left the
+> behaviour on Standard."
+
+Then choose **Critical** and read the sentence.
 
 > "Whatever you choose is stated back to you in English, here and on the
 > project page afterwards. If you cannot recognise your project in that
@@ -106,7 +136,14 @@ path, and two lists that are not the same thing: what is required before
 publish, and what a careful person would fix anyway. The flagged conflict is
 in the second.
 
-**Step 8.** **Publish project.**
+**Step 8.** Point at **Publish project** in the action bar, then at the line
+above it.
+
+> "It says what is in the way and how much of it, and each item is a button
+> that takes you there. Nothing in this form ever tells you at the end what
+> it could have told you at the start."
+
+**Publish project.**
 
 > "One transaction. The project, the milestones, the tasks, the dependencies
 > and everybody's access — or none of it."
@@ -175,8 +212,12 @@ Back on the project, filter Agent activity to **Escalations**.
 
 ## Act 6 — drafts (2 minutes)
 
-Back to the Planner. Start a new project, fill in only the name, press **Save
-draft**, and return.
+Back to the Planner. Start a new project, fill in only the name, **reload the
+page**, and then press **Save draft**.
+
+> "The reload changed nothing: the draft is in the address bar and the field
+> saved itself. Nothing on this form has ever needed you to remember to save
+> it."
 
 > "It is under Draft projects, not among the projects. Nothing is scheduled
 > off it and nobody is being chased about it, because it is not a project

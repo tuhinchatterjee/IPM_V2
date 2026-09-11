@@ -317,3 +317,65 @@ Blanking the data while refetching is right on a screen that re-reads
 something that may now be different; it is wrong on a form that saves a field
 and re-reads the document it just changed, because the form is unmounted
 between the save and the response. Off by default; on for the creation form.
+
+---
+
+## 10. The second UAT correction: one document, one save, one clock
+
+Three structural changes, all of them about the same thing: the screen and
+the stored plan saying different things.
+
+### 10.1 The commit happens inside the request
+
+`get_db` used to commit in a `yield` dependency's teardown. FastAPI closes
+the request's exit stack in `AsyncExitStackMiddleware`, which wraps the call
+that SENDS the response, so the commit landed after the browser had been told
+the write succeeded. The very next request could be served a pre-commit
+snapshot — and the creation form's next request is a re-read of the draft it
+has just written, which is why the panels described a plan without a sponsor.
+
+`backend/api/routers/planner.py` now carries a `Durable` route class that
+commits around the endpoint, before the response object goes back to
+Starlette. `get_db` does not commit at all: a route that escapes the class
+loses its write in the tests rather than racing in production, and a test
+asserts that no planner route has escaped.
+
+This is a general defect of the pattern, not a planner one. Three other
+routers (`playbook`, `data_builder`, `scorecard_validation`) have the same
+shape and have not been changed, because they are outside this correction.
+The fix is a route class and is two lines to apply when they are.
+
+### 10.2 `planner/setup.py` — progress and guidance, derived
+
+Two pure functions over the draft:
+
+* `progress(plan, names, status)` — the eight sections, each with a state, a
+  count of what it still wants, and the line it collapses to;
+* `guidance(plan, names, step, status)` — what is settled, what is missing,
+  what conflicts, the next recommended step and the step's quick actions.
+
+Neither touches the database and neither stores anything, so there is nothing
+to invalidate. They are computed in the same request that returns the plan,
+which is what makes "the fields, the panel and the progress bar cannot
+disagree" a structural claim rather than a hope.
+
+`draft.Note` gained a `field` — `governance.sponsor_id`,
+`milestone.M01.owner_id` — which is the address the form scrolls to and
+focuses. One convention, mirrored in `setup-assistant.tsx`'s `anchorId`.
+
+### 10.3 The form holds a pending overlay, not a copy
+
+Each step used to hold its whole section in local state and write it back on
+Next. That cannot survive the server deriving a field the copy does not know
+about — a project code generated from a name is missing from the box that
+shows it — and it is what made "which of these is the plan?" a real question.
+
+`useAutosave` inverts it: the value of a control is the server's value
+overlaid with what is being typed into it, and the overlay is dropped the
+moment the server confirms what it was. A debounce schedules the save; Back,
+Next, Save draft and Publish flush it first.
+
+One consequence worth naming: the draft's stored `step` is now written only
+by `set_step`. Every command used to return the step it thought came next and
+`apply` wrote it down, so the draft's idea of where you were ran ahead of
+you.

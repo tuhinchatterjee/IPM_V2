@@ -208,3 +208,170 @@ report them.
 
 See `PROJECT_PLANNER_COPILOT_ACCEPTANCE_MATRIX.md`, section U, for
 PPC-UAT-001 to PPC-UAT-020 with the evidence for each.
+
+---
+
+# Second round
+
+The form was still not acceptable. What was reported, in the words it was
+reported in: after entering the sponsor, the manager, the owner, the
+escalation contact, the start date and the target completion date, the panel
+beside the form still said the project had no sponsor, no manager, nobody to
+escalate to, no start date and no target completion date. There were several
+separate Save buttons. The box on the left was not useful.
+
+## 6. The defect, reproduced before anything was written
+
+It was not the completeness engine. The engine was right about what it was
+given; it was given the wrong plan.
+
+`get_db` committed in a `yield` dependency's teardown. That teardown does not
+run where it reads as though it runs — FastAPI closes the request's exit
+stack in `AsyncExitStackMiddleware`, which wraps the call that *sends* the
+response:
+
+    async with AsyncExitStack() as stack:
+        scope[self.context_name] = stack
+        await self.app(scope, receive, send)   # the response goes out here
+
+So the commit landed **after** the browser had been told the save succeeded.
+The creation form saves a step and immediately re-reads the draft; served its
+own pre-save plan, every panel computed from that read described a project
+without a sponsor — which is exactly what was on the screen.
+
+Over real HTTP, against the running application, the old build lost two reads
+in twenty:
+
+    read-after-write misses: 0 of 20
+       0 STALE wrote 'Run 0' read ''
+      11 STALE wrote 'Run 11' read 'Run 10'
+    stale reads after apply: 2 of 20
+
+and could return `No draft <key>.` for a draft it had created a moment
+earlier. It never showed up in the test suite because `TestClient` runs one
+request at a time and the teardown always finished first.
+
+**The fix.** The commit happens in a route class, around the endpoint, before
+the response is handed back to be sent. `get_db` no longer commits at all, so
+a route that escapes the class loses its write loudly in the tests rather
+than racing quietly in production. Two tests pin the invariant rather than the
+mechanism — by the time the dependency teardown runs, the write must already
+be visible to a connection that knows nothing about the request — and both
+fail against the old behaviour. After the fix: 200 write-then-read pairs over
+real HTTP, zero stale.
+
+## 7. One save
+
+There were five things on that page that claimed to save something: Save
+draft, Save milestone, Save task, and the implicit save behind Next on two
+steps. "Did that save?" was a fair question.
+
+Every field now saves itself about a second after the last keystroke, and one
+line in the action bar says **Saved**, **Saving…** or **Save failed**. There
+is no section-level Save button anywhere. The remaining **Save draft** is a
+way to leave, not a second way to save; Back, Next and Publish flush anything
+still inside the debounce window before they act.
+
+The value of a control is the server's value overlaid with what is being
+typed into it, and the overlay is dropped the moment the server confirms it.
+That is what stops the form and the panels beside it describing two different
+plans: a whole-section local copy cannot survive the server deriving a field
+the copy does not know about, which is how a project code generated from a
+name goes missing from the box that shows it.
+
+## 8. Where you are, and what to do next
+
+**A progress bar over the eight sections.** Each has a state — Not started,
+In progress, Needs attention, Complete — a count of what it still wants, and,
+when it is finished, the line it came to:
+
+    1 Overview                 LGD Model Redevelopment (LGDMR-2026)
+    2 People and governance    Sponsor Priya Raman · Manager Omar Haddad ·
+                               2 Feb 2026 → 30 Sep 2026
+    3 Agentic AI policy        Critical
+    4 Major milestones         2 milestones
+    5 Tasks                    7 tasks
+    6 Dependencies             1 dependency
+    7 Review                   Ready to publish
+    8 Publish                  Not started
+
+    5 of 8 sections complete
+
+All of it is derived from the draft. There is no stored progress and no
+counter to increment: clear the sponsor and governance stops being complete
+in the same breath. "Complete" means the section has what a project needs
+from it, not that somebody pressed Next. It is the stepper, the progress bar
+and the collapsed summaries in one control — a finished section shows what it
+holds rather than its fields, and the step being worked on is the only one
+open.
+
+**The box on the left is a Project Setup Assistant.** It states what is
+settled, what is missing, which dates contradict each other, the single next
+recommended step, and the quick actions that belong to the step you are on —
+Assign sponsor, Add milestone, Show 3 unlinked tasks, Check readiness. Every
+sentence is arithmetic over the plan. There is nothing to type into it, so it
+can never answer a question badly.
+
+**Every note is a button.** A completeness note carries the field it is about
+— `governance.sponsor_id`, `milestone.M01.owner_id` — so "The project has no
+sponsor." goes to the sponsor: the right step, the right control, focused.
+A note that cannot say where the thing it names lives leaves the reader to
+search eight steps.
+
+**Publish says why it is unavailable**, with the number:
+
+    Publish unavailable — 3 required items remain.
+
+## 9. Custom is a policy now
+
+Choosing **Custom** used to select a label and leave the thresholds on
+Standard — the worst of the four answers available, because the screen said
+the policy was yours and the agent behaved as though it was not. It now opens
+all fifteen thresholds the monitoring engine reads, rendered from the
+server's own list with the server's own bounds, with the policy read back
+underneath in the words it will behave in. The tests follow it through: a
+threshold outside its bounds is refused with a sentence, a combination that
+cannot mean what it says is refused, the document survives a publish onto the
+project row, and the same project one day overdue escalates under a custom
+`escalate_after_days: 1` where Standard waits.
+
+## 10. Four more defects, found by the journey that was written to prove it
+
+The state journey asserts, after every meaningful field, that the control,
+the persisted draft and the completeness engine agree. Writing it found four
+more of the same family:
+
+* **A project code could not be deleted.** `if data.get("code")` cannot tell
+  "no opinion" from "I cleared this", so an emptied code fell through to the
+  branch that keeps what is there. The box went blank, the draft kept the old
+  value, and a reload put it back without saying so.
+* **Setting any field moved the step you were on.** Every command returned
+  the step it thought came next and `apply` wrote that down, so choosing an
+  agentic policy recorded you on the milestones and reopening the plan opened
+  it past your place. Only `set_step` means "I have moved" now.
+* **Reloading the page lost the way back to the draft.** `/delivery/new` read
+  its key from the URL and nothing ever put it there, so a refresh offered to
+  start a plan the person was halfway through. The key goes into the URL the
+  moment the draft exists.
+* **A payload field nobody read was silently dropped.** A mistyped key — and
+  `escalation_contact_id` for `escalation_id` is one keystroke of plausible —
+  saved nothing and said nothing. A draft command now refuses a field it does
+  not have.
+
+And one that is not a correctness fault but would have become one: the draft
+list was unbounded. An administrator on an installation that has been running
+for a year was every draft anybody ever started, in one response, in one
+list. It is bounded now, newest first, which is the ordering that makes a
+limit safe.
+
+## 11. What was run, second round
+
+| What | Command | Result |
+|---|---|---|
+| The state-synchronisation journey | `scripts/acceptance/creation_state_journey.py` | 78 passed, 0 failed |
+| The form-first creation journey | `scripts/acceptance/uat_creation_journey.py` | 77 passed, 0 failed |
+| The button audit, now including the creation form | `scripts/acceptance/planner_button_audit.py` | 0 dead |
+| Planner and agentic suites | `pytest tests/planner tests/agentic` | all passed |
+| Full regression | `pytest tests` | see the final report |
+
+The gates are in `PROJECT_PLANNER_COPILOT_ACCEPTANCE_MATRIX.md`, section V.

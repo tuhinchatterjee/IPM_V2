@@ -7212,9 +7212,16 @@ export const api = {
      * them. The chat that used to share the prefix is gone.
      */
     plan: {
-      drafts: (status = "") =>
+      /**
+       * Plans you are still writing, newest first.
+       *
+       * Bounded: an account that has started hundreds of drafts is not a
+       * list anybody reads, and it used to be all of them in one response.
+       */
+      drafts: (status = "", limit = 25) =>
         request<{ drafts: DraftRow[] }>(
-          `/planner/copilot/drafts${status ? `?status=${status}` : ""}`),
+          `/planner/copilot/drafts?limit=${limit}`
+          + (status ? `&status=${status}` : "")),
       start: (name = "") =>
         request<DraftRow>("/planner/copilot/drafts", {
           method: "POST", body: JSON.stringify({ name }),

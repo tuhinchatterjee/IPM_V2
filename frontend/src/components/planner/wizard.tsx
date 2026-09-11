@@ -610,8 +610,13 @@ function OverviewStep({
   useSaver(register, async () => {
     setTaken("");
     if (!(await form.flush())) return false;
+    // A missing name is NOT refused here. The step gate reads the server's
+    // own completeness for this step and says "The project has no name." —
+    // whereas refusing silently, which is what this used to do, made Next
+    // and every entry in the progress bar do nothing at all and explain
+    // nothing. A control that declines without saying so is worse than one
+    // that is missing.
     const wanted = String(form.value("code") ?? "").trim();
-    if (!String(form.value("name") ?? "").trim()) return false;
     if (wanted) {
       // §7. The duplicate is caught here rather than at publish, because
       // finding out on step eight that the code is taken means redoing the

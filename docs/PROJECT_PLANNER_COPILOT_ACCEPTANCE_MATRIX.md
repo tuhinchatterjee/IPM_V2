@@ -279,6 +279,44 @@ to `scripts/acceptance/uat_creation_journey.py` (U1–U11), the button audit is
 | PPC-UAT-019 | Escalation reaches the CreditProbe message centre, with the full field set and a working link, deduplicated | PASS | U11 asserts the message in the recipient's own message centre and each field; `test_uat_flow.py::test_every_message_names_the_project_the_owner_and_the_date` and `::test_running_the_agent_twice_does_not_send_the_message_twice`; `test_uat_adversarial.py::test_a_message_never_links_somebody_to_a_project_they_cannot_open` |
 | PPC-UAT-020 | No dead buttons anywhere in the Planner | PASS | `planner_button_audit.py` — 79 controls pressed, 0 dead; the six Discard buttons are listed as skipped with the reason |
 
+## V. Second UAT round (PPC-UAT-021 … PPC-UAT-040)
+
+The complaint: the completeness panel still said the project had no sponsor
+after a sponsor was chosen; there were several Save buttons; the box on the
+left was not useful.
+
+| Gate | What it asserts | Result | Evidence |
+|---|---|---|---|
+| PPC-UAT-021 | The stale panel is reproduced before anything is changed | PASS | 2 stale reads in 20 over real HTTP, and a `No draft <key>.` for a draft created a moment earlier |
+| PPC-UAT-022 | The root cause is identified, not guessed | PASS | `get_db` committed in a `yield` teardown, which FastAPI runs in `AsyncExitStackMiddleware` — after the response is sent |
+| PPC-UAT-023 | A regression test reproduces the exact failure | PASS | `test_state_sync.py::test_a_saved_field_is_visible_before_the_dependency_teardown` and `::test_the_write_survives_a_teardown_that_does_not_commit`; both fail against the old behaviour |
+| PPC-UAT-024 | No planner route can commit after answering | PASS | `test_every_planner_route_commits_inside_the_request` |
+| PPC-UAT-025 | Write then read, many times, agrees every time | PASS | 200 pairs over real HTTP, 0 stale; `test_a_write_then_read_pair_never_disagrees_over_many_rounds` |
+| PPC-UAT-026 | There is exactly one Save control on the form | PASS | `creation_state_journey.py` S1 — `["Save draft"]` and nothing else |
+| PPC-UAT-027 | A field saves with nothing pressed, and says so | PASS | S1 — typed, waited, read the server; `Saved` on screen |
+| PPC-UAT-028 | Progress covers eight sections, each with a state | PASS | S2, and `test_setup_progress.py` |
+| PPC-UAT-029 | Progress is derived: it moves up as fields are filled and back when they are cleared | PASS | S2 — "clearing a required field moves it back" |
+| PPC-UAT-030 | "N of 8 sections complete" is on the screen | PASS | S2 |
+| PPC-UAT-031 | The panel is a setup assistant with no way to talk to it | PASS | S3 — 0 textareas, no Send; `test_the_assistant_has_nothing_to_type_into` |
+| PPC-UAT-032 | It always names the next recommended step, and it is the first required thing missing | PASS | S3; `test_the_next_step_is_the_first_required_thing_missing` |
+| PPC-UAT-033 | Contextual quick actions belong to the step you are on | PASS | S3; `test_the_quick_actions_are_about_the_step_you_are_on` |
+| PPC-UAT-034 | A completeness note is a button that lands on its field, focused | PASS | S4 — the step changes and `document.activeElement` is the sponsor picker |
+| PPC-UAT-035 | After every field: control == persisted draft == completeness | PASS | S5, six fields, four assertions each; `test_after_every_field_the_draft_and_the_completeness_agree` |
+| PPC-UAT-036 | No stale warning survives the field being filled | PASS | S5 — every earlier sentence is re-checked after every later field |
+| PPC-UAT-037 | A finished section collapses to a line worth reading | PASS | S6 |
+| PPC-UAT-038 | Custom opens a real configuration panel that persists, reloads and publishes, and the monitor obeys it | PASS | S7; `test_custom_agentic.py` — 11 checks including a threshold that changes what the engine finds |
+| PPC-UAT-039 | Publish is refused with a count, and offered once nothing is required | PASS | S8 — "Publish unavailable — N required items remain." |
+| PPC-UAT-040 | No dead controls, the creation form included | PASS | `planner_button_audit.py`, which now starts a draft and audits the form itself |
+
+### Three further defects, found by the gates above
+
+| Found by | Defect | Fixed |
+|---|---|---|
+| S2 | A project code could not be cleared: the box emptied, the draft kept the old value | `_cmd_overview` distinguishes a code that was sent empty from a code nobody mentioned |
+| S7 | Setting any field moved the stored step, so reopening a plan opened it past your place | only `set_step` writes the step |
+| S7 | Reloading `/delivery/new` lost the way back to the draft | the key goes into the URL when the draft is created |
+| PPC-UAT-040 | Next, and every entry in the progress bar, silently did nothing while the name was empty | the step gate says "The project has no name." instead of refusing in silence |
+
 ### Two things this section does not claim
 
 **Live AI remains NOT VERIFIED.** No provider key is configured in this

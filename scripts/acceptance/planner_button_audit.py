@@ -220,6 +220,14 @@ def _press_one(page: Any, report: Report, where: str, url: str,
 
     before_url = page.url
     before_text = _main_text(page)
+    # Moving the cursor is a real thing to have happened, and on a form
+    # whose completeness notes are buttons that take you to the field they
+    # name, it is the ONLY thing that happens: the page does not move, its
+    # text does not change and nothing is fetched. Without this the audit
+    # would report the most deliberate controls on the screen as dead.
+    before_focus = page.evaluate(
+        "document.activeElement && (document.activeElement.id"
+        " || document.activeElement.tagName)")
     calls: list[str] = []
     page.on("request", lambda request: calls.append(request.url))
 
@@ -233,14 +241,41 @@ def _press_one(page: Any, report: Report, where: str, url: str,
 
     after_url = page.url
     after_text = _main_text(page)
+    after_focus = page.evaluate(
+        "document.activeElement && (document.activeElement.id"
+        " || document.activeElement.tagName)")
     moved = after_url != before_url
     changed = after_text != before_text
     asked = any("/api/" in call for call in calls)
+    focused = after_focus != before_focus
 
     report.check(
-        where, name, kind, moved or changed or asked,
+        where, name, kind, moved or changed or asked or focused,
         "nothing happened: the page did not move, its content did not "
-        "change, and no request went out")
+        "change, nothing was focused, and no request went out")
+
+
+def _audit_the_form(page: Any, report: Report) -> None:
+    page.goto(f"{WEB}/delivery/new", wait_until="networkidle")
+    page.wait_for_timeout(1200)
+    start = page.get_by_role("button", name="Start the setup")
+    if start.count() == 0:
+        report.check("New project form", "(start a draft)", "button", False,
+                     "there is no way to start the setup")
+        return
+    start.first.click()
+    page.wait_for_timeout(2000)
+    where = page.url
+    if "draft=" not in where:
+        report.check("New project form", "(the draft is addressable)", "link",
+                     False, f"the URL after starting is {where}")
+        return
+    key = where.split("draft=", 1)[1].split("&", 1)[0]
+    try:
+        _audit(page, report, "New project form", where)
+    finally:
+        page.request.delete(
+            f"{WEB}/api/v1/planner/copilot/drafts/{key}")
 
 
 def run(report: Report) -> Report:
@@ -268,6 +303,13 @@ def run(report: Report) -> Report:
             _audit(page, report, "Project Planner", f"{WEB}/delivery")
             _audit(page, report, "New project", f"{WEB}/delivery/new")
             _audit(page, report, "My tasks", f"{WEB}/delivery/my-work")
+
+            # The creation form itself, which the empty `/delivery/new`
+            # never shows: it opens on "Start the setup". A draft is started
+            # here, audited, and thrown away afterwards, because a form of
+            # eight steps and a setup assistant is where most of this
+            # module's controls actually live.
+            _audit_the_form(page, report)
 
             # The first project the portfolio lists, so the detail page is
             # audited against real content rather than an empty state.

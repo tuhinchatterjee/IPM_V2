@@ -791,9 +791,15 @@ def load(session: Any, principal: Any, key: str) -> PlannerDraft:
     return row
 
 
-def list_for(session: Any, principal: Any, *,
-             status: str = "") -> list[PlannerDraft]:
-    """The drafts this person may see, newest first."""
+def list_for(session: Any, principal: Any, *, status: str = "",
+             limit: int = 100) -> list[PlannerDraft]:
+    """The drafts this person may see, newest first, bounded.
+
+    Bounded because it was not, and an administrator on an installation that
+    has been running for a year is every draft anybody ever started, in one
+    response, rendered in one list. Newest first is the ordering that makes
+    a limit safe: the ones you are working on are the ones you get.
+    """
     query = select(PlannerDraft).order_by(PlannerDraft.updated_at.desc())
     if status:
         query = query.where(PlannerDraft.status == str(status).upper())
@@ -802,7 +808,8 @@ def list_for(session: Any, principal: Any, *,
         if actor is None:
             return []
         query = query.where(PlannerDraft.created_by == int(actor))
-    return list(session.execute(query).scalars())
+    return list(session.execute(query.limit(max(1, int(limit or 100)))
+                                ).scalars())
 
 
 def save(session: Any, principal: Any, draft: PlannerDraft, *,

@@ -35,8 +35,51 @@ so it is listed here rather than mixed in above. Continue editing or discard.
 ## Creating a project
 
 **Create new project**, then **Start the setup**. Eight steps, with **Back**,
-**Next** and **Save draft** on every one of them. Nothing exists until the
+**Save draft** and **Next** on every one of them. Nothing exists until the
 last step.
+
+### Saving
+
+You do not. Every field saves itself about a second after you stop typing,
+and one line beside the buttons says **Saved**, **Saving…** or **Save
+failed**. There is no Save button on any section, and **Save draft** is a way
+to leave rather than a second way to save — it puts you back on the Planner
+with the plan under **Draft projects**.
+
+Closing the tab loses nothing. The draft is in the address bar, so reopening
+the page comes back to the step you were on.
+
+### Knowing where you are
+
+Across the top, the eight sections, each with its state — **Not started**,
+**In progress**, **Needs attention**, **Complete** — and, once it is
+finished, what it holds:
+
+    1 Overview                 LGD Model Redevelopment (LGDMR-2026)
+    2 People and governance    Sponsor Priya Raman · Manager Omar Haddad ·
+                               2 Feb 2026 → 30 Sep 2026
+    3 Agentic AI policy        Critical
+    ...
+    5 of 8 sections complete
+
+Press any of them to go there. Complete means the section has what a project
+needs from it — not that you pressed Next — so clearing a sponsor moves
+governance back to Needs attention while you watch.
+
+### The Project Setup Assistant
+
+Down the right: what is settled, what is missing, which dates contradict each
+other, what to do next, and the actions that belong to the step you are on —
+**Assign sponsor**, **Add milestone**, **Show 3 unlinked tasks**, **Check
+readiness**.
+
+Everything it says is computed from your plan. It has no message box: it is
+something to read, not something to ask, which is why it can never answer a
+question wrongly.
+
+**Every line it prints that names a field is a button.** "The project has no
+sponsor." takes you to the sponsor — the right step, the right box, ready to
+type in.
 
 ### Step 1 — Overview
 
@@ -69,7 +112,14 @@ Four answers, each described in the words it will behave in:
   afterwards, and escalation when that stops working.
 * **Critical** — for dated commitments: a regulatory submission, a committee,
   a go-live. Earlier warning, closer follow-up, faster escalation.
-* **Custom** — set the thresholds yourself.
+* **Custom** — set the thresholds yourself. Choosing it opens the fifteen
+  settings the agent actually reads: how many days before a date it reminds,
+  how often it chases afterwards, how long a task may be silent before it is
+  called stale, when lateness and when a block are escalated, when the
+  sponsor hears, whether the project manager is told about the critical path,
+  whether reviewers are reminded. Each one is bounded, because a reminder
+  window of four hundred days and a chase every zero days are both ways of
+  turning the agent off while believing it is on.
 
 Whatever you choose is stated back as a paragraph, here and on the project
 page afterwards. If you cannot recognise your project in that paragraph, you
@@ -127,16 +177,23 @@ Then two lists, which are not the same thing:
 
 ### Step 8 — Publish
 
-One button. The project, its milestones, its tasks, its dependencies and
+**Publish project** is in the action bar with Back, Save draft and Preview.
+It is unavailable while anything is required, and it says how much:
+
+    Publish unavailable — 3 required items remain.
+
+Each of the three is a button that takes you to it.
+
+One press. The project, its milestones, its tasks, its dependencies and
 everybody's access are created in one transaction: if any part fails, none of
 it is created. You land on the new project, and it is on the Planner under
 Current projects.
 
-### Saving and coming back
+### Coming back
 
-**Save draft** at any step. The draft appears under **Draft projects** on the
-Planner with **Continue editing** and **Discard**. It stays private, and the
-agent does not chase anybody about it.
+The draft is under **Draft projects** on the Planner, with **Continue
+editing** and **Discard**. It stays private, and the agent does not chase
+anybody about it.
 
 ### Importing instead
 

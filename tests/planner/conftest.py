@@ -70,6 +70,37 @@ def cast() -> dict[str, int]:
     return ids
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _tidy_drafts():
+    """Take the run's drafts away with it.
+
+    Every draft a test starts is a row in the shared database, and nothing
+    else ever deletes them: they accumulate into thousands, which is not a
+    product fault but does make the Draft projects list on a development
+    installation useless and the button audit crawl.
+
+    Only rows that were not there when the run began, and only ones nobody
+    published — a draft that became a project is part of that project's
+    history.
+    """
+    from sqlalchemy import delete, select
+
+    from backend.db.engine import get_session
+    from backend.models.planner import PlannerDraft
+
+    with get_session() as session:
+        before = set(session.execute(select(PlannerDraft.id)).scalars())
+    yield
+    with get_session() as session:
+        after = set(session.execute(select(PlannerDraft.id)).scalars())
+        mine = after - before
+        if mine:
+            session.execute(delete(PlannerDraft).where(
+                PlannerDraft.id.in_(mine),
+                PlannerDraft.status != "PUBLISHED"))
+            session.commit()
+
+
 @pytest.fixture(scope="session")
 def project(client, cast) -> dict:
     """One project with the cast on it, built entirely through the API.
