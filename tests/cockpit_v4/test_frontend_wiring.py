@@ -380,15 +380,63 @@ def test_the_cockpit_page_chooses_the_runtime_before_mounting_either():
 
 
 def test_the_v4_components_never_name_a_legacy_endpoint():
-    """No shim: V4 does not translate /investigations into anything."""
+    """No shim: V4 does not translate /investigations into anything.
+
+    What is forbidden is the LEGACY path, not the word. V4 has its own
+    investigations under its own prefix, and every V4 fetch is built as
+    `${API_PREFIX}${path}` -- so the check is for a path that escapes that
+    prefix, which is what a shim would look like. `test_every_v4_fetch_goes
+    _through_the_v4_prefix` below holds the other half.
+    """
     for path in sorted(V4_DIR.glob("*.ts*")):
         if path.name.endswith(".test.ts"):
             continue
         code = _code_only(path)
         for endpoint in LEGACY_ENDPOINTS:
-            assert endpoint not in code, (
-                f"{path.name} names {endpoint}. The V4 frontend must use the "
-                f"V4 run API explicitly, not imitate the legacy flow.")
+            assert f"/api/v1{endpoint}" not in code, (
+                f"{path.name} names the legacy path /api/v1{endpoint}. The "
+                f"V4 frontend must use the V4 API explicitly, not imitate "
+                f"the legacy flow.")
+
+
+def _fetch_targets(code: str) -> list[str]:
+    """The first argument of every `fetch(` call, parens balanced.
+
+    A naive regex stops inside `base()` and reports a false positive, which
+    is worse than no check: it teaches the reader to ignore the test.
+    """
+    targets: list[str] = []
+    cursor = code.find("fetch(")
+    while cursor != -1:
+        i = cursor + len("fetch(")
+        depth, start = 0, i
+        while i < len(code):
+            char = code[i]
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif char == "," and depth == 0:
+                break
+            i += 1
+        targets.append(code[start:i].strip())
+        cursor = code.find("fetch(", i)
+    return targets
+
+
+def test_every_v4_fetch_goes_through_the_v4_prefix():
+    """A fetch that skips API_PREFIX is how a shim gets back in."""
+    for path in sorted(V4_DIR.glob("*.ts*")):
+        if path.name.endswith(".test.ts"):
+            continue
+        for target in _fetch_targets(_code_only(path)):
+            if not target or target.startswith(("url", "input", "request")):
+                continue
+            assert "API_PREFIX" in target, (
+                f"{path.name} fetches {target}, which does not go through "
+                f"API_PREFIX.")
 
 
 def test_the_v4_client_speaks_only_the_v4_run_api():

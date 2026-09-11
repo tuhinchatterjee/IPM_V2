@@ -336,7 +336,12 @@ export function CockpitV4({
               )
             }
           />
-          <ResponsePanel view={view} onAsk={(text) => void ask(text)} />
+          <ResponsePanel
+            view={view}
+            onAsk={(text) => void ask(text)}
+            question={question}
+            threadId={threadId}
+          />
         </>
       ) : null}
     </div>

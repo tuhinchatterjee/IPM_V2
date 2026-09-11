@@ -400,7 +400,11 @@ export type RecentThread = {
 };
 
 export type SessionSummary = {
+  /** A person's name, or "". Never a deployment or profile label. */
   display_name: string;
+  /** "Local UAT", a service-account name -- shown in the operator view,
+   *  never used to greet anybody. */
+  profile_label?: string;
   tenant: string;
   release_id: string;
   recent_threads: RecentThread[];
@@ -629,4 +633,185 @@ export function watch(
     if (timer) clearTimeout(timer);
     source?.close();
   };
+}
+
+/* ---- what a credit officer does with an answer ---------------------- */
+
+export type SavedAnalysis = {
+  saved_id: string;
+  title: string;
+  note: string;
+  question: string;
+  run_id: string;
+  thread_id: string;
+  release_id: string;
+  created_at: string;
+};
+
+export type Investigation = {
+  investigation_id: string;
+  title: string;
+  summary: string;
+  status: string;
+  origin: string;
+  updated_at: string;
+  items?: { entry_id: string; kind: string; ref_id: string; label: string }[];
+};
+
+export type Comment = {
+  comment_id: string;
+  subject_kind: string;
+  subject_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+};
+
+/**
+ * One outbox row. `delivered` is the only field the UI may render as
+ * "sent": `state` alone is not a delivery claim, and a RECORDED or REFUSED
+ * row carries the reason it went nowhere.
+ */
+export type Notification = {
+  notification_id: string;
+  recipient: string;
+  subject: string;
+  state: "RECORDED" | "REFUSED" | "SENT" | "FAILED";
+  transport: string;
+  reason: string;
+  delivered: boolean;
+  created_at: string;
+};
+
+export type DeliveryPosture = {
+  transport: string | null;
+  can_deliver: boolean;
+  recipient_policy: string;
+  authorized_recipients: string[];
+  authorized_domains: string[];
+};
+
+async function send<T>(path: string, body: unknown): Promise<T> {
+  return json(
+    await fetch(`${base()}${API_PREFIX}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+export async function saveAnalysis(input: {
+  run_id: string;
+  title?: string;
+  note?: string;
+}): Promise<SavedAnalysis> {
+  return send("/saved-analyses", input);
+}
+
+export async function listSavedAnalyses(): Promise<SavedAnalysis[]> {
+  const body = await json<{ saved: SavedAnalysis[] }>(
+    await fetch(`${base()}${API_PREFIX}/saved-analyses`, {
+      credentials: "include",
+    }),
+  );
+  return body.saved ?? [];
+}
+
+export async function createInvestigation(input: {
+  title: string;
+  summary?: string;
+  origin?: string;
+  thread_id?: string;
+  saved_ids?: string[];
+}): Promise<Investigation> {
+  return send("/investigations", input);
+}
+
+export async function listInvestigations(): Promise<Investigation[]> {
+  const body = await json<{ investigations: Investigation[] }>(
+    await fetch(`${base()}${API_PREFIX}/investigations`, {
+      credentials: "include",
+    }),
+  );
+  return body.investigations ?? [];
+}
+
+export async function addInvestigationItem(
+  investigationId: string,
+  input: { kind: string; ref_id: string; label?: string },
+): Promise<{ entry_id: string }> {
+  return send(`/investigations/${encodeURIComponent(investigationId)}/items`, input);
+}
+
+export async function addComment(input: {
+  subject_kind: string;
+  subject_id: string;
+  body: string;
+}): Promise<Comment> {
+  return send("/comments", input);
+}
+
+export async function listComments(
+  subjectKind: string,
+  subjectId: string,
+): Promise<Comment[]> {
+  const query = new URLSearchParams({
+    subject_kind: subjectKind,
+    subject_id: subjectId,
+  });
+  const body = await json<{ comments: Comment[] }>(
+    await fetch(`${base()}${API_PREFIX}/comments?${query.toString()}`, {
+      credentials: "include",
+    }),
+  );
+  return body.comments ?? [];
+}
+
+export async function shareItem(input: {
+  subject_kind: string;
+  subject_id: string;
+  audience_id: string;
+  message?: string;
+  notify_email?: string;
+}): Promise<{
+  share: { share_id: string; audience_id: string };
+  notification: Notification | null;
+  delivery: DeliveryPosture;
+}> {
+  return send("/shares", input);
+}
+
+export async function readOutbox(): Promise<{
+  delivery: DeliveryPosture;
+  notifications: Notification[];
+}> {
+  return json(
+    await fetch(`${base()}${API_PREFIX}/notifications`, {
+      credentials: "include",
+    }),
+  );
+}
+
+/**
+ * The sentence the UI is allowed to show about one notification.
+ *
+ * There is exactly one wording that claims delivery, and it is reachable
+ * only when the server said `delivered`. Everything else names what did not
+ * happen, so no screen can render "email sent" over a message that sat in
+ * the outbox.
+ */
+export function deliveryWording(notification: Notification | null): string {
+  if (!notification) return "No notification was requested.";
+  if (notification.delivered) {
+    return `Sent to ${notification.recipient} via ${notification.transport}.`;
+  }
+  if (notification.state === "REFUSED") {
+    return `Not sent. ${notification.recipient} is not an authorised recipient for this deployment.`;
+  }
+  if (notification.state === "FAILED") {
+    return `Not sent. The transport refused it: ${notification.reason}`;
+  }
+  return `Recorded, not sent. ${notification.reason}`;
 }

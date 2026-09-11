@@ -40,8 +40,14 @@ logger = logging.getLogger(__name__)
 #: contains -- a demo principal scoped to a tenant the release has no rows
 #: for reads as "the portfolio is empty" rather than "you are looking at the
 #: wrong release".
-DEMO_PRINCIPAL = {"id": "v4-local-demo", "tenant": "demo",
-                  "name": "Local UAT", "demo": True}
+#:
+#: It carries NO `name`. "Local UAT" is the name of a profile, not of the
+#: person at the keyboard, and a landing page that greets a deployment label
+#: as if it were a colleague is worse than one that greets nobody. The label
+#: travels as `profile_label`, which the operator view shows and the greeting
+#: never reads.
+DEMO_PRINCIPAL = {"id": "v4-local-demo", "tenant": "demo", "name": "",
+                  "profile_label": "Local UAT", "demo": True}
 
 
 def demo_tenant(runtime: Any, cfg: config_mod.V4Config) -> str:

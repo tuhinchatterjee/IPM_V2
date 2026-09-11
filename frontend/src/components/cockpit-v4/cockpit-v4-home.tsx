@@ -114,7 +114,12 @@ export function CockpitV4Home() {
 
   return (
     <div
-      className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8"
+      // A 1728px display was rendering a 1024px ribbon with two empty
+      // thirds. The page now takes the workspace it is given up to
+      // 1440px; answer PROSE still wraps at 68ch inside it, which is
+      // where readability actually lives, while the dashboards and
+      // tables get the width they were starved of.
+      className="mx-auto w-full max-w-[90rem] px-4 py-10 sm:px-6 lg:px-10"
       data-testid="cockpit-v4-home"
     >
       <header className="space-y-1">

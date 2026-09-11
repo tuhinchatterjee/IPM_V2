@@ -11,6 +11,7 @@
  * act on.
  */
 
+import { AnswerActions } from "./answer-actions";
 import { API_PREFIX, type FinalResponse } from "./client";
 import { Markdown } from "./markdown.tsx";
 import type { RunView } from "./reducer";
@@ -119,9 +120,14 @@ function Coverage({ response }: { response: FinalResponse }) {
 export function ResponsePanel({
   view,
   onAsk,
+  question,
+  threadId,
 }: {
   view: RunView;
   onAsk?: (question: string) => void;
+  /** The question this answer belongs to, used to title a saved copy. */
+  question?: string;
+  threadId?: string;
 }) {
   if (!view.terminal) return null;
 
@@ -255,6 +261,16 @@ export function ResponsePanel({
             </button>
           ))}
         </div>
+      ) : null}
+
+      {/* Actions belong on an answer that exists, not on a failure and not
+          on a clarification that is still a question. */}
+      {view.runId && response.disposition !== "clarification" ? (
+        <AnswerActions
+          runId={view.runId}
+          question={question ?? ""}
+          threadId={threadId}
+        />
       ) : null}
     </section>
   );

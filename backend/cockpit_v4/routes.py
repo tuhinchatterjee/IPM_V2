@@ -425,7 +425,11 @@ async def session_summary(who: dict[str, Any] = Depends(principal)
     tenant = str(who.get("tenant") or "")
     display = str(who.get("name") or "").strip()
     return {
+        # A person's name, or nothing. A profile label -- "Local UAT",
+        # "Service Account", the name of a deployment -- is NOT a person and
+        # travels separately, so the greeting cannot accidentally address one.
         "display_name": display,
+        "profile_label": str(who.get("profile_label") or "").strip(),
         "tenant": tenant,
         "release_id": str(getattr(getattr(runtime, "cfg", None),
                                   "release_id", "") or ""),
