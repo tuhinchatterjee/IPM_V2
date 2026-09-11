@@ -71,9 +71,13 @@ backend/cockpit_v4/
   supervisor.py      independent deadlines and abandoned-run recovery
   memory.py          optional post-answer compaction
   routes.py          the additive V4 API
+  compat_health.py   /api/v1/health, so the shell does not call V4 offline
   app.py             the standalone ASGI app
   pyrunner.py        the Python capability, or an honest UNAVAILABLE
   prompts/analyst.md the runtime instruction (short, versioned)
+
+frontend/src/components/system/
+  runtime-surfaces.ts  reads a partial runtime out of a health payload
 
 frontend/src/components/cockpit-v4/
   client.ts          start/status/events/cancel/artifacts, bounded reconnect

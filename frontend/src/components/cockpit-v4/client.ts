@@ -86,9 +86,63 @@ export const API_PREFIX = "/api/v1/cockpit-v4";
 /** Bounded backoff, then a status fallback. Not an unlimited retry loop. */
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 8000];
 
+/**
+ * Raised when the V4 API address is not configured.
+ *
+ * Deliberately an error rather than a default. `lib/api.ts` falls back to
+ * `http://127.0.0.1:8000` when its own variable is unset, which is right for
+ * the main backend and wrong for this one: silently sending a Cockpit V4 run
+ * to the legacy backend produces a 404 that looks like a Cockpit fault, and
+ * on a machine where something IS listening on 8000 it would send an
+ * authenticated question to a service that never agreed to receive it.
+ */
+export class CockpitV4NotConfigured extends Error {
+  constructor() {
+    super(
+      "NEXT_PUBLIC_COCKPIT_V4_API is not set, so this build does not know " +
+        "where the Cockpit V4 API is. It is deliberately NOT assumed: the " +
+        "V4 API runs on its own port and must never be confused with the " +
+        "main CreditProbe backend. Start the Cockpit with " +
+        "scripts/cockpit_v4/START_COCKPIT_V4.command, which sets it to the " +
+        "port it actually selected.",
+    );
+    this.name = "CockpitV4NotConfigured";
+  }
+}
+
+/**
+ * The V4 API origin.
+ *
+ * Reads ONE variable. It never consults `NEXT_PUBLIC_API_URL`, and it has no
+ * numeric default — the two rules that together make a silent fall back to
+ * the legacy backend impossible rather than merely unlikely.
+ *
+ * `same-origin` is the explicit opt-in for a deployment that proxies the V4
+ * API through the page's own origin. Spelling it out is the point: an empty
+ * string reached by accident and an empty string chosen on purpose behave
+ * identically at runtime and mean opposite things to a reviewer.
+ */
 function base(): string {
-  const configured = process.env.NEXT_PUBLIC_COCKPIT_V4_API;
-  return (configured && configured.replace(/\/$/, "")) || "";
+  const configured = process.env.NEXT_PUBLIC_COCKPIT_V4_API?.trim();
+  if (!configured) throw new CockpitV4NotConfigured();
+  if (configured === "same-origin") return "";
+  return configured.replace(/\/$/, "");
+}
+
+/** The configured origin, or a reason it is unusable. For diagnostics. */
+export function apiOrigin(): { ok: true; origin: string } | {
+  ok: false;
+  reason: string;
+} {
+  try {
+    return { ok: true, origin: base() };
+  } catch (error) {
+    return {
+      ok: false,
+      reason:
+        error instanceof Error ? error.message : "The V4 API is not configured.",
+    };
+  }
 }
 
 async function json<T>(response: Response): Promise<T> {

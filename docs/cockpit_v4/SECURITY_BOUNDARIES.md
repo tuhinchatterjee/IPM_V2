@@ -109,6 +109,18 @@ guarantee is that following an injected instruction cannot grant access.
 It does not touch V3's or the product's authentication. `REQUIRE_LOGIN` is not
 set globally by anything in this build.
 
+## The one unauthenticated route
+
+`GET /api/v1/health` is served without a session, deliberately and to the same
+contract the main backend uses. It carries no tenant data, no run, no artifact
+and no configuration value — component names, statuses, plain-English details,
+the API port, the startup SHA and the release id, all of which the diagnostics
+endpoint already exposes.
+
+It is unauthenticated because a status indicator that needs a session cannot
+say "I am up" on the screen where that matters most. Every other V4 route —
+runs, events, cancel, artifacts, threads — remains tenant-checked.
+
 ## Real-data egress
 
 Published real data may not be sent to a provider without the deployment's

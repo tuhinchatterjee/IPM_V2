@@ -262,6 +262,29 @@ async def get_diagnostics() -> dict[str, Any]:
     return diagnostics(cfg, startup_sha=str(_STATE.get("startup_sha") or ""))
 
 
+#: The routes the application SHELL polls, served at the paths it already
+#: uses. Separate from `router` because these are a compatibility surface, not
+#: part of the V4 contract: the shell must not report the whole backend
+#: offline merely because this runtime does not serve the dashboard.
+compat_router = APIRouter(prefix="/api/v1", tags=["cockpit-v4-compat"])
+
+
+@compat_router.get("/health")
+async def shell_health() -> dict[str, Any]:
+    """`HealthResponse`, describing THIS runtime truthfully.
+
+    Unauthenticated on purpose: it is the same contract the main backend's
+    `/api/v1/health` serves, it carries no tenant data, and a status
+    indicator that needs a session to say "I am up" cannot say it on the
+    screen where it matters.
+    """
+    from backend.cockpit_v4.compat_health import health_payload
+
+    runtime = _STATE.get("runtime")
+    return health_payload(getattr(runtime, "cfg", None),
+                          startup_sha=str(_STATE.get("startup_sha") or ""))
+
+
 @router.get("/runs/{run_id}/events")
 async def stream_events(run_id: str, request: Request,
                         last_event_id: str = Header("", alias="Last-Event-ID"),
@@ -331,4 +354,4 @@ async def stream_events(run_id: str, request: Request,
                  "X-Accel-Buffering": "no"})
 
 
-__all__ = ["install", "router"]
+__all__ = ["compat_router", "install", "router"]

@@ -82,6 +82,46 @@ deliberately.
 
 Any step failing stops there and says which setting to fix.
 
+### What the UI is told, and why it is two variables
+
+The V4 frontend process is given **both** API addresses, at the port the
+launcher actually selected:
+
+| Variable | Read by | Why it matters |
+|---|---|---|
+| `NEXT_PUBLIC_COCKPIT_V4_API` | the Cockpit V4 client | the runs, the event stream, cancellation |
+| `NEXT_PUBLIC_API_URL` | the application shell and `lib/api.ts` | the header, the backend-status badge, the landing-page widgets |
+
+Setting only the first was a real defect: the Cockpit talked to 8414 while the
+header and every landing widget kept talking to `http://127.0.0.1:8000`, a
+backend the V4 instance never started. Half the page then reported a system
+that was not there.
+
+Both are set **for the V4 UI process only**. The default inside `lib/api.ts`
+is untouched, so every other CreditProbe instance behaves exactly as before.
+
+The V4 Cockpit client has no default address at all. If
+`NEXT_PUBLIC_COCKPIT_V4_API` is missing it says so plainly rather than
+borrowing the shell's variable — there is nothing for it to silently fall back
+*to*.
+
+### What the status badge will say
+
+The header polls `/api/v1/health`, which the V4 API now serves about itself.
+You should see:
+
+> **CreditProbe Cockpit V4 reachable · dashboard service not in this runtime**
+
+That is the honest reading. This instance runs the Cockpit API only; the
+landing-page widgets, briefing, threads and dashboard routes are served by the
+main CreditProbe backend, which this instance does not start. The system-status
+panel lists them as **Not configured** with that explanation.
+
+"Backend offline" now means what it says: the V4 API did not answer. A genuine
+V4 fault — an unreadable release, an unwritable state store — still turns the
+headline red, because the distinction has to cut both ways or it is just a
+green light.
+
 ### What stop does
 
 It stops a process only when **all four** still match what V4 recorded when it

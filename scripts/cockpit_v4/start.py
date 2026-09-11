@@ -37,7 +37,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.cockpit_v4._common import (  # noqa: E402
     Owned, ROOT, bad, heading, ok, paint, pick_port, read_json_url, record,
-    records, still_ours, table, wait_for_health, warn)
+    records, still_ours, table, wait_for_json_health, wait_for_ui_ready,
+    warn)
 
 DEFAULT_API_PORT = 8414
 DEFAULT_UI_PORT = 5414
@@ -91,6 +92,50 @@ def obtain_credential(*, allow_prompt: bool) -> tuple[str, str]:
     except (EOFError, KeyboardInterrupt):
         return "", ""
     return value, "an interactive prompt (not saved)"
+
+
+#: The two variables the V4 frontend process needs, and what reads each.
+#:
+#: `NEXT_PUBLIC_COCKPIT_V4_API` is read by the Cockpit V4 client
+#: (`frontend/src/components/cockpit-v4/client.ts`).
+#: `NEXT_PUBLIC_API_URL` is read by the application SHELL and the generic
+#: client (`frontend/src/lib/api.ts`), which falls back to
+#: `http://127.0.0.1:8000` when it is unset.
+UI_API_VARIABLES: tuple[str, ...] = ("NEXT_PUBLIC_COCKPIT_V4_API",
+                                     "NEXT_PUBLIC_API_URL")
+
+#: The default the generic client uses when told nothing. Never V4's address,
+#: which is exactly why the launcher has to say so explicitly.
+LEGACY_DEFAULT_API = "http://127.0.0.1:8000"
+
+
+def ui_environment(base: dict[str, str], *, api_port: int,
+                   ui_port: int) -> dict[str, str]:
+    """The environment for the V4 frontend process.
+
+    Both API variables are set, and both to the port this launcher ACTUALLY
+    selected -- not the proposed one. A busy 8414 means the API is somewhere
+    else, and a UI told otherwise is worse than a UI that did not start.
+
+    Setting only the Cockpit variable was the defect: the V4 Cockpit talked to
+    the V4 API while the header, the backend-status badge and every
+    landing-page widget kept talking to `http://127.0.0.1:8000` — a backend
+    this instance never started. Half the page then reported a system that was
+    not there.
+
+    This is scoped to the child process. Nothing here edits `lib/api.ts`, so
+    every other CreditProbe instance keeps the default it has today.
+    """
+    api_url = f"http://127.0.0.1:{int(api_port)}"
+    if api_url == LEGACY_DEFAULT_API:
+        # Not reachable through `pick_port`, but the invariant is worth
+        # stating where it would break rather than discovering it live.
+        raise ValueError(
+            f"the V4 API resolved to {api_url}, which is the generic "
+            f"client's legacy default. V4 must run on its own port.")
+    return {**base,
+            **{name: api_url for name in UI_API_VARIABLES},
+            "PORT": str(int(ui_port))}
 
 
 def already_running(runtime_dir: Path) -> list[Owned]:
@@ -254,7 +299,8 @@ def main() -> int:
         command=" ".join(api_command), cwd=str(ROOT), port=api_port,
         url=f"http://127.0.0.1:{api_port}"))
 
-    healthy, detail = wait_for_health(f"http://127.0.0.1:{api_port}/health")
+    healthy, detail = wait_for_json_health(
+        f"http://127.0.0.1:{api_port}/health")
     if not healthy:
         print(bad(f"the API did not become healthy: {detail}"))
         print(f"  log: {logs / 'api.log'}")
@@ -268,9 +314,8 @@ def main() -> int:
         ui_log = (logs / "ui.log").open("a", encoding="utf-8")
         ui_command = ["npm", "run", "dev", "--", "--port", str(ui_port),
                       "--hostname", "127.0.0.1"]
-        ui_env = {**environment,
-                  "NEXT_PUBLIC_COCKPIT_V4_API": f"http://127.0.0.1:{api_port}",
-                  "PORT": str(ui_port)}
+        ui_env = ui_environment(environment, api_port=api_port,
+                                ui_port=ui_port)
         try:
             ui = subprocess.Popen(ui_command, cwd=str(ui_dir), env=ui_env,
                                   stdout=ui_log, stderr=subprocess.STDOUT,
@@ -284,18 +329,25 @@ def main() -> int:
                 name="ui", pid=ui.pid, started_at=time.time(),
                 command=" ".join(ui_command), cwd=str(ui_dir), port=ui_port,
                 url=f"http://127.0.0.1:{ui_port}"))
-            healthy, detail = wait_for_health(
-                f"http://127.0.0.1:{ui_port}/", timeout_seconds=90)
+            # The root page serves HTML. Decoding it as JSON was reporting a
+            # healthy UI as failed until the timeout expired.
+            healthy, detail = wait_for_ui_ready(
+                f"http://127.0.0.1:{ui_port}/", timeout_seconds=120)
             if healthy:
-                print(ok(f"UI ready on http://127.0.0.1:{ui_port}"))
-                url = f"http://127.0.0.1:{ui_port}/ask"
+                print(ok(f"UI ready on http://127.0.0.1:{ui_port} ({detail})"))
+                url = f"http://127.0.0.1:{ui_port}/"
             else:
-                print(warn(f"the UI did not become ready ({detail}). The API "
+                print(warn(f"the UI did not become ready: {detail}. The API "
                            f"is running; log: {logs / 'ui.log'}"))
 
     heading("Cockpit V4 · ready")
     table([("open this", url),
            ("api", f"http://127.0.0.1:{api_port}"),
+           ("UI -> V4 API", (f"http://127.0.0.1:{api_port}"
+                             if not args.no_ui else "(UI not started)")),
+           ("UI -> shell API", (f"http://127.0.0.1:{api_port}"
+                                if not args.no_ui else "(UI not started)")),
+           ("shell health", f"http://127.0.0.1:{api_port}/api/v1/health"),
            ("diagnostics",
             f"http://127.0.0.1:{api_port}/api/v1/cockpit-v4/diagnostics"),
            ("release", args.release),

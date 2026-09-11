@@ -71,7 +71,7 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python3 -m pytest tests/cockpit_v4 -q
 
 | tests collected | passed | failures | errors | skipped | elapsed |
 |---:|---:|---:|---:|---:|---:|
-| 138 | 138 | 0 | 0 | 0 | ~6.5 s |
+| 167 | 167 | 0 | 0 | 0 | ~8.2 s |
 
 Frontend reducer:
 
@@ -82,7 +82,16 @@ cd frontend && node --test --experimental-strip-types \
 
 | tests | pass | fail |
 |---:|---:|---:|
-| 9 | 9 | 0 |
+| 23 | 23 | 0 |
+
+Run as:
+
+```
+cd frontend && node --test --experimental-strip-types \
+  "src/components/cockpit-v4/reducer.test.ts" \
+  "src/components/cockpit-v4/client.test.ts" \
+  "src/components/system/runtime-surfaces.test.ts"
+```
 
 ## Defects found and fixed while testing
 
@@ -96,6 +105,15 @@ Each was found by a test that failed for the right reason, not by review:
 | 4 | `NO_PROGRESS` ended the run instead of rejecting that submission. | Work that had already succeeded was thrown away. |
 | 5 | A corrupt state database raised a raw `sqlite3.DatabaseError`. | An unclassified internal failure instead of the declared `STORAGE_UNAVAILABLE`, sending an operator to the wrong place. |
 | 6 | The loopback demo principal used a hard-coded tenant that the seeded release does not contain. | Every analysis would read zero rows — "the portfolio is empty" rather than "wrong tenant". Found by the real-socket run. |
+
+### Second round — the launcher/frontend wiring
+
+| # | Defect | Consequence had it shipped |
+|---|---|---|
+| 7 | The launcher set `NEXT_PUBLIC_COCKPIT_V4_API` but not `NEXT_PUBLIC_API_URL`. | The Cockpit talked to the V4 API while the header, the status badge and every landing-page widget talked to `http://127.0.0.1:8000` — a backend the V4 instance never starts. |
+| 8 | The V4 API served no `/api/v1/health`, so pointing the shell at it produced a 404. | The header rendered **"Backend offline"** while V4 was answering every request — the status indicator lying about the service next to it. |
+| 9 | `wait_for_health` JSON-decoded the UI's root page, which serves HTML. | The decode raised, was swallowed as "not ready yet", and a healthy UI was reported as failed until the timeout expired. |
+| 10 | The V4 client resolved an unset address to `""` (same origin). | A silent wrong address rather than a stated one. It now has no default at all. |
 
 Two design rules were also refined because a test showed the original was
 wrong, not because a test was inconvenient:

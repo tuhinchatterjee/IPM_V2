@@ -138,6 +138,10 @@ def create_app(cfg: config_mod.V4Config | None = None, *,
     routes.install(store=store, runtime=holder,
                    principal_resolver=resolver, startup_sha=sha)
     app.include_router(routes.router)
+    # The shell's status indicator polls /api/v1/health. Serving
+    # it here is what stops the header reporting the whole
+    # backend as offline when it is pointed at V4.
+    app.include_router(routes.compat_router)
 
     app.state.cockpit_v4 = {
         "config": cfg, "store": store, "runtime": runtime,

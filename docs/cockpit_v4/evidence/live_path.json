@@ -6,14 +6,14 @@
   "health": {
     "ok": true,
     "service": "cockpit-v4",
-    "startup_sha": "0e90274a33187bb6a9361cb034d529f6a64f3a07",
+    "startup_sha": "6e34b05d3c976c172a37e596f606f435d43b23f2",
     "preflight_error": "CAPABILITY_UNVERIFIED: COCKPIT_V4_PRICE_CARD is not set, so no paid request can be reserved against a verified price.",
     "api_port": 8414
   },
   "diagnostics": {
     "route": "cockpit_v4",
     "enabled": true,
-    "startup_sha": "0e90274a33187bb6a9361cb034d529f6a64f3a07",
+    "startup_sha": "6e34b05d3c976c172a37e596f606f435d43b23f2",
     "credential": "MISSING",
     "settings": {
       "enabled": true,
@@ -123,24 +123,24 @@
   },
   "intake": {
     "status_code": 202,
-    "elapsed_ms": 67,
+    "elapsed_ms": 63,
     "body": {
-      "run_id": "run-8bd25c547eac4e14a740fb99b72f6b1f",
-      "thread_id": "th-708c379374de4ab4a58f40a9653f97d0",
+      "run_id": "run-17134fb3f56b4f959e3d7e6842d9917f",
+      "thread_id": "th-ca54177aca734169942b0e4eb5c5c287",
       "state": "ACCEPTED",
       "mode": "standard",
       "release_id": "v4-uat-20q-v1",
       "duplicate": false,
-      "status_url": "/api/v1/cockpit-v4/runs/run-8bd25c547eac4e14a740fb99b72f6b1f",
-      "events_url": "/api/v1/cockpit-v4/runs/run-8bd25c547eac4e14a740fb99b72f6b1f/events",
-      "cancel_url": "/api/v1/cockpit-v4/runs/run-8bd25c547eac4e14a740fb99b72f6b1f/cancel",
+      "status_url": "/api/v1/cockpit-v4/runs/run-17134fb3f56b4f959e3d7e6842d9917f",
+      "events_url": "/api/v1/cockpit-v4/runs/run-17134fb3f56b4f959e3d7e6842d9917f/events",
+      "cancel_url": "/api/v1/cockpit-v4/runs/run-17134fb3f56b4f959e3d7e6842d9917f/cancel",
       "note": "Accepted means durable and claimable. It does not mean answered."
     }
   },
   "run_ead_by_sector": {
-    "run_id": "run-8bd25c547eac4e14a740fb99b72f6b1f",
-    "first_visible_event_ms": 144,
-    "answer_ready_ms": 2982,
+    "run_id": "run-17134fb3f56b4f959e3d7e6842d9917f",
+    "first_visible_event_ms": 145,
+    "answer_ready_ms": 3583,
     "progress_arrived_before_the_answer": true,
     "distinct_stages_seen": [
       "accepted",
@@ -152,141 +152,141 @@
     ],
     "frames": [
       {
-        "at_ms": 144,
+        "at_ms": 145,
         "type": "run.accepted",
         "seq": 1,
         "stage": "accepted",
         "message": "Request accepted \u00b7 release v4-uat-20q-v1"
       },
       {
-        "at_ms": 551,
+        "at_ms": 1157,
         "type": "run.started",
         "seq": 2,
         "stage": "accepted",
         "message": "Working on your question."
       },
       {
-        "at_ms": 551,
+        "at_ms": 1157,
         "type": "context.ready",
         "seq": 3,
         "stage": "accepted",
         "message": "Authorized context assembled."
       },
       {
-        "at_ms": 551,
+        "at_ms": 1157,
         "type": "model.requested",
         "seq": 4,
         "stage": "understanding",
         "message": "Understanding the request"
       },
       {
-        "at_ms": 1563,
+        "at_ms": 2167,
         "type": "heartbeat"
       },
       {
-        "at_ms": 1766,
+        "at_ms": 2370,
         "type": "model.response_received",
         "seq": 5,
         "stage": "understanding",
         "message": "Response received."
       },
       {
-        "at_ms": 1766,
+        "at_ms": 2370,
         "type": "model.parsed",
         "seq": 6,
         "stage": "understanding",
         "message": "Next action: execute_analysis."
       },
       {
-        "at_ms": 1766,
+        "at_ms": 2370,
         "type": "tool.requested",
         "seq": 7,
         "stage": "preparing",
         "message": "Preparing query"
       },
       {
-        "at_ms": 1766,
+        "at_ms": 2370,
         "type": "intent.validated",
         "seq": 8,
         "stage": "understanding",
         "message": "Portfolio analysis \u00b7 owned by Cockpit"
       },
       {
-        "at_ms": 1766,
+        "at_ms": 2370,
         "type": "tool.validated",
         "seq": 9,
         "stage": "validating",
         "message": "Query validated: 1 step(s), sector grain, INR crore."
       },
       {
-        "at_ms": 1767,
+        "at_ms": 2370,
         "type": "tool.started",
         "seq": 10,
         "stage": "executing",
         "message": "Executing EAD by sector"
       },
       {
-        "at_ms": 1767,
+        "at_ms": 2370,
         "type": "tool.completed",
         "seq": 11,
         "stage": "executing",
         "message": "EAD by sector: 11 row(s)."
       },
       {
-        "at_ms": 1767,
+        "at_ms": 2370,
         "type": "model.requested",
         "seq": 12,
         "stage": "understanding",
         "message": "Preparing the next action"
       },
       {
-        "at_ms": 2779,
+        "at_ms": 3380,
         "type": "heartbeat"
       },
       {
-        "at_ms": 2982,
+        "at_ms": 3583,
         "type": "model.response_received",
         "seq": 13,
         "stage": "understanding",
         "message": "Response received."
       },
       {
-        "at_ms": 2982,
+        "at_ms": 3583,
         "type": "model.parsed",
         "seq": 14,
         "stage": "understanding",
         "message": "Next action: finalize_response."
       },
       {
-        "at_ms": 2982,
+        "at_ms": 3583,
         "type": "tool.requested",
         "seq": 15,
         "stage": "publishing",
         "message": "Validating and publishing answer"
       },
       {
-        "at_ms": 2982,
+        "at_ms": 3583,
         "type": "intent.validated",
         "seq": 16,
         "stage": "understanding",
         "message": "Portfolio analysis \u00b7 owned by Cockpit"
       },
       {
-        "at_ms": 2982,
+        "at_ms": 3583,
         "type": "answer.validated",
         "seq": 17,
         "stage": "publishing",
         "message": "Answer checked against 1 evidence-bound value(s)."
       },
       {
-        "at_ms": 2982,
+        "at_ms": 3583,
         "type": "answer.ready",
         "seq": 18,
         "stage": "publishing",
         "message": "Answer ready."
       },
       {
-        "at_ms": 2983,
+        "at_ms": 3584,
         "type": "run.settled",
         "seq": null,
         "stage": null,
@@ -301,7 +301,7 @@
         "decimal_value": "5231.577413502459",
         "unit": "INR crore",
         "evidence": {
-          "artifact_id": "art-58564b680a4540d2",
+          "artifact_id": "art-8d6e5469e1e14f58",
           "row_key": "sector_name=Information Technology",
           "column_id": "ead_reported_crore"
         },
@@ -310,8 +310,8 @@
     ],
     "budget": {
       "mode": "standard",
-      "elapsed_seconds": 2.876,
-      "remaining_seconds": 57.124,
+      "elapsed_seconds": 3.432,
+      "remaining_seconds": 56.568,
       "generation_attempts": [
         2,
         12
@@ -380,10 +380,23 @@
     "starts_after_cursor": true,
     "no_new_run_created": true
   },
+  "shell_health": {
+    "status_code": 200,
+    "headline": "ok",
+    "app": "CreditProbe Cockpit V4",
+    "reported_offline": false,
+    "v4_api_component": "ok",
+    "optional_surfaces_absent": [
+      "cockpit_v4_python_runner",
+      "legacy_dashboard_api"
+    ],
+    "legacy_dashboard_status": "not_configured",
+    "note": "A 200 with a headline of ok/degraded is what stops the shell reporting the whole backend as offline. The absent optional surfaces are named rather than hidden."
+  },
   "cancellation": {
-    "run_id": "run-f543203269e040afaa050132688d9104",
+    "run_id": "run-27057cd384384ed6a2da80477f64bc3f",
     "cancel_response": {
-      "run_id": "run-f543203269e040afaa050132688d9104",
+      "run_id": "run-27057cd384384ed6a2da80477f64bc3f",
       "state": "MODEL_RUNNING",
       "cancelled": true
     },

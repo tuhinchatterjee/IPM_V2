@@ -13,6 +13,7 @@ import {
   type ComponentStatus,
   type HealthResponse,
 } from "@/lib/api";
+import { partialRuntimeLabel } from "./runtime-surfaces";
 
 const POLL_INTERVAL_MS = 20_000;
 
@@ -105,15 +106,33 @@ export function BackendStatusIndicator() {
   }
 
   const { status, version } = state.health;
+  const partial = partialRuntimeLabel(state.health);
   const Icon =
-    status === "ok" ? CheckCircle2 : status === "degraded" ? AlertTriangle : XCircle;
+    status === "ok"
+      ? partial
+        ? AlertTriangle
+        : CheckCircle2
+      : status === "degraded"
+        ? AlertTriangle
+        : XCircle;
   const tone =
-    status === "ok" ? "text-positive" : status === "degraded" ? "text-warning" : "text-negative";
+    status === "ok"
+      ? partial
+        ? "text-text-secondary"
+        : "text-positive"
+      : status === "degraded"
+        ? "text-warning"
+        : "text-negative";
 
   return (
-    <span className={cn("inline-flex items-center gap-2 text-xs font-medium", tone)}>
+    <span
+      className={cn("inline-flex items-center gap-2 text-xs font-medium", tone)}
+      title={partial ?? undefined}
+    >
       <Icon className="size-3.5" aria-hidden />
-      {status === "ok" ? "All systems operational" : `Backend ${status}`}
+      {status === "ok"
+        ? (partial ?? "All systems operational")
+        : `Backend ${status}`}
       <span className="font-normal text-text-muted">v{version}</span>
     </span>
   );
@@ -197,6 +216,14 @@ export function BackendStatusPanel() {
             </div>
           );
         })}
+        {partialRuntimeLabel(health) ? (
+          <p className="pt-2 text-xs text-text-secondary">
+            This instance is reachable and serving {health.app}. The surfaces
+            marked &ldquo;Not configured&rdquo; above are served by the main
+            CreditProbe backend and are not part of this runtime — they are not
+            a fault in the service that is answering.
+          </p>
+        ) : null}
         <p className="pt-2 text-xs text-text-muted">
           {health.phase} · environment: {health.environment} · re-checked every{" "}
           {POLL_INTERVAL_MS / 1000}s

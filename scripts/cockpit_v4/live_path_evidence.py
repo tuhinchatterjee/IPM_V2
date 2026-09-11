@@ -306,6 +306,30 @@ def main() -> int:
                         timeout=10).json()
     time.sleep(4.0)
     settled = httpx.get(f"{P}/runs/{second['run_id']}", timeout=10).json()
+    # ---- the shell's view of this runtime -----------------------------
+    # The defect this captures: with the shell pointed at the V4 API and no
+    # compatible health route, the header rendered "Backend offline" while V4
+    # was answering every request.
+    shell = httpx.get(f"{base}/api/v1/health", timeout=10)
+    shell_body = shell.json() if shell.status_code == 200 else {}
+    components = {c["name"]: c for c in shell_body.get("components", [])}
+    optional_absent = [name for name, c in components.items()
+                       if c.get("data", {}).get("optional")
+                       and c["status"] != "ok"]
+    evidence["shell_health"] = {
+        "status_code": shell.status_code,
+        "headline": shell_body.get("status"),
+        "app": shell_body.get("app"),
+        "reported_offline": shell.status_code != 200,
+        "v4_api_component": components.get("cockpit_v4_api", {}).get("status"),
+        "optional_surfaces_absent": optional_absent,
+        "legacy_dashboard_status": components.get(
+            "legacy_dashboard_api", {}).get("status"),
+        "note": ("A 200 with a headline of ok/degraded is what stops the "
+                 "shell reporting the whole backend as offline. The absent "
+                 "optional surfaces are named rather than hidden."),
+    }
+
     evidence["cancellation"] = {
         "run_id": second["run_id"], "cancel_response": cancel,
         "terminal_state": settled["state"],
@@ -326,6 +350,11 @@ def main() -> int:
     print(f"  terminal state        {run1['terminal_state']}")
     print(f"  reconnect replay      {evidence['reconnect']['replayed_seqs']}")
     print(f"  cancellation          {evidence['cancellation']['terminal_state']}")
+    shell_ev = evidence["shell_health"]
+    print(f"  shell /api/v1/health  HTTP {shell_ev['status_code']} · "
+          f"headline {shell_ev['headline']} · offline="
+          f"{shell_ev['reported_offline']}")
+    print(f"  optional absent       {shell_ev['optional_surfaces_absent']}")
     print(f"  written to            {out}")
     server.should_exit = True
     return 0

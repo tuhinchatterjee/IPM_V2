@@ -224,26 +224,125 @@ def still_ours(owned: Owned, *, tolerance_seconds: float = 5.0
     return True, "ours"
 
 
-def wait_for_health(url: str, *, timeout_seconds: float = 45.0
-                    ) -> tuple[bool, str]:
-    """Bounded readiness. A startup failure is visible, not a silent hang."""
+#: Markers that identify a served page as THIS application's shell rather
+#: than a proxy error page, a parked domain or a different app on a reused
+#: port. Any one of them is enough; all three would be brittle across Next
+#: versions, and none would accept anything that returned 200.
+UI_IDENTITY_MARKERS: tuple[str, ...] = ("CreditProbe", "/_next/", "__next")
+
+
+def _fetch(url: str, timeout: float = 3.0) -> tuple[int, str, str]:
+    """Return (status, body, error). Never raises, never parses."""
     import urllib.error
     import urllib.request
 
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
+            raw = response.read()
+            charset = (response.headers.get_content_charset()
+                       or "utf-8") if hasattr(response, "headers") else "utf-8"
+            return int(response.status), raw.decode(charset, "replace"), ""
+    except urllib.error.HTTPError as exc:
+        try:
+            body = exc.read().decode("utf-8", "replace")
+        except Exception:  # noqa: BLE001
+            body = ""
+        return int(exc.code), body, f"HTTP {exc.code}"
+    except Exception as exc:  # noqa: BLE001
+        return 0, "", str(exc)[:160]
+
+
+def wait_for_json_health(url: str, *, timeout_seconds: float = 45.0
+                         ) -> tuple[bool, Any]:
+    """Bounded readiness for a JSON health endpoint.
+
+    Used ONLY where the endpoint actually returns JSON. Pointing this at a
+    page that serves HTML is the bug this function was split to prevent: the
+    decode raised, the exception was swallowed as "not ready yet", and a
+    perfectly healthy UI was reported as failed until the timeout expired.
+    """
+    deadline = time.time() + timeout_seconds
+    last: Any = "no response yet"
+    while time.time() < deadline:
+        status, body, error = _fetch(url)
+        if error and status == 0:
+            last = error
+        elif 200 <= status < 300:
+            try:
+                return True, json.loads(body)
+            except json.JSONDecodeError:
+                # A 2xx that is not JSON is a real mismatch, not a retry: the
+                # caller asked for a JSON endpoint and got something else.
+                return False, (
+                    f"{url} returned HTTP {status} but the body is not JSON "
+                    f"({body[:80]!r}...). This is the wrong kind of endpoint "
+                    f"for a JSON health check.")
+        else:
+            last = f"HTTP {status}"
+        time.sleep(0.5)
+    return False, last
+
+
+def check_ui_page(body: str, status: int) -> tuple[bool, str]:
+    """Is this a served CreditProbe page? Identity, not merely a 200."""
+    if not 200 <= status < 300:
+        return False, f"HTTP {status}"
+    if not body.strip():
+        return False, f"HTTP {status} with an empty body"
+    lowered = body.lower()
+    if "<html" not in lowered and "<!doctype html" not in lowered:
+        return False, (f"HTTP {status} but the body is not an HTML document "
+                       f"({body[:60]!r}...)")
+    found = [m for m in UI_IDENTITY_MARKERS if m.lower() in lowered]
+    if not found:
+        return False, (
+            f"HTTP {status} served HTML, but nothing in it identifies the "
+            f"CreditProbe UI. Something else may be answering on this port.")
+    return True, f"HTTP {status}, identified by {found[0]}"
+
+
+def wait_for_ui_ready(url: str, *, timeout_seconds: float = 90.0
+                      ) -> tuple[bool, str]:
+    """Bounded readiness for the Next.js UI.
+
+    Validates an HTTP 2xx AND that the page is recognisably this application.
+    It does NOT parse the body as JSON -- the root page is HTML, and treating
+    a decode failure as "not ready" is how a working UI gets reported as
+    broken.
+
+    A dev server compiles the first request, so a slow first response is
+    normal and the timeout is generous. A 500 or a page with no CreditProbe
+    identity is reported immediately rather than waited out: neither becomes
+    correct by trying again.
+    """
     deadline = time.time() + timeout_seconds
     last = "no response yet"
     while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(url, timeout=3) as response:
-                if response.status == 200:
-                    return True, json.loads(response.read().decode("utf-8"))
-                last = f"HTTP {response.status}"
-        except urllib.error.HTTPError as exc:
-            last = f"HTTP {exc.code}"
-        except Exception as exc:  # noqa: BLE001
-            last = str(exc)[:120]
+        status, body, error = _fetch(url, timeout=10.0)
+        if status == 0:
+            # Not listening yet. The expected state while it boots.
+            last = error or "connection refused"
+        else:
+            ok, detail = check_ui_page(body, status)
+            if ok:
+                return True, detail
+            if 500 <= status < 600:
+                return False, (
+                    f"the UI answered with {detail}. A server error does not "
+                    f"become correct by waiting; see the UI log.")
+            last = detail
         time.sleep(0.5)
     return False, last
+
+
+def wait_for_health(url: str, *, timeout_seconds: float = 45.0
+                    ) -> tuple[bool, Any]:
+    """Deprecated alias for `wait_for_json_health`.
+
+    Kept so nothing that already imports it silently changes meaning. New
+    callers pick the one that matches what the endpoint actually serves.
+    """
+    return wait_for_json_health(url, timeout_seconds=timeout_seconds)
 
 
 def read_json_url(url: str, timeout: float = 5.0) -> dict[str, Any] | None:
@@ -261,7 +360,9 @@ def table(rows: list[tuple[str, str]], *, width: int = 30) -> None:
         print(f"  {label.ljust(width)} {value}")
 
 
-__all__ = ["Owned", "ROOT", "bad", "describe_port", "forget", "heading", "ok",
-           "paint", "pick_port", "port_free", "process_command",
-           "process_cwd", "process_start_time", "read_json_url", "record",
-           "records", "still_ours", "table", "wait_for_health", "warn"]
+__all__ = ["Owned", "ROOT", "UI_IDENTITY_MARKERS", "bad", "check_ui_page",
+           "describe_port", "forget", "heading", "ok", "paint",
+           "pick_port", "port_free", "process_command", "process_cwd",
+           "process_start_time", "read_json_url", "record", "records",
+           "still_ours", "table", "wait_for_health",
+           "wait_for_json_health", "wait_for_ui_ready", "warn"]
