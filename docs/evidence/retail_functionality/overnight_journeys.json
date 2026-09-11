@@ -2,7 +2,7 @@
   "suite": "overnight_journeys",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 176.2,
+  "elapsed_seconds": 192.8,
   "counts": {
     "PASS": 23,
     "FAIL": 0,
@@ -92,7 +92,7 @@
       "module": "journeys",
       "title": "The conversation became an investigation that Investigations lists",
       "status": "PASS",
-      "detail": "50 investigations listed; the thread was http://localhost:5328/investigations/264?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit",
+      "detail": "50 investigations listed; the thread was http://localhost:5328/investigations/367?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit",
       "expected": null,
       "actual": null,
       "evidence": {},
@@ -104,7 +104,7 @@
       "module": "journeys",
       "title": "Reopening carries the whole conversation",
       "status": "PASS",
-      "detail": "the reopened thread renders 10531 characters",
+      "detail": "the reopened thread renders 6964 characters",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -217,7 +217,7 @@
       "actual": null,
       "evidence": {
         "question": "Increase personal-finance PD by 20% relative.",
-        "answer": "\n\nRead as: personal only; PD +20% relative.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 10,161,669\nCHANGE\nSAR 1,167,657 (+12.98%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 10.16m\tSAR 1.17m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (9)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV",
+        "answer": "\n\nRead as: personal only; PD +20% relative.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 10,161,669\nCHANGE\nSAR 1,167,657 (+12.98%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 10.16m\tSAR 1.17m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 te",
         "screenshot": "docs/evidence/retail_functionality/screens/jc-02.png"
       },
       "seconds": 0.0,
@@ -233,7 +233,7 @@
       "actual": null,
       "evidence": {
         "question": "Only salary-transfer customers.",
-        "answer": "\n\nCreditProbe could not read a change in that. A What-If needs something to move and by how much \u2014 running it as written would recompute the published book unchanged and report it as your scenario. Pick one of these, or say what to move and by how much.\n\nIncrease PD by 20% relative\nAdd 2 percentage points to PD\nIncrease LGD by 10% relative\nMove card utilisation up 10 percentage points\nCut verified income by 10%\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nRe",
+        "answer": "\n\nCreditProbe could not read a change in that. A What-If needs something to move and by how much \u2014 running it as written would recompute the published book unchanged and report it as your scenario. Pick one of these, or say what to move and by how much.\n\nIncrease PD by 20% relative\nAdd 2 percentage points to PD\nIncrease LGD by 10% relative\nMove card utilisation up 10 percentage points\nCut verified income by 10%\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCS",
         "screenshot": "docs/evidence/retail_functionality/screens/jc-03.png"
       },
       "seconds": 0.0,
@@ -249,7 +249,7 @@
       "actual": null,
       "evidence": {
         "question": "Explain the ECL impact.",
-        "answer": "\n\nExpected credit loss rose from SAR 8,994,012 to SAR 10,161,669 \u2014 a change of SAR 1,167,657 (+12.98%).\n\nThe population is product_code=PERSONAL_LOAN, 7,761 facilities held by 6,781 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 1,167,657.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (9)\n2026-08\nSA",
+        "answer": "\n\nExpected credit loss rose from SAR 8,994,012 to SAR 10,161,669 \u2014 a change of SAR 1,167,657 (+12.98%).\n\nThe population is product_code=PERSONAL_LOAN, 7,761 facilities held by 6,781 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 1,167,657.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,99",
         "screenshot": "docs/evidence/retail_functionality/screens/jc-04.png"
       },
       "seconds": 0.0,
@@ -260,7 +260,7 @@
       "module": "journeys",
       "title": "The scenario saves under a name this suite owns",
       "status": "PASS",
-      "detail": "saved as 'UAT journey 204448'=True",
+      "detail": "saved as 'UAT journey 230357'=True",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -274,7 +274,7 @@
       "module": "journeys",
       "title": "Leaving the module and reopening from Recent Runs brings back the scenario as it ran",
       "status": "PASS",
-      "detail": "reopened 'UAT journey 204448'=True",
+      "detail": "reopened 'UAT journey 230357'=True",
       "expected": null,
       "actual": null,
       "evidence": {

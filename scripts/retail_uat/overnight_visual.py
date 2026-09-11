@@ -149,7 +149,10 @@ def axis_labels(s: Session) -> list[str]:
     charts = s.page.query_selector_all(CHART)
     if not charts:
         return []
-    return [(t.inner_text() or "").strip()
+    # `text_content`, not `inner_text`: an SVG <text> node is not an
+    # HTMLElement, and asking it for inner text raised inside the suite —
+    # which ended the run with a crash where an axis reading belonged.
+    return [(t.text_content() or "").strip()
             for t in charts[-1].query_selector_all("text")]
 
 
@@ -250,24 +253,45 @@ def suite(s: Session, rec: Recorder) -> None:
               question=question, answer=answer[:700],
               screenshot=s.shot(cid.lower()))
 
-    drawn_expected = [
-        ("CHT-04", "Show the 25-month weighted ECL trend for credit cards.",
-         "a 25-month trend"),
+    # A chart that OPENS, for the one shape where the picture is the point.
+    before = charted(s)
+    answer, took = ask(s, "Show the 25-month weighted ECL trend for credit "
+                          "cards.")
+    timings["25-month trend"] = round(took, 1)
+    s.settle_for(lambda: charted(s) > before, seconds=30)
+    _case(rec, "CHT-04", "A chart OPENS for a 25-month trend",
+          bool(answer) and charted(s) > before,
+          f"answered={bool(answer)}; charts before={before} after="
+          f"{charted(s)}", answer=answer[:700], screenshot=s.shot("cht-04"))
+
+    # A chart that is OFFERED, for the shapes the product deliberately leads
+    # with a table.
+    #
+    # "Show expected credit loss by product" asks to be SHOWN rows, and the
+    # visualisation gate says so on the answer: "the question asked for rows,
+    # so the table is the answer and a bar chart is offered beside it". That
+    # is a considered rule with four products in the table and the chart one
+    # click away, and this suite asserted the opposite — that the chart must
+    # pre-empt the table — which would have had the product change a decision
+    # it states and defends.
+    offered = [
         ("CHT-05", "Show expected credit loss by product at August 2026.",
          "a product ranking"),
         ("CHT-06", "Break August 2026 exposure into Stage 1, Stage 2 and "
                    "Stage 3.", "a stage composition"),
     ]
-    for cid, question, why in drawn_expected:
-        before = charted(s)
+    for cid, question, why in offered:
         answer, took = ask(s, question)
         timings[question] = round(took, 1)
-        s.settle_for(lambda: charted(s) > before, seconds=30)
-        drawn = charted(s) > before
-        _case(rec, cid, f"A chart is offered for {why}",
-              bool(answer) and drawn,
-              f"answered={bool(answer)}; charts before={before} after="
-              f"{charted(s)}",
+        s.settle_for(lambda: len(s.page.query_selector_all(FRAME)) > 0,
+                     seconds=30)
+        frames = len(s.page.query_selector_all(FRAME))
+        control = any((b.inner_text() or "").strip() == "Chart"
+                      for b in s.page.query_selector_all("main button"))
+        _case(rec, cid, f"A chart is offered beside the table for {why}",
+              bool(answer) and frames > 0 and control,
+              f"answered={bool(answer)}; a chart frame is on screen="
+              f"{frames > 0}; a Chart control is offered={control}",
               question=question, answer=answer[:700],
               screenshot=s.shot(cid.lower()))
 

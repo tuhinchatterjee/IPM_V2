@@ -255,8 +255,14 @@ rather than against the code that produced the answer:
 | `test_ret_overnight_dictionary.py` | 31 |
 | `test_ret_overnight_counts_and_signs.py` | 19 |
 | `test_ret_overnight_migration.py` | 19 |
-| `test_ret_overnight_scale_and_series.py` | 19 |
+| `test_ret_overnight_scale_and_series.py` | 25 |
 | `test_ret_overnight_access_and_methods.py` | 26 |
+| **New tonight** | **163** |
+
+Written earlier on this branch and re-run tonight:
+`test_ret_overnight_metric_route.py` 77, `test_ret_overnight_filters.py` 39,
+`test_ret_overnight_concern.py` 33, `test_ret_overnight_scorecard.py` 33,
+`test_ret_overnight_early_warning.py` 20.
 
 ---
 

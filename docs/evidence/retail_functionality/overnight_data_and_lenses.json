@@ -2,7 +2,7 @@
   "suite": "overnight_data_and_lenses",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 100.2,
+  "elapsed_seconds": 101.5,
   "counts": {
     "PASS": 22,
     "FAIL": 0,
@@ -302,7 +302,7 @@
       "module": "data_and_lenses",
       "title": "The whole metric catalogue lists governed metrics",
       "status": "PASS",
-      "detail": "9903 characters of catalogue on screen",
+      "detail": "9905 characters of catalogue on screen",
       "expected": null,
       "actual": null,
       "evidence": {

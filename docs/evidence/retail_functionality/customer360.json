@@ -2,7 +2,7 @@
   "suite": "customer360",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 72.1,
+  "elapsed_seconds": 81.0,
   "counts": {
     "PASS": 11,
     "FAIL": 0,
