@@ -152,6 +152,9 @@ class Orchestrator:
         except OutputTruncated as exc:
             return self._stop(exc.code, str(exc))
         except ProviderFailure as exc:
+            if exc.code in (st.PROVIDER_REQUEST_INVALID,
+                            st.TOOL_SCHEMA_INVALID):
+                return self._provider_rejected(exc)
             return self._stop(exc.code, str(exc))
         except (StorageUnavailable, LeaseLost, TerminalAlready) as exc:
             # No further paid or executable operation is launched when the
@@ -186,6 +189,26 @@ class Orchestrator:
                                 "from a substitute."))
             return Outcome(st.FAILED, error_code=st.INTERNAL_ERROR,
                            error_id=error_id, message=str(exc)[:300])
+
+    def _provider_rejected(self, exc) -> Outcome:
+        """A malformed request is not a failed answer.
+
+        The panel used to show this at the publishing stage, which reads as
+        "we produced an answer and could not deliver it". Nothing had been
+        produced: the provider refused the request before the model saw it.
+        """
+        detail = dict(getattr(exc, "detail", None) or {})
+        error_id = f"err-{uuid.uuid4().hex[:12]}"
+        self.ledger.cancel()
+        self.emitter.append(
+            ev.RUN_FAILED, stage="understanding",
+            operation="provider_request", status=ev.STATUS_FAILED,
+            error_id=error_id,
+            detail_ref=self._detail({"error_code": exc.code, **detail}),
+            public_message=(
+                f"{str(exc)} Reference {error_id}."))
+        return Outcome(st.FAILED, error_code=exc.code, error_id=error_id,
+                       message=str(exc))
 
     def _stop(self, code: str, message: str) -> Outcome:
         """A mechanical stop, generated from the error record.

@@ -1,0 +1,90 @@
+{
+  "label": "MODEL MOCK \u2014 the assembled request, never sent",
+  "payloads": {
+    "ead_by_sector": {
+      "question": "What is total exposure at default by sector in the latest quarter?",
+      "model": "mock-analyst",
+      "max_tokens": 4096,
+      "system_blocks": 3,
+      "system_bytes": 30028,
+      "message_bytes": 221,
+      "tools": [
+        {
+          "name": "inspect_catalog",
+          "schema_bytes": 3966
+        },
+        {
+          "name": "execute_analysis",
+          "schema_bytes": 4734
+        },
+        {
+          "name": "read_artifact",
+          "schema_bytes": 3088
+        },
+        {
+          "name": "finalize_response",
+          "schema_bytes": 7353
+        }
+      ],
+      "unsupported_schema_keywords": []
+    },
+    "explain_tac": {
+      "question": "Explain TAC.",
+      "model": "mock-analyst",
+      "max_tokens": 4096,
+      "system_blocks": 3,
+      "system_bytes": 30024,
+      "message_bytes": 167,
+      "tools": [
+        {
+          "name": "inspect_catalog",
+          "schema_bytes": 3966
+        },
+        {
+          "name": "inspect_product_knowledge",
+          "schema_bytes": 3049
+        },
+        {
+          "name": "execute_analysis",
+          "schema_bytes": 4734
+        },
+        {
+          "name": "read_artifact",
+          "schema_bytes": 3088
+        },
+        {
+          "name": "finalize_response",
+          "schema_bytes": 7353
+        }
+      ],
+      "unsupported_schema_keywords": []
+    },
+    "who_are_you": {
+      "question": "Who are you?",
+      "model": "mock-analyst",
+      "max_tokens": 4096,
+      "system_blocks": 3,
+      "system_bytes": 30028,
+      "message_bytes": 167,
+      "tools": [
+        {
+          "name": "inspect_catalog",
+          "schema_bytes": 3966
+        },
+        {
+          "name": "execute_analysis",
+          "schema_bytes": 4734
+        },
+        {
+          "name": "read_artifact",
+          "schema_bytes": 3088
+        },
+        {
+          "name": "finalize_response",
+          "schema_bytes": 7353
+        }
+      ],
+      "unsupported_schema_keywords": []
+    }
+  }
+}

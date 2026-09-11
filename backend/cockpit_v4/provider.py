@@ -22,6 +22,7 @@ so every actual HTTP attempt passes through the ledger.
 from __future__ import annotations
 
 import hashlib
+import re
 import json
 import time
 from dataclasses import dataclass, field
@@ -32,7 +33,9 @@ from backend.cockpit_v4.capability import Capability
 from backend.cockpit_v4.states import (COST_LIMIT, INPUT_CONTEXT_LIMIT,
                                        INVALID_MODEL_OUTPUT, OUTPUT_LIMIT,
                                        PROVIDER_AUTH, PROVIDER_RATE_LIMIT,
-                                       PROVIDER_UNAVAILABLE)
+                                       PROVIDER_REQUEST_INVALID,
+                                       PROVIDER_UNAVAILABLE,
+                                       TOOL_SCHEMA_INVALID)
 
 #: Stop reasons that mean the model finished a turn we can act on.
 COMPLETE_STOPS: frozenset[str] = frozenset({"tool_use", "end_turn",
@@ -354,16 +357,72 @@ class Analyst:
         self._pending.clear()
 
 
+#: `tools.0.custom.input_schema` and friends: which tool the provider refused.
+_SCHEMA_PATH = re.compile(r"tools\.(\d+)\.[\w.]*input_schema[\w.]*")
+#: The keywords the provider names when it rejects a tool schema.
+_UNSUPPORTED_KEYWORD = re.compile(
+    r"does not support ([^.;]+)", re.I)
+#: Anything that looks like a key. Never echoed into a message.
+_SECRETISH = re.compile(r"(sk-[A-Za-z0-9_\-]{8,}|Bearer\s+\S+)")
+
+
+def _sanitize(text: str) -> str:
+    return _SECRETISH.sub("[redacted]", text)
+
+
 def _classify(exc: Exception) -> ProviderFailure:
-    """Map a transport exception to the code an operator can act on."""
+    """Map a transport exception to the code an operator can act on.
+
+    The distinction that matters most here is between "the provider could not
+    be reached" and "the provider answered, and what it said was that our
+    request was malformed". A live UAT showed PROVIDER_UNAVAILABLE for an
+    HTTP 400 naming an unsupported tool-schema keyword — so an operator went
+    looking for an outage while the actual fault was in the schema
+    CreditProbe published, and nothing in the trace said the request had been
+    rejected BEFORE any inference.
+    """
     text = str(exc)
     lowered = text.lower()
     name = type(exc).__name__.lower()
+
+    is_400 = ("400" in text or "invalid_request_error" in lowered
+              or "badrequest" in name)
+    if is_400:
+        schema_path = _SCHEMA_PATH.search(text)
+        keyword = _UNSUPPORTED_KEYWORD.search(text)
+        detail = {
+            "status_code": 400,
+            "provider_error_type": "invalid_request_error",
+            "rejected_before_inference": True,
+            "provider_message": _sanitize(text)[:400],
+        }
+        if schema_path:
+            detail["failing_schema_path"] = schema_path.group(0)
+            detail["failing_tool_index"] = int(schema_path.group(1))
+        if keyword:
+            detail["unsupported_keywords"] = [
+                k.strip() for k in keyword.group(1).split(",") if k.strip()]
+        if schema_path or "input_schema" in lowered or "tools." in lowered:
+            return ProviderFailure(
+                TOOL_SCHEMA_INVALID,
+                "CreditProbe sent a tool definition this provider does not "
+                "accept, so the request was rejected before the model saw "
+                "it. Nothing was inferred, nothing was billed for inference, "
+                "and no other model was tried.",
+                retry_class="none", detail=detail)
+        return ProviderFailure(
+            PROVIDER_REQUEST_INVALID,
+            "The provider rejected this request as malformed before running "
+            "it. This is a fault in what CreditProbe sent, not an outage.",
+            retry_class="none", detail=detail)
+
     if "authentication" in lowered or "401" in text or "invalid api key" in lowered:
         return ProviderFailure(
             PROVIDER_AUTH,
             "the provider rejected this deployment's Cockpit credential. No "
-            "other credential was tried.", retry_class="none")
+            "other credential was tried.", retry_class="none",
+            detail={"status_code": 401,
+                    "rejected_before_inference": True})
     if "permission" in lowered or "403" in text:
         return ProviderFailure(
             PROVIDER_AUTH,
@@ -372,7 +431,10 @@ def _classify(exc: Exception) -> ProviderFailure:
     if "rate" in lowered and "limit" in lowered or "429" in text:
         return ProviderFailure(
             PROVIDER_RATE_LIMIT,
-            "the provider rate-limited this request.", retry_class="transport")
+            "the provider rate-limited this request.",
+            retry_class="transport",
+            detail={"status_code": 429,
+                    "rejected_before_inference": True})
     if ("timeout" in lowered or "timed out" in name or "connection" in lowered
             or "503" in text or "502" in text or "overloaded" in lowered):
         return ProviderFailure(
@@ -381,7 +443,10 @@ def _classify(exc: Exception) -> ProviderFailure:
             retry_class="transport")
     return ProviderFailure(
         PROVIDER_UNAVAILABLE,
-        f"the provider request failed: {text[:200]}", retry_class="none")
+        f"the provider request failed: {_sanitize(text)[:200]}",
+        retry_class="none",
+        detail={"provider_exception_type": type(exc).__name__,
+                "rejected_before_inference": False})
 
 
 def code_digest(code: str) -> str:
