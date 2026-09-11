@@ -399,8 +399,29 @@ CREDIT_CONCERN = Composite(
 # Deterioration sits between them for the same reason: "which names are
 # weakening?" asks what has GOT WORSE, which is a narrower claim than the
 # general concern ranking and reads different columns.
-COMPOSITES: tuple[Composite, ...] = (LIQUIDITY_STRESS, DETERIORATION,
-                                     CREDIT_CONCERN)
+CORPORATE_COMPOSITES: tuple[Composite, ...] = (LIQUIDITY_STRESS,
+                                               DETERIORATION, CREDIT_CONCERN)
+
+
+def _served() -> tuple[Composite, ...]:
+    """The composites THIS installation's book can actually constitute.
+
+    Every signal above names `portfolio_facility` — a corporate dataset this
+    installation does not hold — so under the retail profile all three
+    degraded to nothing and "what needs my attention in the retail portfolio
+    this month?", the most likely opening question in a demonstration, was
+    answered "CreditProbe has no governed data about what that asks for".
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return CORPORATE_COMPOSITES
+    from backend.retail import concern
+
+    return concern.composites(Composite, Signal, ABOVE, BELOW, TRUE)
+
+
+COMPOSITES: tuple[Composite, ...] = _served()
 
 
 @dataclass(frozen=True)

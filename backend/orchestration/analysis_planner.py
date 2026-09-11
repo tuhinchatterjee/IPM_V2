@@ -1199,6 +1199,19 @@ _GROUPS_A_FIELD_BY = (
 )
 
 
+def _subject_word() -> str:
+    """What one row of a composite ranking IS, in this installation's words.
+
+    A retail book has customers. "25 borrowers, ranked by how many of 8
+    governed credit concern signals they show" is the right answer in the
+    wrong vocabulary, on the answer to the most likely opening question in a
+    demonstration.
+    """
+    from backend.retail import profile
+
+    return "customer" if profile.is_retail() else "borrower"
+
+
 def _spellings_of(field_name: str) -> tuple[str, ...]:
     """Every way a reader writes this field, not only the column name.
 
@@ -3260,8 +3273,19 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
         "label": f"The {cut} with the most evidence",
     })
 
+    # A composite ranking returns ROWS by construction — the N subjects
+    # carrying the most evidence — so a portfolio reading of the sentence is
+    # wrong here however many portfolio nouns it carries.
+    #
+    #     "What needs my attention in the retail portfolio this month?"
+    #
+    # says "portfolio" as the SCOPE to look through, not as a request for one
+    # row, and reading it as the grain refused the most likely opening
+    # question in a demonstration with "CreditProbe could not build that
+    # ranking at the level the question asked for".
     want = gr.requested(text, dimension=grouping,
                         dimension_is_head=bool(grouping),
+                        rows_requested=True,
                         dataset_grain=gr.CUSTOMER)
     got = gr.declared([grouping] if grouping else group_by,
                       key="" if grouping else key,
@@ -3283,7 +3307,8 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     warnings: list[str] = []
     for exclusion in exclusions:
         warnings.append(
-            f"The question said “{exclusion.phrase}”, so borrowers where "
+            f"The question said “{exclusion.phrase}”, so {_subject_word()}s "
+            f"where "
             f"{exclusion.field} is set were removed before the evidence was "
             f"counted. This is not the whole book.")
     if found.unavailable:
@@ -3299,9 +3324,11 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     # was heard, and the whole point of carrying scope forward is that the
     # answer shows it.
     named = ", ".join(value for _, value in filters)
-    subject = f"{named} borrowers" if named else "Borrowers"
+    who = _subject_word()
+    subject = f"{named} {who}s" if named else f"{who.capitalize()}s"
     if scoped_to:
-        subject = (f"The {len(scoped_to)} {'borrower' if len(scoped_to) == 1 else 'borrowers'} "
+        subject = (f"The {len(scoped_to)} "
+                   f"{who if len(scoped_to) == 1 else who + 's'} "
                    f"the conversation is about")
     # An exclusion changes WHICH borrowers are on the screen, and a ranking
     # that reads exactly like the unrestricted one leaves the reader no way to
@@ -3321,7 +3348,7 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
         where = f" in {named}" if named else ""
         summary = (
             f"{readable.capitalize()}s{where} ranked by the share of exposure "
-            f"carried by borrowers{left_out} showing governed "
+            f"carried by {who}s{left_out} showing governed "
             f"{found.composite.label} evidence at {at}.")
 
     return AnalysisBuild(

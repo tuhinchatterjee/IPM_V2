@@ -130,6 +130,13 @@ _OPENS_WHATIF = re.compile(
 _ASKS = re.compile(
     r"(?:^|\b)(?:which|what|who|whose|whom|how\s+many|how\s+much|list|show|"
     r"name|rank|give|tell)\b|\?\s*$", re.IGNORECASE)
+#: A noun that names a population to look THROUGH. A screening question has
+#: one; an instruction to move a parameter does not.
+_POPULATION = re.compile(
+    r"\b(?:customers?|borrowers?|clients?|accounts?|facilit(?:y|ies)|"
+    r"obligors?|names?|products?|segments?|cohorts?|portfolios?|book|"
+    r"population|exposures?|cases?)\b", re.IGNORECASE)
+
 _PAST_OR_PERFECT = re.compile(
     r"\b(?:saw|had|has|have|having|were|was|been|did|"
     r"deteriorated|worsened|improved|rose|fell|grew|shrank|moved|migrated|"
@@ -911,6 +918,27 @@ def read(question: str) -> Reading:
     reports = bool(_ASKS.search(said)
                    and _PAST_OR_PERFECT.search(said)
                    and not _HYPOTHETICAL.search(said))
+    # And a SCREENING question is a report in the present tense.
+    #
+    #     "Which customers are showing affordability stress?"
+    #
+    # was opened as a What-If, because it contains the word "stress" and no
+    # past-tense verb. It is a question about who in the book is in that
+    # condition NOW — the condition is the thing being looked for, not the
+    # thing being asked for — and answering it with a shocked book answers a
+    # question nobody asked.
+    #
+    # The three conditions together are what make it safe: the sentence asks,
+    # it names a population to look through, and it carries no magnitude and
+    # no instruction to move anything. "Stress the retail portfolio" names no
+    # population and does not ask; "increase PD by 20% for stressed customers"
+    # carries a magnitude.
+    if (not reports and _ASKS.search(said) and _POPULATION.search(said)
+            and not _HAS_MAGNITUDE.search(sized) and not directed
+            and not _HYPOTHETICAL.search(said)
+            and not _instructs(said, _MOVES)
+            and not _instructs(said, _CREDIT_MOVE)):
+        reports = True
     if reports:
         return Reading(notes=["Read as a question about what the book already "
                               "did, not as a What-If."])

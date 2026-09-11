@@ -427,6 +427,23 @@ class TestRET048LayoutPreserved:
             "frontend/src/components/scorecard-validation/result-card.tsx",
             "frontend/src/app/scorecard-validation/page.tsx",
             "frontend/src/app/scorecard-validation/monitoring/page.tsx",
+            # ---------------------------------------------------------------
+            # Early Warning: a top-level navigation item that described retail
+            # signals it could not compute, over a corporate dataset, and
+            # published a triage list that could not be narrowed to a product
+            # or to the CRITICAL severity its own rulebook raises.
+            "backend/retail/forward_signal.py",
+            "backend/early_warning/factors.py",
+            "backend/early_warning/service.py",
+            "backend/early_warning/targets.py",
+            "frontend/src/app/early-warning/page.tsx",
+            "frontend/src/app/early-warning/signals/retail-signals.tsx",
+            # "What needs my attention this month?" — the first question
+            # anybody asks — was refused, because all three composites that
+            # answer it were declared over the corporate facility book.
+            "backend/retail/concern.py",
+            "backend/orchestration/composites.py",
+            "backend/orchestration/assembly.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

@@ -1324,6 +1324,23 @@ def _opens_whatif(original: str, question: str, reading: Any, fixed: Any,
     return answered
 
 
+def _published_measures() -> str:
+    """The measures this installation actually publishes, named in a refusal.
+
+    The sentence listed "exposure, impairment, ratings, delinquency,
+    covenants". Two of those are corporate objects with nothing behind them
+    here, and a refusal that names them tells a Head of Retail Risk the
+    product was written for somebody else's book — in the answer to the most
+    likely opening question in a demonstration.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return "exposure, impairment, ratings, delinquency, covenants"
+    return ("exposure, expected credit loss, IFRS 9 staging, delinquency, "
+            "affordability and both scorecards")
+
+
 def _retail_latest_month() -> str:
     """The newest published month of the retail book, or nothing.
 
@@ -1554,10 +1571,10 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
             # the two refusals cannot say different things.
             answered.unsupported = held.sentence() if held.out_of_scope else (
                 "CreditProbe has no governed data about what that asks for. It "
-                "answers from the figures a steward has published — exposure, "
-                "impairment, ratings, delinquency, covenants — and it holds "
-                "nothing that measures this. It has NOT answered a different "
-                "question instead. " + held.next_move())
+                f"answers from the figures a steward has published — "
+                f"{_published_measures()} — and it holds nothing that measures "
+                "this. It has NOT answered a different question instead. "
+                + held.next_move())
             answered.coverage = held.to_dict()
             return answered
         answered.clarification = e.clarification

@@ -1,0 +1,355 @@
+{
+  "suite": "overnight_journeys",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 162.6,
+  "counts": {
+    "PASS": 21,
+    "FAIL": 2,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_journeys-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JA-01",
+      "module": "journeys",
+      "title": "Step 1: What needs my attention in the retail portfo",
+      "status": "FAIL",
+      "detail": "answered=True; 1035 characters; corporate wording=['covenant']",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What needs my attention in the retail portfolio this month?",
+        "answer": "\n\nNo analysis was composed and no figure was computed: the governed data holds nothing about what was asked.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n0 of 1 answered; 1 cannot be answered\n\nCreditProbe has no governed data about what that asks for. It answers from the figures a steward has published \u2014 exposure, impairment, ratings, delinquency, covenants \u2014 and it holds nothing that measures this. It has NOT answered a different question instead. It did recognise retail and portfolio, so a question framed around those can be answered. Name the figure you want and the period you want it for.\n\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\n\nCompleted by Credit Analyst \u2014 not validated\nTrace\n\nLIMITED EVIDENCE\n2 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/ja-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JA-02",
+      "module": "journeys",
+      "title": "Step 2: Why is that happening?",
+      "status": "PASS",
+      "detail": "answered=True; 727 characters; corporate wording=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Why is that happening?",
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/ja-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JA-03",
+      "module": "journeys",
+      "title": "Step 3: Show me the evidence.",
+      "status": "PASS",
+      "detail": "answered=True; 727 characters; corporate wording=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show me the evidence.",
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/ja-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JA-04",
+      "module": "journeys",
+      "title": "The evidence step names a dataset, a column or a calculation rather than restating the finding",
+      "status": "PASS",
+      "detail": "the evidence answer names its source",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime."
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JA-05",
+      "module": "journeys",
+      "title": "The conversation became an investigation that Investigations lists",
+      "status": "PASS",
+      "detail": "50 investigations listed; the thread was http://localhost:5328/investigations/261?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JA-06",
+      "module": "journeys",
+      "title": "Reopening carries the whole conversation",
+      "status": "PASS",
+      "detail": "the reopened thread renders 10734 characters",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ja-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JB-01",
+      "module": "journeys",
+      "title": "Assess the personal-finance application scorecard us",
+      "status": "PASS",
+      "detail": "the answer speaks to what was asked=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Assess the personal-finance application scorecard using the latest fully observed cohort.",
+        "answer": "ly observed cohort.\n\nWhich part of the validation?\n\nForty-eight tests run against this scorecard, in eleven categories that ask different questions. Running all of them to answer a general question would take a minute and bury the answer.\n\nData & Representativeness\nConceptual Soundness & Design\nDiscrimination\nCalibration & Accuracy\nStability\nRobustness & Sensitivity\nVariables & Binning\nModel Usage, Overrides & Policy\nImplementation Verification\nSegmentation\nChampion vs Challenger\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score is better\n\nA cohort whose performance window has not closed has no realised outcome. It is reported as NOT YET MATURED, never as zero defaults.\n\nRun full validation\nDraft report (Word)\n\nA full run executes every applicable test over every period. On the larger books that",
+        "screenshot": "docs/evidence/retail_functionality/screens/jb-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JB-02",
+      "module": "journeys",
+      "title": "How is calibration for the personal finance applicat",
+      "status": "PASS",
+      "detail": "the answer speaks to what was asked=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "How is calibration for the personal finance application scorecard?",
+        "answer": "\n\nDETERMINISTIC READER\nscv_run_category\n\u2014 the question is a calibration question\nCAL-BAND\nCalibration by score band\nNO APPROVED LIMIT\n0.0069\nmeasured, but no governed limit to compare it against\n\nBand-level RMSE 0.00693 across 10 score bands. HIGH EVIDENCE.\n\n2024-08..2025-08 \u00b7 10,170 rows \u00b7 277 defaults\n\nEvidence\nCAL-BRIER\nBrier score\nNO APPROVED LIMIT\n0.0262\nmeasured, but no governed limit to compare it against\n\nBrier score 0.02625. HIGH EVIDENCE.\n\n2024-08..2025-08 \u00b7 10,170 rows \u00b7 277 defaults\n\nEvidence\nCAL-SLOPE\nCalibration slope and intercept\nNO APPROVED LIMIT\n1.2823\nmeasured, but no governed limit to compare it against\n\nCalibration slope 1.2823, intercept +0.0797. A slope near 1 with a non-zero intercept is a recalibration; a slope far from 1 is not. HIGH EVIDENCE.\n\n2024-08..2025-08 \u00b7 10,170 rows \u00b7 277 defaults\n\nEvidence\nCAL-DRIFT\nCalibration through time\nNO APPROVED LIMIT\n-0.8172\nmeasured, but no governed limit to compare it against\n\nO/E moved from 1.593 in 2024-08 to 0.776 in 2025-08, a change of -0.817 across 13 measurable cohorts. A drifting O/E is a recalibration question; a stable one that is not 1.0 is a level question. They have different answers.\n\n2024-08..2025-08 \u00b7 10",
+        "screenshot": "docs/evidence/retail_functionality/screens/jb-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JB-03",
+      "module": "journeys",
+      "title": "Has the population for the personal finance applicat",
+      "status": "PASS",
+      "detail": "the answer speaks to what was asked=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Has the population for the personal finance application scorecard drifted?",
+        "answer": "ted?\n\nDETERMINISTIC READER\nscv_run_category\n\u2014 the question is a stability question\nSTAB-CSI\nCharacteristic stability index\nFAIL\n0.4515\nlimit 0.2500(demo policy)\n\napp_emp_tenure has moved most, at 0.4515 for 2026-08. 1 of 14 characteristics are outside the limit: app_emp_tenure.\n\n2026-08 \u00b7 vs 2024-08..2025-01 \u00b7 7,701 rows\n\nEvidence\nSTAB-BAND\nRisk band distribution stability\nNO APPROVED LIMIT\n0.0140\nmeasured, but no governed limit to compare it against\n\nThe largest shift is in band (650.0, 700.0], from 16.4% to 17.8%, +1.4%. The lower half of the scale holds -0.7% of the book relative to development \u2014 a migration toward the stronger grades.\n\n2026-08 \u00b7 vs 2024-08..2025-01 \u00b7 7,701 rows\n\nEvidence\nSTAB-ROLLING\nRolling discrimination and calibration\nNO APPROVED LIMIT\n-0.0013\nmeasured, but no governed limit to compare it against\n\nRolling 3-cohort AUC runs from 0.6425 to 0.6317 across 11 windows, a least-squares slope of -0.00133 per window against a spread of 0.0314. The movement is larger than the trend, which reads as variation rather than deterioration.\n\n2024-08..2025-08 \u00b7 10,170 rows\n\nEvidence\nSTAB-PSI\nScore population stability index\nPASS\n0.0019\nlimit 0.2500(demo policy)\n\nScore PSI 0.",
+        "screenshot": "docs/evidence/retail_functionality/screens/jb-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JB-04",
+      "module": "journeys",
+      "title": "Which segment is weakest for the personal finance ap",
+      "status": "PASS",
+      "detail": "the answer speaks to what was asked=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Which segment is weakest for the personal finance application scorecard?",
+        "answer": "d?\n\nDETERMINISTIC READER\nscv_run_category\n\u2014 the question is a segmentation question\nSEG-CALIBRATION\nCalibration by segment\nFAIL\n1.0000\n\n1 of 4 segments are outside their limit, worst MASS_AFFLUENT.\n\n2024-08..2025-08 \u00b7 customer_segment \u00b7 10,170 rows\n\nEvidence\nSEG-DISCRIMINATION\nDiscrimination by segment\nWARNING\n2.0000\n\n2 of 4 segments are outside their limit, worst MASS.\n\n2024-08..2025-08 \u00b7 customer_segment \u00b7 10,170 rows\n\nEvidence\nSEG-RANK\nRank ordering by segment\nPASS\n0.0000\n\nThe observed default rate falls monotonically across every score band.\n\n2024-08..2025-08 \u00b7 10,170 rows\n\nEvidence\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\n\nQuestions are answered by running the governed tests, not by describing them. Every sentence beside a figure is the runner's own \u2014 a chat surface that paraphrased a validation statistic would produce the version that gets read aloud in a committee, with no way for the reader to tell it had been rewritten.\n\nPERIODS\n\n25\n\nlatest 2026-08\n\nOUTCOME WINDOW CLOSED\n\n13\n\nlatest 2025-08\n\nNOT YET MATURED\n\n12\n\n12-month window\n\nCUT-OFF\n\n\u2014\n\nhigher score ",
+        "screenshot": "docs/evidence/retail_functionality/screens/jb-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JB-05",
+      "module": "journeys",
+      "title": "Gini has fallen. Does that mean the predicted PDs ar",
+      "status": "PASS",
+      "detail": "the answer speaks to what was asked=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Gini has fallen. Does that mean the predicted PDs are wrong?",
+        "answer": "\n\nNo, not necessarily, and the two questions have to be kept apart. Discrimination \u2014 Gini, AUC, KS \u2014 asks whether the score puts the accounts that defaulted below the accounts that did not. Calibration asks whether the probability attached to each score is the rate those accounts actually defaulted at. A model can rank perfectly and be calibrated to the wrong level, and a model can be calibrated on average while ranking no better than chance. A fall in Gini says the ORDERING has weakened. Whether the probabilities are wrong is answered by observed against expected, by the band-level comparison, and by the calibration slope \u2014 and it is entirely possible for those to be sound in the same period in which Gini fell.\n\nAND THE OTHER WAY ROUND\n\nA fall in Gini between two cohorts is not automatically a deterioration either: on a few hundred events the statistic moves several points on sampling alone, which is what the confidence interval and the rolling window are for.\n\nWHAT WOULD SETTLE IT ON THIS SCORECARD\nDISC-GINI \u2014 The same separation, on the scale most credit teams quote.\nCAL-OE \u2014 Whether the predicted default rate matches the realised one.\nCAL-BAND \u2014 Where in the score range the pre",
+        "screenshot": "docs/evidence/retail_functionality/screens/jb-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JC-01",
+      "module": "journeys",
+      "title": "The opening book is on screen before anything is run",
+      "status": "PASS",
+      "detail": "facilities and customers are stated before the first scenario",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/jc-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JC-02",
+      "module": "journeys",
+      "title": "Increase personal-finance PD by 20% relative.",
+      "status": "PASS",
+      "detail": "answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Increase personal-finance PD by 20% relative.",
+        "answer": "\n\nRead as: personal only; PD +20% relative.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 10,161,669\nCHANGE\nSAR 1,167,657 (+12.98%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 10.16m\tSAR 1.17m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (9)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (8)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (7)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (6)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\n",
+        "screenshot": "docs/evidence/retail_functionality/screens/jc-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JC-03",
+      "module": "journeys",
+      "title": "Only salary-transfer customers.",
+      "status": "PASS",
+      "detail": "answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Only salary-transfer customers.",
+        "answer": "\n\nCreditProbe could not read a change in that. A What-If needs something to move and by how much \u2014 running it as written would recompute the published book unchanged and report it as your scenario. Pick one of these, or say what to move and by how much.\n\nIncrease PD by 20% relative\nAdd 2 percentage points to PD\nIncrease LGD by 10% relative\nMove card utilisation up 10 percentage points\nCut verified income by 10%\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (9)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (8)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (7)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,16",
+        "screenshot": "docs/evidence/retail_functionality/screens/jc-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JC-04",
+      "module": "journeys",
+      "title": "Explain the ECL impact.",
+      "status": "PASS",
+      "detail": "answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Explain the ECL impact.",
+        "answer": "\n\nExpected credit loss rose from SAR 8,994,012 to SAR 10,161,669 \u2014 a change of SAR 1,167,657 (+12.98%).\n\nThe population is product_code=PERSONAL_LOAN, 7,761 facilities held by 6,781 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 1,167,657.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (9)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (8)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (7)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scena",
+        "screenshot": "docs/evidence/retail_functionality/screens/jc-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JC-05",
+      "module": "journeys",
+      "title": "The scenario saves under a name this suite owns",
+      "status": "PASS",
+      "detail": "saved as 'UAT journey 202634'=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/jc-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JC-06",
+      "module": "journeys",
+      "title": "Leaving the module and reopening from Recent Runs brings back the scenario as it ran",
+      "status": "PASS",
+      "detail": "reopened 'UAT journey 202634'=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/jc-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JC-07",
+      "module": "journeys",
+      "title": "A saved scenario offers an export beside it",
+      "status": "PASS",
+      "detail": "CSV and JSON are offered on the saved run",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JD-01",
+      "module": "journeys",
+      "title": "The list narrows to one product at one severity",
+      "status": "PASS",
+      "detail": "25 alerts after filtering to personal finance, HIGH",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/jd-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JD-02",
+      "module": "journeys",
+      "title": "The alert opens the customer it was raised against",
+      "status": "PASS",
+      "detail": "Customer 360 rendered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/jd-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JD-03",
+      "module": "journeys",
+      "title": "The customer's history and both scorecards are there",
+      "status": "FAIL",
+      "detail": "the monthly history and both scores are on the screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/jd-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "JD-04",
+      "module": "journeys",
+      "title": "Back returns to the EXACT filtered list",
+      "status": "PASS",
+      "detail": "returned=True; the product filter reads 'PERSONAL_LOAN'",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/jd-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

@@ -43,6 +43,14 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------- grounding
 
 
+
+def _who() -> str:
+    """What one subject of a composite ranking is called here."""
+    from backend.orchestration.analysis_planner import _subject_word
+
+    return _subject_word()
+
+
 def _numbers(text: str) -> set[str]:
     """Every figure in a sentence, normalised for comparison."""
     out: set[str] = set()
@@ -1271,17 +1279,18 @@ def _composite_by_dimension_narrative(build: ap.AnalysisBuild,
     if share is not None and exposure is not None:
         lead += (f" {fg.percent(share, decimals=1)} of its "
                  f"{fg.money(exposure, scale='SAR mn')} sits with the "
-                 f"{affected} of {borrowers} borrowers showing at least one "
+                 f"{affected} of {borrowers} {_who()}s showing at least one "
                  f"of {len(signals)} signals.")
     elif borrowers:
-        lead += (f" {affected} of its {borrowers} borrowers show at least one "
+        lead += (f" {affected} of its {borrowers} {_who()}s show at least one "
                  f"of {len(signals)} signals.")
 
     metrics = [
         Metric(label=f"Most {label} evidence", value=share, unit="%",
                direction="negative", hint=named)
         if share is not None else
-        Metric(label=f"Borrowers showing {label} evidence", value=affected,
+        Metric(label=f"{_who().capitalize()}s showing {label} evidence",
+               value=affected,
                unit="", direction="negative", hint=named),
         Metric(label=f"{readable.capitalize()}s reported", value=count,
                unit="", direction="neutral"),
@@ -1295,9 +1304,9 @@ def _composite_by_dimension_narrative(build: ap.AnalysisBuild,
     if driver:
         findings.append(Finding(
             text=(f"{named}'s most widespread signal is {driver[0]}, on "
-                  f"{driver[1]} borrowers."),
+                  f"{driver[1]} {_who()}s."),
             tone="negative",
-            evidence=[_evidence(named, driver[1], "borrowers",
+            evidence=[_evidence(named, driver[1], f"{_who()}s",
                                 period=build.period or "")]))
 
     concentrated = [str(r.get(grouping) or "") for r in rows[:5]
@@ -1315,10 +1324,10 @@ def _composite_by_dimension_narrative(build: ap.AnalysisBuild,
         findings=findings,
         interpretation=(
             f"Each signal is read per facility, reduced to one answer per "
-            f"borrower, and only then aggregated to the {readable} — a "
+            f"{_who()}, and only then aggregated to the {readable} — a "
             f"{readable} has no arrears of its own. {readable.capitalize()}s "
-            f"are ordered by the share of exposure carried by borrowers "
-            f"showing evidence, not by how many borrowers show it: a "
+            f"are ordered by the share of exposure carried by {_who()}s "
+            f"showing evidence, not by how many {_who()}s show it: a "
             f"{readable} of many small names with one signal each is not the "
             f"one a committee looks at first."),
         interpretation_points=[], metrics=metrics,
@@ -1400,7 +1409,7 @@ def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
             where = (f" of {carried}" if not scope_said
                      else f"{where}, of {carried}")
         direct = (
-            f"{count} borrower{'s' if count != 1 else ''}{where}, ranked by "
+            f"{count} {_who()}{'s' if count != 1 else ''}{where}, ranked by "
             f"how many of {len(signals)} governed {label} signals each one "
             f"shows at {build.period}. {named} shows the most, at {best} of "
             f"{len(signals)}.")
