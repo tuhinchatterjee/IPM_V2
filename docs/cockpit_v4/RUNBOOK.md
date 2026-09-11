@@ -246,6 +246,30 @@ ingestion script, review the regenerated Markdown, and run
 questions with 81 assertions over grounding, framing and what must never
 appear.
 
+## The Cockpit landing page
+
+The layout is the earlier Cockpit's, restored deliberately; the backend is
+entirely V4.
+
+1. **Greeting** — "Good morning / afternoon / evening", with the session's
+   display name when there is one. The time of day comes from the reader's own
+   browser clock, not the server's. No name means no name; nothing invents one.
+2. **"What's on your mind?"**
+3. **One wide Ask box** across the workspace, with Standard / Deep and Ask.
+4. **Prompt chips** beneath it — business questions, dismissible with the ×.
+   Rendering them costs no model call.
+5. **"Every answer carries a Trace."** — the link explains what a trace is.
+6. **Requires attention**, with `REPORTING PERIOD Q<n> <year>` beside the
+   heading and tabs for All / Segments / ECL. Every tab count is the real
+   length of the list behind it.
+7. **Latest-quarter ECL highlights**, in the same visual language.
+8. **Continue where you left off** — real V4 threads with at least one
+   completed turn, or a quiet empty state. Clicking one reopens the real
+   persisted thread, with its attention seed when it had one.
+
+The process panel appears when a run exists and not before: an idle landing
+page reserves no space for it.
+
 ## The Cockpit home feed
 
 Below the question box the home page carries two analytical sections computed
@@ -290,6 +314,30 @@ component that infers what was meant.
 When anything is changed, the original and a report naming each transformation
 are persisted as run detail and the trace says "Question text normalized
 (formatting only)". When nothing is changed, nothing is recorded.
+
+## Analytical runs: what they are allowed
+
+The mode is not knowable at intake, so a run starts on the product-help
+allowance and widens once the analyst declares a DATA_ANALYSIS.
+
+| Query mode | Standard | Deep |
+|---|---|---|
+| Product help, theory, referral | 60 s · $1.00 | 120 s · $2.00 |
+| Data analysis | 120 s · $1.50 | 240 s · $3.00 |
+
+The effective values appear in the run budget, the process trace and
+`/diagnostics`. Counters — submissions, rounds, generations, catalog calls,
+steps — are the same in both cases.
+
+Two things worth knowing when reading a trace:
+
+- **"Query validated and bound"** means DuckDB was asked, with the step's own
+  parameters, and answered. It is emitted after the proof, never before.
+- **"did not bind and was not run"** is a different fact from **"failed while
+  running"**. A query that never bound executed nothing, and the trace says
+  which happened. Full detail — the DuckDB exception type, the binder message,
+  the submission number, the SQL and its parameters — is in the operator
+  record.
 
 ## Settings
 

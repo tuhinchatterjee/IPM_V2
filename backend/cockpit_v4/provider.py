@@ -27,9 +27,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.cockpit_v4.budgets import Ledger
+from backend.cockpit_v4.budgets import BudgetExceeded, Ledger
 from backend.cockpit_v4.capability import Capability
-from backend.cockpit_v4.states import (INPUT_CONTEXT_LIMIT,
+from backend.cockpit_v4.states import (COST_LIMIT, INPUT_CONTEXT_LIMIT,
                                        INVALID_MODEL_OUTPUT, OUTPUT_LIMIT,
                                        PROVIDER_AUTH, PROVIDER_RATE_LIMIT,
                                        PROVIDER_UNAVAILABLE)
@@ -126,6 +126,8 @@ class Analyst:
     #: tool_use ids awaiting their tool_result, in the order they arrived.
     _pending: list[str] = field(default_factory=list)
     turns: list[dict[str, Any]] = field(default_factory=list)
+    #: What the last generation asked for and what the budget granted.
+    response_allowance: dict[str, Any] = field(default_factory=dict)
 
     # -- history ---------------------------------------------------------
 
@@ -225,6 +227,28 @@ class Analyst:
                 f"{self.capability.context_tokens:,}-token capacity of "
                 f"{self.capability.model_id}. Nothing was sent.",
                 counted=counted, capacity=self.capability.context_tokens)
+
+        # Ask for the answer the budget can actually carry. Reserving the
+        # maximum and then refusing the run was how a real analysis stopped
+        # at COST_LIMIT with $0.71 committed: a shorter answer was affordable
+        # and nobody offered one. The cap SENT to the provider is reduced to
+        # match, so the reservation stays a true projection.
+        affordable = self.ledger.affordable_output_tokens(
+            input_tokens=counted, wanted=reserved_output)
+        self.response_allowance = {
+            "wanted": reserved_output, "granted": min(reserved_output,
+                                                      affordable),
+            "reduced": affordable < reserved_output}
+        if affordable < reserved_output:
+            if affordable < self.ledger.MIN_RESPONSE_TOKENS:
+                raise BudgetExceeded(
+                    COST_LIMIT,
+                    f"the remaining budget affords {affordable:,} response "
+                    f"tokens against a {self.ledger.MIN_RESPONSE_TOKENS:,}-"
+                    f"token minimum, so no useful answer could be bought. "
+                    f"Nothing was sent.")
+            reserved_output = affordable
+            ok, counted, method = self.fits(reserved_output=reserved_output)
 
         reservation = self.ledger.reserve(
             purpose=purpose, input_tokens=counted,

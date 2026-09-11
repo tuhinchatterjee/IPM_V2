@@ -55,7 +55,7 @@ branch: 590 collected, 0 failures, 0 errors, 26 skipped.**
 The 26 skips are V3's own pre-existing skips and were identical in every run.
 
 Re-run at handoff on the final commit: **564 passed, 26 skipped, 0 failed**
-in 146s — identical to the baseline above.
+in 107s — identical to the baseline above.
 
 **Conclusion: V4 introduces no V3 regression.** That is supported by two
 independent facts — the V3 sources are unchanged, and the V3 suite passes
@@ -74,7 +74,7 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python3 -m pytest tests/cockpit_v4 -q
 
 | tests collected | passed | failures | errors | skipped | elapsed |
 |---:|---:|---:|---:|---:|---:|
-| 427 | 427 | 0 | 0 | 0 | ~14 s |
+| 458 | 458 | 0 | 0 | 0 | ~13 s |
 
 Frontend unit suite — the whole thing, not only the Cockpit:
 
@@ -84,9 +84,9 @@ cd frontend && npm test
 
 | suites | tests | pass | fail |
 |---:|---:|---:|---:|
-| 38 | 466 | 466 | 0 |
+| 38 | 470 | 470 | 0 |
 
-The Cockpit V4 components alone are 58 of those:
+The Cockpit V4 components alone are 62 of those:
 
 ```
 cd frontend && node --test --experimental-strip-types \
@@ -94,7 +94,7 @@ cd frontend && node --test --experimental-strip-types \
 ```
 
 covering `reducer.test.ts`, `client.test.ts`, `live-trace.test.ts`,
-`markdown.test.ts` and `attention-client.test.ts`.
+`markdown.test.ts`, `attention-client.test.ts` and `greeting.test.ts`.
 
 ## Defects found and fixed while testing
 
@@ -160,13 +160,26 @@ runtime as multi-agent.
 | 30 | The browser stub's turn counter was keyed by question text. | A second run of the same question started at turn 1 and read a tool result that did not exist, so a working seeded investigation surfaced as `PROVIDER_UNAVAILABLE`. A test defect, not a product one — and it was hiding whether the seeded flow worked at all. Now counted from the assistant turns in the request, which is per-conversation and stateless. |
 | 31 | A reader who clicked Investigate Further and typed immediately could land in a new thread. | The seeded thread id was adopted by an effect; `ask` read component state. It now reads the prop directly, so there is no window. |
 
+### Sixth round — analytical execution, and the landing page restored
+
+| # | Defect | Consequence |
+|---|---|---|
+| 32 | `Intent.may_execute` required an EMPTY `ambiguities` list, and the analyst put its resolutions in it. | "Exposure read as reported EAD", "Period not specified: using the latest populated quarter 2026Q2 against 2026Q1" and "ECL read as booked ECL" each **refused the analysis they had made possible**. Careful behaviour was penalised and the only way to run was to say nothing. Split into `blocking_ambiguities` (the only field that stops execution), `resolved_assumptions` and `canonical_mappings`, with every resolution now visible in the trace. |
+| 33 | `steps[].parameters` was published on every step of `execute_analysis` and never reached the engine. | A model following the schema wrote `WHERE reporting_quarter = ?`, and DuckDB refused with *"Values were not provided for the following prepared statement parameters: 1"*. A bind failure caused by a contract the application advertised and did not honour. Reproduced exactly against the pinned release before anything was changed. |
+| 34 | "Query validated" was emitted before DuckDB had been asked whether the query bound. | Two true statements in the wrong order. `validate_batch` now proves every step bindable with `EXPLAIN` — which executes nothing — and the event reads "Query validated and bound". A submission refused at the binder is recorded as a numbered submission with status `rejected`, so the failed SQL is on file. |
+| 35 | A failed step read "failed at the bind check" in the same shape as a step that ran and failed. | A query that never bound did not execute, and a trace that implies it did sends an operator to the wrong place. `StepResult` now carries `phase` and `executed`, and the messages differ: "did not bind and was not run" versus "failed while running". |
+| 36 | Standard's 60-second deadline and $1.00 ceiling were set for a product question and applied to an analysis. | A live analytical run expired mid-query, and another stopped at COST_LIMIT with $0.71 committed. DATA_ANALYSIS now gets 120s/$1.50 Standard and 240s/$3.00 Deep, adopted when the analyst declares the mode and never at the expense of a Product Help run. The stored `deadline_at` moves too, or the supervisor would kill a 120-second analysis at sixty. |
+| 37 | The response reserve was a fixed maximum, and a budget that could not carry it stopped the run. | A shorter answer was affordable and nobody offered one. The allowance is now reduced to what the remaining budget can pay for — with the cap sent to the provider reduced to match, so the reservation stays a true projection — and the run fails closed only below a 1,024-token floor. |
+| 38 | A terminal COST_LIMIT or DEADLINE_EXPIRED buried the failure that actually started the trouble. | The first analytical failure is kept and appended to the terminal message and its detail. |
+| 39 | The V4 landing page was a narrow centred column with the process panel occupying it before anything had been asked. | Restored to the earlier Cockpit's layout — greeting, "What's on your mind?", one wide Ask box, business prompt chips, the Trace line, Requires attention with its reporting period, ECL highlights, Continue where you left off — on the V4 backend only. No legacy endpoint, component or flow came back with the look. |
+
 ### Browser suite
 
 ```
 python3 scripts/cockpit_v4/browser_evidence.py
 ```
 
-Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 25/25 pass.
+Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 33/33 pass.
 Every network request the page makes is recorded, so "never calls the legacy
 flow" is checked rather than asserted. A screenshot of a rendered answer is
 written to `docs/cockpit_v4/evidence/cockpit_v4_answer.png`.
@@ -180,24 +193,39 @@ a follow-up runs inside that thread without restating the segment, the seeded
 context load appears in the process panel, an ECL highlight does the same, a
 reload keeps the investigation, and a failing feed leaves Ask working.
 
+Eight more cover the restored landing page: the time-aware greeting (with a
+name only when the session has one), "What's on your mind?", an Ask box that
+spans the workspace and sits above the attention feed with no process panel
+reserved while idle, prompt chips that ask and can be dismissed, the Trace
+line and its explanation, Requires attention with its reporting period and
+tabs whose counts are checked against the rows behind them, Continue where you
+left off listing a conversation that really happened, an Arabic answer
+rendering without forcing a horizontal scroll, and the absence of every legacy
+component marker.
+
+A full-page screenshot of the restored landing page is written to
+`docs/cockpit_v4/evidence/cockpit_v4_landing.png` for review against the
+reference the requirement was written from.
+
 ## Suite results at handoff
 
 All run in this container, in this order, on the commit being handed off.
 
 | Suite | Command | Result |
 |---|---|---:|
-| V4 backend | `python3 -m pytest tests/cockpit_v4` | **427 passed**, 0 failed |
+| V4 backend | `python3 -m pytest tests/cockpit_v4` | **458 passed**, 0 failed |
 | — launcher + frontend wiring subset | `… test_launcher_safety.py test_frontend_wiring.py` | 43 passed |
 | — Product Help benchmark | `… test_product_help_benchmark.py` | 81 passed |
 | — Product Help semantics / tool policy | `… test_product_help_semantics.py` | 61 passed |
 | — spelling, telegraphic and multilingual input | `… test_language_and_intent.py` | 40 passed |
 | — attention ranking, oracles and seeding | `… test_attention_feed.py` | 34 passed |
+| — analytical execution, binding and budgets | `… test_analytical_execution.py` | 31 passed |
 | — tool contract agreement | `… test_tool_contract_agreement.py` | 26 passed |
 | — event contract parity | `… test_event_contract_parity.py` | 5 passed |
 | — "Who are you?" acceptance | `… test_who_are_you_acceptance.py` | 7 passed |
-| Frontend unit | `npm test` (`node --test`, 38 suites) | **466 passed**, 0 failed |
-| — Cockpit V4 components only | `node --test 'src/components/cockpit-v4/*.test.ts'` | 58 passed |
-| Browser (real Chromium) | `python3 scripts/cockpit_v4/browser_evidence.py` | **25/25 passed** |
+| Frontend unit | `npm test` (`node --test`, 38 suites) | **470 passed**, 0 failed |
+| — Cockpit V4 components only | `node --test 'src/components/cockpit-v4/*.test.ts'` | 62 passed |
+| Browser (real Chromium) | `python3 scripts/cockpit_v4/browser_evidence.py` | **33/33 passed** |
 | V3 regression | `python3 -m pytest tests/cockpit_agentic` | **564 passed**, 26 skipped, 0 failed |
 | Acceptance coverage | `python3 scripts/cockpit_v4/acceptance_evidence.py` | 100 / 100 covered |
 

@@ -409,6 +409,47 @@ async def investigate(item_id: str,
                                     .get("suggested_questions", []))}
 
 
+@router.get("/session")
+async def session_summary(who: dict[str, Any] = Depends(principal)
+                          ) -> dict[str, Any]:
+    """Who is asking, and what they can reopen.
+
+    The landing page greets by name when a name is available and greets
+    plainly when it is not. It never invents one, and the time of day is
+    computed in the browser from the reader's own clock rather than the
+    server's.
+    """
+    runtime = _STATE.get("runtime")
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    display = str(who.get("name") or "").strip()
+    return {
+        "display_name": display,
+        "tenant": tenant,
+        "release_id": str(getattr(getattr(runtime, "cfg", None),
+                                  "release_id", "") or ""),
+        "recent_threads": store.recent_threads(
+            tenant_id=tenant, principal_id=str(who.get("id") or ""), limit=5),
+    }
+
+
+@router.get("/threads/{thread_id}")
+async def read_thread(thread_id: str,
+                      who: dict[str, Any] = Depends(principal)
+                      ) -> dict[str, Any]:
+    """Reopen a real persisted conversation. Never a fabricated history."""
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    owner = store.thread_owner(thread_id)
+    if owner is None or owner[0] != tenant:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such conversation."})
+    context = store.thread_context(thread_id, tenant_id=tenant)
+    return {"thread_id": thread_id,
+            "turns": store.recent_turns(thread_id, 8),
+            "context": context or {}}
+
+
 @router.get("/diagnostics")
 async def get_diagnostics() -> dict[str, Any]:
     runtime = _STATE.get("runtime")

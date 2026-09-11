@@ -35,6 +35,7 @@ import {
   type RunMode,
 } from "./client";
 import type { AttentionItem } from "./client";
+import { AskBox } from "./ask-box";
 import { ProcessPanel } from "./process-panel";
 import { initial, reduce } from "./reducer";
 import { ResponsePanel } from "./response-panel";
@@ -45,24 +46,13 @@ export type ActiveInvestigation = {
   suggested: string[];
 };
 
-const MODES: { id: RunMode; label: string; hint: string }[] = [
-  {
-    id: "standard",
-    label: "Standard",
-    hint: "60-second deadline. Enough for most questions.",
-  },
-  {
-    id: "deep",
-    label: "Deep",
-    hint: "120 seconds and a longer response allowance, for work that needs it.",
-  },
-];
 
 export function CockpitV4({
   operatorView = false,
   initialQuestion = "",
   investigation = null,
   onClearInvestigation,
+  onSettled,
 }: {
   operatorView?: boolean;
   initialQuestion?: string;
@@ -73,6 +63,8 @@ export function CockpitV4({
    */
   investigation?: ActiveInvestigation | null;
   onClearInvestigation?: () => void;
+  /** Called when a run settles, so the page can refresh what it can reopen. */
+  onSettled?: () => void;
 }) {
   const [view, dispatch] = React.useReducer(reduce, initial());
   const [question, setQuestion] = React.useState(initialQuestion);
@@ -80,6 +72,8 @@ export function CockpitV4({
   const [threadId, setThreadId] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [showPrompts, setShowPrompts] = React.useState(true);
+  const [traceHelp, setTraceHelp] = React.useState(false);
   // A ref, not state. Flipping state inside the replay effect would re-run
   // the effect, and its cleanup would set `cancelled` on the invocation still
   // awaiting `readStatus` — cancelling the replay it had just started.
@@ -89,6 +83,10 @@ export function CockpitV4({
   //: not be rebuilt every time it changes.
   const threadRef = React.useRef("");
   const acknowledged = React.useRef("");
+  //: Read from the watcher callback, which must not be rebuilt on every
+  //: render just because the page handed down a new closure.
+  const settledRef = React.useRef<(() => void) | undefined>(undefined);
+  settledRef.current = onSettled;
 
   // Adopt the seeded thread. The seed itself lives on the server; what the
   // component needs is the id to ask into.
@@ -118,6 +116,7 @@ export function CockpitV4({
           dispatch({ type: "settled", status });
           setBusy(false);
           forgetRun();
+          settledRef.current?.();
         },
         onConnectionState: (state) => dispatch({ type: "connection", state }),
       },
@@ -280,59 +279,41 @@ export function CockpitV4({
         </div>
       ) : null}
 
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void ask(question);
-        }}
-        className="space-y-2"
-      >
-        <div className="flex gap-2">
-          <label className="sr-only" htmlFor="cockpit-v4-question">
-            Ask the Cockpit
-          </label>
-          <input
-            id="cockpit-v4-question"
-            data-testid="cockpit-v4-question"
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="Ask about the corporate book, or about CreditProbe itself"
-            className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            data-testid="cockpit-v4-ask"
-            disabled={busy || !question.trim()}
-            className="rounded bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-40"
-          >
-            Ask
-          </button>
-        </div>
+      <AskBox
+        question={question}
+        onQuestionChange={setQuestion}
+        mode={mode}
+        onModeChange={setMode}
+        onAsk={(text) => void ask(text)}
+        busy={busy}
+        showPrompts={showPrompts && !view.runId}
+        onDismissPrompts={() => setShowPrompts(false)}
+      />
 
-        <fieldset className="flex items-center gap-3" disabled={busy}>
-          <legend className="sr-only">Analysis depth</legend>
-          {MODES.map((option) => (
-            <label
-              key={option.id}
-              title={option.hint}
-              className="inline-flex items-center gap-1.5 text-xs text-slate-600"
-            >
-              <input
-                type="radio"
-                name="cockpit-v4-mode"
-                data-testid={`cockpit-v4-mode-${option.id}`}
-                value={option.id}
-                checked={mode === option.id}
-                onChange={() => setMode(option.id)}
-              />
-              {option.label}
-            </label>
-          ))}
-          <span className="text-xs text-slate-400">
-            {MODES.find((m) => m.id === mode)?.hint}
-          </span>
-        </fieldset>
-      </form>
+      <p className="text-xs text-slate-500" data-testid="cockpit-v4-trace-note">
+        <span aria-hidden="true">ⓘ </span>
+        Every answer carries a Trace.{" "}
+        <button
+          type="button"
+          data-testid="cockpit-v4-trace-explain"
+          onClick={() => setTraceHelp((open) => !open)}
+          className="underline underline-offset-2 hover:text-slate-700"
+        >
+          What is a Trace?
+        </button>
+      </p>
+      {traceHelp ? (
+        <p
+          data-testid="cockpit-v4-trace-help"
+          className="rounded border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600"
+        >
+          Every figure in an answer is bound to a query that actually ran. The
+          process panel below shows each stage as it happens — the metadata
+          read, the query validated and bound, the rows returned, any attempt
+          that failed — and each stored result can be opened from the answer.
+          Nothing is asserted that has no evidence behind it.
+        </p>
+      ) : null}
 
       {error ? (
         <p

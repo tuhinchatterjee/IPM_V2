@@ -52,6 +52,8 @@ about a particular model's behaviour or elapsed time.
 | `product_knowledge.py` | return exact recorded sections of the versioned pack, with slide provenance | answer a product question itself; surface the historical multi-agent slide as current |
 | `intake.py` | normalise Unicode, whitespace and invisible control characters | correct spelling, translate, transliterate, fold case, expand an abbreviation, or change any number, date or name |
 | `attention.py` | compute a published ranking over the pinned release and carry its evidence | interpret what a movement means, assert a cause, or call a model |
+| `semantics.py` | state what the catalogue already defines, and resolve a period phrase against the calendar | invent a meaning the catalogue does not carry, or resolve a term with two defensible readings |
+| `sqlbind.py` | prove the submitted SQL binds, and return the engine's own diagnostic when it does not | rewrite the query, substitute a column, or inline a parameter |
 | `contracts.py` + `execute_tool.py` | validate schema, permissions, safety, grain, limits | rewrite a query, trim a step, substitute a field, compute a substitute answer |
 | `execute_tool.py` runner | execute exactly the approved code in isolation | reach another domain, a credential, the shell, the network or host files |
 | `orchestration.py` | carry messages, match tool ids, persist state, enforce counters and deadlines | repair the plan, the code or the answer; fall back to V3 |
@@ -86,6 +88,10 @@ backend/cockpit_v4/
                      and ECL highlights, server-authored SQL, no model call
   intake.py          the only thing done to a question before the analyst
                      reads it: Unicode, whitespace, invisible controls
+  semantics.py       what a term means when it has one meaning, and how a
+                     period phrase resolves against this release's calendar
+  sqlbind.py         proving a query bindable BEFORE saying it was validated,
+                     and carrying the step's parameters to the engine
   product_knowledge.py       inspect_product_knowledge: the versioned pack,
                      its always-on synopsis, and keyword retrieval over it
   product_knowledge.json     the Product Knowledge Pack (generated, reviewed)
@@ -120,6 +126,10 @@ frontend/src/components/cockpit-v4/
   markdown.tsx       that tree -> React elements; hrefs allow-listed
   attention-panel.tsx  the two home sections; renders, never computes
   attention-drawer.tsx the right-side detail card and Investigate Further
+  ask-box.tsx        the wide landing-page question box and its prompts
+  greeting.ts        a time-aware greeting from the READER's clock
+  continue-where-you-left-off.tsx  real persisted V4 threads, or a quiet
+                     empty state
   live-run-fixture.ts  the 15 recorded events of a real 29.4s run, so the
                      panel is tested against a trace that actually happened
 

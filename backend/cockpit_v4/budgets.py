@@ -18,7 +18,7 @@ Booking that as zero is how a run reports $0.00 having spent real money.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from backend.cockpit_v4.capability import Capability
@@ -76,6 +76,60 @@ class Ledger:
     @property
     def remaining_seconds(self) -> float:
         return max(0.0, self.limits.deadline_seconds - self.elapsed_seconds)
+
+    #: The smallest response allowance worth making a paid call for. Below
+    #: this the run cannot produce a usable answer, so it fails closed rather
+    #: than buying a truncated one.
+    MIN_RESPONSE_TOKENS = 1_024
+
+    def adopt(self, limits: Limits) -> dict[str, Any]:
+        """Widen this run's time and cost allowance. Never narrows.
+
+        Called when the analyst DECLARES a data analysis, because the mode is
+        not known at intake. Widening mid-run is safe in a way narrowing
+        would not be: nothing has been spent against the larger bound, and
+        every counter keeps its value.
+        """
+        before = {"deadline_seconds": self.limits.deadline_seconds,
+                  "spend_ceiling_usd": self.limits.spend_ceiling_usd}
+        self.limits = replace(
+            self.limits,
+            deadline_seconds=max(self.limits.deadline_seconds,
+                                 limits.deadline_seconds),
+            spend_ceiling_usd=max(self.limits.spend_ceiling_usd,
+                                  limits.spend_ceiling_usd))
+        after = {"deadline_seconds": self.limits.deadline_seconds,
+                 "spend_ceiling_usd": self.limits.spend_ceiling_usd}
+        return {"before": before, "after": after,
+                "changed": before != after}
+
+    def affordable_output_tokens(self, *, input_tokens: int,
+                                 wanted: int, cache_write_tokens: int = 0
+                                 ) -> int:
+        """The response allowance this run can still pay for.
+
+        The reserve is the exposure, so it is the number actually sent as
+        `max_tokens` -- reserving less than the model is permitted to emit
+        would be a projection that is not true. What this does instead is
+        stop ASKING for a maximum-length answer when the budget cannot carry
+        one: the allowance is reduced to what is affordable, the request is
+        capped at exactly that, and the run fails closed only when even
+        `MIN_RESPONSE_TOKENS` will not fit. "Cannot afford 4,096 tokens" is
+        not the same fact as "cannot afford an answer".
+        """
+        price = self.capability.price
+        spend = self.spend()
+        headroom = (self.limits.spend_ceiling_usd
+                    - spend["committed_usd"] - spend["pending_usd"])
+        fixed = price.cost(input_tokens=input_tokens, output_tokens=0,
+                           cache_write_tokens=cache_write_tokens)
+        for_output = headroom - fixed
+        if for_output <= 0:
+            return 0
+        per_token = price.cost(input_tokens=0, output_tokens=1_000_000) / 1e6
+        if per_token <= 0:
+            return wanted
+        return max(0, min(wanted, int(for_output / per_token)))
 
     def check_deadline(self) -> None:
         if self.remaining_seconds <= 0:
@@ -304,6 +358,11 @@ class Ledger:
                                    lim.answer_corrections],
             "spend": spend,
             "spend_ceiling_usd": lim.spend_ceiling_usd,
+            # The EFFECTIVE deadline, which a declared analysis widens. A
+            # panel that shows the intake value while the run is working to a
+            # different one is telling the reader something untrue.
+            "deadline_seconds": lim.deadline_seconds,
+            "response_tokens_reserved": lim.reserved_output_tokens,
             # An "enforced" badge is only honest when the price is verified
             # AND nothing is held as an unknown amount.
             "cost_enforced": (self.capability.price is not None

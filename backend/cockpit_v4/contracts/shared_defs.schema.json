@@ -33,7 +33,7 @@
         "response_language": {
           "type": "string"
         },
-        "ambiguities": {
+        "blocking_ambiguities": {
           "type": [
             "array",
             "null"
@@ -42,7 +42,29 @@
             "type": "string"
           },
           "minItems": 0,
-          "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+          "description": "Terms with two defensible readings that would produce materially different numbers, and only those. THIS IS THE ONLY FIELD THAT STOPS EXECUTION. A resolution you have made does not belong here. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "resolved_assumptions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 0,
+          "description": "Choices you made and are declaring, e.g. 'period not specified: using the latest populated quarter 2026Q2 against 2026Q1'. Shown in the trace and in your answer. Does not stop execution. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+        },
+        "canonical_mappings": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 0,
+          "description": "Terms this domain already defines, e.g. 'exposure at default = ead_reported'. Not a choice and not a question. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         },
         "excluded_parts": {
           "type": [
@@ -65,7 +87,9 @@
         "owner",
         "understood_request",
         "response_language",
-        "ambiguities",
+        "blocking_ambiguities",
+        "resolved_assumptions",
+        "canonical_mappings",
         "excluded_parts",
         "public_rationale"
       ],

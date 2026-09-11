@@ -104,24 +104,44 @@ class Intent:
     owner: str
     understood_request: str
     response_language: str
-    ambiguities: tuple[str, ...]
+    #: Terms with two defensible readings that would produce materially
+    #: different numbers. THE ONLY THING THAT STOPS EXECUTION.
+    blocking_ambiguities: tuple[str, ...]
+    #: Choices the analyst made and is declaring. Transparency, not a
+    #: question: "period not specified, using the latest populated quarter".
+    resolved_assumptions: tuple[str, ...]
+    #: Terms this domain already defines: "exposure at default = EAD =
+    #: ead_reported". Not even a choice.
+    canonical_mappings: tuple[str, ...]
     excluded_parts: tuple[str, ...]
     public_rationale: str
 
     @property
     def may_execute(self) -> bool:
-        """Execution is allowed only for a declared Cockpit data analysis with
-        no unresolved material ambiguity. A previous turn's owner authorizes
-        nothing: this is recomputed from THIS turn's declaration."""
+        """Execution is allowed for a declared Cockpit data analysis with no
+        BLOCKING ambiguity.
+
+        The distinction is the point. A live run recorded "Exposure read as
+        reported EAD (ead_reported)" and "Period not specified: using the
+        latest populated quarter" as ambiguities -- both correct resolutions,
+        written down for the reader -- and a single `ambiguities` list turned
+        each of them into a refusal. Declaring a resolution now costs
+        nothing; only an unresolved question stops the analysis.
+
+        A previous turn's owner authorizes nothing: this is recomputed from
+        THIS turn's declaration.
+        """
         return (self.query_mode == DATA_ANALYSIS
                 and self.owner == COCKPIT
-                and not self.ambiguities)
+                and not self.blocking_ambiguities)
 
     def to_dict(self) -> dict[str, Any]:
         return {"query_mode": self.query_mode, "owner": self.owner,
                 "understood_request": self.understood_request,
                 "response_language": self.response_language,
-                "ambiguities": list(self.ambiguities),
+                "blocking_ambiguities": list(self.blocking_ambiguities),
+                "resolved_assumptions": list(self.resolved_assumptions),
+                "canonical_mappings": list(self.canonical_mappings),
                 "excluded_parts": list(self.excluded_parts),
                 "public_rationale": self.public_rationale}
 
@@ -271,9 +291,15 @@ def parse_intent(payload: Any, *, path: str = "intent") -> Intent:
         query_mode=mode, owner=owner,
         understood_request=_require_text(payload, "understood_request", path),
         response_language=_require_text(payload, "response_language", path),
-        # Absent and empty mean the same thing here: no ambiguity, nothing
-        # excluded. The schema says so, and so does this.
-        ambiguities=_optional_str_list(payload, "ambiguities", path),
+        # Absent and empty mean the same thing here: nothing blocking,
+        # nothing assumed, nothing excluded. The schema says so, and so does
+        # this.
+        blocking_ambiguities=_optional_str_list(
+            payload, "blocking_ambiguities", path),
+        resolved_assumptions=_optional_str_list(
+            payload, "resolved_assumptions", path),
+        canonical_mappings=_optional_str_list(
+            payload, "canonical_mappings", path),
         excluded_parts=_optional_str_list(payload, "excluded_parts", path),
         public_rationale=_require_text(payload, "public_rationale", path))
 

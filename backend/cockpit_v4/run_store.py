@@ -742,6 +742,19 @@ class RunStore:
                  no_progress_key, _now()))
         return submission_id
 
+    def extend_deadline(self, run_id: str, deadline_at: str) -> None:
+        """Push this run's watchdog deadline out. Never pulls it in.
+
+        The supervisor settles on `deadline_at`, so widening the ledger alone
+        would leave an analysis killed at sixty seconds by a watchdog reading
+        a stale value.
+        """
+        with self._tx() as conn:
+            conn.execute(
+                "UPDATE runs SET deadline_at=?, updated_at=? "
+                "WHERE run_id=? AND (deadline_at='' OR deadline_at < ?)",
+                (deadline_at, _now(), run_id, deadline_at))
+
     def set_submission_status(self, submission_id: str, status: str) -> None:
         with self._tx() as conn:
             conn.execute("UPDATE submissions SET status=? "
@@ -818,6 +831,45 @@ class RunStore:
         return [{"turn_id": r["turn_id"], "ordinal": int(r["ordinal"]),
                  "question": r["question"], "answer": json.loads(r["answer"])}
                 for r in reversed(rows)]
+
+    def recent_threads(self, *, tenant_id: str, principal_id: str = "",
+                       limit: int = 5) -> list[dict[str, Any]]:
+        """Conversations this principal can reopen, most recent first.
+
+        Real threads with at least one completed turn, plus the attention
+        item a thread was seeded from when there was one. A thread with no
+        turn yet is not something to "continue": nothing happened in it.
+        """
+        rows = self._connect().execute(
+            "SELECT th.thread_id, th.created_at, "
+            "       MAX(t.ordinal) AS turns, MAX(t.created_at) AS last_at "
+            "FROM threads th JOIN turns t ON t.thread_id = th.thread_id "
+            "WHERE th.tenant_id = ?"
+            + (" AND th.principal_id = ?" if principal_id else "")
+            + " GROUP BY th.thread_id, th.created_at "
+              "ORDER BY last_at DESC LIMIT ?",
+            ((tenant_id, principal_id, limit) if principal_id
+             else (tenant_id, limit))).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            thread_id = str(row["thread_id"])
+            turns = self.recent_turns(thread_id, 1)
+            latest = turns[-1] if turns else {}
+            context = self.thread_context(thread_id, tenant_id=tenant_id)
+            out.append({
+                "thread_id": thread_id,
+                "turns": int(row["turns"] or 0),
+                "last_activity_at": str(row["last_at"] or row["created_at"]),
+                "last_question": str(latest.get("question") or ""),
+                "last_disposition": str(
+                    (latest.get("answer") or {}).get("disposition") or ""),
+                "origin": ((context or {}).get("kind") or "ask"),
+                "attention_item": ((context or {}).get("body") or {}).get(
+                    "headline", ""),
+                "segment": ((context or {}).get("body") or {}).get(
+                    "segment", ""),
+            })
+        return out
 
     def turn_count(self, thread_id: str) -> int:
         row = self._connect().execute(

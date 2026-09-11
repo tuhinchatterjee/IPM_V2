@@ -150,6 +150,7 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
     } for t in turns]
 
     from backend.cockpit_v4 import product_knowledge as pk
+    from backend.cockpit_v4 import semantics as sem
 
     # Computed here, not guessed by the model: which product detail — if any
     # — this question names beyond what the synopsis below already carries.
@@ -180,6 +181,10 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
             },
             "product_functionalities": _registry_compact(),
             "catalog_index": _catalog_index(catalog, scope),
+            # What terms mean when they have one meaning, and how a period
+            # phrase resolves against THIS release's calendar. Computed from
+            # the catalogue, so nothing here is a meaning someone invented.
+            "cockpit_semantics": sem.block(catalog),
             "catalog_index_note": (
                 "This is an INDEX, not the field dictionary. Definitions, "
                 "units, grain, joins and coverage come from inspect_catalog "

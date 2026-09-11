@@ -140,9 +140,9 @@ At handoff:
 
 | Suite | Result |
 |---|---:|
-| V4 backend (`tests/cockpit_v4`) | 427 passed, 0 failed |
-| Frontend unit (`npm test`, 38 suites) | 466 passed, 0 failed |
-| Real Chromium (`browser_evidence.py`) | 25 / 25 passed |
+| V4 backend (`tests/cockpit_v4`) | 458 passed, 0 failed |
+| Frontend unit (`npm test`, 38 suites) | 470 passed, 0 failed |
+| Real Chromium (`browser_evidence.py`) | 33 / 33 passed |
 | V3 regression (`tests/cockpit_agentic`) | 564 passed, 26 skipped, 0 failed |
 | Acceptance coverage | 100 / 100 |
 
@@ -198,3 +198,27 @@ credential. **Nothing here runs them.**
 Tests 1–4 are the ones the mock cannot settle: they are about what Opus
 writes, and every automated result in this build is explicitly about what
 CreditProbe puts in front of it and what it does with the answer.
+
+## The live UAT after this round
+
+Still not run here. Four paid tests, on the Mac, with an authorized credential.
+
+**A. The landing page**, by eye: greeting, the wide Ask box, the prompt chips,
+the Trace line, Requires attention with its reporting period, ECL highlights,
+the right-side drawer, and Continue where you left off. The reference for the
+layout is `docs/cockpit_v4/evidence/cockpit_v4_landing.png`.
+
+**B.** "What is total exposure at default by sector in the latest quarter?" —
+no clarification asked, the binder proven before "Query validated and bound",
+the query executed, the result matching `oracles.ead_by_sector`, and the whole
+run inside the 120-second / $1.50 analytical allowance.
+
+**C.** "Show me ECL by sector in the latest quarter and rank the top five
+sectors." — booked ECL, latest populated quarter, ranked, matching
+`oracles.top_sectors_by_ecl`.
+
+**D.** "Which sectors saw the largest increase in Stage 2 exposure over the
+latest year?" — 2026Q2 against 2025Q2, outer-preserving, with no sector lost
+to an inner join, matching `oracles.stage2_year_change`.
+
+Only after these pass does testing widen.

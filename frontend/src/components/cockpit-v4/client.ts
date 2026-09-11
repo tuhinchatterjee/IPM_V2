@@ -386,6 +386,52 @@ export async function acknowledge(runId: string): Promise<void> {
   });
 }
 
+// ---- who is asking, and what they can reopen ---------------------------
+
+export type RecentThread = {
+  thread_id: string;
+  turns: number;
+  last_activity_at: string;
+  last_question: string;
+  last_disposition: string;
+  origin: string;
+  attention_item: string;
+  segment: string;
+};
+
+export type SessionSummary = {
+  display_name: string;
+  tenant: string;
+  release_id: string;
+  recent_threads: RecentThread[];
+};
+
+export async function readSession(): Promise<SessionSummary> {
+  return json(
+    await fetch(`${base()}${API_PREFIX}/session`, { credentials: "include" }),
+  );
+}
+
+export type ThreadTurn = {
+  turn_id: string;
+  ordinal: number;
+  question: string;
+  answer: Record<string, unknown>;
+};
+
+export async function readThread(threadId: string): Promise<{
+  thread_id: string;
+  turns: ThreadTurn[];
+  context: { kind?: string; body?: Record<string, unknown> };
+}> {
+  return json(
+    await fetch(
+      `${base()}${API_PREFIX}/threads/${encodeURIComponent(threadId)}`,
+      { credentials: "include" },
+    ),
+  );
+}
+
 // ---- the Cockpit home feed ---------------------------------------------
 
 export type AttentionNumber = {

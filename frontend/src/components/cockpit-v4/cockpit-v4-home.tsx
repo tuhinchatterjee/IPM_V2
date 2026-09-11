@@ -1,24 +1,24 @@
 "use client";
 
 /**
- * The Cockpit page, as it exists in a V4 runtime.
+ * The Cockpit landing page, as it exists in a V4 runtime.
  *
- * A separate component rather than a branch inside the legacy page, and that
- * is the whole point: React runs every hook a component declares, so a
- * `useAsync(() => api.askSuggestions())` inside the legacy Cockpit fires the
- * moment that component is instantiated. Guarding the JSX would not stop the
- * request; not instantiating the component does.
+ * The LAYOUT is the earlier Cockpit's, restored deliberately: a greeting, one
+ * wide question box across the workspace, business prompts beneath it, the
+ * trace line, then what requires attention and what moved in ECL, then the
+ * conversations you can pick back up. That page read like an executive
+ * workspace and the narrow centred column did not.
  *
- * The result is that a V4 runtime issues exactly the calls the V4 API serves
- * and no others. `/investigations`, `/agentic/officer`, `/ask/mode`,
- * `/ask/briefing`, `/ask/suggestions` and the V2/V3 diagnostics are not
- * reached from this page — not shimmed, not translated, not caught: never
- * called.
+ * The BACKEND is entirely V4 and nothing of the old one came back with the
+ * look. `/investigations`, `/agentic/officer`, `/ask/mode`, `/ask/briefing`,
+ * `/ask/suggestions` and the V2/V3 diagnostics are not reached from this page
+ * — not shimmed, not translated, not caught: never called. The attention
+ * sections are the deterministic V4 engine, the drawer is the V4 drawer, and
+ * Investigate Further seeds a real V4 thread.
  *
- * Below the question box are two analytical sections computed from the pinned
- * release. They are Cockpit's own question — what deteriorated in the
- * recorded book — and not Early Warning's. Clicking one opens the detail
- * drawer; Investigate Further turns it into a seeded conversation.
+ * A separate component rather than a branch inside the legacy page, because
+ * React runs every hook a component declares: guarding the JSX would not stop
+ * the legacy Cockpit's requests, and not instantiating it does.
  */
 
 import * as React from "react";
@@ -29,11 +29,18 @@ import { AttentionPanel } from "./attention-panel";
 import {
   forgetInvestigation,
   readAttentionItem,
+  readThread,
   rememberInvestigation,
   recallInvestigation,
   type AttentionItem,
+  type RecentThread,
 } from "./client";
 import { CockpitV4, type ActiveInvestigation } from "./cockpit-v4";
+import {
+  ContinueWhereYouLeftOff,
+  useSession,
+} from "./continue-where-you-left-off";
+import { greeting } from "./greeting";
 import { NotInThisRuntime } from "./not-in-this-runtime";
 
 export function CockpitV4Home() {
@@ -43,6 +50,7 @@ export function CockpitV4Home() {
   // show model ids and request sizes on a shared screen by default.
   const operatorView = searchParams.get("operator") === "1";
 
+  const { name, threads, ready, refresh } = useSession();
   const [open, setOpen] = React.useState<AttentionItem | null>(null);
   const [investigation, setInvestigation] =
     React.useState<ActiveInvestigation | null>(null);
@@ -72,30 +80,88 @@ export function CockpitV4Home() {
     })();
   }, []);
 
+  /** Reopen a real persisted thread, with its seed when it had one. */
+  const reopen = React.useCallback(async (thread: RecentThread) => {
+    try {
+      const loaded = await readThread(thread.thread_id);
+      const body = loaded.context?.body as
+        | { item_id?: string }
+        | undefined;
+      if (loaded.context?.kind === "attention_item" && body?.item_id) {
+        const { item } = await readAttentionItem(body.item_id);
+        const resumed = {
+          threadId: thread.thread_id,
+          item,
+          suggested:
+            (item.drilldown?.suggested_questions as string[] | undefined) ?? [],
+        };
+        setInvestigation(resumed);
+        rememberInvestigation({
+          threadId: resumed.threadId,
+          itemId: item.item_id,
+          suggested: resumed.suggested,
+        });
+      }
+    } catch {
+      /* a thread that cannot be read is not reopened, and nothing is faked */
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
+
+  const hello = greeting(name);
+
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-8 py-8" data-testid="cockpit-v4-home">
+    <div
+      className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8"
+      data-testid="cockpit-v4-home"
+    >
       <header className="space-y-1">
-        <h1 className="text-xl font-semibold text-slate-900">
-          Cockpit
+        <h1
+          className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl"
+          data-testid="cockpit-v4-greeting"
+        >
+          {hello.salutation}
+          {hello.name ? (
+            <>
+              ,{" "}
+              <span className="font-normal italic" data-testid="cockpit-v4-greeting-name">
+                {hello.name}
+              </span>
+            </>
+          ) : null}
         </h1>
-        <p className="text-sm text-slate-600">
-          Ask about the recorded corporate book, or about CreditProbe itself.
-          Every figure in an answer is bound to a query that actually ran, and
-          you can watch it run.
+        <p className="text-base text-slate-500" data-testid="cockpit-v4-prompt-line">
+          What&rsquo;s on your mind?
         </p>
       </header>
 
-      <CockpitV4
-        operatorView={operatorView}
-        initialQuestion={initialQuestion}
-        investigation={investigation}
-        onClearInvestigation={() => {
-          setInvestigation(null);
-          forgetInvestigation();
-        }}
-      />
+      <div className="mt-6">
+        <CockpitV4
+          operatorView={operatorView}
+          initialQuestion={initialQuestion}
+          investigation={investigation}
+          onClearInvestigation={() => {
+            setInvestigation(null);
+            forgetInvestigation();
+          }}
+          onSettled={() => void refresh()}
+        />
+      </div>
 
-      <AttentionPanel onOpen={(item) => setOpen(item)} />
+      <div className="mt-12">
+        <AttentionPanel onOpen={(item) => setOpen(item)} />
+      </div>
+
+      <div className="mt-12">
+        {ready ? (
+          <ContinueWhereYouLeftOff
+            threads={threads}
+            onOpen={(thread) => void reopen(thread)}
+          />
+        ) : null}
+      </div>
 
       <AttentionDrawer
         item={open}
@@ -115,10 +181,10 @@ export function CockpitV4Home() {
         }}
       />
 
-      <div className="space-y-3 pt-2">
+      <div className="mt-12 space-y-3">
         <NotInThisRuntime
-          title="Recent investigations"
-          what="The investigations workspace"
+          title="Early Warning"
+          what="Live early-warning signals"
         />
         <NotInThisRuntime
           title="Daily briefing"

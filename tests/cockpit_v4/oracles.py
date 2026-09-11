@@ -139,3 +139,67 @@ def collateral_allocated_total(release_id: str, quarter: str = "") -> Decimal:
 __all__ = ["borrower_count", "collateral_allocated_total", "ead_by_sector",
            "latest_quarter", "quarters", "stage2_by_sector",
            "stage2_exposure", "stage2_year_change", "total_assets_sum"]
+
+
+def ecl_by_sector(release_id: str, quarter: str = "") -> dict[str, Decimal]:
+    """Booked ECL per sector for one reporting quarter, facility grain."""
+    frame = _frame(release_id, "cockpit_facility_quarter")
+    quarter = quarter or latest_quarter(release_id)
+    slice_ = frame[frame["reporting_quarter"] == quarter]
+    grouped = slice_.groupby("sector_name")["ecl_reported"].sum()
+    # Deliberately NOT rounded. Rounding an oracle to six places and then
+    # asserting agreement to nine is a test comparing the engine against the
+    # rounding, not against the data.
+    return {str(k): Decimal(repr(float(v))) for k, v in grouped.items()}
+
+
+def top_sectors_by_ecl(release_id: str, quarter: str = "", n: int = 5
+                       ) -> list[tuple[str, Decimal]]:
+    """The n largest sectors by booked ECL, ties broken by sector name.
+
+    The tie-break matters: two sectors with identical ECL must not rank in
+    whatever order the engine happened to emit them.
+    """
+    values = ecl_by_sector(release_id, quarter)
+    return sorted(values.items(), key=lambda kv: (-kv[1], kv[0]))[:n]
+
+
+def ecl_vs_exposure_growth(release_id: str, quarter: str = "",
+                           comparison: str = "") -> dict[str, Any]:
+    """Sectors whose ECL grew faster than their EAD, quarter on quarter.
+
+    Outer-preserving: a sector present in only one of the two quarters is
+    reported as entering or exiting rather than dropped, because an inner
+    join here silently deletes exactly the movements that matter most.
+    """
+    all_quarters = quarters(release_id)
+    quarter = quarter or all_quarters[-1]
+    if not comparison:
+        index = all_quarters.index(quarter)
+        comparison = all_quarters[index - 1] if index >= 1 else ""
+    new_ecl, old_ecl = ecl_by_sector(release_id, quarter), \
+        ecl_by_sector(release_id, comparison)
+    new_ead, old_ead = ead_by_sector(release_id, quarter), \
+        ead_by_sector(release_id, comparison)
+
+    faster, entered, exited, undefined = [], [], [], []
+    for sector in sorted(set(new_ecl) | set(old_ecl)):
+        if sector not in old_ecl:
+            entered.append(sector)
+            continue
+        if sector not in new_ecl:
+            exited.append(sector)
+            continue
+        if old_ecl[sector] == 0 or old_ead[sector] == 0:
+            # A zero base has no growth RATE. It is not a 100% rise and it is
+            # not a zero one; it is undefined, and saying so is the answer.
+            undefined.append(sector)
+            continue
+        ecl_growth = (new_ecl[sector] - old_ecl[sector]) / old_ecl[sector]
+        ead_growth = (new_ead[sector] - old_ead[sector]) / old_ead[sector]
+        if ecl_growth > ead_growth:
+            faster.append((sector, ecl_growth, ead_growth))
+    faster.sort(key=lambda row: (-(row[1] - row[2]), row[0]))
+    return {"quarter": quarter, "comparison": comparison,
+            "faster": faster, "entered": entered, "exited": exited,
+            "growth_undefined": undefined}

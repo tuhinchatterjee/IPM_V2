@@ -308,15 +308,24 @@ def test_the_executed_code_equals_the_submitted_code_byte_for_byte(
 
 def test_an_invalid_field_reference_gets_a_diagnostic_not_a_substitution(
         service, store_db, release_id):
-    """V4-AT-048. Nothing guesses that `exposure` meant `ead_reported`."""
+    """V4-AT-048. Nothing guesses that `exposure` meant `ead_reported`.
+
+    It is refused at VALIDATION now, not at execution: a column DuckDB cannot
+    resolve means the query never bound, and a batch that cannot bind must not
+    be announced as validated.
+    """
     sql = "SELECT exposure FROM cockpit_facility_quarter LIMIT 1"
-    submission, result = submit(service, sql)
-    assert result.status == "failed"
-    step = result.steps[0]
-    assert step.failed_check in ("bind", "runtime")
-    assert "ead_reported" not in submission.steps[0].code, (
-        "the submitted code must be unchanged")
-    assert "did not repair anything" in result.message
+    with pytest.raises(Rejection) as caught:
+        submit(service, sql)
+    rejection = caught.value
+    assert rejection.detail["failed_check"] == "bind"
+    assert rejection.detail["phase"] == "bind"
+    assert rejection.detail["unresolved_name"] == "exposure"
+    assert "BinderException" in rejection.detail["duckdb_exception_type"]
+    assert "ead_reported" not in str(rejection), (
+        "a diagnostic names what did not resolve; it does not offer a "
+        "substitute")
+    assert "nothing was repaired" in str(rejection).lower()
 
 
 def test_a_failed_step_stops_its_dependents_and_preserves_the_rest(

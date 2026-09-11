@@ -209,11 +209,16 @@ def test_a_failed_query_is_repaired_by_the_model_not_the_application(
 
     assert outcome.state == st.COMPLETED, outcome.message
     diagnostic = seen["diagnostic"]
-    assert diagnostic["status"] == "failed"
-    step = diagnostic["steps"][0]
-    assert step["failed_check"] in ("bind", "runtime")
-    assert "exposure_at_default" in step["message"] or step["message"]
-    assert "did not modify or repair" in diagnostic["note"]
+    # The unresolvable column is caught by the BINDER, at validation, before
+    # anything claims the query was validated and before anything ran.
+    assert diagnostic["status"] == "rejected"
+    assert diagnostic["error_code"] == st.SQL_VALIDATION
+    detail = diagnostic["detail"]
+    assert detail["failed_check"] == "bind"
+    assert detail["phase"] == "bind"
+    assert detail["unresolved_name"] == "exposure_at_default"
+    assert "BinderException" in detail["duckdb_exception_type"]
+    assert "nothing was repaired" in diagnostic["message"].lower()
 
     # Both the failed and the corrected code came from the model, and the
     # application never authored a replacement.

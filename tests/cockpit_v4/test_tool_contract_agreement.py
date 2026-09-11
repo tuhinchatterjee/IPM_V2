@@ -35,7 +35,9 @@ LIVE_FINALIZE_PAYLOAD = {
         "owner": "COCKPIT",
         "understood_request": "The user is asking who I am.",
         "response_language": "en",
-        "ambiguities": None,
+        "blocking_ambiguities": None,
+        "resolved_assumptions": None,
+        "canonical_mappings": None,
         "excluded_parts": None,
         "public_rationale": "Answering from product metadata.",
     },
@@ -76,7 +78,9 @@ def test_the_payload_that_cost_a_generation_is_accepted():
     assert final.referral_owner == ""
     assert final.coverage == ()
     assert final.numeric_claims == ()
-    assert final.intent.ambiguities == ()
+    assert final.intent.blocking_ambiguities == ()
+    assert final.intent.resolved_assumptions == ()
+    assert final.intent.canonical_mappings == ()
 
 
 @pytest.mark.parametrize("spelling", [None, "", "absent"])
@@ -137,7 +141,9 @@ def test_the_other_tools_accept_absence_too(tool, schema_name, payload):
 def test_an_execution_submission_accepts_its_optional_absences():
     payload = {
         "intent": {**LIVE_FINALIZE_PAYLOAD["intent"],
-                   "query_mode": "DATA_ANALYSIS", "ambiguities": None},
+                   "query_mode": "DATA_ANALYSIS", "blocking_ambiguities": None,
+                   "resolved_assumptions": None,
+                   "canonical_mappings": None},
         "objective": "count rows", "subquestions": ["how many"],
         "scope": None, "metadata_receipt_ids": None, "fields_required": None,
         "expected_output_grain": "release",

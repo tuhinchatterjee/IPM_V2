@@ -128,10 +128,14 @@ def tool_call(name: str, arguments: dict[str, Any], call_id: str = "tu-1"
 
 def intent(mode: str = "PRODUCT_HELP", owner: str = "COCKPIT", *,
            understood: str = "what this is", language: str = "en",
-           ambiguities=(), excluded=(), rationale: str = "direct") -> dict:
+           ambiguities=(), excluded=(), rationale: str = "direct",
+           resolved=(), mappings=()) -> dict:
     return {"query_mode": mode, "owner": owner,
             "understood_request": understood, "response_language": language,
-            "ambiguities": list(ambiguities), "excluded_parts": list(excluded),
+            "blocking_ambiguities": list(ambiguities),
+            "resolved_assumptions": list(resolved),
+            "canonical_mappings": list(mappings),
+            "excluded_parts": list(excluded),
             "public_rationale": rationale}
 
 
@@ -239,3 +243,44 @@ def drive(store_db, runtime, make_run):
         outcome = worker.execute(record)
         return outcome, provider, record
     return _drive
+
+
+@pytest.fixture
+def session(runtime, release_id):
+    """A real read-only DuckDB session over the pinned release."""
+    from backend.cockpit_agentic import scope as v3_scope
+    from backend.cockpit_agentic import sql as v3_sql
+    from backend.cockpit_v4.service import _Principal
+
+    scope = v3_scope.for_principal(
+        _Principal({"tenant": "demo-tenant", "id": "u"}),
+        dataset_release_id=release_id)
+    return v3_sql.open_session(scope=scope, catalog=runtime.catalog)
+
+
+@pytest.fixture
+def service(session, store_db, runtime, release_id):
+    """The real execution service: validates, binds and runs for real."""
+    from backend.cockpit_v4.config import STANDARD_LIMITS
+    from backend.cockpit_v4.execute_tool import ExecutionService
+
+    return ExecutionService(
+        session=session, scope=None, catalog=runtime.catalog, store=store_db,
+        run_id="r-exec", tenant_id="demo-tenant", release_id=release_id,
+        limits=STANDARD_LIMITS)
+
+
+@pytest.fixture
+def ledger_factory(store_db, capability):
+    """A real ledger over a real store, for budget arithmetic."""
+    from dataclasses import replace
+
+    from backend.cockpit_v4.budgets import Ledger
+    from backend.cockpit_v4.config import STANDARD_LIMITS
+
+    def _make(**overrides):
+        limits = replace(STANDARD_LIMITS, **overrides)
+        run_id = "r-budget"
+        return Ledger(limits=limits, capability=capability, store=store_db,
+                      run_id=run_id)
+    return _make

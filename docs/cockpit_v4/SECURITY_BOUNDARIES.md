@@ -197,3 +197,31 @@ transformation are persisted as run detail and an event says so; when nothing
 is changed — the common case — nothing is recorded, because a trace that
 claims a normalisation that did not happen is the same defect as one that
 hides one.
+
+## Proving a query without running it
+
+`sqlbind.prove_bindable` runs `EXPLAIN`, which parses, binds and plans and
+executes nothing — an EXPLAIN of an unguarded cross join over the whole book
+returns in about three milliseconds. Validation therefore costs no analytical
+work and reads no rows, which is what makes it safe to do on every submission
+before announcing that a query was validated.
+
+Every diagnostic returned from it is sanitized before it reaches a model or a
+reader: `read_parquet('…')` calls and filesystem paths are replaced with "the
+authorized view", and only the first line is kept. The operator detail keeps
+the DuckDB exception type, the binder's message, the unresolved name, the
+submission ordinal, the stage, the submitted SQL and its parameters — and no
+credential, connection string or path.
+
+Parameters are bound by the engine, never interpolated into the SQL text by
+CreditProbe. A placeholder with no value, a value with no placeholder or a
+mixed placeholder style is refused with a named reason rather than repaired.
+
+## The analytical allowance
+
+A run's time and cost allowance widens only upward, only once, and only when
+the analyst declares a DATA_ANALYSIS. Nothing in a request or a model response
+can set it: the values come from `config.analytical_limits_for`, the model
+declares a mode and the server decides what that mode is worth. Counters —
+submissions, rounds, generations, catalog calls, steps — are untouched by the
+widening.

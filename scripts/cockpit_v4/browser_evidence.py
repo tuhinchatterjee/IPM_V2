@@ -116,7 +116,11 @@ def main() -> int:
                  "V4_CHROME": CHROME,
                  "V4_BROWSER_EVIDENCE": str(evidence),
                  "V4_BROWSER_SCREENSHOT": str(
-                     evidence.parent / "cockpit_v4_answer.png")})
+                     evidence.parent / "cockpit_v4_answer.png"),
+                 # The restored landing page, captured for human review
+                 # against the reference the requirement was written from.
+                 "V4_LANDING_SCREENSHOT": str(
+                     evidence.parent / "cockpit_v4_landing.png")})
         if args.keep_up:
             print(f"\n  left running: UI http://127.0.0.1:{ui_port} · "
                   f"API http://127.0.0.1:{api_port}")

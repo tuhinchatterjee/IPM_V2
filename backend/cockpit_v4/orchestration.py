@@ -23,7 +23,11 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from datetime import datetime, timedelta, timezone
+
 from backend.cockpit_v4 import DEEP, events as ev
+from backend.cockpit_v4 import config as config_mod
+from backend.cockpit_v4 import contracts as contracts_mod
 from backend.cockpit_v4 import states as st
 from backend.cockpit_v4.artifacts import ArtifactService
 from backend.cockpit_v4.budgets import BudgetExceeded, Ledger
@@ -96,6 +100,12 @@ class Orchestrator:
     #: catalog: they touch no borrower data and open no analysis round.
     product_calls: int = 0
     intent: Any = None
+    #: Set once the analytical allowance has been adopted, so it happens
+    #: exactly once however many times the intent is re-declared.
+    _analytical: bool = False
+    #: The first analytical failure in this run, kept so a later deadline or
+    #: cost stop cannot bury it.
+    first_failure: dict[str, Any] | None = None
     _version: int = 0
 
     # -- helpers ---------------------------------------------------------
@@ -180,8 +190,16 @@ class Orchestrator:
 
         Never a fabricated analytical answer: when no model call remains
         affordable, CreditProbe states the reason and stops.
+
+        The terminal code is the bound that ran out, but it is rarely the
+        interesting fact. A run that hit a binder failure, retried, and then
+        ran out of time stops as DEADLINE_EXPIRED -- and "what went wrong
+        first" is the binder failure. Both are reported.
         """
         self.ledger.cancel()
+        if self.first_failure:
+            message = (f"{message} The first analytical failure in this run "
+                       f"was: {self.first_failure['summary']}")
         state = st.EXPIRED if code == st.DEADLINE_EXPIRED else st.FAILED
         if self.executed and code in (st.DEADLINE_EXPIRED, st.COST_LIMIT,
                                       st.CALL_LIMIT, st.EXECUTION_LIMIT,
@@ -191,7 +209,11 @@ class Orchestrator:
         self.emitter.append(
             ev.RUN_EXPIRED if state == st.EXPIRED else ev.RUN_FAILED,
             stage="publishing", operation=code.lower(),
-            status=ev.STATUS_FAILED, public_message=message)
+            status=ev.STATUS_FAILED, public_message=message,
+            detail_ref=(self._detail({"terminal_code": code,
+                                      "first_analytical_failure":
+                                      self.first_failure})
+                        if self.first_failure else ""))
         return Outcome(state, error_code=code, message=message)
 
     def _loop(self) -> Outcome:
@@ -497,7 +519,44 @@ class Orchestrator:
             call.arguments, max_steps=self.ledger.limits.steps_per_batch)
         self._record_intent(submission.intent)
 
-        self.execution_service.validate_batch(submission)
+        try:
+            bind_report = self.execution_service.validate_batch(submission)
+        except Rejection as rejection:
+            # A submission refused at the binder is still a numbered
+            # submission, and its exact SQL is still on file. "Which query, on
+            # which attempt" has to be answerable for the one that never ran,
+            # not only for the ones that did.
+            submission_id = self.store.record_submission(
+                run_id=self.run.run_id, ordinal=ordinal, round=0,
+                payload=submission.to_dict(), status="rejected",
+                no_progress_key="")
+            detail = dict(rejection.detail or {})
+            self._remember_failure(
+                stage="validating", code=rejection.code,
+                summary=(f"submission {ordinal} did not bind — "
+                         f"{rejection.message}"
+                         if detail.get("phase") == "bind"
+                         else f"submission {ordinal} was refused — "
+                              f"{rejection.message}"),
+                detail={"submission": ordinal, **detail})
+            self.emitter.append(
+                ev.TOOL_FAILED, stage="validating", operation=TOOL_EXECUTE,
+                status=ev.STATUS_REJECTED, submission=ordinal,
+                public_message=(
+                    "The query did not bind and was not run."
+                    if detail.get("phase") == "bind"
+                    else "The submission was refused before anything ran."),
+                detail_ref=self._detail({
+                    "submission_id": submission_id, "submission": ordinal,
+                    "stage": "validating",
+                    "error_code": rejection.code,
+                    "field": rejection.field_path,
+                    "message": rejection.message,
+                    "steps": [{"step_id": s.step_id, "language": s.language,
+                               "code": s.code, "parameters": s.parameters}
+                              for s in submission.steps],
+                    **detail}))
+            raise
         self.ledger.spend_steps(len(submission.steps))
         key = no_progress_key(submission,
                               release_id=self.run.release_id)
@@ -518,15 +577,23 @@ class Orchestrator:
             payload=submission.to_dict(), status="running",
             no_progress_key=key)
 
+        proven = len(bind_report.get("bound_now", ()))
+        deferred = list(bind_report.get("bound_at_run_time", ()))
         self.emitter.append(
             ev.TOOL_VALIDATED, stage="validating", operation=TOOL_EXECUTE,
             status=ev.STATUS_OK, submission=ordinal, round=round_no,
-            public_message=(f"Query validated: {len(submission.steps)} "
-                            f"step(s), {submission.expected_output_grain} "
-                            f"grain, "
-                            f"{units_display(submission.expected_units)}."),
+            public_message=(
+                f"Query validated and bound: {len(submission.steps)} step(s), "
+                f"{submission.expected_output_grain} grain, "
+                f"{units_display(submission.expected_units)}."
+                + (f" {len(deferred)} step(s) bind against earlier results "
+                   f"and are proven as they run." if deferred else "")),
             detail_ref=self._detail({
                 "objective": submission.objective,
+                "submission_id": submission_id,
+                "bind_proof": {"method": "DuckDB EXPLAIN, nothing executed",
+                               "proven_before_execution": proven,
+                               "proven_at_run_time": deferred},
                 "steps": [{"step_id": s.step_id, "language": s.language,
                            "purpose": s.purpose, "code": s.code,
                            "parameters": s.parameters}
@@ -557,19 +624,37 @@ class Orchestrator:
                         "artifact_id": result.artifact_id,
                         "warnings": result.warnings}))
             elif phase == "failed":
+                bound = result.phase != "bind"
+                self._remember_failure(
+                    stage="executing", code=result.error_code,
+                    summary=(f"step {step.step_id} of submission {ordinal} "
+                             + ("failed while running — "
+                                if bound else "did not bind — ")
+                             + result.message),
+                    detail={"submission": ordinal, "step_id": step.step_id,
+                            "phase": result.phase,
+                            **dict(result.engine_detail or {})})
                 self.emitter.append(
                     ev.TOOL_FAILED, stage="executing",
                     operation=step.step_id, status=ev.STATUS_FAILED,
                     submission=ordinal, round=round_no,
-                    public_message=(f"{step.purpose} failed at the "
-                                    f"{result.failed_check} check."),
+                    # A query that never bound did not run, and the trace
+                    # must not imply that it did.
+                    public_message=(
+                        f"{step.purpose} failed while running."
+                        if bound else
+                        f"{step.purpose} did not bind and was not run."),
                     detail_ref=self._detail({
                         "step_id": step.step_id,
+                        "phase": result.phase or "runtime",
+                        "executed": bound,
                         "failed_check": result.failed_check,
                         "error_code": result.error_code,
                         "message": result.message,
+                        "parameters": step.parameters,
                         "submitted_code": step.code,
-                        "failed_code_digest": result.code_digest}))
+                        "failed_code_digest": result.code_digest,
+                        **dict(result.engine_detail or {})}))
 
         batch = self.execution_service.run_batch(
             submission, submission_id=submission_id,
@@ -672,16 +757,73 @@ class Orchestrator:
 
     # -- intent ----------------------------------------------------------
 
+    def _remember_failure(self, *, stage: str, code: str, summary: str,
+                          detail: dict[str, Any] | None = None) -> None:
+        """The FIRST one only. Later failures are in the event log anyway."""
+        if self.first_failure is None:
+            self.first_failure = {"stage": stage, "error_code": code,
+                                  "summary": summary,
+                                  "detail": dict(detail or {})}
+
+    def _adopt_analytical_limits(self, intent) -> None:
+        """A declared analysis gets the analytical time and cost allowance.
+
+        The mode is not knowable at intake -- the question arrives as text --
+        so the run starts on the product-help allowance and widens here, once
+        and only upward, when the analyst says what this turn is. A Product
+        Help run therefore keeps the tight bound it should have.
+        """
+        if self._analytical or intent.query_mode != contracts_mod.DATA_ANALYSIS:
+            return
+        self._analytical = True
+        report = self.ledger.adopt(
+            config_mod.analytical_limits_for(self.ledger.limits.mode))
+        if not report["changed"]:
+            return
+        try:
+            self.store.extend_deadline(
+                self.run.run_id,
+                (datetime.now(timezone.utc) + timedelta(
+                    seconds=self.ledger.limits.deadline_seconds)
+                 ).isoformat(timespec="milliseconds"))
+        except Exception:  # noqa: BLE001 - a stale watchdog is not fatal here
+            pass
+        after = report["after"]
+        self.emitter.append(
+            ev.CONTEXT_READY, stage="understanding", operation="budget",
+            status=ev.STATUS_OK,
+            public_message=(
+                f"Analysis allowance: {after['deadline_seconds']:.0f}s, "
+                f"${after['spend_ceiling_usd']:.2f}."),
+            detail_ref=self._detail({"budget_adopted": report}))
+
     def _record_intent(self, intent) -> None:
         if self.intent is not None and intent.to_dict() == self.intent.to_dict():
             return
         self.intent = intent
+        self._adopt_analytical_limits(intent)
         self.emitter.append(
             ev.INTENT_VALIDATED, stage="understanding", operation="intent",
             status=ev.STATUS_OK,
             public_message=(f"{_mode_label(intent.query_mode)} · owned by "
                             f"{intent.owner.replace('_', ' ').title()}"),
             detail_ref=self._detail(intent.to_dict()))
+        # Resolutions are shown, not hidden and not treated as refusals. A
+        # reader should be able to see that "exposure at default" was read as
+        # EAD and that the period was resolved to the latest populated
+        # quarter, without either one having stopped the analysis.
+        for label, lines in (("Resolved", intent.canonical_mappings),
+                             ("Assumed", intent.resolved_assumptions)):
+            for line in lines:
+                self.emitter.append(
+                    ev.INTENT_VALIDATED, stage="understanding",
+                    operation="semantics", status=ev.STATUS_OK,
+                    public_message=f"{label}: {line}")
+        for line in intent.blocking_ambiguities:
+            self.emitter.append(
+                ev.INTENT_VALIDATED, stage="understanding",
+                operation="ambiguity", status=ev.STATUS_REJECTED,
+                public_message=f"Needs a decision: {line}")
 
 
 #: Product-knowledge reads a single run may make. Generous, because each is

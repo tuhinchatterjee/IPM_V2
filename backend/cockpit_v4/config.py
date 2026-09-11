@@ -19,7 +19,7 @@ pays for does not get to guess, and `validate()` reports it as missing.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, replace, field
 from pathlib import Path
 from typing import Any
 
@@ -124,8 +124,43 @@ DEEP_LIMITS = Limits(
     reserved_output_tokens=6_144)
 
 
+#: What a DATA_ANALYSIS run gets once the analyst declares one.
+#:
+#: The live evidence: a Standard analytical run hit the 60-second deadline
+#: while the model was still writing SQL, and another stopped at COST_LIMIT
+#: with about $0.71 committed because a further ~$0.30 response reservation
+#: did not fit under $1.00. Neither bound was wrong for a product question;
+#: both were wrong for an analysis that reads metadata, writes a query,
+#: repairs it and then writes an answer.
+#:
+#: The cost figures are derived rather than chosen. At the verified Opus price
+#: card ($15 / Mtok input, $75 / Mtok output), one analytical generation with
+#: a ~12k-token assembled request and a 4,096-token response costs about
+#: $0.18 + $0.31 = $0.49 worst case. A realistic analysis is metadata,
+#: submission, one repair and a finalization -- four generations -- so about
+#: $1.96 worst case and well under that in practice once responses settle at
+#: actual usage. $1.50 covers the common three-generation path with the
+#: reservation headroom the ledger needs; Deep's $3.00 covers the four-
+#: generation path with a repair.
+ANALYTICAL_STANDARD_LIMITS = replace(
+    STANDARD_LIMITS, deadline_seconds=120.0, spend_ceiling_usd=1.50)
+
+ANALYTICAL_DEEP_LIMITS = replace(
+    DEEP_LIMITS, deadline_seconds=240.0, spend_ceiling_usd=3.00)
+
+
 def limits_for(mode: str) -> Limits:
     return DEEP_LIMITS if str(mode).lower() == DEEP else STANDARD_LIMITS
+
+
+def analytical_limits_for(mode: str) -> Limits:
+    """The same mode's limits, widened for a declared DATA_ANALYSIS.
+
+    Applied when the analyst declares the mode, not at intake: a Product Help
+    question keeps the tight allowance, and nothing is narrowed by this.
+    """
+    return (ANALYTICAL_DEEP_LIMITS if str(mode).lower() == DEEP
+            else ANALYTICAL_STANDARD_LIMITS)
 
 
 @dataclass(frozen=True)
@@ -289,7 +324,9 @@ def validate(cfg: V4Config | None = None) -> dict[str, Any]:
     }
 
 
-__all__ = ["CREDENTIAL_VAR", "ConfigurationInvalid", "DEEP_LIMITS",
+__all__ = ["ANALYTICAL_DEEP_LIMITS", "ANALYTICAL_STANDARD_LIMITS",
+           "CREDENTIAL_VAR", "ConfigurationInvalid", "DEEP_LIMITS",
+           "analytical_limits_for",
            "DEFAULT_API_PORT", "DEFAULT_UI_PORT", "Limits",
            "REASONING_MODEL_VAR", "STANDARD_LIMITS", "V4Config",
            "check_write_target", "default_runtime_dir", "limits_for", "load",

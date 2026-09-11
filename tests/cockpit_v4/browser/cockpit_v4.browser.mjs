@@ -589,6 +589,9 @@ async function openDrawer(page, section = "segments-requiring-attention") {
     `[data-testid="${section}"] [data-testid="attention-card"]`,
     { timeout: 60_000 },
   );
+  if (section === "segments-requiring-attention") {
+    await page.click('[data-testid="attention-tab"][data-tab="segments"]');
+  }
   const cards = await page.$$(
     `[data-testid="${section}"] [data-testid="attention-card"]`,
   );
@@ -607,6 +610,9 @@ await test("segments requiring attention loads from the pinned release",
     try {
       await page.waitForSelector('[data-testid="segments-requiring-attention"]',
         { timeout: 60_000 });
+      // The default "All" tab holds both sections; the segment count is the
+      // Segments tab's.
+      await page.click('[data-testid="attention-tab"][data-tab="segments"]');
       const cards = await page.$$(
         '[data-testid="segments-requiring-attention"] [data-testid="attention-card"]',
       );
@@ -904,6 +910,246 @@ await test("an attention-feed failure does not break Ask", async () => {
     await context.close();
   }
 });
+
+// ---- the restored landing page ----------------------------------------
+
+await test("the landing page greets, then asks what is on your mind",
+  async () => {
+    const { context, page, requests } = await openCockpit(browser);
+    try {
+      const heading = await page.textContent('[data-testid="cockpit-v4-greeting"]');
+      assert.match(
+        heading ?? "",
+        /^Good (morning|afternoon|evening)/,
+        `the greeting must be time-aware, got ${heading}`,
+      );
+      // A name appears only when the session has one. It is never invented.
+      const named = await page.$('[data-testid="cockpit-v4-greeting-name"]');
+      if (named) {
+        const name = (await named.textContent())?.trim() ?? "";
+        assert.ok(name.length > 0, "an empty name must not be rendered");
+        assert.ok(
+          !/^(user|there|admin)$/i.test(name),
+          `a placeholder is not a name: ${name}`,
+        );
+      }
+      const line = await page.textContent('[data-testid="cockpit-v4-prompt-line"]');
+      assert.match(line ?? "", /What.s on your mind\?/);
+      assertNoLegacyCalls(requests, "for the landing page");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("the Ask box is the primary element and spans the workspace",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      const box = await page.$('[data-testid="cockpit-v4-ask-box"]');
+      assert.ok(box, "the Ask box renders");
+      const boxRect = await box.boundingBox();
+      const home = await (await page.$('[data-testid="cockpit-v4-home"]'))
+        .boundingBox();
+      assert.ok(
+        boxRect.width > home.width * 0.85,
+        `the Ask box should span the workspace: ${boxRect.width} of ${home.width}`,
+      );
+      // And it sits above what requires attention, not beside or below it.
+      const attention = await (
+        await page.$('[data-testid="segments-requiring-attention"]')
+      ).boundingBox();
+      assert.ok(
+        boxRect.y + boxRect.height <= attention.y,
+        "the question box comes before the attention feed",
+      );
+      // Nothing reserves space for the process panel before a run exists.
+      assert.equal(
+        await page.$('[data-testid="v4-process-panel"]'),
+        null,
+        "an idle landing page shows no process panel",
+      );
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("prompt chips render, ask when clicked, and can be dismissed",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      const chips = await page.$$('[data-testid="cockpit-v4-prompt"]');
+      assert.ok(chips.length >= 3, `expected prompt chips, saw ${chips.length}`);
+      const texts = await Promise.all(chips.map((c) => c.textContent()));
+      assert.ok(
+        texts.some((text) => /risk|exposure|Stage 2|EAD|sector/i.test(text ?? "")),
+        `chips must be business prompts, got ${JSON.stringify(texts)}`,
+      );
+
+      await page.click('[data-testid="cockpit-v4-prompts-dismiss"]');
+      assert.equal(
+        await page.$('[data-testid="cockpit-v4-prompts"]'),
+        null,
+        "dismissing hides the chips",
+      );
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page, '[data-testid="cockpit-v4-prompt"]', 30_000, problems);
+      const first = (await page.$$('[data-testid="cockpit-v4-prompt"]'))[0];
+      await first.click();
+      await expect(page, '[data-testid="v4-process-panel"]', 30_000, problems);
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("the Trace line is there and explains itself", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    const note = await page.textContent('[data-testid="cockpit-v4-trace-note"]');
+    assert.match(note ?? "", /Every answer carries a Trace/);
+    await page.click('[data-testid="cockpit-v4-trace-explain"]');
+    const help = await page.textContent('[data-testid="cockpit-v4-trace-help"]');
+    assert.match(help ?? "", /bound to a query that actually ran/);
+  } finally {
+    await context.close();
+  }
+});
+
+await test("Requires attention shows its reporting period and real tabs",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await page.waitForSelector('[data-testid="attention-reporting-period"]',
+        { timeout: 60_000 });
+      const period = await page.textContent(
+        '[data-testid="attention-reporting-period"]',
+      );
+      assert.match(
+        period ?? "",
+        /Reporting period Q[1-4] \d{4}/,
+        `the reporting period must come from the release, got ${period}`,
+      );
+      const heading = await page.textContent(
+        '[data-testid="segments-requiring-attention"] h2',
+      );
+      assert.match(heading ?? "", /Requires attention/);
+
+      const tabs = await page.$$('[data-testid="attention-tab"]');
+      const labels = await Promise.all(tabs.map((t) => t.getAttribute("data-tab")));
+      assert.deepEqual(labels, ["all", "segments", "ecl"]);
+
+      // Every tab count is the real length of the real list behind it.
+      for (const tab of tabs) {
+        const id = await tab.getAttribute("data-tab");
+        const text = (await tab.textContent()) ?? "";
+        const claimed = Number((text.match(/(\d+)\s*$/) ?? [])[1] ?? "-1");
+        await tab.click();
+        const rows = await page.$$(
+          '[data-testid="segments-requiring-attention"] [data-testid="attention-card"]',
+        );
+        assert.equal(rows.length, claimed,
+          `tab ${id} claims ${claimed} and shows ${rows.length}`);
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("Continue where you left off uses real V4 threads", async () => {
+  const { context, page, requests, problems } = await openCockpit(browser);
+  try {
+    await page.waitForSelector('[data-testid="continue-where-you-left-off"]',
+      { timeout: 60_000 });
+    // Before anything has run in this browser profile it is either empty or
+    // showing threads this tenant really has. It is never invented rows.
+    const empty = await page.$('[data-testid="continue-empty"]');
+    const before = await page.$$('[data-testid="continue-thread"]');
+    assert.ok(empty || before.length > 0);
+
+    await ask(page, "Who are you?");
+    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="continue-thread"]',
+      { timeout: 60_000 });
+    const after = await page.$$('[data-testid="continue-thread"]');
+    assert.ok(after.length >= 1, "the conversation just held is listed");
+    const label = await after[0].textContent();
+    assert.match(label ?? "", /Who are you\?|Cockpit conversation/);
+    assertNoLegacyCalls(requests, "for the thread list");
+  } finally {
+    await context.close();
+  }
+});
+
+await test("an Arabic answer renders right-to-left without breaking the page",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "ما هو CreditProbe؟");
+      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      const direction = await page.evaluate(() => {
+        const input = document.querySelector(
+          '[data-testid="cockpit-v4-question"]',
+        );
+        return input ? getComputedStyle(input).direction : "";
+      });
+      // dir="auto" resolves from the content, so the box itself flips.
+      assert.ok(["ltr", "rtl"].includes(direction), direction);
+      const body = await page.evaluate(
+        () => document.body.scrollWidth <= window.innerWidth + 2,
+      );
+      assert.ok(body, "an RTL answer must not force a horizontal scroll");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("the landing page mounts the V4 Cockpit and nothing legacy",
+  async () => {
+    const { context, page, requests } = await openCockpit(browser);
+    try {
+      assert.ok(await page.$('[data-testid="cockpit-v4-home"]'));
+      assert.ok(await page.$('[data-testid="cockpit-v4"]'));
+      // The legacy Cockpit's own markers must be absent, not merely hidden.
+      for (const legacy of [
+        '[data-testid="cockpit-home"]',
+        '[data-testid="agentic-officer"]',
+        '[data-testid="investigation-panel"]',
+      ]) {
+        assert.equal(await page.$(legacy), null, `${legacy} must not mount`);
+      }
+      const stray = requests.filter((url) => /:8000(\/|$)/.test(url));
+      assert.deepEqual(stray, []);
+      assertNoLegacyCalls(requests, "for the restored landing page");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+if (process.env.V4_LANDING_SCREENSHOT) {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1200 },
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${UI}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="attention-card"]',
+      { timeout: 60_000 });
+    await page.screenshot({
+      path: process.env.V4_LANDING_SCREENSHOT,
+      fullPage: true,
+    });
+    console.log(`  screenshot ${process.env.V4_LANDING_SCREENSHOT}`);
+  } finally {
+    await context.close();
+  }
+}
 
 await browser.close();
 

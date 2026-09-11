@@ -31,6 +31,8 @@ from typing import Any
 from backend.cockpit_agentic import sql as v3_sql
 from backend.cockpit_v4.contracts import ExecutionSubmission, Rejection, Step
 from backend.cockpit_v4.provider import code_digest
+from backend.cockpit_v4.sqlbind import (BindFailure, parameter_argument,
+                                        placeholders, prove_bindable)
 from backend.cockpit_v4.states import (PYTHON_UNAVAILABLE, SECURITY_DENIED,
                                        SQL_RUNTIME, SQL_VALIDATION)
 
@@ -60,6 +62,10 @@ class StepResult:
     failed_check: str = ""
     message: str = ""
     elapsed_ms: int = 0
+    #: "bind" or "runtime". A query that never bound did not execute, and
+    #: the trace must not say it did.
+    phase: str = ""
+    engine_detail: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         out = {"step_id": self.step_id, "status": self.status,
@@ -73,7 +79,12 @@ class StepResult:
         else:
             out.update({"error_code": self.error_code,
                         "failed_check": self.failed_check,
-                        "message": self.message})
+                        "message": self.message,
+                        "phase": self.phase or ("bind"
+                                                if self.failed_check ==
+                                                CHECK_BIND else "runtime"),
+                        "executed": self.failed_check not in
+                        (CHECK_BIND, CHECK_STRUCTURE, CHECK_AUTHORIZATION)})
         if self.warnings:
             out["warnings"] = self.warnings
         return out
@@ -95,11 +106,14 @@ class BatchResult:
 
 
 class StepFailed(Exception):
-    def __init__(self, code: str, check: str, message: str) -> None:
+    def __init__(self, code: str, check: str, message: str, *,
+                 detail: dict[str, Any] | None = None) -> None:
         super().__init__(message)
         self.code = code
         self.check = check
         self.message = message
+        #: Operator-only. The engine's own diagnostic, for the trace.
+        self.detail = dict(detail or {})
 
 
 _RELATION_IN_SQL = re.compile(
@@ -151,18 +165,58 @@ class ExecutionService:
             raise Rejection(
                 SECURITY_DENIED,
                 f"Execution is available only for a declared DATA_ANALYSIS "
-                f"owned by COCKPIT with no unresolved ambiguity. This "
+                f"owned by COCKPIT with no BLOCKING ambiguity. This "
                 f"submission declared {submission.intent.query_mode} / "
                 f"{submission.intent.owner}"
-                + (f" with unresolved ambiguity "
-                   f"{list(submission.intent.ambiguities)}."
-                   if submission.intent.ambiguities else "."),
+                + (f" and left "
+                   f"{list(submission.intent.blocking_ambiguities)} "
+                   f"unresolved. A resolution you have already made belongs "
+                   f"in resolved_assumptions or canonical_mappings, which do "
+                   f"not stop execution."
+                   if submission.intent.blocking_ambiguities else "."),
                 field_path="intent")
+        bound: list[str] = []
+        deferred: list[str] = []
         for step in submission.steps:
             if step.language == "sql":
                 self._validate_sql(step)
+                if self._bindable_now(step):
+                    self._prove_bindable(step)
+                    bound.append(step.step_id)
+                else:
+                    deferred.append(step.step_id)
             else:
                 self._validate_python(step)
+        return {"bound_now": bound, "bound_at_run_time": deferred}
+
+    @staticmethod
+    def _bindable_now(step: Step) -> bool:
+        """Whether this step can be bound before anything has run.
+
+        A SQL step in V4 is self-contained: earlier step outputs are not
+        registered as relations, so a query that needs one carries it as a
+        CTE. A step that nonetheless declares a dependency is bound
+        immediately before it runs instead, and the validation message says
+        so rather than implying a proof that was not obtained.
+        """
+        return not (step.depends_on_step_ids or step.input_artifact_ids)
+
+    def _prove_bindable(self, step: Step) -> None:
+        """DuckDB must resolve the query, or this is not a validated query.
+
+        Announcing "validated" and then failing the binder was the defect:
+        two true statements in the wrong order. The proof costs an EXPLAIN,
+        which executes nothing.
+        """
+        try:
+            prove_bindable(step.code, self.session, parameters=step.parameters)
+        except BindFailure as exc:
+            raise Rejection(
+                SQL_VALIDATION,
+                f"step {step.step_id} did not bind: {exc.message} Nothing "
+                f"was executed and nothing was repaired.",
+                field_path=f"steps.{step.step_id}.code",
+                detail={"failed_check": CHECK_BIND, **exc.detail()}) from exc
 
     def _validate_sql(self, step: Step) -> None:
         try:
@@ -259,7 +313,9 @@ class ExecutionService:
                     step_id=step.step_id, status="failed",
                     language=step.language, code_digest=code_digest(step.code),
                     purpose=step.purpose, error_code=exc.code,
-                    failed_check=exc.check, message=exc.message)
+                    failed_check=exc.check, message=exc.message,
+                    phase="bind" if exc.check == CHECK_BIND else "runtime",
+                    engine_detail=dict(exc.detail))
                 failed.add(step.step_id)
             result.elapsed_ms = int((time.monotonic() - started) * 1000)
             results.append(result)
@@ -297,10 +353,13 @@ class ExecutionService:
 
     def _run_sql(self, step: Step, *, deadline_seconds: float) -> StepResult:
         digest = code_digest(step.code)
+        # Bound again here, with its parameters, because a step deferred at
+        # validation has not been proven yet and because the binder is cheap.
         try:
-            v3_sql.bind(step.code, self.session)
-        except v3_sql.SqlRejected as exc:
-            raise StepFailed(SQL_VALIDATION, CHECK_BIND, str(exc)) from exc
+            prove_bindable(step.code, self.session, parameters=step.parameters)
+        except BindFailure as exc:
+            raise StepFailed(SQL_VALIDATION, CHECK_BIND, exc.message,
+                             detail=exc.detail()) from exc
 
         warnings: list[str] = []
         try:
@@ -317,11 +376,11 @@ class ExecutionService:
             warnings.append(str(risk))
 
         try:
-            result = v3_sql.execute(
-                step.code, self.session, deadline_seconds=deadline_seconds,
-                max_rows=self.limits.preview_rows)
+            result = self._execute_sql(step, deadline_seconds=deadline_seconds)
         except v3_sql.SqlRejected as exc:
             raise StepFailed(SQL_RUNTIME, CHECK_RUNTIME, str(exc)) from exc
+        except StepFailed:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise StepFailed(SQL_RUNTIME, CHECK_RUNTIME, str(exc)) from exc
 
@@ -351,6 +410,71 @@ class ExecutionService:
                 columns) > self.limits.preview_columns,
             artifact_id=artifact_id,
             warnings=warnings + list(result.warnings))
+
+    def _execute_sql(self, step: Step, *, deadline_seconds: float):
+        """Run the step exactly as submitted, with its declared parameters.
+
+        With no parameters this is V3's executor unchanged — the deadline
+        watchdog, the row limits and the error classification are all its
+        own, and that is the path V3's suite covers. With parameters it is
+        the same connection and the same deadline, with the argument DuckDB
+        needs, because a `parameters` object the engine never sees is a
+        contract the application advertised and did not honour.
+        """
+        argument = parameter_argument(step.code, step.parameters)
+        if argument is None:
+            return v3_sql.execute(
+                step.code, self.session, deadline_seconds=deadline_seconds,
+                max_rows=self.limits.preview_rows)
+
+        import threading
+
+        timed_out = threading.Event()
+        finished = threading.Event()
+
+        def watchdog() -> None:
+            if not finished.wait(max(0.05, deadline_seconds)):
+                timed_out.set()
+                try:
+                    self.session.connection.interrupt()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        started = time.monotonic()
+        threading.Thread(target=watchdog, daemon=True).start()
+        try:
+            frame = self.session.connection.execute(
+                step.code, argument).fetch_df()
+        except Exception as exc:  # noqa: BLE001
+            finished.set()
+            if timed_out.is_set():
+                raise StepFailed(
+                    SQL_RUNTIME, CHECK_RUNTIME,
+                    f"the query was cancelled after {deadline_seconds:.0f} "
+                    f"seconds.") from exc
+            raise StepFailed(SQL_RUNTIME, CHECK_RUNTIME,
+                             str(exc).strip().splitlines()[0][:400]) from exc
+        finally:
+            finished.set()
+
+        total = int(len(frame))
+        warnings: list[str] = []
+        shown = frame.head(self.limits.preview_rows)
+        truncated = total > self.limits.preview_rows
+        if truncated:
+            warnings.append(
+                f"{total} rows were produced and the first "
+                f"{self.limits.preview_rows} are shown. This is a CLIPPED "
+                f"table, not a complete aggregate: do not read a total off "
+                f"it.")
+        return v3_sql.SqlResult(
+            columns=[{"name": str(name), "type": str(dtype)}
+                     for name, dtype in zip(frame.columns, frame.dtypes)],
+            rows=shown.replace({float("nan"): None}).to_dict(
+                orient="records"),
+            row_count=total, truncated=truncated,
+            elapsed_seconds=round(time.monotonic() - started, 4),
+            warnings=warnings)
 
     def _run_python(self, step: Step, *, deadline_seconds: float) -> StepResult:
         if self.python_runner is None or not getattr(

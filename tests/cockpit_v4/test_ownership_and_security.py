@@ -98,7 +98,9 @@ def test_unresolved_ambiguity_blocks_execution(store_db, runtime,
         max_steps=6)
     with pytest.raises(Rejection) as excinfo:
         service.validate_batch(submission)
-    assert "unresolved ambiguity" in str(excinfo.value)
+    assert "BLOCKING ambiguity" in str(excinfo.value)
+    assert "resolved_assumptions" in str(excinfo.value), (
+        "the refusal must say where a resolution belongs instead")
 
 
 def test_samples_are_refused_outside_a_data_analysis():
