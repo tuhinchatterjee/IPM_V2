@@ -266,12 +266,28 @@ def journey_d(s: Session, rec: Recorder) -> None:
           opened, f"Customer 360 rendered={opened}",
           screenshot=s.shot("jd-02"))
 
-    # History and both scores, on the customer.
-    body = s.text()
+    # History and both scores, on the customer. They sit behind tabs, so the
+    # tabs are opened — a reader clicks them, and a check that reads only the
+    # landing tab reports the product as missing what it is showing.
+    # Read ACROSS the tabs, not from whichever one happens to be last. A
+    # reader opens History, then Scores, then Warnings; a check that keeps
+    # only the final tab's text reports the two before it as missing.
+    s.wait_for('[data-testid="customer-header"]', seconds=40)
+    seen: list[str] = [s.text()]
+    for label in ("History", "Scores", "Warnings"):
+        for tab in page.query_selector_all("button, [role='tab']"):
+            if (tab.inner_text() or "").strip() == label:
+                tab.click()
+                page.wait_for_timeout(2500)
+                seen.append(s.text())
+                break
+    body = "\n".join(seen)
     _case(rec, "JD-03", "The customer's history and both scorecards are there",
           said(body, "history", "month") and said(body, "behavioural")
           and said(body, "application"),
-          "the monthly history and both scores are on the screen",
+          f"history={said(body, 'history', 'month')}; "
+          f"behavioural={said(body, 'behavioural')}; "
+          f"application={said(body, 'application')}",
           screenshot=s.shot("jd-03"))
 
     returned = False
