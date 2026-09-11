@@ -35,15 +35,15 @@ Neither of them worked when this closeout began.
 | What-If journeys WI-09…WI-14, WI-16, WI-18…WI-20 | **12 passed, 0 failed** | 112s | `whatif_journeys.json` |
 | Navigation NAV-01…NAV-10 | **10 passed, 1 N/A** | 101s | `navigation.json` |
 | End-to-end, fresh and resumed sessions | **3 passed** | 78s | `end_to_end.json` |
-| Acceptance gates RET-001…RET-060 plus the closeout regressions | **413 passed, 0 failed, 0 errors** | ~9 min | `docs/evidence/gates.log` |
-| — of which, regressions added by this closeout | 53 | — | `tests/retail/test_ret_chat_regressions.py` |
+| Acceptance gates RET-001…RET-060 plus the closeout regressions | **416 passed, 0 failed, 0 errors** | ~9 min | `docs/evidence/gates.log` |
+| — of which, regressions added by this closeout | 56 | — | `tests/retail/test_ret_chat_regressions.py`, `test_ret_034_038_ews.py` |
 | Frontend unit suite | 573 passed | 9s | `npm test` |
 
 All evidence is under `docs/evidence/retail_functionality/`, with a screenshot
 for every case in `screens/`.
 
-**Thirty-six defects** were found this way. Thirty-four are fixed, each with a
-regression test and a re-run of the browser journey that found it; one is open
+**Thirty-seven defects** were found this way. Thirty-five are fixed, each with
+a regression test and a re-run of the browser journey that found it; one is open
 with its tolerance declared and stated on screen; one is blocked. They are
 listed individually, with what the user saw, in
 `docs/RETAIL_FUNCTIONAL_DEFECTS.md`.
@@ -88,6 +88,21 @@ half of an answer — the prose and the interpretation — is **NOT RUN**.
   `launchers/retail/start-retail.command` is a macOS double-click script and
   was **not executed on a Mac**; its two defects were found by reproducing its
   environment exactly. Running it on the user's machine is NOT RUN.
+
+## Alert usability
+
+RET-EWS-011 named 3,377 of 14,251 customers — 23.7% of the book — at HIGH
+severity, because it compared today's debt burden against the burden at
+origination. Every alert was true and none was a deterioration. It now compares
+against the prior month: **386 customers, 2.7%**. The full before-and-after,
+at every threshold worth considering, is in `docs/RETAIL_EWS_011_REVIEW.md`.
+
+## The one-time setup
+
+`.venv/bin/python scripts/bootstrap_retail_installation.py` is guarded — it
+refuses any database or metadata directory that is not this installation's — and
+idempotent. Run twice in succession during this closeout; the second run changed
+nothing and exited 0.
 
 ## Numerical reconciliation
 
