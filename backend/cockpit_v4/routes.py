@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import DEEP, MODES, STANDARD
 from backend.cockpit_v4 import attention
+from backend.cockpit_v4 import collaboration as collab
 from backend.cockpit_v4 import config as config_mod
 from backend.cockpit_v4.intake import normalize_question
 from backend.cockpit_v4 import events as ev
@@ -448,6 +449,291 @@ async def read_thread(thread_id: str,
     return {"thread_id": thread_id,
             "turns": store.recent_turns(thread_id, 8),
             "context": context or {}}
+
+
+# ---- what a credit officer does with an answer -------------------------
+#
+# Save it, put it in an investigation, comment on it, share it with a
+# colleague, notify someone. All five are V4's own storage and routes; none
+# of them calls the previous Cockpit's investigation API.
+#
+# The notifier is the part with teeth. It is constructed with no transport
+# and an empty recipient allow-list, so this build records notifications and
+# sends none. `GET /notifications` says so on every row, and the outbox
+# listing carries `delivered: false` rather than a hopeful "queued".
+
+_NOTIFIER = collab.Notifier()
+
+
+def notifier() -> collab.Notifier:
+    installed = _STATE.get("notifier")
+    return installed if isinstance(installed, collab.Notifier) else _NOTIFIER
+
+
+def _refuse(exc: collab.CollaborationError) -> HTTPException:
+    return HTTPException(400, {"error_code": exc.code, "message": exc.message})
+
+
+class SaveAnalysis(BaseModel):
+    run_id: str = Field(min_length=1)
+    title: str = Field(default="", max_length=200)
+    note: str = Field(default="", max_length=2000)
+
+
+class NewInvestigation(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    summary: str = Field(default="", max_length=4000)
+    origin: str = Field(default="", max_length=120)
+    thread_id: str = ""
+    saved_ids: list[str] = Field(default_factory=list)
+
+
+class InvestigationItem(BaseModel):
+    kind: str = Field(min_length=1, max_length=40)
+    ref_id: str = Field(min_length=1, max_length=120)
+    label: str = Field(default="", max_length=200)
+
+
+class InvestigationStatus(BaseModel):
+    status: str
+
+
+class NewComment(BaseModel):
+    subject_kind: str
+    subject_id: str
+    body: str = Field(min_length=1, max_length=collab.MAX_BODY)
+
+
+class NewShare(BaseModel):
+    subject_kind: str
+    subject_id: str
+    audience_id: str = Field(min_length=1, max_length=200)
+    message: str = Field(default="", max_length=2000)
+    notify_email: str = ""
+
+
+@router.post("/saved-analyses", status_code=201)
+async def save_analysis(body: SaveAnalysis,
+                        who: dict[str, Any] = Depends(principal)
+                        ) -> dict[str, Any]:
+    """Keep the PUBLISHED answer, not a re-rendering of it.
+
+    A saved analysis that regenerated its text would drift from what the
+    reader actually saw and approved, so the stored copy is the response
+    itself, with the artifact ids it cites.
+    """
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    record = store.get_run(body.run_id)
+    if record is None or record.tenant_id != tenant:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such analysis."})
+    if record.state not in st.TERMINAL_STATES or not record.final_response:
+        raise HTTPException(
+            409, {"error_code": "NOT_FINISHED",
+                  "message": "An analysis can be saved once it has finished."})
+    saved = store.save_analysis(
+        tenant_id=tenant, principal_id=str(who.get("id") or ""),
+        thread_id=record.thread_id, run_id=record.run_id,
+        title=(body.title.strip() or record.question[:120]),
+        note=body.note, question=record.question,
+        release_id=record.release_id,
+        body=collab.summarize_answer(record.final_response))
+    return saved
+
+
+@router.get("/saved-analyses")
+async def list_saved(who: dict[str, Any] = Depends(principal)
+                     ) -> dict[str, Any]:
+    return {"saved": _store().list_saved_analyses(
+        tenant_id=str(who.get("tenant") or ""))}
+
+
+@router.get("/saved-analyses/{saved_id}")
+async def read_saved(saved_id: str,
+                     who: dict[str, Any] = Depends(principal)
+                     ) -> dict[str, Any]:
+    saved = _store().get_saved_analysis(
+        saved_id, tenant_id=str(who.get("tenant") or ""))
+    if saved is None:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such saved analysis."})
+    return saved
+
+
+@router.post("/investigations", status_code=201)
+async def create_investigation(body: NewInvestigation,
+                               who: dict[str, Any] = Depends(principal)
+                               ) -> dict[str, Any]:
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    actor = str(who.get("id") or "")
+    investigation = store.create_investigation(
+        tenant_id=tenant, principal_id=actor, title=body.title.strip(),
+        summary=body.summary, origin=body.origin, thread_id=body.thread_id)
+    for saved_id in body.saved_ids:
+        saved = store.get_saved_analysis(saved_id, tenant_id=tenant)
+        if saved is None:
+            raise HTTPException(
+                404, {"error_code": "NOT_FOUND",
+                      "message": f"Saved analysis {saved_id} is not "
+                                 f"available to you."})
+        store.add_investigation_item(
+            investigation_id=investigation["investigation_id"],
+            tenant_id=tenant, kind=collab.SAVED_ANALYSIS, ref_id=saved_id,
+            label=saved["title"], added_by=actor)
+    return store.get_investigation(investigation["investigation_id"],
+                                   tenant_id=tenant)
+
+
+@router.get("/investigations")
+async def list_investigations(who: dict[str, Any] = Depends(principal)
+                              ) -> dict[str, Any]:
+    return {"investigations": _store().list_investigations(
+        tenant_id=str(who.get("tenant") or ""))}
+
+
+@router.get("/investigations/{investigation_id}")
+async def read_investigation(investigation_id: str,
+                             who: dict[str, Any] = Depends(principal)
+                             ) -> dict[str, Any]:
+    found = _store().get_investigation(
+        investigation_id, tenant_id=str(who.get("tenant") or ""))
+    if found is None:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such investigation."})
+    return found
+
+
+@router.post("/investigations/{investigation_id}/items", status_code=201)
+async def add_investigation_item(investigation_id: str,
+                                 body: InvestigationItem,
+                                 who: dict[str, Any] = Depends(principal)
+                                 ) -> dict[str, Any]:
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    entry = store.add_investigation_item(
+        investigation_id=investigation_id, tenant_id=tenant, kind=body.kind,
+        ref_id=body.ref_id, label=body.label,
+        added_by=str(who.get("id") or ""))
+    if entry is None:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such investigation."})
+    return entry
+
+
+@router.post("/investigations/{investigation_id}/status")
+async def set_investigation_status(investigation_id: str,
+                                   body: InvestigationStatus,
+                                   who: dict[str, Any] = Depends(principal)
+                                   ) -> dict[str, Any]:
+    if body.status not in collab.STATUSES:
+        raise HTTPException(
+            400, {"error_code": "UNKNOWN_STATUS",
+                  "message": f"Status is one of "
+                             f"{', '.join(collab.STATUSES)}."})
+    tenant = str(who.get("tenant") or "")
+    if not _store().set_investigation_status(investigation_id,
+                                             tenant_id=tenant,
+                                             status=body.status):
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such investigation."})
+    return _store().get_investigation(investigation_id, tenant_id=tenant)
+
+
+def _subject_exists(store, tenant: str, kind: str, subject_id: str) -> bool:
+    if kind == collab.SAVED_ANALYSIS:
+        return store.get_saved_analysis(subject_id,
+                                        tenant_id=tenant) is not None
+    return store.get_investigation(subject_id, tenant_id=tenant) is not None
+
+
+@router.post("/comments", status_code=201)
+async def add_comment(body: NewComment,
+                      who: dict[str, Any] = Depends(principal)
+                      ) -> dict[str, Any]:
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    try:
+        collab.check_subject(body.subject_kind, body.subject_id)
+    except collab.CollaborationError as exc:
+        raise _refuse(exc) from exc
+    if not _subject_exists(store, tenant, body.subject_kind, body.subject_id):
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such item."})
+    return store.add_comment(
+        tenant_id=tenant, subject_kind=body.subject_kind,
+        subject_id=body.subject_id, author_id=str(who.get("id") or ""),
+        body=body.body)
+
+
+@router.get("/comments")
+async def list_comments(subject_kind: str = Query(...),
+                        subject_id: str = Query(...),
+                        who: dict[str, Any] = Depends(principal)
+                        ) -> dict[str, Any]:
+    tenant = str(who.get("tenant") or "")
+    store = _store()
+    if not _subject_exists(store, tenant, subject_kind, subject_id):
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such item."})
+    return {"comments": store.list_comments(
+        tenant_id=tenant, subject_kind=subject_kind, subject_id=subject_id)}
+
+
+@router.post("/shares", status_code=201)
+async def share(body: NewShare, who: dict[str, Any] = Depends(principal)
+                ) -> dict[str, Any]:
+    """Share inside the bank. An optional notification is RECORDED, not sent.
+
+    The response always carries the outbox row, including the reason it was
+    not delivered, so nothing in the UI can honestly render "email sent".
+    """
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    try:
+        collab.check_subject(body.subject_kind, body.subject_id)
+    except collab.CollaborationError as exc:
+        raise _refuse(exc) from exc
+    if not _subject_exists(store, tenant, body.subject_kind, body.subject_id):
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such item."})
+    record = store.add_share(
+        tenant_id=tenant, subject_kind=body.subject_kind,
+        subject_id=body.subject_id, shared_by=str(who.get("id") or ""),
+        audience_id=body.audience_id.strip(), message=body.message)
+    notification = None
+    if body.notify_email.strip():
+        try:
+            notification = notifier().notify(
+                store, tenant_id=tenant, actor_id=str(who.get("id") or ""),
+                recipient=body.notify_email.strip(),
+                subject=f"Shared with you: {body.subject_kind}",
+                body=body.message or "A colleague shared this with you.",
+                subject_kind=body.subject_kind, subject_id=body.subject_id)
+        except collab.CollaborationError as exc:
+            raise _refuse(exc) from exc
+    return {"share": record, "notification": notification,
+            "delivery": notifier().describe()}
+
+
+@router.get("/shares")
+async def list_shares(subject_kind: str = Query(default=""),
+                      subject_id: str = Query(default=""),
+                      who: dict[str, Any] = Depends(principal)
+                      ) -> dict[str, Any]:
+    return {"shares": _store().list_shares(
+        tenant_id=str(who.get("tenant") or ""), subject_kind=subject_kind,
+        subject_id=subject_id)}
+
+
+@router.get("/notifications")
+async def list_notifications(who: dict[str, Any] = Depends(principal)
+                             ) -> dict[str, Any]:
+    """The outbox. Every row says whether it was delivered, and why not."""
+    return {"delivery": notifier().describe(),
+            "notifications": _store().list_notifications(
+                tenant_id=str(who.get("tenant") or ""))}
 
 
 @router.get("/diagnostics")

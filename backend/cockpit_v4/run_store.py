@@ -199,6 +199,95 @@ CREATE TABLE IF NOT EXISTS details (
   body TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS saved_analyses (
+  saved_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  principal_id TEXT NOT NULL,
+  thread_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  note TEXT NOT NULL,
+  question TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS saved_by_tenant
+  ON saved_analyses(tenant_id, created_at);
+
+CREATE TABLE IF NOT EXISTS investigations (
+  investigation_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  principal_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  status TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  thread_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS investigations_by_tenant
+  ON investigations(tenant_id, updated_at);
+
+CREATE TABLE IF NOT EXISTS investigation_items (
+  entry_id TEXT PRIMARY KEY,
+  investigation_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  ref_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  added_by TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS investigation_items_by_parent
+  ON investigation_items(investigation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS comments (
+  comment_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  subject_kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  author_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS comments_by_subject
+  ON comments(tenant_id, subject_kind, subject_id, created_at);
+
+CREATE TABLE IF NOT EXISTS shares (
+  share_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  subject_kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  shared_by TEXT NOT NULL,
+  audience_id TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shares_by_subject
+  ON shares(tenant_id, subject_kind, subject_id, created_at);
+CREATE INDEX IF NOT EXISTS shares_by_audience
+  ON shares(tenant_id, audience_id, created_at);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  notification_id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  recipient TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  subject_kind TEXT NOT NULL,
+  subject_id TEXT NOT NULL,
+  state TEXT NOT NULL,
+  transport TEXT NOT NULL,
+  receipt TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS notifications_by_tenant
+  ON notifications(tenant_id, created_at);
 """
 
 
@@ -920,6 +1009,238 @@ class RunStore:
                 "body": json.loads(row["body"]),
                 "schema_version": row["schema_version"],
                 "updated_at": row["updated_at"]}
+
+    # -- saved analyses, investigations, comments, shares, outbox -------
+    #
+    # Every read below is tenant-checked in SQL rather than after the fact,
+    # so a wrong tenant sees an empty result and never learns that the row
+    # exists. The same rule the artifact reader follows.
+
+    def save_analysis(self, *, tenant_id: str, principal_id: str,
+                      thread_id: str, run_id: str, title: str, note: str,
+                      question: str, release_id: str,
+                      body: dict[str, Any]) -> dict[str, Any]:
+        saved_id = f"save-{uuid.uuid4().hex[:16]}"
+        created = _now()
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO saved_analyses(saved_id, tenant_id,"
+                " principal_id, thread_id, run_id, title, note, question,"
+                " release_id, body, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (saved_id, tenant_id, principal_id, thread_id, run_id, title,
+                 note, question, release_id,
+                 json.dumps(body, ensure_ascii=False, default=str), created))
+        return {"saved_id": saved_id, "tenant_id": tenant_id,
+                "principal_id": principal_id, "thread_id": thread_id,
+                "run_id": run_id, "title": title, "note": note,
+                "question": question, "release_id": release_id,
+                "body": body, "created_at": created}
+
+    def get_saved_analysis(self, saved_id: str, *, tenant_id: str
+                           ) -> dict[str, Any] | None:
+        row = self._connect().execute(
+            "SELECT * FROM saved_analyses WHERE saved_id=? AND tenant_id=?",
+            (saved_id, tenant_id)).fetchone()
+        if row is None:
+            return None
+        return {"saved_id": row["saved_id"], "tenant_id": row["tenant_id"],
+                "principal_id": row["principal_id"],
+                "thread_id": row["thread_id"], "run_id": row["run_id"],
+                "title": row["title"], "note": row["note"],
+                "question": row["question"], "release_id": row["release_id"],
+                "body": json.loads(row["body"]),
+                "created_at": row["created_at"]}
+
+    def list_saved_analyses(self, *, tenant_id: str, principal_id: str = "",
+                            limit: int = 20) -> list[dict[str, Any]]:
+        sql = ("SELECT saved_id, title, question, run_id, thread_id,"
+               " principal_id, created_at FROM saved_analyses"
+               " WHERE tenant_id=?")
+        args: list[Any] = [tenant_id]
+        if principal_id:
+            sql += " AND principal_id=?"
+            args.append(principal_id)
+        sql += " ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        args.append(int(limit))
+        return [dict(r) for r in self._connect().execute(sql, args).fetchall()]
+
+    def create_investigation(self, *, tenant_id: str, principal_id: str,
+                             title: str, summary: str, origin: str = "",
+                             thread_id: str = "") -> dict[str, Any]:
+        investigation_id = f"inv-{uuid.uuid4().hex[:16]}"
+        created = _now()
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO investigations(investigation_id, tenant_id,"
+                " principal_id, title, summary, status, origin, thread_id,"
+                " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (investigation_id, tenant_id, principal_id, title, summary,
+                 "open", origin, thread_id, created, created))
+        return {"investigation_id": investigation_id, "tenant_id": tenant_id,
+                "principal_id": principal_id, "title": title,
+                "summary": summary, "status": "open", "origin": origin,
+                "thread_id": thread_id, "created_at": created,
+                "updated_at": created, "items": []}
+
+    def get_investigation(self, investigation_id: str, *, tenant_id: str
+                          ) -> dict[str, Any] | None:
+        conn = self._connect()
+        row = conn.execute(
+            "SELECT * FROM investigations WHERE investigation_id=?"
+            " AND tenant_id=?", (investigation_id, tenant_id)).fetchone()
+        if row is None:
+            return None
+        items = conn.execute(
+            "SELECT entry_id, kind, ref_id, label, added_by, created_at"
+            " FROM investigation_items WHERE investigation_id=? AND tenant_id=?"
+            " ORDER BY created_at ASC, rowid ASC",
+            (investigation_id, tenant_id)).fetchall()
+        body = dict(row)
+        body["items"] = [dict(i) for i in items]
+        return body
+
+    def list_investigations(self, *, tenant_id: str, limit: int = 20
+                            ) -> list[dict[str, Any]]:
+        return [dict(r) for r in self._connect().execute(
+            "SELECT investigation_id, title, status, principal_id, origin,"
+            " updated_at FROM investigations WHERE tenant_id=?"
+            " ORDER BY updated_at DESC, rowid DESC LIMIT ?",
+            (tenant_id, int(limit))).fetchall()]
+
+    def add_investigation_item(self, *, investigation_id: str, tenant_id: str,
+                               kind: str, ref_id: str, label: str,
+                               added_by: str) -> dict[str, Any] | None:
+        entry_id = f"ent-{uuid.uuid4().hex[:12]}"
+        created = _now()
+        with self._tx() as conn:
+            owned = conn.execute(
+                "SELECT 1 FROM investigations WHERE investigation_id=?"
+                " AND tenant_id=?", (investigation_id, tenant_id)).fetchone()
+            if owned is None:
+                return None
+            conn.execute(
+                "INSERT INTO investigation_items(entry_id, investigation_id,"
+                " tenant_id, kind, ref_id, label, added_by, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (entry_id, investigation_id, tenant_id, kind, ref_id, label,
+                 added_by, created))
+            conn.execute(
+                "UPDATE investigations SET updated_at=?"
+                " WHERE investigation_id=?", (created, investigation_id))
+        return {"entry_id": entry_id, "kind": kind, "ref_id": ref_id,
+                "label": label, "added_by": added_by, "created_at": created}
+
+    def set_investigation_status(self, investigation_id: str, *,
+                                 tenant_id: str, status: str) -> bool:
+        with self._tx() as conn:
+            changed = conn.execute(
+                "UPDATE investigations SET status=?, updated_at=?"
+                " WHERE investigation_id=? AND tenant_id=?",
+                (status, _now(), investigation_id, tenant_id)).rowcount
+        return bool(changed)
+
+    def add_comment(self, *, tenant_id: str, subject_kind: str,
+                    subject_id: str, author_id: str, body: str
+                    ) -> dict[str, Any]:
+        comment_id = f"cmt-{uuid.uuid4().hex[:12]}"
+        created = _now()
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO comments(comment_id, tenant_id, subject_kind,"
+                " subject_id, author_id, body, created_at)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (comment_id, tenant_id, subject_kind, subject_id, author_id,
+                 body, created))
+        return {"comment_id": comment_id, "subject_kind": subject_kind,
+                "subject_id": subject_id, "author_id": author_id,
+                "body": body, "created_at": created}
+
+    def list_comments(self, *, tenant_id: str, subject_kind: str,
+                      subject_id: str, limit: int = 50
+                      ) -> list[dict[str, Any]]:
+        return [dict(r) for r in self._connect().execute(
+            "SELECT comment_id, subject_kind, subject_id, author_id, body,"
+            " created_at FROM comments WHERE tenant_id=? AND subject_kind=?"
+            " AND subject_id=? ORDER BY created_at ASC, rowid ASC LIMIT ?",
+            (tenant_id, subject_kind, subject_id, int(limit))).fetchall()]
+
+    def add_share(self, *, tenant_id: str, subject_kind: str,
+                  subject_id: str, shared_by: str, audience_id: str,
+                  message: str) -> dict[str, Any]:
+        share_id = f"shr-{uuid.uuid4().hex[:12]}"
+        created = _now()
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO shares(share_id, tenant_id, subject_kind,"
+                " subject_id, shared_by, audience_id, message, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (share_id, tenant_id, subject_kind, subject_id, shared_by,
+                 audience_id, message, created))
+        return {"share_id": share_id, "subject_kind": subject_kind,
+                "subject_id": subject_id, "shared_by": shared_by,
+                "audience_id": audience_id, "message": message,
+                "created_at": created}
+
+    def list_shares(self, *, tenant_id: str, subject_kind: str = "",
+                    subject_id: str = "", audience_id: str = "",
+                    limit: int = 50) -> list[dict[str, Any]]:
+        sql = ("SELECT share_id, subject_kind, subject_id, shared_by,"
+               " audience_id, message, created_at FROM shares"
+               " WHERE tenant_id=?")
+        args: list[Any] = [tenant_id]
+        if subject_kind:
+            sql += " AND subject_kind=?"
+            args.append(subject_kind)
+        if subject_id:
+            sql += " AND subject_id=?"
+            args.append(subject_id)
+        if audience_id:
+            sql += " AND audience_id=?"
+            args.append(audience_id)
+        sql += " ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        args.append(int(limit))
+        return [dict(r) for r in self._connect().execute(sql, args).fetchall()]
+
+    def put_notification(self, *, tenant_id: str, actor_id: str,
+                         recipient: str, subject: str, body: str,
+                         subject_kind: str, subject_id: str, state: str,
+                         transport: str, receipt: str, reason: str
+                         ) -> dict[str, Any]:
+        """Record a notification. Writing the row is not sending it."""
+        notification_id = f"ntf-{uuid.uuid4().hex[:12]}"
+        created = _now()
+        with self._tx() as conn:
+            conn.execute(
+                "INSERT INTO notifications(notification_id, tenant_id,"
+                " actor_id, recipient, subject, body, subject_kind,"
+                " subject_id, state, transport, receipt, reason, created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (notification_id, tenant_id, actor_id, recipient, subject,
+                 body, subject_kind, subject_id, state, transport, receipt,
+                 reason, created))
+        return {"notification_id": notification_id, "recipient": recipient,
+                "subject": subject, "body": body,
+                "subject_kind": subject_kind, "subject_id": subject_id,
+                "state": state, "transport": transport, "receipt": receipt,
+                "reason": reason, "delivered": state == "SENT",
+                "created_at": created}
+
+    def list_notifications(self, *, tenant_id: str, state: str = "",
+                           limit: int = 50) -> list[dict[str, Any]]:
+        sql = ("SELECT notification_id, recipient, subject, subject_kind,"
+               " subject_id, state, transport, receipt, reason, created_at"
+               " FROM notifications WHERE tenant_id=?")
+        args: list[Any] = [tenant_id]
+        if state:
+            sql += " AND state=?"
+            args.append(state)
+        sql += " ORDER BY created_at DESC, rowid DESC LIMIT ?"
+        args.append(int(limit))
+        rows = [dict(r) for r in self._connect().execute(sql, args).fetchall()]
+        for row in rows:
+            row["delivered"] = row["state"] == "SENT"
+        return rows
+
 
 
 __all__ = ["IdempotencyConflict", "LeaseLost", "RunRecord", "RunStore",
