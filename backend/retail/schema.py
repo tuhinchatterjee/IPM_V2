@@ -312,12 +312,36 @@ def _model_feature_specs() -> dict[str, ColumnSpec]:
 
 
 def spec_for(name: str) -> ColumnSpec:
-    """The dictionary entry for a column, curated or derived from its name."""
+    """The dictionary entry for a column, curated or derived from its name.
+
+    The order is deliberate. A hand-written entry wins; then the score columns
+    the model registry describes; then the curated definitions in
+    `backend/retail/dictionary.py`; and only then the name-shaped guess.
+
+    The guess used to be the answer for 302 of the 546 columns, and it was
+    wrong twice over. Its definition restated the column heading and pointed
+    at a document generated from this same registry, so a reader who followed
+    it arrived back at the sentence they had just read — and a bank's steward
+    does not have this repository at all. And its TYPE was read off the name:
+    a column whose name ends in nothing recognised was declared `string`, so
+    `behavioural_score`, `lgd_base`, `ccf_base` and every point-in-time PD
+    were declared text. `_rollup_for` will not average a string and falls back
+    to `max`, so "the average behavioural score" was answered with the highest
+    score in the book, under the word average.
+    """
     if name in CURATED:
         return CURATED[name]
     models = _model_feature_specs()
     if name in models:
         return models[name]
+    # Imported here rather than at the top: `dictionary` reads the semantics
+    # constants from this module, and importing it at module scope would close
+    # the circle.
+    from backend.retail import dictionary
+
+    curated = dictionary.spec_kwargs(name)
+    if curated is not None:
+        return ColumnSpec(name=name, business_name=_title(name), **curated)
     for suffix, kw in _SUFFIX_RULES:
         if name.endswith(suffix):
             return ColumnSpec(name=name, business_name=_title(name),

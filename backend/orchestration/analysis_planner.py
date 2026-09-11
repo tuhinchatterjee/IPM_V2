@@ -86,10 +86,70 @@ DISTRIBUTION_MEASURE = "exposure at default"
 
 #: Aggregations by what the measure IS. Summing a percentage is meaningless and
 #: averaging an exposure hides the book, so neither is left to a default.
+#:
+#: This table was written in the CORPORATE catalogue's unit vocabulary — "SAR
+#: mn", "%", "x", "grade", "notches" — and the retail catalogue publishes none
+#: of those except days. Every retail unit therefore missed the table and took
+#: the `sum` fallback, so
+#:
+#:     "What is the average 12-month PD at August 2026?"   ->    476.76
+#:     "What is the average debt burden ratio?"            -> 11,811.08
+#:     "What is the average behavioural score?"            -> 12,546,983
+#:
+#: which are the sums of nineteen thousand probabilities, ratios and scores,
+#: printed as the answer to a question about an average. A unit missing from
+#: this table must never fall through to arithmetic that is meaningless for it,
+#: so both vocabularies are here and `_DEFAULT_ROLLUP` is the honest fallback.
 _ROLLUP: dict[str, str] = {
+    # The corporate catalogue's units.
     "SAR mn": "sum", "%": "avg", "x": "avg", "days": "max",
     "grade": "max", "notches": "sum",
+    # The retail catalogue's units. A score, a probability and a ratio are
+    # averaged rather than added; a tenor in months is a level per facility,
+    # not a quantity of months the book holds; money and counts add up.
+    "SAR": "sum", "SAR/month": "sum", "count": "sum",
+    "points": "avg", "probability": "avg", "ratio": "avg", "months": "avg",
+    "percentage points": "avg", "WoE": "avg",
 }
+
+#: What to do with a unit this table does not name. `sum` was the old fallback
+#: and it is the one aggregation that is wrong for most things: money and
+#: counts add, and nothing else does.
+_DEFAULT_ROLLUP = "sum"
+
+#: What the SENTENCE asks for, which outranks what the measure is.
+#:
+#: "What is the AVERAGE behavioural score?" was answered with a sum, and
+#: before that with a maximum, because nothing read the word the reader wrote.
+#: A question that names its own aggregation has already settled it.
+_ASKED_ROLLUP: tuple[tuple[str, str], ...] = (
+    (r"\b(?:average|avg|mean)\b", "avg"),
+    (r"\b(?:median)\b", "median"),
+    (r"\b(?:total|sum|aggregate|combined)\b", "sum"),
+    (r"\b(?:highest|maximum|max|largest|worst|peak)\b", "max"),
+    (r"\b(?:lowest|minimum|min|smallest|best)\b", "min"),
+)
+
+#: Aggregations DuckDB has and the validator accepts. A median is written
+#: differently in SQL and is not offered until it is implemented end to end.
+_SUPPORTED_ROLLUPS = frozenset({"sum", "avg", "max", "min", "count_distinct"})
+
+
+def _asked_rollup(text: str) -> str:
+    """The aggregation the question names, or empty where it names none.
+
+    The first one in the sentence wins, read left to right, because "the
+    average of the highest three" is a different shape of question that the
+    ranking path handles — here the leading word is the one that describes
+    the figure being reported.
+    """
+    lowered = " " + " ".join(str(text or "").lower().split()) + " "
+    best, where = "", len(lowered) + 1
+    for pattern, function in _ASKED_ROLLUP:
+        found = re.search(pattern, lowered)
+        if found is not None and found.start() < where:
+            best, where = function, found.start()
+    return best if best in _SUPPORTED_ROLLUPS else ""
 
 
 @dataclass
@@ -477,6 +537,19 @@ def _plan(reading: Reading, context: GovernedContext, *,
 
     matches = _drop_explanation_only(text, matches)
 
+    # A measure the sentence REJECTS is not a measure it asks for. §4.
+    rejected = _rejected_measures(text, matches)
+    if rejected and len(rejected) < len(matches):
+        names = ", ".join(m.label for m in rejected)
+        matches = [m for m in matches if m not in rejected]
+        carried_concepts = [c for c in carried_concepts
+                            if c not in {m.label for m in rejected}]
+        planning_notes_rejected = (
+            f"the question asked for this figure rather than {names}, "
+            f"so {names} was not measured")
+        if continuation is not None:
+            continuation.changes.append(planning_notes_rejected)
+
     count_grain = _wants_count(text, reading)
     if not count_grain and carrying and not resolved.matches:
         # "Break that down by sector" after a count is still a count. The
@@ -611,7 +684,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
     _note_unresolved_dimensions(text, matches, planning_notes)
     if carrying or carrying_population:
         filters = _inherit_filters(filters, state, context, continuation,
-                                    text)
+                                    text, grouping.dimension if grouping.found
+                                    else "")
     # A field the question CONSTRAINS is not the field it measures. "Which
     # sectors have the highest Stage 2 exposure at default?" resolved
     # `ifrs9_stage` as a measure as well as a filter, so the answer led with
@@ -1082,6 +1156,45 @@ def _fallback_dataset(state: cv.ConversationState | None) -> str:
     return multi.default_base()
 
 
+def _rejected_measures(text: str,
+                      matches: list[cx.ConceptMatch]
+                      ) -> list[cx.ConceptMatch]:
+    """The matches the sentence explicitly says it does NOT want.
+
+        "No, I meant gross carrying amount, not expected credit loss."
+
+    Read as a plain list of concepts this names two measures, and the answer
+    carried both — a correction answered by adding the figure it corrected,
+    with the rejected column sitting next to the wanted one in the table.
+
+    Only a phrase DIRECTLY governed by the rejection counts, and bare "not"
+    additionally needs the comma that makes it a correction. "instead of" and
+    "rather than" say what they mean wherever they appear; "not" does not.
+    "Which facilities are NOT IN DEFAULT with ECL above 10,000?" negates a
+    STATE — it is a restriction on the population, and reading it as a
+    rejected measure would throw away the restriction the reader asked for.
+    ", not expected credit loss" is the correction, and it carries the comma.
+
+    Not rejecting is the safe direction: a rejection this cannot see costs an
+    extra column, and one it invents loses a measure the reader asked for.
+    """
+    lowered = " " + " ".join(str(text or "").lower().split()) + " "
+    markers = (r",\s*(?:and\s+)?not", r"instead\s+of", r"rather\s+than",
+               r"no\s+longer")
+    out: list[cx.ConceptMatch] = []
+    for match in matches:
+        phrase = " ".join(str(match.phrase or "").lower().split())
+        if not phrase:
+            continue
+        for marker in markers:
+            pattern = (marker + r"\s+(?:the\s+|a\s+|an\s+)?"
+                       + re.escape(phrase) + r"\b")
+            if re.search(pattern, lowered):
+                out.append(match)
+                break
+    return out
+
+
 def _replaces(text: str) -> bool:
     """Whether the sentence swaps one measure for another rather than adding."""
 
@@ -1251,7 +1364,8 @@ def _groups_by(text: str, field_name: str) -> bool:
 def _inherit_filters(filters: list[tuple[str, str]],
                      state: cv.ConversationState, context: GovernedContext,
                      continuation: cv.Continuation | None,
-                     text: str = "") -> list[tuple[str, str]]:
+                     text: str = "",
+                     grouped_by: str = "") -> list[tuple[str, str]]:
     """Carry the conversation's filters, letting this turn override per field.
 
     Per field rather than wholesale: "only show Contracting" replaces the sector
@@ -1262,6 +1376,15 @@ def _inherit_filters(filters: list[tuple[str, str]],
     ECL by sector" after a Financial Services question asks for every sector,
     and carrying the old restriction answered it with one row — a breakdown of
     a single group, which is a table with the answer removed from it.
+
+    Read from the PLAN as well as from the wording. `_groups_by` recognises the
+    grouping in the sentence, which works for "break it down by product" and
+    not for "now show all products" — the same request, phrased the way people
+    actually widen. That one carried `product_label = Personal Finance` into a
+    breakdown BY product label and returned a single bar reading Personal
+    Finance, under a heading saying BY PRODUCT. So the dimension the planner
+    has already chosen settles it too: a field the answer has one row per
+    cannot also be pinned to one of its values, whatever the sentence said.
     """
     named = {field_name for field_name, _ in filters}
     out = list(filters)
@@ -1270,7 +1393,7 @@ def _inherit_filters(filters: list[tuple[str, str]],
     for field_name, value in state.filter_pairs():
         if field_name in named:
             continue
-        if _groups_by(text, field_name):
+        if field_name == grouped_by or _groups_by(text, field_name):
             dropped.append(f"{field_name} = {value}")
             continue
         if field_name in context.dimensions and value in context.dimensions[field_name]:
@@ -1802,7 +1925,7 @@ def _declared_type(dataset: str, field: str) -> str:
         return ""
 
 
-def _rollup_for(match: cx.ConceptMatch) -> str:
+def _rollup_for(match: cx.ConceptMatch, text: str = "") -> str:
     """How this measure aggregates, decided by what it is.
 
     Summing a coverage percentage produces a number with no meaning, and
@@ -1837,7 +1960,11 @@ def _rollup_for(match: cx.ConceptMatch) -> str:
         return "count_distinct"
     if match.concept.is_ordinal:
         return "max"
-    chosen = _ROLLUP.get(match.concept.unit or "", "sum")
+    # What the reader ASKED for outranks what the measure is. A question that
+    # says "average" and is answered with a total is wrong whatever the unit
+    # table would have chosen.
+    asked = _asked_rollup(text)
+    chosen = asked or _ROLLUP.get(match.concept.unit or "", _DEFAULT_ROLLUP)
     if chosen in ("sum", "avg"):
         declared = _declared_type(match.dataset, match.field)
         if declared and declared not in _NUMERIC_TYPES:
@@ -2499,7 +2626,7 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             count_column = column
 
     aggregates = [
-        {"function": _rollup_for(m),
+        {"function": _rollup_for(m, text),
          "column": (m.candidate.definition.split()[-1]
                     if m.concept.id == COUNT_CONCEPT else column),
          "as": column}
@@ -3606,7 +3733,7 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
     operations.append({
         "id": "totals", "op": "GROUP", "inputs": ["scoped"],
         "params": {"by": group_by,
-                   "aggregates": [{"function": _rollup_for(m),
+                   "aggregates": [{"function": _rollup_for(m, text),
                                    "column": m.field, "as": m.field}
                                   for m in measures]},
         "label": ("Total at each reporting date"

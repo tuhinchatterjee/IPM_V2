@@ -75,7 +75,15 @@ CHANGE = (
     # which the invariant then caught and reported as a refusal: "the question
     # asks how a measure moved between two dates, and the analysis produced a
     # total".
+    #
+    # "since" belongs with them and was missing: "How did that move since July
+    # 2026?" was not read as a change at all, while "How has that MOVED since
+    # July 2026?" was — the same question, and only the auxiliary told them
+    # apart. Admitted only where a DATE follows, because "since" is also the
+    # causal conjunction and "move it since we are done" is an instruction.
     r"|move(?=\s+(?:from|between|over)\b)"
+    r"|move(?=\s+since\s+(?:the\s+)?(?:\d|q[1-4]\b|jan|feb|mar|apr|may|jun"
+    r"|jul|aug|sep|oct|nov|dec|last\b|previous\b|start\b))"
     r"|increas\w*|decreas\w*|ris(?:e|es|en|ing)|rose|risen"
     r"|fell|fall(?:s|en|ing)|dropped|grew|grow(?:th|n)"
     r"|declin\w*|worsen\w*|improv\w*|deteriorat\w*"

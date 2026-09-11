@@ -213,7 +213,7 @@
     {
       "name": "product_label",
       "business_name": "Product label",
-      "definition": "Product label. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The retail product this facility is: Credit Card, Personal Finance, Auto Finance or Home Finance. The dimension almost every question about this book is grouped by.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -236,7 +236,7 @@
     {
       "name": "product_subsegment",
       "business_name": "Product subsegment",
-      "definition": "Product subsegment. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The variant within the product \u2014 a first home against a refinance, a new car against a used one, new lending against a top-up. Products behave differently inside these splits.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -259,7 +259,7 @@
     {
       "name": "portfolio_country",
       "business_name": "Portfolio country",
-      "definition": "Portfolio country. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The country of the lending book. SA throughout.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -282,7 +282,7 @@
     {
       "name": "currency",
       "business_name": "Currency",
-      "definition": "Currency. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The currency of the facility. Saudi riyal throughout this book, so every amount is comparable without conversion.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -305,7 +305,7 @@
     {
       "name": "customer_relationship_start_date",
       "business_name": "Customer relationship start date",
-      "definition": "Customer relationship start date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end on which the customer's first relationship with the bank opened. Earlier than the origination date of any one facility.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -328,7 +328,7 @@
     {
       "name": "customer_tenure_months",
       "business_name": "Customer tenure months",
-      "definition": "Customer tenure months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whole months since the customer's relationship with the bank began, measured to this month-end. A CUSTOMER attribute repeated on each of their facilities: averaging it across facility rows weights long relationships by how many products they hold.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -351,7 +351,7 @@
     {
       "name": "application_date",
       "business_name": "Application date",
-      "definition": "Application date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end on which the customer applied.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -374,7 +374,7 @@
     {
       "name": "approval_date",
       "business_name": "Approval date",
-      "definition": "Approval date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end on which the application was approved.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -397,7 +397,7 @@
     {
       "name": "origination_date",
       "business_name": "Origination date",
-      "definition": "Origination date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end on which the facility was booked.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -443,7 +443,7 @@
     {
       "name": "contractual_maturity_date",
       "business_name": "Contractual maturity date",
-      "definition": "Contractual maturity date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end on which the last contractual payment falls due.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -466,8 +466,8 @@
     {
       "name": "original_tenor_months",
       "business_name": "Original tenor months",
-      "definition": "Original tenor months. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "integer",
+      "definition": "The contractual term in months at origination.",
+      "data_type": "number",
       "unit": "months",
       "grain": "FACILITY",
       "semantics": "STOCK",
@@ -489,8 +489,8 @@
     {
       "name": "remaining_contractual_tenor_months",
       "business_name": "Remaining contractual tenor months",
-      "definition": "Remaining contractual tenor months. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "integer",
+      "definition": "Months from this month-end to contractual maturity.",
+      "data_type": "number",
       "unit": "months",
       "grain": "FACILITY",
       "semantics": "STOCK",
@@ -535,7 +535,7 @@
     {
       "name": "facility_status",
       "business_name": "Facility status",
-      "definition": "Facility status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the facility is OPEN or CLOSED at this month-end. A closed facility keeps its row so the history can be read; it carries no exposure.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -558,7 +558,7 @@
     {
       "name": "closure_date",
       "business_name": "Closure date",
-      "definition": "Closure date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end on which the facility closed, where it has.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -581,7 +581,7 @@
     {
       "name": "closure_reason",
       "business_name": "Closure reason",
-      "definition": "Closure reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Why the facility closed: SETTLED_EARLY, MATURED or WRITTEN_OFF. The third is a credit loss and the first two are not.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -604,7 +604,7 @@
     {
       "name": "refinanced_from_facility_id",
       "business_name": "Refinanced from facility id",
-      "definition": "Refinanced from facility id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The facility this one refinanced, where it refinanced one. A chain of refinancings is a repayment difficulty that never showed as DPD.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -627,7 +627,7 @@
     {
       "name": "restructured_flag",
       "business_name": "Restructured flag",
-      "definition": "Restructured flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the facility's terms were restructured. Restructuring without financial difficulty is not forbearance; the two flags are separate for that reason.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -650,7 +650,7 @@
     {
       "name": "restructure_date",
       "business_name": "Restructure date",
-      "definition": "Restructure date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the facility was restructured.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -673,11 +673,11 @@
     {
       "name": "source_system",
       "business_name": "Source system",
-      "definition": "Source system. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which system this row came from. A synthetic generator here, stated rather than implied.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "IDENTIFIER",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -696,7 +696,7 @@
     {
       "name": "source_record_id",
       "business_name": "Source record id",
-      "definition": "Source record id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The key of the source record this row was built from, so any figure can be traced back to what the source system sent.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -719,11 +719,11 @@
     {
       "name": "source_available_at",
       "business_name": "Source available at",
-      "definition": "Source available at. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the source data became available. Read with `calculation_available_at` it says how long the book took to close.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "EVENT_DATE",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -742,8 +742,8 @@
     {
       "name": "is_synthetic",
       "business_name": "Is synthetic",
-      "definition": "Is synthetic. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
+      "definition": "Whether the row is synthetic. True on every row of this book: it is demonstration data, and this column is what makes that checkable rather than a claim in a footnote.",
+      "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
       "semantics": "DESCRIPTOR",
@@ -765,7 +765,7 @@
     {
       "name": "generator_version",
       "business_name": "Generator version",
-      "definition": "Generator version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the synthetic generator that produced this book.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -788,7 +788,7 @@
     {
       "name": "data_quality_status",
       "business_name": "Data quality status",
-      "definition": "Data quality status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether this row passed the publication quality checks. THIN_HISTORY marks a facility with too little history to score, which is a state rather than a fault.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -811,7 +811,7 @@
     {
       "name": "customer_scope",
       "business_name": "Customer scope",
-      "definition": "Customer scope. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The population this book covers: natural persons borrowing for themselves. It is one value everywhere, and it is the sentence that says why no company appears in this dataset.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -834,7 +834,7 @@
     {
       "name": "score_subject_grain",
       "business_name": "Score subject grain",
-      "definition": "Score subject grain. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What one scored row IS. FACILITY here: a customer with three facilities has three scores, and averaging them is not a customer score.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -857,7 +857,7 @@
     {
       "name": "region",
       "business_name": "Region",
-      "definition": "Region. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The Saudi administrative region of the customer's address, as a code. `region_label` is the same thing written for a reader.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -880,7 +880,7 @@
     {
       "name": "region_label",
       "business_name": "Region label",
-      "definition": "Region label. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The Saudi administrative region of the customer's address, written the way it is shown on screen.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -903,7 +903,7 @@
     {
       "name": "city",
       "business_name": "City",
-      "definition": "City. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The city of the customer's registered address.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -926,7 +926,7 @@
     {
       "name": "branch_id",
       "business_name": "Branch id",
-      "definition": "Branch id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The branch that booked the facility.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -949,7 +949,7 @@
     {
       "name": "origination_channel",
       "business_name": "Origination channel",
-      "definition": "Origination channel. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How the facility was sold: BRANCH, DIGITAL, PARTNER, DEALER or RELATIONSHIP_MANAGER. Channels differ in default rate at the same score, which is the point of measuring it.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -972,7 +972,7 @@
     {
       "name": "customer_segment",
       "business_name": "Customer segment",
-      "definition": "Customer segment. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The bank's relationship segment \u2014 MASS, MASS_AFFLUENT, AFFLUENT or PRIVATE \u2014 set from income and holdings, not from credit quality.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -995,7 +995,7 @@
     {
       "name": "new_to_bank_at_origination_flag",
       "business_name": "New to bank at origination flag",
-      "definition": "New to bank at origination flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the customer was new to the bank when this facility was booked. A new-to-bank customer is scored without internal history.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -1018,7 +1018,7 @@
     {
       "name": "residency_category",
       "business_name": "Residency category",
-      "definition": "Residency category. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the customer is a Saudi citizen or a resident. It changes which affordability and tenor rules a product applies.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1041,7 +1041,7 @@
     {
       "name": "age_band",
       "business_name": "Age band",
-      "definition": "Age band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The customer's age at this month-end, in bands. Banded rather than exact so an age cannot identify a person in a demonstration book.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1064,7 +1064,7 @@
     {
       "name": "dependants_band",
       "business_name": "Dependants band",
-      "definition": "Dependants band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How many dependants the customer declared at origination, in bands. An input to the household expense floor, not to the score.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1087,7 +1087,7 @@
     {
       "name": "employment_status",
       "business_name": "Employment status",
-      "definition": "Employment status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Where the customer's income comes from: GOVERNMENT, GOVERNMENT_RELATED, PRIVATE_SECTOR, SELF_EMPLOYED or RETIRED. The strongest single non-behavioural predictor in this book.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1110,7 +1110,7 @@
     {
       "name": "employer_id",
       "business_name": "Employer id",
-      "definition": "Employer id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The employer paying the salary, as a key. Concentration by employer is a retail risk in its own right where one employer pays many customers of the same book.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1133,7 +1133,7 @@
     {
       "name": "employer_sector",
       "business_name": "Employer sector",
-      "definition": "Employer sector. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The economic sector of the customer's employer. The retail book's nearest equivalent of an industry exposure: it says what a salary depends on, not what the borrower does.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1156,7 +1156,7 @@
     {
       "name": "employment_tenure_months",
       "business_name": "Employment tenure months",
-      "definition": "Employment tenure months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whole months in current employment at this month-end. A CUSTOMER attribute repeated on every facility they hold.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -1179,7 +1179,7 @@
     {
       "name": "salary_transfer_flag",
       "business_name": "Salary transfer flag",
-      "definition": "Salary transfer flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the customer's salary is transferred to this bank. The single most important affordability control in Saudi retail lending: it is what makes an instalment deductible at source.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -1202,7 +1202,7 @@
     {
       "name": "salary_verification_status",
       "business_name": "Salary verification status",
-      "definition": "Salary verification status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How income was evidenced: VERIFIED_TRANSFER, where the salary lands in an account at this bank, or DECLARED_DOCUMENTED, where it was documented but is paid elsewhere. The first is materially stronger.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1225,7 +1225,7 @@
     {
       "name": "verified_monthly_salary_sar",
       "business_name": "Verified monthly salary SAR",
-      "definition": "Verified monthly salary SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Monthly salary the bank has verified, at this month-end. A CUSTOMER level: summing it across a customer's facilities counts one person's income several times over.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1248,7 +1248,7 @@
     {
       "name": "verified_other_monthly_income_sar",
       "business_name": "Verified other monthly income SAR",
-      "definition": "Verified other monthly income SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Verified monthly income other than salary \u2014 rent, pension, a second trade. A CUSTOMER level, repeated on each facility.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1294,7 +1294,7 @@
     {
       "name": "household_expenses_sar",
       "business_name": "Household expenses SAR",
-      "definition": "Household expenses SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The monthly household expense figure used in the affordability test at this month-end \u2014 the larger of what the customer declared and the policy floor for their dependants band.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1317,7 +1317,7 @@
     {
       "name": "monthly_external_credit_obligations_sar",
       "business_name": "Monthly external credit obligations SAR",
-      "definition": "Monthly external credit obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Monthly instalments owed to OTHER lenders, from the bureau. A CUSTOMER level, repeated on each facility.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1340,7 +1340,7 @@
     {
       "name": "monthly_own_bank_credit_obligations_sar",
       "business_name": "Monthly own bank credit obligations SAR",
-      "definition": "Monthly own bank credit obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Monthly instalments owed to THIS bank across all of the customer's facilities, at this month-end. A CUSTOMER level.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1386,7 +1386,7 @@
     {
       "name": "obligation_scope_definition",
       "business_name": "Obligation scope definition",
-      "definition": "Obligation scope definition. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which obligations the debt burden ratio counts, stated so the denominator can be reproduced.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1458,7 +1458,7 @@
     {
       "name": "affordability_buffer_sar",
       "business_name": "Affordability buffer SAR",
-      "definition": "Affordability buffer SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Verified income less household expenses and every monthly credit obligation. What is left each month once the household has paid what it must. Negative means the arithmetic does not close.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1481,7 +1481,7 @@
     {
       "name": "income_band",
       "business_name": "Income band",
-      "definition": "Income band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Verified monthly income at this month-end, in bands. Banded for grouping; `verified_monthly_salary_sar` carries the figure.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1504,7 +1504,7 @@
     {
       "name": "indebtedness_band",
       "business_name": "Indebtedness band",
-      "definition": "Indebtedness band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Total monthly credit obligations as a share of verified income, in bands \u2014 the debt burden ratio a reader groups by.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1527,11 +1527,11 @@
     {
       "name": "policy_version_at_origination",
       "business_name": "Policy version at origination",
-      "definition": "Policy version at origination. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the credit policy \u2014 cutoffs and rules \u2014 in force when this facility was decided.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "IDENTIFIER",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -1550,7 +1550,7 @@
     {
       "name": "policy_exception_flag",
       "business_name": "Policy exception flag",
-      "definition": "Policy exception flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the facility was booked outside policy \u2014 below cutoff, or past an affordability limit.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -1573,7 +1573,7 @@
     {
       "name": "policy_exception_reason",
       "business_name": "Policy exception reason",
-      "definition": "Policy exception reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which policy the exception was against, in words.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1596,7 +1596,7 @@
     {
       "name": "score_override_flag",
       "business_name": "Score override flag",
-      "definition": "Score override flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether a human changed the score the model produced.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -1619,7 +1619,7 @@
     {
       "name": "score_override_direction",
       "business_name": "Score override direction",
-      "definition": "Score override direction. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the override made the score better or worse.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1642,7 +1642,7 @@
     {
       "name": "score_override_reason",
       "business_name": "Score override reason",
-      "definition": "Score override reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Why the score was overridden, in words. An override rate and its reasons are a model governance finding in their own right.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1665,11 +1665,11 @@
     {
       "name": "applied_score_cutoff",
       "business_name": "Applied score cutoff",
-      "definition": "Applied score cutoff. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The application score cutoff that applied to this facility at origination. A facility booked below it is a policy exception.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -1688,7 +1688,7 @@
     {
       "name": "decision_at_origination",
       "business_name": "Decision at origination",
-      "definition": "Decision at origination. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What the credit decision was. Every facility in a book of BOOKED facilities was approved; declined applications are not here, which is why an approval rate cannot be computed from this dataset.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1711,7 +1711,7 @@
     {
       "name": "employment_change_flag",
       "business_name": "Employment change flag",
-      "definition": "Employment change flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the employer on record changed since the previous month-end. A change is not itself adverse; a change WITH a salary interruption is what the early warning rules read.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -1734,7 +1734,7 @@
     {
       "name": "job_loss_reported_flag",
       "business_name": "Job loss reported flag",
-      "definition": "Job loss reported flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether a loss of employment has been reported for this customer. Declared or inferred \u2014 `job_loss_signal_source` says which.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -1757,7 +1757,7 @@
     {
       "name": "job_loss_signal_source",
       "business_name": "Job loss signal source",
-      "definition": "Job loss signal source. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Where the job-loss signal came from. In this synthetic book it is a customer declaration; in a real installation it would name the channel that reported it.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -1780,7 +1780,7 @@
     {
       "name": "original_finance_amount_sar",
       "business_name": "Original finance amount SAR",
-      "definition": "Original finance amount SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The amount financed at origination. Fixed for the life of the facility; it does not move as the balance amortises.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1803,7 +1803,7 @@
     {
       "name": "original_credit_limit_sar",
       "business_name": "Original credit limit SAR",
-      "definition": "Original credit limit SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The credit limit set at origination. On a card this is what the customer may draw; on an instalment facility it equals the amount financed.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -1941,7 +1941,7 @@
     {
       "name": "scheduled_monthly_payment_sar",
       "business_name": "Scheduled monthly payment SAR",
-      "definition": "Scheduled monthly payment SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The instalment contractually due each month at this month-end.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -2171,11 +2171,11 @@
     {
       "name": "nominal_annual_profit_interest_rate",
       "business_name": "Nominal annual profit interest rate",
-      "definition": "Nominal annual profit interest rate. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The contractual annual profit rate, as a decimal. Nominal: it does not include fees and is not what the customer effectively pays.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -2194,7 +2194,7 @@
     {
       "name": "rate_type",
       "business_name": "Rate type",
-      "definition": "Rate type. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the profit rate is FIXED for the term or FLOATING against a benchmark. Floating facilities carry instalment risk to the customer.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2217,7 +2217,7 @@
     {
       "name": "contract_structure",
       "business_name": "Contract structure",
-      "definition": "Contract structure. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The Islamic financing structure: MURABAHA (cost-plus sale), TAWARRUQ (monetisation) or IJARA (lease). It decides how profit is recognised, not how risk is measured.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2240,7 +2240,7 @@
     {
       "name": "secured_flag",
       "business_name": "Secured flag",
-      "definition": "Secured flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the facility has collateral behind it. Home and auto facilities do; cards and personal finance do not.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -2263,7 +2263,7 @@
     {
       "name": "collateral_type",
       "business_name": "Collateral type",
-      "definition": "Collateral type. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What secures the facility \u2014 RESIDENTIAL_PROPERTY or VEHICLE.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2286,7 +2286,7 @@
     {
       "name": "collateral_value_origination_sar",
       "business_name": "Collateral value origination SAR",
-      "definition": "Collateral value origination SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The collateral's appraised value at origination. Not revalued: the current LTV moves with the balance, not with the property.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -2332,7 +2332,7 @@
     {
       "name": "collateral_valuation_date",
       "business_name": "Collateral valuation date",
-      "definition": "Collateral valuation date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the collateral was last valued.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -2355,7 +2355,7 @@
     {
       "name": "vehicle_new_used",
       "business_name": "Vehicle new used",
-      "definition": "Vehicle new used. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the financed vehicle was new or used at origination.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2378,8 +2378,8 @@
     {
       "name": "vehicle_age_months",
       "business_name": "Vehicle age months",
-      "definition": "Vehicle age months. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "integer",
+      "definition": "The vehicle's age in months at this month-end.",
+      "data_type": "number",
       "unit": "months",
       "grain": "FACILITY",
       "semantics": "STOCK",
@@ -2401,7 +2401,7 @@
     {
       "name": "dealer_id",
       "business_name": "Dealer id",
-      "definition": "Dealer id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The dealer that introduced an auto facility. Dealer concentration and dealer-level default rates are an origination quality question.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2424,7 +2424,7 @@
     {
       "name": "down_payment_sar",
       "business_name": "Down payment SAR",
-      "definition": "Down payment SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What the customer paid up front at origination.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -2447,7 +2447,7 @@
     {
       "name": "balloon_payment_sar",
       "business_name": "Balloon payment SAR",
-      "definition": "Balloon payment SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "A final lump sum due at the end of the term, above the regular instalments. Zero where the facility fully amortises.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -2470,7 +2470,7 @@
     {
       "name": "balloon_due_date",
       "business_name": "Balloon due date",
-      "definition": "Balloon due date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the balloon payment falls due.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -2493,7 +2493,7 @@
     {
       "name": "housing_support_flag",
       "business_name": "Housing support flag",
-      "definition": "Housing support flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the customer receives government housing support on this facility. It changes the instalment the household actually pays.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -2516,7 +2516,7 @@
     {
       "name": "housing_support_type",
       "business_name": "Housing support type",
-      "definition": "Housing support type. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which housing support programme applies, or NONE.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2539,7 +2539,7 @@
     {
       "name": "property_type",
       "business_name": "Property type",
-      "definition": "Property type. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What kind of property secures a home facility.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2562,7 +2562,7 @@
     {
       "name": "home_purpose",
       "business_name": "Home purpose",
-      "definition": "Home purpose. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Why the home facility was taken: FIRST_HOME, SECOND_PROPERTY or REFINANCE.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2585,7 +2585,7 @@
     {
       "name": "auto_structure",
       "business_name": "Auto structure",
-      "definition": "Auto structure. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The financing structure for a vehicle facility \u2014 MURABAHA or IJARA. Under IJARA the bank holds title until the final payment.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2608,11 +2608,11 @@
     {
       "name": "previous_month_dpd",
       "business_name": "Previous month DPD",
-      "definition": "Previous month DPD. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Days past due at the PREVIOUS month-end. Held on the row so a movement can be read without joining the book to itself.",
+      "data_type": "number",
+      "unit": "days",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -2684,7 +2684,7 @@
     {
       "name": "oldest_unpaid_due_date",
       "business_name": "Oldest unpaid due date",
-      "definition": "Oldest unpaid due date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The due date of the oldest instalment still unpaid. It is what days past due is counted from.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -2730,7 +2730,7 @@
     {
       "name": "first_default_date",
       "business_name": "First default date",
-      "definition": "First default date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When this facility first defaulted.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -2753,7 +2753,7 @@
     {
       "name": "latest_default_date",
       "business_name": "Latest default date",
-      "definition": "Latest default date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When this facility most recently defaulted.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -2776,7 +2776,7 @@
     {
       "name": "default_reason",
       "business_name": "Default reason",
-      "definition": "Default reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which limb of the default definition was met.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2799,7 +2799,7 @@
     {
       "name": "default_episode_id",
       "business_name": "Default episode id",
-      "definition": "Default episode id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The key of this default episode. A facility that defaults, cures and defaults again has two episodes, and counting defaults without this column counts the customer twice.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -2822,7 +2822,7 @@
     {
       "name": "credit_impaired_flag",
       "business_name": "Credit impaired flag",
-      "definition": "Credit impaired flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the facility is credit-impaired \u2014 Stage 3. Not the same as written off, and not the same as in collections.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -2845,7 +2845,7 @@
     {
       "name": "unlikeliness_to_pay_flag",
       "business_name": "Unlikeliness to pay flag",
-      "definition": "Unlikeliness to pay flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether default was called on unlikeliness to pay rather than on days past due. It is what catches a default that never showed as arrears.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -2868,7 +2868,7 @@
     {
       "name": "forbearance_flag",
       "business_name": "Forbearance flag",
-      "definition": "Forbearance flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the facility has been granted forbearance \u2014 a concession made because the customer was in financial difficulty.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -2891,7 +2891,7 @@
     {
       "name": "forbearance_start_date",
       "business_name": "Forbearance start date",
-      "definition": "Forbearance start date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When forbearance was granted.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -2914,7 +2914,7 @@
     {
       "name": "cure_flag",
       "business_name": "Cure flag",
-      "definition": "Cure flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the facility has cured out of default.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -2937,7 +2937,7 @@
     {
       "name": "cure_date",
       "business_name": "Cure date",
-      "definition": "Cure date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the facility cured.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -2960,7 +2960,7 @@
     {
       "name": "cure_probation_months",
       "business_name": "Cure probation months",
-      "definition": "Cure probation months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How many months a cured facility must stay current before it leaves default. A cure inside probation is not yet a cure.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -2983,7 +2983,7 @@
     {
       "name": "writeoff_flag",
       "business_name": "Writeoff flag",
-      "definition": "Writeoff flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the balance has been written off. A write-off removes the asset; it does not end the claim on the customer.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -3029,7 +3029,7 @@
     {
       "name": "collections_stage",
       "business_name": "Collections stage",
-      "definition": "Collections stage. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How far into collections the facility has gone: NONE, SOFT_REMINDER, TELE_COLLECTION, FIELD, LEGAL or WRITE_OFF.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3052,8 +3052,8 @@
     {
       "name": "contact_attempts_3m",
       "business_name": "Contact attempts 3m",
-      "definition": "Contact attempts 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "number",
+      "definition": "Collections contact attempts in the last three months.",
+      "data_type": "integer",
       "unit": null,
       "grain": "FACILITY",
       "semantics": "COUNT",
@@ -3075,7 +3075,7 @@
     {
       "name": "promise_to_pay_flag",
       "business_name": "Promise to pay flag",
-      "definition": "Promise to pay flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the customer has an outstanding promise to pay.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -3098,7 +3098,7 @@
     {
       "name": "promise_to_pay_due_date",
       "business_name": "Promise to pay due date",
-      "definition": "Promise to pay due date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the promised payment is due.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -3121,7 +3121,7 @@
     {
       "name": "days_30plus_count_12m",
       "business_name": "Days 30plus count 12m",
-      "definition": "Days 30plus count 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Days spent at 30 or more days past due over twelve months.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -3144,7 +3144,7 @@
     {
       "name": "months_30plus_count_12m",
       "business_name": "Months 30plus count 12m",
-      "definition": "Months 30plus count 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Month-ends at 30 or more days past due over twelve months. Three separate month-ends in arrears is a different risk from one long spell, and this is the column that tells them apart.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -3167,7 +3167,7 @@
     {
       "name": "full_payment_months_6m",
       "business_name": "Full payment months 6m",
-      "definition": "Full payment months 6m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Months in the last six in which the full instalment was paid.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -3190,7 +3190,7 @@
     {
       "name": "card_behaviour_segment",
       "business_name": "Card behaviour segment",
-      "definition": "Card behaviour segment. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How the card is used: TRANSACTOR (settled in full), REVOLVER (carries a balance) or INACTIVE. The same limit is a different risk in each.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3213,7 +3213,7 @@
     {
       "name": "utilisation_band",
       "business_name": "Utilisation band",
-      "definition": "Utilisation band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Current utilisation, in bands. Above 100% means an overlimit balance.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3236,7 +3236,7 @@
     {
       "name": "ltv_band",
       "business_name": "LTV band",
-      "definition": "LTV band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The current loan-to-value ratio, in bands.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3259,7 +3259,7 @@
     {
       "name": "down_payment_band",
       "business_name": "Down payment band",
-      "definition": "Down payment band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The down payment as a share of the asset price, in bands.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3282,7 +3282,7 @@
     {
       "name": "balloon_band",
       "business_name": "Balloon band",
-      "definition": "Balloon band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The balloon as a share of the amount financed, in bands. NONE where there is no balloon.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3305,7 +3305,7 @@
     {
       "name": "bureau_score_origination_date",
       "business_name": "Bureau score origination date",
-      "definition": "Bureau score origination date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the origination bureau score was drawn.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -3328,7 +3328,7 @@
     {
       "name": "bureau_score_current_date",
       "business_name": "Bureau score current date",
-      "definition": "Bureau score current date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the current bureau score was drawn.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -3351,7 +3351,7 @@
     {
       "name": "bureau_score_scale_id",
       "business_name": "Bureau score scale id",
-      "definition": "Bureau score scale id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The scale the bureau score is expressed on, so scores from different vintages are not compared across scales.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3374,7 +3374,7 @@
     {
       "name": "bureau_active_facilities_count",
       "business_name": "Bureau active facilities count",
-      "definition": "Bureau active facilities count. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Facilities the customer has open with other lenders.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -3397,7 +3397,7 @@
     {
       "name": "bureau_total_exposure_sar",
       "business_name": "Bureau total exposure SAR",
-      "definition": "Bureau total exposure SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Total balances owed to other lenders. A CUSTOMER level: summing it over a customer's facilities counts the same external debt twice.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -3420,7 +3420,7 @@
     {
       "name": "bureau_adverse_flag",
       "business_name": "Bureau adverse flag",
-      "definition": "Bureau adverse flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the bureau reports an adverse event \u2014 a default, a judgment or a write-off \u2014 with another lender.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -3443,7 +3443,7 @@
     {
       "name": "bureau_thin_file_flag",
       "business_name": "Bureau thin file flag",
-      "definition": "Bureau thin file flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the bureau holds too little history to score reliably. A thin file is not a bad file, and treating it as one is a known way to decline good customers.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -3466,7 +3466,7 @@
     {
       "name": "bureau_data_available_flag",
       "business_name": "Bureau data available flag",
-      "definition": "Bureau data available flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether bureau data was returned at all for this customer.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -3489,7 +3489,7 @@
     {
       "name": "bureau_source_label",
       "business_name": "Bureau source label",
-      "definition": "Bureau source label. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which bureau the external data came from. Synthetic here: this book carries a bureau PROXY, not SIMAH data.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3512,7 +3512,7 @@
     {
       "name": "bureau_data_freshness_days",
       "business_name": "Bureau data freshness days",
-      "definition": "Bureau data freshness days. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How old the bureau data is, in days, at this month-end.",
       "data_type": "integer",
       "unit": "days",
       "grain": "FACILITY",
@@ -3535,7 +3535,7 @@
     {
       "name": "salary_credit_last_date",
       "business_name": "Salary credit last date",
-      "definition": "Salary credit last date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end of the most recent salary credit received.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -3558,7 +3558,7 @@
     {
       "name": "expected_salary_credit_date",
       "business_name": "Expected salary credit date",
-      "definition": "Expected salary credit date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the next salary credit is due, from the customer's pattern.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -3581,7 +3581,7 @@
     {
       "name": "salary_delay_days",
       "business_name": "Salary delay days",
-      "definition": "Salary delay days. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Days between when the salary was expected and when it arrived. Zero where it arrived on time.",
       "data_type": "integer",
       "unit": "days",
       "grain": "FACILITY",
@@ -3604,11 +3604,11 @@
     {
       "name": "account_inflows_1m_sar",
       "business_name": "Account inflows 1m SAR",
-      "definition": "Account inflows 1m SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Everything credited to the customer's accounts in this month, salary included. A PERIOD amount: sum it over the months of the period wanted, never across a level.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
-      "semantics": "STOCK",
+      "semantics": "FLOW",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -3627,11 +3627,11 @@
     {
       "name": "account_outflows_1m_sar",
       "business_name": "Account outflows 1m SAR",
-      "definition": "Account outflows 1m SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Everything debited from the customer's accounts in this month. A PERIOD amount.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
-      "semantics": "STOCK",
+      "semantics": "FLOW",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -3650,7 +3650,7 @@
     {
       "name": "application_score_date",
       "business_name": "Application score date",
-      "definition": "Application score date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the application score was produced.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -3673,7 +3673,7 @@
     {
       "name": "application_score_direction",
       "business_name": "Application score direction",
-      "definition": "Application score direction. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which way the scale runs. HIGHER_IS_SAFER throughout, stated explicitly because a validation test that assumes the other direction reports every Gini with its sign reversed.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3696,7 +3696,7 @@
     {
       "name": "application_score_status",
       "business_name": "Application score status",
-      "definition": "Application score status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether an application score exists, and why not where it does not.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3719,7 +3719,7 @@
     {
       "name": "application_score_reconciled_flag",
       "business_name": "Application score reconciled flag",
-      "definition": "Application score reconciled flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the stored score was reproduced exactly from the stored inputs, the frozen bins and the published coefficients. False is an implementation defect, not a model outcome.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -3742,7 +3742,7 @@
     {
       "name": "behavioural_score_date",
       "business_name": "Behavioural score date",
-      "definition": "Behavioural score date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the behavioural score was produced \u2014 this month-end.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -3765,7 +3765,7 @@
     {
       "name": "behavioural_score_direction",
       "business_name": "Behavioural score direction",
-      "definition": "Behavioural score direction. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which way the scale runs. HIGHER_IS_SAFER.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3788,7 +3788,7 @@
     {
       "name": "behavioural_score_status",
       "business_name": "Behavioural score status",
-      "definition": "Behavioural score status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether a behavioural score exists. NOT_SCORED_THIN_HISTORY where the facility has too few months to score \u2014 a state, not a zero.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3811,7 +3811,7 @@
     {
       "name": "behavioural_score_reconciled_flag",
       "business_name": "Behavioural score reconciled flag",
-      "definition": "Behavioural score reconciled flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the stored behavioural score was reproduced exactly from stored inputs, frozen bins and published coefficients.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -3834,7 +3834,7 @@
     {
       "name": "score_implementation_check_status",
       "business_name": "Score implementation check status",
-      "definition": "Score implementation check status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the stored score was reproduced from its stored inputs. PASS means the implementation agrees with the specification.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3857,11 +3857,11 @@
     {
       "name": "score_evidence_ref",
       "business_name": "Score evidence ref",
-      "definition": "Score evidence ref. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The key of the stored evidence for this score \u2014 inputs, bins, weights and the arithmetic. What makes the score auditable.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "IDENTIFIER",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -3880,7 +3880,7 @@
     {
       "name": "calculation_run_id",
       "business_name": "Calculation run id",
-      "definition": "Calculation run id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The key of the calculation run that produced this row. Two rows with the same run id were produced by the same code and the same inputs.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -3903,11 +3903,11 @@
     {
       "name": "calculation_available_at",
       "business_name": "Calculation available at",
-      "definition": "Calculation available at. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the calculated figures became available.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "EVENT_DATE",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -3952,11 +3952,11 @@
     {
       "name": "max_dpd_3m",
       "business_name": "Max DPD 3m",
-      "definition": "Max DPD 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The worst days past due reached in the last three months. A facility can be current today and have been 60 days down in May.",
       "data_type": "number",
-      "unit": null,
+      "unit": "days",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -3975,11 +3975,11 @@
     {
       "name": "max_dpd_6m",
       "business_name": "Max DPD 6m",
-      "definition": "Max DPD 6m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The worst days past due reached in the last six months.",
       "data_type": "number",
-      "unit": null,
+      "unit": "days",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -3998,11 +3998,11 @@
     {
       "name": "max_dpd_12m",
       "business_name": "Max DPD 12m",
-      "definition": "Max DPD 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The worst days past due reached in the last twelve months.",
       "data_type": "number",
-      "unit": null,
+      "unit": "days",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4021,7 +4021,7 @@
     {
       "name": "missed_payment_count_3m",
       "business_name": "Missed payment count 3m",
-      "definition": "Missed payment count 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Scheduled payments not made in the last three months.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4044,7 +4044,7 @@
     {
       "name": "missed_payment_count_6m",
       "business_name": "Missed payment count 6m",
-      "definition": "Missed payment count 6m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Scheduled payments not made in the last six months.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4067,11 +4067,11 @@
     {
       "name": "payment_to_due_ratio_1m",
       "business_name": "Payment to due ratio 1m",
-      "definition": "Payment to due ratio 1m. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "What was paid over what was due, in this month. Below 1 is a part payment; a card customer paying the minimum sits well below it.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4090,11 +4090,11 @@
     {
       "name": "payment_to_due_ratio_3m",
       "business_name": "Payment to due ratio 3m",
-      "definition": "Payment to due ratio 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What was paid over what was due, across three months.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4136,11 +4136,11 @@
     {
       "name": "utilisation_avg_3m",
       "business_name": "Utilisation avg 3m",
-      "definition": "Utilisation avg 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Average drawn balance over credit limit across three months.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4159,7 +4159,7 @@
     {
       "name": "utilisation_change_3m_pp",
       "business_name": "Utilisation change 3m pp",
-      "definition": "Utilisation change 3m pp. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Change in utilisation over three months, in percentage points. Already a difference: do not difference it again.",
       "data_type": "number",
       "unit": "percentage points",
       "grain": "FACILITY",
@@ -4182,7 +4182,7 @@
     {
       "name": "minimum_payment_only_months_3m",
       "business_name": "Minimum payment only months 3m",
-      "definition": "Minimum payment only months 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Months in the last three where only the minimum payment was made.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4205,9 +4205,9 @@
     {
       "name": "overlimit_days_3m",
       "business_name": "Overlimit days 3m",
-      "definition": "Overlimit days 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Days spent above the credit limit in the last three months.",
       "data_type": "number",
-      "unit": null,
+      "unit": "days",
       "grain": "FACILITY",
       "semantics": "COUNT",
       "aggregation": "none",
@@ -4228,11 +4228,11 @@
     {
       "name": "cash_advance_share_3m",
       "business_name": "Cash advance share 3m",
-      "definition": "Cash advance share 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Cash advances as a share of card spend over three months. Cash advance on a card is expensive money and is read as a liquidity signal, not as spending.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4251,11 +4251,11 @@
     {
       "name": "salary_credit_amount_1m_sar",
       "business_name": "Salary credit amount 1m SAR",
-      "definition": "Salary credit amount 1m SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The salary credited to the customer's account in this month.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
-      "semantics": "STOCK",
+      "semantics": "FLOW",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4274,7 +4274,7 @@
     {
       "name": "salary_credit_average_3m_sar",
       "business_name": "Salary credit average 3m SAR",
-      "definition": "Salary credit average 3m SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Average monthly salary credit over three months, to this month-end.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -4297,7 +4297,7 @@
     {
       "name": "salary_credit_average_6m_sar",
       "business_name": "Salary credit average 6m SAR",
-      "definition": "Salary credit average 6m SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Average monthly salary credit over six months, to this month-end.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -4320,7 +4320,7 @@
     {
       "name": "salary_change_3m_ratio",
       "business_name": "Salary change 3m ratio",
-      "definition": "Salary change 3m ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The latest salary credit over the average of the three before it. Below 1 means the salary has fallen.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -4343,7 +4343,7 @@
     {
       "name": "salary_missed_cycle_count_3m",
       "business_name": "Salary missed cycle count 3m",
-      "definition": "Salary missed cycle count 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Salary cycles with no credit at all in the last three months.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4366,11 +4366,11 @@
     {
       "name": "income_volatility_6m",
       "business_name": "Income volatility 6m",
-      "definition": "Income volatility 6m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Coefficient of variation of the last six salary credits. High means the income arrives in uneven amounts, whatever its average.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4389,11 +4389,11 @@
     {
       "name": "balance_buffer_months",
       "business_name": "Balance buffer months",
-      "definition": "Balance buffer months. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "integer",
+      "definition": "How many months of the scheduled instalment the customer's average account balance would cover. A liquidity cushion, not a level.",
+      "data_type": "number",
       "unit": "months",
       "grain": "FACILITY",
-      "semantics": "STOCK",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4412,7 +4412,7 @@
     {
       "name": "account_average_balance_3m_sar",
       "business_name": "Account average balance 3m SAR",
-      "definition": "Account average balance 3m SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Average current-account balance over three months, to this month-end. A CUSTOMER level.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -4435,11 +4435,11 @@
     {
       "name": "bureau_score_current",
       "business_name": "Bureau score current",
-      "definition": "Bureau score current. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The customer's bureau score at this month-end. Higher is safer.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4458,11 +4458,11 @@
     {
       "name": "bureau_score_change_3m",
       "business_name": "Bureau score change 3m",
-      "definition": "Bureau score change 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Change in the bureau score over three months. Already a difference.",
       "data_type": "number",
-      "unit": null,
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4481,11 +4481,11 @@
     {
       "name": "bureau_external_dpd_max",
       "business_name": "Bureau external DPD max",
-      "definition": "Bureau external DPD max. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Worst days past due with any other lender. A customer current here and 90 days down elsewhere is the case this column exists for.",
+      "data_type": "number",
+      "unit": "days",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4504,7 +4504,7 @@
     {
       "name": "external_obligations_change_3m_sar",
       "business_name": "External obligations change 3m SAR",
-      "definition": "External obligations change 3m SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Change in monthly obligations to other lenders over three months. Positive means the customer has taken on borrowing elsewhere \u2014 the earliest visible sign of stress this book carries.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -4527,7 +4527,7 @@
     {
       "name": "bureau_enquiries_3m",
       "business_name": "Bureau enquiries 3m",
-      "definition": "Bureau enquiries 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Credit enquiries recorded at the bureau in three months. A burst of enquiries is a customer looking for money.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4550,7 +4550,7 @@
     {
       "name": "bureau_enquiries_6m",
       "business_name": "Bureau enquiries 6m",
-      "definition": "Bureau enquiries 6m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Credit enquiries recorded at the bureau in six months.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4573,7 +4573,7 @@
     {
       "name": "broken_promise_count_3m",
       "business_name": "Broken promise count 3m",
-      "definition": "Broken promise count 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Promises to pay that were made and not kept, over three months. A broken promise is a stronger signal than a missed instalment: the customer engaged and still did not pay.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4596,7 +4596,7 @@
     {
       "name": "autopay_failure_count_3m",
       "business_name": "Autopay failure count 3m",
-      "definition": "Autopay failure count 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Automatic payment attempts that failed in the last three months.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -4619,11 +4619,11 @@
     {
       "name": "months_to_balloon",
       "business_name": "Months to balloon",
-      "definition": "Months to balloon. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Months from this month-end until the balloon falls due. The months before it are the months to find the money in.",
+      "data_type": "number",
+      "unit": "months",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -4642,7 +4642,7 @@
     {
       "name": "ltv_current_ratio",
       "business_name": "LTV current ratio",
-      "definition": "LTV current ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Current balance over the collateral's origination value. It falls as the balance amortises because the value is not refreshed.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -4665,11 +4665,11 @@
     {
       "name": "behaviour_history_months_available",
       "business_name": "Behaviour history months available",
-      "definition": "Behaviour history months available. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "How many months of behaviour the facility has. Below the model's minimum it is not scored, and this column says why.",
+      "data_type": "number",
+      "unit": "months",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -6024,11 +6024,11 @@
     {
       "name": "app_score_logit",
       "business_name": "App score logit",
-      "definition": "App score logit. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
+      "definition": "The log-odds the application model produced, before the points mapping. The scale the model actually works on.",
+      "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -6047,11 +6047,11 @@
     {
       "name": "app_score_base_points",
       "business_name": "App score base points",
-      "definition": "App score base points. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The application scorecard's intercept in points. Base points plus every feature's points equals the score exactly.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -6070,11 +6070,11 @@
     {
       "name": "app_score_points_total",
       "business_name": "App score points total",
-      "definition": "App score points total. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The sum of every application feature's points contribution.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -6093,11 +6093,11 @@
     {
       "name": "app_score_unclipped",
       "business_name": "App score unclipped",
-      "definition": "App score unclipped. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The application score before clipping to the publishable range. Where the two differ, the clip is doing the work.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -6116,11 +6116,11 @@
     {
       "name": "app_score_value",
       "business_name": "App score value",
-      "definition": "App score value. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The application score as computed here, after clipping to the publishable range. Equal to `application_score_at_origination`.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -6139,11 +6139,11 @@
     {
       "name": "app_predicted_pd_12m",
       "business_name": "App predicted PD 12m",
-      "definition": "App predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The twelve-month PD the application score maps to.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -6162,7 +6162,7 @@
     {
       "name": "app_score_band_value",
       "business_name": "App score band value",
-      "definition": "App score band value. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The band the application score falls in, A+ through E.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -6185,8 +6185,8 @@
     {
       "name": "app_input_missing_count",
       "business_name": "App input missing count",
-      "definition": "App input missing count. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "number",
+      "definition": "How many application model inputs were absent and scored in the MISSING bin. A score built on absent inputs is weaker than the same score built on present ones.",
+      "data_type": "integer",
       "unit": null,
       "grain": "FACILITY",
       "semantics": "COUNT",
@@ -6208,7 +6208,7 @@
     {
       "name": "app_model_id",
       "business_name": "App model id",
-      "definition": "App model id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The application model that produced the flattened `app_*` columns.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -6231,7 +6231,7 @@
     {
       "name": "app_model_version",
       "business_name": "App model version",
-      "definition": "App model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of that application model. Two facilities scored by different versions are not comparable on the same scale.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -6254,7 +6254,7 @@
     {
       "name": "app_transform_version",
       "business_name": "App transform version",
-      "definition": "App transform version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The binning and weight-of-evidence version it used.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -6277,7 +6277,7 @@
     {
       "name": "app_target_definition_id",
       "business_name": "App target definition id",
-      "definition": "App target definition id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What the application model was trained to predict, as a governed definition \u2014 first default within twelve months of origination.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9212,11 +9212,11 @@
     {
       "name": "beh_score_logit",
       "business_name": "Beh score logit",
-      "definition": "Beh score logit. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
+      "definition": "The log-odds the behavioural model produced, before the points mapping.",
+      "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9235,11 +9235,11 @@
     {
       "name": "beh_score_base_points",
       "business_name": "Beh score base points",
-      "definition": "Beh score base points. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The behavioural scorecard's intercept in points.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9258,11 +9258,11 @@
     {
       "name": "beh_score_points_total",
       "business_name": "Beh score points total",
-      "definition": "Beh score points total. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The sum of every behavioural feature's points contribution.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9281,11 +9281,11 @@
     {
       "name": "beh_score_unclipped",
       "business_name": "Beh score unclipped",
-      "definition": "Beh score unclipped. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The behavioural score before clipping to the publishable range.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9304,11 +9304,11 @@
     {
       "name": "beh_score_value",
       "business_name": "Beh score value",
-      "definition": "Beh score value. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The behavioural score as computed here, after clipping. Equal to `behavioural_score`.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9327,11 +9327,11 @@
     {
       "name": "beh_predicted_pd_12m",
       "business_name": "Beh predicted PD 12m",
-      "definition": "Beh predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The twelve-month PD the behavioural score maps to.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9350,7 +9350,7 @@
     {
       "name": "beh_score_band_value",
       "business_name": "Beh score band value",
-      "definition": "Beh score band value. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The band the behavioural score falls in, A+ through E.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9373,7 +9373,7 @@
     {
       "name": "beh_input_missing_count",
       "business_name": "Beh input missing count",
-      "definition": "Beh input missing count. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How many behavioural model inputs were absent and scored in the MISSING bin.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -9396,7 +9396,7 @@
     {
       "name": "beh_model_id",
       "business_name": "Beh model id",
-      "definition": "Beh model id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The behavioural model that produced the flattened `beh_*` columns.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9419,7 +9419,7 @@
     {
       "name": "beh_model_version",
       "business_name": "Beh model version",
-      "definition": "Beh model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of that behavioural model. Two facilities scored by different versions are not comparable on the same scale.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9442,7 +9442,7 @@
     {
       "name": "beh_transform_version",
       "business_name": "Beh transform version",
-      "definition": "Beh transform version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The binning and weight-of-evidence version it used.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9465,7 +9465,7 @@
     {
       "name": "beh_target_definition_id",
       "business_name": "Beh target definition id",
-      "definition": "Beh target definition id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What the behavioural model was trained to predict, as a governed definition \u2014 first default within the twelve months after the observation month.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9705,11 +9705,11 @@
     {
       "name": "application_score_at_origination",
       "business_name": "Application score at origination",
-      "definition": "Application score at origination. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The application scorecard's score when the facility was decided. Higher is safer. Frozen for the life of the facility: this is the column origination quality by vintage is measured on.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9728,7 +9728,7 @@
     {
       "name": "application_score_model_id",
       "business_name": "Application score model id",
-      "definition": "Application score model id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which application scorecard scored this facility. There is one per product, and comparing scores across two of them is not meaningful.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9751,7 +9751,7 @@
     {
       "name": "application_score_model_version",
       "business_name": "Application score model version",
-      "definition": "Application score model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of that application scorecard.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9774,7 +9774,7 @@
     {
       "name": "application_score_band",
       "business_name": "Application score band",
-      "definition": "Application score band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The application score expressed as a band, A+ through E.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9797,11 +9797,11 @@
     {
       "name": "application_predicted_pd_12m",
       "business_name": "Application predicted PD 12m",
-      "definition": "Application predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The twelve-month probability of default the application score maps to. A probability: recompute it over a population, never sum it.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9820,7 +9820,7 @@
     {
       "name": "application_transform_version",
       "business_name": "Application transform version",
-      "definition": "Application transform version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the weight-of-evidence transformation the application scorecard used.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9843,11 +9843,11 @@
     {
       "name": "behavioural_score",
       "business_name": "Behavioural score",
-      "definition": "Behavioural score. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The behavioural scorecard's score at THIS month-end, from how the customer has actually behaved. Higher is safer. Recomputed monthly: this is the column the monthly risk view is built on.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9866,7 +9866,7 @@
     {
       "name": "behavioural_score_model_id",
       "business_name": "Behavioural score model id",
-      "definition": "Behavioural score model id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which behavioural scorecard scored this facility. One per product.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9889,7 +9889,7 @@
     {
       "name": "behavioural_score_model_version",
       "business_name": "Behavioural score model version",
-      "definition": "Behavioural score model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of that behavioural scorecard.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9912,7 +9912,7 @@
     {
       "name": "behavioural_score_band",
       "business_name": "Behavioural score band",
-      "definition": "Behavioural score band. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The behavioural score expressed as a band, A+ through E.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9935,11 +9935,11 @@
     {
       "name": "behavioural_predicted_pd_12m",
       "business_name": "Behavioural predicted PD 12m",
-      "definition": "Behavioural predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The twelve-month PD the behavioural score maps to.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -9958,7 +9958,7 @@
     {
       "name": "behavioural_transform_version",
       "business_name": "Behavioural transform version",
-      "definition": "Behavioural transform version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The weight-of-evidence version the behavioural scorecard used.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9981,11 +9981,11 @@
     {
       "name": "behavioural_score_previous_month",
       "business_name": "Behavioural score previous month",
-      "definition": "Behavioural score previous month. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The behavioural score at the previous month-end, held on the row so a movement can be read without a self-join.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -10004,11 +10004,11 @@
     {
       "name": "behavioural_score_change_3m",
       "business_name": "Behavioural score change 3m",
-      "definition": "Behavioural score change 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Change in the behavioural score over three months. Already a difference: do not difference it again. A large fall is the deterioration signal the early warning rules read first.",
       "data_type": "number",
-      "unit": null,
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -10027,7 +10027,7 @@
     {
       "name": "score_input_missing_count",
       "business_name": "Score input missing count",
-      "definition": "Score input missing count. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Model inputs absent at scoring, across both scorecards.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -10050,8 +10050,8 @@
     {
       "name": "score_input_stale_count",
       "business_name": "Score input stale count",
-      "definition": "Score input stale count. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "number",
+      "definition": "Model inputs that were present but older than their freshness rule allows. Stale is not missing, and the two are counted apart.",
+      "data_type": "integer",
       "unit": null,
       "grain": "FACILITY",
       "semantics": "COUNT",
@@ -10073,7 +10073,7 @@
     {
       "name": "returned_payment_count_3m",
       "business_name": "Returned payment count 3m",
-      "definition": "Returned payment count 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Direct debits returned unpaid in the last three months.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -10096,7 +10096,7 @@
     {
       "name": "stage_entry_date",
       "business_name": "Stage entry date",
-      "definition": "Stage entry date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "When the facility entered its current stage. How long it has been in Stage 2 matters as much as that it is.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -10119,11 +10119,11 @@
     {
       "name": "calculation_input_hash",
       "business_name": "Calculation input hash",
-      "definition": "Calculation input hash. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "A hash of the inputs to the calculation. Two runs with the same hash and different outputs is a reproducibility defect.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "IDENTIFIER",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -10142,7 +10142,7 @@
     {
       "name": "origination_income_sar",
       "business_name": "Origination income SAR",
-      "definition": "Origination income SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Verified monthly income AT ORIGINATION. Frozen: it is what was underwritten, and comparing it with income now is how income drift is measured.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -10165,7 +10165,7 @@
     {
       "name": "origination_salary_sar",
       "business_name": "Origination salary SAR",
-      "definition": "Origination salary SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Verified monthly salary at origination. Frozen.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -10188,7 +10188,7 @@
     {
       "name": "origination_household_expenses_sar",
       "business_name": "Origination household expenses SAR",
-      "definition": "Origination household expenses SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The household expense figure used in the affordability test at origination. Frozen.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -10211,7 +10211,7 @@
     {
       "name": "origination_external_obligations_sar",
       "business_name": "Origination external obligations SAR",
-      "definition": "Origination external obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Monthly obligations to other lenders at origination. Frozen.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -10234,7 +10234,7 @@
     {
       "name": "origination_own_bank_obligations_sar",
       "business_name": "Origination own bank obligations SAR",
-      "definition": "Origination own bank obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Monthly obligations to this bank at origination. Frozen.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -10257,7 +10257,7 @@
     {
       "name": "origination_total_obligations_sar",
       "business_name": "Origination total obligations SAR",
-      "definition": "Origination total obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "All monthly credit obligations at origination. Frozen.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -10280,7 +10280,7 @@
     {
       "name": "origination_debt_burden_ratio",
       "business_name": "Origination debt burden ratio",
-      "definition": "Origination debt burden ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Total monthly obligations over income at origination. The ratio the affordability limit was tested against.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -10303,7 +10303,7 @@
     {
       "name": "origination_disposable_income_sar",
       "business_name": "Origination disposable income SAR",
-      "definition": "Origination disposable income SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Income less expenses and obligations at origination \u2014 the affordability buffer as it was underwritten.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -10326,7 +10326,7 @@
     {
       "name": "origination_employment_tenure_months",
       "business_name": "Origination employment tenure months",
-      "definition": "Origination employment tenure months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Months in employment at origination. Frozen.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -10349,7 +10349,7 @@
     {
       "name": "origination_customer_tenure_months",
       "business_name": "Origination customer tenure months",
-      "definition": "Origination customer tenure months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Months of relationship with the bank at origination. Zero for a new-to-bank customer.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -10372,7 +10372,7 @@
     {
       "name": "origination_salary_transfer_status",
       "business_name": "Origination salary transfer status",
-      "definition": "Origination salary transfer status. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the salary was transferred to this bank AT ORIGINATION. Frozen: it does not follow the customer if the arrangement lapses.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10395,11 +10395,11 @@
     {
       "name": "bureau_score_at_origination",
       "business_name": "Bureau score at origination",
-      "definition": "Bureau score at origination. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The bureau score as at origination. Frozen: comparing it with the current score measures how the customer has moved since underwriting.",
+      "data_type": "number",
+      "unit": "points",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -10418,7 +10418,7 @@
     {
       "name": "origination_bureau_enquiries_3m",
       "business_name": "Origination bureau enquiries 3m",
-      "definition": "Origination bureau enquiries 3m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Bureau enquiries in the three months before origination \u2014 how hard the customer was shopping for credit when they applied.",
       "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
@@ -10441,11 +10441,11 @@
     {
       "name": "origination_bureau_external_dpd_max",
       "business_name": "Origination bureau external DPD max",
-      "definition": "Origination bureau external DPD max. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Worst days past due with any other lender, at origination.",
+      "data_type": "number",
+      "unit": "days",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "STOCK",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -10464,11 +10464,11 @@
     {
       "name": "origination_bureau_active_facilities",
       "business_name": "Origination bureau active facilities",
-      "definition": "Origination bureau active facilities. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
+      "definition": "Facilities open with other lenders at origination.",
+      "data_type": "number",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "COUNT",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -10487,7 +10487,7 @@
     {
       "name": "origination_amount_to_income_ratio",
       "business_name": "Origination amount to income ratio",
-      "definition": "Origination amount to income ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Amount financed over monthly income at origination \u2014 how many months of income was lent.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -10510,7 +10510,7 @@
     {
       "name": "origination_instalment_to_income_ratio",
       "business_name": "Origination instalment to income ratio",
-      "definition": "Origination instalment to income ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "This facility's instalment over income at origination.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -10533,7 +10533,7 @@
     {
       "name": "ltv_origination_ratio",
       "business_name": "LTV origination ratio",
-      "definition": "LTV origination ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Amount financed over collateral value at origination. A RATIO: recompute it from summed amounts, never average it across rows.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -10556,7 +10556,7 @@
     {
       "name": "origination_balloon_ratio",
       "business_name": "Origination balloon ratio",
-      "definition": "Origination balloon ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The balloon over the amount financed, at origination.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -10579,7 +10579,7 @@
     {
       "name": "origination_income_stability_ratio",
       "business_name": "Origination income stability ratio",
-      "definition": "Origination income stability ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How steady the income was over the months before origination. Low means it varied.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -10652,8 +10652,8 @@
     {
       "name": "previous_month_stage",
       "business_name": "Previous month stage",
-      "definition": "Previous month stage. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
+      "definition": "The IFRS 9 stage at the previous month-end. Held on the row so a stage migration can be read without joining the book to itself.",
+      "data_type": "integer",
       "unit": null,
       "grain": "FACILITY",
       "semantics": "DESCRIPTOR",
@@ -10675,7 +10675,7 @@
     {
       "name": "staging_policy_version",
       "business_name": "Staging policy version",
-      "definition": "Staging policy version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the staging policy that produced this stage.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10698,7 +10698,7 @@
     {
       "name": "sicr_flag",
       "business_name": "SICR flag",
-      "definition": "SICR flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether a significant increase in credit risk has been identified \u2014 the test that moves a facility from Stage 1 to Stage 2.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -10721,7 +10721,7 @@
     {
       "name": "sicr_reason",
       "business_name": "SICR reason",
-      "definition": "SICR reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which test moved this facility, in words. The sentence a reviewer reads when they ask why a facility is in Stage 2.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10744,7 +10744,7 @@
     {
       "name": "sicr_quantitative_flag",
       "business_name": "SICR quantitative flag",
-      "definition": "SICR quantitative flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the SICR test was met on the quantitative limb: lifetime PD has risen enough against origination.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -10767,7 +10767,7 @@
     {
       "name": "sicr_qualitative_flag",
       "business_name": "SICR qualitative flag",
-      "definition": "SICR qualitative flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the SICR test was met on the qualitative limb \u2014 forbearance, repeated arrears, a behavioural collapse.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -10790,7 +10790,7 @@
     {
       "name": "sicr_dpd_backstop_flag",
       "business_name": "SICR DPD backstop flag",
-      "definition": "SICR DPD backstop flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the 30-days-past-due backstop alone moved this facility to Stage 2. A backstop-only population is one whose models saw nothing.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -10813,7 +10813,7 @@
     {
       "name": "stage_override_flag",
       "business_name": "Stage override flag",
-      "definition": "Stage override flag. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether the stage was set by judgment rather than by the rules.",
       "data_type": "boolean",
       "unit": null,
       "grain": "FACILITY",
@@ -10836,7 +10836,7 @@
     {
       "name": "stage_override_reason",
       "business_name": "Stage override reason",
-      "definition": "Stage override reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Why the stage was overridden, in words.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10859,7 +10859,7 @@
     {
       "name": "default_definition_id",
       "business_name": "Default definition id",
-      "definition": "Default definition id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The governed definition of default in force \u2014 90 days past due or unlikeliness to pay.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10882,7 +10882,7 @@
     {
       "name": "credit_risk_model_id",
       "business_name": "Credit risk model id",
-      "definition": "Credit risk model id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The IFRS 9 model set that produced the staging, PD, LGD and EAD on this row.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10905,7 +10905,7 @@
     {
       "name": "pd_model_version",
       "business_name": "PD model version",
-      "definition": "PD model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the PD model.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10928,7 +10928,7 @@
     {
       "name": "lgd_model_version",
       "business_name": "LGD model version",
-      "definition": "LGD model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the LGD model.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10951,7 +10951,7 @@
     {
       "name": "ead_model_version",
       "business_name": "EAD model version",
-      "definition": "EAD model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the EAD model.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10974,7 +10974,7 @@
     {
       "name": "ecl_model_version",
       "business_name": "ECL model version",
-      "definition": "ECL model version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the ECL engine that produced the allowance.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -10997,7 +10997,7 @@
     {
       "name": "ifrs9_pd_source_model",
       "business_name": "IFRS 9 PD source model",
-      "definition": "IFRS 9 PD source model. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which scorecard the IFRS 9 PD was mapped from \u2014 the behavioural model where the facility has history, the application model where it does not.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -11020,7 +11020,7 @@
     {
       "name": "ifrs9_pd_mapping_version",
       "business_name": "IFRS 9 PD mapping version",
-      "definition": "IFRS 9 PD mapping version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of the score-to-PD mapping used.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -11069,11 +11069,11 @@
     {
       "name": "pd_pit_12m_anchor",
       "business_name": "PD PIT 12m anchor",
-      "definition": "PD PIT 12m anchor. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The twelve-month point-in-time PD before scenario weighting \u2014 the anchor the three scenarios are built around. A probability: never sum it, and recompute it over a population weighted by exposure.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11092,11 +11092,11 @@
     {
       "name": "monthly_discount_rate",
       "business_name": "Monthly discount rate",
-      "definition": "Monthly discount rate. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The effective annual rate converted to one month, which is the rate the ECL cashflows are actually discounted at.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11115,7 +11115,7 @@
     {
       "name": "ecl_remaining_life_months",
       "business_name": "ECL remaining life months",
-      "definition": "ECL remaining life months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Months of expected life remaining at this month-end.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -11138,7 +11138,7 @@
     {
       "name": "ecl_contractual_remaining_months",
       "business_name": "ECL contractual remaining months",
-      "definition": "ECL contractual remaining months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Months to contractual maturity. Where this and the expected life differ, the behavioural assumption is doing the work.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -11161,7 +11161,7 @@
     {
       "name": "ecl_undrawn_commitment_sar",
       "business_name": "ECL undrawn commitment SAR",
-      "definition": "ECL undrawn commitment SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The undrawn limit the credit conversion factor was applied to.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -11184,7 +11184,7 @@
     {
       "name": "ecl_drawn_balance_sar",
       "business_name": "ECL drawn balance SAR",
-      "definition": "ECL drawn balance SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The drawn balance the ECL calculation started from.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -11207,11 +11207,11 @@
     {
       "name": "pd_ttc_at_origination_12m",
       "business_name": "PD TTC at origination 12m",
-      "definition": "PD TTC at origination 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The twelve-month through-the-cycle PD at origination \u2014 the same risk without the point in the cycle.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11230,11 +11230,11 @@
     {
       "name": "pd_pit_at_origination_12m",
       "business_name": "PD PIT at origination 12m",
-      "definition": "PD PIT at origination 12m. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The twelve-month point-in-time PD as at origination. Frozen: it is the denominator of the quantitative SICR test.",
       "data_type": "number",
-      "unit": null,
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "COUNT",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11253,11 +11253,11 @@
     {
       "name": "pd_origination_curve_remaining_life",
       "business_name": "PD origination curve remaining life",
-      "definition": "PD origination curve remaining life. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The origination PD curve read at the facility's remaining life, so the SICR comparison is like for like rather than comparing a remaining-life PD with a whole-life one.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11276,7 +11276,7 @@
     {
       "name": "sicr_pd_ratio",
       "business_name": "SICR PD ratio",
-      "definition": "SICR PD ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Lifetime PD now over lifetime PD at origination. The quantitative SICR test compares this with its threshold.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -11299,11 +11299,11 @@
     {
       "name": "sicr_pd_absolute_change",
       "business_name": "SICR PD absolute change",
-      "definition": "SICR PD absolute change. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Lifetime PD now minus lifetime PD at origination, in absolute terms. The second half of the quantitative test: a small PD can triple without becoming material.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11348,11 +11348,11 @@
     {
       "name": "pd_pit_12m_upturn",
       "business_name": "PD PIT 12m upturn",
-      "definition": "PD PIT 12m upturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Twelve-month point-in-time PD under the upturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11371,11 +11371,11 @@
     {
       "name": "pd_pit_12m_downturn",
       "business_name": "PD PIT 12m downturn",
-      "definition": "PD PIT 12m downturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Twelve-month point-in-time PD under the downturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11420,11 +11420,11 @@
     {
       "name": "pd_pit_lifetime_upturn",
       "business_name": "PD PIT lifetime upturn",
-      "definition": "PD PIT lifetime upturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Lifetime point-in-time PD under the upturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11443,11 +11443,11 @@
     {
       "name": "pd_pit_lifetime_downturn",
       "business_name": "PD PIT lifetime downturn",
-      "definition": "PD PIT lifetime downturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Lifetime point-in-time PD under the downturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11466,11 +11466,11 @@
     {
       "name": "lgd_base",
       "business_name": "LGD base",
-      "definition": "LGD base. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Loss given default under the base scenario \u2014 the share of exposure expected to be lost once a default happens, after recoveries and collateral. A RATIO: weight it by exposure, never average it.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11489,11 +11489,11 @@
     {
       "name": "lgd_upturn",
       "business_name": "LGD upturn",
-      "definition": "LGD upturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Loss given default under the upturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11512,11 +11512,11 @@
     {
       "name": "lgd_downturn",
       "business_name": "LGD downturn",
-      "definition": "LGD downturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Loss given default under the downturn scenario. On a secured facility this is where a fall in collateral values shows up.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11535,7 +11535,7 @@
     {
       "name": "ead_base_sar",
       "business_name": "EAD base SAR",
-      "definition": "EAD base SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Exposure at default under the base scenario: drawn balance plus the converted share of the undrawn limit. The exposure ECL is computed on, and the one an exposure-weighted average must weight by.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -11558,7 +11558,7 @@
     {
       "name": "ead_upturn_sar",
       "business_name": "EAD upturn SAR",
-      "definition": "EAD upturn SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Exposure at default under the upturn scenario.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -11581,7 +11581,7 @@
     {
       "name": "ead_downturn_sar",
       "business_name": "EAD downturn SAR",
-      "definition": "EAD downturn SAR. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Exposure at default under the downturn scenario.",
       "data_type": "number",
       "unit": "SAR",
       "grain": "FACILITY",
@@ -11604,11 +11604,11 @@
     {
       "name": "ccf_base",
       "business_name": "CCF base",
-      "definition": "CCF base. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Credit conversion factor under the base scenario \u2014 the share of the undrawn limit expected to be drawn before default. It is what makes exposure at default exceed today's balance on a card.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11627,11 +11627,11 @@
     {
       "name": "ccf_upturn",
       "business_name": "CCF upturn",
-      "definition": "CCF upturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Credit conversion factor under the upturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11650,11 +11650,11 @@
     {
       "name": "ccf_downturn",
       "business_name": "CCF downturn",
-      "definition": "CCF downturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "Credit conversion factor under the downturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11673,11 +11673,11 @@
     {
       "name": "scenario_weight_base",
       "business_name": "Scenario weight base",
-      "definition": "Scenario weight base. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The probability weight on the base scenario. The three weights sum to one, which is the invariant a scenario-weight test checks.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11696,11 +11696,11 @@
     {
       "name": "scenario_weight_upturn",
       "business_name": "Scenario weight upturn",
-      "definition": "Scenario weight upturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The probability weight on the upturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11719,11 +11719,11 @@
     {
       "name": "scenario_weight_downturn",
       "business_name": "Scenario weight downturn",
-      "definition": "Scenario weight downturn. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The probability weight on the downturn scenario.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -11903,7 +11903,7 @@
     {
       "name": "allowance_scope",
       "business_name": "Allowance scope",
-      "definition": "Allowance scope. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "What the loss allowance is measured on \u2014 the facility as a whole, here, rather than a portion of it.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -11926,7 +11926,7 @@
     {
       "name": "ecl_horizon_type",
       "business_name": "ECL horizon type",
-      "definition": "ECL horizon type. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Which horizon this facility's ECL covers \u2014 twelve months for Stage 1, remaining lifetime for Stage 2, and the recovery profile for Stage 3. It is the sentence that explains why two facilities of the same size carry very different allowances.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -11972,7 +11972,7 @@
     {
       "name": "ecl_expected_life_months",
       "business_name": "ECL expected life months",
-      "definition": "ECL expected life months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The life the lifetime ECL was computed over. On a revolving facility this is a behavioural estimate, not the contractual term.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -11995,7 +11995,7 @@
     {
       "name": "behavioural_expected_life_months",
       "business_name": "Behavioural expected life months",
-      "definition": "Behavioural expected life months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The expected remaining life the behavioural view assumes, which on a revolving facility is not the contractual term.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -12018,11 +12018,11 @@
     {
       "name": "recovery_rate_nominal",
       "business_name": "Recovery rate nominal",
-      "definition": "Recovery rate nominal. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The share of exposure expected to be recovered, before discounting. One minus this, discounted for the delay, is LGD.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -12041,8 +12041,8 @@
     {
       "name": "recovery_delay_months",
       "business_name": "Recovery delay months",
-      "definition": "Recovery delay months. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "integer",
+      "definition": "How long recoveries take to arrive. The delay is why a nominal recovery rate and a discounted one differ.",
+      "data_type": "number",
       "unit": "months",
       "grain": "FACILITY",
       "semantics": "STOCK",
@@ -12064,7 +12064,7 @@
     {
       "name": "expected_sale_cost_ratio",
       "business_name": "Expected sale cost ratio",
-      "definition": "Expected sale cost ratio. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Costs of realising collateral, as a share of its value. It is why LGD on a fully secured facility is not zero.",
       "data_type": "number",
       "unit": "ratio",
       "grain": "FACILITY",
@@ -12087,7 +12087,7 @@
     {
       "name": "scenario_set_id",
       "business_name": "Scenario set id",
-      "definition": "Scenario set id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The forward-looking scenario set used.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12110,7 +12110,7 @@
     {
       "name": "scenario_set_version",
       "business_name": "Scenario set version",
-      "definition": "Scenario set version. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The version of that scenario set.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12133,7 +12133,7 @@
     {
       "name": "pd_curve_id",
       "business_name": "PD curve id",
-      "definition": "PD curve id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The PD term structure applied to this facility.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12156,7 +12156,7 @@
     {
       "name": "lgd_curve_id",
       "business_name": "LGD curve id",
-      "definition": "LGD curve id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The LGD curve applied to this facility.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12179,7 +12179,7 @@
     {
       "name": "ead_curve_id",
       "business_name": "EAD curve id",
-      "definition": "EAD curve id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The EAD curve applied to this facility.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12202,11 +12202,11 @@
     {
       "name": "recovery_cashflow_ref",
       "business_name": "Recovery cashflow ref",
-      "definition": "Recovery cashflow ref. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The recovery cashflow profile used.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "IDENTIFIER",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -12225,7 +12225,7 @@
     {
       "name": "discount_method",
       "business_name": "Discount method",
-      "definition": "Discount method. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How the monthly discount rate was derived from the annual one, stated so the discounting can be reproduced.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12248,11 +12248,11 @@
     {
       "name": "effective_annual_interest_rate",
       "business_name": "Effective annual interest rate",
-      "definition": "Effective annual interest rate. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
-      "unit": null,
+      "definition": "The annual rate including fees, on the same basis the customer is quoted. The rate the ECL discounting uses.",
+      "data_type": "number",
+      "unit": "ratio",
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "RATIO",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -12271,7 +12271,7 @@
     {
       "name": "calculation_method_label",
       "business_name": "Calculation method label",
-      "definition": "Calculation method label. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The calculation method, in words \u2014 a transparent monthly-hazard expected credit loss in this installation.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12294,7 +12294,7 @@
     {
       "name": "monitoring_as_of_date",
       "business_name": "Monitoring as of date",
-      "definition": "Monitoring as of date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The month-end this monitoring observation was taken at.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -12317,7 +12317,7 @@
     {
       "name": "prediction_reference_date",
       "business_name": "Prediction reference date",
-      "definition": "Prediction reference date. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The date the prediction was made as at. Everything used to make it must be knowable on this date, which is what stops an outcome leaking into a predictor.",
       "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
@@ -12340,7 +12340,7 @@
     {
       "name": "score_target_definition_id",
       "business_name": "Score target definition id",
-      "definition": "Score target definition id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The outcome both scorecards are measured against, as a governed definition.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12363,7 +12363,7 @@
     {
       "name": "performance_window_months",
       "business_name": "Performance window months",
-      "definition": "Performance window months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How long the performance window is \u2014 twelve months here.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -12386,11 +12386,11 @@
     {
       "name": "performance_window_start",
       "business_name": "Performance window start",
-      "definition": "Performance window start. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
+      "definition": "The first month of the window this observation's outcome is measured over.",
+      "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "EVENT_DATE",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -12409,11 +12409,11 @@
     {
       "name": "performance_window_end",
       "business_name": "Performance window end",
-      "definition": "Performance window end. See docs/RETAIL_DATA_DICTIONARY.md.",
-      "data_type": "string",
+      "definition": "The last month of that window. Where it is in the future, the outcome is not yet knowable, and a default rate computed over this row is a rate over the defaults that have already happened.",
+      "data_type": "date",
       "unit": null,
       "grain": "FACILITY",
-      "semantics": "DESCRIPTOR",
+      "semantics": "EVENT_DATE",
       "aggregation": "none",
       "products": [
         "CREDIT_CARD",
@@ -12432,7 +12432,7 @@
     {
       "name": "observed_followup_months",
       "business_name": "Observed followup months",
-      "definition": "Observed followup months. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How many months of the window have actually elapsed. Below the window length the cohort is immature.",
       "data_type": "integer",
       "unit": "months",
       "grain": "FACILITY",
@@ -12501,7 +12501,7 @@
     {
       "name": "censoring_reason",
       "business_name": "Censoring reason",
-      "definition": "Censoring reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Why an outcome is not observed for this row, in words. Usually that the window has not closed.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12616,7 +12616,7 @@
     {
       "name": "monitoring_exclusion_reason",
       "business_name": "Monitoring exclusion reason",
-      "definition": "Monitoring exclusion reason. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Why a facility is not in the monitoring cohort \u2014 already in default at the observation date, most often. Excluding it is right, and it is why a default rate over this book is not a count of defaults over a count of rows.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12639,7 +12639,7 @@
     {
       "name": "monitoring_reference_id",
       "business_name": "Monitoring reference id",
-      "definition": "Monitoring reference id. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "The key of the monthly monitoring cohort this row belongs to.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12662,7 +12662,7 @@
     {
       "name": "monitoring_reference_type",
       "business_name": "Monitoring reference type",
-      "definition": "Monitoring reference type. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "How the monitoring cohort was formed \u2014 a monthly landmark cohort: everyone eligible at this month-end, followed forward.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -12685,7 +12685,7 @@
     {
       "name": "model_use_population",
       "business_name": "Model use population",
-      "definition": "Model use population. See docs/RETAIL_DATA_DICTIONARY.md.",
+      "definition": "Whether this row is in the population a model may be measured on. A facility already in default is excluded from a PD test: its outcome is known before the prediction is made.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",

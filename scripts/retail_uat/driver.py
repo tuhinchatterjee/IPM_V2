@@ -193,15 +193,27 @@ class Session:
                }""" % BACKEND))
 
     def go(self, route: str, *, settle: int = 3500) -> bool:
-        """Navigate the way a user does — by clicking the navigation link.
+        """Navigate the way a user does — by clicking the link where there is
+        one, and by address where there is not.
 
-        The session lives in memory, so a fresh page load returns to the
-        sign-in form; a test that navigated by URL would measure a login page.
+        Clicking is preferred because it is what a reader does and because it
+        exercises the router. But the sidebar only carries the top-level
+        routes, and this silently did NOTHING for every deeper one — a
+        dataset, a domain, a lens. It returned False, no caller looked, and
+        the check then read whatever page it happened to still be on. Four
+        screens were recorded that way as "redirects to the Cockpit"; none of
+        them does.
+
+        A deep route is opened by address instead. The session survives a page
+        load, so this lands signed in — and where it does not, `signed_in()`
+        says so rather than a check quietly measuring a login form.
         """
         link = self.page.query_selector(f'a[href="{route}"]')
-        if link is None:
-            return False
-        link.click()
+        if link is not None:
+            link.click()
+        else:
+            self.page.goto(self.page.url.split("/", 3)[0] + "//"
+                           + self.page.url.split("/", 3)[2] + route)
         self.page.wait_for_load_state("networkidle", timeout=90_000)
         self.page.wait_for_timeout(settle)
         return True

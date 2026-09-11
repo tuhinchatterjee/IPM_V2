@@ -1,0 +1,216 @@
+{
+  "suite": "overnight_language",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 101.3,
+  "counts": {
+    "PASS": 9,
+    "FAIL": 4,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_language-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-01",
+      "module": "language",
+      "title": "The same question, clean and formal",
+      "status": "PASS",
+      "detail": "answered=True; a governed stage figure is on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Please show the expected credit loss by IFRS 9 stage for August 2026.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\n15,952,109 SAR of final ECL across 3 stages at 2026-08.\n\nLARGEST CONTRIBUTOR\n\n1 is the largest at 6,489,537 SAR.\n\n1\n6,489,536.92\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each stage at 2026-08. IFRS 9 stage 1 alone accounts for 40.68% of expected credit loss across the 3 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n3\n\n3 groups, one measure.\n\nAsk about this\nChart\nTable\nIFRS 9 stage\n\t\nExpected credit loss\nsar mn\n\n1\t6.5\n3\t4.9\n2\t4.5\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certif",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-02",
+      "module": "language",
+      "title": "The same question, shorthand",
+      "status": "PASS",
+      "detail": "answered=True; a governed stage figure is on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "ecl by stage aug 26",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\n15,952,109 SAR of final ECL across 3 stages at 2026-08.\n\nLARGEST CONTRIBUTOR\n\n1 is the largest at 6,489,537 SAR.\n\n1\n6,489,536.92\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each stage at 2026-08. IFRS 9 stage 1 alone accounts for 40.68% of expected credit loss across the 3 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n3\n\n3 groups, one measure.\n\nAsk about this\nChart\nTable\nIFRS 9 stage\n\t\nExpected credit loss\nsar mn\n\n1\t6.5\n3\t4.9\n2\t4.5\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certif",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-03",
+      "module": "language",
+      "title": "The same question, typo-heavy",
+      "status": "PASS",
+      "detail": "answered=True; a governed stage figure is on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "expcted creditt loss by stge for augst 2026",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\n15,952,109 SAR of final ECL at 2026-08.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nExpected credit loss\nsar mn\n\n16.0\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 3-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nCreditProbe read \u2018expcted\u2019 as \u2018expected\u2019, \u2018creditt\u2019 as \u2018credit\u2019. Rephr",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-04",
+      "module": "language",
+      "title": "The same question, all lowercase",
+      "status": "PASS",
+      "detail": "answered=True; a governed stage figure is on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "show me ecl by ifrs 9 stage at 2026-08",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\n15,952,109 SAR of final ECL across 3 stages at 2026-08.\n\nLARGEST CONTRIBUTOR\n\n1 is the largest at 6,489,537 SAR.\n\n1\n6,489,536.92\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each stage at 2026-08. IFRS 9 stage 1 alone accounts for 40.68% of expected credit loss across the 3 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n3\n\n3 groups, one measure.\n\nAsk about this\nChart\nTable\nIFRS 9 stage\n\t\nExpected credit loss\nsar mn\n\n1\t6.5\n3\t4.9\n2\t4.5\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certif",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-05",
+      "module": "language",
+      "title": "A filter and an analysis in one sentence are both applied",
+      "status": "PASS",
+      "detail": "scoped to personal finance and reconciling with the oracle=True; oracle 8,994,012",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "t August 2026.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\n8,994,012 SAR of final ECL in Personal Finance across 3 stages at 2026-08.\n\nLARGEST CONTRIBUTOR\n\n1 is the largest at 4,093,815 SAR.\n\n1\n4,093,815.37\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each stage at 2026-08. IFRS 9 stage 1 alone accounts for 45.52% of expected credit loss across the 3 shown.\n\nTOTAL FINAL ECL\n\n8,994,011.87\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n8,994,011.87\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n3\n\n3 groups, one measure.\n\nAsk about this\nChart\nTable\nIFRS 9 stage\n\t\nExpected credit loss\nsar mn\n\t\nProduct label\n\n1\t4.1\tPersonal Finance\n3\t2.9\tPersonal Finance\n2\t2.0\tPersonal Finance\n\nNo certified analysis answers this combination of co",
+        "expected": "8,994,012",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-06",
+      "module": "language",
+      "title": "A pronoun follow-up keeps the population it points at",
+      "status": "FAIL",
+      "detail": "the comparison month and the personal-finance scope both survived=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-07",
+      "module": "language",
+      "title": "A narrowing turn adds a condition and keeps the rest",
+      "status": "FAIL",
+      "detail": "the new condition is applied and the product survived=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-08",
+      "module": "language",
+      "title": "A broadening turn drops the filter it widens out of",
+      "status": "FAIL",
+      "detail": "the whole book is back=False; oracle ECL 15,952,109",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "expected": "15,952,109",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-09",
+      "module": "language",
+      "title": "A correction REPLACES the measure rather than adding it",
+      "status": "FAIL",
+      "detail": "gross carrying amount replaced ECL=False; oracle 2,082,852,856",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\u201d.\nDEEP ANALYSIS\n\u2014 the whole evidence chain\nANALYSES USED (1)\n\u2014 what produced these figures\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nGo back to \u201cOnly salary transfer customers\u201d and finish it.\nGo back to \u201cNow show all products\u201d and finish it.\nGo back to \u201cNo, I meant gross carrying amount, not expected credit loss\u201d and finish it.\n\nCompleted by Senior Credit Officer \u2014 1 calculation \u00b7 all 6 checks passed\nTrace\n\nLIMITED EVIDENCE\n5 of 5 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "expected": "2,082,852,856",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-10",
+      "module": "language",
+      "title": "A three-part paragraph is answered as three parts, or says which part it could not take",
+      "status": "PASS",
+      "detail": "3 of 3 parts visible in the answer",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "it loss by product, tell me which product carries the most, and say whether that has changed since July.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 4 answered; 3 partly answered\n1 analysis performed\nI want to understand the retail book this monthAnswered\nShow me expected credit loss by productFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\ntell me which product carries the mostFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\nsay whether that has changed since JulyFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nThese parts are about different populations, so their figures are not directly comparable.\n\n3 IFRS9_STAGES CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\nFinal ECL rose from 11,195,707 to 12,717,681 SAR between 2026-07 and 2026-08 \u2014 a change of 1,521,973 SAR (13.59%).\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance carries the largest final ECL at 7,290,521 SAR.\n\nPersonal Finance\n",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-10.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-11",
+      "module": "language",
+      "title": "An ambiguous unit is asked about rather than guessed",
+      "status": "PASS",
+      "detail": "the two readings are offered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nDo you mean 2 percent of the current PD, or 2 percentage points added to it? On a PD of 2% the first gives 2.04% and the second 4% \u2014 they are different scenarios, so CreditProbe will not guess.\n\n2% relative (multiply the PD by 1.02)\n2 percentage points (add 2pp to the PD)\nSaved What-Ifs\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (10)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNA",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-11.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NL-12",
+      "module": "language",
+      "title": "The clarification can be answered in free text rather than by clicking",
+      "status": "PASS",
+      "detail": "the typed answer resolved the ambiguity=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nCreditProbe could not read a change in that. A What-If needs something to move and by how much \u2014 running it as written would recompute the published book unchanged and report it as your scenario. Pick one of these, or say what to move and by how much.\n\nIncrease PD by 20% relative\nAdd 2 percentage points to PD\nIncrease LGD by 10% relative\nMove card utilisation up 10 percentage points\nCut verified income by 10%\nSaved What-Ifs\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)",
+        "screenshot": "docs/evidence/retail_functionality/screens/nl-12.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

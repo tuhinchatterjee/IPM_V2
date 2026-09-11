@@ -21,12 +21,12 @@ A salary interruption is a fact about a PERSON. Raising it once per facility wou
 
 ### Affordability
 
-#### `RET-EWS-011` v1.0.0 — Affordability deterioration
+#### `RET-EWS-011` v1.1.0 — Affordability deterioration
 
 - **Scope** CUSTOMER | **Products** all products | **Severity** HIGH
-- **Trigger** `debt_burden_ratio - origination_debt_burden_ratio >= 0.15 AND debt_burden_ratio >= 0.65`
-- **Threshold** 0.15 ratio, lookback 1 month(s)
-- **Inputs** `debt_burden_ratio`, `origination_debt_burden_ratio`
+- **Trigger** `debt_burden_ratio - previous_month_debt_burden_ratio >= 0.05 AND debt_burden_ratio >= 0.65`
+- **Threshold** 0.05 ratio, lookback 1 month(s)
+- **Inputs** `debt_burden_ratio`, `previous_month_debt_burden_ratio`
 - **Suggested review** Reassess disposable income before any further limit or facility is granted.
 
 #### `RET-EWS-012` v1.0.0 — New external obligations

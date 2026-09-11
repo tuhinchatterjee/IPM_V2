@@ -554,7 +554,19 @@ def answer(question: str, *, context: Any = None,
     # threshold, a movement and a two-period comparison all fall straight
     # through to the composer, which does them better. See
     # backend/orchestration/metric_route.py.
-    governed_metric = metric_route.read(question)
+    #
+    # And never on a turn that MODIFIES the analysis already on the table. A
+    # narrowing sentence carries the whole of the previous plan with it, and
+    # "Only salary transfer customers." — asked of ECL by IFRS 9 stage for
+    # personal finance — matched the published Salary-Transfer Share and was
+    # answered with it: one number, 77.35%, in place of the measure, the
+    # breakdown and the scope the reader was working in. A modification is a
+    # change to an analysis, never a request for a different figure.
+    modifying = continuation.action in (
+        cv.MODIFICATIONS | {cv.ENRICH_PREVIOUS, cv.ASK_ABOUT_RESULT,
+                            cv.ASSESS_PREVIOUS_RESULT, cv.NARROW_SCOPE,
+                            cv.WIDEN_SCOPE})
+    governed_metric = None if modifying else metric_route.read(question)
     if governed_metric is not None:
         try:
             computed = metric_route.answer(governed_metric, question)

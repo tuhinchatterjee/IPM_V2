@@ -126,8 +126,16 @@ export default function AddDatasetPage() {
   // Step 6
   const existingDatasets = useAsync(() => api.catalog(), []);
   const [relFromField, setRelFromField] = React.useState("");
-  const [relToDataset, setRelToDataset] = React.useState("portfolio_facility");
-  const [relToField, setRelToField] = React.useState("account_id");
+  // The dataset a new relationship points AT, defaulted to one this
+  // installation holds rather than to the corporate book's name. Hard-coded,
+  // it offered `portfolio_facility.account_id` on an installation that has
+  // neither — a join the steward could save and nothing could ever resolve.
+  const [relToDataset, setRelToDataset] = React.useState("");
+  const [relToField, setRelToField] = React.useState("");
+  const firstExisting = existingDatasets.data?.datasets?.[0]?.name ?? "";
+  React.useEffect(() => {
+    if (!relToDataset && firstExisting) setRelToDataset(firstExisting);
+  }, [relToDataset, firstExisting]);
   const [addedRelationships, setAddedRelationships] = React.useState<string[]>([]);
 
   // Step 7/8

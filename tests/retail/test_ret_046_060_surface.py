@@ -414,6 +414,7 @@ class TestRET048LayoutPreserved:
             "backend/scorecard/validation/conversation.py",
             "backend/scorecard/validation/agent.py",
             "backend/scorecard/validation/registry.py",
+            "backend/scorecard/validation/principles.py",
             "backend/scorecard/validation/regulatory.py",
             "backend/scorecard/validation/findings.py",
             "backend/scorecard/validation/report.py",
@@ -444,6 +445,30 @@ class TestRET048LayoutPreserved:
             "backend/retail/concern.py",
             "backend/orchestration/composites.py",
             "backend/orchestration/assembly.py",
+            # ---------------------------------------------------------------
+            # §24. Four consecutive turns of one ordinary conversation lost
+            # the conversation they were continuing: a pronoun follow-up came
+            # back "which figure should CreditProbe measure?", a narrowing was
+            # answered from the Metric Catalogue, "all products" returned one
+            # product, and a correction was answered by adding the figure it
+            # corrected.
+            "backend/orchestration/referents.py",
+            "backend/orchestration/movement.py",
+            # ---------------------------------------------------------------
+            # §15. Three hundred and two of the book's 546 governed fields
+            # reached the reader with no definition, pointing at a path inside
+            # this repository; and 44 numeric columns were declared text, so
+            # "the average behavioural score" was answered with the highest
+            # score in the book.
+            "backend/retail/dictionary.py",
+            "backend/retail/schema.py",
+            # §16. The Data Builder domain screen counted its one dataset
+            # twice, offered the CORPORATE book as the example of a governed
+            # join, and said "nothing published from this domain yet" beside a
+            # published dataset.
+            "frontend/src/app/data-builder/domain/[...domain]/page.tsx",
+            "frontend/src/app/data-builder/new/page.tsx",
+            "frontend/src/app/engine-builder/new/page.tsx",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

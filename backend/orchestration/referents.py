@@ -652,16 +652,35 @@ def resolve(question: str, state: cv.ConversationState, *,
         because = ("the question names no population of its own, so it "
                    "continues the one the conversation settled")
         carried = _finish(question, read_back, action, state, because)
-        # Scope only. The sentence stated its own measure — the guardrail's
-        # claim is about WHICH BORROWERS, not about which figure — and adding
-        # the previous turn's measure on top answered "show total ECL by
-        # sector" with exposure at default.
-        carried.inherited["scope_only"] = (
-            "the population was carried; the measure came from this question")
-        return carried
+        # Scope only — but ONLY when the sentence really did state its own
+        # measure. The guardrail's claim is about WHICH BORROWERS, not about
+        # which figure, and adding the previous turn's measure on top of a
+        # sentence that named one answered "show total ECL by sector" with
+        # exposure at default.
+        #
+        # Stamping it unconditionally made the opposite, worse mistake. "How
+        # did that move since July 2026?" names no figure at all: the marker
+        # told the planner the measure had come from the question, the planner
+        # inherited none, and the answer was "which figure should CreditProbe
+        # measure?" one turn after computing it. Worse, the clarification then
+        # became the thread's pending question, so the next three sentences
+        # were read as answers to it and the conversation never recovered.
+        #
+        # So the two halves are decided separately, which is what they are:
+        # the population comes from the thread, and the measure comes from the
+        # sentence where the sentence has one and from the thread where it
+        # does not.
+        if names_a_measure(question):
+            carried.inherited["scope_only"] = (
+                "the population was carried; the measure came from this "
+                "question")
+        else:
+            carried.inherited["measure"] = ", ".join(
+                state.metrics or state.concepts) or state.plan_summary
         logger.info("Population guardrail: continuing %s for %r",
                     ", ".join(f"{k} = {v}" for k, v in state.filter_pairs())
                     or "the previous scope", question[:70])
+        return carried
 
     if action == cv.NEW_REQUEST and _continues_the_measure(question, state):
         # §11. The thread settled a measure and this sentence points back at

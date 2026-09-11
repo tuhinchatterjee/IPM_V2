@@ -22,52 +22,38 @@
 
 A column whose grain is CUSTOMER is repeated on each of that customer's facilities. Summing it over facility rows counts one person's income, or one person's obligations, several times over.
 
-## COUNT (35 columns)
+## COUNT (21 columns)
 
 | Column | Business name | Type | Unit | Grain | Products | Aggregation | Definition |
 |---|---|---|---|---|---|---|---|
-| `app_input_missing_count` | App input missing count | number | — | FACILITY | all | none | App input missing count. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_predicted_pd_12m` | App predicted PD 12m | number | — | FACILITY | all | none | App predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_predicted_pd_12m` | Application predicted PD 12m | number | — | FACILITY | all | none | Application predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `autopay_failure_count_3m` | Autopay failure count 3m | number | — | FACILITY | all | none | Autopay failure count 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_input_missing_count` | Beh input missing count | number | — | FACILITY | all | none | Beh input missing count. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_predicted_pd_12m` | Beh predicted PD 12m | number | — | FACILITY | all | none | Beh predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_predicted_pd_12m` | Behavioural predicted PD 12m | number | — | FACILITY | all | none | Behavioural predicted PD 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_change_3m` | Behavioural score change 3m | number | — | FACILITY | all | none | Behavioural score change 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `broken_promise_count_3m` | Broken promise count 3m | number | — | FACILITY | all | none | Broken promise count 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_active_facilities_count` | Bureau active facilities count | number | — | FACILITY | all | none | Bureau active facilities count. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_enquiries_3m` | Bureau enquiries 3m | number | — | FACILITY | all | none | Bureau enquiries 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_enquiries_6m` | Bureau enquiries 6m | number | — | FACILITY | all | none | Bureau enquiries 6m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_score_change_3m` | Bureau score change 3m | number | — | FACILITY | all | none | Bureau score change 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `cash_advance_share_3m` | Cash advance share 3m | number | — | FACILITY | all | none | Cash advance share 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `contact_attempts_3m` | Contact attempts 3m | number | — | FACILITY | all | none | Contact attempts 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `days_30plus_count_12m` | Days 30plus count 12m | number | — | FACILITY | all | none | Days 30plus count 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `full_payment_months_6m` | Full payment months 6m | number | — | FACILITY | all | none | Full payment months 6m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `income_volatility_6m` | Income volatility 6m | number | — | FACILITY | all | none | Income volatility 6m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `max_dpd_12m` | Max DPD 12m | number | — | FACILITY | all | none | Max DPD 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `max_dpd_3m` | Max DPD 3m | number | — | FACILITY | all | none | Max DPD 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `max_dpd_6m` | Max DPD 6m | number | — | FACILITY | all | none | Max DPD 6m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `minimum_payment_only_months_3m` | Minimum payment only months 3m | number | — | FACILITY | all | none | Minimum payment only months 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `missed_payment_count_3m` | Missed payment count 3m | number | — | FACILITY | all | none | Missed payment count 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `missed_payment_count_6m` | Missed payment count 6m | number | — | FACILITY | all | none | Missed payment count 6m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `months_30plus_count_12m` | Months 30plus count 12m | number | — | FACILITY | all | none | Months 30plus count 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_bureau_enquiries_3m` | Origination bureau enquiries 3m | number | — | FACILITY | all | none | Origination bureau enquiries 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `overlimit_days_3m` | Overlimit days 3m | number | — | FACILITY | all | none | Overlimit days 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `payment_to_due_ratio_3m` | Payment to due ratio 3m | number | — | FACILITY | all | none | Payment to due ratio 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_pit_at_origination_12m` | PD PIT at origination 12m | number | — | FACILITY | all | none | PD PIT at origination 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_ttc_at_origination_12m` | PD TTC at origination 12m | number | — | FACILITY | all | none | PD TTC at origination 12m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `returned_payment_count_3m` | Returned payment count 3m | number | — | FACILITY | all | none | Returned payment count 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_missed_cycle_count_3m` | Salary missed cycle count 3m | number | — | FACILITY | all | none | Salary missed cycle count 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_input_missing_count` | Score input missing count | number | — | FACILITY | all | none | Score input missing count. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_input_stale_count` | Score input stale count | number | — | FACILITY | all | none | Score input stale count. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `utilisation_avg_3m` | Utilisation avg 3m | number | — | FACILITY | all | none | Utilisation avg 3m. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `app_input_missing_count` | App input missing count | integer | — | FACILITY | all | none | How many application model inputs were absent and scored in the MISSING bin. A score built on absent inputs is weaker than the same score built on present ones. |
+| `autopay_failure_count_3m` | Autopay failure count 3m | number | — | FACILITY | all | none | Automatic payment attempts that failed in the last three months. |
+| `beh_input_missing_count` | Beh input missing count | number | — | FACILITY | all | none | How many behavioural model inputs were absent and scored in the MISSING bin. |
+| `broken_promise_count_3m` | Broken promise count 3m | number | — | FACILITY | all | none | Promises to pay that were made and not kept, over three months. A broken promise is a stronger signal than a missed instalment: the customer engaged and still did not pay. |
+| `bureau_active_facilities_count` | Bureau active facilities count | number | — | FACILITY | all | none | Facilities the customer has open with other lenders. |
+| `bureau_enquiries_3m` | Bureau enquiries 3m | number | — | FACILITY | all | none | Credit enquiries recorded at the bureau in three months. A burst of enquiries is a customer looking for money. |
+| `bureau_enquiries_6m` | Bureau enquiries 6m | number | — | FACILITY | all | none | Credit enquiries recorded at the bureau in six months. |
+| `contact_attempts_3m` | Contact attempts 3m | integer | — | FACILITY | all | none | Collections contact attempts in the last three months. |
+| `days_30plus_count_12m` | Days 30plus count 12m | number | — | FACILITY | all | none | Days spent at 30 or more days past due over twelve months. |
+| `full_payment_months_6m` | Full payment months 6m | number | — | FACILITY | all | none | Months in the last six in which the full instalment was paid. |
+| `minimum_payment_only_months_3m` | Minimum payment only months 3m | number | — | FACILITY | all | none | Months in the last three where only the minimum payment was made. |
+| `missed_payment_count_3m` | Missed payment count 3m | number | — | FACILITY | all | none | Scheduled payments not made in the last three months. |
+| `missed_payment_count_6m` | Missed payment count 6m | number | — | FACILITY | all | none | Scheduled payments not made in the last six months. |
+| `months_30plus_count_12m` | Months 30plus count 12m | number | — | FACILITY | all | none | Month-ends at 30 or more days past due over twelve months. Three separate month-ends in arrears is a different risk from one long spell, and this is the column that tells them apart. |
+| `origination_bureau_active_facilities` | Origination bureau active facilities | number | — | FACILITY | all | none | Facilities open with other lenders at origination. |
+| `origination_bureau_enquiries_3m` | Origination bureau enquiries 3m | number | — | FACILITY | all | none | Bureau enquiries in the three months before origination — how hard the customer was shopping for credit when they applied. |
+| `overlimit_days_3m` | Overlimit days 3m | number | days | FACILITY | all | none | Days spent above the credit limit in the last three months. |
+| `returned_payment_count_3m` | Returned payment count 3m | number | — | FACILITY | all | none | Direct debits returned unpaid in the last three months. |
+| `salary_missed_cycle_count_3m` | Salary missed cycle count 3m | number | — | FACILITY | all | none | Salary cycles with no credit at all in the last three months. |
+| `score_input_missing_count` | Score input missing count | number | — | FACILITY | all | none | Model inputs absent at scoring, across both scorecards. |
+| `score_input_stale_count` | Score input stale count | integer | — | FACILITY | all | none | Model inputs that were present but older than their freshness rule allows. Stale is not missing, and the two are counted apart. |
 
-## DESCRIPTOR (227 columns)
+## DESCRIPTOR (175 columns)
 
 | Column | Business name | Type | Unit | Grain | Products | Aggregation | Definition |
 |---|---|---|---|---|---|---|---|
-| `age_band` | Age band | string | — | FACILITY | all | none | Age band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `allowance_scope` | Allowance scope | string | — | FACILITY | all | none | Allowance scope. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `age_band` | Age band | string | — | FACILITY | all | none | The customer's age at this month-end, in bands. Banded rather than exact so an age cannot identify a person in a demonstration book. |
+| `allowance_scope` | Allowance scope | string | — | FACILITY | all | none | What the loss allowance is measured on — the facility as a whole, here, rather than a portion of it. |
 | `app_amount_to_income_bin` | Requested amount to monthly income — bin | string | — | FACILITY | all | none | The frozen bin the raw value falls in. MISSING is its own bin. |
 | `app_amount_to_income_missing_flag` | Requested amount to monthly income — missing | boolean | — | FACILITY | all | none | Whether the raw input was absent and the missing bin was used. |
 | `app_balloon_ratio_bin` | Balloon share of finance amount — bin | string | — | FACILITY | AUTO_LOAN | none | The frozen bin the raw value falls in. MISSING is its own bin. |
@@ -99,22 +85,15 @@ A column whose grain is CUSTOMER is repeated on each of that customer's faciliti
 | `app_salary_transfer_bin` | Salary transfer at application — bin | string | — | FACILITY | all | none | The frozen bin the raw value falls in. MISSING is its own bin. |
 | `app_salary_transfer_missing_flag` | Salary transfer at application — missing | boolean | — | FACILITY | all | none | Whether the raw input was absent and the missing bin was used. |
 | `app_salary_transfer_raw` | Salary transfer at application — raw | string | — | FACILITY | all | none | Whether salary was mandated to transfer to the bank at application. Raw model input, as at origination, and unchanged on every later snapshot. **Null policy:** Null where this product's model does not use the feature. |
-| `app_score_band_value` | App score band value | string | — | FACILITY | all | none | App score band value. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_score_base_points` | App score base points | string | — | FACILITY | all | none | App score base points. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_score_logit` | App score logit | string | — | FACILITY | all | none | App score logit. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_score_points_total` | App score points total | string | — | FACILITY | all | none | App score points total. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_score_unclipped` | App score unclipped | string | — | FACILITY | all | none | App score unclipped. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_score_value` | App score value | string | — | FACILITY | all | none | App score value. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `app_score_band_value` | App score band value | string | — | FACILITY | all | none | The band the application score falls in, A+ through E. |
 | `app_tenor_bin` | Original tenor — bin | string | — | FACILITY | PERSONAL_LOAN, AUTO_LOAN, HOME_LOAN | none | The frozen bin the raw value falls in. MISSING is its own bin. |
 | `app_tenor_missing_flag` | Original tenor — missing | boolean | — | FACILITY | PERSONAL_LOAN, AUTO_LOAN, HOME_LOAN | none | Whether the raw input was absent and the missing bin was used. |
-| `application_score_at_origination` | Application score at origination | string | — | FACILITY | all | none | Application score at origination. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_score_band` | Application score band | string | — | FACILITY | all | none | Application score band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_score_direction` | Application score direction | string | — | FACILITY | all | none | Application score direction. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_score_reconciled_flag` | Application score reconciled flag | boolean | — | FACILITY | all | none | Application score reconciled flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_score_status` | Application score status | string | — | FACILITY | all | none | Application score status. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `applied_score_cutoff` | Applied score cutoff | string | — | FACILITY | all | none | Applied score cutoff. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `auto_structure` | Auto structure | string | — | FACILITY | all | none | Auto structure. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `balloon_band` | Balloon band | string | — | FACILITY | all | none | Balloon band. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `application_score_band` | Application score band | string | — | FACILITY | all | none | The application score expressed as a band, A+ through E. |
+| `application_score_direction` | Application score direction | string | — | FACILITY | all | none | Which way the scale runs. HIGHER_IS_SAFER throughout, stated explicitly because a validation test that assumes the other direction reports every Gini with its sign reversed. |
+| `application_score_reconciled_flag` | Application score reconciled flag | boolean | — | FACILITY | all | none | Whether the stored score was reproduced exactly from the stored inputs, the frozen bins and the published coefficients. False is an implementation defect, not a model outcome. |
+| `application_score_status` | Application score status | string | — | FACILITY | all | none | Whether an application score exists, and why not where it does not. |
+| `auto_structure` | Auto structure | string | — | FACILITY | all | none | The financing structure for a vehicle facility — MURABAHA or IJARA. Under IJARA the bank holds title until the final payment. |
+| `balloon_band` | Balloon band | string | — | FACILITY | all | none | The balloon as a share of the amount financed, in bands. NONE where there is no balloon. |
 | `beh_autopay_fail_bin` | Failed direct debits — bin | string | — | FACILITY | all | none | The frozen bin the raw value falls in. MISSING is its own bin. |
 | `beh_autopay_fail_missing_flag` | Failed direct debits — missing | boolean | — | FACILITY | all | none | Whether the raw input was absent and the missing bin was used. |
 | `beh_balloon_months_bin` | Months to balloon payment — bin | string | — | FACILITY | AUTO_LOAN | none | The frozen bin the raw value falls in. MISSING is its own bin. |
@@ -155,144 +134,99 @@ A column whose grain is CUSTOMER is repeated on each of that customer's faciliti
 | `beh_salary_change_missing_flag` | Salary change over 3 months — missing | boolean | — | FACILITY | all | none | Whether the raw input was absent and the missing bin was used. |
 | `beh_salary_missed_bin` | Missed salary cycles — bin | string | — | FACILITY | all | none | The frozen bin the raw value falls in. MISSING is its own bin. |
 | `beh_salary_missed_missing_flag` | Missed salary cycles — missing | boolean | — | FACILITY | all | none | Whether the raw input was absent and the missing bin was used. |
-| `beh_score_band_value` | Beh score band value | string | — | FACILITY | all | none | Beh score band value. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_score_base_points` | Beh score base points | string | — | FACILITY | all | none | Beh score base points. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_score_logit` | Beh score logit | string | — | FACILITY | all | none | Beh score logit. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_score_points_total` | Beh score points total | string | — | FACILITY | all | none | Beh score points total. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_score_unclipped` | Beh score unclipped | string | — | FACILITY | all | none | Beh score unclipped. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_score_value` | Beh score value | string | — | FACILITY | all | none | Beh score value. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `beh_score_band_value` | Beh score band value | string | — | FACILITY | all | none | The band the behavioural score falls in, A+ through E. |
 | `beh_util_change_bin` | Utilisation change over 3 months — bin | string | — | FACILITY | CREDIT_CARD | none | The frozen bin the raw value falls in. MISSING is its own bin. |
 | `beh_util_change_missing_flag` | Utilisation change over 3 months — missing | boolean | — | FACILITY | CREDIT_CARD | none | Whether the raw input was absent and the missing bin was used. |
 | `beh_utilisation_bin` | Card utilisation — bin | string | — | FACILITY | CREDIT_CARD | none | The frozen bin the raw value falls in. MISSING is its own bin. |
 | `beh_utilisation_missing_flag` | Card utilisation — missing | boolean | — | FACILITY | CREDIT_CARD | none | Whether the raw input was absent and the missing bin was used. |
-| `behaviour_history_months_available` | Behaviour history months available | string | — | FACILITY | all | none | Behaviour history months available. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score` | Behavioural score | string | — | FACILITY | all | none | Behavioural score. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_band` | Behavioural score band | string | — | FACILITY | all | none | Behavioural score band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_direction` | Behavioural score direction | string | — | FACILITY | all | none | Behavioural score direction. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_previous_month` | Behavioural score previous month | string | — | FACILITY | all | none | Behavioural score previous month. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_reconciled_flag` | Behavioural score reconciled flag | boolean | — | FACILITY | all | none | Behavioural score reconciled flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_status` | Behavioural score status | string | — | FACILITY | all | none | Behavioural score status. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_adverse_flag` | Bureau adverse flag | boolean | — | FACILITY | all | none | Bureau adverse flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_data_available_flag` | Bureau data available flag | boolean | — | FACILITY | all | none | Bureau data available flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_external_dpd_max` | Bureau external DPD max | string | — | FACILITY | all | none | Bureau external DPD max. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_score_at_origination` | Bureau score at origination | string | — | FACILITY | all | none | Bureau score at origination. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_score_current` | Bureau score current | string | — | FACILITY | all | none | Bureau score current. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_source_label` | Bureau source label | string | — | FACILITY | all | none | Bureau source label. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_thin_file_flag` | Bureau thin file flag | boolean | — | FACILITY | all | none | Bureau thin file flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `calculation_available_at` | Calculation available at | string | — | FACILITY | all | none | Calculation available at. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `calculation_input_hash` | Calculation input hash | string | — | FACILITY | all | none | Calculation input hash. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `calculation_method_label` | Calculation method label | string | — | FACILITY | all | none | Calculation method label. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `card_behaviour_segment` | Card behaviour segment | string | — | FACILITY | all | none | Card behaviour segment. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ccf_base` | CCF base | string | — | FACILITY | all | none | CCF base. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ccf_downturn` | CCF downturn | string | — | FACILITY | all | none | CCF downturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ccf_upturn` | CCF upturn | string | — | FACILITY | all | none | CCF upturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `censoring_reason` | Censoring reason | string | — | FACILITY | all | none | Censoring reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `city` | City | string | — | FACILITY | all | none | City. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `closure_reason` | Closure reason | string | — | FACILITY | all | none | Closure reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `collateral_type` | Collateral type | string | — | FACILITY | all | none | Collateral type. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `collections_stage` | Collections stage | string | — | FACILITY | all | none | Collections stage. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `contract_structure` | Contract structure | string | — | FACILITY | all | none | Contract structure. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `credit_impaired_flag` | Credit impaired flag | boolean | — | FACILITY | all | none | Credit impaired flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `cure_flag` | Cure flag | boolean | — | FACILITY | all | none | Cure flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `currency` | Currency | string | — | FACILITY | all | none | Currency. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `behavioural_score_band` | Behavioural score band | string | — | FACILITY | all | none | The behavioural score expressed as a band, A+ through E. |
+| `behavioural_score_direction` | Behavioural score direction | string | — | FACILITY | all | none | Which way the scale runs. HIGHER_IS_SAFER. |
+| `behavioural_score_reconciled_flag` | Behavioural score reconciled flag | boolean | — | FACILITY | all | none | Whether the stored behavioural score was reproduced exactly from stored inputs, frozen bins and published coefficients. |
+| `behavioural_score_status` | Behavioural score status | string | — | FACILITY | all | none | Whether a behavioural score exists. NOT_SCORED_THIN_HISTORY where the facility has too few months to score — a state, not a zero. |
+| `bureau_adverse_flag` | Bureau adverse flag | boolean | — | FACILITY | all | none | Whether the bureau reports an adverse event — a default, a judgment or a write-off — with another lender. |
+| `bureau_data_available_flag` | Bureau data available flag | boolean | — | FACILITY | all | none | Whether bureau data was returned at all for this customer. |
+| `bureau_source_label` | Bureau source label | string | — | FACILITY | all | none | Which bureau the external data came from. Synthetic here: this book carries a bureau PROXY, not SIMAH data. |
+| `bureau_thin_file_flag` | Bureau thin file flag | boolean | — | FACILITY | all | none | Whether the bureau holds too little history to score reliably. A thin file is not a bad file, and treating it as one is a known way to decline good customers. |
+| `calculation_method_label` | Calculation method label | string | — | FACILITY | all | none | The calculation method, in words — a transparent monthly-hazard expected credit loss in this installation. |
+| `card_behaviour_segment` | Card behaviour segment | string | — | FACILITY | all | none | How the card is used: TRANSACTOR (settled in full), REVOLVER (carries a balance) or INACTIVE. The same limit is a different risk in each. |
+| `censoring_reason` | Censoring reason | string | — | FACILITY | all | none | Why an outcome is not observed for this row, in words. Usually that the window has not closed. |
+| `city` | City | string | — | FACILITY | all | none | The city of the customer's registered address. |
+| `closure_reason` | Closure reason | string | — | FACILITY | all | none | Why the facility closed: SETTLED_EARLY, MATURED or WRITTEN_OFF. The third is a credit loss and the first two are not. |
+| `collateral_type` | Collateral type | string | — | FACILITY | all | none | What secures the facility — RESIDENTIAL_PROPERTY or VEHICLE. |
+| `collections_stage` | Collections stage | string | — | FACILITY | all | none | How far into collections the facility has gone: NONE, SOFT_REMINDER, TELE_COLLECTION, FIELD, LEGAL or WRITE_OFF. |
+| `contract_structure` | Contract structure | string | — | FACILITY | all | none | The Islamic financing structure: MURABAHA (cost-plus sale), TAWARRUQ (monetisation) or IJARA (lease). It decides how profit is recognised, not how risk is measured. |
+| `credit_impaired_flag` | Credit impaired flag | boolean | — | FACILITY | all | none | Whether the facility is credit-impaired — Stage 3. Not the same as written off, and not the same as in collections. |
+| `cure_flag` | Cure flag | boolean | — | FACILITY | all | none | Whether the facility has cured out of default. |
+| `currency` | Currency | string | — | FACILITY | all | none | The currency of the facility. Saudi riyal throughout this book, so every amount is comparable without conversion. |
 | `current_default_flag` | Current default flag | boolean | — | FACILITY | all | none | In default at this month-end under the versioned default definition: 90+ DPD, or recorded unlikeliness to pay. A cured facility is False here and keeps its `first_default_date`. |
-| `customer_scope` | Customer scope | string | — | FACILITY | all | none | Customer scope. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `customer_segment` | Customer segment | string | — | FACILITY | all | none | Customer segment. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `data_quality_status` | Data quality status | string | — | FACILITY | all | none | Data quality status. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `decision_at_origination` | Decision at origination | string | — | FACILITY | all | none | Decision at origination. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `default_reason` | Default reason | string | — | FACILITY | all | none | Default reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `dependants_band` | Dependants band | string | — | FACILITY | all | none | Dependants band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `discount_method` | Discount method | string | — | FACILITY | all | none | Discount method. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `down_payment_band` | Down payment band | string | — | FACILITY | all | none | Down payment band. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `customer_scope` | Customer scope | string | — | FACILITY | all | none | The population this book covers: natural persons borrowing for themselves. It is one value everywhere, and it is the sentence that says why no company appears in this dataset. |
+| `customer_segment` | Customer segment | string | — | FACILITY | all | none | The bank's relationship segment — MASS, MASS_AFFLUENT, AFFLUENT or PRIVATE — set from income and holdings, not from credit quality. |
+| `data_quality_status` | Data quality status | string | — | FACILITY | all | none | Whether this row passed the publication quality checks. THIN_HISTORY marks a facility with too little history to score, which is a state rather than a fault. |
+| `decision_at_origination` | Decision at origination | string | — | FACILITY | all | none | What the credit decision was. Every facility in a book of BOOKED facilities was approved; declined applications are not here, which is why an approval rate cannot be computed from this dataset. |
+| `default_reason` | Default reason | string | — | FACILITY | all | none | Which limb of the default definition was met. |
+| `dependants_band` | Dependants band | string | — | FACILITY | all | none | How many dependants the customer declared at origination, in bands. An input to the household expense floor, not to the score. |
+| `discount_method` | Discount method | string | — | FACILITY | all | none | How the monthly discount rate was derived from the annual one, stated so the discounting can be reproduced. |
+| `down_payment_band` | Down payment band | string | — | FACILITY | all | none | The down payment as a share of the asset price, in bands. |
 | `dpd_bucket` | DPD bucket | string | — | FACILITY | all | none | `dpd` banded. CURRENT means zero days past due. |
 | `ecl_horizon_months` | ECL horizon months | integer | months | FACILITY | all | none | Months of DEFAULT EVENTS the calculation counts. Stage 1 counts twelve (or the shorter remaining life); it does not truncate the loss from those defaults at month twelve. |
-| `ecl_horizon_type` | ECL horizon type | string | — | FACILITY | all | none | ECL horizon type. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `effective_annual_interest_rate` | Effective annual interest rate | string | — | FACILITY | all | none | Effective annual interest rate. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `employer_sector` | Employer sector | string | — | FACILITY | all | none | Employer sector. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `employment_change_flag` | Employment change flag | boolean | — | FACILITY | all | none | Employment change flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `employment_status` | Employment status | string | — | FACILITY | all | none | Employment status. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `facility_status` | Facility status | string | — | FACILITY | all | none | Facility status. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `forbearance_flag` | Forbearance flag | boolean | — | FACILITY | all | none | Forbearance flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `home_purpose` | Home purpose | string | — | FACILITY | all | none | Home purpose. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `housing_support_flag` | Housing support flag | boolean | — | FACILITY | all | none | Housing support flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `housing_support_type` | Housing support type | string | — | FACILITY | all | none | Housing support type. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ifrs9_pd_source_model` | IFRS 9 PD source model | string | — | FACILITY | all | none | IFRS 9 PD source model. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `ecl_horizon_type` | ECL horizon type | string | — | FACILITY | all | none | Which horizon this facility's ECL covers — twelve months for Stage 1, remaining lifetime for Stage 2, and the recovery profile for Stage 3. It is the sentence that explains why two facilities of the same size carry very different allowances. |
+| `employer_sector` | Employer sector | string | — | FACILITY | all | none | The economic sector of the customer's employer. The retail book's nearest equivalent of an industry exposure: it says what a salary depends on, not what the borrower does. |
+| `employment_change_flag` | Employment change flag | boolean | — | FACILITY | all | none | Whether the employer on record changed since the previous month-end. A change is not itself adverse; a change WITH a salary interruption is what the early warning rules read. |
+| `employment_status` | Employment status | string | — | FACILITY | all | none | Where the customer's income comes from: GOVERNMENT, GOVERNMENT_RELATED, PRIVATE_SECTOR, SELF_EMPLOYED or RETIRED. The strongest single non-behavioural predictor in this book. |
+| `facility_status` | Facility status | string | — | FACILITY | all | none | Whether the facility is OPEN or CLOSED at this month-end. A closed facility keeps its row so the history can be read; it carries no exposure. |
+| `forbearance_flag` | Forbearance flag | boolean | — | FACILITY | all | none | Whether the facility has been granted forbearance — a concession made because the customer was in financial difficulty. |
+| `home_purpose` | Home purpose | string | — | FACILITY | all | none | Why the home facility was taken: FIRST_HOME, SECOND_PROPERTY or REFINANCE. |
+| `housing_support_flag` | Housing support flag | boolean | — | FACILITY | all | none | Whether the customer receives government housing support on this facility. It changes the instalment the household actually pays. |
+| `housing_support_type` | Housing support type | string | — | FACILITY | all | none | Which housing support programme applies, or NONE. |
+| `ifrs9_pd_source_model` | IFRS 9 PD source model | string | — | FACILITY | all | none | Which scorecard the IFRS 9 PD was mapped from — the behavioural model where the facility has history, the application model where it does not. |
 | `ifrs9_stage` | IFRS 9 stage | integer | — | FACILITY | all | none | IFRS 9 impairment stage under the versioned synthetic staging policy. |
-| `income_band` | Income band | string | — | FACILITY | all | none | Income band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `indebtedness_band` | Indebtedness band | string | — | FACILITY | all | none | Indebtedness band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `is_synthetic` | Is synthetic | string | — | FACILITY | all | none | Is synthetic. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `job_loss_reported_flag` | Job loss reported flag | boolean | — | FACILITY | all | none | Job loss reported flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `job_loss_signal_source` | Job loss signal source | string | — | FACILITY | all | none | Job loss signal source. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `lgd_base` | LGD base | string | — | FACILITY | all | none | LGD base. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `lgd_downturn` | LGD downturn | string | — | FACILITY | all | none | LGD downturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `lgd_upturn` | LGD upturn | string | — | FACILITY | all | none | LGD upturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ltv_band` | LTV band | string | — | FACILITY | all | none | LTV band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `model_use_population` | Model use population | string | — | FACILITY | all | none | Model use population. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `monitoring_exclusion_reason` | Monitoring exclusion reason | string | — | FACILITY | all | none | Monitoring exclusion reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `monitoring_reference_type` | Monitoring reference type | string | — | FACILITY | all | none | Monitoring reference type. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `monthly_discount_rate` | Monthly discount rate | string | — | FACILITY | all | none | Monthly discount rate. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `months_to_balloon` | Months to balloon | string | — | FACILITY | all | none | Months to balloon. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `new_to_bank_at_origination_flag` | New to bank at origination flag | boolean | — | FACILITY | all | none | New to bank at origination flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `nominal_annual_profit_interest_rate` | Nominal annual profit interest rate | string | — | FACILITY | all | none | Nominal annual profit interest rate. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `obligation_scope_definition` | Obligation scope definition | string | — | FACILITY | all | none | Obligation scope definition. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_bureau_active_facilities` | Origination bureau active facilities | string | — | FACILITY | all | none | Origination bureau active facilities. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_bureau_external_dpd_max` | Origination bureau external DPD max | string | — | FACILITY | all | none | Origination bureau external DPD max. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_channel` | Origination channel | string | — | FACILITY | all | none | Origination channel. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_salary_transfer_status` | Origination salary transfer status | string | — | FACILITY | all | none | Origination salary transfer status. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `income_band` | Income band | string | — | FACILITY | all | none | Verified monthly income at this month-end, in bands. Banded for grouping; `verified_monthly_salary_sar` carries the figure. |
+| `indebtedness_band` | Indebtedness band | string | — | FACILITY | all | none | Total monthly credit obligations as a share of verified income, in bands — the debt burden ratio a reader groups by. |
+| `is_synthetic` | Is synthetic | boolean | — | FACILITY | all | none | Whether the row is synthetic. True on every row of this book: it is demonstration data, and this column is what makes that checkable rather than a claim in a footnote. |
+| `job_loss_reported_flag` | Job loss reported flag | boolean | — | FACILITY | all | none | Whether a loss of employment has been reported for this customer. Declared or inferred — `job_loss_signal_source` says which. |
+| `job_loss_signal_source` | Job loss signal source | string | — | FACILITY | all | none | Where the job-loss signal came from. In this synthetic book it is a customer declaration; in a real installation it would name the channel that reported it. |
+| `ltv_band` | LTV band | string | — | FACILITY | all | none | The current loan-to-value ratio, in bands. |
+| `model_use_population` | Model use population | string | — | FACILITY | all | none | Whether this row is in the population a model may be measured on. A facility already in default is excluded from a PD test: its outcome is known before the prediction is made. |
+| `monitoring_exclusion_reason` | Monitoring exclusion reason | string | — | FACILITY | all | none | Why a facility is not in the monitoring cohort — already in default at the observation date, most often. Excluding it is right, and it is why a default rate over this book is not a count of defaults over a count of rows. |
+| `monitoring_reference_type` | Monitoring reference type | string | — | FACILITY | all | none | How the monitoring cohort was formed — a monthly landmark cohort: everyone eligible at this month-end, followed forward. |
+| `new_to_bank_at_origination_flag` | New to bank at origination flag | boolean | — | FACILITY | all | none | Whether the customer was new to the bank when this facility was booked. A new-to-bank customer is scored without internal history. |
+| `obligation_scope_definition` | Obligation scope definition | string | — | FACILITY | all | none | Which obligations the debt burden ratio counts, stated so the denominator can be reproduced. |
+| `origination_channel` | Origination channel | string | — | FACILITY | all | none | How the facility was sold: BRANCH, DIGITAL, PARTNER, DEALER or RELATIONSHIP_MANAGER. Channels differ in default rate at the same score, which is the point of measuring it. |
+| `origination_salary_transfer_status` | Origination salary transfer status | string | — | FACILITY | all | none | Whether the salary was transferred to this bank AT ORIGINATION. Frozen: it does not follow the customer if the arrangement lapses. |
 | `origination_vintage` | Origination vintage | string | — | FACILITY | all | none | Origination month as YYYY-MM. The cohort key for vintage analysis. |
-| `payment_to_due_ratio_1m` | Payment to due ratio 1m | string | — | FACILITY | all | none | Payment to due ratio 1m. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_origination_curve_remaining_life` | PD origination curve remaining life | string | — | FACILITY | all | none | PD origination curve remaining life. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_pit_12m_anchor` | PD PIT 12m anchor | string | — | FACILITY | all | none | PD PIT 12m anchor. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_pit_12m_downturn` | PD PIT 12m downturn | string | — | FACILITY | all | none | PD PIT 12m downturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_pit_12m_upturn` | PD PIT 12m upturn | string | — | FACILITY | all | none | PD PIT 12m upturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_pit_lifetime_downturn` | PD PIT lifetime downturn | string | — | FACILITY | all | none | PD PIT lifetime downturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_pit_lifetime_upturn` | PD PIT lifetime upturn | string | — | FACILITY | all | none | PD PIT lifetime upturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `performance_window_end` | Performance window end | string | — | FACILITY | all | none | Performance window end. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `performance_window_start` | Performance window start | string | — | FACILITY | all | none | Performance window start. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `policy_exception_flag` | Policy exception flag | boolean | — | FACILITY | all | none | Policy exception flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `policy_exception_reason` | Policy exception reason | string | — | FACILITY | all | none | Policy exception reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `policy_version_at_origination` | Policy version at origination | string | — | FACILITY | all | none | Policy version at origination. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `portfolio_country` | Portfolio country | string | — | FACILITY | all | none | Portfolio country. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `previous_month_dpd` | Previous month DPD | string | — | FACILITY | all | none | Previous month DPD. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `previous_month_stage` | Previous month stage | string | — | FACILITY | all | none | Previous month stage. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `policy_exception_flag` | Policy exception flag | boolean | — | FACILITY | all | none | Whether the facility was booked outside policy — below cutoff, or past an affordability limit. |
+| `policy_exception_reason` | Policy exception reason | string | — | FACILITY | all | none | Which policy the exception was against, in words. |
+| `portfolio_country` | Portfolio country | string | — | FACILITY | all | none | The country of the lending book. SA throughout. |
+| `previous_month_stage` | Previous month stage | integer | — | FACILITY | all | none | The IFRS 9 stage at the previous month-end. Held on the row so a stage migration can be read without joining the book to itself. |
 | `product_code` | Product code | string | — | FACILITY | all | none | Retail product family. The stable machine code; `product_label` is what a user reads. |
-| `product_label` | Product label | string | — | FACILITY | all | none | Product label. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `product_subsegment` | Product subsegment | string | — | FACILITY | all | none | Product subsegment. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `promise_to_pay_flag` | Promise to pay flag | boolean | — | FACILITY | all | none | Promise to pay flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `property_type` | Property type | string | — | FACILITY | all | none | Property type. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `rate_type` | Rate type | string | — | FACILITY | all | none | Rate type. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `recovery_cashflow_ref` | Recovery cashflow ref | string | — | FACILITY | all | none | Recovery cashflow ref. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `recovery_rate_nominal` | Recovery rate nominal | string | — | FACILITY | all | none | Recovery rate nominal. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `region` | Region | string | — | FACILITY | all | none | Region. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `region_label` | Region label | string | — | FACILITY | all | none | Region label. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `residency_category` | Residency category | string | — | FACILITY | all | none | Residency category. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `restructured_flag` | Restructured flag | boolean | — | FACILITY | all | none | Restructured flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_transfer_flag` | Salary transfer flag | boolean | — | FACILITY | all | none | Salary transfer flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_verification_status` | Salary verification status | string | — | FACILITY | all | none | Salary verification status. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `scenario_weight_base` | Scenario weight base | string | — | FACILITY | all | none | Scenario weight base. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `scenario_weight_downturn` | Scenario weight downturn | string | — | FACILITY | all | none | Scenario weight downturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `scenario_weight_upturn` | Scenario weight upturn | string | — | FACILITY | all | none | Scenario weight upturn. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_evidence_ref` | Score evidence ref | string | — | FACILITY | all | none | Score evidence ref. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_implementation_check_status` | Score implementation check status | string | — | FACILITY | all | none | Score implementation check status. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_override_direction` | Score override direction | string | — | FACILITY | all | none | Score override direction. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_override_flag` | Score override flag | boolean | — | FACILITY | all | none | Score override flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_override_reason` | Score override reason | string | — | FACILITY | all | none | Score override reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_subject_grain` | Score subject grain | string | — | FACILITY | all | none | Score subject grain. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `secured_flag` | Secured flag | boolean | — | FACILITY | all | none | Secured flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `sicr_dpd_backstop_flag` | SICR DPD backstop flag | boolean | — | FACILITY | all | none | SICR DPD backstop flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `sicr_flag` | SICR flag | boolean | — | FACILITY | all | none | SICR flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `sicr_pd_absolute_change` | SICR PD absolute change | string | — | FACILITY | all | none | SICR PD absolute change. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `sicr_qualitative_flag` | SICR qualitative flag | boolean | — | FACILITY | all | none | SICR qualitative flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `sicr_quantitative_flag` | SICR quantitative flag | boolean | — | FACILITY | all | none | SICR quantitative flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `sicr_reason` | SICR reason | string | — | FACILITY | all | none | SICR reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `source_available_at` | Source available at | string | — | FACILITY | all | none | Source available at. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `source_system` | Source system | string | — | FACILITY | all | none | Source system. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `stage_override_flag` | Stage override flag | boolean | — | FACILITY | all | none | Stage override flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `stage_override_reason` | Stage override reason | string | — | FACILITY | all | none | Stage override reason. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `unlikeliness_to_pay_flag` | Unlikeliness to pay flag | boolean | — | FACILITY | all | none | Unlikeliness to pay flag. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `utilisation_band` | Utilisation band | string | — | FACILITY | all | none | Utilisation band. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `vehicle_new_used` | Vehicle new used | string | — | FACILITY | all | none | Vehicle new used. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `writeoff_flag` | Writeoff flag | boolean | — | FACILITY | all | none | Writeoff flag. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `product_label` | Product label | string | — | FACILITY | all | none | The retail product this facility is: Credit Card, Personal Finance, Auto Finance or Home Finance. The dimension almost every question about this book is grouped by. |
+| `product_subsegment` | Product subsegment | string | — | FACILITY | all | none | The variant within the product — a first home against a refinance, a new car against a used one, new lending against a top-up. Products behave differently inside these splits. |
+| `promise_to_pay_flag` | Promise to pay flag | boolean | — | FACILITY | all | none | Whether the customer has an outstanding promise to pay. |
+| `property_type` | Property type | string | — | FACILITY | all | none | What kind of property secures a home facility. |
+| `rate_type` | Rate type | string | — | FACILITY | all | none | Whether the profit rate is FIXED for the term or FLOATING against a benchmark. Floating facilities carry instalment risk to the customer. |
+| `region` | Region | string | — | FACILITY | all | none | The Saudi administrative region of the customer's address, as a code. `region_label` is the same thing written for a reader. |
+| `region_label` | Region label | string | — | FACILITY | all | none | The Saudi administrative region of the customer's address, written the way it is shown on screen. |
+| `residency_category` | Residency category | string | — | FACILITY | all | none | Whether the customer is a Saudi citizen or a resident. It changes which affordability and tenor rules a product applies. |
+| `restructured_flag` | Restructured flag | boolean | — | FACILITY | all | none | Whether the facility's terms were restructured. Restructuring without financial difficulty is not forbearance; the two flags are separate for that reason. |
+| `salary_transfer_flag` | Salary transfer flag | boolean | — | FACILITY | all | none | Whether the customer's salary is transferred to this bank. The single most important affordability control in Saudi retail lending: it is what makes an instalment deductible at source. |
+| `salary_verification_status` | Salary verification status | string | — | FACILITY | all | none | How income was evidenced: VERIFIED_TRANSFER, where the salary lands in an account at this bank, or DECLARED_DOCUMENTED, where it was documented but is paid elsewhere. The first is materially stronger. |
+| `score_implementation_check_status` | Score implementation check status | string | — | FACILITY | all | none | Whether the stored score was reproduced from its stored inputs. PASS means the implementation agrees with the specification. |
+| `score_override_direction` | Score override direction | string | — | FACILITY | all | none | Whether the override made the score better or worse. |
+| `score_override_flag` | Score override flag | boolean | — | FACILITY | all | none | Whether a human changed the score the model produced. |
+| `score_override_reason` | Score override reason | string | — | FACILITY | all | none | Why the score was overridden, in words. An override rate and its reasons are a model governance finding in their own right. |
+| `score_subject_grain` | Score subject grain | string | — | FACILITY | all | none | What one scored row IS. FACILITY here: a customer with three facilities has three scores, and averaging them is not a customer score. |
+| `secured_flag` | Secured flag | boolean | — | FACILITY | all | none | Whether the facility has collateral behind it. Home and auto facilities do; cards and personal finance do not. |
+| `sicr_dpd_backstop_flag` | SICR DPD backstop flag | boolean | — | FACILITY | all | none | Whether the 30-days-past-due backstop alone moved this facility to Stage 2. A backstop-only population is one whose models saw nothing. |
+| `sicr_flag` | SICR flag | boolean | — | FACILITY | all | none | Whether a significant increase in credit risk has been identified — the test that moves a facility from Stage 1 to Stage 2. |
+| `sicr_qualitative_flag` | SICR qualitative flag | boolean | — | FACILITY | all | none | Whether the SICR test was met on the qualitative limb — forbearance, repeated arrears, a behavioural collapse. |
+| `sicr_quantitative_flag` | SICR quantitative flag | boolean | — | FACILITY | all | none | Whether the SICR test was met on the quantitative limb: lifetime PD has risen enough against origination. |
+| `sicr_reason` | SICR reason | string | — | FACILITY | all | none | Which test moved this facility, in words. The sentence a reviewer reads when they ask why a facility is in Stage 2. |
+| `stage_override_flag` | Stage override flag | boolean | — | FACILITY | all | none | Whether the stage was set by judgment rather than by the rules. |
+| `stage_override_reason` | Stage override reason | string | — | FACILITY | all | none | Why the stage was overridden, in words. |
+| `unlikeliness_to_pay_flag` | Unlikeliness to pay flag | boolean | — | FACILITY | all | none | Whether default was called on unlikeliness to pay rather than on days past due. It is what catches a default that never showed as arrears. |
+| `utilisation_band` | Utilisation band | string | — | FACILITY | all | none | Current utilisation, in bands. Above 100% means an overlimit balance. |
+| `vehicle_new_used` | Vehicle new used | string | — | FACILITY | all | none | Whether the financed vehicle was new or used at origination. |
+| `writeoff_flag` | Writeoff flag | boolean | — | FACILITY | all | none | Whether the balance has been written off. A write-off removes the asset; it does not end the claim on the customer. |
 
 ## EVALUATION_LABEL (6 columns)
 
@@ -305,39 +239,45 @@ A column whose grain is CUSTOMER is repeated on each of that customer's faciliti
 | `outcome_known_at` | Outcome known at | date | — | FACILITY | all | none | The date the twelve-month outcome became knowable. Later than snapshot_date, always. |
 | `performance_window_complete_flag` | Performance window complete flag | boolean | — | FACILITY | all | none | Whether all twelve follow-up months fall inside the published history. |
 
-## EVENT_DATE (24 columns)
+## EVENT_DATE (28 columns)
 
 | Column | Business name | Type | Unit | Grain | Products | Aggregation | Definition |
 |---|---|---|---|---|---|---|---|
-| `application_date` | Application date | date | — | FACILITY | all | none | Application date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_score_date` | Application score date | date | — | FACILITY | all | none | Application score date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `approval_date` | Approval date | date | — | FACILITY | all | none | Approval date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `balloon_due_date` | Balloon due date | date | — | FACILITY | all | none | Balloon due date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_date` | Behavioural score date | date | — | FACILITY | all | none | Behavioural score date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_score_current_date` | Bureau score current date | date | — | FACILITY | all | none | Bureau score current date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_score_origination_date` | Bureau score origination date | date | — | FACILITY | all | none | Bureau score origination date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `closure_date` | Closure date | date | — | FACILITY | all | none | Closure date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `collateral_valuation_date` | Collateral valuation date | date | — | FACILITY | all | none | Collateral valuation date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `contractual_maturity_date` | Contractual maturity date | date | — | FACILITY | all | none | Contractual maturity date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `cure_date` | Cure date | date | — | FACILITY | all | none | Cure date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `customer_relationship_start_date` | Customer relationship start date | date | — | FACILITY | all | none | Customer relationship start date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `expected_salary_credit_date` | Expected salary credit date | date | — | FACILITY | all | none | Expected salary credit date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `first_default_date` | First default date | date | — | FACILITY | all | none | First default date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `forbearance_start_date` | Forbearance start date | date | — | FACILITY | all | none | Forbearance start date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `latest_default_date` | Latest default date | date | — | FACILITY | all | none | Latest default date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `monitoring_as_of_date` | Monitoring as of date | date | — | FACILITY | all | none | Monitoring as of date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `oldest_unpaid_due_date` | Oldest unpaid due date | date | — | FACILITY | all | none | Oldest unpaid due date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_date` | Origination date | date | — | FACILITY | all | none | Origination date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `prediction_reference_date` | Prediction reference date | date | — | FACILITY | all | none | Prediction reference date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `promise_to_pay_due_date` | Promise to pay due date | date | — | FACILITY | all | none | Promise to pay due date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `restructure_date` | Restructure date | date | — | FACILITY | all | none | Restructure date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_credit_last_date` | Salary credit last date | date | — | FACILITY | all | none | Salary credit last date. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `stage_entry_date` | Stage entry date | date | — | FACILITY | all | none | Stage entry date. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `application_date` | Application date | date | — | FACILITY | all | none | The month-end on which the customer applied. |
+| `application_score_date` | Application score date | date | — | FACILITY | all | none | When the application score was produced. |
+| `approval_date` | Approval date | date | — | FACILITY | all | none | The month-end on which the application was approved. |
+| `balloon_due_date` | Balloon due date | date | — | FACILITY | all | none | When the balloon payment falls due. |
+| `behavioural_score_date` | Behavioural score date | date | — | FACILITY | all | none | When the behavioural score was produced — this month-end. |
+| `bureau_score_current_date` | Bureau score current date | date | — | FACILITY | all | none | When the current bureau score was drawn. |
+| `bureau_score_origination_date` | Bureau score origination date | date | — | FACILITY | all | none | When the origination bureau score was drawn. |
+| `calculation_available_at` | Calculation available at | string | — | FACILITY | all | none | When the calculated figures became available. |
+| `closure_date` | Closure date | date | — | FACILITY | all | none | The month-end on which the facility closed, where it has. |
+| `collateral_valuation_date` | Collateral valuation date | date | — | FACILITY | all | none | When the collateral was last valued. |
+| `contractual_maturity_date` | Contractual maturity date | date | — | FACILITY | all | none | The month-end on which the last contractual payment falls due. |
+| `cure_date` | Cure date | date | — | FACILITY | all | none | When the facility cured. |
+| `customer_relationship_start_date` | Customer relationship start date | date | — | FACILITY | all | none | The month-end on which the customer's first relationship with the bank opened. Earlier than the origination date of any one facility. |
+| `expected_salary_credit_date` | Expected salary credit date | date | — | FACILITY | all | none | When the next salary credit is due, from the customer's pattern. |
+| `first_default_date` | First default date | date | — | FACILITY | all | none | When this facility first defaulted. |
+| `forbearance_start_date` | Forbearance start date | date | — | FACILITY | all | none | When forbearance was granted. |
+| `latest_default_date` | Latest default date | date | — | FACILITY | all | none | When this facility most recently defaulted. |
+| `monitoring_as_of_date` | Monitoring as of date | date | — | FACILITY | all | none | The month-end this monitoring observation was taken at. |
+| `oldest_unpaid_due_date` | Oldest unpaid due date | date | — | FACILITY | all | none | The due date of the oldest instalment still unpaid. It is what days past due is counted from. |
+| `origination_date` | Origination date | date | — | FACILITY | all | none | The month-end on which the facility was booked. |
+| `performance_window_end` | Performance window end | date | — | FACILITY | all | none | The last month of that window. Where it is in the future, the outcome is not yet knowable, and a default rate computed over this row is a rate over the defaults that have already happened. |
+| `performance_window_start` | Performance window start | date | — | FACILITY | all | none | The first month of the window this observation's outcome is measured over. |
+| `prediction_reference_date` | Prediction reference date | date | — | FACILITY | all | none | The date the prediction was made as at. Everything used to make it must be knowable on this date, which is what stops an outcome leaking into a predictor. |
+| `promise_to_pay_due_date` | Promise to pay due date | date | — | FACILITY | all | none | When the promised payment is due. |
+| `restructure_date` | Restructure date | date | — | FACILITY | all | none | When the facility was restructured. |
+| `salary_credit_last_date` | Salary credit last date | date | — | FACILITY | all | none | The month-end of the most recent salary credit received. |
+| `source_available_at` | Source available at | string | — | FACILITY | all | none | When the source data became available. Read with `calculation_available_at` it says how long the book took to close. |
+| `stage_entry_date` | Stage entry date | date | — | FACILITY | all | none | When the facility entered its current stage. How long it has been in Stage 2 matters as much as that it is. |
 
-## FLOW (9 columns)
+## FLOW (12 columns)
 
 | Column | Business name | Type | Unit | Grain | Products | Aggregation | Definition |
 |---|---|---|---|---|---|---|---|
+| `account_inflows_1m_sar` | Account inflows 1m SAR | number | SAR | FACILITY | all | none | Everything credited to the customer's accounts in this month, salary included. A PERIOD amount: sum it over the months of the period wanted, never across a level. |
+| `account_outflows_1m_sar` | Account outflows 1m SAR | number | SAR | FACILITY | all | none | Everything debited from the customer's accounts in this month. A PERIOD amount. |
 | `accrued_charges_sar` | Accrued charges SAR | number | SAR | FACILITY | all | sum across months in a period | Profit or interest charged in this month. A PERIOD amount: aggregate over the months of the period wanted. |
 | `actual_payment_received_sar` | Actual payment received SAR | number | SAR | FACILITY | all | sum across months in a period | Amount actually received in this month. A PERIOD amount: aggregate over the months of the period wanted. |
 | `capitalised_amount_sar` | Capitalised amount SAR | number | SAR | FACILITY | all | sum across months in a period | Amounts capitalised into the balance in this month. A PERIOD amount: aggregate over the months of the period wanted. |
@@ -345,60 +285,66 @@ A column whose grain is CUSTOMER is repeated on each of that customer's faciliti
 | `other_balance_adjustment_sar` | Other balance adjustment SAR | number | SAR | FACILITY | all | sum across months in a period | Any other movement in this month. A PERIOD amount: aggregate over the months of the period wanted. |
 | `principal_repayment_sar` | Principal repayment SAR | number | SAR | FACILITY | all | sum across months in a period | Principal repaid in this month. A PERIOD amount: aggregate over the months of the period wanted. |
 | `recovery_amount_month_sar` | Recovery amount month SAR | number | SAR | FACILITY | all | sum across months in a period | Amount recovered in this month. A PERIOD amount: aggregate over the months of the period wanted. |
+| `salary_credit_amount_1m_sar` | Salary credit amount 1m SAR | number | SAR | FACILITY | all | none | The salary credited to the customer's account in this month. |
 | `scheduled_payment_due_sar` | Scheduled payment due SAR | number | SAR | FACILITY | all | sum across months in a period | Amount contractually due in this month. A PERIOD amount: aggregate over the months of the period wanted. |
 | `writeoff_amount_month_sar` | Writeoff amount month SAR | number | SAR | FACILITY | all | sum across months in a period | Amount written off in this month. A PERIOD amount: aggregate over the months of the period wanted. |
 
-## IDENTIFIER (45 columns)
+## IDENTIFIER (50 columns)
 
 | Column | Business name | Type | Unit | Grain | Products | Aggregation | Definition |
 |---|---|---|---|---|---|---|---|
-| `app_model_id` | App model id | string | — | FACILITY | all | none | App model id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_model_version` | App model version | string | — | FACILITY | all | none | App model version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_target_definition_id` | App target definition id | string | — | FACILITY | all | none | App target definition id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `app_transform_version` | App transform version | string | — | FACILITY | all | none | App transform version. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `app_model_id` | App model id | string | — | FACILITY | all | none | The application model that produced the flattened `app_*` columns. |
+| `app_model_version` | App model version | string | — | FACILITY | all | none | The version of that application model. Two facilities scored by different versions are not comparable on the same scale. |
+| `app_target_definition_id` | App target definition id | string | — | FACILITY | all | none | What the application model was trained to predict, as a governed definition — first default within twelve months of origination. |
+| `app_transform_version` | App transform version | string | — | FACILITY | all | none | The binning and weight-of-evidence version it used. |
 | `application_id` | Application id | string | — | FACILITY | all | none | The originating application. One per booked facility in this demo book. |
-| `application_score_model_id` | Application score model id | string | — | FACILITY | all | none | Application score model id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_score_model_version` | Application score model version | string | — | FACILITY | all | none | Application score model version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `application_transform_version` | Application transform version | string | — | FACILITY | all | none | Application transform version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_model_id` | Beh model id | string | — | FACILITY | all | none | Beh model id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_model_version` | Beh model version | string | — | FACILITY | all | none | Beh model version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_target_definition_id` | Beh target definition id | string | — | FACILITY | all | none | Beh target definition id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `beh_transform_version` | Beh transform version | string | — | FACILITY | all | none | Beh transform version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_model_id` | Behavioural score model id | string | — | FACILITY | all | none | Behavioural score model id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_score_model_version` | Behavioural score model version | string | — | FACILITY | all | none | Behavioural score model version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_transform_version` | Behavioural transform version | string | — | FACILITY | all | none | Behavioural transform version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `branch_id` | Branch id | string | — | FACILITY | all | none | Branch id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_score_scale_id` | Bureau score scale id | string | — | FACILITY | all | none | Bureau score scale id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `calculation_run_id` | Calculation run id | string | — | FACILITY | all | none | Calculation run id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `credit_risk_model_id` | Credit risk model id | string | — | FACILITY | all | none | Credit risk model id. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `application_score_model_id` | Application score model id | string | — | FACILITY | all | none | Which application scorecard scored this facility. There is one per product, and comparing scores across two of them is not meaningful. |
+| `application_score_model_version` | Application score model version | string | — | FACILITY | all | none | The version of that application scorecard. |
+| `application_transform_version` | Application transform version | string | — | FACILITY | all | none | The version of the weight-of-evidence transformation the application scorecard used. |
+| `beh_model_id` | Beh model id | string | — | FACILITY | all | none | The behavioural model that produced the flattened `beh_*` columns. |
+| `beh_model_version` | Beh model version | string | — | FACILITY | all | none | The version of that behavioural model. Two facilities scored by different versions are not comparable on the same scale. |
+| `beh_target_definition_id` | Beh target definition id | string | — | FACILITY | all | none | What the behavioural model was trained to predict, as a governed definition — first default within the twelve months after the observation month. |
+| `beh_transform_version` | Beh transform version | string | — | FACILITY | all | none | The binning and weight-of-evidence version it used. |
+| `behavioural_score_model_id` | Behavioural score model id | string | — | FACILITY | all | none | Which behavioural scorecard scored this facility. One per product. |
+| `behavioural_score_model_version` | Behavioural score model version | string | — | FACILITY | all | none | The version of that behavioural scorecard. |
+| `behavioural_transform_version` | Behavioural transform version | string | — | FACILITY | all | none | The weight-of-evidence version the behavioural scorecard used. |
+| `branch_id` | Branch id | string | — | FACILITY | all | none | The branch that booked the facility. |
+| `bureau_score_scale_id` | Bureau score scale id | string | — | FACILITY | all | none | The scale the bureau score is expressed on, so scores from different vintages are not compared across scales. |
+| `calculation_input_hash` | Calculation input hash | string | — | FACILITY | all | none | A hash of the inputs to the calculation. Two runs with the same hash and different outputs is a reproducibility defect. |
+| `calculation_run_id` | Calculation run id | string | — | FACILITY | all | none | The key of the calculation run that produced this row. Two rows with the same run id were produced by the same code and the same inputs. |
+| `credit_risk_model_id` | Credit risk model id | string | — | FACILITY | all | none | The IFRS 9 model set that produced the staging, PD, LGD and EAD on this row. |
 | `customer_id` | Customer id | string | — | CUSTOMER | all | none | Synthetic natural-person customer identifier. Not a national ID and not a real account. |
 | `dataset_version` | Dataset version | string | — | FACILITY | all | none | Generator version, configuration version and seed, pinned at publication. |
-| `dealer_id` | Dealer id | string | — | FACILITY | all | none | Dealer id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `default_definition_id` | Default definition id | string | — | FACILITY | all | none | Default definition id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `default_episode_id` | Default episode id | string | — | FACILITY | all | none | Default episode id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ead_curve_id` | EAD curve id | string | — | FACILITY | all | none | EAD curve id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ead_model_version` | EAD model version | string | — | FACILITY | all | none | EAD model version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ecl_model_version` | ECL model version | string | — | FACILITY | all | none | ECL model version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `employer_id` | Employer id | string | — | FACILITY | all | none | Employer id. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `dealer_id` | Dealer id | string | — | FACILITY | all | none | The dealer that introduced an auto facility. Dealer concentration and dealer-level default rates are an origination quality question. |
+| `default_definition_id` | Default definition id | string | — | FACILITY | all | none | The governed definition of default in force — 90 days past due or unlikeliness to pay. |
+| `default_episode_id` | Default episode id | string | — | FACILITY | all | none | The key of this default episode. A facility that defaults, cures and defaults again has two episodes, and counting defaults without this column counts the customer twice. |
+| `ead_curve_id` | EAD curve id | string | — | FACILITY | all | none | The EAD curve applied to this facility. |
+| `ead_model_version` | EAD model version | string | — | FACILITY | all | none | The version of the EAD model. |
+| `ecl_model_version` | ECL model version | string | — | FACILITY | all | none | The version of the ECL engine that produced the allowance. |
+| `employer_id` | Employer id | string | — | FACILITY | all | none | The employer paying the salary, as a key. Concentration by employer is a retail risk in its own right where one employer pays many customers of the same book. |
 | `facility_id` | Facility id | string | — | FACILITY | all | none | Synthetic facility identifier, stable across every month the facility is live. |
-| `generator_version` | Generator version | string | — | FACILITY | all | none | Generator version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ifrs9_pd_mapping_version` | IFRS 9 PD mapping version | string | — | FACILITY | all | none | IFRS 9 PD mapping version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `lgd_curve_id` | LGD curve id | string | — | FACILITY | all | none | LGD curve id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `lgd_model_version` | LGD model version | string | — | FACILITY | all | none | LGD model version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `monitoring_reference_id` | Monitoring reference id | string | — | FACILITY | all | none | Monitoring reference id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_curve_id` | PD curve id | string | — | FACILITY | all | none | PD curve id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `pd_model_version` | PD model version | string | — | FACILITY | all | none | PD model version. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `generator_version` | Generator version | string | — | FACILITY | all | none | The version of the synthetic generator that produced this book. |
+| `ifrs9_pd_mapping_version` | IFRS 9 PD mapping version | string | — | FACILITY | all | none | The version of the score-to-PD mapping used. |
+| `lgd_curve_id` | LGD curve id | string | — | FACILITY | all | none | The LGD curve applied to this facility. |
+| `lgd_model_version` | LGD model version | string | — | FACILITY | all | none | The version of the LGD model. |
+| `monitoring_reference_id` | Monitoring reference id | string | — | FACILITY | all | none | The key of the monthly monitoring cohort this row belongs to. |
+| `pd_curve_id` | PD curve id | string | — | FACILITY | all | none | The PD term structure applied to this facility. |
+| `pd_model_version` | PD model version | string | — | FACILITY | all | none | The version of the PD model. |
+| `policy_version_at_origination` | Policy version at origination | string | — | FACILITY | all | none | The version of the credit policy — cutoffs and rules — in force when this facility was decided. |
 | `record_id` | Record id | string | — | FACILITY | all | none | snapshot_date and facility_id joined. Unique within a published dataset version. |
-| `refinanced_from_facility_id` | Refinanced from facility id | string | — | FACILITY | all | none | Refinanced from facility id. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `recovery_cashflow_ref` | Recovery cashflow ref | string | — | FACILITY | all | none | The recovery cashflow profile used. |
+| `refinanced_from_facility_id` | Refinanced from facility id | string | — | FACILITY | all | none | The facility this one refinanced, where it refinanced one. A chain of refinancings is a repayment difficulty that never showed as DPD. |
 | `reporting_month` | Reporting month | string | — | FACILITY | all | none | `snapshot_date` as YYYY-MM. The dataset's partition key. |
-| `scenario_set_id` | Scenario set id | string | — | FACILITY | all | none | Scenario set id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `scenario_set_version` | Scenario set version | string | — | FACILITY | all | none | Scenario set version. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `score_target_definition_id` | Score target definition id | string | — | FACILITY | all | none | Score target definition id. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `scenario_set_id` | Scenario set id | string | — | FACILITY | all | none | The forward-looking scenario set used. |
+| `scenario_set_version` | Scenario set version | string | — | FACILITY | all | none | The version of that scenario set. |
+| `score_evidence_ref` | Score evidence ref | string | — | FACILITY | all | none | The key of the stored evidence for this score — inputs, bins, weights and the arithmetic. What makes the score auditable. |
+| `score_target_definition_id` | Score target definition id | string | — | FACILITY | all | none | The outcome both scorecards are measured against, as a governed definition. |
 | `snapshot_date` | Snapshot date | date | — | FACILITY | all | none | The month-end this row describes. A row is the state of one facility ON this date. |
-| `source_record_id` | Source record id | string | — | FACILITY | all | none | Source record id. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `staging_policy_version` | Staging policy version | string | — | FACILITY | all | none | Staging policy version. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `source_record_id` | Source record id | string | — | FACILITY | all | none | The key of the source record this row was built from, so any figure can be traced back to what the source system sent. |
+| `source_system` | Source system | string | — | FACILITY | all | none | Which system this row came from. A synthetic generator here, stated rather than implied. |
+| `staging_policy_version` | Staging policy version | string | — | FACILITY | all | none | The version of the staging policy that produced this stage. |
 
-## RATIO (130 columns)
+## RATIO (166 columns)
 
 | Column | Business name | Type | Unit | Grain | Products | Aggregation | Definition |
 |---|---|---|---|---|---|---|---|
@@ -444,11 +390,15 @@ A column whose grain is CUSTOMER is repeated on each of that customer's faciliti
 | `app_ltv_points` | Loan to value at origination — points | number | points | FACILITY | AUTO_LOAN, HOME_LOAN | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `app_ltv_raw` | Loan to value at origination — raw | number | ratio | FACILITY | AUTO_LOAN, HOME_LOAN | none | Original finance amount divided by collateral value at origination. Raw model input, as at origination, and unchanged on every later snapshot. **Null policy:** Null where this product's model does not use the feature. |
 | `app_ltv_transformed` | Loan to value at origination — weight of evidence | number | WoE | FACILITY | AUTO_LOAN, HOME_LOAN | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
+| `app_predicted_pd_12m` | App predicted PD 12m | number | ratio | FACILITY | all | none | The twelve-month PD the application score maps to. |
 | `app_salary_transfer_points` | Salary transfer at application — points | number | points | FACILITY | all | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `app_salary_transfer_transformed` | Salary transfer at application — weight of evidence | number | WoE | FACILITY | all | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
+| `app_score_logit` | App score logit | number | — | FACILITY | all | none | The log-odds the application model produced, before the points mapping. The scale the model actually works on. |
 | `app_tenor_points` | Original tenor — points | number | points | FACILITY | PERSONAL_LOAN, AUTO_LOAN, HOME_LOAN | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `app_tenor_raw` | Original tenor — raw | number | months | FACILITY | PERSONAL_LOAN, AUTO_LOAN, HOME_LOAN | none | Contractual tenor granted at origination. Raw model input, as at origination, and unchanged on every later snapshot. **Null policy:** Null where this product's model does not use the feature. |
 | `app_tenor_transformed` | Original tenor — weight of evidence | number | WoE | FACILITY | PERSONAL_LOAN, AUTO_LOAN, HOME_LOAN | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
+| `application_predicted_pd_12m` | Application predicted PD 12m | number | ratio | FACILITY | all | none | The twelve-month probability of default the application score maps to. A probability: recompute it over a population, never sum it. |
+| `balance_buffer_months` | Balance buffer months | number | months | FACILITY | all | none | How many months of the scheduled instalment the customer's average account balance would cover. A liquidity cushion, not a level. |
 | `beh_autopay_fail_points` | Failed direct debits — points | number | points | FACILITY | all | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `beh_autopay_fail_raw` | Failed direct debits — raw | number | count | FACILITY | all | none | Direct-debit or standing-order collections that failed in three months. Raw model input, recomputed at this month-end. **Null policy:** Null where this product's model does not use the feature. |
 | `beh_autopay_fail_transformed` | Failed direct debits — weight of evidence | number | WoE | FACILITY | all | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
@@ -503,107 +453,157 @@ A column whose grain is CUSTOMER is repeated on each of that customer's faciliti
 | `beh_pay_ratio_3m_points` | Payment to due ratio over 3 months — points | number | points | FACILITY | all | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `beh_pay_ratio_3m_raw` | Payment to due ratio over 3 months — raw | number | ratio | FACILITY | all | none | Payments received divided by amounts due over the three months to the score date. Raw model input, recomputed at this month-end. **Null policy:** Null where this product's model does not use the feature. |
 | `beh_pay_ratio_3m_transformed` | Payment to due ratio over 3 months — weight of evidence | number | WoE | FACILITY | all | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
+| `beh_predicted_pd_12m` | Beh predicted PD 12m | number | ratio | FACILITY | all | none | The twelve-month PD the behavioural score maps to. |
 | `beh_salary_change_points` | Salary change over 3 months — points | number | points | FACILITY | all | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `beh_salary_change_raw` | Salary change over 3 months — raw | number | ratio | FACILITY | all | none | Latest salary credit divided by the average of the three months before it. Raw model input, recomputed at this month-end. **Null policy:** Null where this product's model does not use the feature. |
 | `beh_salary_change_transformed` | Salary change over 3 months — weight of evidence | number | WoE | FACILITY | all | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
 | `beh_salary_missed_points` | Missed salary cycles — points | number | points | FACILITY | all | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `beh_salary_missed_raw` | Missed salary cycles — raw | number | count | FACILITY | all | none | Expected salary credit cycles with no salary credit observed, in three months. Evidence of income interruption, not proof of job loss. Raw model input, recomputed at this month-end. **Null policy:** Null where this product's model does not use the feature. |
 | `beh_salary_missed_transformed` | Missed salary cycles — weight of evidence | number | WoE | FACILITY | all | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
+| `beh_score_logit` | Beh score logit | number | — | FACILITY | all | none | The log-odds the behavioural model produced, before the points mapping. |
 | `beh_util_change_points` | Utilisation change over 3 months — points | number | points | FACILITY | CREDIT_CARD | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `beh_util_change_raw` | Utilisation change over 3 months — raw | number | percentage points | FACILITY | CREDIT_CARD | none | Change in utilisation over three months, in percentage points. Card only. Raw model input, recomputed at this month-end. **Null policy:** Null where this product's model does not use the feature. |
 | `beh_util_change_transformed` | Utilisation change over 3 months — weight of evidence | number | WoE | FACILITY | CREDIT_CARD | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
 | `beh_utilisation_points` | Card utilisation — points | number | points | FACILITY | CREDIT_CARD | none | This feature's contribution to the score: factor * coefficient * WoE. Base points plus every feature's points equals the score exactly. |
 | `beh_utilisation_raw` | Card utilisation — raw | number | ratio | FACILITY | CREDIT_CARD | none | Drawn balance divided by the current credit limit. Card only. Raw model input, recomputed at this month-end. **Null policy:** Null where this product's model does not use the feature. |
 | `beh_utilisation_transformed` | Card utilisation — weight of evidence | number | WoE | FACILITY | CREDIT_CARD | none | The bin's weight of evidence, ln(P(good)/P(bad)). Higher is safer. This is the transformed value the model multiplies by its coefficient. |
+| `behavioural_predicted_pd_12m` | Behavioural predicted PD 12m | number | ratio | FACILITY | all | none | The twelve-month PD the behavioural score maps to. |
+| `behavioural_score_change_3m` | Behavioural score change 3m | number | points | FACILITY | all | none | Change in the behavioural score over three months. Already a difference: do not difference it again. A large fall is the deterioration signal the early warning rules read first. |
+| `bureau_score_change_3m` | Bureau score change 3m | number | points | FACILITY | all | none | Change in the bureau score over three months. Already a difference. |
+| `cash_advance_share_3m` | Cash advance share 3m | number | ratio | FACILITY | all | none | Cash advances as a share of card spend over three months. Cash advance on a card is expensive money and is read as a liquidity signal, not as spending. |
+| `ccf_base` | CCF base | number | ratio | FACILITY | all | none | Credit conversion factor under the base scenario — the share of the undrawn limit expected to be drawn before default. It is what makes exposure at default exceed today's balance on a card. |
+| `ccf_downturn` | CCF downturn | number | ratio | FACILITY | all | none | Credit conversion factor under the downturn scenario. |
+| `ccf_upturn` | CCF upturn | number | ratio | FACILITY | all | none | Credit conversion factor under the upturn scenario. |
 | `debt_burden_ratio` | Debt burden ratio | number | ratio | CUSTOMER | all | none | monthly_total_credit_obligations_sar / verified_total_monthly_income_sar at this snapshot. |
 | `ecl_coverage_ratio` | ECL coverage ratio | number | ratio | FACILITY | all | recompute from summed ECL over summed GCA; never average the ratio | ecl_final_sar / gross_carrying_amount_sar. Null where the exposure is zero. |
-| `expected_sale_cost_ratio` | Expected sale cost ratio | number | ratio | FACILITY | all | none | Expected sale cost ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ltv_current_ratio` | LTV current ratio | number | ratio | FACILITY | all | none | LTV current ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ltv_origination_ratio` | LTV origination ratio | number | ratio | FACILITY | all | none | LTV origination ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_amount_to_income_ratio` | Origination amount to income ratio | number | ratio | FACILITY | all | none | Origination amount to income ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_balloon_ratio` | Origination balloon ratio | number | ratio | FACILITY | all | none | Origination balloon ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_debt_burden_ratio` | Origination debt burden ratio | number | ratio | FACILITY | all | none | Origination debt burden ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_income_stability_ratio` | Origination income stability ratio | number | ratio | FACILITY | all | none | Origination income stability ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_instalment_to_income_ratio` | Origination instalment to income ratio | number | ratio | FACILITY | all | none | Origination instalment to income ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `effective_annual_interest_rate` | Effective annual interest rate | number | ratio | FACILITY | all | none | The annual rate including fees, on the same basis the customer is quoted. The rate the ECL discounting uses. |
+| `expected_sale_cost_ratio` | Expected sale cost ratio | number | ratio | FACILITY | all | none | Costs of realising collateral, as a share of its value. It is why LGD on a fully secured facility is not zero. |
+| `income_volatility_6m` | Income volatility 6m | number | — | FACILITY | all | none | Coefficient of variation of the last six salary credits. High means the income arrives in uneven amounts, whatever its average. |
+| `lgd_base` | LGD base | number | ratio | FACILITY | all | none | Loss given default under the base scenario — the share of exposure expected to be lost once a default happens, after recoveries and collateral. A RATIO: weight it by exposure, never average it. |
+| `lgd_downturn` | LGD downturn | number | ratio | FACILITY | all | none | Loss given default under the downturn scenario. On a secured facility this is where a fall in collateral values shows up. |
+| `lgd_upturn` | LGD upturn | number | ratio | FACILITY | all | none | Loss given default under the upturn scenario. |
+| `ltv_current_ratio` | LTV current ratio | number | ratio | FACILITY | all | none | Current balance over the collateral's origination value. It falls as the balance amortises because the value is not refreshed. |
+| `ltv_origination_ratio` | LTV origination ratio | number | ratio | FACILITY | all | none | Amount financed over collateral value at origination. A RATIO: recompute it from summed amounts, never average it across rows. |
+| `monthly_discount_rate` | Monthly discount rate | number | ratio | FACILITY | all | none | The effective annual rate converted to one month, which is the rate the ECL cashflows are actually discounted at. |
+| `nominal_annual_profit_interest_rate` | Nominal annual profit interest rate | number | ratio | FACILITY | all | none | The contractual annual profit rate, as a decimal. Nominal: it does not include fees and is not what the customer effectively pays. |
+| `origination_amount_to_income_ratio` | Origination amount to income ratio | number | ratio | FACILITY | all | none | Amount financed over monthly income at origination — how many months of income was lent. |
+| `origination_balloon_ratio` | Origination balloon ratio | number | ratio | FACILITY | all | none | The balloon over the amount financed, at origination. |
+| `origination_debt_burden_ratio` | Origination debt burden ratio | number | ratio | FACILITY | all | none | Total monthly obligations over income at origination. The ratio the affordability limit was tested against. |
+| `origination_income_stability_ratio` | Origination income stability ratio | number | ratio | FACILITY | all | none | How steady the income was over the months before origination. Low means it varied. |
+| `origination_instalment_to_income_ratio` | Origination instalment to income ratio | number | ratio | FACILITY | all | none | This facility's instalment over income at origination. |
+| `payment_to_due_ratio_1m` | Payment to due ratio 1m | number | ratio | FACILITY | all | none | What was paid over what was due, in this month. Below 1 is a part payment; a card customer paying the minimum sits well below it. |
+| `payment_to_due_ratio_3m` | Payment to due ratio 3m | number | ratio | FACILITY | all | none | What was paid over what was due, across three months. |
+| `pd_origination_curve_remaining_life` | PD origination curve remaining life | number | ratio | FACILITY | all | none | The origination PD curve read at the facility's remaining life, so the SICR comparison is like for like rather than comparing a remaining-life PD with a whole-life one. |
+| `pd_pit_12m_anchor` | PD PIT 12m anchor | number | ratio | FACILITY | all | none | The twelve-month point-in-time PD before scenario weighting — the anchor the three scenarios are built around. A probability: never sum it, and recompute it over a population weighted by exposure. |
 | `pd_pit_12m_base` | PD PIT 12m base | number | probability | FACILITY | all | none | Point-in-time 12-month default probability under the base scenario. |
+| `pd_pit_12m_downturn` | PD PIT 12m downturn | number | ratio | FACILITY | all | none | Twelve-month point-in-time PD under the downturn scenario. |
+| `pd_pit_12m_upturn` | PD PIT 12m upturn | number | ratio | FACILITY | all | none | Twelve-month point-in-time PD under the upturn scenario. |
+| `pd_pit_at_origination_12m` | PD PIT at origination 12m | number | ratio | FACILITY | all | none | The twelve-month point-in-time PD as at origination. Frozen: it is the denominator of the quantitative SICR test. |
 | `pd_pit_lifetime_base` | PD PIT lifetime base | number | probability | FACILITY | all | none | Cumulative default probability over the applicable remaining life, base scenario. A different quantity from the 12-month PD, not a rescaling of it. |
+| `pd_pit_lifetime_downturn` | PD PIT lifetime downturn | number | ratio | FACILITY | all | none | Lifetime point-in-time PD under the downturn scenario. |
+| `pd_pit_lifetime_upturn` | PD PIT lifetime upturn | number | ratio | FACILITY | all | none | Lifetime point-in-time PD under the upturn scenario. |
 | `pd_ttc_12m` | PD TTC 12m | number | probability | FACILITY | all | none | Through-the-cycle 12-month default probability. NOT the application or behavioural model's PD, and not the point-in-time PD: the mapping between them is versioned. |
-| `salary_change_3m_ratio` | Salary change 3m ratio | number | ratio | FACILITY | all | none | Salary change 3m ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `sicr_pd_ratio` | SICR PD ratio | number | ratio | FACILITY | all | none | SICR PD ratio. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `utilisation_change_3m_pp` | Utilisation change 3m pp | number | percentage points | FACILITY | all | none | Utilisation change 3m pp. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `pd_ttc_at_origination_12m` | PD TTC at origination 12m | number | ratio | FACILITY | all | none | The twelve-month through-the-cycle PD at origination — the same risk without the point in the cycle. |
+| `recovery_rate_nominal` | Recovery rate nominal | number | ratio | FACILITY | all | none | The share of exposure expected to be recovered, before discounting. One minus this, discounted for the delay, is LGD. |
+| `salary_change_3m_ratio` | Salary change 3m ratio | number | ratio | FACILITY | all | none | The latest salary credit over the average of the three before it. Below 1 means the salary has fallen. |
+| `scenario_weight_base` | Scenario weight base | number | ratio | FACILITY | all | none | The probability weight on the base scenario. The three weights sum to one, which is the invariant a scenario-weight test checks. |
+| `scenario_weight_downturn` | Scenario weight downturn | number | ratio | FACILITY | all | none | The probability weight on the downturn scenario. |
+| `scenario_weight_upturn` | Scenario weight upturn | number | ratio | FACILITY | all | none | The probability weight on the upturn scenario. |
+| `sicr_pd_absolute_change` | SICR PD absolute change | number | ratio | FACILITY | all | none | Lifetime PD now minus lifetime PD at origination, in absolute terms. The second half of the quantitative test: a small PD can triple without becoming material. |
+| `sicr_pd_ratio` | SICR PD ratio | number | ratio | FACILITY | all | none | Lifetime PD now over lifetime PD at origination. The quantitative SICR test compares this with its threshold. |
+| `utilisation_avg_3m` | Utilisation avg 3m | number | ratio | FACILITY | all | none | Average drawn balance over credit limit across three months. |
+| `utilisation_change_3m_pp` | Utilisation change 3m pp | number | percentage points | FACILITY | all | none | Change in utilisation over three months, in percentage points. Already a difference: do not difference it again. |
 | `utilisation_ratio` | Utilisation ratio | number | ratio | FACILITY | CREDIT_CARD | none | Drawn balance over current credit limit. Card only; an amortising loan has no utilisation. **Null policy:** Null for every non-revolving product, with product applicability as the reason. Never zero. |
 
-## STOCK (70 columns)
+## STOCK (88 columns)
 
 | Column | Business name | Type | Unit | Grain | Products | Aggregation | Definition |
 |---|---|---|---|---|---|---|---|
-| `account_average_balance_3m_sar` | Account average balance 3m SAR | number | SAR | FACILITY | all | none | Account average balance 3m SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `account_inflows_1m_sar` | Account inflows 1m SAR | number | SAR | FACILITY | all | none | Account inflows 1m SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `account_outflows_1m_sar` | Account outflows 1m SAR | number | SAR | FACILITY | all | none | Account outflows 1m SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `account_average_balance_3m_sar` | Account average balance 3m SAR | number | SAR | FACILITY | all | none | Average current-account balance over three months, to this month-end. A CUSTOMER level. |
 | `accrued_profit_interest_sar` | Accrued profit interest SAR | number | SAR | FACILITY | all | sum within one snapshot only | Profit or interest accrued and unpaid at this month-end. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `affordability_buffer_sar` | Affordability buffer SAR | number | SAR | FACILITY | all | none | Affordability buffer SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `affordability_buffer_sar` | Affordability buffer SAR | number | SAR | FACILITY | all | none | Verified income less household expenses and every monthly credit obligation. What is left each month once the household has paid what it must. Negative means the arithmetic does not close. |
+| `app_score_base_points` | App score base points | number | points | FACILITY | all | none | The application scorecard's intercept in points. Base points plus every feature's points equals the score exactly. |
+| `app_score_points_total` | App score points total | number | points | FACILITY | all | none | The sum of every application feature's points contribution. |
+| `app_score_unclipped` | App score unclipped | number | points | FACILITY | all | none | The application score before clipping to the publishable range. Where the two differ, the clip is doing the work. |
+| `app_score_value` | App score value | number | points | FACILITY | all | none | The application score as computed here, after clipping to the publishable range. Equal to `application_score_at_origination`. |
+| `application_score_at_origination` | Application score at origination | number | points | FACILITY | all | none | The application scorecard's score when the facility was decided. Higher is safer. Frozen for the life of the facility: this is the column origination quality by vintage is measured on. |
+| `applied_score_cutoff` | Applied score cutoff | number | points | FACILITY | all | none | The application score cutoff that applied to this facility at origination. A facility booked below it is a policy exception. |
 | `available_limit_sar` | Available limit SAR | number | SAR | FACILITY | all | sum within one snapshot only | Limit still available to draw. Card only. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `balance_buffer_months` | Balance buffer months | integer | months | FACILITY | all | none | Balance buffer months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `balloon_payment_sar` | Balloon payment SAR | number | SAR | FACILITY | all | none | Balloon payment SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `behavioural_expected_life_months` | Behavioural expected life months | integer | months | FACILITY | all | none | Behavioural expected life months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_data_freshness_days` | Bureau data freshness days | integer | days | FACILITY | all | none | Bureau data freshness days. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `bureau_total_exposure_sar` | Bureau total exposure SAR | number | SAR | FACILITY | all | none | Bureau total exposure SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `balloon_payment_sar` | Balloon payment SAR | number | SAR | FACILITY | all | none | A final lump sum due at the end of the term, above the regular instalments. Zero where the facility fully amortises. |
+| `beh_score_base_points` | Beh score base points | number | points | FACILITY | all | none | The behavioural scorecard's intercept in points. |
+| `beh_score_points_total` | Beh score points total | number | points | FACILITY | all | none | The sum of every behavioural feature's points contribution. |
+| `beh_score_unclipped` | Beh score unclipped | number | points | FACILITY | all | none | The behavioural score before clipping to the publishable range. |
+| `beh_score_value` | Beh score value | number | points | FACILITY | all | none | The behavioural score as computed here, after clipping. Equal to `behavioural_score`. |
+| `behaviour_history_months_available` | Behaviour history months available | number | months | FACILITY | all | none | How many months of behaviour the facility has. Below the model's minimum it is not scored, and this column says why. |
+| `behavioural_expected_life_months` | Behavioural expected life months | integer | months | FACILITY | all | none | The expected remaining life the behavioural view assumes, which on a revolving facility is not the contractual term. |
+| `behavioural_score` | Behavioural score | number | points | FACILITY | all | none | The behavioural scorecard's score at THIS month-end, from how the customer has actually behaved. Higher is safer. Recomputed monthly: this is the column the monthly risk view is built on. |
+| `behavioural_score_previous_month` | Behavioural score previous month | number | points | FACILITY | all | none | The behavioural score at the previous month-end, held on the row so a movement can be read without a self-join. |
+| `bureau_data_freshness_days` | Bureau data freshness days | integer | days | FACILITY | all | none | How old the bureau data is, in days, at this month-end. |
+| `bureau_external_dpd_max` | Bureau external DPD max | number | days | FACILITY | all | none | Worst days past due with any other lender. A customer current here and 90 days down elsewhere is the case this column exists for. |
+| `bureau_score_at_origination` | Bureau score at origination | number | points | FACILITY | all | none | The bureau score as at origination. Frozen: comparing it with the current score measures how the customer has moved since underwriting. |
+| `bureau_score_current` | Bureau score current | number | points | FACILITY | all | none | The customer's bureau score at this month-end. Higher is safer. |
+| `bureau_total_exposure_sar` | Bureau total exposure SAR | number | SAR | FACILITY | all | none | Total balances owed to other lenders. A CUSTOMER level: summing it over a customer's facilities counts the same external debt twice. |
 | `collateral_value_current_sar` | Collateral value current SAR | number | SAR | FACILITY | all | sum within one snapshot only | Latest valuation of the security held. Secured products only. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `collateral_value_origination_sar` | Collateral value origination SAR | number | SAR | FACILITY | all | none | Collateral value origination SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `collateral_value_origination_sar` | Collateral value origination SAR | number | SAR | FACILITY | all | none | The collateral's appraised value at origination. Not revalued: the current LTV moves with the balance, not with the property. |
 | `cumulative_writeoff_sar` | Cumulative writeoff SAR | number | SAR | FACILITY | all | sum within one snapshot only | Total written off on this facility to date. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `cure_probation_months` | Cure probation months | integer | months | FACILITY | all | none | Cure probation months. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `cure_probation_months` | Cure probation months | integer | months | FACILITY | all | none | How many months a cured facility must stay current before it leaves default. A cure inside probation is not yet a cure. |
 | `current_credit_limit_sar` | Current credit limit SAR | number | SAR | FACILITY | all | sum within one snapshot only | Approved card limit in force at this month-end. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `customer_tenure_months` | Customer tenure months | integer | months | FACILITY | all | none | Customer tenure months. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `customer_tenure_months` | Customer tenure months | integer | months | FACILITY | all | none | Whole months since the customer's relationship with the bank began, measured to this month-end. A CUSTOMER attribute repeated on each of their facilities: averaging it across facility rows weights long relationships by how many products they hold. |
 | `disposable_income_sar` | Disposable income SAR | number | SAR/month | CUSTOMER | all | none | Verified income less household expenses less all credit obligations. Not salary, and not income: three different quantities kept in three different columns. |
-| `down_payment_sar` | Down payment SAR | number | SAR | FACILITY | all | none | Down payment SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `down_payment_sar` | Down payment SAR | number | SAR | FACILITY | all | none | What the customer paid up front at origination. |
 | `dpd` | DPD | integer | days | FACILITY | all | none | Days past due at this month-end, derived from the oldest unpaid due date. |
-| `ead_base_sar` | EAD base SAR | number | SAR | FACILITY | all | none | EAD base SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ead_downturn_sar` | EAD downturn SAR | number | SAR | FACILITY | all | none | EAD downturn SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ead_upturn_sar` | EAD upturn SAR | number | SAR | FACILITY | all | none | EAD upturn SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `ead_base_sar` | EAD base SAR | number | SAR | FACILITY | all | none | Exposure at default under the base scenario: drawn balance plus the converted share of the undrawn limit. The exposure ECL is computed on, and the one an exposure-weighted average must weight by. |
+| `ead_downturn_sar` | EAD downturn SAR | number | SAR | FACILITY | all | none | Exposure at default under the downturn scenario. |
+| `ead_upturn_sar` | EAD upturn SAR | number | SAR | FACILITY | all | none | Exposure at default under the upturn scenario. |
 | `ecl_base_sar` | ECL base SAR | number | SAR | FACILITY | all | sum within one snapshot only | Expected credit loss under the base scenario. |
-| `ecl_contractual_remaining_months` | ECL contractual remaining months | integer | months | FACILITY | all | none | ECL contractual remaining months. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `ecl_contractual_remaining_months` | ECL contractual remaining months | integer | months | FACILITY | all | none | Months to contractual maturity. Where this and the expected life differ, the behavioural assumption is doing the work. |
 | `ecl_downturn_sar` | ECL downturn SAR | number | SAR | FACILITY | all | sum within one snapshot only | Expected credit loss under the downturn scenario. |
-| `ecl_drawn_balance_sar` | ECL drawn balance SAR | number | SAR | FACILITY | all | none | ECL drawn balance SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ecl_expected_life_months` | ECL expected life months | integer | months | FACILITY | all | none | ECL expected life months. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `ecl_drawn_balance_sar` | ECL drawn balance SAR | number | SAR | FACILITY | all | none | The drawn balance the ECL calculation started from. |
+| `ecl_expected_life_months` | ECL expected life months | integer | months | FACILITY | all | none | The life the lifetime ECL was computed over. On a revolving facility this is a behavioural estimate, not the contractual term. |
 | `ecl_final_sar` | ECL final SAR | number | SAR | FACILITY | all | sum within one snapshot only | Weighted ECL plus overlay. The loss allowance carried for this facility. |
-| `ecl_remaining_life_months` | ECL remaining life months | integer | months | FACILITY | all | none | ECL remaining life months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `ecl_undrawn_commitment_sar` | ECL undrawn commitment SAR | number | SAR | FACILITY | all | none | ECL undrawn commitment SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `ecl_remaining_life_months` | ECL remaining life months | integer | months | FACILITY | all | none | Months of expected life remaining at this month-end. |
+| `ecl_undrawn_commitment_sar` | ECL undrawn commitment SAR | number | SAR | FACILITY | all | none | The undrawn limit the credit conversion factor was applied to. |
 | `ecl_upturn_sar` | ECL upturn SAR | number | SAR | FACILITY | all | sum within one snapshot only | Expected credit loss under the upturn scenario. |
 | `ecl_weighted_sar` | ECL weighted SAR | number | SAR | FACILITY | all | sum within one snapshot only | Probability-weighted ECL across the three scenarios. |
-| `employment_tenure_months` | Employment tenure months | integer | months | FACILITY | all | none | Employment tenure months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `external_obligations_change_3m_sar` | External obligations change 3m SAR | number | SAR | FACILITY | all | none | External obligations change 3m SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `employment_tenure_months` | Employment tenure months | integer | months | FACILITY | all | none | Whole months in current employment at this month-end. A CUSTOMER attribute repeated on every facility they hold. |
+| `external_obligations_change_3m_sar` | External obligations change 3m SAR | number | SAR | FACILITY | all | none | Change in monthly obligations to other lenders over three months. Positive means the customer has taken on borrowing elsewhere — the earliest visible sign of stress this book carries. |
 | `gross_carrying_amount_sar` | Gross carrying amount SAR | number | SAR | FACILITY | all | sum within one snapshot only | Outstanding principal plus accrued profit. The exposure the loss allowance is measured against. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `household_expenses_sar` | Household expenses SAR | number | SAR | FACILITY | all | none | Household expenses SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `household_expenses_sar` | Household expenses SAR | number | SAR | FACILITY | all | none | The monthly household expense figure used in the affordability test at this month-end — the larger of what the customer declared and the policy floor for their dependants band. |
 | `management_overlay_sar` | Management overlay SAR | number | SAR | FACILITY | all | sum within one snapshot only | Overlay applied on top of the modelled result. Kept separate and visible. |
-| `monthly_external_credit_obligations_sar` | Monthly external credit obligations SAR | number | SAR | FACILITY | all | none | Monthly external credit obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `monthly_own_bank_credit_obligations_sar` | Monthly own bank credit obligations SAR | number | SAR | FACILITY | all | none | Monthly own bank credit obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `max_dpd_12m` | Max DPD 12m | number | days | FACILITY | all | none | The worst days past due reached in the last twelve months. |
+| `max_dpd_3m` | Max DPD 3m | number | days | FACILITY | all | none | The worst days past due reached in the last three months. A facility can be current today and have been 60 days down in May. |
+| `max_dpd_6m` | Max DPD 6m | number | days | FACILITY | all | none | The worst days past due reached in the last six months. |
+| `monthly_external_credit_obligations_sar` | Monthly external credit obligations SAR | number | SAR | FACILITY | all | none | Monthly instalments owed to OTHER lenders, from the bureau. A CUSTOMER level, repeated on each facility. |
+| `monthly_own_bank_credit_obligations_sar` | Monthly own bank credit obligations SAR | number | SAR | FACILITY | all | none | Monthly instalments owed to THIS bank across all of the customer's facilities, at this month-end. A CUSTOMER level. |
 | `monthly_total_credit_obligations_sar` | Monthly total credit obligations SAR | number | SAR/month | CUSTOMER | all | one value per customer | Own-bank obligations, including this facility's instalment exactly once, plus verified external obligations. |
 | `months_on_book` | Months on book | integer | months | FACILITY | all | none | Whole months from origination to this snapshot. Increases by exactly one per month. |
-| `observed_followup_months` | Observed followup months | integer | months | FACILITY | all | none | Observed followup months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `original_credit_limit_sar` | Original credit limit SAR | number | SAR | FACILITY | all | none | Original credit limit SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `original_finance_amount_sar` | Original finance amount SAR | number | SAR | FACILITY | all | none | Original finance amount SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `original_tenor_months` | Original tenor months | integer | months | FACILITY | all | none | Original tenor months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_customer_tenure_months` | Origination customer tenure months | integer | months | FACILITY | all | none | Origination customer tenure months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_disposable_income_sar` | Origination disposable income SAR | number | SAR | FACILITY | all | none | Origination disposable income SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_employment_tenure_months` | Origination employment tenure months | integer | months | FACILITY | all | none | Origination employment tenure months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_external_obligations_sar` | Origination external obligations SAR | number | SAR | FACILITY | all | none | Origination external obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_household_expenses_sar` | Origination household expenses SAR | number | SAR | FACILITY | all | none | Origination household expenses SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_income_sar` | Origination income SAR | number | SAR | FACILITY | all | none | Origination income SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_own_bank_obligations_sar` | Origination own bank obligations SAR | number | SAR | FACILITY | all | none | Origination own bank obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_salary_sar` | Origination salary SAR | number | SAR | FACILITY | all | none | Origination salary SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `origination_total_obligations_sar` | Origination total obligations SAR | number | SAR | FACILITY | all | none | Origination total obligations SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `months_to_balloon` | Months to balloon | number | months | FACILITY | all | none | Months from this month-end until the balloon falls due. The months before it are the months to find the money in. |
+| `observed_followup_months` | Observed followup months | integer | months | FACILITY | all | none | How many months of the window have actually elapsed. Below the window length the cohort is immature. |
+| `original_credit_limit_sar` | Original credit limit SAR | number | SAR | FACILITY | all | none | The credit limit set at origination. On a card this is what the customer may draw; on an instalment facility it equals the amount financed. |
+| `original_finance_amount_sar` | Original finance amount SAR | number | SAR | FACILITY | all | none | The amount financed at origination. Fixed for the life of the facility; it does not move as the balance amortises. |
+| `original_tenor_months` | Original tenor months | number | months | FACILITY | all | none | The contractual term in months at origination. |
+| `origination_bureau_external_dpd_max` | Origination bureau external DPD max | number | days | FACILITY | all | none | Worst days past due with any other lender, at origination. |
+| `origination_customer_tenure_months` | Origination customer tenure months | integer | months | FACILITY | all | none | Months of relationship with the bank at origination. Zero for a new-to-bank customer. |
+| `origination_disposable_income_sar` | Origination disposable income SAR | number | SAR | FACILITY | all | none | Income less expenses and obligations at origination — the affordability buffer as it was underwritten. |
+| `origination_employment_tenure_months` | Origination employment tenure months | integer | months | FACILITY | all | none | Months in employment at origination. Frozen. |
+| `origination_external_obligations_sar` | Origination external obligations SAR | number | SAR | FACILITY | all | none | Monthly obligations to other lenders at origination. Frozen. |
+| `origination_household_expenses_sar` | Origination household expenses SAR | number | SAR | FACILITY | all | none | The household expense figure used in the affordability test at origination. Frozen. |
+| `origination_income_sar` | Origination income SAR | number | SAR | FACILITY | all | none | Verified monthly income AT ORIGINATION. Frozen: it is what was underwritten, and comparing it with income now is how income drift is measured. |
+| `origination_own_bank_obligations_sar` | Origination own bank obligations SAR | number | SAR | FACILITY | all | none | Monthly obligations to this bank at origination. Frozen. |
+| `origination_salary_sar` | Origination salary SAR | number | SAR | FACILITY | all | none | Verified monthly salary at origination. Frozen. |
+| `origination_total_obligations_sar` | Origination total obligations SAR | number | SAR | FACILITY | all | none | All monthly credit obligations at origination. Frozen. |
 | `outstanding_principal_sar` | Outstanding principal SAR | number | SAR | FACILITY | all | sum within one snapshot only | Principal outstanding at this month-end, before accrued profit. A month-end LEVEL: summing it across months does not give a portfolio total. |
 | `overdue_amount_sar` | Overdue amount SAR | number | SAR | FACILITY | all | sum within one snapshot only | Amounts contractually due and unpaid at this month-end. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `performance_window_months` | Performance window months | integer | months | FACILITY | all | none | Performance window months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `recovery_delay_months` | Recovery delay months | integer | months | FACILITY | all | none | Recovery delay months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `remaining_contractual_tenor_months` | Remaining contractual tenor months | integer | months | FACILITY | all | none | Remaining contractual tenor months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_credit_amount_1m_sar` | Salary credit amount 1m SAR | number | SAR | FACILITY | all | none | Salary credit amount 1m SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_credit_average_3m_sar` | Salary credit average 3m SAR | number | SAR | FACILITY | all | none | Salary credit average 3m SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_credit_average_6m_sar` | Salary credit average 6m SAR | number | SAR | FACILITY | all | none | Salary credit average 6m SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `salary_delay_days` | Salary delay days | integer | days | FACILITY | all | none | Salary delay days. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `scheduled_monthly_payment_sar` | Scheduled monthly payment SAR | number | SAR | FACILITY | all | none | Scheduled monthly payment SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `performance_window_months` | Performance window months | integer | months | FACILITY | all | none | How long the performance window is — twelve months here. |
+| `previous_month_dpd` | Previous month DPD | number | days | FACILITY | all | none | Days past due at the PREVIOUS month-end. Held on the row so a movement can be read without joining the book to itself. |
+| `recovery_delay_months` | Recovery delay months | number | months | FACILITY | all | none | How long recoveries take to arrive. The delay is why a nominal recovery rate and a discounted one differ. |
+| `remaining_contractual_tenor_months` | Remaining contractual tenor months | number | months | FACILITY | all | none | Months from this month-end to contractual maturity. |
+| `salary_credit_average_3m_sar` | Salary credit average 3m SAR | number | SAR | FACILITY | all | none | Average monthly salary credit over three months, to this month-end. |
+| `salary_credit_average_6m_sar` | Salary credit average 6m SAR | number | SAR | FACILITY | all | none | Average monthly salary credit over six months, to this month-end. |
+| `salary_delay_days` | Salary delay days | integer | days | FACILITY | all | none | Days between when the salary was expected and when it arrived. Zero where it arrived on time. |
+| `scheduled_monthly_payment_sar` | Scheduled monthly payment SAR | number | SAR | FACILITY | all | none | The instalment contractually due each month at this month-end. |
 | `undrawn_commitment_sar` | Undrawn commitment SAR | number | SAR | FACILITY | all | sum within one snapshot only | Limit not drawn at this month-end. Card only. A month-end LEVEL: summing it across months does not give a portfolio total. |
-| `vehicle_age_months` | Vehicle age months | integer | months | FACILITY | all | none | Vehicle age months. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `verified_monthly_salary_sar` | Verified monthly salary SAR | number | SAR | FACILITY | all | none | Verified monthly salary SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
-| `verified_other_monthly_income_sar` | Verified other monthly income SAR | number | SAR | FACILITY | all | none | Verified other monthly income SAR. See docs/RETAIL_DATA_DICTIONARY.md. |
+| `vehicle_age_months` | Vehicle age months | number | months | FACILITY | all | none | The vehicle's age in months at this month-end. |
+| `verified_monthly_salary_sar` | Verified monthly salary SAR | number | SAR | FACILITY | all | none | Monthly salary the bank has verified, at this month-end. A CUSTOMER level: summing it across a customer's facilities counts one person's income several times over. |
+| `verified_other_monthly_income_sar` | Verified other monthly income SAR | number | SAR | FACILITY | all | none | Verified monthly income other than salary — rent, pension, a second trade. A CUSTOMER level, repeated on each facility. |
 | `verified_total_monthly_income_sar` | Verified total monthly income SAR | number | SAR/month | CUSTOMER | all | one value per customer; never multiplied by facility count | Verified monthly salary plus verified other income. A CUSTOMER property repeated on each of their facilities: summing it over facility rows counts one income several times. |

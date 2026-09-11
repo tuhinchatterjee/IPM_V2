@@ -38,7 +38,16 @@ export default function AnalysisBuilderPage() {
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [category, setCategory] = React.useState("monitor");
-  const [dataset, setDataset] = React.useState("portfolio_facility");
+  // Empty until the catalogue answers, then the first dataset this
+  // installation actually holds. It was hard-coded to the CORPORATE book, so
+  // on a retail installation the form opened pre-filled with the name of a
+  // dataset that does not exist here, and an engine built on the default
+  // could not resolve its own source.
+  const [dataset, setDataset] = React.useState("");
+  const firstDataset = catalog.data?.datasets?.[0]?.name ?? "";
+  React.useEffect(() => {
+    if (!dataset && firstDataset) setDataset(firstDataset);
+  }, [dataset, firstDataset]);
   const [fields, setFields] = React.useState("");
   const [boundFunction, setBoundFunction] = React.useState("");
   const [visualisation, setVisualisation] = React.useState("table");

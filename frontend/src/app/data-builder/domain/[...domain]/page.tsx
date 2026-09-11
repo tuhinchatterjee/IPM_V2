@@ -158,7 +158,11 @@ export default function DomainPage({
         onChange={setTab}
         tabs={[
           { id: "overview", label: "Overview" },
-          { id: "datasets", label: "Datasets", count: owned.length + catalogued.length },
+          // De-duplicated, because a bundled dataset registered in Data
+          // Builder is in BOTH lists and is one dataset. The badge read
+          // "Datasets 2" on a domain holding one, beside a header, an
+          // overview and a table that all said one.
+          { id: "datasets", label: "Datasets", count: overview.length },
           { id: "dictionary", label: "Dictionary", count: dictionaryRows.length },
           { id: "relationships", label: "Relationships", count: domainRelationships.length },
           { id: "quality", label: "Quality" },
@@ -292,7 +296,7 @@ export default function DomainPage({
           {domainRelationships.length === 0 ? (
             <EmptyState
               title="No relationships defined"
-              description="A relationship records a governed join, for example portfolio_facility.account_id to an ECL extract's account_id. Define one in the Add Dataset workflow."
+              description="A relationship records a governed join — one dataset's key to another's, so a question can cross both. Define one in the Add Dataset workflow."
               className="border-0"
             />
           ) : (
@@ -357,8 +361,8 @@ export default function DomainPage({
         <Card>
           {versions.length === 0 ? (
             <EmptyState
-              title="Nothing published from this domain yet"
-              description="Publishing a dataset records an immutable version with its row counts, periods and quality report."
+              title="No version history recorded in this domain"
+              description="A version is recorded when a dataset is published THROUGH Data Builder. A bundled dataset arrives already published and carries its row counts and periods on its manifest instead — which is why a domain can hold a published dataset and no version row."
               className="border-0"
             />
           ) : (
