@@ -486,3 +486,110 @@ with the same three conditions as before, unchanged:
 
 None of the three blocks a rehearsal. The first two are outside this work,
 and the third is in the runbook.
+
+---
+
+# Addendum B — the second UAT round
+
+The first remediation changed the shape of the product. This one fixes the
+thing that made the new shape untrustworthy: the screen and the stored plan
+disagreeing.
+
+## B1. What was reported, and what it actually was
+
+> After entering Sponsor, Manager, Owner, Escalation Contact, Start Date and
+> Target Completion Date, the panel still says the project has no sponsor, no
+> manager, nobody to escalate to, no start date and no target completion date.
+
+The completeness engine was not wrong. It was given the wrong plan.
+
+`get_db` committed in a `yield` dependency's teardown. FastAPI closes the
+request's exit stack in `AsyncExitStackMiddleware`, which wraps the call that
+*sends* the response, so the commit landed after the browser had been told
+the save succeeded. The creation form saves a step and immediately re-reads
+the draft; served its own pre-save plan, every panel computed from that read
+described a project without a sponsor.
+
+Reproduced before anything was changed, over real HTTP against the running
+application: two stale reads in twenty, and a `No draft <key>.` for a draft
+created a moment earlier. It never appeared in the test suite because
+`TestClient` runs one request at a time and the teardown always won.
+
+Fixed by committing inside the request, in a route class, before the response
+is handed back to be sent. Two tests pin the invariant rather than the
+mechanism, and both fail against the old behaviour. Afterwards: 200
+write-then-read pairs over real HTTP, zero stale.
+
+## B2. The other two complaints
+
+**Several Save buttons.** There were five things claiming to save: Save
+draft, Save milestone, Save task, and the implicit save behind Next on two
+steps. Every field now saves itself about a second after the last keystroke,
+one line says Saved / Saving… / Save failed, and there is no section-level
+Save anywhere.
+
+**The box on the left was not useful.** It is a Project Setup Assistant now:
+what is settled, what is missing, which dates contradict each other, the next
+recommended step, the quick actions for the step you are on. Nothing can be
+typed into it. Every line that names a field is a button that lands on that
+field, focused.
+
+Around them: a progress bar over the eight sections, derived from the draft
+and collapsing each finished section to the line it came to; Custom agentic
+mode opening all fifteen thresholds the monitoring engine reads; and a
+Publish that says "Publish unavailable — 3 required items remain." with each
+of the three a button.
+
+## B3. Seven further defects, each found by driving the application
+
+| # | Defect | Found by |
+|---|---|---|
+| 1 | The read-after-write race above | reproducing the report over real HTTP |
+| 2 | A project code could not be cleared — the box emptied, the draft kept the old value | the state journey, S2 |
+| 3 | Setting any field moved the stored step, so reopening a plan opened it past your place | the state journey, S7 |
+| 4 | Reloading `/delivery/new` lost the way back to the draft | the state journey, S7 |
+| 5 | A payload field nobody read was silently dropped | reading `_cmd_governance` while writing the field-by-field test |
+| 6 | Next, and every entry in the progress bar, did nothing while the name was empty — and said nothing | the button audit, once it reached the form |
+| 7 | The draft list was unbounded | the button audit finding 159 Discard buttons |
+
+And two test leaks that had been failing unrelated suites: the planner tests
+left every draft they created behind, and the Data Builder tests left a
+"Test Domain" row that made the governed catalogue advertise eight business
+domains where seven are real.
+
+## B4. What was run, on images built from this HEAD
+
+All four containers healthy. The demonstration portfolio reset first, as the
+runbook requires.
+
+| What | Result |
+|---|---|
+| `creation_state_journey.py` | 78 passed, 0 failed |
+| `uat_creation_journey.py` | 77 passed, 0 failed |
+| `planner_journeys.py` | 43 passed, 0 failed |
+| `planner_button_audit.py` | 0 dead |
+| `copilot_adversarial.py` | 14 passed, 0 failed |
+| `agentic_demo_scenario.py` | 19 passed, 0 failed |
+| `pytest tests` | see below |
+| `ruff`, `eslint`, `tsc`, `next build` | clean |
+
+## B5. The one failure left, and why it is not this work
+
+`test_messaging_corrections…[role]` — searching the messaging directory by
+role does not reach a particular account. `collaboration.directory` returns
+an unordered slice of the matches, and this database holds 7,919 accounts
+with the ANALYST role, nearly all of them test fixtures accumulated over its
+life. It is a real limitation of a module outside the Planner, it was failing
+before this work, and it is unchanged by it.
+
+## B6. Recommendation
+
+The twenty gates of section V pass, on images built from this HEAD, with the
+reported failure reproduced first and fixed at its cause rather than at its
+symptom.
+
+**READY FOR INTEGRATION REHEARSAL**
+
+with the same conditions as before — live AI unverified without a provider
+key, the messaging-directory limit unfixed in the module that owns it, and
+the demonstration state to be reset before it is shown.
