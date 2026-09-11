@@ -116,3 +116,22 @@ export function progressWidth(percent: number): number {
   if (!Number.isFinite(percent)) return 0;
   return Math.max(0, Math.min(100, Math.round(percent)));
 }
+
+/**
+ * The list of days somebody typed into a reminder-threshold box.
+ *
+ * A person writes "10, 5, 2, 1" — with whatever spacing they like, and
+ * with a trailing comma half the time because they were still thinking.
+ * Anything that is not a number, and any negative day, is dropped rather
+ * than stored: "remind me minus three days after the date" has no meaning.
+ * An empty result means the box says nothing usable, which the caller has
+ * to refuse rather than save as "never remind anybody".
+ */
+export function readDays(typed: string): number[] {
+  return typed
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map(Number)
+    .filter((day) => Number.isFinite(day) && day >= 0);
+}

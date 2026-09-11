@@ -6,6 +6,7 @@ import {
   dueLabel,
   healthTone,
   progressWidth,
+  readDays,
   when,
 } from "../planner-format.ts";
 
@@ -94,4 +95,37 @@ test("a progress bar cannot overflow its track", () => {
   assert.equal(progressWidth(140), 100);
   assert.equal(progressWidth(33.4), 33);
   assert.equal(progressWidth(Number.NaN), 0);
+});
+
+test("readDays reads a list of days the way a person writes it", () => {
+  assert.deepEqual(readDays("10, 5, 2, 1"), [10, 5, 2, 1]);
+  assert.deepEqual(readDays("10,5,2,1"), [10, 5, 2, 1]);
+  assert.deepEqual(readDays("  10 ,  5  "), [10, 5]);
+});
+
+test("readDays survives the comma left behind while still thinking", () => {
+  assert.deepEqual(readDays("10, 5,"), [10, 5]);
+  assert.deepEqual(readDays(",7,"), [7]);
+});
+
+test("readDays keeps 0 — the day the date itself falls on", () => {
+  assert.deepEqual(readDays("7, 3, 1, 0"), [7, 3, 1, 0]);
+});
+
+test("readDays drops what is not a number of days", () => {
+  assert.deepEqual(readDays("10, soon, 2"), [10, 2]);
+  assert.deepEqual(readDays("10, -3, 2"), [10, 2]);
+});
+
+test("readDays says nothing usable rather than 'never remind anybody'", () => {
+  // The caller has to refuse an empty list. Saving it would silently turn
+  // a typo into a policy of never chasing anyone, which is the one outcome
+  // nobody would have chosen on purpose.
+  assert.deepEqual(readDays(""), []);
+  assert.deepEqual(readDays("   "), []);
+  assert.deepEqual(readDays("whenever"), []);
+});
+
+test("readDays does not reorder what was typed", () => {
+  assert.deepEqual(readDays("1, 5, 3"), [1, 5, 3]);
 });

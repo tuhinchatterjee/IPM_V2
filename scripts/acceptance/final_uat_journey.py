@@ -436,24 +436,45 @@ def _journey(report: Report, page: Any, client: Any, *, who: str, name: str,
 
 
 def _custom_policy(report: Report, page: Any, client: Any, key: str) -> None:
-    """Type real numbers into the Custom policy and prove they are stored."""
-    wanted = {"Remind before due": "10, 5, 2, 1",
-              "Stale after": "4",
-              "Chase overdue every": "1",
-              "Escalate after": "2"}
+    """Type §28's thresholds into the Custom policy and prove they are stored.
+
+    Each field is found by the label the product shows, and each value is
+    read back out of the stored policy document afterwards. A policy panel
+    that accepts a number and stores the Standard default is the worst of
+    the four answers: the screen says the policy is yours and the agent
+    behaves as though it is not.
+    """
+    wanted = {
+        "reminder_days": ("Remind the owner this many days before the date",
+                          "10, 5, 2, 1", [10, 5, 2, 1]),
+        "stale_after_days": ("Call a task stale after this many days without",
+                             "3", 3),
+        "overdue_every_days": ("Once a date has passed, chase the owner every",
+                               "1", 1),
+        "escalate_after_days": ("Escalate an overdue task after this many days",
+                                "1", 1),
+        "notify_sponsor_after_days": (
+            "Tell the sponsor when a delay is unresolved after this long",
+            "4", 4),
+    }
     typed = 0
-    for label, value in wanted.items():
-        box = page.get_by_label(re.compile(label, re.I))
-        if box.count():
-            box.first.fill(value)
-            typed += 1
-            page.wait_for_timeout(250)
+    for _field, (label, text, _expected) in wanted.items():
+        box = page.get_by_label(re.compile(re.escape(label), re.I))
+        if box.count() == 0:
+            continue
+        box.first.fill(text)
+        box.first.blur()
+        typed += 1
+        page.wait_for_timeout(700)
     page.wait_for_timeout(2200)
-    report.check("the Custom policy accepted the values typed into it",
-                 typed > 0, f"{typed} field(s) set")
+    report.check("every Custom threshold §28 asks for is on the screen",
+                 typed == len(wanted), f"{typed} of {len(wanted)} filled")
+
     stored = draft(client, key)["plan"]["agentic"].get("policy", {})
-    report.check("the Custom values reached the stored policy",
-                 bool(stored), json.dumps(stored)[:240])
+    for field, (_label, _text, expected) in wanted.items():
+        report.check(f"the Custom value for {field} is what was typed",
+                     stored.get(field) == expected,
+                     f"stored {stored.get(field)!r}, typed {expected!r}")
 
 
 def _pick(page: Any, label: str, code: str) -> bool:

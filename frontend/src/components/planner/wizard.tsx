@@ -16,6 +16,7 @@ import {
   type DraftPreview,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { readDays } from "@/lib/planner-format";
 import { cn } from "@/lib/utils";
 
 import { anchorId, focusField, SetupAssistant, SetupProgress }
@@ -480,13 +481,14 @@ function PersonSelect({
       {/*
         A truncated list that does not say it is truncated is how somebody
         concludes a colleague has no account and gives up on the form. The
-        server sends the count behind the page; the picker says it.
+        server sends the count behind the page; the picker says it — in as
+        few words as will fit, because this sits in a narrow column beside
+        the field and a three-line paragraph pushes the form around.
       */}
       {found.data?.has_more ? (
         <p className="mt-1 text-[11px] text-text-tertiary">
-          Showing {found.data.people.length} of {found.data.total} matches
-          {query ? "" : " in the directory"} — type more of the name,
-          username or email to narrow it.
+          {found.data.people.length} of{" "}
+          {found.data.total.toLocaleString()} — type a name to narrow it.
         </p>
       ) : null}
     </>
@@ -870,7 +872,12 @@ function CustomPolicy({
   const stored = (detail.plan.agentic?.policy ?? {}) as Row;
   const settings = detail.agentic_settings ?? [];
   const [error, setError] = React.useState("");
-  const [saying, setSaying] = React.useState("");
+  // What somebody is part-way through typing into a list-of-days box.
+  // The stored policy is a list of numbers, so "10, 5, 2," is not yet a
+  // value the policy can hold — but it IS what the person can see, and a
+  // box that silently throws away every keystroke until the list parses
+  // cannot be typed into at all.
+  const [typing, setTyping] = React.useState<Record<string, string>>({});
   const [draft, setDraft] = React.useState<Row>(() => {
     const start: Row = {};
     for (const setting of settings) {
@@ -885,9 +892,7 @@ function CustomPolicy({
     const ok = await apply("set_agentic", { mode: "CUSTOM", policy: next });
     if (!ok) {
       setError("Those thresholds were refused. The message above says why.");
-      return;
     }
-    setSaying("");
   }, [apply]);
 
   const change = (setting: AgenticSetting, raw: unknown) => {
@@ -937,21 +942,40 @@ function CustomPolicy({
             );
           }
           if (setting.kind === "days_list") {
+            const shown = setting.key in typing
+              ? typing[setting.key]
+              : Array.isArray(held) ? held.join(", ") : "";
+            const settle = (raw: string) => {
+              setTyping((was) => {
+                const next = { ...was };
+                delete next[setting.key];
+                return next;
+              });
+              const days = readDays(raw);
+              if (days.length === 0) {
+                setError("Give at least one number of days, "
+                         + "separated by commas.");
+                return;
+              }
+              change(setting, days);
+            };
             return (
               <Field key={setting.key} label={setting.label}
                      hint={setting.help}>
                 <Input
-                  value={Array.isArray(held) ? held.join(", ") : ""}
+                  value={shown}
                   aria-label={setting.label}
                   placeholder="7, 3, 1, 0"
                   disabled={busy}
-                  onChange={(e) => setSaying(e.target.value)}
-                  onBlur={(e) => change(setting, e.target.value
-                    .split(",")
-                    .map((part) => part.trim())
-                    .filter(Boolean)
-                    .map(Number)
-                    .filter((day) => Number.isFinite(day)))}
+                  onChange={(e) => setTyping(
+                    (was) => ({ ...was, [setting.key]: e.target.value }))}
+                  onBlur={(e) => settle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      settle(e.currentTarget.value);
+                    }
+                  }}
                 />
               </Field>
             );
@@ -990,9 +1014,9 @@ function CustomPolicy({
           );
         })}
       </div>
-      {saying && (
+      {Object.keys(typing).length > 0 && (
         <p className="mt-2 text-[11px] text-text-muted">
-          Reminder days are saved when you leave the box.
+          Reminder days are saved when you leave the box, or press Enter.
         </p>
       )}
       <p className="mt-3 rounded-md border border-border bg-surface-sunken px-3 py-2 text-xs text-text-secondary">
