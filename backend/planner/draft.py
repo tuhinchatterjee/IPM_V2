@@ -1450,15 +1450,14 @@ def people_named(session: Any, plan: dict[str, Any]) -> list[dict[str, Any]]:
     wanted = _people(plan)
     if not wanted:
         return []
-    from backend.db.models import User
+    # The same by-id lookup the pickers and the agent use, in the same
+    # projection. A second query here would be a second place for the shape
+    # of a person to drift, and the form and the escalation would then be
+    # describing the same colleague differently.
+    from backend.services import people as directory
 
-    rows = session.execute(select(User).where(User.id.in_(wanted))).scalars()
-    return [{"user_id": int(row.id),
-             "name": " ".join(p for p in (row.first_name, row.last_name) if p)
-                     or row.username,
-             "username": row.username,
-             "role": row.role}
-            for row in rows]
+    found = directory.by_ids(session, wanted, projection=directory.CONTACT)
+    return [found[user_id] for user_id in sorted(found)]
 
 
 def to_dict(draft: PlannerDraft) -> dict[str, Any]:

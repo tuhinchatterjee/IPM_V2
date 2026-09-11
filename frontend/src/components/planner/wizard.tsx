@@ -477,6 +477,18 @@ function PersonSelect({
           </option>
         ))}
       </select>
+      {/*
+        A truncated list that does not say it is truncated is how somebody
+        concludes a colleague has no account and gives up on the form. The
+        server sends the count behind the page; the picker says it.
+      */}
+      {found.data?.has_more ? (
+        <p className="mt-1 text-[11px] text-text-tertiary">
+          Showing {found.data.people.length} of {found.data.total} matches
+          {query ? "" : " in the directory"} — type more of the name,
+          username or email to narrow it.
+        </p>
+      ) : null}
     </>
   );
 }

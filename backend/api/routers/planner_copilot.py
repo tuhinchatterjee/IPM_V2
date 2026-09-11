@@ -312,14 +312,19 @@ def code_available(code: str = Query(max_length=40),
 
 @router.get("/people", summary="Colleagues who can be named on a plan")
 def people(search: str = Query(default="", max_length=120),
-           # The governance step needs the WHOLE directory in one select,
-           # not a page of it: a form where the sponsor you want is missing
-           # because they were the fifty-first name is a form nobody can
-           # finish. 50 was a chat-completion limit, and this is not chat.
+           # A page, and an honest count of what is behind it. The governance
+           # step has to be able to reach ANYBODY: on an installation with
+           # eight thousand accounts a form where the sponsor you want is
+           # missing because they were the five-hundred-and-first name is a
+           # form nobody can finish. So the answer carries `total` and
+           # `has_more`, and `offset` walks the rest of it in the same total
+           # order the service ranks by.
            limit: int = Query(default=20, ge=1, le=500),
+           offset: int = Query(default=0, ge=0),
            session: Session = Depends(get_db),
            principal: Principal = RequireAnalyst) -> dict:
-    return copilot.people(session, principal, search=search, limit=limit)
+    return copilot.people(session, principal, search=search, limit=limit,
+                          offset=offset)
 
 
 # ==================================================================== chat

@@ -160,20 +160,27 @@ class Message:
         """Where this opens, as a URL a person can paste. §20's direct link."""
         return f"/delivery/{self.project_id}"
 
-    def footer(self, owner_name: str) -> str:
+    def footer(self, owner_name: str, to_name: str = "") -> str:
         """The facts, under the sentence, in a fixed order.
 
         Fixed so that somebody reading their twentieth message this month
         does not have to re-read it to find the due date.
+
+        `to_name` is the person this rung reached, resolved by id. The rung
+        on its own ("the project's escalation contact") tells the reader how
+        far the message travelled but not whose desk it stopped on, and a
+        forwarded escalation with no name on it is one somebody else assumes
+        is being handled.
         """
+        rung = _LADDER_SAID.get(self.level, self.level)
         lines = [
             f"Project: {self.project_name} ({self.project_code})"
             if self.project_name else f"Project: {self.project_code}",
             f"Item: {self.entity_code}" if self.entity_code else "",
             f"Owner: {owner_name}" if owner_name else "",
             f"Due: {self.due}" if self.due else "",
-            f"Escalation: {_LADDER_SAID.get(self.level, self.level)}"
-            if self.level else "",
+            (f"Escalation: {to_name} ({rung})" if to_name
+             else f"Escalation: {rung}") if self.level else "",
             f"Open: {self.path}",
         ]
         return "\n".join(line for line in lines if line)
@@ -617,13 +624,19 @@ def sweep(session: Any, *, today: date | None = None,
 
 
 def _names(session: Any, user_ids: set[int]) -> dict[int, str]:
-    """Display names for the owners a sweep is about to mention."""
-    if not user_ids:
-        return {}
-    from backend.db.models import User
-    rows = session.execute(select(User).where(User.id.in_(user_ids))).scalars()
-    return {int(u.id): (f"{u.first_name} {u.last_name}".strip() or u.username)
-            for u in rows}
+    """Display names for the owners a sweep is about to mention.
+
+    By id, through the one lookup that never pages and never guesses. An
+    escalation has already decided whose desk it belongs on; resolving that
+    person by searching for their name is how a message reaches the wrong
+    one, or none, on an installation with enough people for two of them to
+    share a name.
+    """
+    from backend.services import people as directory
+
+    return {user_id: row["name"] for user_id, row
+            in directory.by_ids(session, user_ids,
+                                projection=directory.CONTACT).items()}
 
 
 def _stamp(messages: list[Message], project: Any, plan: control.Plan,
@@ -671,7 +684,10 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
     # One query for every owner named across the whole sweep, not one per
     # message: a nightly run over a large estate would otherwise be thousands
     # of single-row lookups for a name that repeats.
-    names = _names(session, {m.owner_id for m in pending if m.owner_id})
+    # The recipients of escalations are resolved in the same breath, by id:
+    # the footer names whose desk the message stopped on.
+    names = _names(session, {m.owner_id for m in pending if m.owner_id}
+                   | {m.user_id for m in pending if m.level})
 
     seen: set[str] = set()
     for message in pending:
@@ -682,7 +698,8 @@ def _deliver(session: Any, pending: list[Message], result: Sweep) -> None:
         body = message.body
         if message.action:
             body = f"{body}\n\n{message.action}"
-        body = f"{body}\n\n{message.footer(names.get(message.owner_id, ''))}"
+        body = (f"{body}\n\n"
+                f"{message.footer(names.get(message.owner_id, ''), names.get(message.user_id, ''))}")
         note = Notification(
             user_id=message.user_id, kind="planner",
             title=f"{message.project_code}: {message.title}",

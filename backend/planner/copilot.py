@@ -148,37 +148,39 @@ def catalogue() -> dict[str, Any]:
 
 
 def people(session: Any, principal: Any, *, search: str = "",
-           limit: int = 20) -> dict[str, Any]:
+           limit: int = 20, offset: int = 0) -> dict[str, Any]:
     """Colleagues who can be named as an owner, sponsor or escalation contact.
 
-    Names and roles only. The Copilot needs to turn "Omar" into a user id to
-    put him on a task; it has no business knowing anybody's email address, and
-    a lookup that returned one would make the assistant a directory scrape.
+    Names and roles only. The form turns "Omar" into a user id to put him on a
+    task; it has no business knowing anybody's email address, and a lookup
+    that returned one would make a picker a directory scrape.
+
+    The search itself is `services.people.search` — the same ranking, the same
+    total order and the same completeness the messaging directory uses. It
+    used to be its own query, ordered by first name and cut off at five
+    hundred rows with no count: on an installation with eight thousand
+    accounts that is a picker which silently does not contain the person you
+    are looking for, and a form you therefore cannot finish. The total and the
+    offset are returned so a caller can say so, and page.
     """
-    from sqlalchemy import or_, select
+    from backend.services import people as directory
 
-    from backend.db.models import User
+    page = directory.search(session, query=search, limit=limit, offset=offset,
+                            projection=directory.CONTACT)
+    return {"people": page.people, "total": page.total,
+            "limit": page.limit, "offset": page.offset,
+            "has_more": page.has_more}
 
-    query = select(User).where(User.is_active.is_(True))
-    text = str(search or "").strip()
-    if text:
-        like = f"%{text.lower()}%"
-        query = query.where(or_(
-            User.username.ilike(like), User.first_name.ilike(like),
-            User.last_name.ilike(like)))
-    rows = list(session.execute(
-        query.order_by(User.first_name, User.last_name)
-        # 500 rather than 50: this is what fills the governance selects on
-        # the creation form, and a form where the sponsor you want is missing
-        # because they were the fifty-first name is a form nobody can finish.
-        .limit(max(1, min(int(limit or 20), 500)))).scalars())
-    return {"people": [
-        {"user_id": int(row.id),
-         "name": " ".join(p for p in (row.first_name, row.last_name) if p)
-                 or row.username,
-         "username": row.username,
-         "role": row.role}
-        for row in rows]}
+
+def person(session: Any, principal: Any, user_id: Any) -> dict[str, Any]:
+    """One colleague by id — the path anything that already knows must take.
+
+    Exact, complete, and independent of any page. What the agent uses when it
+    is about to tell a named escalation contact that a task is late.
+    """
+    from backend.services import people as directory
+
+    return directory.by_id(session, user_id, projection=directory.CONTACT)
 
 
 #: Words that appear in sentences and never in a person's name. Skipped when

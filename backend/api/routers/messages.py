@@ -177,10 +177,45 @@ def counts(principal: Principal = RequireCommenter) -> dict:
 
 
 @router.get("/directory", summary="Who a message can be sent to")
-def directory(q: str = "", limit: int = 50,
+def directory(q: str = "", limit: int = 50, offset: int = 0,
+              role: str = "", team: str = "", department: str = "",
               principal: Principal = RequireCommenter) -> dict:
+    """One page of recipients, with the count and whether there is more.
+
+    `q` searches for a person and is ranked: an exact username, email or
+    whole name comes first. `role`, `team` and `department` filter a group,
+    which cannot be ranked — eight thousand analysts are all equally
+    analysts — so those are answered with a total and pages instead.
+
+    `total` and `has_more` are the part that was missing. A list that was
+    cut off and did not say so is how a sender concludes that a colleague has
+    no account.
+    """
     _me(principal)
-    return {"users": _run(collab.directory, query=q, limit=limit)}
+    page = _run(collab.directory_page, query=q, limit=limit, offset=offset,
+                role=role, team=team, department=department)
+    return {"users": page["people"], "total": page["total"],
+            "limit": page["limit"], "offset": page["offset"],
+            "has_more": page["has_more"]}
+
+
+@router.get("/directory/{identifier}", summary="One recipient, exactly")
+def directory_one(identifier: str,
+                  principal: Principal = RequireCommenter) -> dict:
+    """One account by id, username or email — or nothing.
+
+    What a caller that already knows who it means should ask. Nothing here
+    pages and nothing here guesses: a partial match that returned "the most
+    likely person" would address mail to somebody nobody named.
+    """
+    _me(principal)
+    found = _run(collab.recipient, identifier)
+    if not found:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "not_found",
+                    "message": f"No account matches {identifier!r}."})
+    return {"user": found}
 
 
 @router.get("", summary="One mailbox")

@@ -4716,9 +4716,22 @@ export const api = {
 
   // ---------------------------------------------------------------- messages
   messageCounts: () => request<MessageCounts>("/messages/counts"),
-  messageDirectory: (q = "", limit = 50) =>
-    request<{ users: Person[] }>(
-      `/messages/directory?q=${encodeURIComponent(q)}&limit=${limit}`,
+  /**
+   * A page of the people directory, and the count behind it.
+   *
+   * `q` is matched server-side against name, username, email, job title,
+   * role, team and department, ranked so an exact username or a whole name
+   * comes first. `total` and `has_more` are returned so a composer can say
+   * that it is showing fifty of eight thousand rather than implying that is
+   * everybody, and `offset` pages through the rest in the same order.
+   */
+  messageDirectory: (q = "", limit = 50, offset = 0) =>
+    request<{
+      users: Person[]; total: number;
+      limit: number; offset: number; has_more: boolean;
+    }>(
+      `/messages/directory?q=${encodeURIComponent(q)}` +
+      `&limit=${limit}&offset=${offset}`,
     ),
   mailbox: (
     box: Mailbox = "inbox",
@@ -7258,10 +7271,21 @@ export const api = {
       discard: (key: string) =>
         request<{ discarded: string }>(`/planner/copilot/drafts/${key}`,
           { method: "DELETE" }),
-      people: (search = "", limit = 20) =>
-        request<{ people: CopilotPerson[] }>(
+      /**
+       * A page of colleagues, and an honest count of the rest.
+       *
+       * `total` and `has_more` are part of the answer because a picker that
+       * silently shows the first fifty of eight thousand is how somebody
+       * concludes a colleague has no account. `offset` walks the remainder
+       * in the same order the server ranked them in.
+       */
+      people: (search = "", limit = 20, offset = 0) =>
+        request<{
+          people: CopilotPerson[]; total: number;
+          limit: number; offset: number; has_more: boolean;
+        }>(
           `/planner/copilot/people?search=${encodeURIComponent(search)}` +
-          `&limit=${limit}`),
+          `&limit=${limit}&offset=${offset}`),
       /** §7. Is this project code still free? Asked on step one, not at publish. */
       codeAvailable: (code: string) =>
         request<{ code: string; available: boolean; used_by: string }>(

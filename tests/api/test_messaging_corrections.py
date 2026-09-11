@@ -96,8 +96,16 @@ class TestTheDirectoryAnswersWithoutASearch:
         assert len(rows) > 0
         assert all(r["is_active"] for r in rows)
 
-    @pytest.mark.parametrize("field", ["first_name", "job_title", "team",
-                                       "role", "email", "username"])
+    #: Fields that NAME a person. One of these identifies an account, so the
+    #: ranking can put it first and one page is enough.
+    IDENTITY = ("first_name", "job_title", "email", "username")
+    #: Fields that describe a GROUP. "ANALYST" is eight thousand people on
+    #: this installation and nothing can make one of them more relevant than
+    #: another, so the answer is a total and pages — and "found" means
+    #: reachable, which is a stronger claim than "on the first page".
+    GROUPS = ("role", "team")
+
+    @pytest.mark.parametrize("field", [*IDENTITY, *GROUPS])
     def test_it_searches_every_field_a_sender_would_use(self, session, people,
                                                         field):
         from backend.db.models import User
@@ -106,10 +114,35 @@ class TestTheDirectoryAnswersWithoutASearch:
         who = session.get(User, people[1])
         term = str(getattr(who, field))
         assert term, f"the fixture needs a {field}"
-        found = collab.directory(session, query=term.upper(), limit=200)
-        assert any(r["id"] == who.id for r in found), (
-            f"searching {field}={term!r} did not find the account"
-        )
+
+        if field in self.IDENTITY:
+            found = collab.directory(session, query=term.upper(), limit=200)
+            assert any(r["id"] == who.id for r in found), (
+                f"searching {field}={term!r} did not find the account")
+            return
+
+        # A group. Walk it, and assert the two things that actually matter:
+        # the account is reachable, and the count the caller was given is the
+        # truth rather than the page size.
+        filters = {field if field != "role" else "role": term}
+        page = collab.directory_page(session, limit=1, **filters)
+        total, seen, offset, found = page["total"], set(), 0, False
+        assert total >= 1
+        while offset < total:
+            page = collab.directory_page(session, limit=500, offset=offset,
+                                         **filters)
+            if not page["people"]:
+                break
+            ids = [r["id"] for r in page["people"]]
+            assert not (set(ids) & seen), "a page repeated an account"
+            seen.update(ids)
+            found = found or who.id in set(ids)
+            offset += len(ids)
+        assert found, (
+            f"filtering {field}={term!r} did not reach the account in "
+            f"{total} matches")
+        assert len(seen) == total, (
+            f"the total said {total} and walking the pages found {len(seen)}")
 
     def test_it_finds_somebody_by_their_whole_name(self, session, people):
         """"Corr Sarah" is what a sender types. No column holds both words."""

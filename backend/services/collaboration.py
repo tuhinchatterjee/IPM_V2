@@ -51,7 +51,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import func, or_, select
 
 from backend.config import settings
 from backend.models.collaboration import (
@@ -259,58 +259,51 @@ def _people(session: Any, ids: set[int]) -> dict[int, dict[str, Any]]:
     return {r.id: _person(r) for r in rows}
 
 
-def _matches(User: Any, text: str) -> Any:
-    """One predicate for "find me this person", used by every people search.
-
-    Every field a sender might type, plus the two name columns joined.
-    Somebody looking for Alex Rahman types "Alex Rahman", and no single column
-    holds that: matching column by column found nothing, which made a
-    directory of twenty-one colleagues look like an empty institution. The
-    concatenation is what a person means by a name.
-    """
-    like = f"%{text.lower()}%"
-    return or_(
-        func.lower(User.first_name + " " + User.last_name).like(like),
-        func.lower(User.first_name).like(like),
-        func.lower(User.last_name).like(like),
-        func.lower(User.username).like(like),
-        func.lower(User.email).like(like),
-        func.lower(User.job_title).like(like),
-        func.lower(User.department).like(like),
-        func.lower(User.team).like(like),
-        func.lower(User.role).like(like),
-    )
-
-
 def directory(session: Any, *, query: str = "", limit: int = 50,
+              offset: int = 0, role: str = "", team: str = "",
+              department: str = "",
               include_inactive: bool = False) -> list[dict[str, Any]]:
-    """Who a message can be addressed to.
+    """Who a message can be addressed to. One page of them.
 
     Suspended accounts are excluded by default. Offering somebody who cannot
-    sign in as a recipient produces a message that is delivered and never read,
-    which looks exactly like a message that was ignored.
-    """
-    from backend.db.models import User
+    sign in as a recipient produces a message that is delivered and never
+    read, which looks exactly like a message that was ignored.
 
-    stmt = select(User)
-    if not include_inactive:
-        stmt = stmt.where(User.is_active.is_(True))
-    text = (query or "").strip()
-    if text:
-        stmt = stmt.where(_matches(User, text))
-    # People with a real name and address come first. A development database
-    # accumulates accounts created by test runs — no first name, no email —
-    # and ordering by first name alone floats every one of them above the
-    # colleagues a sender is actually looking for.
-    named = case((or_(User.first_name != "", User.last_name != ""), 0),
-                 else_=1)
-    reachable = case((User.email != "", 0), else_=1)
-    rows = session.execute(
-        stmt.order_by(named, reachable, User.first_name, User.last_name,
-                      User.username)
-        .limit(max(1, min(int(limit or 50), 200)))
-    ).scalars().all()
-    return [_person(r) for r in rows]
+    The search itself lives in `services.people`, which the Planner's
+    person-pickers use too: one ranking, one total order, one definition of
+    "found". Use `directory_page` when the caller needs the count and
+    whether there is more — which is every caller that shows a list somebody
+    might have to scroll.
+    """
+    return directory_page(
+        session, query=query, limit=limit, offset=offset, role=role,
+        team=team, department=department,
+        include_inactive=include_inactive)["people"]
+
+
+def directory_page(session: Any, *, query: str = "", limit: int = 50,
+                   offset: int = 0, role: str = "", team: str = "",
+                   department: str = "",
+                   include_inactive: bool = False) -> dict[str, Any]:
+    """The same search, with the total and whether anything was left out."""
+    from backend.services import people as directory_search
+
+    page = directory_search.search(
+        session, query=query, role=role, team=team, department=department,
+        include_inactive=include_inactive, limit=limit, offset=offset,
+        projection=directory_search.DIRECTORY)
+    return page.to_dict()
+
+
+def recipient(session: Any, identifier: Any) -> dict[str, Any]:
+    """One named recipient, exactly. By id, username or email address.
+
+    What anything that already knows who it means should call. Nothing here
+    guesses, and nothing here depends on a page.
+    """
+    from backend.services import people as directory_search
+
+    return directory_search.resolve(session, identifier)
 
 
 # ==========================================================================
@@ -1958,23 +1951,26 @@ def admin_overview(session: Any, *, query: str = "",
     limit = max(1, min(int(limit or 100), 500))
     offset = max(0, int(offset or 0))
 
+    from backend.services import people as directory_search
+
     stmt = select(User)
     if not include_inactive:
         stmt = stmt.where(User.is_active.is_(True))
-    text = (query or "").strip()
+    text = (query or "").strip().lower()
     if text:
-        stmt = stmt.where(_matches(User, text))
+        like = f"%{text}%"
+        stmt = stmt.where(or_(directory_search._identity(User, like),
+                              directory_search._attribute(User, like)))
     total = int(session.execute(
         select(func.count()).select_from(stmt.subquery())
     ).scalar_one())
-    # Active first, then people with a real name — the same ranking the
-    # recipient picker uses, so an administrator and a sender see the
-    # directory in the same order.
+    # Active first, then the recipient picker's own ranking and tiebreaks, so
+    # an administrator and a sender see the directory in the same order — and
+    # so that paging through it neither repeats a row nor skips one, which is
+    # what an ordering that stops before the primary key allows.
     rows = session.execute(
         stmt.order_by(User.is_active.desc(),
-                      case((or_(User.first_name != "", User.last_name != ""), 0),
-                           else_=1),
-                      User.first_name, User.last_name, User.username)
+                      *directory_search._ordering(User, text))
         .limit(limit).offset(offset)
     ).scalars().all()
 

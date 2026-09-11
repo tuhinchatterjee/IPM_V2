@@ -532,6 +532,18 @@ function Compose({ onClose, onSent }: {
                       : "No other active accounts are configured."}
                   </p>
                 )}
+                {/*
+                  What is NOT on the list, said out loud. A directory page
+                  that stops at fifty without saying so reads as "this is
+                  everybody", and the sender concludes their colleague has
+                  no account instead of typing three more letters.
+                */}
+                {directory.data?.has_more && (
+                  <p className="px-3 pt-2 text-[11px] text-text-muted">
+                    Showing {offered.length} of {directory.data.total} people —
+                    type more of a name, username or email to narrow it.
+                  </p>
+                )}
                 {offered.length > 0 && (
                   <ul data-testid="recipient-options"
                       className="max-h-56 overflow-y-auto">
