@@ -283,6 +283,9 @@ class TestRET048LayoutPreserved:
             "frontend/src/app/investigations/page.tsx",  # labelled list rows
             "frontend/src/lib/__tests__/back-paths.test.ts",  # the Trace return
             "backend/api/permissions.py",              # retail router auth
+            "backend/studio/library.py",               # the methods offered
+            "backend/studio/registry.py",              # loads the active ones
+            "frontend/src/components/attention/severity.ts",  # customer, not borrower
             # The two composers and the money formatter the answers render in.
             "frontend/src/components/ask/composer.tsx",
             "frontend/src/components/whatif/parts.tsx",
