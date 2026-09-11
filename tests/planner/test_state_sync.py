@@ -307,3 +307,71 @@ def test_a_field_the_draft_does_not_have_is_refused_not_dropped(client, cast):
                                 "payload": {"escalation_contact_id": 1}})
     assert refused.status_code == 422, refused.text
     assert "escalation_contact_id" in refused.json()["detail"]["message"]
+
+
+# ------------------------------------- two ways a field and the draft parted
+
+
+def test_a_code_that_is_cleared_is_cleared(client, cast):
+    """It used to be impossible to empty: the box went blank, the draft did not.
+
+    `if data.get("code")` cannot tell "no opinion" from "I deleted this", so
+    a cleared code fell through to the branch that keeps what is there. The
+    field then showed one thing and the plan held another until a reload put
+    the old value back without saying so.
+    """
+    started = client.post(f"{PREFIX}/copilot/drafts",
+                          headers=headers(cast["alice"]),
+                          json={"name": "Clearable"})
+    key = started.json()["key"]
+    first = client.get(f"{PREFIX}/copilot/drafts/{key}",
+                       headers=headers(cast["alice"])).json()
+    assert first["plan"]["overview"]["code"], "a code was suggested"
+
+    client.post(f"{PREFIX}/copilot/drafts/{key}/apply",
+                headers=headers(cast["alice"]),
+                json={"command": "set_overview", "payload": {"code": ""}})
+    after = client.get(f"{PREFIX}/copilot/drafts/{key}",
+                       headers=headers(cast["alice"])).json()
+    assert after["plan"]["overview"]["code"] == ""
+    assert "The project has no code." in [
+        note["message"] for note in after["completeness"]["blockers"]]
+
+
+def test_naming_a_project_still_suggests_a_code(client, cast):
+    """Clearing is deliberate; not mentioning the code is not."""
+    started = client.post(f"{PREFIX}/copilot/drafts",
+                          headers=headers(cast["alice"]), json={"name": ""})
+    key = started.json()["key"]
+    client.post(f"{PREFIX}/copilot/drafts/{key}/apply",
+                headers=headers(cast["alice"]),
+                json={"command": "set_overview",
+                      "payload": {"name": "Loss Given Default Rebuild"}})
+    found = client.get(f"{PREFIX}/copilot/drafts/{key}",
+                       headers=headers(cast["alice"])).json()
+    assert found["plan"]["overview"]["code"].startswith("LGDR-")
+
+
+def test_setting_a_field_does_not_move_the_step_you_are_on(client, cast):
+    """Choosing a policy recorded you on the milestones, a step further on.
+
+    Every command returned the step it thought came next and `apply` wrote
+    that down, so the draft's idea of where you were ran ahead of you and
+    reopening the plan opened it past the step you were working on. Only
+    `set_step` means "I have moved".
+    """
+    started = client.post(f"{PREFIX}/copilot/drafts",
+                          headers=headers(cast["alice"]),
+                          json={"name": "Staying put"})
+    key = started.json()["key"]
+    client.post(f"{PREFIX}/copilot/drafts/{key}/apply",
+                headers=headers(cast["alice"]),
+                json={"command": "set_step", "payload": {"step": "AGENTIC"}})
+    client.post(f"{PREFIX}/copilot/drafts/{key}/apply",
+                headers=headers(cast["alice"]),
+                json={"command": "set_agentic", "payload": {"mode": "LIGHT"}})
+
+    found = client.get(f"{PREFIX}/copilot/drafts/{key}",
+                       headers=headers(cast["alice"])).json()
+    assert found["step"] == "AGENTIC"
+    assert found["plan"]["agentic"]["mode"] == "LIGHT"

@@ -1040,8 +1040,15 @@ def apply(session: Any, principal: Any, key: str, command: str,
     plan = _copy(draft.plan or empty())
     outcome = _COMMANDS[verb](plan, data)
 
-    step = str(outcome.pop("step", "") or "")
-    save(session, principal, draft, plan=plan, step=step,
+    # Where the command THINKS you are next, returned to the caller — and
+    # written down only by `set_step`, which is the one command that means
+    # "I have moved". A field-setting command that moved the stored step
+    # moved it out from under the person: choose an agentic policy and the
+    # draft recorded you on the milestones, so reopening the plan put you a
+    # step past the one you were working on.
+    suggested = str(outcome.get("step", "") or "")
+    save(session, principal, draft, plan=plan,
+         step=suggested if verb == "set_step" else "",
          expected_version=expected_version, source=source)
     actor = getattr(principal, "user_id", None)
     service.audit(session, "PLANNER_DRAFT_CHANGED", actor_id=actor,
@@ -1070,9 +1077,15 @@ def _cmd_overview(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     for field_ in ("name", "description", "objective"):
         if field_ in data:
             overview[field_] = str(data[field_] or "")[:4000]
-    if data.get("code"):
-        overview["code"] = service.check_code(str(data["code"]),
-                                              "Project code")
+    if "code" in data:
+        # An empty code that was SENT is a code somebody deleted. Treating it
+        # as "no opinion" — which is what happens when the only test is
+        # truthiness — makes the field impossible to clear: the box empties,
+        # the draft keeps the old value, and the two disagree until somebody
+        # reloads and finds their deletion undone.
+        wanted = str(data["code"] or "").strip()
+        overview["code"] = (service.check_code(wanted, "Project code")
+                            if wanted else "")
     elif overview.get("name") and not overview.get("code"):
         overview["code"] = suggest_code(overview["name"])
     if overview.get("name"):

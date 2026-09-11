@@ -59,11 +59,16 @@ export default function NewDeliveryProjectPage() {
     try {
       const made = await api.planner.plan.start("");
       setKey(made.key);
+      // The draft goes into the URL as soon as it exists. Without it, a
+      // reload — or a browser restoring the tab — came back to "Start the
+      // setup" and offered to begin a plan the person was already halfway
+      // through. The work was never lost; the way back to it was.
+      router.replace(`/delivery/new?draft=${made.key}`);
     } catch (failure) {
       setError(failure instanceof ApiError
         ? failure.message : "I could not start a plan.");
     }
-  }, []);
+  }, [router]);
 
   const discard = React.useCallback(async () => {
     if (!key) return;
