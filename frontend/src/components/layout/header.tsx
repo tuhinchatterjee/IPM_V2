@@ -75,18 +75,24 @@ export function Header() {
         </Link>
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <DemoBadge />
+      {/* On a phone this row held 400px of chrome inside a 390px screen, and
+          every page in the product scrolled sideways by 33px because of it.
+          What goes first is what is only telling you something — the reader
+          badge, the acting role, the backend indicator, the theme's name —
+          all of which are on Settings. What stays is what you press: your
+          messages, your notifications, and the way out. */}
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="hidden md:contents"><DemoBadge /></span>
         <AiPowerControl />
         {/* §48: reachable from the screen you are on, not from a screen you
             have to go to — and deliberately out of the Cockpit, whose whole
             claim is that it opens on a question rather than on everything. */}
         <UnreadMessages />
         <NotificationCentre />
-        <PersonaliseControl />
+        <span className="hidden sm:contents"><PersonaliseControl /></span>
         <ThemeMenu />
-        <RoleSwitcher />
-        <BackendStatusIndicator />
+        <span className="hidden md:contents"><RoleSwitcher /></span>
+        <span className="hidden lg:contents"><BackendStatusIndicator /></span>
       </div>
     </header>
   );
