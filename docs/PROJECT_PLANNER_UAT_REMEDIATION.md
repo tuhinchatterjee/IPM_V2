@@ -371,7 +371,7 @@ limit safe.
 | The state-synchronisation journey | `scripts/acceptance/creation_state_journey.py` | 78 passed, 0 failed |
 | The form-first creation journey | `scripts/acceptance/uat_creation_journey.py` | 77 passed, 0 failed |
 | The button audit, now including the creation form | `scripts/acceptance/planner_button_audit.py` | 0 dead |
-| Planner and agentic suites | `pytest tests/planner tests/agentic` | all passed |
-| Full regression | `pytest tests` | see the final report |
+| Planner and agentic suites | `pytest tests/planner tests/agentic` | 840 passed |
+| Full regression | `pytest tests` | 13,077 passed, 1 failed, 38 skipped — the one failure is the messaging directory, outside this module; see the final report |
 
 The gates are in `PROJECT_PLANNER_COPILOT_ACCEPTANCE_MATRIX.md`, section V.

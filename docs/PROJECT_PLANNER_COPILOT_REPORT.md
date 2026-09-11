@@ -570,7 +570,7 @@ runbook requires.
 | `planner_button_audit.py` | 0 dead |
 | `copilot_adversarial.py` | 14 passed, 0 failed |
 | `agentic_demo_scenario.py` | 19 passed, 0 failed |
-| `pytest tests` | see below |
+| `pytest tests` | 13,077 passed, 1 failed, 38 skipped — the one failure is §B5 |
 | `ruff`, `eslint`, `tsc`, `next build` | clean |
 
 ## B5. The one failure left, and why it is not this work
