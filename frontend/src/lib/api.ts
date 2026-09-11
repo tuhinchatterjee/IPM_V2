@@ -6990,9 +6990,21 @@ export const api = {
     request<RetailFacilityScore>(
       `/retail/facility/${encodeURIComponent(facilityId)}/score${qs({ month })}`,
       { timeoutMs: LAKE_TIMEOUT_MS }),
-  retailEarlyWarning: (month: string, severity = "", limit = 200) =>
+  retailEarlyWarning: (
+    month: string,
+    severity = "",
+    limit = 200,
+    extra: { product?: string; customer?: string; sort?: string } = {},
+  ) =>
     request<RetailEarlyWarning>(
-      `/retail/early-warning${qs({ month, severity, limit: String(limit) })}`,
+      `/retail/early-warning${qs({
+        month,
+        severity,
+        product: extra.product ?? "",
+        customer: extra.customer ?? "",
+        sort: extra.sort ?? "",
+        limit: String(limit),
+      })}`,
       { timeoutMs: LAKE_TIMEOUT_MS }),
   retailManifest: () =>
     request<RetailManifest>("/retail/manifest", { timeoutMs: LAKE_TIMEOUT_MS }),

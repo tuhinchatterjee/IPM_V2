@@ -37,6 +37,25 @@ type Severity = (typeof SEVERITIES)[number];
 
 const PAGE = 25;
 
+//: The four products this book holds, and the ALL that is not a product.
+const PRODUCTS: { value: string; label: string }[] = [
+  { value: "ALL", label: "All products" },
+  { value: "CREDIT_CARD", label: "Credit Card" },
+  { value: "PERSONAL_LOAN", label: "Personal Finance" },
+  { value: "AUTO_LOAN", label: "Auto Finance" },
+  { value: "HOME_LOAN", label: "Home Finance" },
+];
+
+//: How a triage list may be ordered. Severity is ordered by what it MEANS
+//: rather than by its spelling, on the server, so CRITICAL is first however
+//: the words happen to sort.
+const SORTS: { value: string; label: string }[] = [
+  { value: "severity", label: "Severity, then exposure" },
+  { value: "exposure", label: "Exposure behind it" },
+  { value: "rule", label: "Rule" },
+  { value: "customer", label: "Customer" },
+];
+
 function sar(value: unknown): string {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -52,6 +71,13 @@ export function RetailSignals() {
   const [month, setMonth] = React.useState("");
   const [severity, setSeverity] = React.useState<Severity>("ALL");
   const [family, setFamily] = React.useState("ALL");
+  // A triage list nobody can narrow to a product is a list nobody uses: 5,952
+  // alerts over four products, and the person reading it owns one of them
+  // this morning. Same for the customer somebody has just been asked about.
+  const [product, setProduct] = React.useState("ALL");
+  const [customer, setCustomer] = React.useState("");
+  const [typed, setTyped] = React.useState("");
+  const [sort, setSort] = React.useState("severity");
   const [shown, setShown] = React.useState(PAGE);
 
   React.useEffect(() => {
@@ -59,8 +85,10 @@ export function RetailSignals() {
   }, [months, month]);
 
   const found = useAsync(
-    () => api.retailEarlyWarning(month, severity === "ALL" ? "" : severity, 500),
-    [month, severity],
+    () => api.retailEarlyWarning(
+      month, severity === "ALL" ? "" : severity, 500,
+      { product: product === "ALL" ? "" : product, customer, sort }),
+    [month, severity, product, customer, sort],
     { enabled: Boolean(month) },
   );
 
@@ -81,7 +109,9 @@ export function RetailSignals() {
   // href, so Back lands on the list the reader was actually reading.
   const listHref =
     `/early-warning/signals?month=${encodeURIComponent(month)}`
-    + `&severity=${severity}&family=${encodeURIComponent(family)}`;
+    + `&severity=${severity}&family=${encodeURIComponent(family)}`
+    + `&product=${encodeURIComponent(product)}`
+    + `&customer=${encodeURIComponent(customer)}&sort=${sort}`;
 
   return (
     <div className="space-y-5" data-testid="retail-signals">
@@ -134,8 +164,54 @@ export function RetailSignals() {
               {families.map((f) => <option key={f} value={f}>{f}</option>)}
             </select>
           </label>
+          <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+            Product
+            <select
+              value={product}
+              onChange={(e) => { setProduct(e.target.value); setShown(PAGE); }}
+              aria-label="Product"
+              data-testid="signals-product"
+              className="rounded-md border border-border bg-surface px-2 py-1 text-[13px]"
+            >
+              {PRODUCTS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+            Order
+            <select
+              value={sort}
+              onChange={(e) => { setSort(e.target.value); setShown(PAGE); }}
+              aria-label="Order the alerts"
+              data-testid="signals-sort"
+              className="rounded-md border border-border bg-surface px-2 py-1 text-[13px]"
+            >
+              {SORTS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] text-text-muted">
+            Customer or facility
+            <input
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { setCustomer(typed.trim());
+                                         setShown(PAGE); }
+              }}
+              onBlur={() => { setCustomer(typed.trim()); setShown(PAGE); }}
+              placeholder="RC-0017728"
+              aria-label="Find a customer or facility"
+              data-testid="signals-customer"
+              className="w-40 rounded-md border border-border bg-surface px-2 py-1 text-[13px]"
+            />
+          </label>
           <Button size="sm" variant="ghost"
                   onClick={() => { setSeverity("ALL"); setFamily("ALL");
+                                   setProduct("ALL"); setCustomer("");
+                                   setTyped(""); setSort("severity");
                                    setShown(PAGE); }}
                   data-testid="signals-clear">
             Clear filters

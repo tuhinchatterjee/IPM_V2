@@ -2,10 +2,10 @@
   "suite": "customer360",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 84.0,
+  "elapsed_seconds": 70.6,
   "counts": {
-    "PASS": 11,
-    "FAIL": 0,
+    "PASS": 8,
+    "FAIL": 3,
     "BLOCKED": 0,
     "NOT RUN": 0,
     "NOT APPLICABLE": 0
@@ -128,8 +128,8 @@
       "id": "C360-08",
       "module": "customer-360",
       "title": "Changing the month re-reads the same customer at that month rather than clearing the screen",
-      "status": "PASS",
-      "detail": "the header states the month it is showing=True",
+      "status": "FAIL",
+      "detail": "the header states the month it is showing=False",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -142,8 +142,8 @@
       "id": "C360-09",
       "module": "customer-360",
       "title": "Back from the customer returns to the SAME filtered Early Warning list",
-      "status": "PASS",
-      "detail": "a Back control was present=True; it returned to the signals list=True; the severity filter reads 'ALL'",
+      "status": "FAIL",
+      "detail": "a Back control was present=False; it returned to the signals list=True; the severity filter reads ''",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -156,8 +156,8 @@
       "id": "C360-10",
       "module": "customer-360",
       "title": "An unknown customer id gives a recoverable state with the search still usable, not a crash or an endless loader",
-      "status": "PASS",
-      "detail": "the screen explains rather than hangs=True; the search box is still there=True",
+      "status": "FAIL",
+      "detail": "the screen explains rather than hangs=True; the search box is still there=False",
       "expected": null,
       "actual": null,
       "evidence": {

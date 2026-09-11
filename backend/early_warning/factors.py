@@ -134,7 +134,7 @@ class FactorDef:
         }
 
 
-FACTORS: tuple[FactorDef, ...] = (
+CORPORATE_FACTORS: tuple[FactorDef, ...] = (
     # ------------------------------------------------------------- behaviour
     FactorDef(
         "utilisation", "behaviour", "Utilisation",
@@ -239,6 +239,26 @@ FACTORS: tuple[FactorDef, ...] = (
     ),
 )
 
+def _served() -> tuple[FactorDef, ...]:
+    """The factors THIS installation's book can actually supply.
+
+    The six family descriptions above were converted to retail and the
+    fifteen factors under them were not, so the screen described repayment
+    behaviour, affordability and score dynamics and then read covenant
+    headroom, debt service coverage and news sentiment off a corporate
+    dataset this installation does not hold. A family blurb is not a factor.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return CORPORATE_FACTORS
+    from backend.retail import forward_signal
+
+    return forward_signal.factors(FactorDef)
+
+
+FACTORS: tuple[FactorDef, ...] = _served()
+
 FACTOR_BY_ID = {f.id: f for f in FACTORS}
 
 
@@ -270,15 +290,25 @@ JOINED_FIELDS: tuple[str, ...] = ("pd_at_origination_pct",)
 #: Access Layer is asked for exactly these, so a factor that is added without
 #: declaring its fields fails loudly at read time rather than silently producing
 #: zeros.
-REQUIRED_FIELDS: tuple[str, ...] = tuple(sorted(
-    ({
-        field_name
-        for f in FACTORS
-        for field_name in f.fields
-    } | {"account_id", "customer_id", "period", "ifrs9_stage", "sector", "segment",
-         "borrower_name", "ead", "region"})
-    - set(JOINED_FIELDS)
-))
+def _required() -> tuple[str, ...]:
+    from backend.retail import profile
+
+    if profile.is_retail():
+        from backend.retail import forward_signal
+
+        return tuple(forward_signal.READ_FIELDS)
+    return tuple(sorted(
+        ({
+            field_name
+            for f in CORPORATE_FACTORS
+            for field_name in f.fields
+        } | {"account_id", "customer_id", "period", "ifrs9_stage", "sector",
+             "segment", "borrower_name", "ead", "region"})
+        - set(JOINED_FIELDS)
+    ))
+
+
+REQUIRED_FIELDS: tuple[str, ...] = _required()
 
 
 # ============================================================== computation
@@ -294,7 +324,21 @@ def _series(frame: pd.DataFrame, column: str) -> pd.Series:
 
 
 def compute_factors(frame: pd.DataFrame,
-                    cycle_by_sector: dict[str, float] | None = None) -> pd.DataFrame:
+                    cycle_by_sector: dict[str, float] | None = None
+                    ) -> pd.DataFrame:
+    """The factor matrix for this installation's book."""
+    from backend.retail import profile
+
+    if profile.is_retail():
+        from backend.retail import forward_signal
+
+        return forward_signal.compute(frame, FACTORS, cycle_by_sector)
+    return _compute_corporate(frame, cycle_by_sector)
+
+
+def _compute_corporate(frame: pd.DataFrame,
+                       cycle_by_sector: dict[str, float] | None = None
+                       ) -> pd.DataFrame:
     """Turn one period of the facility book into the factor matrix.
 
     Derived factors are computed here and nowhere else, so the definition a
@@ -337,13 +381,13 @@ def compute_factors(frame: pd.DataFrame,
 
     out["cycle_exposure"] = frame["sector"].map(cycle_by_sector).astype(float)
 
-    for definition in FACTORS:
+    for definition in CORPORATE_FACTORS:
         column = out[definition.id]
         if definition.clip:
             column = column.clip(*definition.clip)
         median = column.median()
         out[definition.id] = column.fillna(0.0 if pd.isna(median) else median)
-    return out[[f.id for f in FACTORS]]
+    return out[[f.id for f in CORPORATE_FACTORS]]
 
 
 #: CP-3 is grade 3. The previous rating is stored as a symbol, so the numeric
@@ -359,6 +403,7 @@ def _prev_grade(frame: pd.DataFrame) -> pd.Series:
 
 
 __all__ = [
+    "CORPORATE_FACTORS",
     "FACTORS",
     "FACTOR_BY_ID",
     "JOINED_FIELDS",

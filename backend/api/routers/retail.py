@@ -426,6 +426,14 @@ def facility_score(facility_id: str, month: str | None = Query(None)) -> dict:
 @router.get("/early-warning", summary="Retail warnings at one month")
 def early_warning(month: str | None = Query(None),
                   severity: str | None = Query(None),
+                  product: str | None = Query(
+                      None, description="One retail product, or empty for all"),
+                  customer: str | None = Query(
+                      None, description="A customer or facility id, whole or "
+                                        "partial"),
+                  sort: str = Query(
+                      "severity",
+                      description="severity | exposure | rule | customer"),
                   limit: int = Query(200, ge=1, le=2000)) -> dict:
     m = _resolve_month(month)
     frame = _read(m)
@@ -437,6 +445,19 @@ def early_warning(month: str | None = Query(None),
     alerts = ews_mod.evaluate_snapshot(ews_mod.with_prior_month(frame, previous))
     if severity:
         alerts = alerts[alerts["severity"].str.upper() == severity.upper()]
+    # A triage list nobody can narrow to a product is a triage list nobody
+    # uses: 5,952 alerts across four products, and the person reading it owns
+    # one of them this morning.
+    if product:
+        code = resolve_product(product) or product.upper()
+        alerts = alerts[alerts["product_code"] == code]
+    if customer:
+        wanted = str(customer).strip().upper()
+        if wanted:
+            keys = (alerts["customer_id"].fillna("").str.upper()
+                    + "|" + alerts["facility_id"].fillna("").str.upper())
+            alerts = alerts[keys.str.contains(wanted, regex=False)]
+    alerts = _sorted_alerts(alerts, sort)
     exposure = ews_mod.affected_exposure(alerts)
     by_rule = (alerts.groupby(["rule_id", "rule_name", "severity"], sort=True)
                .size().reset_index(name="alerts").to_dict("records")) if len(alerts) else []
@@ -449,6 +470,11 @@ def early_warning(month: str | None = Query(None),
         "portfolio_exposure_sar": round(float(frame["gross_carrying_amount_sar"].sum()), 2),
         "by_rule": by_rule,
         "alerts": alerts.head(limit).to_dict("records"),
+        "filters": {"severity": (severity or "").upper(),
+                    "product": (resolve_product(product) or "").upper()
+                    if product else "",
+                    "customer": (customer or "").strip(),
+                    "sort": _SORTS.get(sort, "severity")},
         "notes": [
             "Affected exposure counts each facility once, even where two rules "
             "cover it and even where a customer-level rule attaches several.",
@@ -456,6 +482,41 @@ def early_warning(month: str | None = Query(None),
             "contacts a customer.",
         ],
     })
+
+
+#: How a triage list may be ordered, and what each ordering is FOR.
+_SORTS: dict[str, str] = {
+    "severity": "severity",
+    "exposure": "exposure",
+    "rule": "rule",
+    "customer": "customer",
+}
+
+#: Worst first. An alphabetical severity sort puts CRITICAL after MEDIUM.
+_SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+
+
+def _sorted_alerts(alerts: Any, sort: str) -> Any:
+    """The triage list in the order the reader asked for.
+
+    Severity is ordered by what it MEANS rather than by its spelling: sorted
+    as text, CRITICAL sorts before HIGH by luck and MEDIUM before them both
+    the moment somebody adds a LOW.
+    """
+    if not len(alerts):
+        return alerts
+    wanted = _SORTS.get(str(sort or "").lower(), "severity")
+    if wanted == "exposure":
+        return alerts.sort_values("affected_exposure_sar", ascending=False)
+    if wanted == "rule":
+        return alerts.sort_values(["rule_id", "customer_id"])
+    if wanted == "customer":
+        return alerts.sort_values(["customer_id", "rule_id"])
+    ranked = alerts.assign(
+        _rank=alerts["severity"].str.upper().map(_SEVERITY_ORDER).fillna(9))
+    return (ranked.sort_values(["_rank", "affected_exposure_sar"],
+                               ascending=[True, False])
+            .drop(columns=["_rank"]))
 
 
 @router.get("/early-warning/rulebook", summary="The retail rule library")

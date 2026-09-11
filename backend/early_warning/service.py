@@ -50,9 +50,29 @@ from backend.early_warning.targets import TARGETS, TargetDef, target
 
 logger = logging.getLogger(__name__)
 
-FACILITY = "portfolio_facility"
+CORPORATE_FACILITY = "portfolio_facility"
 STAGING = "ifrs9_staging"
 MACRO = "macro_saudi"
+
+
+def _facility_dataset() -> str:
+    """The book the signal is fitted and scored on.
+
+    `portfolio_facility` is the corporate book. A retail installation does not
+    hold it, which is why the Model Lab answered "needs at least three
+    reporting periods" on a book with twenty-five months in it — the period
+    list it read belonged to a dataset that is not there.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return CORPORATE_FACILITY
+    from backend.retail import forward_signal
+
+    return forward_signal.DATASET
+
+
+FACILITY = _facility_dataset()
 
 #: Quarters held back from fitting and used only for testing. Three is enough to
 #: see whether performance holds up across a turn in the cycle rather than in
@@ -139,8 +159,7 @@ def _sector_betas(source: DuckDBSource) -> dict[str, float]:
         try:
             macro = source.fetch(MACRO, context=AnalysisContext(period=period),
                                  period=period, fields=["credit_cycle_factor"])
-            book = source.fetch(FACILITY, context=AnalysisContext(period=period),
-                                period=period, fields=["sector", "pd_12m_pct"])
+            book = _sector_pd(source, period)
         except Exception:  # pragma: no cover - a period one dataset lacks
             continue
         if macro.empty or book.empty:
@@ -170,6 +189,40 @@ def _sector_betas(source: DuckDBSource) -> dict[str, float]:
     return betas
 
 
+def _read_book(source: DuckDBSource, period: str) -> pd.DataFrame:
+    """One period of the book, under the names this module reads.
+
+    A retail installation's columns are not the corporate book's columns and
+    its key is a facility rather than an account, so the reader renames once,
+    here, rather than every function downstream learning which book it is
+    looking at.
+    """
+    from backend.retail import profile
+
+    if profile.is_retail():
+        from backend.retail import forward_signal
+
+        return forward_signal.read_book(source, period)
+    return source.fetch(FACILITY, context=AnalysisContext(period=period),
+                        period=period, fields=list(REQUIRED_FIELDS))
+
+
+def _sector_pd(source: DuckDBSource, period: str) -> pd.DataFrame:
+    """Sector and twelve-month PD, for the cycle-beta fit."""
+    from backend.retail import profile
+
+    if profile.is_retail():
+        from backend.retail import forward_signal
+
+        frame = source.fetch(
+            forward_signal.DATASET, context=AnalysisContext(period=period),
+            period=period, fields=["employer_sector", "pd_pit_12m_base"])
+        return frame.rename(columns={"employer_sector": "sector",
+                                     "pd_pit_12m_base": "pd_12m_pct"})
+    return source.fetch(FACILITY, context=AnalysisContext(period=period),
+                        period=period, fields=["sector", "pd_12m_pct"])
+
+
 def _book_with_origination(source: DuckDBSource, period: str) -> pd.DataFrame:
     """One quarter of the book, with the origination PD alongside it.
 
@@ -180,8 +233,7 @@ def _book_with_origination(source: DuckDBSource, period: str) -> pd.DataFrame:
     simply absent and the factor that needs it carries no information; it is
     never filled in with a guess.
     """
-    book = source.fetch(FACILITY, context=AnalysisContext(period=period),
-                        period=period, fields=list(REQUIRED_FIELDS))
+    book = _read_book(source, period)
     if STAGING not in source.datasets():
         return book
     try:
@@ -192,6 +244,43 @@ def _book_with_origination(source: DuckDBSource, period: str) -> pd.DataFrame:
     except Exception:  # pragma: no cover - a period the staging table lacks
         return book
     return book.merge(staging, on="account_id", how="left")
+
+
+def _period_key(period: str) -> tuple[int, int]:
+    """Chronological order for a period label, whichever shape it is.
+
+    "Q2 2026" is the corporate book's; "2026-08" is this one's. The sort was
+    written for the first and crashed with an IndexError on the second — on a
+    Model Lab screen that reported it as "something went wrong that
+    CreditProbe does not recognise".
+    """
+    text = str(period or "").strip()
+    if text[:1].upper() == "Q" and len(text.split()) == 2:
+        quarter, year = text.split()
+        try:
+            return (int(year), int(quarter[1:]))
+        except ValueError:
+            return (0, 0)
+    parts = text.split("-")
+    try:
+        return (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+    except (ValueError, IndexError):
+        return (0, 0)
+
+
+def _next_stages(source: DuckDBSource, period: str) -> pd.DataFrame:
+    """The stage every facility is in at the following period, keyed the same."""
+    from backend.retail import profile
+
+    if profile.is_retail():
+        from backend.retail import forward_signal
+
+        frame = source.fetch(
+            forward_signal.DATASET, context=AnalysisContext(period=period),
+            period=period, fields=[forward_signal.KEY, "ifrs9_stage"])
+        return frame.rename(columns={forward_signal.KEY: "account_id"})
+    return source.fetch(FACILITY, context=AnalysisContext(period=period),
+                        period=period, fields=["account_id", "ifrs9_stage"])
 
 
 @dataclass
@@ -234,8 +323,7 @@ def build_panel(definition: TargetDef, *, source: DuckDBSource | None = None) ->
     factor_blocks, outcome_blocks, period_blocks, frame_blocks = [], [], [], []
     for now, later in zip(periods, periods[1:], strict=False):
         book = _book_with_origination(source, now)
-        after = source.fetch(FACILITY, context=AnalysisContext(period=later),
-                             period=later, fields=["account_id", "ifrs9_stage"])
+        after = _next_stages(source, later)
         eligible = book[book["ifrs9_stage"] == definition.from_stage]
         if eligible.empty:
             continue
@@ -300,11 +388,11 @@ def fit_and_backtest(target_id: str, *, test_quarters: int = DEFAULT_TEST_QUARTE
     source = source or DuckDBSource()
     panel = build_panel(definition, source=source)
 
-    ordered = sorted(set(panel.periods), key=lambda p: (int(p.split()[1]), int(p[1])))
+    ordered = sorted(set(panel.periods), key=_period_key)
     if len(ordered) <= test_quarters:
         raise EarlyWarningError(
-            f"Only {len(ordered)} quarters have an outcome, which is not enough "
-            f"to hold {test_quarters} back for testing."
+            f"Only {len(ordered)} periods have an outcome, which is not "
+            f"enough to hold {test_quarters} back for testing."
         )
     fit_periods = set(ordered[:-test_quarters])
     test_periods = set(ordered[-test_quarters:])
@@ -323,7 +411,7 @@ def fit_and_backtest(target_id: str, *, test_quarters: int = DEFAULT_TEST_QUARTE
     predicted = probabilities(spec, testing.factors)
     observed = testing.outcome.to_numpy(dtype=float)
     by_period = []
-    for period in sorted(test_periods, key=lambda p: (int(p.split()[1]), int(p[1]))):
+    for period in sorted(test_periods, key=_period_key):
         mask = (testing.periods == period).to_numpy()
         if mask.sum() < 10:
             continue

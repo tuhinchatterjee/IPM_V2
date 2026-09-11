@@ -40,6 +40,21 @@ class TargetDef:
     horizon: str = "one reporting quarter"
 
     @property
+    def shown_horizon(self) -> str:
+        """The horizon as this installation's book actually measures it.
+
+        The corporate book is quarterly and the label says so. This one is
+        monthly: the outcome the model is fitted against is the stage at the
+        NEXT MONTH-END, and calling that "one reporting quarter" on screen
+        would be a claim about the model that is not true of it.
+        """
+        from backend.retail import profile
+
+        if profile.is_retail() and self.horizon == "one reporting quarter":
+            return "one reporting month"
+        return self.horizon
+
+    @property
     def eligible_note(self) -> str:
         return f"Scored only for facilities currently in Stage {self.from_stage}."
 
@@ -50,10 +65,39 @@ class TargetDef:
             "definition": self.definition,
             "from_stage": self.from_stage,
             "to_stage": self.to_stage,
-            "horizon": self.horizon,
-            "action": self.action,
+            "horizon": self.shown_horizon,
+            "action": action_for(self.id, self.action),
             "eligible_note": self.eligible_note,
         }
+
+
+#: What a credit officer does about a high score, in a RETAIL book.
+#:
+#: The corporate actions below name an annual review, a covenant package and a
+#: collateral position — three things a retail book does not have. A Head of
+#: Retail Risk reading "check the covenant package" on a personal-finance
+#: facility learns that this screen was written for somebody else's portfolio.
+RETAIL_ACTIONS: dict[str, str] = {
+    "stage1_to_stage2":
+        "Put the customer into pre-delinquency contact before the missed "
+        "payment, and check whether the salary is still arriving.",
+    "stage1_to_stage3":
+        "Verify the affordability position now. A performing facility "
+        "scoring high here is the one nobody is watching, and on an "
+        "unsecured book there is nothing behind it.",
+    "stage2_to_stage3":
+        "Review the provision and whether forbearance is the right answer. "
+        "This is the population already carrying a lifetime ECL.",
+}
+
+
+def action_for(target_id: str, corporate: str) -> str:
+    """The action this installation would actually take."""
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return corporate
+    return RETAIL_ACTIONS.get(target_id, corporate)
 
 
 TARGETS: tuple[TargetDef, ...] = (
@@ -62,7 +106,7 @@ TARGETS: tuple[TargetDef, ...] = (
         label="Stage 1 to Stage 2",
         definition=(
             "The chance that a performing facility develops a significant "
-            "increase in credit risk within the next reporting quarter and "
+            "increase in credit risk within the next reporting period and "
             "moves to Stage 2."
         ),
         from_stage=1,
@@ -77,7 +121,7 @@ TARGETS: tuple[TargetDef, ...] = (
         label="Stage 1 to default",
         definition=(
             "The chance that a performing facility becomes credit-impaired "
-            "within the next reporting quarter without first being flagged as "
+            "within the next reporting period without first being flagged as "
             "Stage 2. Rare, and expensive when it happens."
         ),
         from_stage=1,
@@ -91,9 +135,9 @@ TARGETS: tuple[TargetDef, ...] = (
         id="stage2_to_stage3",
         label="Stage 2 to default",
         definition=(
-            "The chance that a facility already carrying a significant increase "
-            "in credit risk becomes credit-impaired within the next reporting "
-            "quarter."
+            "The chance that a facility already carrying a significant "
+            "increase in credit risk becomes credit-impaired within the next "
+            "reporting period."
         ),
         from_stage=2,
         to_stage=3,

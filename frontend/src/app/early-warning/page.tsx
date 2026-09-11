@@ -15,6 +15,7 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { technical } from "@/lib/format";
+import { isRetail } from "@/lib/profile";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
@@ -54,6 +55,35 @@ import { cn } from "@/lib/utils";
  * factor, its value, how unusual that value is, and exactly how much of the
  * score it accounts for — and those contributions add up to the score.
  */
+/**
+ * Exposure, as this book publishes it.
+ *
+ * The band summary printed "10,452,063 SAR mn" — ten million SAR, labelled ten
+ * million MILLION, a factor of a million out — and the facility rows printed a
+ * bare "11059.6" with no unit at all. The retail book keeps whole SAR; the
+ * corporate one keeps millions; one formatter, told which.
+ */
+function money(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  if (!isRetail()) {
+    return `${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} SAR mn`;
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `SAR ${(value / 1_000_000_000).toFixed(2)}bn`;
+  if (abs >= 1_000_000) return `SAR ${(value / 1_000_000).toFixed(1)}mn`;
+  return `SAR ${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+/** What the scored subject is called here. A retail book has customers. */
+function subjectLabel(): string {
+  return isRetail() ? "Customer" : "Borrower";
+}
+
+/** And what the sector column is: where the customer WORKS, not their industry. */
+function sectorLabel(): string {
+  return isRetail() ? "Employer sector" : "Sector";
+}
+
 export default function EarlyWarningPage() {
   return (
     <React.Suspense fallback={<Skeleton className="h-64 w-full" />}>
@@ -263,7 +293,7 @@ function BandSummary({
           </p>
           <p className="mt-0.5 text-[11px] text-text-muted">
             {total > 0 ? ((100 * band.facilities) / total).toFixed(1) : "0.0"}% ·{" "}
-            {band.ead.toLocaleString(undefined, { maximumFractionDigits: 0 })} SAR mn
+            {money(band.ead)}
           </p>
         </Card>
       ))}
@@ -306,9 +336,9 @@ function ScoreTable({
   return (
     <Card className="divide-y divide-border">
       <div className="flex items-center gap-3 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
-        <span className="min-w-0 flex-1">Borrower</span>
-        <span className="hidden w-32 shrink-0 sm:block">Sector</span>
-        <span className="w-20 shrink-0 text-right">EAD</span>
+        <span className="min-w-0 flex-1">{subjectLabel()}</span>
+        <span className="hidden w-32 shrink-0 sm:block">{sectorLabel()}</span>
+        <span className="w-20 shrink-0 text-right">Exposure</span>
         <span className="w-20 shrink-0 text-right">Signal</span>
         <span className="w-16 shrink-0 text-right">Band</span>
         <span className="w-4 shrink-0" />
@@ -339,7 +369,7 @@ function ScoreTable({
               {facility.sector}
             </span>
             <span className="w-20 shrink-0 text-right text-sm tabular text-text-secondary">
-              {facility.ead.toFixed(1)}
+              {money(facility.ead)}
             </span>
             <span className="w-20 shrink-0 text-right text-sm font-medium tabular text-text-primary">
               {facility.probability_pct.toFixed(1)}%

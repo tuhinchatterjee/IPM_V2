@@ -188,8 +188,9 @@ def suite(s: Session, rec: Recorder) -> None:
     changed = False
     if month is not None:
         month.select_option("2025-08")
-        page.wait_for_timeout(6000)
-        changed = "at 2025-08" in s.text()
+        # Waited on rather than slept through: a cold route compiles for
+        # longer than any fixed number, and the deadline is still a failure.
+        changed = s.wait_for_text("at 2025-08", seconds=40)
     _case(rec, "C360-08", "Changing the month re-reads the same customer at "
           "that month rather than clearing the screen",
           bool(changed),
@@ -205,12 +206,12 @@ def suite(s: Session, rec: Recorder) -> None:
     if link is not None:
         link.click()
         page.wait_for_load_state("networkidle", timeout=90_000)
-        page.wait_for_timeout(5000)
+        s.wait_for('[data-testid="back-link"]', seconds=40)
         back_link = page.query_selector('[data-testid="back-link"]')
         if back_link is not None:
             back_link.click()
             page.wait_for_load_state("networkidle", timeout=90_000)
-            page.wait_for_timeout(4000)
+            s.wait_for('[data-testid="signals-severity"]', seconds=40)
     returned = "/early-warning/signals" in page.url
     kept = page.query_selector('[data-testid="signals-severity"]')
     kept_value = kept.input_value() if kept is not None else ""
@@ -226,7 +227,7 @@ def suite(s: Session, rec: Recorder) -> None:
     # A missing customer, and a direct link with no history.
     page.goto(f"{FRONTEND}/borrower-360?borrower=RC-9999999&period=2026-08",
               wait_until="networkidle", timeout=90_000)
-    page.wait_for_timeout(6000)
+    s.wait_for('[data-testid="customer-search"]', seconds=40)
     missing = s.text()
     recoverable = ("not" in missing.lower() or "no " in missing.lower()
                    or "could not" in missing.lower())

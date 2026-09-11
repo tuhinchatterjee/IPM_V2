@@ -206,6 +206,38 @@ class Session:
         self.page.wait_for_timeout(settle)
         return True
 
+    def settle_for(self, predicate: Any, *, seconds: float = 30.0,
+                   step: int = 1000) -> bool:
+        """Wait until the page says what it is meant to say, or give up.
+
+        A fixed `wait_for_timeout` measures the machine. On a cold Next route
+        the first compile takes longer than any number a test author would
+        write down, and three Customer 360 cases were recorded as product
+        failures for reading the screen before it had rendered — on a screen
+        that renders correctly. Waiting on the CONDITION removes the guess
+        without hiding a real hang: the deadline is still a failure.
+        """
+        deadline = time.time() + seconds
+        while time.time() < deadline:
+            try:
+                if predicate():
+                    return True
+            except Exception:  # noqa: BLE001 - not yet on the page
+                pass
+            self.page.wait_for_timeout(step)
+        try:
+            return bool(predicate())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def wait_for_text(self, wanted: str, *, seconds: float = 30.0) -> bool:
+        return self.settle_for(lambda: wanted in self.text(), seconds=seconds)
+
+    def wait_for(self, selector: str, *, seconds: float = 30.0) -> bool:
+        return self.settle_for(
+            lambda: self.page.query_selector(selector) is not None,
+            seconds=seconds)
+
     def text(self) -> str:
         return self.page.inner_text("body")
 
