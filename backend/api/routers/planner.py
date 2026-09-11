@@ -26,10 +26,13 @@ from fastapi import (
     File,
     HTTPException,
     Query,
+    Request,
     Response,
     UploadFile,
     status,
 )
+from fastapi.routing import APIRoute
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -53,11 +56,62 @@ from backend.planner import workbook as wb
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/planner", tags=["project planner"])
+#: Where `get_db` leaves the session so the route class can commit it. One
+#: name, in one place, because two spellings of it would be a silent
+#: half-fix.
+SESSION_ON_REQUEST = "planner_session"
 
 
-def get_db() -> Session:
-    """A transactional session per request, committed on success."""
+class Durable(APIRoute):
+    """Commit inside the request, before the answer is sent.
+
+    A `yield` dependency's teardown does not run where it reads as though it
+    runs. FastAPI closes the request's exit stack in
+    `AsyncExitStackMiddleware`, which wraps the call that SENDS the response:
+
+        async with AsyncExitStack() as stack:
+            scope[self.context_name] = stack
+            await self.app(scope, receive, send)   # <- the response goes out
+
+    So a session committed in `get_db`'s teardown is committed AFTER the
+    browser has been told the write succeeded. A client that saves a field
+    and immediately re-reads the draft — which is exactly what the creation
+    form does — can be served from before its own write, and every panel
+    computed from that read is then wrong in the way UAT reported: a sponsor
+    chosen, and a completeness panel still saying the project has none.
+
+    The commit therefore happens here, around the endpoint, before the
+    response object is handed back to Starlette to send. `get_db` no longer
+    commits at all, so a route that somehow escapes this class loses its
+    write loudly in the tests rather than quietly racing in production.
+    """
+
+    def get_route_handler(self):  # noqa: ANN201 - Starlette's own signature
+        answer = super().get_route_handler()
+
+        async def commit_then_answer(request: Request) -> Response:
+            response = await answer(request)
+            session = getattr(request.state, SESSION_ON_REQUEST, None)
+            if session is not None:
+                # In a worker thread: this is a blocking driver call, and the
+                # event loop is serving every other request.
+                await run_in_threadpool(session.commit)
+            return response
+
+        return commit_then_answer
+
+
+router = APIRouter(prefix="/planner", tags=["project planner"],
+                   route_class=Durable)
+
+
+def get_db(request: Request) -> Session:
+    """A transactional session per request. `Durable` commits it.
+
+    Deliberately does not commit: see `Durable`. Anything the route did not
+    commit is rolled back on close, which is what a failed request should
+    leave behind anyway.
+    """
     if not settings.has_database:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -65,13 +119,14 @@ def get_db() -> Session:
                     "message": "The Project Planner needs PostgreSQL, and "
                                "this deployment has none configured."})
     session = SessionLocal()
+    setattr(request.state, SESSION_ON_REQUEST, session)
     try:
         yield session
-        session.commit()
     except Exception:
         session.rollback()
         raise
     finally:
+        setattr(request.state, SESSION_ON_REQUEST, None)
         session.close()
 
 

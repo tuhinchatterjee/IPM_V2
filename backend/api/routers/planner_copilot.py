@@ -37,7 +37,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.api.permissions import Principal, RequireAnalyst, RequireCommenter
-from backend.api.routers.planner import _fail, _guard, get_db
+from backend.api.routers.planner import Durable, _fail, _guard, get_db
 from backend.models.planner import PlannerProject
 from backend.planner import access as acl
 from backend.planner import copilot, live
@@ -49,7 +49,8 @@ from backend.planner import scope as sc
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/planner/copilot", tags=["project planner"])
+router = APIRouter(prefix="/planner/copilot", tags=["project planner"],
+                   route_class=Durable)
 
 
 def _refusal(exc: Exception) -> HTTPException:

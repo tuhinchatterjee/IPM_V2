@@ -28,7 +28,7 @@ in any of them.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 
@@ -37,6 +37,12 @@ from backend.planner import escalation as esc
 from backend.planner import policy as pol
 
 TODAY = date(2026, 9, 6)
+
+#: Silence is measured from TODAY, not from the wall clock. A fixture
+#: that pins the date and then dates its own rows off `now()` passes
+#: until the calendar walks past it, and then fails for a reason that
+#: has nothing to do with the rule under test.
+_MIDNIGHT = datetime.combine(TODAY, time.min, tzinfo=UTC)
 
 OWNER = 1
 TASK_ESCALATION = 2
@@ -80,7 +86,7 @@ def _task(*, code="M01-T01", days_late=0, blocked=False, quiet_days=0,
         title=code, status="IN_PROGRESS", percent_complete=40,
         due_date=due, owner_id=owner, blocked=blocked,
         blocker_reason="waiting on Finance" if blocked else "",
-        last_update_at=datetime.now(UTC) - timedelta(days=quiet_days),
+        last_update_at=_MIDNIGHT - timedelta(days=quiet_days),
         milestone_id=milestone, critical=critical)
 
 

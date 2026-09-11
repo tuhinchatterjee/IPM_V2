@@ -942,6 +942,23 @@ def _coerce(kind: str, key: str, value: Any) -> Any:
     return str(value or "")
 
 
+def _no_strays(payload: dict[str, Any], allowed: set[str],
+               what: str) -> None:
+    """Refuse a field this command does not know, instead of dropping it.
+
+    A payload key nobody reads is the quietest bug in a form: the screen
+    holds one value, the draft holds another, and the panel computed from
+    the draft is then correct about a plan the person cannot see. Better a
+    422 naming the field, in the test that sent it.
+    """
+    strays = sorted(set(payload) - allowed)
+    if strays:
+        raise DraftError(
+            f"{what} does not have a field called {strays[0]}."
+            + (f" ({len(strays)} unknown fields in all.)"
+               if len(strays) > 1 else ""))
+
+
 def _write(row: dict[str, Any], fields: dict[str, str],
            payload: dict[str, Any]) -> list[str]:
     changed: list[str] = []
@@ -1008,7 +1025,16 @@ def _copy(plan: dict[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(dict(plan))
 
 
+#: What each of the two project-level commands accepts. Anything else is a
+#: mistake somebody should be told about; see `_no_strays`.
+_OVERVIEW_FIELDS = {"name", "code", "description", "objective"}
+_GOVERNANCE_FIELDS = {"sponsor_id", "manager_id", "owner_id", "escalation_id",
+                      "start_date", "target_end_date", "priority", "status",
+                      "reporting_cadence"}
+
+
 def _cmd_overview(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+    _no_strays(data, _OVERVIEW_FIELDS, "The overview")
     overview = plan.setdefault("overview", {})
     for field_ in ("name", "description", "objective"):
         if field_ in data:
@@ -1025,6 +1051,7 @@ def _cmd_overview(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
 
 def _cmd_governance(plan: dict[str, Any],
                     data: dict[str, Any]) -> dict[str, Any]:
+    _no_strays(data, _GOVERNANCE_FIELDS, "Governance")
     governance = plan.setdefault("governance", {})
     for field_ in ("sponsor_id", "manager_id", "owner_id", "escalation_id"):
         if field_ in data:
@@ -1067,6 +1094,7 @@ def _cmd_agentic(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
 
 def _cmd_add_milestone(plan: dict[str, Any],
                        data: dict[str, Any]) -> dict[str, Any]:
+    _no_strays(data, set(_MILESTONE_FIELDS), "A milestone")
     if not str(data.get("name") or "").strip():
         raise DraftError("A milestone needs a name.")
     row: dict[str, Any] = {"code": _next_milestone_code(plan),
@@ -1097,6 +1125,7 @@ def _milestone_dates(row: dict[str, Any]) -> None:
 
 def _cmd_update_milestone(plan: dict[str, Any],
                           data: dict[str, Any]) -> dict[str, Any]:
+    _no_strays(data, set(_MILESTONE_FIELDS) | {"code"}, "A milestone")
     code = str(data.get("code") or "").upper()
     row = item(plan, code)
     if row is None or kind_of(plan, code) != ENTITY_MILESTONE:
@@ -1187,6 +1216,8 @@ def _cmd_move_milestone(plan: dict[str, Any],
 
 
 def _cmd_add_task(plan: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+    _no_strays(data, set(_TASK_FIELDS) | {"milestone_code", "contributor_ids"},
+               "A task")
     milestone = str(data.get("milestone_code") or "").upper()
     if not milestone or kind_of(plan, milestone) != ENTITY_MILESTONE \
             or item(plan, milestone) is None:
@@ -1232,6 +1263,8 @@ def _task_dates(row: dict[str, Any]) -> None:
 
 def _cmd_update_task(plan: dict[str, Any],
                      data: dict[str, Any]) -> dict[str, Any]:
+    _no_strays(data, set(_TASK_FIELDS) | {"code", "milestone_code",
+                                          "contributor_ids"}, "A task")
     code = str(data.get("code") or "").upper()
     row = item(plan, code)
     if row is None or kind_of(plan, code) != ENTITY_TASK:
