@@ -302,8 +302,9 @@ def suite(s: Session, rec: Recorder) -> None:
     a = ask(s, q)
     turn = a["turn"]
     refuses = any(w in turn.lower() for w in
-                  ("not available", "does not hold", "no employer name",
-                   "cannot", "not carried", "unavailable", "not in the"))
+                  ("not available", "does not hold", "does not carry",
+                   "no employer name", "cannot", "not carried", "unavailable",
+                   "not in the"))
     invented = bool(re.search(r"employer(?: name)? is ['\"]?[A-Z][a-z]+", turn))
     _case(rec, "CP-CHAT-19",
           "An absent field is declared absent rather than invented",
@@ -311,6 +312,100 @@ def suite(s: Session, rec: Recorder) -> None:
           f"says it is unavailable={refuses}; appears to invent a name="
           f"{invented}",
           question=q, answer=turn[:1200], screenshot=s.shot("cp-chat-19"))
+
+    # ------------------------------------------------- CP-CHAT-20 a rate
+    #
+    # The planner answered this "425.0 days of days past due". A rate is a
+    # numerator, a denominator and a scope, and the oracle is the only judge
+    # of whether the one on screen is the right one.
+    q = "What is the 30+ DPD rate?"
+    a = ask(s, q)
+    turn = a["turn"]
+    book = ORACLE["delinquency_by_product"]["rows"]
+    gca = sum(r["gross_carrying_amount_sar"] for r in book)
+    whole = sum(r["gross_carrying_amount_sar"] * r["dpd30_exposure_pct"]
+                for r in book) / gca
+    right = has(turn, round(whole, 2), tolerance=0.02)
+    as_days = has(turn, 425.0) or "days of days past due" in turn.lower()
+    _case(rec, "CP-CHAT-20",
+          "A delinquency RATE is answered as a rate, not as a sum of days",
+          bool(a.get("completed")) and right and not as_days,
+          f"the oracle rate is {whole:.2f}%; on screen={right}; "
+          f"answered in days={as_days}",
+          question=q, answer=turn[:1200], expected=f"{whole:.2f}%",
+          screenshot=s.shot("cp-chat-20"))
+
+    # -------------------------------------- CP-CHAT-21 the rate, by product
+    q = "Which product has the highest 30+ DPD rate?"
+    a = ask(s, q)
+    turn = a["turn"]
+    top = max(book, key=lambda r: r["dpd30_exposure_pct"])
+    low = min(book, key=lambda r: r["dpd30_exposure_pct"])
+    names = {"CREDIT_CARD": "credit card", "PERSONAL_LOAN": "personal",
+             "AUTO_LOAN": "auto", "HOME_LOAN": "home"}
+    named = names[top["product_code"]] in turn.lower()
+    figure = has(turn, top["dpd30_exposure_pct"], tolerance=0.02)
+    wrong_way = names[low["product_code"]] in turn.lower().split("highest")[0]
+    _case(rec, "CP-CHAT-21",
+          "The product with the highest delinquency rate is the right one",
+          bool(a.get("completed")) and named and figure and not wrong_way,
+          f"oracle: {top['product_code']} at "
+          f"{top['dpd30_exposure_pct']:.2f}%; named={named}; figure={figure}",
+          question=q, answer=turn[:1200],
+          expected=f"{top['product_code']} {top['dpd30_exposure_pct']:.2f}%",
+          screenshot=s.shot("cp-chat-21"))
+
+    # ------------------------------------------- CP-CHAT-22 a stage share
+    #
+    # "3.00 IFRS 9 stage in Stage 3" was the old answer: the CONTENTS of the
+    # stage column reported as a proportion.
+    q = "What proportion of the book is in Stage 2?"
+    a = ask(s, q)
+    turn = a["turn"]
+    stage2 = next(r for r in ORACLE["by_stage"]["rows"] if r["stage"] == 2)
+    right = has(turn, stage2["exposure_share_pct"], tolerance=0.02)
+    stage_as_value = bool(re.search(r"\b2\.00\b", turn))
+    _case(rec, "CP-CHAT-22",
+          "A stage SHARE is the share of exposure, not the stage number",
+          bool(a.get("completed")) and right and not stage_as_value,
+          f"oracle {stage2['exposure_share_pct']:.2f}%; on screen={right}; "
+          f"reported the stage number={stage_as_value}",
+          question=q, answer=turn[:1200],
+          expected=f"{stage2['exposure_share_pct']:.2f}%",
+          screenshot=s.shot("cp-chat-22"))
+
+    # ----------------------------------------- CP-CHAT-23 "break X down by Y"
+    #
+    # The most ordinary phrasing there is, answered as a deterioration cohort.
+    q = "Break ECL down by product"
+    a = ask(s, q)
+    turn = a["turn"]
+    total = ORACLE["book"].get("ecl_final_sar")
+    right = has_rounded(turn, total) if total else False
+    as_a_fall = any(w in turn.lower() for w in ("fell", "ordered worst first"))
+    _case(rec, "CP-CHAT-23",
+          "\"Break X down by Y\" is a breakdown, not a fall",
+          bool(a.get("completed")) and right and not as_a_fall,
+          f"whole-book ECL on screen={right}; read as a decline={as_a_fall}",
+          question=q, answer=turn[:1200], expected=str(total),
+          screenshot=s.shot("cp-chat-23"))
+
+    # -------------------------------------- CP-CHAT-24 chat matches the lens
+    #
+    # The reason to answer from the Metric Catalogue rather than from a fresh
+    # group-by: the figure in the chat and the figure on the lens tile are the
+    # same calculation, so they cannot drift.
+    q = "What is ECL coverage?"
+    a = ask(s, q)
+    turn = a["turn"]
+    coverage = ORACLE["book"]["ecl_coverage_pct"]
+    right = has(turn, round(coverage, 2), tolerance=0.02)
+    _case(rec, "CP-CHAT-24",
+          "The coverage in the chat is the coverage on the lens tile",
+          bool(a.get("completed")) and right,
+          f"oracle {coverage:.4f}%; on screen={right}",
+          question=q, answer=turn[:1200], expected=f"{coverage:.2f}%",
+          screenshot=s.shot("cp-chat-24"))
 
 
 if __name__ == "__main__":

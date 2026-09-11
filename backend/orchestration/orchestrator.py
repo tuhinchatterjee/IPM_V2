@@ -45,6 +45,7 @@ from backend.metadata import answers as mda
 from backend.metadata import questions as mdq
 from backend.orchestration import analysis_planner as ap
 from backend.orchestration import (
+    absent_attributes,
     analyst,
     association,
     compound,
@@ -54,6 +55,7 @@ from backend.orchestration import (
     handlers,
     interpretation,
     investigation,
+    metric_route,
     referents,
     router,
     spelling,
@@ -502,6 +504,24 @@ def answer(question: str, *, context: Any = None,
             answered.coverage = held.to_dict()
             return finish(answered)
 
+    # An identity detail no rewording produces. "Tell me the borrower's
+    # employer name for the highest-ECL facility" bound ECL to a measure, bound
+    # "employer name" to nothing, dropped the unbound half in silence, and was
+    # then refused by the GRAIN contract — "the governed data behind it can only
+    # be reported as one row for the whole book", which is about the wrong thing
+    # and is not true of a book keyed one row per facility. Checked here, above
+    # the planner, so the refusal names the field rather than the plan.
+    #
+    # Below the coverage check because a question about something the universe
+    # holds nothing about at all is the broader refusal, and above the planner
+    # because every path below this one would drop the phrase rather than
+    # answer it.
+    unheld = absent_attributes.read(question)
+    if unheld is not None:
+        answered.unsupported = unheld.sentence()
+        answered.coverage = unheld.to_dict()
+        return finish(answered)
+
     # A question about what a REGULATION SAYS, with no approved Regulatory
     # Knowledge Release to answer it from.
     #
@@ -521,6 +541,32 @@ def answer(question: str, *, context: Any = None,
         answered.unsupported = regulatory_intent.refusal(documentary)
         answered.regulatory = documentary.to_dict()
         return finish(answered)
+
+    # A governed RATE, SHARE or discrimination statistic asked for by name.
+    #
+    # "What is the 30+ DPD rate?" was answered "425.0 days of days past due" —
+    # the planner summed the nearest column, because a rate is not a column and
+    # the planner composes an analysis out of columns. The numerator, the
+    # denominator and the scope are published in the Metric Catalogue, so the
+    # answer comes from there and agrees with the lens tile by construction.
+    #
+    # Checked above the planner, and narrow by design: a plain sum, a cohort, a
+    # threshold, a movement and a two-period comparison all fall straight
+    # through to the composer, which does them better. See
+    # backend/orchestration/metric_route.py.
+    governed_metric = metric_route.read(question)
+    if governed_metric is not None:
+        try:
+            computed = metric_route.answer(governed_metric, question)
+        except Exception:  # noqa: BLE001 - fall through, never substitute
+            logger.exception("The metric route failed for %r", question)
+            computed = None
+        if computed is not None:
+            answered.result = computed
+            answered.reading = replace(
+                reading,
+                objective=f"The governed metric {governed_metric.metric.name}")
+            return finish(answered)
 
     # A borrower CreditProbe does not hold is only the reason a question cannot
     # be answered when the question was otherwise answerable. "Did the CEO of

@@ -1199,14 +1199,40 @@ _GROUPS_A_FIELD_BY = (
 )
 
 
+def _spellings_of(field_name: str) -> tuple[str, ...]:
+    """Every way a reader writes this field, not only the column name.
+
+    The failure this fixes: "Break ECL down by product", asked after an answer
+    about Credit Card, returned **Credit Card only** — one bar, under a heading
+    reading BY PRODUCT LABEL. The guard below was already in place and did not
+    fire, because the carried filter is on `product_label` and the reader wrote
+    "product". A field a question groups by has to be recognised by the word
+    the question used, not by the word the warehouse uses.
+    """
+    from backend.orchestration import dimensions
+
+    name = str(field_name or "")
+    if not name:
+        return ()
+    out = {name.replace("_", " ")}
+    try:
+        out.update(a for a in dimensions.aliases().get(name, ()) if a)
+    except Exception:  # noqa: BLE001 - the column name alone still works
+        pass
+    return tuple(sorted(out, key=len, reverse=True))
+
+
 def _groups_by(text: str, field_name: str) -> bool:
     """Whether the question asks for one row PER value of this field."""
-    word = re.escape(str(field_name or "").replace("_", r"[ _]"))
-    if not word:
-        return False
     lowered = " ".join(str(text or "").lower().split())
-    return any(re.search(pattern.format(field=word), lowered)
-               for pattern in _GROUPS_A_FIELD_BY)
+    for spelling in _spellings_of(field_name):
+        word = re.escape(spelling).replace(r"\ ", r"[ _]")
+        if not word:
+            continue
+        if any(re.search(pattern.format(field=word), lowered)
+               for pattern in _GROUPS_A_FIELD_BY):
+            return True
+    return False
 
 
 def _inherit_filters(filters: list[tuple[str, str]],

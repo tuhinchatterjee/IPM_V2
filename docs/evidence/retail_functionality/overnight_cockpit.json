@@ -2,9 +2,9 @@
   "suite": "overnight_cockpit",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 196.4,
+  "elapsed_seconds": 299.1,
   "counts": {
-    "PASS": 12,
+    "PASS": 17,
     "FAIL": 1,
     "BLOCKED": 0,
     "NOT RUN": 0,
@@ -205,14 +205,99 @@
       "id": "CP-CHAT-19",
       "module": "cockpit-chat",
       "title": "An absent field is declared absent rather than invented",
-      "status": "FAIL",
-      "detail": "says it is unavailable=False; appears to invent a name=False",
+      "status": "PASS",
+      "detail": "says it is unavailable=True; appears to invent a name=False",
       "expected": null,
       "actual": null,
       "evidence": {
         "question": "Tell me the borrower's employer name for the highest-ECL facility.",
-        "answer": "\n\nONE QUESTION BACK\n\nCreditProbe read this as a question about one row per facility \u2014 the question names facilities, so each row is a facility \u2014 but the governed data behind it can only be reported as one row for the whole book. Ask for it at that level, or name the breakdown you want.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nIt asks for a figure computed from governed data.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "answer": "\n\nNo analysis was composed and no figure was computed: the governed data holds nothing about what was asked.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n0 of 1 answered; 1 cannot be answered\n\nCreditProbe does not carry an employer name. What the governed book holds about employers is Employer id and Employer sector, and none of those is a name. That is a property of this installation, not of how the question was phrased: no rewording produces one. Ask for a figure and CreditProbe will compute it, or break one down by employer sector.\n\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\n\nCompleted by Credit Analyst \u2014 not validated\nTrace\n\nLIMITED EVIDENCE\n2 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
         "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-19.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-20",
+      "module": "cockpit-chat",
+      "title": "A delinquency RATE is answered as a rate, not as a sum of days",
+      "status": "PASS",
+      "detail": "the oracle rate is 1.79%; on screen=True; answered in days=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What is the 30+ DPD rate?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n30+ DPD Rate is 1.79% at 2026-08. It is SUM(gca WHERE dpd >= 30) / SUM(gca) \u00d7 100.\n\n30+ DPD Rate\nGoverned metadata\nTrace\n\nUNIT\n\npercent\n\nVALUE\n\n1.79\n\nPERIOD\n\n2026-08\n\nFORMATTED\n\n1.79%\n\nMETRIC ID\n\nretail.dpd30_rate\n\nA measure over 1 periods.\n\nAsk about this\nChart\nTable\nMetric\n\t\n30+ DPD Rate\npercent\n\t\nPeriod\n\n30+ DPD Rate\t1.79\t2026-08\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nBreak 30+ DPD Rate down by product\nShow 30+ DPD Rate by customer segment\nHow is 30+ DPD Rate calculated?\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 not validated\nTrace\n\nLIMITED EVIDENCE\n3 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "expected": "1.79%",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-20.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-21",
+      "module": "cockpit-chat",
+      "title": "The product with the highest delinquency rate is the right one",
+      "status": "PASS",
+      "detail": "oracle: CREDIT_CARD at 3.70%; named=True; figure=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Which product has the highest 30+ DPD rate?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nCredit Card has the highest 30+ DPD Rate at 2026-08, at 3.70%. Home Finance is the lowest, at 1.62%. Each group is SUM(gca WHERE dpd >= 30) / SUM(gca) \u00d7 100.\n\n30+ DPD Rate by product\nGoverned metadata\nTrace\n\nLOWEST\n\nHome Finance\n\nPERIOD\n\n2026-08\n\nHIGHEST\n\nCredit Card\n\nDIMENSION\n\nproduct_label\n\nMETRIC ID\n\nretail.dpd30_rate\n\n2 measures across 4 groups.\n\nAsk about this\nChart\nTable\nproduct\n\t\n30+ DPD Rate\npercent\n\t\nFacilities\n\nCredit Card\t3.70\t6,532\nPersonal Finance\t2.00\t7,761\nAuto Finance\t1.89\t3,301\nHome Finance\t1.62\t2,151\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nWhat is 30+ DPD Rate for the whole book?\nBreak 30+ DPD Rate down by customer segment\nHow is 30+ DPD Rate calculated?\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 not validated\nTrace\n\nLIMITED EVIDENCE\n3 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "expected": "CREDIT_CARD 3.70%",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-21.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-22",
+      "module": "cockpit-chat",
+      "title": "A stage SHARE is the share of exposure, not the stage number",
+      "status": "PASS",
+      "detail": "oracle 5.42%; on screen=True; reported the stage number=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What proportion of the book is in Stage 2?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nStage 2 Share of Exposure is 5.42% at 2026-08. It is SUM(gca WHERE stage = 2) / SUM(gca) \u00d7 100.\n\nStage 2 Share of Exposure\nGoverned metadata\nTrace\n\nUNIT\n\npercent\n\nVALUE\n\n5.42\n\nPERIOD\n\n2026-08\n\nFORMATTED\n\n5.42%\n\nMETRIC ID\n\nretail.stage2.share\n\nA measure over 1 periods.\n\nAsk about this\nChart\nTable\nMetric\n\t\nStage 2 Share of Exposure\npercent\n\t\nPeriod\n\nStage 2 Share of Exposure\t5.42\t2026-08\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nBreak Stage 2 Share of Exposure down by product\nShow Stage 2 Share of Exposure by customer segment\nHow is Stage 2 Share of Exposure calculated?\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 not validated\nTrace\n\nLIMITED EVIDENCE\n3 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "expected": "5.42%",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-22.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-23",
+      "module": "cockpit-chat",
+      "title": "\"Break X down by Y\" is a breakdown, not a fall",
+      "status": "FAIL",
+      "detail": "whole-book ECL on screen=False; read as a decline=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Break ECL down by product",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nCREDIT CARD, CARD \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n3,061,762 SAR of final ECL in Credit Card, CARD across 1 product at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nCredit Card is the largest at 3,061,762 SAR.\n\nCredit Card\n3,061,761.69\n\nCREDITPROBE INTERPRETATION\n\nThe figures are sums across every facility in each product at 2026-08.\n\nTOTAL FINAL ECL\n\n3,061,761.69\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n3,061,761.69\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nProduct label\n\t\nExpected credit loss\nsar mn\n\t\nProduct subsegment\n\nCredit Card\t3.1\tCARD\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 5-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nDEEP ANALYSIS\n\u2014 the whole evidence chain\nANALYSES USED (1)\n\u2014 what produc",
+        "expected": "15952108.84",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-23.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-24",
+      "module": "cockpit-chat",
+      "title": "The coverage in the chat is the coverage on the lens tile",
+      "status": "PASS",
+      "detail": "oracle 0.7659%; on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What is ECL coverage?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nECL Coverage is 0.77% at 2026-08. It is SUM(ecl_final_sar) / SUM(gross_carrying_amount_sar) \u00d7 100.\n\nECL Coverage\nGoverned metadata\nTrace\n\nUNIT\n\npercent\n\nVALUE\n\n0.77\n\nPERIOD\n\n2026-08\n\nFORMATTED\n\n0.77%\n\nMETRIC ID\n\nretail.ecl_coverage\n\nA measure over 1 periods.\n\nAsk about this\nChart\nTable\nMetric\n\t\nECL Coverage\npercent\n\t\nPeriod\n\nECL Coverage\t0.77\t2026-08\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nBreak ECL Coverage down by product\nShow ECL Coverage by customer segment\nHow is ECL Coverage calculated?\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 not validated\nTrace\n\nLIMITED EVIDENCE\n3 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "expected": "0.77%",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-24.png"
       },
       "seconds": 0.0,
       "defect": ""

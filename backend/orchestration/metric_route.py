@@ -1,0 +1,567 @@
+"""
+A governed metric, asked for by name, answered by the metric engine.
+
+The failure this exists for
+---------------------------
+Four questions a Head of Retail Risk asks before lunch, and what CreditProbe
+answered:
+
+    "What is the 30+ DPD rate?"
+        425.0 days of days past due at 2026-08.
+
+    "Which product has the highest 30+ DPD rate?"
+        1,260 days of days past due across 4 products at 2026-08.
+
+    "What is the Stage 3 share of exposure?"
+        3.00 IFRS 9 stage in Stage 3 at 2026-08.
+
+    "What proportion of the book is in Stage 2?"
+        2.00 IFRS 9 stage in Stage 2 at 2026-08.
+
+Not one of those is a rate, a share or a proportion. The first two summed the
+`dpd` column; the second two reported the literal contents of `ifrs9_stage` —
+the number 3 and the number 2 — as though the stage label were the answer. All
+four ran, all four passed their invariants, and all four are the kind of figure
+somebody repeats in a committee.
+
+The cause is structural rather than a bug in any one of them. The Cockpit's
+planner composes an analysis out of CONCEPTS, and a concept is one governed
+column. A rate is not a column: it is a numerator, a denominator and a scope,
+and the only place in this codebase that holds those together is the Metric
+Catalogue — which the Cockpit never consulted. So the planner did what it could
+with the nearest column, which is exactly the failure this product exists to
+prevent.
+
+What this route does
+--------------------
+A question that names a governed metric whose formula has a DENOMINATOR or a
+governed FUNCTION behind it is answered by the metric engine: the same
+definition, the same scope and the same arithmetic the lens tile uses. Chat and
+dashboard then agree by construction rather than by coincidence, which is worth
+more than either number on its own.
+
+What it deliberately does not do
+--------------------------------
+It is a route, not a rescue, and it is kept narrow in four ways.
+
+  * Only DERIVED metrics. A plain sum — total ECL, gross carrying amount — is
+    something the planner expresses perfectly well, and taking those would cost
+    the filters, cohorts and comparisons the planner can do and the metric
+    engine cannot.
+  * Only a precise naming. A one-word alias is ignored unless the word is a
+    technical term that means one thing ("gini", "coverage"), because
+    "secured" in "what is secured exposure?" is an adjective and not a request
+    for the secured share.
+  * Never over a movement, a threshold or a two-period comparison. Those are
+    questions the planner answers and this engine cannot express at all.
+  * Never over a row-level population. "Which customers are 30+ DPD" asks for
+    customers; a portfolio rate is not an answer to it.
+
+Anything this route declines falls through to the planner exactly as before.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+#: Formula kinds this route answers. Every one of them needs a denominator or a
+#: governed function, which is precisely what a single column cannot carry.
+DERIVED_KINDS: frozenset[str] = frozenset({
+    "ratio", "percentage", "rate", "function",
+})
+
+#: One-word names that mean one thing in a credit book, and may therefore
+#: route on their own. Everything else needs at least two words.
+#:
+#: The list is short on purpose. "secured", "overdue", "exposure" and
+#: "allowance" are all single-word aliases of governed metrics and all four are
+#: ordinary English adjectives or nouns in a sentence about something else.
+UNAMBIGUOUS: frozenset[str] = frozenset({
+    "gini", "auc", "auroc", "ks", "coverage", "utilisation", "utilization",
+    "forbearance", "forborne", "sicr",
+})
+
+#: Row-level subjects. A portfolio rate does not answer a question about them.
+_POPULATION = re.compile(
+    r"\b(?:which|what|list|show|name|give)\b[^.?]{0,30}?\b"
+    r"(?:customers?|borrowers?|facilit(?:y|ies)|accounts?|obligors?|clients?)\b",
+    re.IGNORECASE,
+)
+
+#: "the highest", "the worst", "top", "lowest" — a request to rank the
+#: breakdown rather than to list it.
+_RANKED = re.compile(
+    r"\b(?:highest|largest|biggest|worst|most|top|lowest|smallest|best|least)\b",
+    re.IGNORECASE,
+)
+
+#: Words that make a question a comparison between two points in time. The
+#: metric engine computes one period; asking it to answer a comparison would
+#: mean showing one of the two numbers under a heading promising both.
+_COMPARISON = re.compile(
+    r"\b(?:vs\.?|versus|compared?\s+(?:to|with)|against|since|between|"
+    r"year\s+on\s+year|month\s+on\s+month|yoy|mom|trend|over\s+time|"
+    r"movement|change[ds]?)\b",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class Routed:
+    """A governed metric this question asked for, and how to report it."""
+
+    metric: Any
+    phrase: str
+    #: The governed column to break the metric down by, where one was named.
+    dimension: str = ""
+    dimension_phrase: str = ""
+    #: True where the question asked which group is highest rather than for
+    #: the whole breakdown.
+    ranked: bool = True
+    period: str = ""
+
+    @property
+    def metric_id(self) -> str:
+        return str(self.metric.metric_id)
+
+
+@lru_cache(maxsize=1)
+def _phrases() -> tuple[tuple[str, Any], ...]:
+    """Every derived metric's names and aliases, longest phrase first.
+
+    Longest-first is what makes "stage 2 coverage" beat "coverage": both are
+    present in the sentence and only one of them is what was asked for.
+    """
+    from backend.metrics import library
+
+    out: list[tuple[str, Any]] = []
+    for metric in library.ALL:
+        if str(getattr(metric.formula, "kind", "")) not in DERIVED_KINDS:
+            continue
+        spellings = {str(metric.name).lower()}
+        spellings.update(str(a).lower() for a in metric.aliases)
+        for phrase in spellings:
+            phrase = phrase.strip()
+            if not phrase:
+                continue
+            if len(phrase.split()) < 2 and phrase not in UNAMBIGUOUS:
+                continue
+            out.append((phrase, metric))
+    out.sort(key=lambda pair: len(pair[0]), reverse=True)
+    return tuple(out)
+
+
+def _pattern(phrase: str) -> re.Pattern[str]:
+    """A whole-phrase matcher tolerant of how people space and punctuate.
+
+    "30+ DPD" is written "30+ dpd", "30 + dpd" and "30plus dpd", and a metric
+    nobody can name is a metric nobody uses.
+    """
+    parts = [re.escape(word) for word in phrase.split()]
+    body = r"[\s\-]*".join(parts)
+    body = body.replace(r"\+", r"\s*\+\s*")
+    # A leading digit or a trailing "+" is not a word character, so \b does
+    # the wrong thing on both ends. Guard on what may NOT sit beside it.
+    return re.compile(rf"(?<![\w+]){body}(?![\w])", re.IGNORECASE)
+
+
+@lru_cache(maxsize=256)
+def _compiled() -> tuple[tuple[re.Pattern[str], str, Any], ...]:
+    return tuple((_pattern(phrase), phrase, metric)
+                 for phrase, metric in _phrases())
+
+
+def read(question: str) -> Routed | None:
+    """The governed metric this question asks for, or `None` to fall through.
+
+    `None` is the ordinary outcome and costs nothing: every question that is
+    not a plain request for a named rate goes to the planner as it always did.
+    """
+    text = str(question or "")
+    if not text.strip():
+        return None
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        # The corporate library's derived metrics read datasets this route has
+        # never been driven against. Not a claim that it would not work —
+        # a refusal to assert it without having watched it.
+        return None
+    if _COMPARISON.search(text) or _POPULATION.search(text):
+        return None
+
+    found = None
+    for pattern, phrase, metric in _compiled():
+        if pattern.search(text):
+            found = (phrase, metric)
+            break
+    if found is None:
+        found = _share_of_a_state(text)
+    if found is None:
+        return None
+    phrase, metric = found
+
+    # The movement and threshold guards run against the sentence with the
+    # metric's OWN NAME masked out, and that order is load-bearing. "What is
+    # the 30+ DPD rate?" carries a threshold — `dpd >= 30` — inside the name of
+    # the metric, and a guard reading the raw sentence declines every
+    # delinquency question there is. What the guards are for is a threshold or
+    # a movement the question adds AROUND the metric, which is a cohort or a
+    # trend and not a figure this engine can produce.
+    from backend.orchestration import semantics
+
+    masked = _mask(text, phrase)
+    if semantics.find_movement(masked) is not None:
+        return None
+    if semantics.find_threshold(masked) is not None:
+        return None
+
+    dimension, dimension_phrase = _breakdown(text, phrase)
+    return Routed(metric=metric, phrase=phrase, dimension=dimension,
+                  dimension_phrase=dimension_phrase,
+                  ranked=bool(_RANKED.search(text)),
+                  period=_period(text, metric))
+
+
+#: "what share of the book is in Stage 2", "what percentage is Stage 3".
+#:
+#: A stage share is the one derived metric people almost never name in full.
+#: They name the STATE and ask for its share, and the planner's answer to that
+#: was the number 2 — the contents of `ifrs9_stage` — presented as a
+#: proportion. The metric exists; only the wording was missing.
+_SHARE_WORD = (r"(?:share|proportion|percentage|percent|%|fraction|"
+               r"how much|what part)")
+_STAGE_SHARE = re.compile(
+    rf"\b{_SHARE_WORD}\b[^.?]{{0,60}}?\bstage\s*(?P<stage>[123]|one|two|three)\b"
+    rf"|\bstage\s*(?P<stage2>[123]|one|two|three)\b[^.?]{{0,30}}?\b{_SHARE_WORD}\b",
+    re.IGNORECASE,
+)
+
+_STAGE_WORDS = {"one": "1", "two": "2", "three": "3",
+                "1": "1", "2": "2", "3": "3"}
+
+
+def _share_of_a_state(question: str) -> tuple[str, Any] | None:
+    """A stage share asked for by naming the stage and the word "share"."""
+    found = _STAGE_SHARE.search(question)
+    if found is None:
+        return None
+    raw = (found.group("stage") or found.group("stage2") or "").lower()
+    stage = _STAGE_WORDS.get(raw, "")
+    if not stage:
+        return None
+    from backend.metrics import library
+
+    wanted = f"retail.stage{stage}.share"
+    for metric in library.ALL:
+        if metric.metric_id == wanted:
+            return (f"stage {stage} share", metric)
+    return None
+
+
+def _mask(text: str, phrase: str) -> str:
+    """The sentence with the metric's own name blanked out, same length."""
+    return _pattern(phrase).sub(lambda m: " " * len(m.group(0)), text)
+
+
+def _breakdown(question: str, phrase: str) -> tuple[str, str]:
+    """The governed dimension the question asked to see the metric across.
+
+    Read from the sentence with the METRIC'S OWN WORDS removed. "30+ DPD rate
+    by product" is fine either way, but "Stage 3 share by product" is not: the
+    dimension reader sees "stage" inside the metric's name and breaks a
+    Stage 3 metric down by IFRS 9 stage, which is one row.
+    """
+    from backend.orchestration import dimensions
+
+    resolved = dimensions.read(_mask(question, phrase))
+    name = str(getattr(resolved, "dimension", "") or "")
+    return name, str(getattr(resolved, "phrase", "") or "")
+
+
+def _period(question: str, metric: Any) -> str:
+    """The period the question named, or the metric's own governed default.
+
+    A metric that measures an OUTCOME defaults to the latest matured cohort
+    rather than the latest month, and that rule lives on the metric. Overriding
+    it from a sentence that named no period is how an observed default rate
+    comes back as 100%.
+    """
+    from backend.metrics import service
+
+    try:
+        published = service.periods_with_rows(metric.datasets,
+                                              scope=metric.scope)
+    except Exception:  # noqa: BLE001 - no lake, no period; the caller states it
+        return ""
+    if not published:
+        return ""
+    from backend.orchestration import periods as pr
+
+    intent = pr.read_period_intent(question, list(published))
+    named = list(getattr(intent, "named_periods", ()) or ())
+    if len(named) == 1:
+        return str(named[0])
+    return ""
+
+
+# --------------------------------------------------------------- answering
+
+
+#: How many groups a breakdown may return before it stops being an answer.
+MAX_GROUPS = 25
+
+
+def _format(value: float | None, unit: str, decimals: int) -> str:
+    """The figure as the reader sees it everywhere else.
+
+    Mirrors `frontend/src/components/metrics/present.ts`. A coverage ratio that
+    reads "0.77%" on a lens tile and "0.0077" in the chat is two numbers as far
+    as anybody in the room is concerned.
+    """
+    if value is None:
+        return "not available"
+    places = int(decimals if decimals is not None else 2)
+    if unit in ("percent", "percentage"):
+        return f"{value:,.{places}f}%"
+    if unit == "probability":
+        return f"{value * 100:,.{min(places, 2)}f}%"
+    if unit == "currency":
+        return f"{value:,.0f} SAR" if abs(value) >= 1000 else (
+            f"{value:,.{places}f} SAR")
+    if unit == "count":
+        return f"{value:,.0f}"
+    if unit == "days":
+        return f"{value:,.0f} days"
+    return f"{value:,.{places}f}"
+
+
+def answer(routed: Routed, question: str) -> Any:
+    """Compute the metric and shape it as an answer.
+
+    Raises nothing a caller has to catch for a data problem: an unavailable
+    figure comes back as a stated unavailability, because "we could not compute
+    this" and "this is zero" are different sentences and only one of them is
+    true.
+    """
+    from backend.orchestration.handlers import HandlerResult
+
+    metric = routed.metric
+    if routed.dimension:
+        result = _breakdown_answer(routed, question)
+        if result is not None:
+            return result
+    return _value_answer(routed, question, HandlerResult)
+
+
+def _panel(metric: Any) -> dict[str, Any]:
+    from backend.metrics import service
+
+    try:
+        return metric.panel(catalog=service._catalog())
+    except Exception:  # noqa: BLE001 - the panel is context, never the answer
+        return {"metric_id": metric.metric_id, "name": metric.name,
+                "definition": metric.definition, "unit": metric.unit}
+
+
+def _follow_ups(routed: Routed) -> list[str]:
+    metric = routed.metric
+    out: list[str] = []
+    if not routed.dimension:
+        out.append(f"Break {metric.name} down by product")
+        out.append(f"Show {metric.name} by customer segment")
+    else:
+        out.append(f"What is {metric.name} for the whole book?")
+        out.append(f"Break {metric.name} down by customer segment")
+    out.append(f"How is {metric.name} calculated?")
+    return out
+
+
+def _value_answer(routed: Routed, question: str, result_type: Any) -> Any:
+    from backend.metrics import service
+
+    metric = routed.metric
+    computed = service.value(metric.metric_id, period=routed.period,
+                             question=question)
+    value = computed.get("value")
+    period = str(computed.get("period") or routed.period or "")
+    shown = _format(value, str(metric.unit), int(metric.decimals))
+    where = f" at {period}" if period else ""
+    if value is None:
+        sentence = (f"{metric.name} could not be computed{where}: "
+                    f"{computed.get('unavailable') or 'no rows qualified'}.")
+    else:
+        sentence = f"{metric.name} is {shown}{where}."
+        if metric.formula_text:
+            sentence += f" It is {metric.formula_text}."
+    return result_type(
+        answer=sentence,
+        rows=[{"metric": metric.name, "value": value, "period": period}],
+        columns=[{"name": "metric", "label": "Metric", "type": "string"},
+                 {"name": "value", "label": metric.name, "type": "number",
+                  "unit": metric.unit, "decimals": metric.decimals},
+                 {"name": "period", "label": "Period", "type": "string"}],
+        values={"value": value, "unit": metric.unit, "period": period,
+                "metric_id": metric.metric_id, "formatted": shown},
+        detail={"metric": _panel(metric),
+                "calculation": computed.get("calculation") or {},
+                "source": "metric_catalogue"},
+        chart={},
+        execution="computed",
+        execution_label="Governed metric engine",
+        graph=_trace(question, routed, period, computed.get("calculation")),
+        follow_ups=_follow_ups(routed),
+        warnings=([str(computed.get("unavailable"))]
+                  if computed.get("unavailable") else []),
+        title=metric.name,
+    )
+
+
+def _breakdown_answer(routed: Routed, question: str) -> Any:
+    """The metric across one governed dimension, or `None` to fall back.
+
+    `None` where the engine says the breakdown cannot be honest — a Gini over a
+    segment is not a Gini over the book restricted to that segment's summary
+    row, and the engine refuses rather than faking one. Falling back to the
+    single figure and saying so beats both a refusal and an invented chart.
+    """
+    from backend.metrics import execution, service
+    from backend.orchestration import dimensions
+    from backend.orchestration.handlers import HandlerResult
+
+    metric = routed.metric
+    period = routed.period or service.default_period(metric)
+    try:
+        drawn = execution.breakdown(
+            metric.formula, dimension=routed.dimension, period=period,
+            scope=metric.scope, sort="value", direction="desc",
+            limit=MAX_GROUPS, question=question)
+    except Exception:  # noqa: BLE001 - stated, then the single figure
+        logger.exception("The metric breakdown failed for %r", metric.metric_id)
+        return None
+    if drawn.get("unavailable"):
+        return None
+    points = [p for p in (drawn.get("points") or [])
+              if p.get("value") is not None]
+    if not points:
+        return None
+
+    label = dimensions.readable(routed.dimension)
+    ordered = sorted(points, key=lambda p: p["value"], reverse=True)
+    top = ordered[0]
+    bottom = ordered[-1]
+    unit, places = str(metric.unit), int(metric.decimals)
+    where = f" at {period}" if period else ""
+    if routed.ranked:
+        sentence = (
+            f"{top['label']} has the highest {metric.name}{where}, at "
+            f"{_format(top['value'], unit, places)}. "
+            f"{bottom['label']} is the lowest, at "
+            f"{_format(bottom['value'], unit, places)}.")
+    else:
+        sentence = (
+            f"{metric.name} across {len(ordered)} "
+            f"{label.lower()}{'' if len(ordered) == 1 else 's'}{where}. "
+            f"{top['label']} is highest at "
+            f"{_format(top['value'], unit, places)}.")
+    if metric.formula_text:
+        sentence += f" Each group is {metric.formula_text}."
+
+    return HandlerResult(
+        answer=sentence,
+        rows=[{"label": p["label"], "value": p["value"], "rows": p.get("rows", 0)}
+              for p in ordered],
+        columns=[{"name": "label", "label": label, "type": "string"},
+                 {"name": "value", "label": metric.name, "type": "number",
+                  "unit": metric.unit, "decimals": metric.decimals},
+                 {"name": "rows", "label": "Facilities", "type": "number"}],
+        values={"metric_id": metric.metric_id, "period": period,
+                "dimension": routed.dimension,
+                "highest": top["label"], "lowest": bottom["label"]},
+        detail={"metric": _panel(metric),
+                "breakdown": {"dimension": routed.dimension,
+                              "period": period,
+                              "groups": len(ordered)},
+                "source": "metric_catalogue"},
+        # A bar, and only a bar: these are groups on a nominal scale, not a
+        # series over time, and drawing them as a line asserts an order the
+        # dimension does not have.
+        chart={"chart": "bar", "x": "label", "y": ["value"],
+               "chart_first": True, "alternatives": ["table"],
+               "reason": (f"one governed metric compared across "
+                          f"{label.lower()}")},
+        execution="computed",
+        execution_label="Governed metric engine",
+        graph=_trace(question, routed, period, None,
+                     groups=len(ordered)),
+        follow_ups=_follow_ups(routed),
+        title=f"{metric.name} by {label.lower()}",
+    )
+
+
+def _trace(question: str, routed: Routed, period: str,
+           calculation: Any, *, groups: int = 0) -> Any:
+    """The Trace for a metric answer: a real calculation, said to be one.
+
+    It names the metric, its formula in words, its scope and its period rule,
+    because the whole reason to answer from the catalogue rather than from a
+    fresh group-by is that those four things are published and reviewable.
+    """
+    from backend.trace.model import NodeType, TraceGraph, TraceNode
+
+    metric = routed.metric
+    try:
+        graph = TraceGraph()
+        graph.add_node(TraceNode(
+            id="question", type=NodeType.USER_PROMPT, label="Question asked",
+            config={"question": question}))
+        intent = graph.add_node(TraceNode(
+            id="intent", type=NodeType.CAPABILITY,
+            label=f"Read as: the governed metric {metric.name}",
+            config={"metric_id": metric.metric_id,
+                    "matched_phrase": routed.phrase,
+                    "computation_required": True,
+                    "rule": ("A rate is a numerator, a denominator and a "
+                             "scope. Those live in the Metric Catalogue, so "
+                             "the answer is the catalogue's own definition "
+                             "rather than a fresh group-by that would agree "
+                             "with the dashboard only by coincidence.")}))
+        intent.mark_ok()
+        graph.connect("question", "intent")
+
+        dataset = metric.datasets[0] if metric.datasets else ""
+        source = graph.add_node(TraceNode(
+            id="population", type=NodeType.DATASET,
+            label=f"{dataset} at {period}" if period else dataset,
+            config={"dataset": dataset, "fields": list(metric.fields),
+                    "period": period,
+                    "period_rule": metric.period_rule,
+                    "scope": [c.describe() for c in metric.scope]}))
+        source.mark_ok()
+        graph.connect("intent", "population")
+
+        node = graph.add_node(TraceNode(
+            id="metric", type=NodeType.CALCULATION,
+            label=f"{metric.name} — {metric.formula_text or metric.definition}",
+            config={"formula": metric.formula.to_dict(),
+                    "formula_text": metric.formula_text,
+                    "numerator": metric.numerator_text,
+                    "denominator": metric.denominator_text,
+                    "not_this": metric.not_this,
+                    "unit": metric.unit,
+                    "calculation": (calculation if isinstance(calculation, dict)
+                                    else {}),
+                    "groups": groups,
+                    "dimension": routed.dimension}))
+        node.mark_ok()
+        graph.connect("population", "metric")
+        return graph
+    except Exception:  # noqa: BLE001 - a missing Trace is not a missing answer
+        logger.exception("Could not build the Trace for %r", metric.metric_id)
+        return None

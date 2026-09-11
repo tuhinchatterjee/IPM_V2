@@ -129,6 +129,48 @@ _FILLER = re.compile(
     r"in|of|on|to|by|and)\b|[^\w%]+", re.IGNORECASE)
 
 
+#: "down" in an idiom that asks for a BREAKDOWN rather than a fall.
+#:
+#: The failure this prevents
+#: -------------------------
+#:     "Break ECL down by product"
+#:
+#: was answered "9,517 facilities where ecl final sar fell, between 2025-08 and
+#: 2026-08. The 500 shown are ordered worst first." The literal DOWN direction
+#: matches a bare "down", the concept "ECL" was masked out of the clause before
+#: the scan, and what was left — "Break     down by product" — reads as an
+#: assertion that something fell. The most ordinary way in English to ask for a
+#: breakdown returned a deterioration cohort instead, computed correctly, under
+#: a heading describing a question nobody asked.
+#:
+#: Masked rather than removed, so offsets a caller derived from the clause
+#: still point where they did, and so a real movement elsewhere in the same
+#: sentence survives: "break ECL down by product and say which fell" keeps its
+#: "fell".
+_BREAKDOWN_IDIOM = re.compile(
+    r"\bbreak(?:s|ing)?\b[^.;?!]{0,40}?\b(?P<down>down)\b"
+    r"|\bbroken\s+(?P<down2>down)\b"
+    r"|\bdrill(?:s|ed|ing)?[\s\-]+(?P<down3>down)\b"
+    r"|\btop[\s\-]?(?P<down4>down)\b"
+    r"|\bdrill(?P<down5>down)\b",
+    re.IGNORECASE,
+)
+
+
+def without_breakdown(text: str) -> str:
+    """The text with a breakdown idiom's "down" blanked out, same length."""
+    out = str(text or "")
+    if "down" not in out.lower():
+        return out
+    for found in _BREAKDOWN_IDIOM.finditer(out):
+        for group in ("down", "down2", "down3", "down4", "down5"):
+            if found.group(group) is None:
+                continue
+            start, end = found.span(group)
+            out = out[:start] + (" " * (end - start)) + out[end:]
+    return out
+
+
 def phrase_asserts_movement(phrase: str) -> Movement | None:
     """The movement a concept's OWN phrase asserts, where it asserts one.
 
@@ -150,9 +192,10 @@ def phrase_asserts_movement(phrase: str) -> Movement | None:
     text = str(phrase or "").strip()
     if not text:
         return None
+    scanned = without_breakdown(text).lower()
     found: tuple[int, int] | None = None
     for direction in DIRECTIONS:
-        at = re.search(direction.pattern, text.lower())
+        at = re.search(direction.pattern, scanned)
         if at and (found is None or at.start() < found[0]):
             found = (at.start(), at.end())
     if found is None:
@@ -186,7 +229,7 @@ def find_movement(text: str) -> Movement | None:
     passing invariants, and a finding a credit officer might believe. A period
     is a type, not a quantity, and the two must not share a parser.
     """
-    lowered = temporal.without_time(text).lower()
+    lowered = without_breakdown(temporal.without_time(text)).lower()
     best: tuple[int, Direction] | None = None
     for direction in DIRECTIONS:
         match = re.search(direction.pattern, lowered)
@@ -623,6 +666,7 @@ def state_condition(match: Any, question: str = "") -> Any:
 
 __all__ = [
     "DIRECTIONS",
+    "without_breakdown",
     "Direction",
     "Movement",
     "Threshold",
