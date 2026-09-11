@@ -371,9 +371,45 @@ call builds either dashboard.
 New this session: 40 provider-schema, 25 provider-payload, 63 benchmark, 23
 collaboration and threads, 13 failure injection, 6 performance.
 
-Two collection errors exist elsewhere in the repository — `tests/brain`
-(missing vocabulary data) and `tests/legacy` (missing the `dash` package).
-Both reproduce identically on `main` and neither is touched by this work.
+### The rest of the repository is not green, and was not before this work
+
+An earlier draft of this section said the only problems elsewhere were two
+collection errors. That was wrong: it was measured with `-x`, which stops at
+the first error and hid everything behind it. Measured properly, with JUnit
+XML because this repository's pytest configuration suppresses the summary
+line whenever there are errors:
+
+| Scope (excluding `cockpit_v4`, `brain`, `legacy`) | Tests | Passed | Failed | Errors | Skipped |
+| --- | --- | --- | --- | --- | --- |
+| `main` | 9,032 | 6,157 | 409 | 176 | 2,290 |
+| this branch | 9,668 | 6,764 | 412 | 176 | 2,316 |
+
+The branch carries more tests because it holds the whole Cockpit V2 → V3 → V4
+lineage on top of the `main` merge-base.
+
+Comparing the failing test IDs rather than the counts: **zero tests fail on
+`main` that pass here**, and exactly three fail here that do not fail on
+`main`:
+
+- `tests/presentation/test_decimal_contract.py::test_no_display_path_bypasses_the_contract`
+- `tests/proof/test_zero_tolerance.py::TestEngineGuarantees::test_float_debris`
+- `tests/release/test_product_copy.py::TestNothingOnScreenNamesAVendor::test_no_rendered_string_says_demo`
+
+All three fail identically at `c322076`, the commit this session started from,
+so none is caused by this work. They are repository-wide guards that scan
+source text, and they are tripped by two earlier commits on this branch:
+`423f949` (Cockpit V2) put the literal "Synthetic demonstration data" into
+`frontend/src/components/ask/cockpit-v2.tsx`, and `0e90274` (the first V4
+commit) put `:.4f` formatting into `backend/cockpit_v4/budgets.py`. Neither
+file was modified this round.
+
+They are real findings and they should be fixed — the decimal guard in
+particular is the kind of rule worth keeping honest — but fixing them means
+editing Cockpit V2 code and the budget ledger's operator messages, which is
+outside what this session was asked to touch and not something to do
+unattended at night. **Flagged for a decision rather than silently absorbed.**
+
+Everything this session added or changed is in the four green suites above.
 
 ## 20. What was deliberately NOT done
 
@@ -412,6 +448,9 @@ Two, both sharpened rather than relaxed:
 - Performance is measured on this container, with a scripted analyst and a
   synthetic release of this size. It is a floor and a relative baseline, not a
   capacity statement about production hardware or a production book.
+- Three repository-wide guard tests fail on this branch and not on `main`
+  (§19). They predate this session and are tripped by Cockpit V2 copy and by
+  the budget ledger's decimal formatting. They are unfixed and flagged.
 
 ## 23. What a live session should test first
 
