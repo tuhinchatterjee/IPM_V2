@@ -278,6 +278,10 @@ class TestRET048LayoutPreserved:
             "backend/orchestration/referents.py",      # "compare with July"
             "backend/orchestration/orchestrator.py",   # log the traceback
             "backend/data_access/duckdb_source.py",    # monthly period ordering
+            "backend/orchestration/decomposition.py",  # the ECL bridge's book
+            "backend/orchestration/movement.py",       # "move from X to Y"
+            "frontend/src/app/investigations/page.tsx",  # labelled list rows
+            "frontend/src/lib/__tests__/back-paths.test.ts",  # the Trace return
             "backend/api/permissions.py",              # retail router auth
             # The two composers and the money formatter the answers render in.
             "frontend/src/components/ask/composer.tsx",

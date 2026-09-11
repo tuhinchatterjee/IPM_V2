@@ -2,10 +2,10 @@
   "suite": "navigation",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 100.9,
+  "elapsed_seconds": 102.4,
   "counts": {
-    "PASS": 9,
-    "FAIL": 1,
+    "PASS": 10,
+    "FAIL": 0,
     "BLOCKED": 0,
     "NOT RUN": 0,
     "NOT APPLICABLE": 1
@@ -29,8 +29,8 @@
       "id": "NAV-01",
       "module": "navigation",
       "title": "Evidence opened from an answer returns to THAT conversation, not to the home page",
-      "status": "FAIL",
-      "detail": "the Trace opened=True; Back returned to http://localhost:5328/investigations/46#turn-1 (the conversation is http://localhost:5328/investigations/46?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit)",
+      "status": "PASS",
+      "detail": "the Trace opened=True; Back returned to http://localhost:5328/investigations/120#turn-1 (the conversation is http://localhost:5328/investigations/120?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit)",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -56,7 +56,7 @@
       "module": "navigation",
       "title": "Browser Back undoes ONE intentional navigation and Forward redoes it",
       "status": "PASS",
-      "detail": "http://localhost:5328/investigations/46#turn-1 -> http://localhost:5328/early-warning; Back -> http://localhost:5328/investigations/46#turn-1; Forward -> http://localhost:5328/early-warning",
+      "detail": "http://localhost:5328/investigations/120#turn-1 -> http://localhost:5328/early-warning; Back -> http://localhost:5328/investigations/120#turn-1; Forward -> http://localhost:5328/early-warning",
       "expected": null,
       "actual": null,
       "evidence": {
