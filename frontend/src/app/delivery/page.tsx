@@ -16,6 +16,7 @@ import {
   type PlannerAttentionRow,
   type PlannerProjectRow,
 } from "@/lib/api";
+import { useAuth } from "@/components/system/auth";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +54,9 @@ export default function DeliveryPortfolioPage() {
     () => api.planner.portfolio({ status: "COMPLETED", limit: 200 }), []);
   const attention = useAsync(() => api.planner.needsAttention(25), []);
   const drafts = useAsync(() => api.planner.plan.drafts("DRAFTING"), []);
+  const { user } = useAuth();
+  /** Writing a plan needs an ANALYST or better; a VIEWER reads. */
+  const canPlan = user?.role !== "VIEWER";
 
   const current = (open.data?.projects ?? []).filter(
     (row) => row.status !== "COMPLETED" && row.status !== "CANCELLED");
@@ -71,13 +75,24 @@ export default function DeliveryPortfolioPage() {
         }
       />
 
+      {/*
+        A VIEWER cannot start or import a plan — the server refuses both —
+        so offering them the buttons only leads somewhere that says no.
+        Hiding a control is not access control, and is not being used as
+        such here: the check that matters is the one on the server. This
+        is about not inviting somebody into a door that is locked.
+      */}
       <div className="mb-4 flex flex-wrap gap-2">
-        <Button asChild>
-          <Link href="/delivery/new">Create new project</Link>
-        </Button>
-        <Button asChild variant="outline">
-          <Link href="/delivery/new?import=1">Import project</Link>
-        </Button>
+        {canPlan && (
+          <>
+            <Button asChild>
+              <Link href="/delivery/new">Create new project</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/delivery/new?import=1">Import project</Link>
+            </Button>
+          </>
+        )}
         <Button asChild variant="outline">
           <Link href="/delivery/my-work">View my tasks</Link>
         </Button>

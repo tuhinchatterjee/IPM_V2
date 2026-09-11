@@ -304,7 +304,9 @@ def create_project(session: Any, principal: Any, *, code: str, name: str,
         objective=_text(objective), business_context=_text(business_context),
         status=_one_of(status, PROJECT_STATUSES, "project status", "DRAFT"),
         priority=_one_of(priority, PRIORITIES, "priority", "MEDIUM"),
-        sponsor_id=sponsor_id, manager_id=manager_id, team_id=team_id,
+        sponsor_id=_person(session, sponsor_id, "sponsor_id"),
+        manager_id=_person(session, manager_id, "manager_id"),
+        team_id=int(team_id) if team_id else None,
         start_date=start, target_end_date=target,
         reporting_cadence=_one_of(reporting_cadence, CADENCES, "cadence",
                                   "WEEKLY"),
@@ -384,8 +386,11 @@ def update_project(session: Any, principal: Any, project_id: int, *,
     for key in ("sponsor_id", "manager_id", "team_id", "owner_id",
                 "escalation_id"):
         if key in fields:
-            new_id = fields[key]
-            new_id = int(new_id) if new_id else None
+            # `team_id` names a team rather than a person, so it keeps the
+            # plain conversion; the other four are people and are checked.
+            new_id = (int(fields[key]) if fields[key] else None
+                      ) if key == "team_id" else _person(
+                          session, fields[key], key)
             if new_id != getattr(project, key):
                 changes[key] = [getattr(project, key), new_id]
                 setattr(project, key, new_id)
@@ -630,6 +635,36 @@ def _resolve_workstream(session: Any, project_id: int,
     return int(workstream_id)
 
 
+def _person(session: Any, value: Any, field: str) -> int | None:
+    """The id of a real person, or a refusal naming the field.
+
+    Assigning work to somebody who does not exist used to reach the
+    database and come back as a foreign-key violation — which the API
+    could only report as "Something went wrong that CreditProbe does not
+    recognise", with a stack trace in the log and nothing a person could
+    act on. On one of the three fields it did not even fail: the value was
+    accepted and the task quietly had no escalation contact.
+
+    A name is either somebody's or it is a mistake, and a mistake is worth
+    a sentence.
+    """
+    from backend.db.models import User
+
+    if value in (None, "", 0):
+        return None
+    try:
+        who = int(value)
+    except (TypeError, ValueError):
+        raise PlannerError(
+            f"{field.replace('_id', '').replace('_', ' ')}: "
+            f"{value!r} is not a person.") from None
+    if session.get(User, who) is None:
+        raise PlannerError(
+            f"No such person for {field.replace('_id', '').replace('_', ' ')}"
+            f" (id {who}). Choose somebody from the directory.")
+    return who
+
+
 def _resolve_milestone(session: Any, project_id: int,
                        milestone_id: Any) -> int | None:
     """A milestone on THIS project, or nothing.
@@ -696,8 +731,9 @@ def create_task(session: Any, principal: Any, project_id: int, *,
         workstream_id=_resolve_workstream(session, project_id, workstream_id),
         milestone_id=_resolve_milestone(session, project_id, milestone_id),
         parent_id=int(parent_id) if parent else None,
-        owner_id=owner_id, reviewer_id=reviewer_id,
-        escalation_id=escalation_id,
+        owner_id=_person(session, owner_id, "owner_id"),
+        reviewer_id=_person(session, reviewer_id, "reviewer_id"),
+        escalation_id=_person(session, escalation_id, "escalation_id"),
         contributor_ids=[int(c) for c in (contributor_ids or [])],
         status=state,
         priority=_one_of(priority, PRIORITIES, "priority", "MEDIUM"),
@@ -874,7 +910,7 @@ def update_task(session: Any, principal: Any, task_id: int, *,
 
     for key in ("owner_id", "reviewer_id", "escalation_id"):
         if key in fields:
-            new_id = int(fields[key]) if fields[key] else None
+            new_id = _person(session, fields[key], key)
             if new_id != getattr(task, key):
                 changes[key] = [getattr(task, key), new_id]
                 setattr(task, key, new_id)
@@ -1062,7 +1098,8 @@ def create_milestone(session: Any, principal: Any, project_id: int, *,
         project_id=int(project_id), code=code, name=_text(name, 300),
         description=_text(description),
         workstream_id=_resolve_workstream(session, project_id, workstream_id),
-        owner_id=owner_id, escalation_id=escalation_id,
+        owner_id=_person(session, owner_id, "owner_id"),
+        escalation_id=_person(session, escalation_id, "escalation_id"),
         start_date=_as_date(start_date, "Start date"),
         target_date=_as_date(target_date, "Target date"),
         critical_date=_as_date(critical_date, "Critical date"),
@@ -1322,7 +1359,7 @@ def create_raid(session: Any, principal: Any, project_id: int, *,
         project_id=int(project_id), code=code, raid_type=kind,
         title=_text(title, 300), description=_text(description),
         workstream_id=_resolve_workstream(session, project_id, workstream_id),
-        owner_id=owner_id,
+        owner_id=_person(session, owner_id, "owner_id"),
         raised_date=_as_date(raised_date, "Date raised") or date.today(),
         target_date=_as_date(target_date, "Target resolution date"),
         probability=_text(probability, 16).upper(),
