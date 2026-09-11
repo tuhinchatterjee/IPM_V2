@@ -19,6 +19,7 @@
  */
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -32,8 +33,14 @@ import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { withReturnTo } from "@/lib/return-to";
 
-const SEVERITIES = ["ALL", "HIGH", "MEDIUM", "LOW"] as const;
-type Severity = (typeof SEVERITIES)[number];
+//: The fallback, used only until the book answers. The list the screen
+//: actually offers is the rulebook's own — see `severities` below.
+//:
+//: It was hard-coded as ALL / HIGH / MEDIUM / LOW. The rulebook's highest
+//: class is CRITICAL, so the 232 alerts somebody opens this screen for could
+//: not be selected, and LOW was an option no rule could ever fill.
+const FALLBACK_SEVERITIES = ["ALL"] as const;
+type Severity = string;
 
 const PAGE = 25;
 
@@ -63,21 +70,36 @@ function sar(value: unknown): string {
 }
 
 export function RetailSignals() {
+  // The filters this screen was left with, read ONCE from the link that
+  // brought the reader back.
+  //
+  // Back from Customer 360 returned to the signals list with every filter
+  // reset: the return href carried the product, the severity and the month,
+  // and nothing read them. §13 asks for "Back to the exact filtered list",
+  // and a list that comes back showing all 5,952 alerts is not that list.
+  //
+  // Read once and then owned by the reader: re-reading on every render would
+  // undo whatever they changed next.
+  const query = useSearchParams();
   const manifest = useAsync(() => api.retailManifest(), []);
   const months = React.useMemo(
     () => (manifest.data?.months ?? []).map((m) => m.reporting_month),
     [manifest.data],
   );
-  const [month, setMonth] = React.useState("");
-  const [severity, setSeverity] = React.useState<Severity>("ALL");
-  const [family, setFamily] = React.useState("ALL");
+  const [month, setMonth] = React.useState(() => query.get("month") ?? "");
+  const [severity, setSeverity] = React.useState<Severity>(
+    () => query.get("severity") || "ALL");
+  const [family, setFamily] = React.useState(
+    () => query.get("family") || "ALL");
   // A triage list nobody can narrow to a product is a list nobody uses: 5,952
   // alerts over four products, and the person reading it owns one of them
   // this morning. Same for the customer somebody has just been asked about.
-  const [product, setProduct] = React.useState("ALL");
-  const [customer, setCustomer] = React.useState("");
-  const [typed, setTyped] = React.useState("");
-  const [sort, setSort] = React.useState("severity");
+  const [product, setProduct] = React.useState(
+    () => query.get("product") || "ALL");
+  const [customer, setCustomer] = React.useState(
+    () => query.get("customer") ?? "");
+  const [typed, setTyped] = React.useState(() => query.get("customer") ?? "");
+  const [sort, setSort] = React.useState(() => query.get("sort") || "severity");
   const [shown, setShown] = React.useState(PAGE);
 
   React.useEffect(() => {
@@ -98,6 +120,12 @@ export function RetailSignals() {
       ? rows
       : rows.filter((a) => a.rule_family === family);
   }, [found.data, family]);
+
+  //: Worst first, and only the classes some rule actually raises.
+  const severities = React.useMemo(() => {
+    const served = found.data?.severities ?? [];
+    return served.length ? ["ALL", ...served] : [...FALLBACK_SEVERITIES];
+  }, [found.data]);
 
   const families = React.useMemo(() => {
     const seen = new Set<string>();
@@ -143,13 +171,13 @@ export function RetailSignals() {
             Severity
             <select
               value={severity}
-              onChange={(e) => { setSeverity(e.target.value as Severity);
+              onChange={(e) => { setSeverity(e.target.value);
                                  setShown(PAGE); }}
               aria-label="Severity"
               data-testid="signals-severity"
               className="rounded-md border border-border bg-surface px-2 py-1 text-[13px]"
             >
-              {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {severities.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[11px] text-text-muted">

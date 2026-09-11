@@ -9,6 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
+/** The severities a Head of Retail Risk acts on this morning. */
+const SERIOUS = new Set(["HIGH", "CRITICAL"]);
+
 /**
  * Early Warning on the Cockpit, for the retail book.
  *
@@ -46,7 +49,10 @@ export function RetailEarlyWarningStrip({ month }: { month?: string }) {
   const data = book.data;
   const byRule = data.by_rule ?? [];
   const severe = byRule
-    .filter((r) => (r.severity || "").toUpperCase() === "HIGH")
+    // HIGH and above. Counting only the rules spelled HIGH left out every
+    // CRITICAL one — 232 of them — from the single number on the home page
+    // that is meant to say how bad this morning is.
+    .filter((r) => SERIOUS.has((r.severity || "").toUpperCase()))
     .reduce((total, r) => total + (r.alerts || 0), 0);
   const share = data.portfolio_exposure_sar
     ? (100 * data.affected_exposure_sar) / data.portfolio_exposure_sar
@@ -66,9 +72,9 @@ export function RetailEarlyWarningStrip({ month }: { month?: string }) {
         + "the number of customers and is not a queue length.",
     },
     {
-      label: "On high severity",
+      label: "On high or critical severity",
       value: severe.toLocaleString(),
-      means: "Warnings from rules the rulebook marks HIGH.",
+      means: "Warnings from rules the rulebook marks HIGH or CRITICAL.",
     },
     {
       label: "Rules firing",

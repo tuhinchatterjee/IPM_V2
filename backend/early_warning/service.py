@@ -111,6 +111,14 @@ def cycle_exposure_by_sector(source: DuckDBSource, period: str) -> dict[str, flo
     unavailable the exposure is zero for every sector, which leaves the factor
     carrying no information rather than carrying a guess.
     """
+    from backend.retail import profile
+
+    if profile.is_retail():
+        # No macro series is published here, so the cycle is read off the book
+        # itself. See backend/retail/forward_signal.cycle_exposure.
+        from backend.retail import forward_signal
+
+        return forward_signal.cycle_exposure(source, period)
     if MACRO not in source.datasets():
         return {}
     try:

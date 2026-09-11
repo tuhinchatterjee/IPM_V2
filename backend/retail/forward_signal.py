@@ -318,5 +318,102 @@ def read_book(source: Any, period: str) -> pd.DataFrame:
     return frame.reset_index(drop=True)
 
 
-__all__ = ["DATASET", "KEY", "PERIOD_FIELD", "READ_FIELDS", "RENAMED",
-           "compute", "factors", "read_book"]
+
+
+
+# ---------------------------------------------------------- the credit cycle
+
+
+def _cycle_series(source: Any) -> "pd.Series":
+    """Where the credit cycle sits at each month, read off the book itself.
+
+    This installation publishes no macro series, so the corporate path — read
+    `credit_cycle_factor` from `macro_saudi` — returns nothing and the cycle
+    factor comes out constant at zero for every facility in every month. A
+    factor that is the same number on every row carries no information, and a
+    screen offering "Cycle sensitivity" as one of six families with nothing
+    behind it is the same defect this module was written to fix, one level
+    down.
+
+    The book knows where the cycle is. The average point-in-time PD across the
+    whole retail book, month by month, IS the cycle as this book experiences
+    it: it rises when conditions deteriorate and falls when they improve. It is
+    centred and scaled so a beta estimated against it is a sensitivity rather
+    than a unit conversion.
+    """
+    from backend.data_access.protocol import AnalysisContext
+
+    rows: list[tuple[str, float]] = []
+    for period in source.periods(DATASET):
+        try:
+            frame = source.fetch(
+                DATASET, context=AnalysisContext(period=period),
+                period=period, fields=["pd_pit_12m_base"])
+        except Exception:  # noqa: BLE001 - a month the book lacks
+            continue
+        if frame.empty:
+            continue
+        rows.append((period, float(
+            pd.to_numeric(frame["pd_pit_12m_base"], errors="coerce").mean())))
+    if len(rows) < 3:
+        return pd.Series(dtype="float64")
+    series = pd.Series({p: v for p, v in rows}, dtype="float64")
+    spread = float(series.std())
+    if spread < 1e-12:
+        return pd.Series(dtype="float64")
+    return (series - series.mean()) / spread
+
+
+def cycle_exposure(source: Any, period: str) -> dict[str, float]:
+    """Each employer sector's cycle exposure at one month: beta times cycle.
+
+    Beta is d(sector mean PD)/d(cycle), estimated across every published month
+    rather than asserted. A sector whose PDs rise with the cycle has a positive
+    beta, so multiplying by where the cycle currently sits gives a number that
+    is positive exactly when the economy is working against that sector now.
+    """
+    from backend.data_access.protocol import AnalysisContext
+
+    cycle = _cycle_series(source)
+    if cycle.empty or period not in cycle.index:
+        return {}
+
+    rows: list[tuple[str, float, float]] = []
+    for month in cycle.index:
+        try:
+            frame = source.fetch(
+                DATASET, context=AnalysisContext(period=str(month)),
+                period=str(month),
+                fields=["employer_sector", "pd_pit_12m_base"])
+        except Exception:  # noqa: BLE001
+            continue
+        if frame.empty:
+            continue
+        mean_pd = (frame.assign(
+            pd_pit_12m_base=pd.to_numeric(frame["pd_pit_12m_base"],
+                                          errors="coerce"))
+            .groupby("employer_sector")["pd_pit_12m_base"].mean())
+        for sector, value in mean_pd.items():
+            if sector is None or pd.isna(value):
+                continue
+            rows.append((str(sector), float(cycle[month]), float(value)))
+    if not rows:
+        return {}
+
+    frame = pd.DataFrame(rows, columns=["sector", "cycle", "pd"])
+    now = float(cycle[period])
+    out: dict[str, float] = {}
+    for sector, group in frame.groupby("sector"):
+        variance = float(group["cycle"].var())
+        if variance < 1e-12 or len(group) < 3:
+            out[str(sector)] = 0.0
+            continue
+        covariance = float(
+            ((group["cycle"] - group["cycle"].mean())
+             * (group["pd"] - group["pd"].mean())).mean())
+        out[str(sector)] = (covariance / variance) * now
+    return out
+
+
+__all__ = ["DATASET", "KEY", "NAME_FROM", "PERIOD_FIELD", "READ_FIELDS",
+           "RENAMED", "compute", "cycle_exposure", "factors", "read_book"]

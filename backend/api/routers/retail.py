@@ -470,6 +470,12 @@ def early_warning(month: str | None = Query(None),
         "portfolio_exposure_sar": round(float(frame["gross_carrying_amount_sar"].sum()), 2),
         "by_rule": by_rule,
         "alerts": alerts.head(limit).to_dict("records"),
+        # The severities this RULEBOOK uses, worst first. The screen offered a
+        # hard-coded ALL/HIGH/MEDIUM/LOW: CRITICAL — the 232 alerts a Head of
+        # Retail Risk opens the screen for — could not be selected at all, and
+        # LOW was an option no rule could ever fill.
+        "severities": [s for s in reversed(ews_mod.SEVERITY_ORDER)
+                       if any(r["severity"] == s for r in by_rule)],
         "filters": {"severity": (severity or "").upper(),
                     "product": (resolve_product(product) or "").upper()
                     if product else "",

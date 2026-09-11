@@ -1,0 +1,181 @@
+{
+  "suite": "overnight_early_warning",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 58.6,
+  "counts": {
+    "PASS": 12,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_early_warning-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-01",
+      "module": "early-warning",
+      "title": "The triage list opens on the latest month with every alert accounted for",
+      "status": "PASS",
+      "detail": "25 alerts rendered; the book holds 5952",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-02",
+      "module": "early-warning",
+      "title": "The list narrows to one product, and the counts move with it",
+      "status": "PASS",
+      "detail": "a product filter exists=True; 25 rows shown; the book holds 1700 for Credit Card against 5952 for everything",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-03",
+      "module": "early-warning",
+      "title": "Severity narrows the list and every row shown is that severity",
+      "status": "PASS",
+      "detail": "25 rows, all CRITICAL=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-04",
+      "module": "early-warning",
+      "title": "The default order puts the worst first",
+      "status": "PASS",
+      "detail": "an order control exists=True; the first row is the worst severity=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-05",
+      "module": "early-warning",
+      "title": "A customer can be found by id, and only their alerts come back",
+      "status": "PASS",
+      "detail": "searched for RC-0008964; 7 rows, all theirs=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-06",
+      "module": "early-warning",
+      "title": "Each alert names its rule, what it measured and what to do about it",
+      "status": "PASS",
+      "detail": "the rule id, the measurement and the recommended action are all on the row=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-07",
+      "module": "early-warning",
+      "title": "An alert opens the customer, and Back returns to the list with its product filter still on",
+      "status": "PASS",
+      "detail": "the customer opened=True; returned to the list=True; the product filter reads 'CREDIT_CARD'",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-08",
+      "module": "early-warning",
+      "title": "The Forward Risk Signal has a fitted model rather than an invitation to fit one",
+      "status": "PASS",
+      "detail": "the screen still says no model is fitted=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-09",
+      "module": "early-warning",
+      "title": "Exposure is shown in the scale this book publishes",
+      "status": "PASS",
+      "detail": "a whole-SAR figure labelled SAR mn is on screen=False; the largest band holds 1,865,001,417 SAR",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-10",
+      "module": "early-warning",
+      "title": "The horizon is the one this monthly book measures, and the action is one a retail officer can take",
+      "status": "PASS",
+      "detail": "horizon='one reporting month'; action='Put the customer into pre-delinquency contact before the missed payment, and che'",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "EWS-11",
+      "module": "early-warning",
+      "title": "Neither Early Warning screen carries the corporate book's vocabulary",
+      "status": "PASS",
+      "detail": "corporate wording=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ews-11.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

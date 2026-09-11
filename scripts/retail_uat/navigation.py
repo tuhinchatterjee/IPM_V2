@@ -64,13 +64,17 @@ def suite(s: Session, rec: Recorder) -> None:
     # `has-text` matches a substring, and the first match on the page was the
     # navigation link, which took the test to the trace index and reported a
     # missing Back button that was never the answer's.
+    # Waited for: the answer renders, and the Trace link follows it. Reading
+    # the page the instant `ask` returns found no Trace on a screen that has
+    # one, and recorded a working return path as a missing one.
+    s.wait_for('a[href^="/trace/"]', seconds=40)
     trace = page.query_selector('a[href^="/trace/"]')
     opened = False
     returned = ""
     if trace is not None:
         trace.click()
         page.wait_for_load_state("networkidle", timeout=90_000)
-        page.wait_for_timeout(2500)
+        s.wait_for('[data-testid="back-link"]', seconds=40)
         opened = "/trace" in page.url
         # The product's own Back control, by its test id. Matching on the
         # word "Back" found nothing: the label is the question the reader came
@@ -79,7 +83,7 @@ def suite(s: Session, rec: Recorder) -> None:
         if back is not None:
             back.click()
             page.wait_for_load_state("networkidle", timeout=90_000)
-            page.wait_for_timeout(2500)
+            s.wait_for_text(asked[:40], seconds=40)
         returned = page.url
     body = s.text()
     # Compare the PATH. The product returns to the exact turn — the href ends
@@ -176,7 +180,10 @@ def suite(s: Session, rec: Recorder) -> None:
     s.submit_button().click()
     page.wait_for_timeout(400)
     s.go("/early-warning", settle=2000)
-    page.wait_for_timeout(5000)
+    # Waited on the DESTINATION rather than on a stopwatch: read too early,
+    # the Cockpit was still on screen and its pending question was reported as
+    # having leaked into Early Warning.
+    s.wait_for_text("Forward Risk Signal", seconds=40)
     stray = s.text()
     leaked = "expected credit loss by IFRS 9 stage" in stray
     s.go("/", settle=2500)

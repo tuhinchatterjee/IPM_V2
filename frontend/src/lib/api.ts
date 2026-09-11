@@ -5894,6 +5894,16 @@ export interface RetailEarlyWarning {
   by_rule: { rule_id: string; rule_name: string; severity: string;
              alerts: number }[];
   alerts: RetailAlert[];
+  /**
+   * The severity classes this rulebook actually raises, worst first.
+   *
+   * Served rather than hard-coded on the screen: the list was written out as
+   * ALL / HIGH / MEDIUM / LOW, and the rulebook's highest class is CRITICAL,
+   * so the 232 alerts somebody opens this screen for could not be selected.
+   */
+  severities?: string[];
+  filters?: { severity: string; product: string; customer: string;
+              sort: string };
   notes?: string[];
 }
 
