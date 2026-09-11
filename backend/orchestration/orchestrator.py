@@ -1194,12 +1194,18 @@ def _opens_whatif(original: str, question: str, reading: Any, fixed: Any,
     """
     from backend.whatif import domain as whatif_domain
 
+    from backend.retail import profile as retail_profile
+
+    retail = retail_profile.is_retail()
+
     severity = getattr(reading, "severity", "")
     population = (reading.scenario.population.describe()
                   if getattr(reading, "scenario", None)
-                  else "the whole corporate book")
+                  else ("the whole retail book" if retail
+                        else "the whole corporate book"))
     try:
-        period = whatif_domain.latest_period()
+        period = (_retail_latest_month() if retail
+                  else whatif_domain.latest_period())
     except Exception:  # noqa: BLE001 - an unbuilt lake is not this answer's job
         period = ""
 
@@ -1210,12 +1216,28 @@ def _opens_whatif(original: str, question: str, reading: Any, fixed: Any,
             f"You named a '{severity}' severity. This engine applies the shock "
             "a scenario states rather than a named preset, so tell me what "
             f"'{severity}' should mean here.")
-    lines.append(
-        "For example: **downgrade them two notches**, **increase PD by 20%**, "
-        "**increase LGD by five percentage points**, or **unemployment up one "
-        "percentage point**.")
+    # The examples have to be things THIS engine can run. On a retail
+    # installation the corporate list offered "downgrade them two notches" and
+    # "unemployment up one percentage point" — a rating scale that was retired
+    # and a macro-variable shock this engine does not implement — as clickable
+    # suggestions in the Cockpit. Offering a reader an operation that will then
+    # be refused is worse than offering nothing.
+    if retail:
+        lines.append(
+            "For example: **increase personal-finance PD by 20% relative**, "
+            "**increase LGD by 10%**, **reduce mortgage collateral values by "
+            "10%**, or **shift the scenario weights toward downturn**.")
+    else:
+        lines.append(
+            "For example: **downgrade them two notches**, **increase PD by "
+            "20%**, **increase LGD by five percentage points**, or "
+            "**unemployment up one percentage point**.")
     if period:
         lines.append(
+            f"I will run it on the retail book at {period} unless you name "
+            "another month, and every result names the methodology version "
+            "that produced it."
+            if retail else
             f"I will run it on Corporate IFRS 9 at {period} unless you name "
             "another quarter, and I will ask which ECL methodology to use "
             "before calculating.")
@@ -1245,14 +1267,32 @@ def _opens_whatif(original: str, question: str, reading: Any, fixed: Any,
         detail={"opens_whatif": True, "severity": severity,
                 "population": population, "period": period,
                 "needs": "magnitude", "rich_text": "markdown"},
-        follow_ups=["Downgrade them one notch.",
-                    "Increase PD by 20%.",
-                    "Increase LGD by five percentage points."],
+        follow_ups=(list(retail_profile.SCENARIO_STARTERS[:3]) if retail
+                    else ["Downgrade them one notch.",
+                          "Increase PD by 20%.",
+                          "Increase LGD by five percentage points."]),
         warnings=[], chart={},
         execution="whatif_opening",
         execution_label="What-If Analysis")
     answered.duration_ms = int((time.perf_counter() - started) * 1000)
     return answered
+
+
+def _retail_latest_month() -> str:
+    """The newest published month of the retail book, or nothing.
+
+    Read from the shipped manifest rather than the corporate lake, which a
+    retail installation does not have.
+    """
+    import json
+
+    from backend.config import settings
+
+    path = settings.metadata_dir / "retail_dataset_manifest.json"
+    if not path.exists():
+        return ""
+    manifest = json.loads(path.read_text())
+    return str(manifest.get("last_snapshot", ""))[:7]
 
 
 def _from_whatif(original: str, question: str, reading: Any, fixed: Any,

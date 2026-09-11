@@ -188,6 +188,51 @@ RETAIL_DIMENSIONS: tuple[str, ...] = (
     "collateral_type",
     "facility_status",
     "ifrs9_stage",
+    # ------------------------------------------------------------------
+    # The POLICY AND STATE FLAGS.
+    #
+    # The failure this closes
+    # -----------------------
+    #     "aug 2026 personal finance salary transfer stage2 ecl vs jul"
+    #
+    # came back with the ECL of the whole personal-finance book — SAR
+    # 8,012,419 to 8,994,012 — under a heading that said "PERSONAL FINANCE".
+    # Both the salary-transfer and the Stage 2 conditions were dropped, and
+    # nothing on the answer said they had been. A reader would have taken that
+    # figure as the salary-transfer Stage 2 movement, and it is roughly four
+    # times too large.
+    #
+    # `salary_transfer_flag` is the single strongest affordability control in a
+    # Saudi retail book, and it was not governed at all, so it could be neither
+    # filtered on nor broken out by. Neither could forbearance, security,
+    # policy exceptions or score overrides — which is to say, none of the
+    # things a credit officer narrows a question with.
+    #
+    # Every entry below is a real two-valued column of `retail_facility_month`
+    # with both values present.
+    "salary_transfer_flag",
+    "secured_flag",
+    "forbearance_flag",
+    "restructured_flag",
+    "credit_impaired_flag",
+    "current_default_flag",
+    "unlikeliness_to_pay_flag",
+    "sicr_flag",
+    "cure_flag",
+    "writeoff_flag",
+    "policy_exception_flag",
+    "score_override_flag",
+    "new_to_bank_at_origination_flag",
+    "job_loss_reported_flag",
+    "employment_change_flag",
+    "promise_to_pay_flag",
+    "bureau_thin_file_flag",
+    "bureau_adverse_flag",
+    "housing_support_flag",
+    # The origination cohort. Higher cardinality than the rest — one per
+    # origination month — and included because vintage analysis is a question
+    # this product is asked on its first screen.
+    "origination_vintage",
 )
 
 #: How a credit officer writes each of those dimensions. Only the spellings the
@@ -229,6 +274,41 @@ RETAIL_DIMENSION_ALIASES: dict[str, tuple[str, ...]] = {
     "facility_status": ("status", "facility statuses"),
     "ifrs9_stage": ("stage", "stages", "ifrs 9 stage", "ifrs 9 stages",
                     "ifrs9 stage", "staging", "impairment stage"),
+    # How a credit officer says each flag. The column name is unspeakable;
+    # these are the words people type.
+    "salary_transfer_flag": ("salary transfer", "salary transferred",
+                             "salary assignment", "salary assigned",
+                             "salary-transfer customers", "salary transfers"),
+    "secured_flag": ("secured", "unsecured", "with security", "collateralised",
+                     "collateralized"),
+    "forbearance_flag": ("forbearance", "forborne", "under forbearance"),
+    "restructured_flag": ("restructured", "restructuring", "rescheduled"),
+    "credit_impaired_flag": ("credit impaired", "credit-impaired", "impaired"),
+    "current_default_flag": ("in default", "defaulted", "currently in default"),
+    "unlikeliness_to_pay_flag": ("unlikeliness to pay", "utp",
+                                 "unlikely to pay"),
+    "sicr_flag": ("sicr", "significant increase in credit risk",
+                  "sicr flagged"),
+    "cure_flag": ("cured", "cure", "cures"),
+    "writeoff_flag": ("written off", "write-off", "writeoff", "charged off"),
+    "policy_exception_flag": ("policy exception", "policy exceptions",
+                              "exception", "exceptions", "policy override",
+                              "policy overrides"),
+    "score_override_flag": ("score override", "score overrides", "override",
+                            "overrides", "overridden"),
+    "new_to_bank_at_origination_flag": ("new to bank", "new-to-bank", "ntb",
+                                        "new customers"),
+    "job_loss_reported_flag": ("job loss", "job losses", "lost their job",
+                               "unemployment reported"),
+    "employment_change_flag": ("employment change", "changed employer",
+                               "employer change"),
+    "promise_to_pay_flag": ("promise to pay", "ptp", "promises to pay"),
+    "bureau_thin_file_flag": ("thin file", "thin-file", "no bureau history"),
+    "bureau_adverse_flag": ("adverse bureau", "bureau adverse",
+                            "adverse credit"),
+    "housing_support_flag": ("housing support", "housing subsidy"),
+    "origination_vintage": ("vintage", "vintages", "origination cohort",
+                            "booking month", "cohort", "cohorts"),
 }
 
 

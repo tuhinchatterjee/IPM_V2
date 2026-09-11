@@ -1,0 +1,221 @@
+{
+  "suite": "overnight_cockpit",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 196.4,
+  "counts": {
+    "PASS": 12,
+    "FAIL": 1,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_cockpit-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-01",
+      "module": "cockpit-chat",
+      "title": "Exposure and weighted ECL by product, reconciling with the oracle",
+      "status": "PASS",
+      "detail": "products named ['Home Finance', 'Personal Finance', 'Auto Finance', 'Credit Card']; total GCA 2,082,852,856 present=True; total ECL 15,952,109 present=False; charts=1; corporate []; 3s",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show me August 2026 retail exposure and weighted ECL by product.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n2,082,852,856 SAR of gross carrying amount across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nHome Finance is the largest at 1,330,366,315 SAR.\n\nHome Finance\n1,330,366,315.45\n\nCREDITPROBE INTERPRETATION\n\nOrdered by expected credit loss, largest first. The figures are sums across every facility in each product at 2026-08. Home Finance alone accounts for 63.87% of gross carrying amount across the 4 shown.\n\nTOTAL GROSS CARRYING AMOUNT\n\n2,082,852,855.82\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n2,082,852,855.82\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n2 measures across 4 groups.\n\nAsk about this\nChart\nTable\nProduct label\n\t\nGross carrying amount\n\t\nExpected credit loss\nsar mn\n\nPersonal Finance\t463.2SAR mn\t9.0\nCredit Card\t58.1SAR mn\t3.1\nHome Finance\t1.33SAR bn\t2.8\nAuto Finance\t231.2SAR mn\t1.1\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 3-step plan, and the statement it ran.\n\nThe question names August 2026 and the analysis measured 2026-08.\n\nThe question names August 2026 and the analysis measured 2026-08.\nNo ",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-02",
+      "module": "cockpit-chat",
+      "title": "Exposure and ECL by stage, naming the stage that contributes disproportionately",
+      "status": "PASS",
+      "detail": "3/3 stages named; oracle says stage 3 (ECL share 30.9% on exposure share 0.7%); answer names it=True; charts=2",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Break August 2026 exposure and ECL into Stage 1, Stage 2 and Stage 3. Which stage contributes disproportionately to ECL?",
+        "answer": "Which stage contributes disproportionately to ECL?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 2 answered; 1 partly answered\n1 analysis performed\nBreak August 2026 exposure and ECL into Stage 1, Stage 2 and Stage 3Answered\nWhich stage contributes disproportionately to ECLFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nSTAGE 1, STAGE 2, STAGE 3 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS, IFRS 9 STAGE\n\nThe 10 largest facilities in IFRS 9 stage 1, IFRS 9 stage 2, IFRS 9 stage 3 by gross carrying amount at 2026-08.\n\nCREDITPROBE INTERPRETATION\n\nShares are of Stage 1, Stage 2, Stage 3 exposure, not of the whole book \u2014 the question asked about that population. The population is concentrated: together hold 64.67% of gross carrying amount.\n\nLARGEST GROSS CARRYING AMOUNT\n\n2,673,104.61\nSAR\n\nRanked from the governed book\nDynamic analysis\nSave as a method\nTrace\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n10\n\n2 measures across 10 groups.\n\nAsk about this\nChart\nTable\nGross carrying amount\n\t\nExpected credit loss\nsar\n\t\nIFRS 9 stage\n\t\nFacility id\n\n2.7SAR mn\t184,755\t2\tRF-00034781\n1.5SAR mn\t174,958\t3\tRF-00004054\n1.4SAR mn\t172,238\t3\tRF-00033737\n2.2SAR mn\t169,343\t2\tRF-00005855\n218,920SAR\t152,323\t3\tRF-00008798\n183,331SAR\t128,528\t3\tRF-00004035\n1.2SAR mn\t127,974\t3\tRF-00024234\n179,083SAR\t124,594\t3\tRF-00004686\n171,919SAR\t119,795\t3\tRF-00031931\n161,011SAR\t112,652\t3\tRF-00016210\n10 rows\nColumns\n\nNo certified analysis answers ",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-03",
+      "module": "cockpit-chat",
+      "title": "A narrowing follow-up keeps the month and the measures and narrows the product only",
+      "status": "PASS",
+      "detail": "personal-finance GCA 463,168,890 or ECL 8,994,012 present=True; month retained=True; reverted to the whole book=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Now only personal finance.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE, STAGE 1, STAGE 2, STAGE 3 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS, IFRS 9 STAGE\n\n463,168,890 SAR of gross carrying amount in Personal Finance, Stage 1, Stage 2, Stage 3 at 2026-08.\n\nTOTAL GROSS CARRYING AMOUNT\n\n463,168,889.69\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n463,168,889.69\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nGross carrying amount\nsar mn\n\t\nExpected credit loss\nsar mn\n\t\nIFRS 9 stage\n\t\nProduct label\n\n463.2\t9.0\t3\tPersonal Finance\n1 row\nColumns\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 5-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nANALYSES USED (1)\n\u2014 what produced these figures\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nBreak that down by product.\nHow has gross carrying amount moved over the latest year?\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 all 7 checks passed\nTrace\n\nLIMITED EVIDENCE\n5 of 5 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a ",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-04",
+      "module": "cockpit-chat",
+      "title": "A period follow-up preserves the personal-finance scope",
+      "status": "PASS",
+      "detail": "still personal finance=True; July ECL 8,012,419 present=False; August ECL 8,994,012 present=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Compare that with July.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE, STAGE 1, STAGE 2, STAGE 3 \u00b7 2026-07 TO 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS, IFRS 9 STAGE\n\nGross carrying amount was unchanged from 0.00 to 0.00 SAR between 2026-07 and 2026-08 \u2014 a change of 0.00 SAR.\n\nCREDITPROBE INTERPRETATION\n\nNo customer met every condition over this window. That is the answer rather than a gap: relaxing any one of them would return a population.\n\nGROSS CARRYING AMOUNT AT 2026-08\n\n0\nSAR\n\n0\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n0\n\nMATCHING\n\n0\n\nCLOSING TOTAL\n\n0\n\nOPENING TOTAL\n\n0\n\nCLOSING PERIOD\n\n2026-08\n\nOPENING PERIOD\n\n2026-07\n\nNo rows returned.\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 4-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nANALYSES USED (1)\n\u2014 what produced these figures\n2026-07 \u2192 2026-08\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nShow the same test across the whole book.\nWhat data does CreditProbe hold on this?\n\nCompleted by Portfolio Risk Lead \u2014",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-05",
+      "module": "cockpit-chat",
+      "title": "The movement is explained from things this book contains, with no invented driver",
+      "status": "PASS",
+      "detail": "names a real driver=True; invented drivers=[]; charts=2",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What drove the ECL movement?",
+        "answer": "\n\nSenior Credit Officer is working. Defining the population and period.\n\nSenior Credit Officer is working\n3s\n\nDefining the population and period.\n\nCompleted: Preparing, Understanding.\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-06",
+      "module": "cockpit-chat",
+      "title": "A one-line multi-part question applies EVERY condition it names, and does not answer a wider population",
+      "status": "PASS",
+      "detail": "salary-transfer Stage 2 personal finance is 1,476,382 -> 1,700,845; July figure present=True, August present=True; the whole-personal-finance figure (five times larger) present=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "aug 2026 personal finance salary transfer stage2 ecl vs jul and tell me what moved most",
+        "answer": "e what moved most\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 2 answered; 1 partly answered\n1 analysis performed\naug 2026 personal finance salary transfer stage2 ecl vs julAnswered\ntell me what moved mostFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nTRUE, PERSONAL FINANCE, STAGE 2 \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nFinal ECL rose from 1,476,382 to 1,700,845 SAR between 2026-07 and 2026-08 \u2014 a change of 224,464 SAR (15.20%).\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\n\nFINAL ECL AT 2026-08\n\n1,700,845.46\nSAR\n\n224,463.68\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n224,463.68\n\nMATCHING\n\n2\n\nCHANGE PCT\n\n15.20\n\nCLOSING TOTAL\n\n1,700,845.46\n\nOPENING TOTAL\n\n1,476,381.78\n\nCLOSING PERIOD\n\n2026-08\n\nA measure over 2 periods.\n\nAsk about this\nChart\nTable\nExpected credit loss at 2026-07\nsar mn\n\t\nReporting month\n\n1.7\t2026-08\n1.5\t2026-07\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 4-step plan, and the statement it ran.\n\nThe question is about 1,",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-07",
+      "module": "cockpit-chat",
+      "title": "A typo-heavy reporting question is answered as a report, not opened as a What-If offering rating notches",
+      "status": "PASS",
+      "detail": "oracle's worst 30+ DPD product is CREDIT_CARD (3.70% by exposure); answer names it=False; read as a What-If=False; corporate scenario wording []",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "whcih porduct has the higest 30+ dpd rate and did its ecl go up frm july?",
+        "answer": "ly?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTRUE, PERSONAL FINANCE, STAGE 2 \u00b7 2026-07 TO 2026-08 \u00b7 DAYS PAST DUE, EXPECTED CREDIT LOSS\n\n55 True Personal Finance facilities in IFRS 9 stage 2 where dpd at or above 30 and ecl final sar rose, between 2026-07 and 2026-08.\n\nCREDITPROBE INTERPRETATION\n\nThese are the facilitys where dpd at or above 30 and ecl final sar rose and salary transfer flag is True and product label is Personal Finance and IFRS 9 stage is 2 between 2026-07 and 2026-08. Every condition was applied to the same joined rows, so this is the intersection rather than the union.\n\nFACILITYS MATCHING\n\n55\ncount\n\nComposed across several governed sources\nDynamic analysis\nSave as a method\nTrace\n\nMATCHING\n\n55\n\nCLOSING PERIOD\n\n2026-08\n\nOPENING PERIOD\n\n2026-07\n\nDays past due at 2026-07\ndays\n\t\nDays past due at 2026-08\ndays\n\t\nChange in Days past due\ndays\n\t\nChange in Days past due (%)\n%\n\t\nExpected credit loss at 2026-07\nsar\n\t\nExpected credit loss at 2026-08\nsar\n\t\nChange in Expected credit loss\nsar\n\t\nChange in Expected credit loss (%)\n%\n\t\nIFRS 9 stage at 2026-08\n\t\nProduct label at 2026-08\n\t\nSalary transfer flag at 2026-08\n\t\nFacility id\n\t\nIFRS 9 stage\n\t\nProduct label\n\t\nRegion\n\t\nSalary transfer flag\n\n64\t94\t30\t46.88\t21,536\t128,528\t106,992\t496.81\t3\tPersonal Finance\tYes\tRF-00004035\t2\tPersonal Finance\tMAKKAH\tYes\n75\t105\t30\t40.00\t90,647\t152,323\t61,677\t68.04\t3\tPersonal Finance\tYes\tRF-00008798\t2\tPersonal Finance\tHAIL\tYes\n28\t58\t30\t107.14\t48,753\t109,057\t60,304\t123.6",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-08",
+      "module": "cockpit-chat",
+      "title": "A yes/no question is answered concisely and without a meaningless chart",
+      "status": "PASS",
+      "detail": "138 words; charts before=4 after=4",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Are there any Stage 3 home-finance facilities in August 2026?",
+        "answer": "\n\nONE QUESTION BACK\n\nCreditProbe read this as a question about one row per facility \u2014 the question names facilities, so each row is a facility \u2014 but the governed data behind it can only be reported as one row for the whole book. Ask for it at that level, or name the breakdown you want.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-09",
+      "module": "cockpit-chat",
+      "title": "A 25-month trend is shown in order, with a chart",
+      "status": "PASS",
+      "detail": "2 distinct months named; charts=5; oracle's last point 2026-08 = 3,061,762; present=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show the 25-month weighted ECL trend for credit cards.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nCREDIT CARD, CARD \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nFinal ECL rose from 2,817,495 to 3,061,762 SAR between 2026-07 and 2026-08 \u2014 a change of 244,266 SAR (8.67%).\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\n\nFINAL ECL AT 2026-08\n\n3,061,761.69\nSAR\n\n244,266.38\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n244,266.38\n\nMATCHING\n\n2\n\nCHANGE PCT\n\n8.67\n\nCLOSING TOTAL\n\n3,061,761.69\n\nOPENING TOTAL\n\n2,817,495.31\n\nCLOSING PERIOD\n\n2026-08\n\nA measure over 2 periods.\n\nAsk about this\nChart\nTable\nExpected credit loss at 2026-07\nsar mn\n\t\nReporting month\n\n3.1\t2026-08\n2.8\t2026-07\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 4-step plan, and the statement it ran.\n\nThe questio",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-17",
+      "module": "cockpit-chat",
+      "title": "Asking for the evidence exposes the calculation and its source",
+      "status": "PASS",
+      "detail": "the answer names a dataset, column or calculation=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show me the evidence behind that.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nCREDIT CARD, CARD \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nThe 10 largest Credit Card CARD facilities by final ECL at 2026-08.\n\nCREDITPROBE INTERPRETATION\n\nShares are of Credit Card, CARD exposure, not of the whole book \u2014 the question asked about that population.\n\nLARGEST FINAL ECL\n\n63,942.47\nSAR\n\nRanked from the governed book\nDynamic analysis\nSave as a method\nTrace\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n10\n\n10 groups, one measure.\n\nAsk about this\nChart\nTable\nExpected credit loss\nsar\n\t\nFacility id\n\t\nProduct label\n\t\nProduct subsegment\n\n63,942\tRF-00006786\tCredit Card\tCARD\n51,979\tRF-00025034\tCredit Card\tCARD\n47,396\tRF-00022205\tCredit Card\tCARD\n28,452\tRF-00010634\tCredit Card\tCARD\n26,626\tRF-00035474\tCredit Card\tCARD\n24,815\tRF-00032117\tCredit Card\tCARD\n24,603\tRF-00020005\tCredit Card\tCARD\n24,571\tRF-00015549\tCredit Card\tCARD\n23,416\tRF-00011048\tCredit Card\tCARD\n23,362\tRF-00009377\tCredit Card\tCARD\n10 rows\nColumns\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the same validator, the same parameterised SQL \u2014 but nobody has reviewed the calculation itself. The Trace shows how the question was read, the 5-step plan, and the statement it ran.\n\nNo AI provider is configured, so the reading below was assembled from the result rather than written.\nANALYSES USED (1)\n\u2014 what produced these figures\nTrace\nProject\nSav",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-17.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-18",
+      "module": "cockpit-chat",
+      "title": "The limitations are stated, and no approval is claimed",
+      "status": "PASS",
+      "detail": "states a limitation=True; claims an approval=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What can you NOT conclude from this result?",
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-18.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CHAT-19",
+      "module": "cockpit-chat",
+      "title": "An absent field is declared absent rather than invented",
+      "status": "FAIL",
+      "detail": "says it is unavailable=False; appears to invent a name=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Tell me the borrower's employer name for the highest-ECL facility.",
+        "answer": "\n\nONE QUESTION BACK\n\nCreditProbe read this as a question about one row per facility \u2014 the question names facilities, so each row is a facility \u2014 but the governed data behind it can only be reported as one row for the whole book. Ask for it at that level, or name the breakdown you want.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nIt asks for a figure computed from governed data.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/cp-chat-19.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

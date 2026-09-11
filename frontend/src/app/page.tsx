@@ -7,6 +7,7 @@ import { Composer, useGreeting } from "@/components/ask/composer";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
 import { EarlyWarningStrip } from "@/components/early-warning/cockpit-strip";
+import { RetailEarlyWarningStrip } from "@/components/early-warning/retail-cockpit-strip";
 import { BackLink } from "@/components/layout/back-link";
 import { useGreetingName } from "@/components/system/personalisation";
 import { useCanRunAnalysis } from "@/components/system/role-switcher";
@@ -16,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { fromCockpit, linkBack, useReturnTo } from "@/lib/return-to";
+import { isRetail } from "@/lib/profile";
 
 /**
  * The Cockpit.
@@ -248,7 +250,15 @@ function Cockpit() {
             </p>
           }
         />
-        <EarlyWarningStrip period={period} />
+        {/* The corporate strip reads corporate_borrower_360, which this
+            installation does not hold, so it answered 503 on every Cockpit
+            load and rendered nothing. The Cockpit had no Early Warning line at
+            all and nothing on screen to say why. */}
+        {isRetail() ? (
+          <RetailEarlyWarningStrip month={period} />
+        ) : (
+          <EarlyWarningStrip period={period} />
+        )}
       </section>
 
       {/* ------------------------------------------------------- recent work */}

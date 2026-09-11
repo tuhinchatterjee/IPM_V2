@@ -107,6 +107,23 @@ class Vocabulary:
         answer to a different question.
         """
         haystack = " " + _normalise(text) + " "
+
+        # A BOOLEAN dimension is unusable by the rule below, and that was the
+        # defect. Its values are "True" and "False"; nobody types "True".
+        # "salary transfer stage2 ecl" therefore resolved neither the salary
+        # transfer nor the stage, both conditions were dropped in silence, and
+        # the answer returned the whole personal-finance book — SAR 8,994,012
+        # where the salary-transfer Stage 2 figure is SAR 1,700,845, five times
+        # smaller — under a heading that named only the product.
+        #
+        # For these, the phrase a person types names the dimension AND the
+        # value at once: "salary transfer" means True, "unsecured" means False.
+        # Checked before the value scan and matched longest-first, so
+        # "non-salary-transfer" beats "salary transfer".
+        flagged = self._resolve_flag_phrase(haystack)
+        if flagged is not None:
+            return flagged
+
         best: tuple[str, str] | None = None
         best_len = 0
         for dimension, values in self.dimensions.items():
@@ -118,6 +135,59 @@ class Vocabulary:
                 needle = " " + _normalise(value) + " "
                 if needle in haystack and len(value) > best_len:
                     best, best_len = (dimension, value), len(value)
+        return best
+
+    #: Phrases that name a two-valued dimension and the value at the same time.
+    #:
+    #: The negative spellings are listed first in each pair only for reading;
+    #: the match is longest-first, which is what makes "non-salary-transfer"
+    #: win over the "salary transfer" inside it.
+    FLAG_PHRASES: tuple[tuple[str, str, str], ...] = (
+        ("non salary transfer", "salary_transfer_flag", "False"),
+        ("no salary transfer", "salary_transfer_flag", "False"),
+        ("without salary transfer", "salary_transfer_flag", "False"),
+        ("salary transfer", "salary_transfer_flag", "True"),
+        ("salary transferred", "salary_transfer_flag", "True"),
+        ("salary assignment", "salary_transfer_flag", "True"),
+        ("unsecured", "secured_flag", "False"),
+        ("secured", "secured_flag", "True"),
+        ("collateralised", "secured_flag", "True"),
+        ("forborne", "forbearance_flag", "True"),
+        ("forbearance", "forbearance_flag", "True"),
+        ("restructured", "restructured_flag", "True"),
+        ("credit impaired", "credit_impaired_flag", "True"),
+        ("credit-impaired", "credit_impaired_flag", "True"),
+        ("in default", "current_default_flag", "True"),
+        ("defaulted", "current_default_flag", "True"),
+        ("unlikeliness to pay", "unlikeliness_to_pay_flag", "True"),
+        ("written off", "writeoff_flag", "True"),
+        ("policy exception", "policy_exception_flag", "True"),
+        ("policy override", "policy_exception_flag", "True"),
+        ("score override", "score_override_flag", "True"),
+        ("overridden", "score_override_flag", "True"),
+        ("new to bank", "new_to_bank_at_origination_flag", "True"),
+        ("new-to-bank", "new_to_bank_at_origination_flag", "True"),
+        ("job loss", "job_loss_reported_flag", "True"),
+        ("promise to pay", "promise_to_pay_flag", "True"),
+        ("thin file", "bureau_thin_file_flag", "True"),
+        ("thin-file", "bureau_thin_file_flag", "True"),
+        ("adverse bureau", "bureau_adverse_flag", "True"),
+        ("housing support", "housing_support_flag", "True"),
+        ("cured", "cure_flag", "True"),
+    )
+
+    def _resolve_flag_phrase(self, haystack: str) -> tuple[str, str] | None:
+        """A two-valued dimension named by a phrase rather than by its value."""
+        best: tuple[str, str] | None = None
+        best_len = 0
+        for phrase, dimension, value in self.FLAG_PHRASES:
+            if dimension not in self.dimensions:
+                continue
+            if value not in {str(v) for v in self.dimensions[dimension]}:
+                continue
+            needle = " " + _normalise(phrase) + " "
+            if needle in haystack and len(phrase) > best_len:
+                best, best_len = (dimension, value), len(phrase)
         return best
 
     def other_values(self, dimension: str, excluded: str) -> list[str]:

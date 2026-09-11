@@ -232,8 +232,25 @@ class Session:
             return {"submitted": False, "reason": "no composer", "seconds": 0.0}
         before = self.text()
         marker = len(before)
-        box.click()
-        box.type(question, delay=type_delay)
+        # A twelve-turn conversation is a very long page, and it is still
+        # settling as the last answer renders. `type()` runs an actionability
+        # check per keystroke — visible, stable, enabled, receiving events —
+        # and "stable" is never satisfied while the page above the composer is
+        # still growing. The composer itself is fine: enabled, editable and
+        # visible throughout. So the composer is brought into view first, and
+        # `fill` is used where `type` cannot get a word in, because a UAT that
+        # cannot reach the box measures the harness rather than the product.
+        try:
+            box.scroll_into_view_if_needed(timeout=15_000)
+        except Exception:  # noqa: BLE001 - not being able to scroll is not fatal
+            pass
+        try:
+            box.click(timeout=15_000)
+            box.type(question, delay=type_delay, timeout=45_000)
+        except Exception:  # noqa: BLE001
+            page.wait_for_timeout(1500)
+            box = page.query_selector(selector) or box
+            box.fill(question, timeout=30_000)
         page.wait_for_timeout(250)
         api_before = len(self.api)
         started = time.time()

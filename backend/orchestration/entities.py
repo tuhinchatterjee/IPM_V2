@@ -66,11 +66,84 @@ def resolve_entities(question: str, context: Any) -> list[dict[str, str]]:
     return [m.to_dict() for m in match_all(question, context.dimensions)]
 
 
+def _value_pattern(kind: str, token: str) -> str:
+    """How a dimension VALUE is recognised in free text.
+
+    The defect this closes, and it was a wide one. `application_score_band`
+    and `behavioural_score_band` carry the values "A", "A+", "B"…"E", and this
+    matcher looked for each of them as a bare word. So
+
+        "give me a breakdown by product"
+
+    resolved `application_score_band = A` out of the indefinite article, and
+    the answer came back about score band A alone — correctly computed,
+    wrongly scoped, under a note saying "Restricted to application score band =
+    A" that a reader skims straight past. Any question containing the word "a"
+    was affected, which is most of them.
+
+    `resolve_dimension_value` already refuses a value this short. This reader
+    did not, and the two were the same vocabulary read two ways.
+
+    So a SHORT value — anything under `MIN_MATCHABLE_VALUE`, letters or digits
+    — matches only where the dimension is NAMED: "band A", "score band A",
+    "stage 2", never a bare "A" or a bare "2". A value long enough to be
+    unmistakable is matched as it always was.
+    """
+    from backend.orchestration.vocabulary import MIN_MATCHABLE_VALUE
+
+    if token.isdigit():
+        return _numeric_pattern(kind, token)
+
+    literal = re.escape(token.lower()).replace(r"\ ", r"[\s\-_]+")
+    if len(token) >= MIN_MATCHABLE_VALUE:
+        return r"\b" + literal + r"\b"
+
+    # Short enough to appear by accident. The dimension's own noun has to be
+    # beside it — and the noun may be the last word of a compound name, so
+    # "application_score_band" is reached by "band" as well as by the whole.
+    noun = re.escape(str(kind).rsplit("_", 1)[-1].lower())
+    return rf"\b{noun}s?\s*(?:of\s+)?{literal}(?![\w+])"
+
+
+@functools.lru_cache(maxsize=1)
+def _flag_phrases() -> tuple[tuple[str, str, str], ...]:
+    """Phrases that name a two-valued dimension and its value at once.
+
+    Read from the vocabulary so there is one list rather than two that drift.
+    Sorted longest-first, which is what makes a negation beat the positive
+    phrase inside it.
+    """
+    from backend.orchestration.vocabulary import Vocabulary
+
+    return tuple(sorted(Vocabulary.FLAG_PHRASES,
+                        key=lambda row: -len(row[0])))
+
+
 def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMatch]:
     text = " ".join(str(question or "").split())
     lowered = text.lower()
     out: list[EntityMatch] = []
     claimed: set[str] = set()
+
+    # A TWO-VALUED dimension is named by a phrase, never by its value. Its
+    # values are "True" and "False", and nobody types either — so
+    # "salary transfer" matched nothing, the condition was dropped in silence,
+    # and the answer came back about the whole product. Matched first and
+    # longest-first, so "non-salary-transfer" beats the "salary transfer"
+    # inside it.
+    for phrase, kind, value in _flag_phrases():
+        if kind not in dimensions:
+            continue
+        if value not in {str(v) for v in dimensions[kind]}:
+            continue
+        pattern = r"\b" + re.escape(phrase).replace(r"\ ", r"[\s\-_]+") + r"\b"
+        found = re.search(pattern, lowered)
+        if found and found.group(0) not in claimed and kind not in {
+                m.kind for m in out}:
+            claimed.add(found.group(0))
+            out.append(EntityMatch(kind=kind, value=value,
+                                   phrase=found.group(0), confidence=1.0,
+                                   exact=True))
 
     # Longest values first, so "Real Estate Development" is not shadowed by
     # "Real Estate" matching inside it.
@@ -79,9 +152,7 @@ def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMat
             token = str(value)
             if not token:
                 continue
-            pattern = (_numeric_pattern(kind, token) if token.isdigit()
-                       else r"\b" + re.escape(token.lower())
-                       .replace(r"\ ", r"[\s\-_]+") + r"\b")
+            pattern = _value_pattern(kind, token)
             found = re.search(pattern, lowered)
             if found and found.group(0) not in claimed:
                 claimed.add(found.group(0))
@@ -128,7 +199,10 @@ def _numeric_pattern(kind: str, token: str) -> str:
     # The chain still has to START at the noun, which is what keeps "a DSCR
     # between 1 and 2" from resolving a stage out of its upper bound.
     noun = re.escape(str(kind).rsplit("_", 1)[-1].lower())
-    return rf"\b{noun}s?\s+(?:of\s+)?(?:\d+\s*(?:,|and|or)\s+)*{bounded}"
+    # `\s*` rather than `\s+`: people write "stage2" as often as "stage 2",
+    # and requiring the space meant a filter a reader plainly stated was
+    # dropped without a word.
+    return rf"\b{noun}s?\s*(?:of\s+)?(?:\d+\s*(?:,|and|or)\s+)*{bounded}"
 
 
 def match_dimension(phrase: str, kind: str,

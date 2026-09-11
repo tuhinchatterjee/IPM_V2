@@ -118,9 +118,18 @@ _OPENS_WHATIF = re.compile(
 #: carry no hypothetical at all. A scenario survives all three — "what if
 #: ratings had fallen" keeps its "what if", and "Downgrade everyone two
 #: notches" never asks in the first place.
+#: The interrogative is matched at the start OR anywhere in the sentence, and
+#: a trailing question mark counts as asking.
+#:
+#: It used to be anchored to the start and spelled exactly. "whcih porduct has
+#: the higest 30+ dpd rate and did its ecl go up frm july?" is unmistakably a
+#: reporting question, and one transposed pair of letters in the first word was
+#: enough to stop it being recognised as one — at which point it fell through
+#: and was answered as a What-If. A reader who types quickly should not get a
+#: different KIND of answer from a reader who types carefully.
 _ASKS = re.compile(
-    r"^\s*(?:which|what|who|whose|whom|how\s+many|how\s+much|list|show|name|"
-    r"rank|give|tell)\b", re.IGNORECASE)
+    r"(?:^|\b)(?:which|what|who|whose|whom|how\s+many|how\s+much|list|show|"
+    r"name|rank|give|tell)\b|\?\s*$", re.IGNORECASE)
 _PAST_OR_PERFECT = re.compile(
     r"\b(?:saw|had|has|have|having|were|was|been|did|"
     r"deteriorated|worsened|improved|rose|fell|grew|shrank|moved|migrated|"
@@ -144,6 +153,16 @@ _HYPOTHETICAL = re.compile(
 _TERM_OF_ART = re.compile(
     r"\b\d+\s*[- ]?\s*(?:month|year|day)s?\b"
     r"|\bstage\s*\d\b"
+    # A DELINQUENCY BUCKET is a name, not a size. "30+ DPD", "90 days past
+    # due", "the 30-59 bucket" — the number in each is part of what the thing
+    # is called. Left unmasked, "which product has the highest 30+ DPD rate
+    # and did its ECL go up from July?" read "go up" as a direction and "30"
+    # as its magnitude, and a plain reporting question was answered as an
+    # unsized What-If — offering rating notches as the way to size it.
+    r"|\b\d+\s*\+?\s*(?:dpd|days?\s+past\s+due)\b"
+    r"|\bdpd\s*\d+\+?\b"
+    r"|\b\d+\s*-\s*\d+\s*(?:dpd|bucket|days?)\b"
+    r"|\b(?:dpd|arrears|delinquency|ageing|aging)\s+bucket\b"
     r"|\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+"
     r"(?:quarter|year|month)s?\s+(?:ago|earlier|back|before)\b",
     re.IGNORECASE)
@@ -577,6 +596,42 @@ OTHER_BOOK_NOTE = (
     "corporate book because the words overlap would give you a confident "
     "number about the wrong portfolio.")
 
+#: The same guard, the other way round.
+#:
+#: On a RETAIL installation the list above is the product's own subject.
+#: "Stress the retail portfolio" was refused with "that names a different book
+#: … What-If Analysis reads the Corporate IFRS 9 domain only" — in a product
+#: that holds nothing but the retail book. So were mortgage, credit card,
+#: personal loan, auto loan and both scorecards: every one of the words a Head
+#: of Retail Risk would use.
+#:
+#: Reversed here rather than disabled, because the guard is still worth having:
+#: what is a different book on a retail installation is the CORPORATE one.
+_ANOTHER_BOOK_RETAIL = re.compile(
+    r"\bcorporate\s+(?:book|portfolio|customer|borrower|lending|loan|ifrs)"
+    r"|\bwholesale\s+(?:book|portfolio|lending|credit)"
+    r"|\bsme\s+(?:book|portfolio|scorecard|customer)|\bmicrofinance\b"
+    r"|\bproject\s+finance\b|\bsyndicated?\s+loan|\btrade\s+finance\b"
+    r"|\bcommercial\s+real\s+estate\b|\bobligor\s+group\b",
+    re.IGNORECASE)
+
+OTHER_BOOK_NOTE_RETAIL = (
+    "That names a different book. This installation is Saudi retail only: it "
+    "holds one analytical domain, Cockpit Data, carrying the retail facility "
+    "month-end book. Corporate and SME facilities, company financial "
+    "statements and internal rating grades have been retired and are not "
+    "loaded. Answering from the retail book because the words overlap would "
+    "give you a confident number about the wrong portfolio.")
+
+
+def _another_book(said: str) -> str:
+    """The note for a question naming a book this installation does not hold."""
+    from backend.retail import profile
+
+    if profile.is_retail():
+        return OTHER_BOOK_NOTE_RETAIL if _ANOTHER_BOOK_RETAIL.search(said) else ""
+    return OTHER_BOOK_NOTE if _ANOTHER_BOOK.search(said) else ""
+
 
 #: "Move half the Stage 1 borrowers to Stage 2", "Stage 2 to Stage 3",
 #: "move 30% of Stage 2 back to Stage 1".
@@ -859,8 +914,9 @@ def read(question: str) -> Reading:
     if reports:
         return Reading(notes=["Read as a question about what the book already "
                               "did, not as a What-If."])
-    if _ANOTHER_BOOK.search(said):
-        return Reading(notes=[OTHER_BOOK_NOTE], unread=[said])
+    other_book = _another_book(said)
+    if other_book:
+        return Reading(notes=[other_book], unread=[said])
     reading = Reading(is_scenario_question=is_scenario or continues or opens,
                       continues_previous=continues and not is_scenario,
                       opens_whatif=opens)
