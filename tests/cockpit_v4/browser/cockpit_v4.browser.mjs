@@ -589,9 +589,6 @@ async function openDrawer(page, section = "segments-requiring-attention") {
     `[data-testid="${section}"] [data-testid="attention-card"]`,
     { timeout: 60_000 },
   );
-  if (section === "segments-requiring-attention") {
-    await page.click('[data-testid="attention-tab"][data-tab="segments"]');
-  }
   const cards = await page.$$(
     `[data-testid="${section}"] [data-testid="attention-card"]`,
   );
@@ -610,9 +607,6 @@ await test("segments requiring attention loads from the pinned release",
     try {
       await page.waitForSelector('[data-testid="segments-requiring-attention"]',
         { timeout: 60_000 });
-      // The default "All" tab holds both sections; the segment count is the
-      // Segments tab's.
-      await page.click('[data-testid="attention-tab"][data-tab="segments"]');
       const cards = await page.$$(
         '[data-testid="segments-requiring-attention"] [data-testid="attention-card"]',
       );
@@ -1018,7 +1012,7 @@ await test("the Trace line is there and explains itself", async () => {
   }
 });
 
-await test("Requires attention shows its reporting period and real tabs",
+await test("Segments requiring attention shows its period and only segments",
   async () => {
     const { context, page } = await openCockpit(browser);
     try {
@@ -1035,29 +1029,111 @@ await test("Requires attention shows its reporting period and real tabs",
       const heading = await page.textContent(
         '[data-testid="segments-requiring-attention"] h2',
       );
-      assert.match(heading ?? "", /Requires attention/);
+      assert.match(heading ?? "", /Segments requiring attention/);
 
-      const tabs = await page.$$('[data-testid="attention-tab"]');
-      const labels = await Promise.all(tabs.map((t) => t.getAttribute("data-tab")));
-      assert.deepEqual(labels, ["all", "segments", "ecl"]);
+      // No tab merges the two dashboards back together.
+      assert.equal(
+        await page.$('[data-testid="attention-tabs"]'),
+        null,
+        "the All tab existed only to merge two feeds that are both visible",
+      );
 
-      // Every tab count is the real length of the real list behind it.
-      for (const tab of tabs) {
-        const id = await tab.getAttribute("data-tab");
-        const text = (await tab.textContent()) ?? "";
-        const claimed = Number((text.match(/(\d+)\s*$/) ?? [])[1] ?? "-1");
-        await tab.click();
-        const rows = await page.$$(
-          '[data-testid="segments-requiring-attention"] [data-testid="attention-card"]',
+      const cards = await page.$$(
+        '[data-testid="segments-requiring-attention"] [data-testid="attention-card"]',
+      );
+      assert.ok(
+        cards.length >= 1 && cards.length <= 5,
+        `expected up to five segment cards, saw ${cards.length}`,
+      );
+      for (const card of cards) {
+        assert.equal(
+          await card.getAttribute("data-scope"),
+          "segment",
+          `a segment card must be about a segment: ${await card.textContent()}`,
         );
-        assert.equal(rows.length, claimed,
-          `tab ${id} claims ${claimed} and shows ${rows.length}`);
+        const segment = await card.getAttribute("data-segment");
+        assert.ok(segment && segment !== "Whole book", segment ?? "");
       }
     } finally {
       await context.close();
     }
   },
 );
+
+await test("the two dashboards are distinct and share no card", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    await page.waitForSelector('[data-testid="ecl-highlights"]',
+      { timeout: 60_000 });
+    const read = async (section) =>
+      Promise.all(
+        (
+          await page.$$(`[data-testid="${section}"] [data-testid="attention-card"]`)
+        ).map(async (card) => ({
+          id: await card.getAttribute("data-item-id"),
+          scope: await card.getAttribute("data-scope"),
+          text: ((await card.textContent()) ?? "").trim(),
+        })),
+      );
+
+    const segments = await read("segments-requiring-attention");
+    const highlights = await read("ecl-highlights");
+    assert.ok(segments.length >= 1 && highlights.length >= 1);
+
+    const ids = new Set(segments.map((c) => c.id));
+    for (const card of highlights) {
+      assert.ok(!ids.has(card.id), `duplicated across dashboards: ${card.text}`);
+    }
+    const headlines = new Set(segments.map((c) => c.text));
+    for (const card of highlights) {
+      assert.ok(
+        !headlines.has(card.text),
+        `the same card appears twice on the page: ${card.text}`,
+      );
+    }
+
+    // The specific items the live screenshot showed in the wrong list.
+    const upper = segments.map((c) => c.text).join(" | ");
+    for (const wrong of [
+      /carries the most ECL in the book/,
+      /is the largest single ECL contributor/,
+      /Stage 2 share of the book/,
+      /had the largest ECL reduction/,
+      /had the largest ECL increase/,
+    ]) {
+      assert.ok(
+        !wrong.test(upper),
+        `an ECL highlight is in the segment list: ${wrong}`,
+      );
+    }
+
+    // And the ECL feed keeps the borrower and book-level highlights it is
+    // designed to carry.
+    const scopes = new Set(highlights.map((c) => c.scope));
+    assert.ok(scopes.has("segment"), "sector-level ECL highlights remain");
+  } finally {
+    await context.close();
+  }
+});
+
+await test("both dashboards open the same right-hand drawer", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    for (const section of ["segments-requiring-attention", "ecl-highlights"]) {
+      const { headline } = await openDrawer(page, section);
+      const title = await page.textContent(
+        '[data-testid="attention-drawer-title"]',
+      );
+      assert.ok(
+        headline.includes(title ?? "__none__"),
+        `${section}: drawer title ${title} must match the card clicked`,
+      );
+      await page.click('[data-testid="attention-drawer-close"]');
+    }
+  } finally {
+    await context.close();
+  }
+});
 
 await test("Continue where you left off uses real V4 threads", async () => {
   const { context, page, requests, problems } = await openCockpit(browser);

@@ -74,7 +74,7 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python3 -m pytest tests/cockpit_v4 -q
 
 | tests collected | passed | failures | errors | skipped | elapsed |
 |---:|---:|---:|---:|---:|---:|
-| 458 | 458 | 0 | 0 | 0 | ~13 s |
+| 466 | 466 | 0 | 0 | 0 | ~16 s |
 
 Frontend unit suite — the whole thing, not only the Cockpit:
 
@@ -173,13 +173,24 @@ runtime as multi-agent.
 | 38 | A terminal COST_LIMIT or DEADLINE_EXPIRED buried the failure that actually started the trouble. | The first analytical failure is kept and appended to the terminal message and its detail. |
 | 39 | The V4 landing page was a narrow centred column with the process panel occupying it before anything had been asked. | Restored to the earlier Cockpit's layout — greeting, "What's on your mind?", one wide Ask box, business prompt chips, the Trace line, Requires attention with its reporting period, ECL highlights, Continue where you left off — on the V4 backend only. No legacy endpoint, component or flow came back with the look. |
 
+### Seventh round — one landing page composition defect
+
+| # | Defect | Consequence |
+|---|---|---|
+| 40 | The "All" tab merged the segment feed and the ECL feed into the upper section. | Requires attention listed "Information Technology carries the most ECL in the book", "Bhavani Cements is the largest single ECL contributor", "Stage 2 share of the book fell" and "Transport and Logistics had the largest ECL reduction" — a book-wide observation and a single borrower among them — and then showed every one of them again in the ECL section below. Two dashboards answering two questions were rendered as one list and a duplicate. The tab existed only to merge feeds that are both already visible, so it is gone. |
+| 41 | Nothing in the engine stopped it. | Composition was a rendering decision, which is how it went wrong. Every item now declares an explicit `scope` (`segment` / `borrower` / `portfolio`), and `check_composition()` refuses a feed whose segment list holds a non-segment item, whose two lists share an id, or whose two lists share a headline. |
+
+Neither changed the ranking. The engine's SQL, gates, formula, tie-breaks,
+cache and pandas oracle are untouched, and a test asserts the top five are
+still the oracle's top five.
+
 ### Browser suite
 
 ```
 python3 scripts/cockpit_v4/browser_evidence.py
 ```
 
-Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 33/33 pass.
+Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 35/35 pass.
 Every network request the page makes is recorded, so "never calls the legacy
 flow" is checked rather than asserted. A screenshot of a rendered answer is
 written to `docs/cockpit_v4/evidence/cockpit_v4_answer.png`.
@@ -198,8 +209,9 @@ name only when the session has one), "What's on your mind?", an Ask box that
 spans the workspace and sits above the attention feed with no process panel
 reserved while idle, prompt chips that ask and can be dismissed, the Trace
 line and its explanation, Requires attention with its reporting period and
-tabs whose counts are checked against the rows behind them, Continue where you
-left off listing a conversation that really happened, an Arabic answer
+Segments requiring attention holding only segment-scoped cards with no
+merging tab, the two dashboards proven to share no id and no headline, both
+opening the same drawer, Continue where you left off listing a conversation that really happened, an Arabic answer
 rendering without forcing a horizontal scroll, and the absence of every legacy
 component marker.
 
@@ -213,19 +225,19 @@ All run in this container, in this order, on the commit being handed off.
 
 | Suite | Command | Result |
 |---|---|---:|
-| V4 backend | `python3 -m pytest tests/cockpit_v4` | **458 passed**, 0 failed |
+| V4 backend | `python3 -m pytest tests/cockpit_v4` | **466 passed**, 0 failed |
 | — launcher + frontend wiring subset | `… test_launcher_safety.py test_frontend_wiring.py` | 43 passed |
 | — Product Help benchmark | `… test_product_help_benchmark.py` | 81 passed |
 | — Product Help semantics / tool policy | `… test_product_help_semantics.py` | 61 passed |
 | — spelling, telegraphic and multilingual input | `… test_language_and_intent.py` | 40 passed |
-| — attention ranking, oracles and seeding | `… test_attention_feed.py` | 34 passed |
+| — attention ranking, oracles, seeding and composition | `… test_attention_feed.py` | 42 passed |
 | — analytical execution, binding and budgets | `… test_analytical_execution.py` | 31 passed |
 | — tool contract agreement | `… test_tool_contract_agreement.py` | 26 passed |
 | — event contract parity | `… test_event_contract_parity.py` | 5 passed |
 | — "Who are you?" acceptance | `… test_who_are_you_acceptance.py` | 7 passed |
 | Frontend unit | `npm test` (`node --test`, 38 suites) | **470 passed**, 0 failed |
 | — Cockpit V4 components only | `node --test 'src/components/cockpit-v4/*.test.ts'` | 62 passed |
-| Browser (real Chromium) | `python3 scripts/cockpit_v4/browser_evidence.py` | **33/33 passed** |
+| Browser (real Chromium) | `python3 scripts/cockpit_v4/browser_evidence.py` | **35/35 passed** |
 | V3 regression | `python3 -m pytest tests/cockpit_agentic` | **564 passed**, 26 skipped, 0 failed |
 | Acceptance coverage | `python3 scripts/cockpit_v4/acceptance_evidence.py` | 100 / 100 covered |
 

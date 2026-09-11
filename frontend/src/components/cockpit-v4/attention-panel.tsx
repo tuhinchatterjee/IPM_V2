@@ -55,6 +55,7 @@ function Card({
       data-testid="attention-card"
       data-item-id={item.item_id}
       data-segment={item.segment}
+      data-scope={item.scope}
       data-severity={item.severity}
       onClick={() => onOpen(item)}
       className="flex w-full items-start gap-3 border-b border-slate-100 px-5 py-4 text-left transition last:border-b-0 hover:bg-slate-50"
@@ -86,50 +87,12 @@ function Card({
   );
 }
 
-type Tab = { id: string; label: string; items: AttentionItem[] };
-
-function Tabs({
-  tabs,
-  active,
-  onSelect,
-}: {
-  tabs: Tab[];
-  active: string;
-  onSelect: (id: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1" data-testid="attention-tabs">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          data-testid="attention-tab"
-          data-tab={tab.id}
-          aria-pressed={active === tab.id}
-          onClick={() => onSelect(tab.id)}
-          className={`rounded px-3 py-1 text-sm transition ${
-            active === tab.id
-              ? "bg-slate-800 text-white"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          {tab.label}{" "}
-          {/* Counts are the real lengths of the real lists. There is no tab
-              here whose count would have to be invented. */}
-          <span className="tabular-nums opacity-70">{tab.items.length}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function AttentionPanel({
   onOpen,
 }: {
   onOpen: (item: AttentionItem) => void;
 }) {
   const [feed, setFeed] = React.useState<AttentionFeed | null>(null);
-  const [tab_, setTab] = React.useState("all");
   const [failure, setFailure] = React.useState<{
     message: string;
     reference: string;
@@ -193,19 +156,13 @@ export function AttentionPanel({
   const quarter = quarterLabel(feed.reporting_quarter);
   const segments = feed.segments_requiring_attention;
   const highlights = feed.ecl_highlights;
-  const tabs: Tab[] = [
-    { id: "all", label: "All", items: [...segments, ...highlights] },
-    { id: "segments", label: "Segments", items: segments },
-    { id: "ecl", label: "ECL", items: highlights },
-  ];
-  const shown = tabs.find((tab) => tab.id === tab_) ?? tabs[0];
 
   return (
     <div className="space-y-10" data-testid="attention-panel">
       <section data-testid="segments-requiring-attention" className="space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="text-lg font-semibold text-slate-900">
-            Requires attention
+            Segments requiring attention
           </h2>
           <span
             data-testid="attention-reporting-period"
@@ -219,22 +176,17 @@ export function AttentionPanel({
           {quarterLabel(feed.prior_quarter)} and{" "}
           {quarterLabel(feed.prior_year_quarter)} and identified{" "}
           {segments.length}{" "}
-          {segments.length === 1 ? "segment issue" : "segment issues"} and{" "}
-          {highlights.length} ECL{" "}
-          {highlights.length === 1 ? "development" : "developments"}.
+          {segments.length === 1 ? "segment issue" : "segment issues"}.
         </p>
 
-        <Tabs tabs={tabs} active={shown.id} onSelect={setTab} />
-
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          {shown.items.length ? (
-            shown.items.map((item) => (
+          {segments.length ? (
+            segments.map((item) => (
               <Card key={item.item_id} item={item} onOpen={onOpen} />
             ))
           ) : (
             <p className="px-5 py-6 text-sm text-slate-500">
-              Nothing in this view cleared the materiality floor for{" "}
-              {quarter}.
+              No segment movement cleared the materiality floor for {quarter}.
             </p>
           )}
         </div>
@@ -257,6 +209,11 @@ export function AttentionPanel({
             {quarter} vs {quarterLabel(feed.prior_quarter)}
           </span>
         </div>
+        <p className="text-sm text-slate-600">
+          {highlights.length} distinct ECL{" "}
+          {highlights.length === 1 ? "development" : "developments"} — by
+          sector, by borrower and across the book.
+        </p>
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           {highlights.map((item) => (
             <Card key={item.item_id} item={item} onOpen={onOpen} />

@@ -500,3 +500,99 @@ def test_an_ordinary_thread_says_nothing_about_an_investigation(
 def test_the_feed_is_fast_enough_to_render_a_page(feed):
     """A local UAT target, measured rather than asserted in prose."""
     assert feed["computed_ms"] < 2_000, feed["computed_ms"]
+
+
+# ---- two dashboards, two questions, no overlap -------------------------
+
+def test_every_segment_card_is_about_a_segment(feed):
+    """The composition defect: ECL highlights in the segment list."""
+    for item in feed["segments_requiring_attention"]:
+        assert item["scope"] == attention.SCOPE_SEGMENT, item["headline"]
+        assert item["segment_dimension"] == "sector_name"
+        assert item["segment"] and item["segment"] != "Whole book"
+
+
+def test_a_borrower_highlight_can_never_enter_the_segment_list(feed):
+    borrower = [i for i in feed["ecl_highlights"]
+                if i["scope"] == attention.SCOPE_BORROWER]
+    assert borrower, "this release has a largest-borrower highlight"
+    ids = {i["item_id"] for i in feed["segments_requiring_attention"]}
+    for item in borrower:
+        assert item["item_id"] not in ids, item["headline"]
+        assert item["evidence"].get("borrower_id")
+
+
+def test_a_book_wide_observation_can_never_enter_the_segment_list(feed):
+    book = [i for i in feed["ecl_highlights"]
+            if i["scope"] == attention.SCOPE_PORTFOLIO]
+    assert book, "this release has a book-level stage-mix highlight"
+    ids = {i["item_id"] for i in feed["segments_requiring_attention"]}
+    for item in book:
+        assert item["item_id"] not in ids, item["headline"]
+        assert item["segment"] == "Whole book"
+
+
+def test_no_item_appears_in_both_dashboards(feed):
+    segments = [i["item_id"] for i in feed["segments_requiring_attention"]]
+    highlights = [i["item_id"] for i in feed["ecl_highlights"]]
+    assert set(segments).isdisjoint(highlights)
+    # And no headline is repeated either: two cards saying the same sentence
+    # are duplication whether or not they share an id.
+    assert set(i["headline"] for i in feed["segments_requiring_attention"]) \
+        .isdisjoint(i["headline"] for i in feed["ecl_highlights"])
+
+
+def test_the_release_supplies_five_qualifying_segment_items(feed):
+    segments = feed["segments_requiring_attention"]
+    assert len(segments) == attention.TOP_N
+    assert len({i["segment"] for i in segments}) == len(segments)
+
+
+def test_the_engine_refuses_a_contaminated_segment_list(feed):
+    """The invariant lives in the engine, not in whatever renders it."""
+    segments = feed["segments_requiring_attention"]
+    highlights = feed["ecl_highlights"]
+    attention.check_composition(segments, highlights)
+
+    borrower = next(i for i in highlights
+                    if i["scope"] == attention.SCOPE_BORROWER)
+    book = next(i for i in highlights
+                if i["scope"] == attention.SCOPE_PORTFOLIO)
+
+    for intruder, why in ((borrower, "a single borrower"),
+                          (book, "a book-wide observation")):
+        with pytest.raises(attention.AttentionUnavailable) as caught:
+            attention.check_composition(segments + [intruder], highlights)
+        assert "segment-scoped items only" in caught.value.message, why
+
+    # A sector-scoped ECL highlight passes the scope check and is still a
+    # duplicate: the same card cannot be in both lists.
+    with pytest.raises(attention.AttentionUnavailable) as caught:
+        attention.check_composition(segments + [highlights[0]], highlights)
+    assert "one dashboard, not both" in caught.value.message
+
+    duplicate = {**segments[0], "item_id": "att-other"}
+    with pytest.raises(attention.AttentionUnavailable) as caught:
+        attention.check_composition(segments, highlights + [duplicate])
+    assert "the same sentence" in caught.value.message
+
+
+def test_neither_dashboard_costs_a_model_call(feed):
+    """Both are built from SQL over the pinned release and nothing else."""
+    assert feed["model_calls"] == 0
+    blob = str(feed["method"]["sql"]).lower()
+    assert "select" in blob
+    for forbidden in ("anthropic", "opus", "prompt", "completion"):
+        assert forbidden not in blob
+
+
+def test_the_ranking_method_is_unchanged_by_this_round(feed, release_id):
+    """The composition fix touched presentation, not the engine."""
+    expected = oracle.top_segments(release_id, limit=attention.TOP_N)
+    actual = feed["segments_requiring_attention"]
+    assert [(e["segment"], e["metric"], e["basis"]) for e in expected] == \
+        [(a["segment"], a["metric"], a["comparison_basis"]) for a in actual]
+    assert feed["method"]["formula"].startswith(
+        "100 * (0.5*relative + 0.5*money) * confidence")
+    assert feed["method"]["gates"]["materiality_fraction_of_book_ead"] == \
+        attention.MATERIAL_FRACTION

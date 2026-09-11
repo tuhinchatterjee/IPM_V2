@@ -459,6 +459,8 @@ export type AttentionDrilldown = {
 export type AttentionItem = {
   item_id: string;
   section: string;
+  /** "segment" | "portfolio" | "borrower" — what the item is ABOUT. */
+  scope: string;
   headline: string;
   one_line: string;
   segment: string;

@@ -259,10 +259,13 @@ entirely V4.
 4. **Prompt chips** beneath it — business questions, dismissible with the ×.
    Rendering them costs no model call.
 5. **"Every answer carries a Trace."** — the link explains what a trace is.
-6. **Requires attention**, with `REPORTING PERIOD Q<n> <year>` beside the
-   heading and tabs for All / Segments / ECL. Every tab count is the real
-   length of the list behind it.
-7. **Latest-quarter ECL highlights**, in the same visual language.
+6. **Segments requiring attention**, with `REPORTING PERIOD Q<n> <year>`
+   beside the heading — up to five SEGMENT-level deterioration items and
+   nothing else. No book-wide observation and no individual borrower appears
+   here.
+7. **Latest-quarter ECL highlights**, a separate feed in the same visual
+   language: sector, borrower and book-level ECL developments. Nothing in it
+   is repeated above.
 8. **Continue where you left off** — real V4 threads with at least one
    completed turn, or a quiet empty state. Clicking one reopens the real
    persisted thread, with its attention seed when it had one.

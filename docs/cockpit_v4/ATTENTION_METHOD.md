@@ -10,6 +10,30 @@ Independently re-implemented in pandas by
 `test_attention_feed.py` asserts the two agree item for item and figure for
 figure.
 
+## Two dashboards, two questions
+
+They are separate feeds answering separate questions, and nothing appears in
+both.
+
+| | Question | Scope of every card |
+|---|---|---|
+| **Segments requiring attention** | What deteriorated, by segment, between two reporting quarters? | `segment` only |
+| **Latest-quarter ECL highlights** | What moved in ECL this quarter? | `segment`, `borrower` or `portfolio` |
+
+Every item carries an explicit `scope`, declared rather than inferred from its
+dimension. `check_composition()` refuses a feed in which the segment list
+holds anything that is not segment-scoped, in which an item id appears in both
+lists, or in which the same headline appears twice.
+
+The invariant lives in the engine because the defect was a rendering decision:
+a tab that merged the two feeds put "Information Technology carries the most
+ECL in the book", a single borrower and a book-wide stage-mix line into the
+segment list, and then showed all of them again below. A rule that only lives
+in a component is one the next component can break again.
+
+The tab is gone. Both dashboards are on the page; merging them served no
+purpose that separating them does not serve better.
+
 ## What it is, and is not
 
 | | |
@@ -159,8 +183,8 @@ at most one per family, first five taken:
 | 1 | Largest ECL increase by sector | `ecl_move` | max(ECL_new − ECL_old) where positive |
 | 2 | Largest ECL coverage increase | `coverage` | max(Δ ECL/EAD) where positive |
 | 3 | Largest single contributor to book ECL | `contribution` | max(sector ECL) at the latest quarter |
-| 4 | Largest single borrower in book ECL | `borrower` | max(borrower ECL) at the latest quarter |
-| 5 | Stage-2 share of the book, and its move | `stage_mix` | always reported, in whichever direction it went |
+| 4 | Largest single borrower in book ECL | `borrower` | max(borrower ECL) at the latest quarter — **scope `borrower`** |
+| 5 | Stage-2 share of the book, and its move | `stage_mix` | always reported, in whichever direction it went — **scope `portfolio`** |
 | 6 | Largest ECL reduction by sector | `improvement` | min(ECL_new − ECL_old) where negative |
 
 Coverage is listed separately from the absolute move deliberately: it isolates

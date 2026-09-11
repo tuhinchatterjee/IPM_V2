@@ -3,8 +3,8 @@
   "note": "The analyst model is a stub. This proves the wiring, the run lifecycle and the rendering. It is NOT a live Opus validation.",
   "ui": "http://127.0.0.1:5471",
   "api": "http://127.0.0.1:8471",
-  "total": 33,
-  "passed": 33,
+  "total": 35,
+  "passed": 35,
   "failed": 0,
   "forbidden_endpoints_checked": [
     "/api/v1/investigations",
@@ -19,167 +19,177 @@
     {
       "name": "asking 'Who are you?' posts to the V4 run API and never to the legacy flow",
       "ok": true,
-      "ms": 3094
+      "ms": 3736
     },
     {
       "name": "the process panel appears and consumes the V4 event stream",
       "ok": true,
-      "ms": 1969
+      "ms": 2378
     },
     {
       "name": "progress events are rendered before the answer arrives",
       "ok": true,
-      "ms": 2077
+      "ms": 2561
     },
     {
       "name": "the final answer renders with its disposition",
       "ok": true,
-      "ms": 2064
+      "ms": 2014
     },
     {
       "name": "an evidence-bound analysis renders artifact links",
       "ok": true,
-      "ms": 3376
+      "ms": 3047
     },
     {
       "name": "a terminal failure renders explicitly with a support reference",
       "ok": true,
-      "ms": 1911
+      "ms": 2028
     },
     {
       "name": "stop cancels the run through the V4 cancel endpoint",
       "ok": true,
-      "ms": 1816
+      "ms": 1899
     },
     {
       "name": "a browser refresh replays the same run instead of re-asking",
       "ok": true,
-      "ms": 898
+      "ms": 1112
     },
     {
       "name": "optional landing widgets show a neutral state and request nothing",
       "ok": true,
-      "ms": 573
+      "ms": 648
     },
     {
       "name": "no request from the page goes to the legacy backend port",
       "ok": true,
-      "ms": 5411
+      "ms": 5568
     },
     {
       "name": "the process panel shows real stages, not 'not started' at 0s",
       "ok": true,
-      "ms": 2169
+      "ms": 2313
     },
     {
       "name": "the answer renders as Markdown, with no raw syntax left over",
       "ok": true,
-      "ms": 1986
+      "ms": 2059
     },
     {
       "name": "suggested-question chips stay interactive UI, not Markdown",
       "ok": true,
-      "ms": 2104
+      "ms": 2065
     },
     {
       "name": "a failed attempt stays visible after a later attempt succeeds",
       "ok": true,
-      "ms": 3607
+      "ms": 3690
     },
     {
       "name": "segments requiring attention loads from the pinned release",
       "ok": true,
-      "ms": 644
+      "ms": 669
     },
     {
       "name": "latest-quarter ECL highlights load below it",
       "ok": true,
-      "ms": 589
+      "ms": 699
     },
     {
       "name": "clicking a segment card opens the right-side drawer",
       "ok": true,
-      "ms": 698
+      "ms": 832
     },
     {
       "name": "the drawer offers borrower drill-down and no invented subsegment",
       "ok": true,
-      "ms": 720
+      "ms": 765
     },
     {
       "name": "possible drivers are stated as association, never as cause",
       "ok": true,
-      "ms": 762
+      "ms": 719
     },
     {
       "name": "Investigate Further opens a seeded V4 thread",
       "ok": true,
-      "ms": 867
+      "ms": 851
     },
     {
       "name": "a follow-up uses the seeded context without restating it",
       "ok": true,
-      "ms": 3145
+      "ms": 3255
     },
     {
       "name": "the seeded context load appears in the process panel",
       "ok": true,
-      "ms": 1055
+      "ms": 1083
     },
     {
       "name": "an ECL highlight opens the same drawer and investigates",
       "ok": true,
-      "ms": 770
+      "ms": 852
     },
     {
       "name": "a refresh keeps the open investigation",
       "ok": true,
-      "ms": 1059
+      "ms": 1258
     },
     {
       "name": "an attention-feed failure does not break Ask",
       "ok": true,
-      "ms": 1946
+      "ms": 2453
     },
     {
       "name": "the landing page greets, then asks what is on your mind",
       "ok": true,
-      "ms": 575
+      "ms": 658
     },
     {
       "name": "the Ask box is the primary element and spans the workspace",
       "ok": true,
-      "ms": 607
+      "ms": 645
     },
     {
       "name": "prompt chips render, ask when clicked, and can be dismissed",
       "ok": true,
-      "ms": 948
+      "ms": 1066
     },
     {
       "name": "the Trace line is there and explains itself",
       "ok": true,
-      "ms": 590
+      "ms": 720
     },
     {
-      "name": "Requires attention shows its reporting period and real tabs",
+      "name": "Segments requiring attention shows its period and only segments",
       "ok": true,
-      "ms": 699
+      "ms": 757
+    },
+    {
+      "name": "the two dashboards are distinct and share no card",
+      "ok": true,
+      "ms": 740
+    },
+    {
+      "name": "both dashboards open the same right-hand drawer",
+      "ok": true,
+      "ms": 881
     },
     {
       "name": "Continue where you left off uses real V4 threads",
       "ok": true,
-      "ms": 2312
+      "ms": 2372
     },
     {
       "name": "an Arabic answer renders right-to-left without breaking the page",
       "ok": true,
-      "ms": 2967
+      "ms": 2960
     },
     {
       "name": "the landing page mounts the V4 Cockpit and nothing legacy",
       "ok": true,
-      "ms": 573
+      "ms": 651
     }
   ]
 }

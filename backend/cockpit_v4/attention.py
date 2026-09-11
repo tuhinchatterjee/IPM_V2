@@ -90,6 +90,14 @@ FAMILY_COVENANT = "covenant"
 FAMILY_CONCENTRATION = "concentration"
 FAMILY_ARREARS = "arrears"
 
+#: What an item is ABOUT. The two dashboards are two questions, and the scope
+#: is what separates them: "which segments deteriorated" is not the same
+#: question as "what moved in ECL", and a book-wide observation or a single
+#: borrower is not an answer to the first one.
+SCOPE_SEGMENT = "segment"
+SCOPE_PORTFOLIO = "portfolio"
+SCOPE_BORROWER = "borrower"
+
 
 class AttentionUnavailable(Exception):
     """The feed could not be computed. Carries a code and a plain reason."""
@@ -632,6 +640,10 @@ def _item(candidate: Candidate, *, release_id: str, currency: str,
     return {
         "item_id": candidate.item_id(),
         "section": section,
+        # Segment-level by construction: every candidate is one sector's
+        # movement between two quarters. Declared rather than inferred, so
+        # the invariant below can be checked rather than assumed.
+        "scope": SCOPE_SEGMENT,
         "headline": str(spec["headline"]).format(sector=candidate.sector),
         "one_line": (f"{_fmt_value(candidate.value_old, unit, currency)} → "
                      f"{_fmt_value(candidate.value_new, unit, currency)} "
@@ -793,12 +805,14 @@ def _highlight(*, item_id_seed: str, headline: str, one_line: str,
                segment: str, metric: str, metric_label: str, family: str,
                quarter: str, comparison: str, why: str, what_changed: str,
                key_numbers: list[dict[str, Any]], evidence: dict[str, Any],
-               release_id: str, currency: str) -> dict[str, Any]:
+               release_id: str, currency: str,
+               scope: str = SCOPE_SEGMENT) -> dict[str, Any]:
     item_id = "att-" + hashlib.sha256(
         item_id_seed.encode("utf-8")).hexdigest()[:16]
     return {
         "item_id": item_id,
         "section": "ecl_highlights",
+        "scope": scope,
         "headline": headline,
         "one_line": one_line,
         "segment": segment,
@@ -1001,6 +1015,7 @@ def _ecl_highlights(by_sector: dict[str, dict[str, dict[str, Any]]], *,
             segment=str(top.get("sector_name") or ""),
             metric="ecl_borrower_concentration",
             metric_label="Borrower share of total ECL", family="borrower",
+            scope=SCOPE_BORROWER,
             quarter=quarter, comparison=comparison,
             why=("Largest reported ECL of any single borrower at the latest "
                  "reporting quarter."),
@@ -1041,7 +1056,8 @@ def _ecl_highlights(by_sector: dict[str, dict[str, dict[str, Any]]], *,
                           f"total exposure ({delta * 100:+.2f} pp)."),
                 segment="Whole book", metric="stage2_share_of_book",
                 metric_label="Stage 2 share of book exposure",
-                family="stage_mix", quarter=quarter, comparison=comparison,
+                family="stage_mix", scope=SCOPE_PORTFOLIO,
+                quarter=quarter, comparison=comparison,
                 why=("Stage mix is what moves lifetime ECL onto or off the "
                      "book, so it is reported whichever way it went."),
                 what_changed=("The proportion of total exposure carrying "
@@ -1134,6 +1150,40 @@ def _prior_quarter(quarter: str, quarters: list[str]) -> str:
         return ""
     index = quarters.index(quarter)
     return quarters[index - 1] if index >= 1 else ""
+
+
+def check_composition(segments: list[dict[str, Any]],
+                      highlights: list[dict[str, Any]]) -> None:
+    """Two dashboards, two questions, no overlap.
+
+    Checked here rather than trusted. The composition defect that put ECL
+    highlights and a single borrower into the segment list was a rendering
+    decision, and an invariant that only lives in a component is one the next
+    component can break again.
+
+    "Which segments deteriorated" is not the same question as "what moved in
+    ECL". A book-wide observation and a single borrower are answers to the
+    second and not to the first, however interesting they are.
+    """
+    stray = [item.get("item_id") for item in segments
+             if item.get("scope") != SCOPE_SEGMENT]
+    if stray:
+        raise AttentionUnavailable(
+            "ATTENTION_UNAVAILABLE",
+            f"segments requiring attention holds segment-scoped items only; "
+            f"{stray} are not.")
+    shared = ({item.get("item_id") for item in segments}
+              & {item.get("item_id") for item in highlights})
+    if shared:
+        raise AttentionUnavailable(
+            "ATTENTION_UNAVAILABLE",
+            f"an item belongs to one dashboard, not both: {sorted(shared)}.")
+    repeated = ({item.get("headline") for item in segments}
+                & {item.get("headline") for item in highlights})
+    if repeated:
+        raise AttentionUnavailable(
+            "ATTENTION_UNAVAILABLE",
+            f"two cards may not say the same sentence: {sorted(repeated)}.")
 
 
 def compute(*, session: Any, release_id: str, quarters: list[str],
@@ -1242,6 +1292,8 @@ def compute(*, session: Any, release_id: str, quarters: list[str],
     for item in highlights:
         item["drilldown"] = _drilldown(borrowers, str(item["segment"]))
 
+    check_composition(segments, highlights)
+
     elapsed_ms = int((time.monotonic() - started) * 1000)
     return {
         "release_id": release_id,
@@ -1349,6 +1401,8 @@ def find_item(feed: dict[str, Any], item_id: str) -> dict[str, Any] | None:
     return None
 
 
-__all__ = ["AttentionUnavailable", "Candidate", "INDICATORS", "TOP_N",
-           "cache_key", "cached", "clear_cache", "compute", "find_item",
+__all__ = ["AttentionUnavailable", "Candidate", "INDICATORS",
+           "SCOPE_BORROWER", "SCOPE_PORTFOLIO", "SCOPE_SEGMENT", "TOP_N",
+           "cache_key", "cached", "check_composition", "clear_cache",
+           "compute", "find_item",
            "select"]
