@@ -1,6 +1,6 @@
 # Retail full-functionality acceptance — honest status
 
-Branch `claude/funny-dirac-6n8f0o`, head `1aaba62`. Every figure below was
+Branch `claude/funny-dirac-6n8f0o`. Every figure below was
 produced by running the thing it describes; nothing is estimated.
 
 ## The answer to the question that was asked
@@ -35,8 +35,8 @@ Neither of them worked when this closeout began.
 | What-If journeys WI-09…WI-14, WI-16, WI-18…WI-20 | **12 passed, 0 failed** | 112s | `whatif_journeys.json` |
 | Navigation NAV-01…NAV-10 | **10 passed, 1 N/A** | 101s | `navigation.json` |
 | End-to-end, fresh and resumed sessions | **3 passed** | 78s | `end_to_end.json` |
-| Acceptance gates RET-001…RET-060 | see below | ~9 min | `docs/evidence/gates.log` |
-| Backend retail regressions | 53 passed | — | `tests/retail/test_ret_chat_regressions.py` |
+| Acceptance gates RET-001…RET-060 plus the closeout regressions | **413 passed, 0 failed, 0 errors** | ~9 min | `docs/evidence/gates.log` |
+| — of which, regressions added by this closeout | 53 | — | `tests/retail/test_ret_chat_regressions.py` |
 | Frontend unit suite | 573 passed | 9s | `npm test` |
 
 All evidence is under `docs/evidence/retail_functionality/`, with a screenshot
