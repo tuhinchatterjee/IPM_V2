@@ -122,6 +122,7 @@ say "Starting the retail frontend on $RETAIL_FRONTEND_PORT..."
   # out" while the backend is perfectly healthy, and both chat boxes are dead.
   # Host must match; the port does not matter to a cookie.
   NEXT_PUBLIC_API_URL="http://localhost:$RETAIL_BACKEND_PORT" \
+  NEXT_PUBLIC_PRODUCT_PROFILE="retail" \
   PORT="$RETAIL_FRONTEND_PORT" \
   npm run dev >>"$FRONTEND_LOG" 2>&1 &
   echo $! > "$FRONTEND_PIDFILE"

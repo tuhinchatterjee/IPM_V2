@@ -26,7 +26,10 @@ import { Unavailable } from "@/components/ui/unavailable";
 import { Composer, money, signed } from "@/components/whatif/parts";
 import type { WhatIfCard } from "@/lib/api";
 import { api } from "@/lib/api";
+import { isRetail } from "@/lib/profile";
 import { useAsync } from "@/lib/hooks";
+
+import { RetailWhatIf } from "./retail-whatif";
 
 const EXAMPLES = [
   "What happens if Stage 1 PD increases 20%?",
@@ -67,6 +70,15 @@ function ScenarioCard({ card }: { card: WhatIfCard }) {
 }
 
 export default function WhatIfLandingPage() {
+  // This installation is retail-only. The corporate landing below is kept as
+  // code rather than deleted — the conversion is a profile, not a fork — but
+  // it is not what the product serves: its book is retired here, so it renders
+  // an empty period list and six journeys that cannot run.
+  if (isRetail()) return <RetailWhatIf />;
+  return <CorporateWhatIfLanding />;
+}
+
+function CorporateWhatIfLanding() {
   const router = useRouter();
   const landing = useAsync(() => api.whatIfLanding(), []);
   const [question, setQuestion] = React.useState("");

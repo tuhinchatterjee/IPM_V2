@@ -5762,6 +5762,109 @@ function qs(parts: Record<string, string | undefined>): string {
   return body ? `?${body}` : "";
 }
 
+
+/* ---------------------------------------------------------------- retail What-If */
+
+export interface RetailWhatIfCard {
+  id: number;
+  name: string;
+  created_at: string;
+  month: string;
+  question: string;
+  run_id: string;
+  filters: Record<string, unknown>;
+  shocks: Record<string, number>;
+  staging_mode: string;
+  scenario_weights: Record<string, number> | null;
+  methodology_version: string;
+  dataset_version: string;
+  baseline_ecl: number | null;
+  whatif_ecl: number | null;
+  delta_sar: number | null;
+  /** A FRACTION, not a percentage: 0.1298 is +12.98%. */
+  delta_pct: number | null;
+  facilities: number | null;
+}
+
+export interface RetailWhatIfLanding {
+  heading: string;
+  domain: string;
+  dataset: string;
+  months: string[];
+  latest_month: string | null;
+  methodology_version: string;
+  supported: Record<string, string>;
+  staging_modes: string[];
+  starters: string[];
+  saved: RetailWhatIfCard[];
+  persistence: string;
+  disclosure: string;
+}
+
+export interface RetailWhatIfTotals {
+  facilities: number;
+  customers: number;
+  gross_carrying_amount_sar: number;
+  ecl_base_sar: number;
+  ecl_upturn_sar: number;
+  ecl_downturn_sar: number;
+  ecl_weighted_sar: number;
+  ecl_final_sar: number;
+  stage_counts: Record<string, number>;
+}
+
+export interface RetailWhatIfTurn {
+  kind: "result" | "clarification" | "refusal" | "invalid";
+  month?: string;
+  question?: string;
+  read_as?: string[];
+  neutral?: boolean;
+  message?: string;
+  options?: { id: string; label: string; shocks: Record<string, number> }[];
+  unsupported?: string[];
+  supported?: Record<string, string>;
+  scenario_so_far?: Record<string, unknown>;
+  scenario?: {
+    run_id: string;
+    name: string;
+    dataset_version: string;
+    snapshot_date: string;
+    filters: Record<string, unknown>;
+    shocks: Record<string, number>;
+    staging_mode: string;
+    scenario_weights: Record<string, number> | null;
+    methodology_version: string;
+  };
+  population_empty?: boolean;
+  baseline?: RetailWhatIfTotals;
+  scenario_result?: RetailWhatIfTotals;
+  delta?: {
+    ecl_final_sar: number;
+    /** A FRACTION: 0.1298 is +12.98%. */
+    ecl_final_pct: number | null;
+    gross_carrying_amount_sar?: number;
+  };
+  drivers?: { product_code: string; baseline: number; scenario: number;
+              delta_sar: number }[];
+  /** Present on a NEUTRAL run: how exactly it reproduced the published book. */
+  parity?: {
+    published_ecl_final_sar: number;
+    rebuilt_ecl_final_sar: number;
+    total_residual_sar: number;
+    relative_residual: number;
+    max_facility_residual_sar: number;
+    facilities_outside_tolerance: number;
+    tolerance: { per_facility_sar: number; relative_total: number };
+    within_tolerance: boolean;
+    explanation: string;
+  } | null;
+  assumptions?: string[];
+  limitations?: string[];
+  evidence?: Record<string, unknown>;
+  dataset_version?: string;
+  disclosure?: string;
+}
+
 export const api = {
   // ---- authentication ----
   /**
@@ -6680,6 +6783,45 @@ export const api = {
   // The server holds no thread: a What-If is a structure, and a structure the
   // client owns can be edited, undone and replayed without a round trip per
   // keystroke. Only saving and the Recent list touch the database.
+  // ---- retail What-If ----
+  //
+  // The retail engine's own surface. The corporate What-If above reads the
+  // corporate book and refuses anything outside it; this installation's book
+  // is retail, so the What-If screen talks to these.
+  retailWhatIfLanding: () =>
+    request<RetailWhatIfLanding>("/retail/whatif/landing",
+                                 { timeoutMs: LAKE_TIMEOUT_MS }),
+  retailWhatIfAsk: (body: {
+    question: string;
+    month?: string | null;
+    carried?: Record<string, unknown>;
+    chosen?: Record<string, unknown> | null;
+  }) =>
+    request<RetailWhatIfTurn>("/retail/whatif/ask", {
+      method: "POST",
+      body: JSON.stringify(body),
+      timeoutMs: LAKE_TIMEOUT_MS,
+    }),
+  retailWhatIfSave: (body: {
+    name: string;
+    question: string;
+    month: string;
+    run: Record<string, unknown>;
+  }) =>
+    request<{ saved: RetailWhatIfCard }>("/retail/whatif/save", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  retailWhatIfSaved: () =>
+    request<{ saved: RetailWhatIfCard[]; persistence?: string }>(
+      "/retail/whatif/saved"),
+  retailWhatIfReopen: (id: number) =>
+    request<{ saved: RetailWhatIfCard; run: RetailWhatIfTurn; month: string;
+              question: string }>(`/retail/whatif/saved/${id}`),
+  retailWhatIfDelete: (id: number) =>
+    request<{ deleted: number }>(`/retail/whatif/saved/${id}`,
+                                 { method: "DELETE" }),
+
   whatIfPeriods: () =>
     request<WhatIfPeriods>("/whatif/periods", { timeoutMs: LAKE_TIMEOUT_MS }),
   whatIfLanding: () =>

@@ -60,6 +60,20 @@ SUPPORTED_METHODOLOGIES: dict[str, str] = {
     "cutoff_replay": "Replay a different application-score cutoff over the BOOKED originations only.",
 }
 
+#: What a NEUTRAL scenario — no shocks, published weights — must reproduce.
+#:
+#: Not zero, and the reason is stated rather than absorbed. The published book
+#: holds money on a 0.002 SAR grid; the recomputation is continuous, so a
+#: facility's rebuilt ECL lands beside its published value rather than on it.
+#: Across the personal-finance book at 2026-08 that is SAR 0.52 on SAR
+#: 8,994,011.87 — six parts in a hundred million — and no facility differs by
+#: more than one halala.
+#:
+#: Declared here so a run can be CHECKED against it and say so, rather than
+#: having the difference hidden by rounding the answer to match the input.
+PARITY_PER_FACILITY_SAR = 0.01
+PARITY_RELATIVE_TOTAL = 1e-6
+
 FROZEN_STAGE = "frozen_stage"
 REEVALUATE_STAGE = "reevaluate_stage"
 
@@ -353,8 +367,10 @@ def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig) -> dict[
     contributions = contributions.sort_values("delta_sar", ascending=False)
 
     limitations = _limitations(population, scenario)
+    neutral = not scenario.shocks and scenario.scenario_weights is None
     return {
         "scenario": scenario.to_dict(),
+        "parity": _parity(population, result) if neutral else None,
         "population_empty": False,
         "baseline": baseline,
         "scenario_result": scen_totals,
@@ -382,6 +398,48 @@ def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig) -> dict[
             "run_id": scenario.run_id(),
             "methodology_version": scenario.methodology_version,
         },
+    }
+
+
+def _parity(population: pd.DataFrame, result: dict[str, np.ndarray]) -> dict[str, Any]:
+    """How exactly a neutral run reproduces the published book, checked row by row.
+
+    A scenario that changes nothing must return what the book already says. It
+    does not land on it exactly, and that is a fact about the data rather than
+    about the engine: the published figures sit on a 0.002 SAR grid and the
+    recomputation is continuous. Reported, with the tolerance it is measured
+    against, so nobody has to decide for themselves whether half a riyal on
+    nine million is a defect.
+    """
+    published = population["ecl_final_sar"].to_numpy(dtype="float64")
+    rebuilt = np.asarray(result["ecl_final"], dtype="float64")
+    residual = rebuilt - published
+    total = float(published.sum())
+    total_residual = float(residual.sum())
+    relative = abs(total_residual) / total if total else 0.0
+    worst = float(np.max(np.abs(residual))) if len(residual) else 0.0
+    outside = int(np.sum(np.abs(residual) > PARITY_PER_FACILITY_SAR))
+    return {
+        "published_ecl_final_sar": round(total, 2),
+        "rebuilt_ecl_final_sar": round(float(rebuilt.sum()), 2),
+        "total_residual_sar": round(total_residual, 4),
+        "relative_residual": relative,
+        "max_facility_residual_sar": round(worst, 4),
+        "facilities_outside_tolerance": outside,
+        "tolerance": {
+            "per_facility_sar": PARITY_PER_FACILITY_SAR,
+            "relative_total": PARITY_RELATIVE_TOTAL,
+        },
+        "within_tolerance": bool(outside == 0
+                                 and relative <= PARITY_RELATIVE_TOTAL),
+        "explanation": (
+            "A neutral scenario rebuilds every facility's ECL from its stored "
+            "inputs and compares it with the published figure. The published "
+            "book holds money on a 0.002 SAR grid and the rebuild is "
+            "continuous, so the two differ by a fraction of a halala per "
+            "facility. The difference is reported rather than removed: "
+            "rounding the rebuild onto the published grid would hide a real "
+            "engine error the day there is one."),
     }
 
 

@@ -26,6 +26,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from backend.api.permissions import Principal, RequireAnalyst, RequireCommenter
 from backend.config import settings
 from backend.retail import DOMAIN_DISPLAY, DOMAIN_ID, SYNTHETIC_DISCLOSURE
 from backend.retail import ecl as ecl_mod
@@ -40,7 +41,16 @@ from backend.retail.movement import decompose
 from backend.retail.profile import missing_seed_error
 from backend.retail.taxonomy import PRODUCT_LABELS, resolve_product
 
-router = APIRouter(prefix="/retail", tags=["retail"])
+#: Everything under /retail needs a signed-in user, and the endpoints that RUN
+#: something need one who may run an analysis.
+#:
+#: The failure this prevents: the retail router carried no dependency at all,
+#: so every endpoint under it — the portfolio, a named customer's whole
+#: position, the Early Warning book — answered 200 to a request with no session
+#: at all, on an installation where REQUIRE_LOGIN is on and every other router
+#: refuses. The data is synthetic; the hole was not.
+router = APIRouter(prefix="/retail", tags=["retail"],
+                   dependencies=[RequireCommenter])
 
 DATASET = "retail_facility_month"
 
@@ -522,7 +532,7 @@ def methodologies() -> dict:
 
 
 @router.post("/whatif", summary="Run a retail What-If scenario")
-def run_whatif(payload: ScenarioIn) -> dict:
+def run_whatif(payload: ScenarioIn, _: Principal = RequireAnalyst) -> dict:
     m = _resolve_month(payload.month)
     frame = _read(m)
     scenario = wif.Scenario(
@@ -546,7 +556,8 @@ def run_whatif(payload: ScenarioIn) -> dict:
 
 
 @router.post("/whatif/cutoff", summary="Replay a different application cutoff")
-def whatif_cutoff(cutoff: dict[str, float], month: str | None = Query(None)) -> dict:
+def whatif_cutoff(cutoff: dict[str, float], month: str | None = Query(None),
+                  _: Principal = RequireAnalyst) -> dict:
     m = _resolve_month(month)
     unknown = sorted(set(cutoff) - set(PRODUCT_LABELS))
     if unknown:
@@ -558,3 +569,199 @@ def whatif_cutoff(cutoff: dict[str, float], month: str | None = Query(None)) -> 
                       "application_score_at_origination",
                       "gross_carrying_amount_sar", "observed_default_within_window"])
     return json_safe({**_envelope(m), **wif.cutoff_replay(frame, cutoff)})
+
+
+# --------------------------------------------------------------- What-If chat
+#
+# The conversational half of What-If. The engine above is exact and refuses
+# what it does not implement; this is the part a person types at, and it keeps
+# the same promises: a unit is never guessed, an instruction is never dropped,
+# and nothing is normalised behind the reader's back.
+
+
+class AskIn(BaseModel):
+    question: str = Field("", max_length=2000)
+    month: str | None = None
+    #: The scenario the conversation is already holding, so "apply the same
+    #: shock only to salary-transfer customers" narrows THAT scenario.
+    carried: dict[str, Any] = Field(default_factory=dict)
+    #: Set when the user answers a units clarification by clicking an option.
+    chosen: dict[str, Any] | None = None
+
+
+class SaveIn(BaseModel):
+    name: str = Field("", max_length=120)
+    question: str = Field("", max_length=2000)
+    month: str = Field("", max_length=16)
+    run: dict[str, Any] = Field(default_factory=dict)
+
+
+def _owner_of(principal: Principal | None) -> int | None:
+    """Who is asking. The store scopes every read and write to this."""
+    return getattr(principal, "user_id", None)
+
+
+@router.get("/whatif/landing", summary="Everything the retail What-If screen shows")
+def whatif_landing(principal: Principal = RequireCommenter) -> dict:
+    from backend.retail import profile as prof
+    from backend.retail import whatif_store as store
+
+    months = _months()
+    saved: list[dict[str, Any]] = []
+    persistence = "Saved What-Ifs are stored for you and reopened as they ran."
+    try:
+        saved = [s.card() for s in store.listing(owner=_owner_of(principal))]
+    except store.Unavailable as e:
+        persistence = str(e)
+    return json_safe({
+        "heading": "What-If",
+        "domain": DOMAIN_DISPLAY,
+        "dataset": DATASET,
+        "months": months,
+        "latest_month": months[-1] if months else None,
+        "methodology_version": wif.METHODOLOGY_VERSION,
+        "supported": wif.SUPPORTED_METHODOLOGIES,
+        "staging_modes": [wif.FROZEN_STAGE, wif.REEVALUATE_STAGE],
+        "starters": list(prof.SCENARIO_STARTERS),
+        "saved": saved,
+        "persistence": persistence,
+        "disclosure": SYNTHETIC_DISCLOSURE,
+    })
+
+
+@router.post("/whatif/ask", summary="Type a retail scenario in words")
+def whatif_ask(payload: AskIn,
+               principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_language as lang
+
+    months = _months()
+    ask = lang.read(payload.question, months, payload.carried or {})
+    if payload.chosen:
+        # A clarification answered by clicking. The chosen reading REPLACES the
+        # ambiguous one; it is not merged with a guess taken in the meantime.
+        ask.question = ""
+        ask.options = []
+        ask.shocks.update(dict(payload.chosen.get("shocks") or {}))
+        for column, value in (payload.carried.get("filters") or {}).items():
+            ask.filters.setdefault(column, value)
+        ask.shocks.update({k: v for k, v in (payload.carried.get("shocks") or {}).items()
+                           if k not in ask.shocks})
+
+    month = _resolve_month(payload.month or ask.month or None)
+
+    if ask.needs_clarification:
+        return json_safe({
+            **_envelope(month),
+            "kind": "clarification",
+            "question": ask.question,
+            "options": ask.options,
+            "read_as": ask.read_as,
+            "scenario_so_far": ask.to_dict(),
+        })
+
+    if ask.unsupported and not ask.shocks and ask.scenario_weights is None:
+        return json_safe({
+            **_envelope(month),
+            "kind": "refusal",
+            "question": payload.question,
+            "unsupported": ask.unsupported,
+            "supported": wif.SUPPORTED_METHODOLOGIES,
+            "message": (
+                "CreditProbe will not run part of a scenario and call it the "
+                "scenario. It reads: " + "; ".join(ask.unsupported)
+                + ". What this retail engine implements: "
+                + lang.supported_sentence() + "."),
+        })
+
+    frame = _read(month)
+    scenario = wif.Scenario(
+        name=ask.name or (payload.question[:80] or "Scenario"),
+        dataset_version=_manifest()["dataset_version"],
+        snapshot_date=str(frame["snapshot_date"].iloc[0]),
+        filters=ask.filters, shocks=ask.shocks,
+        staging_mode=ask.staging_mode,
+        scenario_weights=ask.scenario_weights)
+    try:
+        scenario.validate()
+        result = wif.run(frame, scenario, load_config())
+    except wif.UnsupportedShock as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(e)) from e
+    except (ValueError, KeyError) as e:
+        # A validation refusal is an ANSWER, not a server error: the weights
+        # that do not sum to one are the thing the reader needs to see.
+        return json_safe({
+            **_envelope(month),
+            "kind": "invalid",
+            "question": payload.question,
+            "message": str(e).strip('"'),
+            "read_as": ask.read_as,
+            "scenario_so_far": ask.to_dict(),
+        })
+    return json_safe({
+        **_envelope(month),
+        "kind": "result",
+        "question": payload.question,
+        "read_as": ask.read_as,
+        "neutral": ask.is_neutral,
+        "unsupported": ask.unsupported,
+        **result,
+    })
+
+
+@router.post("/whatif/save", summary="Keep a What-If run")
+def whatif_save(payload: SaveIn,
+                principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_store as store
+
+    if not payload.run:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            "There is no run to save.")
+    try:
+        saved = store.save(name=payload.name, question=payload.question,
+                           month=payload.month, run=payload.run,
+                           owner=_owner_of(principal))
+    except store.Unavailable as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    return json_safe({"saved": saved.card()})
+
+
+@router.get("/whatif/saved", summary="What-Ifs you have kept")
+def whatif_saved(principal: Principal = RequireCommenter) -> dict:
+    from backend.retail import whatif_store as store
+
+    try:
+        rows = store.listing(owner=_owner_of(principal))
+    except store.Unavailable as e:
+        return json_safe({"saved": [], "persistence": str(e)})
+    return json_safe({"saved": [r.card() for r in rows]})
+
+
+@router.get("/whatif/saved/{scenario_id}", summary="Reopen a saved What-If")
+def whatif_reopen(scenario_id: int,
+                  principal: Principal = RequireCommenter) -> dict:
+    from backend.retail import whatif_store as store
+
+    try:
+        row = store.get(scenario_id, owner=_owner_of(principal))
+    except store.Unavailable as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e).strip('"')) from e
+    # Exactly as it ran, on the snapshot it read. Never recomputed on open: a
+    # saved scenario that quietly re-ran itself against a newer month would
+    # show different figures under the name somebody saved.
+    return json_safe({"saved": row.card(), **row.body})
+
+
+@router.delete("/whatif/saved/{scenario_id}", summary="Delete a saved What-If")
+def whatif_delete(scenario_id: int,
+                  principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_store as store
+
+    try:
+        store.delete(scenario_id, owner=_owner_of(principal))
+    except store.Unavailable as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e).strip('"')) from e
+    return {"deleted": scenario_id}

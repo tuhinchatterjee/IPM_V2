@@ -249,12 +249,22 @@ class Session:
             return {"submitted": False, "reason": "typed only", "seconds": 0.0,
                     "before": before}
 
+        # Settled when the request this submission made has COMPLETED and the
+        # screen is no longer busy. Waiting purely for the page text to grow by
+        # a threshold measured a short answer as a timeout: a What-If refusal
+        # is two lines, and five correct answers were recorded as failures for
+        # being brief.
         deadline = started + timeout
         settled = False
         while time.time() < deadline:
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(1500)
             body = self.text()
-            if len(body) > marker + settle_growth and not _busy(body):
+            grew = len(body) > marker + settle_growth
+            answered = len(self.api) > api_before
+            if not _busy(body) and (grew or answered):
+                # One more beat, so the render that follows the response is on
+                # screen before anything is read off it.
+                page.wait_for_timeout(1500)
                 settled = True
                 break
         elapsed = time.time() - started

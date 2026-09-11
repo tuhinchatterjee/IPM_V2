@@ -1,0 +1,219 @@
+{
+  "suite": "whatif_chat",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 75.3,
+  "counts": {
+    "PASS": 14,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif_chat-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-01",
+      "module": "what-if",
+      "title": "The What-If composer is visible, enabled, focusable, and the month and methodology are readable",
+      "status": "PASS",
+      "detail": "visible/enabled=True focused=True month and methodology shown=True; engine retail",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-chat-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-CHAT-05",
+      "module": "what-if",
+      "title": "Whitespace-only input cannot be sent and runs no scenario",
+      "status": "PASS",
+      "detail": "Send disabled on a blank draft=True; calls made=0",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-01",
+      "module": "what-if",
+      "title": "An unchanged scenario reproduces the published baseline, within a declared and stated tolerance",
+      "status": "PASS",
+      "detail": "completed=True; the answer states the parity and its tolerance=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " and show baseline and result.\n\nRead as: personal finance only.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 8,994,011\nCHANGE\nSAR -1 (-0.00%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\n\nUnchanged: the rebuild reproduces the published ECL to SAR 0.52 on SAR 8,994,012 (5.8e-6%), no facility differing by more than SAR 0.004 \u2014 inside the declared tolerance of SAR 0.01 per facility.\n\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 8.99m\tSAR -1\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 8,994,011 (-0.00%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relative\nMultiply loss given default b",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-02",
+      "module": "what-if",
+      "title": "A relative PD shock runs the PD pathway and reports the ECL impact, independently reconciled",
+      "status": "PASS",
+      "detail": "completed=True; the answer shows 8,994,012 -> 10,161,669 (+12.98%)=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " for personal finance and show the ECL impact.\n\nRead as: personal finance only; PD +20% relative.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 10,161,669\nCHANGE\nSAR 1,167,657 (+12.98%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 10.16m\tSAR 1.17m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relative\nMultiply loss given default by (1 + shock), inside its declared bounds.\ncollateral_value_pct\nMove current collateral values, which flows through LGD for secured products.\nrecove",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-04",
+      "module": "what-if",
+      "title": "An ambiguous unit is asked about, not guessed, and the clicked reading runs exactly what it says",
+      "status": "PASS",
+      "detail": "the product asked rather than guessing=True; it offered 2 readings; the clicked one ran=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "clarification": "\n\nDo you mean 2 percent of the current PD, or 2 percentage points added to it? On a PD of 2% the first gives 2.04% and the second 4% \u2014 they are different scenarios, so CreditProbe will not guess.\n\n2% relative (multiply the PD by 1.02)\n2 percentage points (add 2pp to the PD)\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percenta",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-04b",
+      "module": "what-if",
+      "title": "The same clarification can be answered by typing",
+      "status": "PASS",
+      "detail": "completed=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": ", please.\n\nAn unchanged scenario over the whole retail book.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 8,994,011\nCHANGE\nSAR -1 (-0.00%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\n\nUnchanged: the rebuild reproduces the published ECL to SAR 0.52 on SAR 8,994,012 (5.8e-6%), no facility differing by more than SAR 0.004 \u2014 inside the declared tolerance of SAR 0.01 per facility.\n\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 8.99m\tSAR -1\nAssumptions and evidence\nSave What-If\nClear co"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-03",
+      "module": "what-if",
+      "title": "An absolute PD shock is a different operation from a relative one, and a fresh scenario inherits neither",
+      "status": "PASS",
+      "detail": "completed=True; +2pp gives SAR 15,088,559 (+67.76%)=True; inherited the earlier relative shock=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " for personal finance.\n\nRead as: personal finance only; PD +2 percentage points.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 15,088,559\nCHANGE\nSAR 6,094,547 (+67.76%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 15.09m\tSAR 6.09m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 15,088,559 (+67.76%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relative\nMultiply loss given default by (1 + shock), inside its declared bounds.\ncollateral_value_pct\nMove current collateral values, which flows through LGD for secured products.\nrecovery_delay_months\nA",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-05",
+      "module": "what-if",
+      "title": "A narrowing turn keeps the shock and changes the population, and says which population it ran over",
+      "status": "PASS",
+      "detail": "completed=True; the answer names the narrowed population=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nRead as: salary transfer flag = True.\n\nBASELINE ECL\nSAR 7,290,521\nWHAT-IF ECL\nSAR 7,290,521\nCHANGE\nSAR -0 (-0.00%)\nPOPULATION\n5,879 facilities \u00b7 5,072 customers\n\nUnchanged: the rebuild reproduces the published ECL to SAR 0.24 on SAR 7,290,521 (3.3e-6%), no facility differing by more than SAR 0.004 \u2014 inside the declared tolerance of SAR 0.01 per facility.\n\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 7.29m\tSAR 7.29m\tSAR -0\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 7,290,521 (-0.00%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relative\nMultiply loss given default by (1 + shock), inside it",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-06",
+      "module": "what-if",
+      "title": "The three scenario weights are applied and the weighted identity is recomputed",
+      "status": "PASS",
+      "detail": "completed=True; the answer states the weights it used=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": ", and show weighted ECL.\n\nRead as: weights base/upturn/downturn = 0.50/0.10/0.40.\n\nBASELINE ECL\nSAR 7,290,521\nWHAT-IF ECL\nSAR 8,189,421\nCHANGE\nSAR 898,900 (+12.33%)\nPOPULATION\n5,879 facilities \u00b7 5,072 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 7.29m\tSAR 8.19m\tSAR 898.9k\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 8,189,421 (+12.33%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relative\nMultiply loss given default by (1 + shock), inside its declared bounds.\ncollateral_value_pct\nMove current collateral values, which flows through LGD for secured products.\nrecovery_delay_months\nAdd ",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-07",
+      "module": "what-if",
+      "title": "Weights that do not sum to one are refused with the arithmetic, not silently renormalised",
+      "status": "PASS",
+      "detail": "completed=True; the refusal names the sum=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nscenario weights sum to 1.1, not 1.0. They are validated, not normalised behind your back \u2014 say what the three weights should be.\n\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 8,189,421 (+12.33%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relative\nMultiply loss given default by (1 + shock), inside its declared bounds.\ncolla",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-08",
+      "module": "what-if",
+      "title": "A utilisation sensitivity runs the implemented dependency chain and states its units",
+      "status": "PASS",
+      "detail": "completed=True; the answer names the utilisation move and its unit=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " for credit cards.\n\nRead as: credit cards only; card utilisation +10 percentage points.\n\nBASELINE ECL\nSAR 2,373,271\nWHAT-IF ECL\nSAR 2,555,341\nCHANGE\nSAR 182,071 (+7.67%)\nPOPULATION\n4,624 facilities \u00b7 4,115 customers\nProduct\tBaseline\tWhat-If\tChange\nCREDIT_CARD\tSAR 2.37m\tSAR 2.56m\tSAR 182.1k\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 2,373,271 \u2192 What-If SAR 2,555,341 (+7.67%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relative\nMultiply loss given default by (1 + shock), inside its declared bounds.\ncollateral_value_pct\nMove current collateral values, which flows through LGD for secured products.\nrecovery_delay_months\nAd",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-17",
+      "module": "what-if",
+      "title": "A retired corporate operation is refused with what this engine does instead, and never falls through to it",
+      "status": "PASS",
+      "detail": "completed=True; refused and explained=True; fell through to a rating engine=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nCreditProbe will not run part of a scenario and call it the scenario. It reads: a rating-notch downgrade \u2014 this is a retail book with scorecards and no rating master scale. What this retail engine implements: behavioural_score_points, ccf_absolute, collateral_value_pct, cutoff_replay, income_pct, lgd_relative, pd_absolute_pp, pd_relative, recovery_delay_months, scenario_weights, staging_mode, utilisation_pp.\n\nSupported: pd_relative, pd_absolute_pp, lgd_relative, collateral_value_pct, recovery_delay_months, utilisation_pp, ccf_absolute, scenario_weights, income_pct, behavioural_score_points, staging_mode, cutoff_replay.\n\nSave What-If\nClear conversation\nBaseline SAR 2,373,271 \u2192 What-If SAR 2",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-17.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "WI-15",
+      "module": "what-if",
+      "title": "An empty or zero-baseline population is answered as empty, with no NaN, no stale result and no fake zero risk",
+      "status": "PASS",
+      "detail": "completed=True; no NaN or Infinity on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " customers with forbearance.\n\nRead as: home finance only; ifrs9 stage = 3; forbearance flag = True; PD +20% relative.\n\nBASELINE ECL\nSAR 29,858\nWHAT-IF ECL\nSAR 29,858\nCHANGE\nSAR 0 (+0.00%)\nPOPULATION\n1 facilities \u00b7 1 customers\nProduct\tBaseline\tWhat-If\tChange\nHOME_LOAN\tSAR 29.9k\tSAR 29.9k\tSAR 0\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 29,858 \u2192 What-If SAR 29,858 (+0.00%)\nSaved What-Ifs\n\nSaved What-Ifs are stored for you and reopened as they ran.\n\nWhat this engine implements\npd_relative\nMultiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.\npd_absolute_pp\nAdd a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.\nlgd_relativ",
+        "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-15.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}
