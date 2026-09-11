@@ -391,7 +391,12 @@ def early_warning(month: str | None = Query(None),
                   limit: int = Query(200, ge=1, le=2000)) -> dict:
     m = _resolve_month(month)
     frame = _read(m)
-    alerts = ews_mod.evaluate_snapshot(frame)
+    # The month before this one, so affordability is measured against last
+    # month rather than against origination. See RET-EWS-011.
+    months = _months()
+    at = months.index(m) if m in months else 0
+    previous = _read(months[at - 1]) if at > 0 else None
+    alerts = ews_mod.evaluate_snapshot(ews_mod.with_prior_month(frame, previous))
     if severity:
         alerts = alerts[alerts["severity"].str.upper() == severity.upper()]
     exposure = ews_mod.affected_exposure(alerts)

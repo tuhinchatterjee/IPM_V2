@@ -67,6 +67,19 @@ workaround; one blocked.
 |---|---|---|---|
 | RFD-34 | Three identical unlabelled buttons on the Investigations list | `aria-label="Open investigation: …"` and `data-investigation-id` | CHAT-11 |
 
+## Alert usability
+
+**RFD-37 — RET-EWS-011 named a quarter of the book at HIGH severity.** The
+affordability rule compared today's debt burden against the burden at
+origination, so every customer who had taken a second facility qualified:
+3,377 of 14,251 customers, 23.7% of the book. True of each one, and not a
+deterioration. It now compares against the prior month — 386 customers, 2.7%
+— with origination kept on the alert as context. Measured before and after,
+at every threshold worth considering, in `docs/RETAIL_EWS_011_REVIEW.md`.
+Regression tests: `test_the_affordability_rule_measures_deterioration`,
+`test_the_first_published_month_raises_no_deterioration`,
+`test_every_derived_input_is_actually_derived`.
+
 ## Open
 
 **RFD-35 — the neutral What-If parity residual.** A scenario that changes

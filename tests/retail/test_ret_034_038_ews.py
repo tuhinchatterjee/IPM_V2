@@ -239,10 +239,53 @@ class TestRET038NoCorporateBlocker:
             assert token not in blob, f"the rulebook mentions '{token}'"
 
     def test_every_rule_input_exists_in_the_canonical_dataset(self, retail_book):
-        columns = set(retail_book.latest().columns)
+        columns = set(retail_book.latest().columns) | ews.DERIVED_FEATURES
         for rule in ews.RULES:
             missing = [f for f in rule.features if f not in columns]
             assert not missing, f"{rule.rule_id} needs {missing}, which the retail book lacks"
+
+    def test_every_derived_input_is_actually_derived(self, retail_book):
+        """A derived input is an exception to the rule above, so it is checked.
+
+        Without this, adding a name to DERIVED_FEATURES would be a way to make
+        a rule that reads a field nobody produces pass the gate above.
+        """
+        frame = retail_book.latest()
+        attached = ews.with_prior_month(frame.head(200), frame.head(200))
+        for name in ews.DERIVED_FEATURES:
+            assert name in attached.columns, (
+                f"{name} is declared derived but with_prior_month does not "
+                "produce it")
+
+    def test_the_affordability_rule_measures_deterioration(self, retail_book):
+        """RET-EWS-011 compares against last month, not against origination.
+
+        Against origination it fired on 3,377 of 14,251 customers — 23.7% of
+        the book at HIGH severity — because a customer who took a second
+        facility genuinely does carry a higher burden than at the first one's
+        origination. True, and not a deterioration.
+        """
+        rule = next(r for r in ews.RULES if r.rule_id == "RET-EWS-011")
+        assert "previous_month_debt_burden_ratio" in rule.features
+        assert "origination_debt_burden_ratio" not in rule.features
+
+        months = retail_book.months()
+        this_month = retail_book.month(months[-1])
+        last_month = retail_book.month(months[-2])
+        raised = ews.evaluate_snapshot(
+            ews.with_prior_month(this_month, last_month))
+        fired = raised[raised["rule_id"] == "RET-EWS-011"]
+        customers = int(this_month["customer_id"].nunique())
+        assert len(fired) < customers * 0.10, (
+            f"{len(fired)} alerts on {customers} customers is not a warning, "
+            "it is the book")
+
+    def test_the_first_published_month_raises_no_deterioration(self, retail_book):
+        """With nothing before it, there is no deterioration to measure."""
+        frame = retail_book.latest()
+        raised = ews.evaluate_snapshot(ews.with_prior_month(frame, None))
+        fired = raised[raised["rule_id"] == "RET-EWS-011"]
+        assert fired.empty
 
     def test_a_missing_retail_input_yields_a_precise_limitation_not_invented_evidence(self):
         frame = pd.DataFrame({

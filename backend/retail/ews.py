@@ -220,14 +220,31 @@ RULES: tuple[Rule, ...] = (
          "A customer with no buffer misses the next disruption. Review before it happens.",
          "balance_buffer_months <= 0.15"),
 
-    Rule("RET-EWS-011", "1.0.0", "Affordability deterioration", "AFFORDABILITY",
+    # Compared against the PRIOR MONTH, not against origination.
+    #
+    # The closeout review: against origination this fired on 3,377 of 14,251
+    # customers — 23.7% of the book, at HIGH — because a customer who took a
+    # second facility genuinely does carry a higher debt burden than at the
+    # first one's origination. That is a true statement and a useless alert: it
+    # describes the book's ordinary lifecycle rather than a deterioration.
+    #
+    # Against the prior month the same rule raises 386 customers (2.7%), and it
+    # answers the question the rule is named for. Origination stays in the
+    # alert as CONTEXT — the reader still sees where the burden started —
+    # through `origination_debt_burden_ratio` in the alert's source columns.
+    #
+    # Counted at 2026-08. See docs/RETAIL_EWS_011_REVIEW.md.
+    Rule("RET-EWS-011", "1.1.0", "Affordability deterioration", "AFFORDABILITY",
          CUSTOMER_SCOPE, ALL_PRODUCTS,
-         ("debt_burden_ratio", "origination_debt_burden_ratio"), 1, "ratio", 0.15,
-         _worsening("debt_burden_ratio", "origination_debt_burden_ratio", min_now=0.65),
+         ("debt_burden_ratio", "previous_month_debt_burden_ratio"), 1, "ratio",
+         0.05,
+         _worsening("debt_burden_ratio", "previous_month_debt_burden_ratio",
+                    min_now=0.65),
          "HIGH",
-         "Debt burden has risen from {comparator:.0%} at origination to {value:.0%}.",
+         "Debt burden has risen from {comparator:.0%} last month to {value:.0%}.",
          "Reassess disposable income before any further limit or facility is granted.",
-         "debt_burden_ratio - origination_debt_burden_ratio >= 0.15 AND debt_burden_ratio >= 0.65"),
+         "debt_burden_ratio - previous_month_debt_burden_ratio >= 0.05 "
+         "AND debt_burden_ratio >= 0.65"),
 
     Rule("RET-EWS-012", "1.0.0", "New external obligations", "AFFORDABILITY",
          CUSTOMER_SCOPE, ALL_PRODUCTS, ("external_obligations_change_3m_sar",), 3,
@@ -385,6 +402,40 @@ def _customer_index(frame: pd.DataFrame) -> tuple[dict[Any, list[str]], dict[Any
     exposure = (unique.groupby("customer_id")["gross_carrying_amount_sar"]
                 .sum().round(2).to_dict())
     return facilities, exposure
+
+
+#: Inputs a rule reads that are NOT columns of the published book.
+#:
+#: Exactly one, and it is here so that "the rule reads a field the book does
+#: not have" stays a failure for every other field. Each entry must be produced
+#: by `with_prior_month`, which the acceptance gate checks rather than takes on
+#: trust.
+DERIVED_FEATURES: frozenset[str] = frozenset({
+    "previous_month_debt_burden_ratio",
+})
+
+
+def with_prior_month(frame: "pd.DataFrame",
+                     previous: "pd.DataFrame | None") -> "pd.DataFrame":
+    """Attach last month's affordability to this month's rows.
+
+    The published book carries a prior-month value for delinquency and for the
+    behavioural score, and none for the debt burden. Rather than rebuild
+    twenty-five partitions to add one column, the comparator is computed where
+    both months are already readable — the evaluation — and the rule reads it
+    like any other field.
+
+    A month with nothing before it gets NaN, and the rule does not fire: the
+    first published month has no deterioration to measure, and inventing one
+    would be the defect this comparator exists to remove.
+    """
+    out = frame.copy()
+    if previous is None or previous.empty or "customer_id" not in previous.columns:
+        out["previous_month_debt_burden_ratio"] = np.nan
+        return out
+    prior = (previous.groupby("customer_id")["debt_burden_ratio"]
+             .max().rename("previous_month_debt_burden_ratio"))
+    return out.join(prior, on="customer_id")
 
 
 def evaluate_snapshot(
