@@ -278,6 +278,25 @@ class TestTheBootstrapCannotReinstallARetiredSurface:
                 assert not tile.metric_id.startswith("corporate."), (
                     f"{spec.slug} reads {tile.metric_id}")
 
+    def test_a_lens_already_in_the_database_is_filtered_on_read(self):
+        """Withholding it from the installer does nothing for a row that exists.
+
+        This installation already HAD the corporate lens at id 3, named
+        "Corporate IFRS 9" on the Lenses screen. Gating `install()` stops a
+        fresh deployment and leaves every existing one exactly as it was, so
+        the listing filters too — the same mistake as the schedule row.
+        """
+        import inspect
+
+        from backend.services import lenses as service
+
+        assert "_retired_here" in inspect.getsource(service.listing), (
+            "the lens listing renders whatever slug the database holds")
+        assert service._retired_here("corporate-ifrs9") is True
+        assert service._retired_here("retail-credit-risk") is False
+        # A lens somebody built themselves is theirs, whatever it is called.
+        assert service._retired_here("my-own-lens") is False
+
     def test_the_corporate_committees_are_not_seeded(self):
         from backend.playbook import demo
 

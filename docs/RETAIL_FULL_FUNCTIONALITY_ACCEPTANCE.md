@@ -1,5 +1,21 @@
 # Retail full-functionality acceptance — honest status
 
+> **This is the Revision 2 report. It is superseded in three places by
+> `docs/RETAIL_REVISION_3_ACCEPTANCE.md`:**
+>
+> * **CP-10 / Customer 360 is no longer BLOCKED.** The screen reads the retail
+>   book and the full Early Warning → customer → facilities/history → Back
+>   journey passes in a browser (C360-01…C360-10).
+> * **The SAR 0.52 What-If residual is closed, and the explanation below is
+>   wrong.** The rebuild was rounding the weighted allowance where the build
+>   does not; the residual is now exactly zero and the tolerance is unchanged.
+> * **Coverage is larger.** 164 browser cases across 10 suites, reconciled by
+>   operation class rather than by control count. The matrix is now 190 rows —
+>   189 PASS, 1 N/A, **0 BLOCKED** — and the corporate surfaces this report did
+>   not reach have been found and retired.
+>
+> Everything else below stands as written.
+
 Branch `claude/funny-dirac-6n8f0o`. Every figure below was
 produced by running the thing it describes; nothing is estimated.
 

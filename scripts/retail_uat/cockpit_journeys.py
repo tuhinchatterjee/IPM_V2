@@ -12,6 +12,7 @@ read from the book by tests/retail/test_ret_chat_regressions.py.
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from pathlib import Path
@@ -19,7 +20,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from retail_uat.driver import (  # noqa: E402
-    BLOCKED,
     FAIL,
     PASS,
     Case,
@@ -288,21 +288,69 @@ def suite(s: Session, rec: Recorder) -> None:
           screenshot=s.shot("cockpit-cp-continuous"))
 
     # ------------------------------------------------------------------ CP-10
-    # A named customer, opened through the UI. Recorded honestly: the retail
-    # Customer 360 screen still renders the previous module's layout, which the
-    # conversion documented as outstanding rather than fixed.
-    rec.add(Case(
-        id="CP-10", module=MODULE,
-        title="Explain a named customer's behavioural-score change through the "
-              "Customer 360 screen",
-        status=BLOCKED,
-        detail=("the Customer 360 route renders the previous module's layout "
-                "and offers no retail customer to open; the retail position is "
-                "served by GET /api/v1/retail/customer/{id} and is not on a "
-                "screen. Recorded as BLOCKED rather than passed against the "
-                "API, which is not what this case asks for."),
-        evidence={"route": "/borrower-360",
-                  "documented_in": "docs/RETAIL_ONLY_HANDOVER.md §8.2"}))
+    # A named customer, opened through the UI and read on the screen.
+    #
+    # This was BLOCKED in Revision 2: the route rendered the previous module's
+    # layout, called the corporate endpoints and answered 503 data_not_built,
+    # so there was no retail customer to open. It is answered here the way the
+    # case asks — by searching for a customer on the screen and reading the
+    # score panel — and NOT against the API, which would be a different case.
+    page = s.page
+    s.go("/borrower-360", settle=3000)
+    box = page.query_selector('[data-testid="customer-search"]')
+    opened = False
+    detail = "the customer search is not on the screen"
+    if box is not None:
+        box.fill("RC-0020621")
+        go = page.query_selector('[data-testid="customer-search-go"]')
+        if go:
+            go.click()
+            # Searching LISTS customers; it does not open one. Clicking the
+            # result is the step a reader takes and the step this case is for.
+            deadline = time.time() + 90
+            while time.time() < deadline:
+                page.wait_for_timeout(1500)
+                if page.query_selector('[data-customer-id="RC-0020621"]'):
+                    break
+            hit = page.query_selector('[data-customer-id="RC-0020621"]')
+            if hit is not None:
+                hit.click()
+                deadline = time.time() + 90
+                while time.time() < deadline:
+                    page.wait_for_timeout(1500)
+                    if page.query_selector('[data-testid="customer-facilities"]'):
+                        break
+        # The Scores tab carries the behavioural scorecard and its evidence.
+        tabs = {t.inner_text().strip(): t
+                for t in page.query_selector_all('[role="tab"]')}
+        if "Scores" in tabs:
+            tabs["Scores"].click()
+            page.wait_for_timeout(2500)
+        text = s.text()
+        # The screen names the MODEL and its version — as a badge reading
+        # "RETAIL_BEH_..." and "v1.0.0", not the word "version" — and shows the
+        # weight-of-evidence contributions that make the score explainable.
+        # A score with no model and no inputs behind it cannot be explained to
+        # anybody, which is what this case is for.
+        behavioural = page.query_selector('[data-testid^="score-RETAIL_BEH"]')
+        named_model = behavioural is not None
+        version = bool(behavioural
+                       and re.search(r"\bv\d+\.\d+", behavioural.inner_text()))
+        contributions = page.query_selector_all(
+            '[data-testid^="score-RETAIL_BEH"] tbody tr')
+        this_month = "as they stand at this month-end" in text
+        opened = (named_model and version and len(contributions) >= 3
+                  and "RC-0020621" in text and this_month)
+        detail = (f"customer opened on screen={('RC-0020621' in text)}; "
+                  f"behavioural model named={named_model}; version shown={version}; "
+                  f"{len(contributions)} weight-of-evidence contributions listed; "
+                  f"read as of this month-end rather than origination={this_month}")
+    _case(rec, "CP-10",
+          "Explain a named customer's behavioural score through the Customer "
+          "360 screen, with the model and its evidence named",
+          opened, detail,
+          route="/borrower-360", customer="RC-0020621",
+          screenshot=s.shot("cockpit-cp-10"))
 
     # ------------------------------------------------------------------ CP-12
     s.go("/", settle=2500)

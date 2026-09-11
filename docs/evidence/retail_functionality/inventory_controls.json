@@ -1,7 +1,7 @@
 {
   "routes": {
     "/": {
-      "heading": "Good morning, Mr. Sajid",
+      "heading": "Good afternoon, Mr. Sajid",
       "buttons": [
         {
           "label": "Collapse navigation",
@@ -214,19 +214,19 @@
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/investigations/146"
+          "href": "/investigations/167"
         },
         {
           "label": "Show exposure by retail product for August 2026 2",
-          "href": "/investigations/145"
+          "href": "/investigations/166"
         },
         {
           "label": "Show exposure by retail product for August 2026 2",
-          "href": "/investigations/144"
+          "href": "/investigations/165"
         },
         {
           "label": "What data do you have in Retail facility month-end position? 2",
-          "href": "/investigations/143"
+          "href": "/investigations/164"
         }
       ],
       "inputs": [
@@ -249,7 +249,7 @@
       "tables": 0,
       "empty_state": true,
       "refused": false,
-      "characters": 1428,
+      "characters": 1430,
       "opened": true,
       "url": "http://localhost:5328/",
       "console_errors": [],
@@ -424,24 +424,24 @@
           "href": "/investigations"
         },
         {
-          "label": "Explain that result more simply. 7:59 AM",
-          "href": "/analysis/302"
+          "label": "Explain that result more simply. 9:19 AM",
+          "href": "/analysis/352"
         },
         {
           "label": "Assess the personal finance application scorecard on the latest fully observed c",
-          "href": "/analysis/301"
+          "href": "/analysis/351"
         },
         {
-          "label": "Compare with July 2026 7:58 AM",
-          "href": "/analysis/300"
+          "label": "Compare with July 2026 9:18 AM",
+          "href": "/analysis/350"
         },
         {
-          "label": "Now only personal finance 7:58 AM",
-          "href": "/analysis/299"
+          "label": "Now only personal finance 9:18 AM",
+          "href": "/analysis/349"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/analysis/298"
+          "href": "/analysis/348"
         }
       ],
       "inputs": [],
@@ -1212,6 +1212,11 @@
           "testid": ""
         },
         {
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
           "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
           "disabled": false,
           "testid": ""
@@ -1267,12 +1272,12 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "label": "Open investigation: Show expected credit loss by product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
           "disabled": false,
           "testid": ""
         },
@@ -1282,42 +1287,37 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Show weighted ECL by retail product for July 2026",
+          "label": "Open investigation: Show exposure by retail product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "label": "Open investigation: Show exposure by retail product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Show exposure by retail product for August 2026 where the pr",
+          "label": "Open investigation: What data do you have in Retail facility month-end position?",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Explain credit-card utilisation and show which customers wor",
+          "label": "Open investigation: Show expected credit loss by IFRS 9 stage for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Calculate the next-12-month Gini for applications originated",
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Assess personal-finance application-scorecard discrimination",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show scorecard performance.",
+          "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
           "disabled": false,
           "testid": ""
         },
@@ -1448,7 +1448,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": true,
-      "characters": 12158,
+      "characters": 11418,
       "opened": true,
       "url": "http://localhost:5328/investigations",
       "console_errors": [],
@@ -1769,16 +1769,16 @@
           "href": "/settings"
         },
         {
-          "label": "in review March 2026 CRO Portfolio Review Board Risk Committee paper 7 sections ",
-          "href": "/documents/march-2026-cro-review"
+          "label": "in review August 2026 Retail Portfolio Review Board Risk Committee paper 7 secti",
+          "href": "/documents/august-2026-retail-cro-review"
         },
         {
-          "label": "draft Real Estate Sector Review Sector committee paper 5 sections \u00b7 Sector Credi",
-          "href": "/documents/real-estate-sector-review"
+          "label": "draft Retail Scorecard Monitoring Pack Model Risk Committee pack 5 sections \u00b7 Re",
+          "href": "/documents/retail-scorecard-monitoring"
         },
         {
-          "label": "approved IFRS 9 Committee Pack IFRS 9 Committee pack 5 sections \u00b7 IFRS 9 Reporti",
-          "href": "/documents/ifrs9-committee-pack"
+          "label": "approved Retail IFRS 9 Committee Pack IFRS 9 Committee pack 6 sections \u00b7 IFRS 9 ",
+          "href": "/documents/retail-ifrs9-committee-pack"
         }
       ],
       "inputs": [],
@@ -1788,7 +1788,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": false,
-      "characters": 850,
+      "characters": 1155,
       "opened": true,
       "url": "http://localhost:5328/documents",
       "console_errors": [],
@@ -1948,8 +1948,16 @@
           "href": "/settings"
         },
         {
-          "label": "Live CRO Portfolio Lens The monthly executive view: position, staging, coverage,",
-          "href": "/lenses/cro"
+          "label": "published Retail Analytics Origination volume and quality, and whether the score",
+          "href": "/lenses/2"
+        },
+        {
+          "label": "published Retail Credit Risk The retail book as it stands this month: how big it",
+          "href": "/lenses/1"
+        },
+        {
+          "label": "published Corporate IFRS 9 Where the corporate book sits across the three stages",
+          "href": "/lenses/3"
         }
       ],
       "inputs": [
@@ -1964,9 +1972,9 @@
       "tabs": [],
       "details": [],
       "tables": 0,
-      "empty_state": true,
+      "empty_state": false,
       "refused": true,
-      "characters": 1173,
+      "characters": 1283,
       "opened": true,
       "url": "http://localhost:5328/lenses",
       "console_errors": [],
@@ -2386,6 +2394,16 @@
           "label": "What is this screen for?",
           "disabled": false,
           "testid": ""
+        },
+        {
+          "label": "Clear filters",
+          "disabled": false,
+          "testid": "signals-clear"
+        },
+        {
+          "label": "Show 25 more",
+          "disabled": false,
+          "testid": "signals-more"
         }
       ],
       "links": [
@@ -2498,22 +2516,164 @@
           "href": "/settings"
         },
         {
-          "label": "Download the watchlist",
-          "href": "http://localhost:8328/api/v1/early-warning/watchlist/workbook"
+          "label": "Open RC-0017728",
+          "href": "/borrower-360?borrower=RC-0017728&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
         },
         {
-          "label": "Fitted signal",
-          "href": "/early-warning"
+          "label": "Open RC-0022394",
+          "href": "/borrower-360?borrower=RC-0022394&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0014932",
+          "href": "/borrower-360?borrower=RC-0014932&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0027347",
+          "href": "/borrower-360?borrower=RC-0027347&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0021026",
+          "href": "/borrower-360?borrower=RC-0021026&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0004117",
+          "href": "/borrower-360?borrower=RC-0004117&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0017984",
+          "href": "/borrower-360?borrower=RC-0017984&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0004336",
+          "href": "/borrower-360?borrower=RC-0004336&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0018509",
+          "href": "/borrower-360?borrower=RC-0018509&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0003091",
+          "href": "/borrower-360?borrower=RC-0003091&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0000845",
+          "href": "/borrower-360?borrower=RC-0000845&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0025287",
+          "href": "/borrower-360?borrower=RC-0025287&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0012948",
+          "href": "/borrower-360?borrower=RC-0012948&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0022684",
+          "href": "/borrower-360?borrower=RC-0022684&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0018958",
+          "href": "/borrower-360?borrower=RC-0018958&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0015592",
+          "href": "/borrower-360?borrower=RC-0015592&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0009238",
+          "href": "/borrower-360?borrower=RC-0009238&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0000257",
+          "href": "/borrower-360?borrower=RC-0000257&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0013915",
+          "href": "/borrower-360?borrower=RC-0013915&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0012167",
+          "href": "/borrower-360?borrower=RC-0012167&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0004970",
+          "href": "/borrower-360?borrower=RC-0004970&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0020490",
+          "href": "/borrower-360?borrower=RC-0020490&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0014936",
+          "href": "/borrower-360?borrower=RC-0014936&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0025056",
+          "href": "/borrower-360?borrower=RC-0025056&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
+        },
+        {
+          "label": "Open RC-0008422",
+          "href": "/borrower-360?borrower=RC-0008422&period=2026-08&returnTo=%2Fearly-warning%2Fsignals%3Fmonth%3D2026-08%26severity%3DALL%26family%3DALL&returnLabel=Early%20Warning%20Signals"
         }
       ],
       "inputs": [],
-      "selects": [],
+      "selects": [
+        {
+          "label": "Reporting month",
+          "options": [
+            "2024-08",
+            "2024-09",
+            "2024-10",
+            "2024-11",
+            "2024-12",
+            "2025-01",
+            "2025-02",
+            "2025-03",
+            "2025-04",
+            "2025-05",
+            "2025-06",
+            "2025-07",
+            "2025-08",
+            "2025-09",
+            "2025-10",
+            "2025-11",
+            "2025-12",
+            "2026-01",
+            "2026-02",
+            "2026-03",
+            "2026-04",
+            "2026-05",
+            "2026-06",
+            "2026-07",
+            "2026-08"
+          ],
+          "testid": "signals-month"
+        },
+        {
+          "label": "Severity",
+          "options": [
+            "ALL",
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+          ],
+          "testid": "signals-severity"
+        },
+        {
+          "label": "Rule family",
+          "options": [
+            "ALL",
+            "REPAYMENT"
+          ],
+          "testid": "signals-family"
+        }
+      ],
       "tabs": [],
       "details": [],
       "tables": 0,
       "empty_state": false,
-      "refused": true,
-      "characters": 652,
+      "refused": false,
+      "characters": 7745,
       "opened": true,
       "url": "http://localhost:5328/early-warning/signals",
       "console_errors": [],
@@ -2581,6 +2741,46 @@
           "label": "Change scenario weights to base 50%, upturn 10%, downturn 40%",
           "disabled": false,
           "testid": ""
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-14"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-14"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-14"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-14"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-13"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-13"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-13"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-13"
         },
         {
           "label": "Reopen",
@@ -2861,6 +3061,18 @@
           "disabled": false
         },
         {
+          "label": "Compare NAV-03 test scenario (5)",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-14",
+          "disabled": false
+        },
+        {
+          "label": "Compare WIJ-19 091447",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-13",
+          "disabled": false
+        },
+        {
           "label": "Compare NAV-03 test scenario (4)",
           "type": "checkbox",
           "testid": "retail-whatif-pick-11",
@@ -2947,14 +3159,14 @@
       "tables": 0,
       "empty_state": false,
       "refused": false,
-      "characters": 3212,
+      "characters": 3410,
       "opened": true,
       "url": "http://localhost:5328/what-if",
       "console_errors": [],
       "screenshot": "docs/evidence/retail_functionality/screens/route-what-if.png"
     },
     "/borrower-360": {
-      "heading": "Borrower 360",
+      "heading": "Customer 360",
       "buttons": [
         {
           "label": "Collapse navigation",
@@ -2985,6 +3197,16 @@
           "label": "Signed in as retail.demo \u2014 sign out",
           "disabled": false,
           "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Search",
+          "disabled": false,
+          "testid": "customer-search-go"
         }
       ],
       "links": [
@@ -3095,16 +3317,59 @@
         {
           "label": "Settings \u2014 Partial",
           "href": "/settings"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
         }
       ],
-      "inputs": [],
-      "selects": [],
+      "inputs": [
+        {
+          "label": "Find a customer",
+          "type": "input",
+          "testid": "customer-search",
+          "disabled": false
+        }
+      ],
+      "selects": [
+        {
+          "label": "Reporting month",
+          "options": [
+            "2024-08",
+            "2024-09",
+            "2024-10",
+            "2024-11",
+            "2024-12",
+            "2025-01",
+            "2025-02",
+            "2025-03",
+            "2025-04",
+            "2025-05",
+            "2025-06",
+            "2025-07",
+            "2025-08",
+            "2025-09",
+            "2025-10",
+            "2025-11",
+            "2025-12",
+            "2026-01",
+            "2026-02",
+            "2026-03",
+            "2026-04",
+            "2026-05",
+            "2026-06",
+            "2026-07",
+            "2026-08"
+          ],
+          "testid": "customer-month"
+        }
+      ],
       "tabs": [],
       "details": [],
       "tables": 0,
       "empty_state": false,
-      "refused": true,
-      "characters": 601,
+      "refused": false,
+      "characters": 862,
       "opened": true,
       "url": "http://localhost:5328/borrower-360",
       "console_errors": [],
@@ -4878,51 +5143,51 @@
         },
         {
           "label": "Explain that result more simply. application score for Personal Finance across t",
-          "href": "/trace/302"
+          "href": "/trace/352"
         },
         {
           "label": "Assess the personal finance application scorecard on the latest fully observed c",
-          "href": "/trace/301"
+          "href": "/trace/351"
         },
         {
           "label": "Compare with July 2026 How gross carrying amount moved between 2026-07 and 2026-",
-          "href": "/trace/300"
+          "href": "/trace/350"
         },
         {
           "label": "Now only personal finance gross carrying amount, final ECL by product label for ",
-          "href": "/trace/299"
+          "href": "/trace/349"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/trace/298"
+          "href": "/trace/348"
         },
         {
           "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/297"
+          "href": "/trace/347"
         },
         {
           "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/296"
+          "href": "/trace/346"
         },
         {
           "label": "What data do you have in Retail facility month-end position? the question asks a",
-          "href": "/trace/295"
+          "href": "/trace/345"
         },
         {
           "label": "Show expected credit loss by IFRS 9 stage for August 2026 final ECL by ifrs9 sta",
-          "href": "/trace/294"
+          "href": "/trace/344"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/trace/293"
+          "href": "/trace/343"
         },
         {
           "label": "Show weighted ECL by retail product for August 2026 final ECL by product label a",
-          "href": "/trace/292"
+          "href": "/trace/342"
         },
         {
           "label": "Draft an evidence-backed response to the auditor about this scorecard's continui",
-          "href": "/trace/291"
+          "href": "/trace/341"
         }
       ],
       "inputs": [],
@@ -4932,7 +5197,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": true,
-      "characters": 3120,
+      "characters": 3119,
       "opened": true,
       "url": "http://localhost:5328/trace",
       "console_errors": [],
@@ -5472,7 +5737,7 @@
       "tables": 1,
       "empty_state": false,
       "refused": false,
-      "characters": 837,
+      "characters": 916,
       "opened": true,
       "url": "http://localhost:5328/workflow",
       "console_errors": [],
@@ -5557,11 +5822,6 @@
           "testid": ""
         },
         {
-          "label": "Ratings & Financials ACTIVE Autonomy 1 \u2014 Recommend Rating migration, financial-r",
-          "disabled": false,
-          "testid": ""
-        },
-        {
           "label": "IFRS 9 ACTIVE Autonomy 1 \u2014 Recommend Stage, SICR, ECL, coverage and impairment m",
           "disabled": false,
           "testid": ""
@@ -5572,17 +5832,7 @@
           "testid": ""
         },
         {
-          "label": "Covenant & Collateral ACTIVE Autonomy 1 \u2014 Recommend Headroom, breach proximity, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
           "label": "Portfolio Risk ACTIVE Autonomy 1 \u2014 Recommend Portfolio and segment trends, conce",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Relationship Graph ACTIVE Autonomy 1 \u2014 Recommend Ownership, control, connected c",
           "disabled": false,
           "testid": ""
         },
@@ -5736,7 +5986,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": false,
-      "characters": 4461,
+      "characters": 3117,
       "opened": true,
       "url": "http://localhost:5328/agent-operations",
       "console_errors": [],
@@ -6065,6 +6315,16 @@
           "label": "Deactivate",
           "disabled": false,
           "testid": ""
+        },
+        {
+          "label": "Set a new password",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Deactivate",
+          "disabled": false,
+          "testid": ""
         }
       ],
       "links": [
@@ -6180,6 +6440,16 @@
       "inputs": [],
       "selects": [
         {
+          "label": "Role for approvals_decider",
+          "options": [
+            "ADMIN",
+            "DATA_STEWARD",
+            "ANALYST",
+            "VIEWER"
+          ],
+          "testid": ""
+        },
+        {
           "label": "Role for retail.demo",
           "options": [
             "ADMIN",
@@ -6195,7 +6465,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": false,
-      "characters": 1066,
+      "characters": 1182,
       "opened": true,
       "url": "http://localhost:5328/users",
       "console_errors": [],

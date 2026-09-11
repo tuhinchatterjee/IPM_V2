@@ -2,7 +2,7 @@
   "suite": "whatif_fidelity",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 128.1,
+  "elapsed_seconds": 130.7,
   "counts": {
     "PASS": 23,
     "FAIL": 0,
@@ -197,7 +197,7 @@
       "module": "what-if-fidelity",
       "title": "'income_pct' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
       "status": "PASS",
-      "detail": "read_as matched ['verified income -15% relative']; neutral=False; baseline=[12717681.0] whatif=[13728027.0]; 3s",
+      "detail": "read_as matched ['verified income -15% relative']; neutral=False; baseline=[12717681.0] whatif=[13728027.0]; 5s",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -229,7 +229,7 @@
       "module": "what-if-fidelity",
       "title": "'scenario_weights' is reachable by typing a sentence, and is read as itself rather than as an unchanged book",
       "status": "PASS",
-      "detail": "read_as matched ['weights base/upturn/downturn']; neutral=False; baseline=[15952109.0] whatif=[18012974.0]; 5s",
+      "detail": "read_as matched ['weights base/upturn/downturn']; neutral=False; baseline=[15952109.0] whatif=[18012973.0]; 5s",
       "expected": null,
       "actual": null,
       "evidence": {

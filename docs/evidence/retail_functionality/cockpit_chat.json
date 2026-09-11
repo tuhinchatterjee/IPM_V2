@@ -2,7 +2,7 @@
   "suite": "cockpit_chat",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 120.2,
+  "elapsed_seconds": 122.5,
   "counts": {
     "PASS": 19,
     "FAIL": 0,
@@ -61,7 +61,7 @@
       "actual": null,
       "evidence": {
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-02.png",
-        "seconds": 3.0765585899353027
+        "seconds": 3.0842208862304688
       },
       "seconds": 0.0,
       "defect": ""
@@ -75,7 +75,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "seconds": 3.0765585899353027
+        "seconds": 3.0842208862304688
       },
       "seconds": 0.0,
       "defect": ""
@@ -99,7 +99,7 @@
       "module": "cockpit",
       "title": "A double click and an Enter on top of it submit the question once",
       "status": "PASS",
-      "detail": "submissions recorded: ['/investigations/147/messages']",
+      "detail": "submissions recorded: ['/investigations/168/messages']",
       "expected": null,
       "actual": null,
       "evidence": {},
@@ -183,7 +183,7 @@
       "module": "cockpit",
       "title": "A new conversation starts clean and an existing one can be reopened with its transcript",
       "status": "PASS",
-      "detail": "new conversation at 148?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit; inherited the old scope=False; history listed 50 conversations; reopened one=True",
+      "detail": "new conversation at 169?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit; inherited the old scope=False; history listed 50 conversations; reopened one=True",
       "expected": null,
       "actual": null,
       "evidence": {

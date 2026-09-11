@@ -5,9 +5,11 @@ launcher serves. None was found by reading code. Each row states what a user
 saw, what caused it, what changed, the regression test that now holds it, and
 the real-browser journey that was re-run afterwards.
 
-Twenty-eight defects in the first pass. Revision 3 adds fourteen more, found
-the same way: by opening the screen rather than by reading the file behind it.
-All fourteen are fixed and retested. RFD-35 and RFD-36, previously open and
+Twenty-eight defects in the first pass. Revision 3 adds sixteen more, found the
+same way: by opening the screen rather than by reading the file behind it. Two
+of them — RFD-49 and RFD-52 — reached the screen from the DATABASE rather than
+from the code, and a review of the seeds alone would have declared both closed.
+All sixteen are fixed and retested. RFD-35 and RFD-36, previously open and
 blocked, are both closed — see the end of this document.
 
 ## Critical — the application was unusable
@@ -113,6 +115,8 @@ returns the published book under your own question is not.
 | RFD-48 | Agent Operations published **Ratings & Financials**, **Covenant & Collateral** and the **Relationship Graph** as ACTIVE teams, with their corporate purposes and methods on display. Every retained retail team also advertised a grant over those domains | The registry catalogue published all thirteen agents and all eight domains with no profile awareness, and each agent's `domain_labels` were built from its full grant | `served_agents()` and `served_domains()` decide what is published, delegated to and selected for a concept; a grant over a retired domain no longer permits a read. All thirteen definitions are retained | `TestTheAgentRegistryServesOnlyTeamsWithAnActiveBook` — including that no retired domain has an active retail concept behind it | RO-03, RO-04 |
 | RFD-49 | A seeded schedule woke the Ratings & Financials specialist, and the name reached the screen from the DATABASE — so editing the seed alone would not have removed it | The schedule serialiser rendered whatever agent id the row stored | The seed no longer names a retired specialist, and the serialiser filters a row persisted before a retirement | `test_a_schedule_persisted_before_a_retirement_is_filtered_on_read` | RO-04 |
 | RFD-50 | The document library shipped a **Real Estate Sector Review**, a sector committee paper owned by a Sector Credit Head | The seeds predated the conversion | Three retail papers, each naming the dataset, month and figures it is drawn from — reconciled against the published book by test | `TestTheSeededDocumentLibraryIsRetail` | RO-05, RO-06 |
+| RFD-52 | The Lenses screen named a **Corporate IFRS 9** lens even after the installer stopped creating one | It was already a row in this database, at id 3. Withholding a seed does nothing for an installation that already has it | The lens listing filters a SHIPPED lens this profile does not serve, on read. A lens somebody built themselves is untouched | `test_a_lens_already_in_the_database_is_filtered_on_read` | RO-08 |
+| RFD-53 | Opening the Scores tab on Customer 360 showed a facility in the select and an empty panel below it | `facilityId` is defaulted when the customer loads, but CP-10 reached the screen by SEARCH, and searching lists customers rather than opening one — the case was reading a search box, not a customer | The journey clicks the result, which is the step a reader takes; CP-10 now asserts the behavioural model, its version, its weight-of-evidence contributions, and that they are read as of this month-end rather than at origination | CP-10 is the regression | CP-10 |
 | RFD-51 | On a fresh deployment the bootstrap would install a **Corporate IFRS 9 lens**, a **Corporate Credit Committee**, an IFRS 9 committee whose every tile names a `corporate.ifrs9.*` metric, a **corporate model-redevelopment delivery plan** and a **shipping-review conversation** — into a retail-only product | The bootstrap is where a retired surface comes back: nobody types its URL, the installer creates it. None of these seeds was profile-aware | Each is withheld under the retail profile and retained as code; the delivery plan is rewritten as a retail scorecard and IFRS 9 programme that keeps every Planner feature it demonstrated (an overdue task, a blocked task, an open decision, a closed decision, milestones, dependencies, a fortnight of updates) | `TestTheBootstrapCannotReinstallARetiredSurface` | bootstrap seeds are asserted, not run — see the Revision 3 report |
 
 ## Closed in Revision 3

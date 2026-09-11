@@ -2,7 +2,7 @@
   "suite": "whatif_journeys",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 111.6,
+  "elapsed_seconds": 112.0,
   "counts": {
     "PASS": 12,
     "FAIL": 0,
@@ -34,7 +34,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "\n\nExpected credit loss rose from SAR 8,994,012 to SAR 10,161,668 \u2014 a change of SAR 1,167,657 (+12.98%).\n\nThe population is product_code=PERSONAL_LOAN, 7,761 facilities held by 6,781 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 1,167,657.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (3)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 065924\n2026-08\nSAR 3,061,762 \u2192 SAR",
+        "answer": "\n\nExpected credit loss rose from SAR 8,994,012 to SAR 10,161,669 \u2014 a change of SAR 1,167,657 (+12.98%).\n\nThe population is product_code=PERSONAL_LOAN, 7,761 facilities held by 6,781 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 1,167,657.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nNAV-03 test scenario (5)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 091447\n2026-08\nSAR 3,061,762 \u2192 SAR 3,449,784 (+12.67%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (4)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nWIJ-19 075452\n2026-08\nSAR 3,061,762 \u2192 SAR",
         "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-09.png"
       },
       "seconds": 0.0,
@@ -64,9 +64,9 @@
       "actual": null,
       "evidence": {
         "record": {
-          "id": 12,
-          "name": "WIJ-11 091447",
-          "created_at": "2026-09-11T09:15:23.172990+00:00",
+          "id": 31,
+          "name": "WIJ-11 152727",
+          "created_at": "2026-09-11T15:28:03.431388+00:00",
           "month": "2026-08",
           "question": "Increase PD by 2 percentage points for credit cards.",
           "run_id": "WIF-567a1eb032d0f3c6d8e3",
@@ -81,9 +81,9 @@
           "methodology_version": "retail-whatif-1.0.0",
           "dataset_version": "r1.0.0-c1.0.0-s20260910",
           "baseline_ecl": 3061761.69,
-          "whatif_ecl": 4756397,
-          "delta_sar": 1694635.31,
-          "delta_pct": 0.553483739617893,
+          "whatif_ecl": 4756396.784,
+          "delta_sar": 1694635.09,
+          "delta_pct": 0.5534836690702731,
           "facilities": 6532
         },
         "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-11.png"
@@ -122,7 +122,7 @@
       "module": "what-if",
       "title": "Two SAVED runs are compared as themselves, with any difference in month, population or methodology stated",
       "status": "PASS",
-      "detail": "compared WIJ-11 091447 with WIJ-19 091447; comparable=True; differences=[]",
+      "detail": "compared WIJ-11 152727 with WIJ-19 152727; comparable=True; differences=[]",
       "expected": null,
       "actual": null,
       "evidence": {},
@@ -152,7 +152,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": " to 560 and show what would have happened to the applications we rejected.\n\nAn unchanged scenario over the whole retail book.\n\nBASELINE ECL\nSAR 15,952,109\nWHAT-IF ECL\nSAR 15,952,108\nCHANGE\nSAR -0 (-0.00%)\nPOPULATION\n19,745 facilities \u00b7 14,251 customers\n\nUnchanged: the rebuild reproduces the published ECL to SAR 0.39 on SAR 15,952,109 (2.4e-6%), no facility differing by more than SAR 0.004 \u2014 inside the declared tolerance of SAR 0.01 per facility.\n\nProduct\tBaseline\tWhat-If\tChange\nCREDIT_CARD\tSAR 3.06m\tSAR 3.06m\tSAR 0\nAUTO_LOAN\tSAR 1.09m\tSAR 1.09m\tSAR 0\nHOME_LOAN\tSAR 2.81m\tSAR 2.81m\tSAR -0\nPERSONAL_LOAN\tSAR 8.99m\tSAR 8.99m\tSAR -1\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline",
+        "answer": " to 560 and show what would have happened to the applications we rejected.\n\nRead as: replay an application-score cutoff of 560 on the whole book.\n\nA retrospective replay over booked originations only (AUTO_LOAN, CREDIT_CARD, HOME_LOAN, PERSONAL_LOAN). No expected credit loss is recomputed here.\n\nBOOKED ORIGINATIONS\n19,745\nWOULD BE EXCLUDED\n67 (0.3%)\nEXCLUDED EXPOSURE\nSAR 5,514,332\nCUTOFF\nAUTO_LOAN 560, CREDIT_CARD 560, HOME_LOAN 560, PERSONAL_LOAN 560\n\nWhat the excluded accounts went on to do is NOT KNOWN at 2026-08: no facility in this population has a closed outcome window yet. That is not zero defaults. Ask again at an earlier reporting month.\n\nWhat this replay cannot tell you\nSaved What-",
         "screenshot": "docs/evidence/retail_functionality/screens/whatif-wi-18.png"
       },
       "seconds": 0.0,
@@ -191,7 +191,7 @@
       "module": "what-if",
       "title": "DESTRUCTIVE \u2014 Delete removes the record this suite created and nothing else",
       "status": "PASS",
-      "detail": "the test-owned record 12 was deleted=True; every other saved run survived=True",
+      "detail": "the test-owned record 31 was deleted=True; every other saved run survived=True",
       "expected": null,
       "actual": null,
       "evidence": {},

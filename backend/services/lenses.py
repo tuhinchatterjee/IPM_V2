@@ -687,8 +687,28 @@ def listing(*, status: str | None = None) -> list[dict[str, Any]]:
             query = query.where(Lens.status == status)
         else:
             query = query.where(Lens.status != STATUS_ARCHIVED)
+        rows = session.execute(query).scalars().all()
         return [_view(session, row).to_dict()
-                for row in session.execute(query).scalars().all()]
+                for row in rows if not _retired_here(row.slug)]
+
+
+def _retired_here(slug: str) -> bool:
+    """Whether this installation serves a lens that is already in the database.
+
+    Withholding the corporate lens from what the BOOTSTRAP installs stops it
+    appearing on a fresh deployment and does nothing at all for an installation
+    that already has the row — and this one did, at id 3, named "Corporate IFRS
+    9" on the Lenses screen of a retail-only product. A retired surface comes
+    back from storage as readily as from code, so it is filtered on the way out
+    as well as withheld on the way in.
+    """
+    from backend.metrics import lenses as shipped
+
+    served = {spec.slug for spec in shipped.served()}
+    shipped_slugs = {spec.slug for spec in shipped.ALL}
+    # Only a SHIPPED lens can be retired. One somebody built themselves is
+    # theirs, and is none of this function's business.
+    return str(slug) in shipped_slugs and str(slug) not in served
 
 
 def get(lens_id: int) -> LensView:

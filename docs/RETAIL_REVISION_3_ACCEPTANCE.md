@@ -21,14 +21,14 @@ Every figure below was produced by running the thing it describes.
 
 | Area | Status | Evidence |
 |---|---|---|
-| Customer 360 and its return journeys | **PASS** | `customer360.json` — 11 cases incl. Back to the same filtered list; `test_ret_customer_360.py` (13) |
-| Cockpit deterministic browser conversations | **PASS** (carried forward, re-run) | `cockpit_chat.json` (19), `cockpit_journeys.json` (17) |
-| What-If deterministic browser conversations | **PASS** | `whatif_chat.json` (14), `whatif_journeys.json` (12), `whatif_fidelity.json` (23) |
+| Customer 360 and its return journeys | **PASS** | `customer360.json` — 11 of 11, incl. Back to the same filtered list; `test_ret_customer_360.py` (13) |
+| Cockpit deterministic browser conversations | **PASS**, and CP-10 is no longer BLOCKED | `cockpit_chat.json` (19 of 19), `cockpit_journeys.json` (**17 of 17, 0 blocked**) |
+| What-If deterministic browser conversations | **PASS** | `whatif_chat.json` (14 of 14), `whatif_journeys.json` (12 of 12), `whatif_fidelity.json` (23 of 23) |
 | Provider-backed Cockpit path | **NOT RUN** | no authorised provider credential exists; see §7 |
 | Provider-backed What-If path | **NOT RUN** | as above |
 | Scorecard / auditor evidence | **PASS** (carried forward) | `test_ret_026_033_scorecard.py`; scorecard evidence panel exercised in C360-05 |
-| Required visible operations and return paths | **PASS**, reconciled by operation class | `coverage.json` — 13 operation classes, 0 uncovered, 33 routes opened |
-| Retail content and EWS closeout | **PASS** | `retail_only.json` (29), `test_ret_retail_only_surfaces.py` (37), `docs/RETAIL_EWS_011_REVIEW.md` |
+| Required visible operations and return paths | **PASS**, reconciled by operation class | `coverage.json` — 13 of 13 classes covered, 0 uncovered, 33 routes opened, 164 cases |
+| Retail content and EWS closeout | **PASS** | `retail_only.json` (29 of 29), `test_ret_retail_only_surfaces.py` (38), `docs/RETAIL_EWS_011_REVIEW.md` |
 | Numeric reconciliation | **PASS** | `test_ret_whatif_reconciliation.py` (29) and §4 below |
 | Authentication, role and ownership boundaries | **PASS** | `test_ret_ownership_boundaries.py` (18) |
 | Local WHATIF_5318 source verification | **NOT RUN — external prerequisite** | probe prepared: `scripts/retail_uat/local_probe.py`; see §6 |
@@ -141,6 +141,11 @@ offered:
   seeded schedule woke one of them — and that name reached the screen from the
   **database**, so editing the seed alone would not have removed it.
 * The **document library** shipped a Real Estate Sector Review.
+* The **Corporate IFRS 9 lens was already a row in this database**, at id 3.
+  Withholding it from the installer stops a fresh deployment and does nothing
+  at all for an installation that already has it, so the listing filters on
+  read as well — the same shape of mistake as the schedule row, found the same
+  way, by opening the screen.
 * The **bootstrap** would, on any fresh deployment, install a Corporate IFRS 9
   lens, a Corporate Credit Committee, an IFRS 9 committee whose every tile names
   a `corporate.ifrs9.*` metric, a corporate model-redevelopment delivery plan
@@ -154,9 +159,14 @@ that keeps every Planner feature it demonstrated: an overdue task, a blocked
 task, an open decision, a closed decision, five milestones, eighteen
 dependencies and a fortnight of updates.
 
-**Proved by opening the screens.** `retail_only.json`: 29 cases, every one of
+**Proved by opening the screens.** `retail_only.json`: 29 of 29, every one of
 the 22 navigable routes opened and read, plus the CRO route and one document
 workspace. Zero corporate phrases on any of them.
+
+Two of these were found only because the sweep ran against the live
+application: the corporate lens and the corporate schedule both reached the
+screen from the DATABASE rather than from the code, and a code review of the
+seeds would have declared both closed.
 
 ## 6. Coverage, reconciled by operation rather than by DOM node
 
@@ -167,9 +177,13 @@ and maps thirteen required operation classes — open, ask, run, filter, drill,
 save, reopen, compare, export, delete, return, refuse, recover — to the cases
 that executed them.
 
-**163 browser cases across 10 suites, 0 failed. 13 of 13 operation classes
+**164 browser cases across 10 suites, 0 failed. 13 of 13 operation classes
 covered, 0 uncovered. 33 routes opened.** Written to `coverage.json` so the
 reconciliation can be checked rather than taken on trust.
+
+`docs/RETAIL_FUNCTIONALITY_MATRIX.csv`, rebuilt from that evidence, is now
+**190 rows: 189 PASS, 1 NOT APPLICABLE, 0 BLOCKED** — against Revision 2's 127
+rows with 125 PASS and 1 BLOCKED.
 
 What this does not claim: every control on every module was individually
 pressed. Modules outside the retail demonstration path are opened and read, and

@@ -2,7 +2,7 @@
   "suite": "retail_only",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 111.7,
+  "elapsed_seconds": 110.1,
   "counts": {
     "PASS": 29,
     "FAIL": 0,

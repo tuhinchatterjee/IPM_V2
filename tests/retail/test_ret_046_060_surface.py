@@ -179,10 +179,28 @@ class TestRET047NoLegacyFallback:
         assert "No other portfolio will be served in its place" in message
 
     def test_empty_retail_data_does_not_reach_the_old_lake(self, tmp_path):
+        """With no catalogue FILE, nothing corporate appears from anywhere.
+
+        The assertion used to be `names() == []`, which held only because the
+        suite happened to run without `DATABASE_URL`. `Catalog.load` reads the
+        bundled JSON *and* every PUBLISHED dataset in PostgreSQL, so with the
+        launcher's own environment the list is not empty — it is
+        `['retail_facility_month']`, which is the right answer and was being
+        read as a failure.
+
+        What this gate is actually about is unchanged and is now what it says:
+        a missing retail catalogue must not resurrect the retired book, from
+        the file or from the database.
+        """
         empty = Catalog.load(tmp_path / "nothing.json")
-        assert empty.names() == []
-        with pytest.raises(UnknownDatasetError):
-            empty.dataset("portfolio_facility")
+        for retired in ("portfolio_facility", "customer_ratings",
+                        "ifrs9_staging", "borrower_financials",
+                        "facility_delinquency", "macro_saudi"):
+            assert retired not in empty.names()
+            with pytest.raises(UnknownDatasetError):
+                empty.dataset(retired)
+        assert all(name.startswith("retail_") for name in empty.names()), (
+            f"a non-retail dataset is reachable: {empty.names()}")
 
 
 class TestRET048LayoutPreserved:
@@ -325,6 +343,12 @@ class TestRET048LayoutPreserved:
             # model-redevelopment plan and a shipping-review thread.
             "backend/metrics/lenses.py",
             "backend/playbook/demo.py",
+            # A schedule row persisted before a specialist was retired still
+            # named it, so the seed and the serialiser both had to change.
+            "backend/agentic/schedules.py",
+            # A lens row installed before the corporate one was retired still
+            # named it on the Lenses screen: the listing filters on read.
+            "backend/services/lenses.py",
             "scripts/seed_playbook_committees.py",
             "scripts/seed_planner.py",
             "backend/services/demo_workflow.py",

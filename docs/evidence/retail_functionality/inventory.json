@@ -2,7 +2,7 @@
   "suite": "inventory",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 112.3,
+  "elapsed_seconds": 112.2,
   "counts": {
     "PASS": 26,
     "FAIL": 0,
@@ -35,7 +35,7 @@
       "actual": null,
       "evidence": {
         "route": "/",
-        "heading": "Good morning, Mr. Sajid",
+        "heading": "Good afternoon, Mr. Sajid",
         "screenshot": "docs/evidence/retail_functionality/screens/route-.png"
       },
       "seconds": 0.0,
@@ -158,7 +158,7 @@
       "module": "inventory",
       "title": "/lenses renders with its controls",
       "status": "PASS",
-      "detail": "8 buttons, 28 links, 1 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "detail": "8 buttons, 30 links, 1 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -206,7 +206,7 @@
       "module": "inventory",
       "title": "/early-warning/signals renders with its controls",
       "status": "PASS",
-      "detail": "7 buttons, 29 links, 0 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "detail": "9 buttons, 52 links, 0 inputs, 3 selects, 0 tabs, 0 tables",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -222,7 +222,7 @@
       "module": "inventory",
       "title": "/what-if renders with its controls",
       "status": "PASS",
-      "detail": "44 buttons, 27 links, 9 inputs, 1 selects, 0 tabs, 0 tables",
+      "detail": "52 buttons, 27 links, 11 inputs, 1 selects, 0 tabs, 0 tables",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -238,12 +238,12 @@
       "module": "inventory",
       "title": "/borrower-360 renders with its controls",
       "status": "PASS",
-      "detail": "6 buttons, 27 links, 0 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "detail": "8 buttons, 28 links, 1 inputs, 1 selects, 0 tabs, 0 tables",
       "expected": null,
       "actual": null,
       "evidence": {
         "route": "/borrower-360",
-        "heading": "Borrower 360",
+        "heading": "Customer 360",
         "screenshot": "docs/evidence/retail_functionality/screens/route-borrower-360.png"
       },
       "seconds": 0.0,
@@ -366,7 +366,7 @@
       "module": "inventory",
       "title": "/agent-operations renders with its controls",
       "status": "PASS",
-      "detail": "26 buttons, 27 links, 0 inputs, 0 selects, 6 tabs, 0 tables",
+      "detail": "23 buttons, 27 links, 0 inputs, 0 selects, 6 tabs, 0 tables",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -398,7 +398,7 @@
       "module": "inventory",
       "title": "/users renders with its controls",
       "status": "PASS",
-      "detail": "10 buttons, 27 links, 0 inputs, 1 selects, 0 tabs, 0 tables",
+      "detail": "12 buttons, 27 links, 0 inputs, 2 selects, 0 tabs, 0 tables",
       "expected": null,
       "actual": null,
       "evidence": {

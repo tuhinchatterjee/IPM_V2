@@ -25,11 +25,33 @@ OUT = ROOT / "docs" / "RETAIL_FUNCTIONALITY_MATRIX.csv"
 #: Which suite covers which route, so a discovered screen can point at the
 #: cases that exercised it.
 COVERED_BY = {
-    "/": ["cockpit_chat", "cockpit_journeys", "navigation"],
-    "/what-if": ["whatif_chat", "whatif_journeys", "navigation"],
-    "/investigations": ["cockpit_chat", "navigation"],
-    "/trace": ["navigation", "cockpit_journeys"],
-    "/early-warning": ["navigation"],
+    "/": ["cockpit_chat", "cockpit_journeys", "navigation", "retail_only"],
+    "/what-if": ["whatif_chat", "whatif_journeys", "whatif_fidelity",
+                 "navigation", "retail_only"],
+    "/investigations": ["cockpit_chat", "navigation", "retail_only"],
+    "/trace": ["navigation", "cockpit_journeys", "retail_only"],
+    "/early-warning": ["navigation", "retail_only"],
+    # Revision 3. CP-10 was BLOCKED because Customer 360 called the corporate
+    # endpoints; the Early Warning list and the customer behind an alert are
+    # now a journey rather than an inventory row.
+    "/borrower-360": ["customer360", "retail_only"],
+    "/early-warning/signals": ["customer360", "retail_only"],
+    "/lenses": ["retail_only"],
+    "/documents": ["retail_only"],
+    "/agent-operations": ["retail_only"],
+    "/playbook": ["retail_only"],
+    "/projects": ["retail_only"],
+    "/delivery": ["retail_only"],
+    "/analyses": ["retail_only"],
+    "/metrics": ["retail_only"],
+    "/workspace": ["retail_only"],
+    "/reviews": ["retail_only"],
+    "/studio": ["retail_only"],
+    "/ai-studio": ["retail_only"],
+    "/scorecard-validation": ["retail_only"],
+    "/messages": ["retail_only"],
+    "/workflow": ["retail_only"],
+    "/data-builder": ["retail_only"],
 }
 
 HEADER = [
@@ -42,7 +64,9 @@ HEADER = [
 def _suites() -> list[dict]:
     out = []
     for path in sorted(EVIDENCE.glob("*.json")):
-        if path.name in ("inventory_controls.json",) or path.name.startswith("probe"):
+        # `coverage.json` is the reconciliation OF these suites, not a suite.
+        if (path.name in ("inventory_controls.json", "coverage.json")
+                or path.name.startswith("probe")):
             continue
         try:
             out.append(json.loads(path.read_text()))
