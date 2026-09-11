@@ -57,16 +57,18 @@ DISPOSITIONS: tuple[str, ...] = (
     "unsupported", "safe_failure")
 
 TOOL_INSPECT = "inspect_catalog"
+TOOL_PRODUCT = "inspect_product_knowledge"
 TOOL_EXECUTE = "execute_analysis"
 TOOL_READ = "read_artifact"
 TOOL_FINALIZE = "finalize_response"
 TOOL_NAMES: tuple[str, ...] = (
-    TOOL_INSPECT, TOOL_EXECUTE, TOOL_READ, TOOL_FINALIZE)
+    TOOL_INSPECT, TOOL_PRODUCT, TOOL_EXECUTE, TOOL_READ, TOOL_FINALIZE)
 
 #: The reads the analyst may batch in one response. Anything that executes or
 #: finalizes is one action per response, because a batch that mixes them has
 #: no defined order and no safe partial outcome.
-BATCHABLE: frozenset[str] = frozenset({TOOL_INSPECT, TOOL_READ})
+BATCHABLE: frozenset[str] = frozenset(
+    {TOOL_INSPECT, TOOL_PRODUCT, TOOL_READ})
 MAX_BATCHED_READS = 4
 
 
@@ -143,6 +145,77 @@ def _require_text(payload: Any, key: str, path: str, *,
     return value
 
 
+def _optional_text(payload: Any, key: str, path: str) -> str:
+    """An optional string. `null` and a missing key both mean "none".
+
+    The model-facing schema declares these as `["string", "null"]`, so `null`
+    is a representation the analyst was TOLD it may send. A validator that
+    then rejects it disagrees with the contract the model was given, and the
+    cost of that disagreement is a whole extra generation: the first live
+    product-help run answered correctly in 16.6 seconds, was refused because
+    `clarification_question` was null, and had to be asked again — two
+    generations and 29.4 seconds for a question that needed one.
+
+    Normalizing here is REPRESENTATION only. It maps three spellings of
+    absence onto one stored form. It never invents content, never rewrites
+    meaning, and never rescues a field that carries substance.
+    """
+    if not isinstance(payload, dict):
+        raise Rejection("INVALID_MODEL_OUTPUT",
+                        f"{path} must be an object.", field_path=path)
+    value = payload.get(key)
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise Rejection(
+            "INVALID_MODEL_OUTPUT",
+            f"{path}.{key} must be a string or null, not "
+            f"{type(value).__name__}.", field_path=f"{path}.{key}")
+    return value
+
+
+def _optional_str_list(payload: Any, key: str, path: str) -> tuple[str, ...]:
+    """An optional array of strings. `null` and a missing key mean empty.
+
+    A bare string is still REJECTED rather than wrapped, for the same reason
+    it always was: V3 expanded a scalar into a list of its own characters and
+    turned a rating of "B" into ["B"]. Accepting absence is not the same as
+    accepting a wrong shape.
+    """
+    if not isinstance(payload, dict):
+        raise Rejection("INVALID_MODEL_OUTPUT",
+                        f"{path} must be an object.", field_path=path)
+    if payload.get(key) is None:
+        return ()
+    return _require_str_list(payload, key, path)
+
+
+def _optional_object(payload: Any, key: str, path: str) -> dict[str, Any]:
+    """An optional object. `null` and a missing key mean no entries."""
+    value = payload.get(key) if isinstance(payload, dict) else None
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise Rejection(
+            "INVALID_MODEL_OUTPUT",
+            f"{path}.{key} must be an object or null, not "
+            f"{type(value).__name__}.", field_path=f"{path}.{key}")
+    return dict(value)
+
+
+def _optional_list(payload: Any, key: str, path: str) -> list[Any]:
+    """An optional array of anything. `null` and a missing key mean empty."""
+    value = payload.get(key) if isinstance(payload, dict) else None
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise Rejection(
+            "INVALID_MODEL_OUTPUT",
+            f"{path}.{key} must be an array or null, not "
+            f"{type(value).__name__}.", field_path=f"{path}.{key}")
+    return list(value)
+
+
 def _require_str_list(payload: Any, key: str, path: str) -> tuple[str, ...]:
     """A list of strings. A bare string is REJECTED, never expanded.
 
@@ -198,8 +271,10 @@ def parse_intent(payload: Any, *, path: str = "intent") -> Intent:
         query_mode=mode, owner=owner,
         understood_request=_require_text(payload, "understood_request", path),
         response_language=_require_text(payload, "response_language", path),
-        ambiguities=_require_str_list(payload, "ambiguities", path),
-        excluded_parts=_require_str_list(payload, "excluded_parts", path),
+        # Absent and empty mean the same thing here: no ambiguity, nothing
+        # excluded. The schema says so, and so does this.
+        ambiguities=_optional_str_list(payload, "ambiguities", path),
+        excluded_parts=_optional_str_list(payload, "excluded_parts", path),
         public_rationale=_require_text(payload, "public_rationale", path))
 
 
@@ -239,7 +314,11 @@ class ExecutionSubmission:
     metadata_receipt_ids: tuple[str, ...]
     fields_required: tuple[str, ...]
     expected_output_grain: str
-    expected_units: str
+    #: Output column -> unit. The schema declares a mapping, because a result
+    #: with an amount and a count does not have one unit. A bare string is
+    #: accepted as the shorthand for "every output column is in this unit"
+    #: and is stored under the empty key.
+    expected_units: dict[str, str]
     steps: tuple[Step, ...]
     repair_of_submission_id: str
 
@@ -250,7 +329,7 @@ class ExecutionSubmission:
                 "metadata_receipt_ids": list(self.metadata_receipt_ids),
                 "fields_required": list(self.fields_required),
                 "expected_output_grain": self.expected_output_grain,
-                "expected_units": self.expected_units,
+                "expected_units": dict(self.expected_units),
                 "steps": [s.to_dict() for s in self.steps],
                 "repair_of_submission_id": self.repair_of_submission_id}
 
@@ -311,19 +390,14 @@ def parse_steps(payload: Any, *, max_steps: int) -> tuple[Step, ...]:
                 f"{path}.code exceeds {MAX_CODE_BYTES} bytes and was not "
                 f"truncated. Send shorter code; nothing was executed.",
                 field_path=f"{path}.code")
-        parameters = raw.get("parameters")
-        if not isinstance(parameters, dict):
-            raise Rejection(
-                "INVALID_MODEL_OUTPUT",
-                f"{path}.parameters must be an object (use {{}} for none).",
-                field_path=f"{path}.parameters")
+        parameters = _optional_object(raw, "parameters", path)
         steps.append(Step(
             step_id=step_id, language=language, code=code,
-            parameters=dict(parameters),
+            parameters=parameters,
             purpose=_require_text(raw, "purpose", path),
-            input_artifact_ids=_require_str_list(
+            input_artifact_ids=_optional_str_list(
                 raw, "input_artifact_ids", path),
-            depends_on_step_ids=_require_str_list(
+            depends_on_step_ids=_optional_str_list(
                 raw, "depends_on_step_ids", path)))
 
     ids = {s.step_id for s in steps}
@@ -344,33 +418,83 @@ def parse_steps(payload: Any, *, max_steps: int) -> tuple[Step, ...]:
     return tuple(steps)
 
 
+def _parse_units(value: Any) -> dict[str, str]:
+    """The declared units of the result.
+
+    The published schema is `{"column": "unit"}`, because a result carrying an
+    amount and a row count does not have a single unit. The validator used to
+    demand a plain string, so a model that followed the schema it was given
+    would have had EVERY analysis submission rejected — a submission slot and
+    a generation burned each time, for agreeing with us.
+
+    A bare string is still accepted as the shorthand for "all of it is in this
+    unit"; that is representation, not meaning.
+    """
+    if value is None:
+        raise Rejection(
+            "INVALID_MODEL_OUTPUT",
+            "expected_units is required: declare the unit of each output "
+            "column, or one unit for all of them.",
+            field_path="expected_units")
+    if isinstance(value, str):
+        if not value.strip():
+            raise Rejection("INVALID_MODEL_OUTPUT",
+                            "expected_units must not be empty.",
+                            field_path="expected_units")
+        return {"": value}
+    if not isinstance(value, dict):
+        raise Rejection(
+            "INVALID_MODEL_OUTPUT",
+            f"expected_units must be an object mapping a column to its unit, "
+            f"or a single string; got {type(value).__name__}.",
+            field_path="expected_units")
+    if not value:
+        raise Rejection("INVALID_MODEL_OUTPUT",
+                        "expected_units must name at least one unit.",
+                        field_path="expected_units")
+    out: dict[str, str] = {}
+    for column, unit in value.items():
+        if not isinstance(unit, str) or not unit.strip():
+            raise Rejection(
+                "INVALID_MODEL_OUTPUT",
+                f"expected_units[{column!r}] must be a non-empty string.",
+                field_path=f"expected_units.{column}")
+        out[str(column)] = unit
+    return out
+
+
+def units_display(units: dict[str, str]) -> str:
+    """The units as one line, for the process trace."""
+    if not units:
+        return "unspecified"
+    if len(units) == 1 and "" in units:
+        return units[""]
+    return ", ".join(f"{column}: {unit}" if column else unit
+                     for column, unit in units.items())
+
+
 def parse_execution(payload: Any, *, max_steps: int) -> ExecutionSubmission:
     if not isinstance(payload, dict):
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "execute_analysis arguments must be an object.")
     intent = parse_intent(payload.get("intent"))
-    scope = payload.get("scope")
-    if not isinstance(scope, dict):
-        raise Rejection("INVALID_MODEL_OUTPUT",
-                        "scope must be an object.", field_path="scope")
+    scope = _optional_object(payload, "scope", "execute_analysis")
     return ExecutionSubmission(
         intent=intent,
         objective=_require_text(payload, "objective", "execute_analysis"),
         subquestions=_require_str_list(payload, "subquestions",
                                        "execute_analysis"),
-        scope=dict(scope),
-        metadata_receipt_ids=_require_str_list(
+        scope=scope,
+        metadata_receipt_ids=_optional_str_list(
             payload, "metadata_receipt_ids", "execute_analysis"),
-        fields_required=_require_str_list(payload, "fields_required",
-                                          "execute_analysis"),
+        fields_required=_optional_str_list(payload, "fields_required",
+                                           "execute_analysis"),
         expected_output_grain=_require_text(
             payload, "expected_output_grain", "execute_analysis"),
-        expected_units=_require_text(payload, "expected_units",
-                                     "execute_analysis"),
+        expected_units=_parse_units(payload.get("expected_units")),
         steps=parse_steps(payload.get("steps"), max_steps=max_steps),
-        repair_of_submission_id=_require_text(
-            payload, "repair_of_submission_id", "execute_analysis",
-            allow_empty=True))
+        repair_of_submission_id=_optional_text(
+            payload, "repair_of_submission_id", "execute_analysis"))
 
 
 # ---- inspect_catalog / read_artifact -----------------------------------
@@ -397,7 +521,7 @@ def parse_catalog(payload: Any) -> CatalogRequest:
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "inspect_catalog arguments must be an object.")
     intent = parse_intent(payload.get("intent"))
-    detail = _require_str_list(payload, "detail", "inspect_catalog")
+    detail = _optional_str_list(payload, "detail", "inspect_catalog")
     for d in detail:
         if d not in CATALOG_DETAILS:
             raise Rejection(
@@ -405,6 +529,8 @@ def parse_catalog(payload: Any) -> CatalogRequest:
                 f"detail {d!r} is not one of {', '.join(CATALOG_DETAILS)}.",
                 field_path="detail")
     rows = payload.get("sample_rows", 0)
+    if rows is None:
+        rows = 0
     if not isinstance(rows, int) or isinstance(rows, bool):
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "sample_rows must be an integer.",
@@ -426,17 +552,56 @@ def parse_catalog(payload: Any) -> CatalogRequest:
             field_path="sample_rows")
     return CatalogRequest(
         intent=intent,
-        query=_require_text(payload, "query", "inspect_catalog",
-                            allow_empty=True),
-        relation_ids=_require_str_list(payload, "relation_ids",
-                                       "inspect_catalog"),
-        field_ids=_require_str_list(payload, "field_ids", "inspect_catalog"),
+        query=_optional_text(payload, "query", "inspect_catalog"),
+        relation_ids=_optional_str_list(payload, "relation_ids",
+                                        "inspect_catalog"),
+        field_ids=_optional_str_list(payload, "field_ids", "inspect_catalog"),
         detail=detail,
-        reporting_quarters=_require_str_list(payload, "reporting_quarters",
-                                             "inspect_catalog"),
+        reporting_quarters=_optional_str_list(payload, "reporting_quarters",
+                                              "inspect_catalog"),
         sample_rows=rows,
-        cursor=_require_text(payload, "cursor", "inspect_catalog",
-                             allow_empty=True))
+        cursor=_optional_text(payload, "cursor", "inspect_catalog"))
+
+
+@dataclass(frozen=True)
+class ProductKnowledgeRequest:
+    intent: Intent
+    query: str
+    topics: tuple[str, ...]
+    detail: str
+
+
+def parse_product_knowledge(payload: Any) -> ProductKnowledgeRequest:
+    """Parse a product-knowledge request.
+
+    Reading product facts is not analysis, so this is available in every mode
+    -- a product-help question must be able to reach it without declaring a
+    data analysis it is not going to run.
+    """
+    from backend.cockpit_v4.product_knowledge import TOPICS
+
+    if not isinstance(payload, dict):
+        raise Rejection("INVALID_MODEL_OUTPUT",
+                        "inspect_product_knowledge arguments must be an "
+                        "object.")
+    intent = parse_intent(payload.get("intent"))
+    topics = _optional_str_list(payload, "topics",
+                               "inspect_product_knowledge")
+    for topic in topics:
+        if topic not in TOPICS:
+            raise Rejection(
+                "INVALID_MODEL_OUTPUT",
+                f"topic {topic!r} is not one of {', '.join(TOPICS)}.",
+                field_path="topics")
+    detail = _optional_text(payload, "detail", "inspect_product_knowledge")
+    if detail not in ("", "standard", "full"):
+        raise Rejection("INVALID_MODEL_OUTPUT",
+                        "detail must be 'standard' or 'full'.",
+                        field_path="detail")
+    return ProductKnowledgeRequest(
+        intent=intent,
+        query=_optional_text(payload, "query", "inspect_product_knowledge"),
+        topics=topics, detail=detail or "standard")
 
 
 @dataclass(frozen=True)
@@ -472,7 +637,8 @@ def parse_artifact(payload: Any) -> ArtifactRequest:
             "SECURITY_DENIED",
             "artifact_id is an identifier, not a path or URL.",
             field_path="artifact_id")
-    offset, limit = payload.get("offset", 0), payload.get("limit", 0)
+    offset = payload.get("offset") or 0
+    limit = payload.get("limit") or 0
     for name, value in (("offset", offset), ("limit", limit)):
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             raise Rejection("INVALID_MODEL_OUTPUT",
@@ -480,10 +646,9 @@ def parse_artifact(payload: Any) -> ArtifactRequest:
                             field_path=name)
     return ArtifactRequest(
         intent=intent, artifact_id=artifact_id, artifact_kind=kind,
-        columns=_require_str_list(payload, "columns", "read_artifact"),
+        columns=_optional_str_list(payload, "columns", "read_artifact"),
         offset=int(offset), limit=int(limit),
-        cursor=_require_text(payload, "cursor", "read_artifact",
-                             allow_empty=True))
+        cursor=_optional_text(payload, "cursor", "read_artifact"))
 
 
 # ---- finalize_response -------------------------------------------------
@@ -592,10 +757,7 @@ def parse_final(payload: Any) -> FinalResponse:
             f"disposition must be one of {', '.join(DISPOSITIONS)}.",
             field_path="disposition")
 
-    coverage_raw = payload.get("coverage")
-    if not isinstance(coverage_raw, list):
-        raise Rejection("ANSWER_VALIDATION", "coverage must be an array.",
-                        field_path="coverage")
+    coverage_raw = _optional_list(payload, "coverage", "finalize_response")
     coverage: list[CoverageItem] = []
     for i, raw in enumerate(coverage_raw):
         path = f"coverage[{i}]"
@@ -609,11 +771,7 @@ def parse_final(payload: Any) -> FinalResponse:
                 f"{path}.status must be one of "
                 f"{', '.join(COVERAGE_STATUSES)}.",
                 field_path=f"{path}.status")
-        refs = raw.get("evidence_refs")
-        if not isinstance(refs, list):
-            raise Rejection("ANSWER_VALIDATION",
-                            f"{path}.evidence_refs must be an array.",
-                            field_path=f"{path}.evidence_refs")
+        refs = _optional_list(raw, "evidence_refs", path)
         coverage.append(CoverageItem(
             subquestion=_require_text(raw, "subquestion", path),
             status=status,
@@ -621,11 +779,8 @@ def parse_final(payload: Any) -> FinalResponse:
                 _parse_evidence(r, f"{path}.evidence_refs[{j}]")
                 for j, r in enumerate(refs))))
 
-    claims_raw = payload.get("numeric_claims")
-    if not isinstance(claims_raw, list):
-        raise Rejection("ANSWER_VALIDATION",
-                        "numeric_claims must be an array.",
-                        field_path="numeric_claims")
+    claims_raw = _optional_list(payload, "numeric_claims",
+                                "finalize_response")
     claims: list[NumericClaim] = []
     seen_claims: set[str] = set()
     for i, raw in enumerate(claims_raw):
@@ -658,16 +813,11 @@ def parse_final(payload: Any) -> FinalResponse:
             evidence=_parse_evidence(raw.get("evidence"), f"{path}.evidence"),
             display_precision=int(precision)))
 
-    refs_raw = payload.get("evidence_refs")
-    if not isinstance(refs_raw, list):
-        raise Rejection("ANSWER_VALIDATION",
-                        "evidence_refs must be an array.",
-                        field_path="evidence_refs")
-
-    for key in ("tables", "charts", "suggested_questions"):
-        if not isinstance(payload.get(key), list):
-            raise Rejection("ANSWER_VALIDATION", f"{key} must be an array.",
-                            field_path=key)
+    refs_raw = _optional_list(payload, "evidence_refs", "finalize_response")
+    tables_raw = _optional_list(payload, "tables", "finalize_response")
+    charts_raw = _optional_list(payload, "charts", "finalize_response")
+    suggestions_raw = _optional_list(payload, "suggested_questions",
+                                     "finalize_response")
 
     final = FinalResponse(
         intent=intent, disposition=disposition,
@@ -675,22 +825,23 @@ def parse_final(payload: Any) -> FinalResponse:
         coverage=tuple(coverage), numeric_claims=tuple(claims),
         evidence_refs=tuple(_parse_evidence(r, f"evidence_refs[{i}]")
                             for i, r in enumerate(refs_raw)),
-        tables=tuple(dict(t) for t in payload["tables"] if isinstance(t, dict)),
-        charts=tuple(dict(c) for c in payload["charts"] if isinstance(c, dict)),
-        limitations=_require_str_list(payload, "limitations",
-                                      "finalize_response"),
+        tables=tuple(dict(x) for x in tables_raw if isinstance(x, dict)),
+        charts=tuple(dict(x) for x in charts_raw if isinstance(x, dict)),
+        limitations=_optional_str_list(payload, "limitations",
+                                       "finalize_response"),
         suggested_questions=tuple(
-            dict(s) for s in payload["suggested_questions"]
-            if isinstance(s, dict)),
-        clarification_question=_require_text(
-            payload, "clarification_question", "finalize_response",
-            allow_empty=True),
-        clarification_options=_require_str_list(
+            dict(x) for x in suggestions_raw if isinstance(x, dict)),
+        # Every one of these is optional in MEANING: no clarification, no
+        # referral. `null`, `""` and a missing key are three spellings of the
+        # same fact and are stored as one.
+        clarification_question=_optional_text(
+            payload, "clarification_question", "finalize_response"),
+        clarification_options=_optional_str_list(
             payload, "clarification_options", "finalize_response"),
-        referral_owner=_require_text(payload, "referral_owner",
-                                     "finalize_response", allow_empty=True),
-        referral_reason=_require_text(payload, "referral_reason",
-                                      "finalize_response", allow_empty=True))
+        referral_owner=_optional_text(payload, "referral_owner",
+                                      "finalize_response"),
+        referral_reason=_optional_text(payload, "referral_reason",
+                                       "finalize_response"))
 
     if disposition == "clarification" and not final.clarification_question:
         raise Rejection(
@@ -747,6 +898,12 @@ _DESCRIPTIONS = {
     TOOL_READ: ("Read an authorized persisted result artifact or completed "
                 "thread turn. Exact stored values only; this computes "
                 "nothing new."),
+    TOOL_PRODUCT: ("Read CreditProbe's own product knowledge: what the "
+                   "product is, what each of the seven functionalities does "
+                   "and owns, TAC, the four Early Warning intelligence "
+                   "layers, how modules relate, boundaries and worked "
+                   "examples -- each with the deck slide it came from. Facts "
+                   "only; the answer is yours to write."),
     TOOL_FINALIZE: ("Deliver the user-facing response: answer, partial "
                     "answer, referral, clarification or unsupported. This is "
                     "the terminal action and costs no extra model call."),
@@ -757,6 +914,7 @@ def provider_tools() -> list[dict[str, Any]]:
     """The four tool definitions, in the provider's wire shape."""
     defs = _defs()
     files = {TOOL_INSPECT: "inspect_catalog.schema.json",
+             TOOL_PRODUCT: "inspect_product_knowledge.schema.json",
              TOOL_EXECUTE: "execute_analysis.schema.json",
              TOOL_READ: "read_artifact.schema.json",
              TOOL_FINALIZE: "finalize_response.schema.json"}
@@ -769,6 +927,7 @@ def provider_tools() -> list[dict[str, Any]]:
 
 def application_schema(tool: str) -> dict[str, Any]:
     files = {TOOL_INSPECT: "inspect_catalog.schema.json",
+             TOOL_PRODUCT: "inspect_product_knowledge.schema.json",
              TOOL_EXECUTE: "execute_analysis.schema.json",
              TOOL_READ: "read_artifact.schema.json",
              TOOL_FINALIZE: "finalize_response.schema.json",
@@ -785,7 +944,9 @@ __all__ = ["ArtifactRequest", "BATCHABLE", "CATALOG_DETAILS", "COCKPIT",
            "NO_EXECUTION_MODES", "NumericClaim", "OWNERS", "PRODUCT_HELP",
            "QUERY_MODES", "Rejection", "Step", "THEORY_CONCEPT",
            "TOOL_CONTRACT_VERSION", "TOOL_EXECUTE", "TOOL_FINALIZE",
-           "TOOL_INSPECT", "TOOL_NAMES", "TOOL_READ", "UNSUPPORTED",
+           "TOOL_INSPECT", "TOOL_NAMES", "TOOL_PRODUCT", "TOOL_READ",
+           "UNSUPPORTED",
            "application_schema", "parse_artifact", "parse_catalog",
-           "parse_execution", "parse_final", "parse_intent", "parse_steps",
-           "provider_tools"]
+           "parse_execution", "parse_final", "parse_intent",
+           "parse_product_knowledge", "parse_steps",
+           "provider_tools", "units_display"]

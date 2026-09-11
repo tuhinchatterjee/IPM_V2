@@ -175,6 +175,7 @@ STAGE_LABELS: dict[str, str] = {
     "accepted": "Request accepted",
     "understanding": "Understanding the request",
     "catalog": "Reading relevant data definitions",
+    "product_knowledge": "Reading product knowledge",
     "preparing": "Preparing query",
     "validating": "Validating query",
     "executing": "Executing query",
@@ -187,8 +188,8 @@ STAGE_LABELS: dict[str, str] = {
 #: ACTUAL path is dynamic -- product help never reaches `catalog` -- so this
 #: is a layout hint, not a promise that every stage runs.
 STAGE_ORDER: tuple[str, ...] = (
-    "accepted", "understanding", "catalog", "preparing", "validating",
-    "executing", "reviewing", "publishing")
+    "accepted", "understanding", "product_knowledge", "catalog", "preparing",
+    "validating", "executing", "reviewing", "publishing")
 
 
 __all__ = ["ANSWER_READY", "ANSWER_VALIDATED", "CONTEXT_READY", "Emitter",

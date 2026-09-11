@@ -114,7 +114,9 @@ def main() -> int:
                  "V4_UI_URL": f"http://127.0.0.1:{ui_port}",
                  "V4_API_URL": f"http://127.0.0.1:{api_port}",
                  "V4_CHROME": CHROME,
-                 "V4_BROWSER_EVIDENCE": str(evidence)})
+                 "V4_BROWSER_EVIDENCE": str(evidence),
+                 "V4_BROWSER_SCREENSHOT": str(
+                     evidence.parent / "cockpit_v4_answer.png")})
         if args.keep_up:
             print(f"\n  left running: UI http://127.0.0.1:{ui_port} · "
                   f"API http://127.0.0.1:{api_port}")

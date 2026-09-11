@@ -15,20 +15,32 @@
       ]
     },
     "columns": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "offset": {
-      "type": "integer",
-      "minimum": 0
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "limit": {
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 1,
-      "maximum": 100
+      "maximum": 100,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "cursor": {
       "type": [

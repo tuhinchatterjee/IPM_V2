@@ -17,7 +17,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { RunView, Step } from "./reducer";
-import { collapsedSummary, failedStage } from "./reducer";
+import { collapsedSummary, failedStage, formatSeconds } from "./reducer";
 
 const PREFERENCE_KEY = "cockpit-v4:process-panel-open";
 
@@ -38,17 +38,30 @@ function writePreference(open: boolean): void {
   }
 }
 
-function Marker({ state }: { state: Step["state"] }) {
+function Marker({ state, failures }: { state: Step["state"]; failures: number }) {
+  // A stage that succeeded on a retry is neither a clean tick nor a failure.
+  // Saying so is the whole point of an audit trace.
+  const recovered = state === "done" && failures > 0;
   const glyph =
-    state === "done" ? "✓" : state === "failed" ? "✕" : state === "running" ? "●" : "○";
+    state === "failed"
+      ? "✕"
+      : recovered
+        ? "⟳"
+        : state === "done"
+          ? "✓"
+          : state === "running"
+            ? "●"
+            : "○";
   const tone =
-    state === "done"
-      ? "text-emerald-600"
-      : state === "failed"
-        ? "text-rose-600"
-        : state === "running"
-          ? "text-sky-600"
-          : "text-slate-300";
+    state === "failed"
+      ? "text-rose-600"
+      : recovered
+        ? "text-amber-600"
+        : state === "done"
+          ? "text-emerald-600"
+          : state === "running"
+            ? "text-sky-600"
+            : "text-slate-300";
   return (
     <span aria-hidden className={`w-4 shrink-0 text-center ${tone}`}>
       {glyph}
@@ -167,7 +180,7 @@ export function ProcessPanel({
               return (
                 <li key={step.stage}>
                   <div className="flex items-start gap-2">
-                    <Marker state={step.state} />
+                    <Marker state={step.state} failures={step.failures} />
                     <div className="min-w-0 flex-1">
                       <button
                         type="button"
@@ -192,7 +205,7 @@ export function ProcessPanel({
                         <span className="shrink-0 tabular-nums text-xs text-slate-500">
                           {step.state === "prospective"
                             ? "not started"
-                            : `${Math.max(0, Math.round(step.elapsedMs / 100) / 10)}s`}
+                            : formatSeconds(step.elapsedMs)}
                         </span>
                       </button>
                       {step.detail && step.state !== "prospective" ? (
@@ -200,11 +213,32 @@ export function ProcessPanel({
                           {step.detail}
                         </p>
                       ) : null}
+                      {step.failures > 0 ? (
+                        <p
+                          data-testid={`v4-step-failures-${step.stage}`}
+                          className="text-xs text-amber-700"
+                        >
+                          {step.failures === 1
+                            ? "1 attempt failed here"
+                            : `${step.failures} attempts failed here`}
+                          {step.state === "done"
+                            ? " before this stage completed"
+                            : ""}
+                        </p>
+                      ) : null}
 
                       {isOpen ? (
                         <ul className="mt-1 space-y-1 border-l border-slate-200 pl-3">
-                          {step.substeps.map((sub, i) => (
-                            <li key={`${sub.operation}-${i}`} className="text-xs">
+                          {step.substeps.map((sub) => (
+                            <li
+                              key={sub.seq}
+                              data-testid="v4-substep"
+                              data-status={sub.status}
+                              className="flex items-baseline gap-2 text-xs"
+                            >
+                              <span className="shrink-0 tabular-nums text-slate-400">
+                                {formatSeconds(sub.elapsedMs)}
+                              </span>
                               <span
                                 className={
                                   sub.status === "failed" || sub.status === "rejected"
@@ -213,10 +247,15 @@ export function ProcessPanel({
                                 }
                               >
                                 {sub.message}
+                                {sub.attempt > 1 ? (
+                                  <span className="ml-1 text-slate-400">
+                                    (attempt {sub.attempt})
+                                  </span>
+                                ) : null}
                               </span>
                               {operatorView && sub.operation ? (
-                                <span className="ml-2 text-slate-400">
-                                  {sub.operation}
+                                <span className="ml-auto shrink-0 text-slate-400">
+                                  {sub.eventType} · {sub.operation}
                                   {sub.detailRef ? ` · ${sub.detailRef}` : ""}
                                 </span>
                               ) : null}

@@ -54,6 +54,9 @@ branch: 590 collected, 0 failures, 0 errors, 26 skipped.**
 
 The 26 skips are V3's own pre-existing skips and were identical in every run.
 
+Re-run at handoff on the final commit: **564 passed, 26 skipped, 0 failed**
+in 146s — identical to the baseline above.
+
 **Conclusion: V4 introduces no V3 regression.** That is supported by two
 independent facts — the V3 sources are unchanged, and the V3 suite passes
 completely once this container has the dependencies the suite has always
@@ -71,27 +74,27 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python3 -m pytest tests/cockpit_v4 -q
 
 | tests collected | passed | failures | errors | skipped | elapsed |
 |---:|---:|---:|---:|---:|---:|
-| 173 | 173 | 0 | 0 | 0 | ~8 s |
+| 292 | 292 | 0 | 0 | 0 | ~8 s |
 
-Frontend reducer:
+Frontend unit suite — the whole thing, not only the Cockpit:
+
+```
+cd frontend && npm test
+```
+
+| suites | tests | pass | fail |
+|---:|---:|---:|---:|
+| 38 | 459 | 459 | 0 |
+
+The Cockpit V4 components alone are 51 of those:
 
 ```
 cd frontend && node --test --experimental-strip-types \
-  "src/components/cockpit-v4/reducer.test.ts"
+  "src/components/cockpit-v4/*.test.ts"
 ```
 
-| tests | pass | fail |
-|---:|---:|---:|
-| 30 | 30 | 0 |
-
-Run as:
-
-```
-cd frontend && node --test --experimental-strip-types \
-  "src/components/cockpit-v4/reducer.test.ts" \
-  "src/components/cockpit-v4/client.test.ts" \
-  "src/components/system/runtime-surfaces.test.ts"
-```
+covering `reducer.test.ts`, `client.test.ts`, `live-trace.test.ts` and
+`markdown.test.ts`.
 
 ## Defects found and fixed while testing
 
@@ -124,15 +127,58 @@ Each was found by a test that failed for the right reason, not by review:
 | 13 | The replay effect aborted its own async work under React StrictMode's double mount. | A browser refresh silently failed to reconnect to the running run. |
 | 14 | The stub's "slow" case blocked 30s inside one `converse`. | Made a correct implementation look broken: V4 observes a cancellation *between* actions and does not abort an in-flight provider call — that is what the deadline and supervisor are for. Fixed in the test, not the product. |
 
+### Fourth round — the false process trace, the tool contract, and Product Help
+
+| # | Defect | Consequence |
+|---|---|---|
+| 15 | `client.ts` registered only `source.onmessage`. The server sends **named** SSE frames (`event: run.progress`), and a named frame never reaches `onmessage`. | The live process panel was a **false trace**: a run that really executed 15 events for 29.4s displayed "not started" and "Answered in 0s". The panel was reporting on a stream it was not receiving. Fixed by registering a listener for each of the 22 names in `backend/cockpit_v4/events.py`, with a `seq` guard against replays. |
+| 16 | `finalize_response` advertised `clarification_question` as `["string","null"]` but the server validator demanded `str`. | A model that followed the published schema had its **answer rejected** on the null. Fixed at the boundary: the validator now accepts absent-as-null for every optional field across all tools, while mandatory fields still fail closed. Prompt wording was not used. |
+| 17 | `execute_analysis`'s schema declared `expected_units` an **object**; the parser demanded a **string**. | A model following the schema would have had *every* analysis submission rejected. Found by mechanically diffing each published schema against its parser (`test_tool_contract_agreement.py`). |
+| 18 | Elapsed time was computed client-side from wall clock. | A refresh mid-run restarted the timer at 0. The panel now reads `budget.elapsed_seconds` from the run status when the run is settled, and marks it authoritative. |
+| 19 | Sub-second stages rendered as "0s". | A real 0.4s stage looked like it had not run. `formatSeconds` keeps one decimal below 10s. |
+| 20 | A later successful attempt replaced the failed one in the panel. | The trace hid that anything had gone wrong. `Step.failures` is now incremented and never cleared; the panel keeps the failed substep visible under a succeeded step. |
+| 21 | Product Help had no grounded source. | Answers about CreditProbe were the model's guess. A versioned **Product Knowledge Pack** (`backend/cockpit_v4/product_knowledge.json`, pack `2026-09-11.1`, source SHA256 `bdb3ce5d…`) is now ingested from the deck, with a ~924-token synopsis always in base context and a fifth tool, `inspect_product_knowledge`, for selective retrieval. The deck is never attached wholesale. |
+| 22 | Keyword retrieval matched substrings: `"kpi"` matched inside **"cockpit"**. | Irrelevant sections retrieved on almost every question. Fixed with a leading word-boundary pattern (a both-sides boundary was also wrong — it made "layers" and "automatically" miss). |
+| 23 | Answers were rendered as plain text. | Markdown arrived as raw `**` and `-` characters. Now parsed to a React element tree — no HTML string is produced, so there is nothing to sanitize and no new dependency was added. |
+| 24 | `markdown.ts` and `markdown.tsx` shared a stem. `tsc` resolved `./markdown` to the `.ts`; **Turbopack resolved it to the `.tsx` itself**, a self-import. | The page failed to build while every type check passed. Only running the app caught it. Renamed to `markdown-parse.ts`. |
+
+Slide 14 of the deck describes a **multi-agent** design. It is recorded in the
+pack as `historical_architecture`, `status: HISTORICAL_ARCHITECTURE`,
+`label: NOT_CURRENT_V4_ARCHITECTURE`, `applies_to_current_runtime: false`, and
+is deliberately **not retrievable**, so the analyst cannot describe the current
+runtime as multi-agent.
+
 ### Browser suite
 
 ```
 python3 scripts/cockpit_v4/browser_evidence.py
 ```
 
-Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 10/10 pass.
+Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 14/14 pass.
 Every network request the page makes is recorded, so "never calls the legacy
-flow" is checked rather than asserted.
+flow" is checked rather than asserted. A screenshot of a rendered answer is
+written to `docs/cockpit_v4/evidence/cockpit_v4_answer.png`.
+
+## Suite results at handoff
+
+All run in this container, in this order, on the commit being handed off.
+
+| Suite | Command | Result |
+|---|---|---:|
+| V4 backend | `python3 -m pytest tests/cockpit_v4` | **292 passed**, 0 failed |
+| — launcher + frontend wiring subset | `… test_launcher_safety.py test_frontend_wiring.py` | 43 passed |
+| — Product Help benchmark | `… test_product_help_benchmark.py` | 81 passed |
+| — tool contract agreement | `… test_tool_contract_agreement.py` | 26 passed |
+| — event contract parity | `… test_event_contract_parity.py` | 5 passed |
+| — "Who are you?" acceptance | `… test_who_are_you_acceptance.py` | 7 passed |
+| Frontend unit | `npm test` (`node --test`, 38 suites) | **459 passed**, 0 failed |
+| — Cockpit V4 components only | `node --test 'src/components/cockpit-v4/*.test.ts'` | 51 passed |
+| Browser (real Chromium) | `python3 scripts/cockpit_v4/browser_evidence.py` | **14/14 passed** |
+| V3 regression | `python3 -m pytest tests/cockpit_agentic` | **564 passed**, 26 skipped, 0 failed |
+| Acceptance coverage | `python3 scripts/cockpit_v4/acceptance_evidence.py` | 100 / 100 covered |
+
+The V3 result is the material one for isolation: `backend/cockpit_agentic/` is
+unchanged on this branch and its suite is green.
 
 Two design rules were also refined because a test showed the original was
 wrong, not because a test was inconvenient:
@@ -148,14 +194,12 @@ wrong, not because a test was inconvenient:
 - **The 84-question bank.** Not run, per the instruction, and not run
   automatically by anything in this build.
 - **Any paid live provider call.** No credential was authorized in this
-  environment. Every acceptance case's `real_provider` field reads `NOT RUN`.
-- **A real browser.** The delivery path was exercised over real sockets with a
-  real SSE client (`scripts/cockpit_v4/live_path_evidence.py`); the panel's
-  rendering is covered by reducer unit tests. A Playwright pass against the
-  running UI is outstanding.
+  environment. Every acceptance case's `real_provider` field reads `NOT RUN`,
+  and the browser suite runs against a **stubbed analyst** — it proves the
+  delivery path, not the model's answers.
 - **Python analysis.** `pyrunner.probe()` reports the capability unavailable
   in this container: the escape self-test found network access was not
   blocked, so the runner refuses to certify itself.
 - **The full repository suite.** Only `tests/cockpit_agentic` and
-  `tests/cockpit_v4` were run. This report makes no claim about the rest of
-  the repository.
+  `tests/cockpit_v4` were run, plus the frontend unit suite. This report makes
+  no claim about the rest of the repository.

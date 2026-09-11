@@ -5,24 +5,39 @@
       "$ref": "#/$defs/Intent"
     },
     "query": {
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "relation_ids": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "field_ids": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "detail": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string",
         "enum": [
@@ -33,19 +48,28 @@
           "samples"
         ]
       },
-      "minItems": 1
+      "minItems": 1,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "reporting_quarters": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "sample_rows": {
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 0,
-      "maximum": 10
+      "maximum": 10,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "cursor": {
       "type": [

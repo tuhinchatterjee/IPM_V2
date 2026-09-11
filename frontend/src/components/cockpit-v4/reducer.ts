@@ -12,6 +12,18 @@ import type { FinalResponse, RunEvent, RunStatus } from "./client";
 
 export type StepState = "prospective" | "running" | "done" | "failed";
 
+export type Substep = {
+  seq: number;
+  operation: string;
+  message: string;
+  status: string;
+  elapsedMs: number;
+  attempt: number;
+  errorId: string;
+  detailRef: string;
+  eventType: string;
+};
+
 export type Step = {
   stage: string;
   label: string;
@@ -20,14 +32,17 @@ export type Step = {
   startedAtMs: number;
   elapsedMs: number;
   errorId: string;
-  substeps: {
-    operation: string;
-    message: string;
-    status: string;
-    elapsedMs: number;
-    errorId: string;
-    detailRef: string;
-  }[];
+  /**
+   * Failed attempts at this stage, which a later success does NOT erase.
+   *
+   * A run that finalized on its second attempt genuinely failed once, and a
+   * panel that shows a clean tick over a hidden failure is an audit trace
+   * that lies. `state` is the LATEST outcome; this is the count that keeps
+   * the earlier one on screen.
+   */
+  failures: number;
+  attempts: number;
+  substeps: Substep[];
 };
 
 export type RunView = {
@@ -36,7 +51,16 @@ export type RunView = {
   connection: "open" | "retrying" | "lost";
   steps: Step[];
   currentStage: string;
+  /**
+   * How long the run took, in milliseconds.
+   *
+   * While the run is live this is the highest `elapsed_ms` any event
+   * reported. Once it settles, the authoritative run state replaces it:
+   * the server's own clock is the fact, and an event stream that dropped
+   * its last frame must not shorten the reported duration.
+   */
   elapsedMs: number;
+  elapsedIsAuthoritative: boolean;
   terminal: boolean;
   state: string;
   errorCode: string;
@@ -47,6 +71,7 @@ export type RunView = {
 export const STAGE_LABELS: Record<string, string> = {
   accepted: "Request accepted",
   understanding: "Understanding the request",
+  product_knowledge: "Reading product knowledge",
   catalog: "Reading relevant data definitions",
   preparing: "Preparing query",
   validating: "Validating query",
@@ -84,10 +109,13 @@ export function initial(runId = ""): RunView {
       startedAtMs: 0,
       elapsedMs: 0,
       errorId: "",
+      failures: 0,
+      attempts: 0,
       substeps: [],
     })),
     currentStage: "",
     elapsedMs: 0,
+    elapsedIsAuthoritative: false,
     terminal: false,
     state: "ACCEPTED",
     errorCode: "",
@@ -129,6 +157,8 @@ export function reduce(view: RunView, action: Action): RunView {
           startedAtMs: event.elapsed_ms,
           elapsedMs: 0,
           errorId: "",
+          failures: 0,
+          attempts: 0,
           substeps: [],
         });
         index = steps.length - 1;
@@ -138,23 +168,34 @@ export function reduce(view: RunView, action: Action): RunView {
       step.substeps = [
         ...step.substeps,
         {
+          seq: event.seq,
           operation: event.operation,
           message: event.public_message,
           status: event.status,
           elapsedMs: event.elapsed_ms,
+          attempt: event.attempt,
           errorId: event.error_id,
           detailRef: event.detail_ref,
+          eventType: event.event_type,
         },
       ];
       step.detail = event.public_message;
-      step.elapsedMs = event.elapsed_ms - step.startedAtMs;
+      if (!step.startedAtMs) step.startedAtMs = event.elapsed_ms;
+      step.elapsedMs = Math.max(0, event.elapsed_ms - step.startedAtMs);
+      if (event.attempt > step.attempts) step.attempts = event.attempt;
+
       if (event.status === "failed" || event.status === "rejected") {
         step.state = "failed";
+        // Counted, not just displayed: a later success sets `state` back to
+        // "done", and this is what keeps the failure on screen.
+        step.failures += 1;
         step.errorId = event.error_id || step.errorId;
       } else if (event.status === "started") {
         step.state = "running";
-        if (!step.startedAtMs) step.startedAtMs = event.elapsed_ms;
-      } else if (step.state !== "failed") {
+      } else {
+        // A success after a failure is a success. The failure survives in
+        // `failures` and in the substep list, which is what the audit trace
+        // is for.
         step.state = "done";
       }
       steps[index] = step;
@@ -179,9 +220,12 @@ export function reduce(view: RunView, action: Action): RunView {
 
     case "settled": {
       if (action.status.run_id !== view.runId) return view;
+      // A stage still marked running when the run settled did finish; the
+      // event that said so may simply not have reached this browser.
       const steps = view.steps.map((step) =>
         step.state === "running" ? { ...step, state: "done" as StepState } : step,
       );
+      const authoritative = authoritativeElapsedMs(action.status);
       return {
         ...view,
         steps,
@@ -190,6 +234,8 @@ export function reduce(view: RunView, action: Action): RunView {
         errorCode: action.status.error_code,
         errorId: action.status.error_id || view.errorId,
         response: action.status.final_response,
+        elapsedMs: authoritative ?? view.elapsedMs,
+        elapsedIsAuthoritative: authoritative !== null,
       };
     }
 
@@ -198,12 +244,28 @@ export function reduce(view: RunView, action: Action): RunView {
   }
 }
 
+/**
+ * The run's own elapsed time, from the server, in milliseconds.
+ *
+ * `budget.elapsed_seconds` is what the run ledger recorded. Preferring it
+ * over the last event the browser happened to receive is the difference
+ * between reporting 29.4s and reporting 0s.
+ */
+export function authoritativeElapsedMs(status: RunStatus): number | null {
+  const budget = status.budget as { elapsed_seconds?: unknown } | undefined;
+  const seconds = budget?.elapsed_seconds;
+  if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= 0) {
+    return Math.round(seconds * 1000);
+  }
+  return null;
+}
+
 /** The one-line collapsed summary. Says what is happening, or what stopped. */
 export function collapsedSummary(view: RunView): string {
-  const seconds = Math.round(view.elapsedMs / 1000);
+  const seconds = formatSeconds(view.elapsedMs);
   if (view.terminal) {
-    if (view.state === "COMPLETED") return `Answered in ${seconds}s`;
-    if (view.state === "PARTIAL") return `Partly answered in ${seconds}s`;
+    if (view.state === "COMPLETED") return `Answered in ${seconds}`;
+    if (view.state === "PARTIAL") return `Partly answered in ${seconds}`;
     if (view.state === "WAITING_FOR_USER") return "Waiting for your answer";
     if (view.state === "REFERRED") return "Referred to another area";
     if (view.state === "CANCELLED") return "Cancelled";
@@ -211,10 +273,33 @@ export function collapsedSummary(view: RunView): string {
   }
   const running = view.steps.find((s) => s.state === "running");
   const label = running?.label ?? STAGE_LABELS[view.currentStage] ?? "Working";
-  return `${label} · ${seconds}s elapsed`;
+  return `${label} · ${seconds} elapsed`;
+}
+
+/**
+ * A duration a reader can act on.
+ *
+ * Sub-second runs keep one decimal, because "0s" for a run that took 400ms
+ * reads as "nothing happened" — which is how a false trace hides.
+ */
+export function formatSeconds(ms: number): string {
+  const seconds = ms / 1000;
+  if (seconds < 10) return `${seconds.toFixed(1)}s`;
+  return `${Math.round(seconds)}s`;
 }
 
 /** The step a failure should auto-expand to. */
 export function failedStage(view: RunView): string {
-  return view.steps.find((s) => s.state === "failed")?.stage ?? "";
+  return (
+    view.steps.find((s) => s.state === "failed")?.stage ??
+    // A stage that failed and then succeeded still deserves the reader's
+    // attention when the panel opens.
+    view.steps.find((s) => s.failures > 0)?.stage ??
+    ""
+  );
+}
+
+/** Did any stage fail at any point, even if a later attempt succeeded? */
+export function hadAnyFailure(view: RunView): boolean {
+  return view.steps.some((step) => step.failures > 0);
 }

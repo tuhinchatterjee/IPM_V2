@@ -24,7 +24,7 @@ environment.
 | **G3** bounded recovery | **PASS** | tool-history ordering proven on the stored canonical history; a real model-authored repair after a truthful diagnostic; every counter exercised against the live loop |
 | **G4** reliable delivery | **PASS** | persist-before-publish; reconnect replays without a second paid run; supervisor settles a dead worker as INTERRUPTED; answer retrievable after a delivery failure |
 | **G5** security and evidence | **PASS** | domain, tenant and artifact isolation; six SQL escape attempts refused; secrets redacted on the way in; numeric claims bound to exact stored values; no code path can trim a plan |
-| **G6** usability | **PASS (mock) · browser PARTIAL** | hideable panel with per-substep detail and auto-expansion of the failed step; one-command start/status/stop. Rendering is covered by reducer unit tests; a Playwright pass is outstanding. |
+| **G6** usability | **PASS (mock, in a real browser)** | hideable panel with per-substep detail and auto-expansion of the failed step; one-command start/status/stop. 14/14 real-Chromium tests against the real UI, including that the panel shows real stages rather than "not started" at 0s, that the answer renders as Markdown, and that a failed attempt stays visible after a later one succeeds. |
 | **G7** comparative live evidence | **BLOCKED** | requires an authorized paid run |
 
 **Verdict: READY_FOR_CONTROLLED_UAT, not production-ready.** G7 is
@@ -136,8 +136,36 @@ false claim the case exists to prevent.
 (`docs/cockpit_v4/ACCEPTANCE_CASES.json`), each with the test that asserts it
 and its label. **Every case's `real_provider` field reads `NOT RUN`.**
 
-138 backend tests and 9 frontend reducer tests pass. Zero failures, zero
-errors, zero skips.
+At handoff:
+
+| Suite | Result |
+|---|---:|
+| V4 backend (`tests/cockpit_v4`) | 292 passed, 0 failed |
+| Frontend unit (`npm test`, 38 suites) | 459 passed, 0 failed |
+| Real Chromium (`browser_evidence.py`) | 14 / 14 passed |
+| V3 regression (`tests/cockpit_agentic`) | 564 passed, 26 skipped, 0 failed |
+| Acceptance coverage | 100 / 100 |
+
+Zero failures and zero errors throughout. The 26 V3 skips are V3's own,
+pre-existing and unchanged.
+
+## Product Help — MOCK ANALYST, GROUNDED PACK
+
+Product Help is now answered from the Product Knowledge Pack
+(`2026-09-11.1`, ingested from the 14-page functionality deck, source SHA256
+`bdb3ce5d…`), not from the model's recollection. The ~924-token synopsis sits
+in the starting context, so **"Who are you?" costs exactly one model call and
+no tool call**.
+
+`test_product_help_benchmark.py` runs 30 product questions with 81 assertions,
+covering: the seven functionalities; the senior-credit-officer framing; that
+no answer describes the current runtime as multi-agent (slide 14 is recorded
+as `HISTORICAL_ARCHITECTURE` and is not retrievable); that deck figures are
+never presented as live portfolio values; and that a broad product answer
+carries no schema inventories, route names or release identifiers.
+
+This is grounding and framing evidence against a **stubbed** analyst. It is not
+evidence about what Opus will write. That still needs G7.
 
 ## What a paid live commissioning run would need
 

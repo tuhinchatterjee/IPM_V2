@@ -77,16 +77,60 @@ def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
                f"WHERE reporting_quarter = '{quarter}' "
                f"GROUP BY sector_name ORDER BY ead_crore DESC")
 
+    #: A product-help answer in the shape a real one takes: Markdown, and
+    #: every optional field left null, because there is no clarification and
+    #: no referral. Sending null here is the payload that used to be refused.
+    HELP_NARRATIVE = """# CreditProbe AI
+
+CreditProbe is an intelligent credit-investigation layer for risk teams. It helps a senior credit officer move from seeing a risk signal to understanding why it matters, deciding what should happen next, and aligning the organisation around the evidence.
+
+## The problem CreditProbe addresses
+
+Credit teams usually have plenty of information — exposure, ECL, ratings, financials, covenants, collateral, behavioural signals and committee material. The difficulty is connecting those pieces quickly enough to answer:
+
+- Where is risk building?
+- Why is it happening?
+- Which borrowers matter?
+- What should the committee discuss?
+
+## How CreditProbe helps
+
+**Cockpit** — interrogate the recorded credit book, identify movement and explain drivers.
+
+**Early Warning** — identify emerging deterioration using behavioural, financial, external and relationship evidence.
+
+**What-If** — test prospective shocks and understand portfolio impact.
+
+Together: **Detect → Diagnose → Decide → Drive Alignment.**
+
+The senior credit officer remains accountable for judgement and approval; CreditProbe accelerates the investigation and connects the evidence.
+
+This environment uses synthetic demonstration data rather than a real bank portfolio."""
+
     def help_answer():
         return ScriptedResult(tool_calls=[tool_call(
-            "finalize_response",
-            final(intent=intent("PRODUCT_HELP", "COCKPIT",
-                                understood="who this assistant is"),
-                  narrative=("I am CreditProbe Cockpit. I analyse the "
-                             "recorded corporate credit book and answer "
-                             "questions about CreditProbe itself."),
-                  coverage=[{"subquestion": "who are you",
-                             "status": "answered", "evidence_refs": []}]),
+            "finalize_response", {
+                "intent": {
+                    "query_mode": "PRODUCT_HELP", "owner": "COCKPIT",
+                    "understood_request": "who this assistant is",
+                    "response_language": "en",
+                    "ambiguities": None, "excluded_parts": None,
+                    "public_rationale": "Answering from product knowledge."},
+                "disposition": "answer",
+                "narrative": HELP_NARRATIVE,
+                "coverage": None, "numeric_claims": None,
+                "evidence_refs": None, "tables": None, "charts": None,
+                "limitations": None,
+                "suggested_questions": [
+                    {"question": "What does Early Warning do?",
+                     "required_fields": [], "required_quarters": [],
+                     "kind": "product_help"},
+                    {"question": "How do Cockpit and What-If differ?",
+                     "required_fields": [], "required_quarters": [],
+                     "kind": "product_help"}],
+                "clarification_question": None,
+                "clarification_options": None,
+                "referral_owner": None, "referral_reason": None},
             "tu-help")])
 
     def analysis_call():
@@ -188,6 +232,34 @@ def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
             # BEFORE the answer, which is the property under test.
             time.sleep(1.0)
 
+            if "retry once" in question:
+                # A genuinely invalid first answer, then a correct one. This
+                # is the shape of the recorded live run: the panel must keep
+                # the failed attempt visible after the retry succeeds.
+                if turn == 0:
+                    return ScriptedResult(tool_calls=[tool_call(
+                        "finalize_response", {
+                            "intent": {
+                                "query_mode": "PRODUCT_HELP",
+                                "owner": "COCKPIT",
+                                "understood_request": "x",
+                                "response_language": "en",
+                                "ambiguities": None, "excluded_parts": None,
+                                "public_rationale": "r"},
+                            "disposition": "answer",
+                            # Refers to a claim it never supplies: a real
+                            # contract failure, not a null optional field.
+                            "narrative": "Exposure is {{claim.missing}}.",
+                            "coverage": None, "numeric_claims": None,
+                            "evidence_refs": None, "tables": None,
+                            "charts": None, "limitations": None,
+                            "suggested_questions": None,
+                            "clarification_question": None,
+                            "clarification_options": None,
+                            "referral_owner": None,
+                            "referral_reason": None},
+                        "tu-bad")])
+                return help_answer()
             if "fail" in question:
                 raise KeyError("a scripted application defect")
             if "slow" in question:

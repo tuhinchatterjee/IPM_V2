@@ -19,55 +19,83 @@
       "description": "Use typed claim placeholders for numeric portfolio findings."
     },
     "coverage": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "$ref": "#/$defs/Coverage"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "numeric_claims": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "$ref": "#/$defs/NumericClaim"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "evidence_refs": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "$ref": "#/$defs/EvidenceRef"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "tables": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "$ref": "#/$defs/Table"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "charts": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "$ref": "#/$defs/Chart"
       },
       "minItems": 0,
-      "maxItems": 3
+      "maxItems": 3,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "limitations": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "suggested_questions": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "$ref": "#/$defs/Suggestion"
       },
       "minItems": 0,
-      "maxItems": 3
+      "maxItems": 3,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "clarification_question": {
       "type": [
@@ -76,11 +104,15 @@
       ]
     },
     "clarification_options": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "referral_owner": {
       "type": [

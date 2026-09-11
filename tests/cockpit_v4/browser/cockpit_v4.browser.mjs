@@ -233,7 +233,7 @@ await test("the final answer renders with its disposition", async () => {
     const disposition = await panel.getAttribute("data-disposition");
     assert.equal(disposition, "answer");
     const text = await panel.textContent();
-    assert.match(text ?? "", /CreditProbe Cockpit/);
+    assert.match(text ?? "", /CreditProbe/);
 
     // The authoritative status was read, not guessed.
     assert.ok(
@@ -382,6 +382,205 @@ await test("no request from the page goes to the legacy backend port",
     }
   },
 );
+
+// ---- the trace, the rendering and the one-generation contract ---------
+
+await test("the process panel shows real stages, not 'not started' at 0s",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await expect(page, '[data-testid="v4-process-panel"]', 30_000, problems);
+      await page.click('[data-testid="v4-toggle-process"]');
+      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+
+      const steps = await page.$$eval(
+        '[data-testid="v4-process-steps"] li',
+        (nodes) => nodes.map((n) => n.textContent ?? ""),
+      );
+      const notStarted = steps.filter((s) => /not started/.test(s));
+      assert.equal(
+        notStarted.length,
+        0,
+        `every stage the run reached must be marked; still "not started": ` +
+          JSON.stringify(notStarted),
+      );
+
+      const summary = await page.textContent('[data-testid="v4-process-summary"]');
+      assert.match(summary ?? "", /Answered in/);
+      assert.doesNotMatch(
+        summary ?? "",
+        /Answered in 0s/,
+        "a run that took real time must not report 0s — the recorded live " +
+          "run showed 29.4s on the backend and 0s in the browser",
+      );
+
+      // Substeps live inside an expanded step, so open one. Each carries a
+      // backend event with its own timing.
+      const stepButtons = await page.$$(
+        '[data-testid="v4-process-steps"] li button',
+      );
+      assert.ok(stepButtons.length >= 1, "the panel lists stages");
+      // Only click a step that is CLOSED. The panel auto-expands the stage
+      // that failed, and toggling it would close the very thing under test.
+      for (const button of stepButtons) {
+        if (await button.isDisabled()) continue;
+        if ((await button.getAttribute("aria-expanded")) !== "true") {
+          await button.click();
+        }
+      }
+      const substeps = await page.$$eval(
+        '[data-testid="v4-substep"]',
+        (nodes) => nodes.map((n) => n.textContent ?? ""),
+      );
+      assert.ok(substeps.length >= 3,
+        `expected several real substeps, got ${substeps.length}`);
+      assert.ok(
+        substeps.some((s) => /\d+\.\ds/.test(s)),
+        "each substep carries the time it happened at",
+      );
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("the answer renders as Markdown, with no raw syntax left over",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await expect(page, '[data-testid="v4-markdown"]', 10_000, problems);
+
+      const headings = await page.$$eval(
+        '[data-testid="v4-markdown"] h2',
+        (nodes) => nodes.map((n) => n.textContent ?? ""),
+      );
+      assert.ok(headings.length >= 1, "headings render as headings");
+
+      const strong = await page.$$('[data-testid="v4-markdown"] strong');
+      assert.ok(strong.length >= 1, "bold renders as bold");
+
+      const bullets = await page.$$('[data-testid="v4-markdown"] li');
+      assert.ok(bullets.length >= 1, "bullets render as list items");
+
+      const rendered = await page.textContent('[data-testid="v4-markdown"]');
+      assert.doesNotMatch(rendered ?? "", /\*\*/,
+        "no raw ** may reach the reader");
+      assert.doesNotMatch(rendered ?? "", /^#{1,4}\s/m,
+        "no raw heading syntax may reach the reader");
+
+      // And nothing on this path builds HTML from the answer.
+      const injected = await page.$$('[data-testid="v4-markdown"] script');
+      assert.equal(injected.length, 0);
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("suggested-question chips stay interactive UI, not Markdown",
+  async () => {
+    const { context, page, requests, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+
+      const chips = await page.$$('[data-testid="v4-response"] button');
+      assert.ok(chips.length >= 1, "the answer offers next questions as chips");
+      const label = (await chips[chips.length - 1].textContent()) ?? "";
+      await chips[chips.length - 1].click();
+
+      // Clicking a chip starts a NEW V4 run, not a legacy submission.
+      await page.waitForFunction(
+        () => {
+          const el = document.querySelector('[data-testid="v4-process-summary"]');
+          return /elapsed|Answered/.test(el?.textContent ?? "");
+        },
+        { timeout: 30_000 },
+      );
+      assertNoLegacyCalls(requests, `after clicking the chip "${label}"`);
+      assert.ok(
+        calls(requests, "/api/v1/cockpit-v4/runs").length >= 2,
+        "a chip asks through the V4 run API",
+      );
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("a failed attempt stays visible after a later attempt succeeds",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "retry once then answer");
+      await expect(page, '[data-testid="v4-response"]', 90_000, problems);
+
+      // The stage-level note is visible as soon as the panel is open: a
+      // later success must not erase the earlier failure.
+      const note = await expect(
+        page, '[data-testid^="v4-step-failures-"]', 20_000, problems,
+      );
+      // One or more: a rejected answer emits both `answer.validated`
+      // (rejected) and `tool.failed`, and both are genuine failed events.
+      assert.match(
+        (await note.textContent()) ?? "",
+        /\d+ attempts? failed here/,
+        "the stage says how many attempts failed there",
+      );
+
+      // And the failed attempt itself is still in the substeps.
+      const stepButtons = await page.$$(
+        '[data-testid="v4-process-steps"] li button',
+      );
+      // Only click a step that is CLOSED. The panel auto-expands the stage
+      // that failed, and toggling it would close the very thing under test.
+      for (const button of stepButtons) {
+        if (await button.isDisabled()) continue;
+        if ((await button.getAttribute("aria-expanded")) !== "true") {
+          await button.click();
+        }
+      }
+      const failedSubsteps = await page.$$eval(
+        '[data-testid="v4-substep"][data-status="rejected"], ' +
+          '[data-testid="v4-substep"][data-status="failed"]',
+        (nodes) => nodes.map((n) => n.textContent ?? ""),
+      );
+      assert.ok(
+        failedSubsteps.length >= 1,
+        "the earlier failed attempt must remain on screen after the retry " +
+          "succeeded",
+      );
+
+      // The run still ended as a real answer.
+      const panel = await page.$('[data-testid="v4-response"]');
+      assert.equal(await panel?.getAttribute("data-disposition"), "answer");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+// A picture of the rendered answer, so "polished" is inspectable rather than
+// asserted. Written only when a path is given.
+if (process.env.V4_BROWSER_SCREENSHOT) {
+  const { context, page, problems } = await openCockpit(browser);
+  try {
+    await ask(page, "Who are you?");
+    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+    await page.click('[data-testid="v4-toggle-process"]');
+    await page.setViewportSize({ width: 900, height: 1400 });
+    await page.screenshot({
+      path: process.env.V4_BROWSER_SCREENSHOT,
+      fullPage: true,
+    });
+    console.log(`  screenshot ${process.env.V4_BROWSER_SCREENSHOT}`);
+  } finally {
+    await context.close();
+  }
+}
 
 await browser.close();
 

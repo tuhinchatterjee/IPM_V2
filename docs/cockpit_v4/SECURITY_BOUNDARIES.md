@@ -127,3 +127,31 @@ Published real data may not be sent to a provider without the deployment's
 approval. Permission to use the synthetic demo release is not permission to
 send bank data. Nothing in V4 asserts a regulatory certification or a
 bank-approved credit policy.
+
+## Rendered answers
+
+The answer panel renders Markdown. It does **not** build an HTML string.
+`markdown-parse.ts` parses the text into a plain data tree and `markdown.tsx`
+maps that tree to React elements, so there is no `dangerouslySetInnerHTML`
+anywhere on the path and nothing to sanitize — raw HTML in an answer is text,
+not markup. Link targets go through `safeHref`, which allow-lists `https:`,
+`http:`, `mailto:`, a site-relative `/` and an in-page `#`, and drops
+everything else (`javascript:` and `data:` included) rather than rendering an
+inert-looking link.
+
+No new rendering dependency was added. The frontend had no safe Markdown
+renderer to reuse, and pulling one in for this would have widened the
+dependency surface for a parser that fits in two files.
+
+## The Product Knowledge Pack
+
+The pack is product documentation, generated once from the functionality deck
+by `scripts/cockpit_v4/ingest_product_deck.py` and committed for review. It
+carries no credential, no connection string, no tenant identifier, no customer
+name and no real portfolio figure — the numbers in it are the deck's own
+illustrations and are labelled as such, so the analyst cannot present one as a
+live value.
+
+It is also not an instruction channel. Retrieved sections reach the model as
+tool results, under the same rule as dataset text: content is content, never a
+directive.

@@ -3,8 +3,8 @@
   "note": "The analyst model is a stub. This proves the wiring, the run lifecycle and the rendering. It is NOT a live Opus validation.",
   "ui": "http://127.0.0.1:5471",
   "api": "http://127.0.0.1:8471",
-  "total": 10,
-  "passed": 10,
+  "total": 14,
+  "passed": 14,
   "failed": 0,
   "forbidden_endpoints_checked": [
     "/api/v1/investigations",
@@ -19,52 +19,72 @@
     {
       "name": "asking 'Who are you?' posts to the V4 run API and never to the legacy flow",
       "ok": true,
-      "ms": 2521
+      "ms": 3690
     },
     {
       "name": "the process panel appears and consumes the V4 event stream",
       "ok": true,
-      "ms": 2044
+      "ms": 2106
     },
     {
       "name": "progress events are rendered before the answer arrives",
       "ok": true,
-      "ms": 2094
+      "ms": 2103
     },
     {
       "name": "the final answer renders with its disposition",
       "ok": true,
-      "ms": 1992
+      "ms": 2444
     },
     {
       "name": "an evidence-bound analysis renders artifact links",
       "ok": true,
-      "ms": 3024
+      "ms": 3020
     },
     {
       "name": "a terminal failure renders explicitly with a support reference",
       "ok": true,
-      "ms": 1964
+      "ms": 1966
     },
     {
       "name": "stop cancels the run through the V4 cancel endpoint",
       "ok": true,
-      "ms": 1800
+      "ms": 1815
     },
     {
       "name": "a browser refresh replays the same run instead of re-asking",
       "ok": true,
-      "ms": 1032
+      "ms": 1068
     },
     {
       "name": "optional landing widgets show a neutral state and request nothing",
       "ok": true,
-      "ms": 592
+      "ms": 600
     },
     {
       "name": "no request from the page goes to the legacy backend port",
       "ok": true,
-      "ms": 5477
+      "ms": 5527
+    },
+    {
+      "name": "the process panel shows real stages, not 'not started' at 0s",
+      "ok": true,
+      "ms": 2186
+    },
+    {
+      "name": "the answer renders as Markdown, with no raw syntax left over",
+      "ok": true,
+      "ms": 1976
+    },
+    {
+      "name": "suggested-question chips stay interactive UI, not Markdown",
+      "ok": true,
+      "ms": 2013
+    },
+    {
+      "name": "a failed attempt stays visible after a later attempt succeeds",
+      "ok": true,
+      "ms": 3613
     }
   ]
 }

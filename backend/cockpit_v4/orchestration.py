@@ -34,7 +34,9 @@ from backend.cockpit_v4.contracts import (BATCHABLE, MAX_BATCHED_READS,
                                           TOOL_NAMES, TOOL_READ,
                                           parse_artifact, parse_catalog,
                                           parse_execution, parse_final,
-                                          parse_intent)
+                                          parse_intent,
+                                          parse_product_knowledge,
+                                          TOOL_PRODUCT, units_display)
 from backend.cockpit_v4.execute_tool import (ExecutionService,
                                              no_progress_key)
 from backend.cockpit_v4.finalization import Finalizer
@@ -83,6 +85,9 @@ class Orchestrator:
     #: Set once the analyst has been told to correct only its answer.
     answer_only: bool = False
     executed: bool = False
+    #: Product-knowledge reads are cheap and bounded separately from the
+    #: catalog: they touch no borrower data and open no analysis round.
+    product_calls: int = 0
     intent: Any = None
     _version: int = 0
 
@@ -339,6 +344,8 @@ class Orchestrator:
         try:
             if call.name == TOOL_INSPECT:
                 return self._do_catalog(call)
+            if call.name == TOOL_PRODUCT:
+                return self._do_product_knowledge(call)
             if call.name == TOOL_READ:
                 return self._do_artifact(call)
             if call.name == TOOL_EXECUTE:
@@ -388,6 +395,47 @@ class Orchestrator:
                 "requested_relations": list(request.relation_ids),
                 "detail": list(request.detail),
                 "receipt": result.get("metadata_receipt_id")}))
+        return None
+
+    # -- inspect_product_knowledge ---------------------------------------
+
+    def _do_product_knowledge(self, call) -> None:
+        """Return product facts. Available in every mode.
+
+        Reading what the product is is not analysis, so this does not require
+        a declared data analysis and does not consume the catalog budget: a
+        product-help question must be able to reach it without pretending to
+        be something it is not.
+        """
+        from backend.cockpit_v4 import product_knowledge as pk
+
+        request = parse_product_knowledge(call.arguments)
+        self._record_intent(request.intent)
+        self.ledger.check_deadline()
+        self.product_calls += 1
+        if self.product_calls > MAX_PRODUCT_CALLS:
+            self._tool_error(
+                call, st.CALL_LIMIT,
+                f"All {MAX_PRODUCT_CALLS} product-knowledge reads for this "
+                f"run were used. Answer from what you already have, or say "
+                f"what you could not establish.")
+            return None
+        self._advance(st.TOOL_RUNNING, operation=TOOL_PRODUCT)
+        result = pk.retrieve(query=request.query, topics=request.topics,
+                             detail=request.detail)
+        result["budgets_remaining"] = self.ledger.snapshot()
+        self.analyst.tool_result(call.id, result)
+        self.emitter.append(
+            ev.TOOL_COMPLETED, stage="product_knowledge",
+            operation=TOOL_PRODUCT, status=ev.STATUS_OK,
+            public_message=(
+                f"Read product knowledge: "
+                f"{', '.join(result['topics_returned'])}."),
+            detail_ref=self._detail({
+                "query": request.query, "topics": list(request.topics),
+                "detail": request.detail,
+                "pack_version": result["pack_version"],
+                "sections": [s.get("title") for s in result["sections"]]}))
         return None
 
     # -- read_artifact ---------------------------------------------------
@@ -446,7 +494,8 @@ class Orchestrator:
             status=ev.STATUS_OK, submission=ordinal, round=round_no,
             public_message=(f"Query validated: {len(submission.steps)} "
                             f"step(s), {submission.expected_output_grain} "
-                            f"grain, {submission.expected_units}."),
+                            f"grain, "
+                            f"{units_display(submission.expected_units)}."),
             detail_ref=self._detail({
                 "objective": submission.objective,
                 "steps": [{"step_id": s.step_id, "language": s.language,
@@ -606,14 +655,20 @@ class Orchestrator:
             detail_ref=self._detail(intent.to_dict()))
 
 
+#: Product-knowledge reads a single run may make. Generous, because each is
+#: a dictionary lookup, and bounded, because nothing is unbounded.
+MAX_PRODUCT_CALLS = 4
+
+
 def _stage_for(tool: str) -> str:
-    return {TOOL_INSPECT: "catalog", TOOL_EXECUTE: "preparing",
-            TOOL_READ: "reviewing", TOOL_FINALIZE: "publishing"}.get(
-                tool, "understanding")
+    return {TOOL_INSPECT: "catalog", TOOL_PRODUCT: "product_knowledge",
+            TOOL_EXECUTE: "preparing", TOOL_READ: "reviewing",
+            TOOL_FINALIZE: "publishing"}.get(tool, "understanding")
 
 
 def _public_for(tool: str) -> str:
     return {TOOL_INSPECT: "Reading relevant data definitions",
+            TOOL_PRODUCT: "Reading product knowledge",
             TOOL_EXECUTE: "Preparing query",
             TOOL_READ: "Reading stored evidence",
             TOOL_FINALIZE: "Validating and publishing answer"}.get(

@@ -12,6 +12,7 @@
  */
 
 import { API_PREFIX, type FinalResponse } from "./client";
+import { Markdown } from "./markdown.tsx";
 import type { RunView } from "./reducer";
 
 /**
@@ -168,8 +169,8 @@ export function ResponsePanel({
         {DISPOSITION_LABEL[response.disposition] ?? response.disposition}
       </h3>
 
-      <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
-        {response.narrative}
+      <div className="mt-2">
+        <Markdown source={response.narrative} />
       </div>
 
       {response.disposition === "clarification" &&

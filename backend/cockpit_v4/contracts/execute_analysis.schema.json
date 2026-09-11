@@ -18,18 +18,26 @@
       "$ref": "#/$defs/Scope"
     },
     "metadata_receipt_ids": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "fields_required": {
-      "type": "array",
+      "type": [
+        "array",
+        "null"
+      ],
       "items": {
         "type": "string"
       },
-      "minItems": 0
+      "minItems": 0,
+      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "expected_output_grain": {
       "type": "string"

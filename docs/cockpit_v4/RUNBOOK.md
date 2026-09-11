@@ -202,9 +202,49 @@ python3 scripts/cockpit_v4/browser_evidence.py
 
 Evidence lands in `docs/cockpit_v4/evidence/browser.json`. Add `--keep-up` to
 leave the stack running afterwards for manual poking — and remember to stop it.
+Set `V4_BROWSER_SCREENSHOT=<path>` to also capture a rendered answer; the one
+committed at handoff is `docs/cockpit_v4/evidence/cockpit_v4_answer.png`.
+
+Fourteen tests. Every request the page makes is recorded, so "the page never
+calls the legacy backend" is checked rather than claimed. Four of them exist
+because the corresponding defect shipped past weaker tests once already: the
+process panel must show real stages rather than "not started" at 0s; the answer
+must render as Markdown with no raw `**` left over; the suggested-question
+chips must stay interactive UI rather than Markdown; and a failed attempt must
+remain visible after a later attempt succeeds.
 
 The analyst is a **stub**. The suite proves the wiring, the run lifecycle and
 the rendering. It is not a live Opus validation.
+
+## Product Help and the Product Knowledge Pack
+
+Product questions are answered from a versioned pack, not from the model's
+recollection.
+
+| | |
+|---|---|
+| Pack | `backend/cockpit_v4/product_knowledge.json`, version `2026-09-11.1` |
+| Source | `CreditProbe_AI_Functionality_Deck_1.pdf`, 14 pages, SHA256 `bdb3ce5d3b84317fe891512334a2470972d4182062e2438912920bbe56119e3e` |
+| Human-readable | `docs/product_knowledge/creditprobe_product_knowledge.md`, generated from the JSON |
+| Ingestion | `python3 scripts/cockpit_v4/ingest_product_deck.py` — one-time, re-run only when the deck changes |
+
+How it reaches the analyst:
+
+- A ~924-token **synopsis** is in the starting context of every run, so
+  "Who are you?" is answered in one generation with no tool call.
+- `inspect_product_knowledge` retrieves named sections for a narrower question.
+  The deck itself is never attached to a prompt.
+- Slide 14 describes an older **multi-agent** design. It is recorded as
+  `HISTORICAL_ARCHITECTURE` / `NOT_CURRENT_V4_ARCHITECTURE` and is not
+  retrievable, so the analyst cannot present it as how V4 works today.
+- Numbers in the deck are illustrations. They are labelled as such and must
+  never be quoted as a current portfolio value.
+
+To re-point Product Help at a newer deck: replace the PDF, re-run the
+ingestion script, review the regenerated Markdown, and run
+`python3 -m pytest tests/cockpit_v4/test_product_help_benchmark.py` — 30
+questions with 81 assertions over grounding, framing and what must never
+appear.
 
 ## Settings
 

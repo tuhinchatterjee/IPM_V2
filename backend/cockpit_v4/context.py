@@ -148,11 +148,18 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
         "disposition": (t.get("answer") or {}).get("disposition", ""),
     } for t in turns]
 
+    from backend.cockpit_v4 import product_knowledge as pk
+
     system_blocks: list[dict[str, Any]] = [
         # Stable prefix first, so a cache write is reusable and a changing
         # budget cannot invalidate it.
         {"type": "text", "text": analyst_instruction()},
         {"type": "text", "text": json.dumps({
+            # ~900 tokens of product facts, always present. Enough to answer
+            # "Who are you?" or "What is CreditProbe?" well in ONE
+            # generation; everything deeper is a tool call away. Attaching
+            # the whole pack would be the V3 mistake in a new costume.
+            "creditprobe": pk.synopsis(),
             "product_functionalities": _registry_compact(),
             "catalog_index": _catalog_index(catalog, scope),
             "catalog_index_note": (

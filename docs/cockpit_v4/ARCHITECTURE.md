@@ -12,6 +12,7 @@ user question
   → ┌ generation ─────────────────────────────────────────┐
     │ the analyst chooses ONE action:                     │
     │   inspect_catalog   selected metadata               │
+    │   inspect_product_knowledge  selected product facts │
     │   execute_analysis  its own exact SQL/Python        │
     │   read_artifact     exact stored evidence           │
     │   finalize_response the terminal answer             │
@@ -24,6 +25,13 @@ user question
   → optional memory maintenance, separately bounded
 ```
 
+A Product Help question — "Who are you?", "What is Early Warning?" — finishes
+in **one** generation, with no tool call at all: the ~924-token product
+synopsis is already in the starting context. Only a narrower product question
+costs a second generation, for one `inspect_product_knowledge` retrieval. The
+deck is never attached wholesale, and a figure quoted in it is an illustration,
+never a live portfolio value.
+
 Ordinary help finishes in **one** generation. A simple analysis finishes in
 **two** when the starting context already carries enough schema, or three when
 one metadata lookup is needed. Those are architectural minimums, not promises
@@ -35,6 +43,7 @@ about a particular model's behaviour or elapsed time.
 |---|---|---|
 | The analyst (Opus) | understand the original wording, choose mode and owner, choose fields and method, write and repair code, assess evidence, write the answer | grant itself permissions or budget; treat dataset text as instructions |
 | `context.py` | return exact authorized catalog/product/thread facts, paginate, redact | infer a business answer, invent a field, choose a method |
+| `product_knowledge.py` | return exact recorded sections of the versioned pack, with slide provenance | answer a product question itself; surface the historical multi-agent slide as current |
 | `contracts.py` + `execute_tool.py` | validate schema, permissions, safety, grain, limits | rewrite a query, trim a step, substitute a field, compute a substitute answer |
 | `execute_tool.py` runner | execute exactly the approved code in isolation | reach another domain, a credential, the shell, the network or host files |
 | `orchestration.py` | carry messages, match tool ids, persist state, enforce counters and deadlines | repair the plan, the code or the answer; fall back to V3 |
@@ -65,6 +74,9 @@ backend/cockpit_v4/
   catalog_tool.py    inspect_catalog: selective, complete, receipted
   execute_tool.py    execute_analysis: validate whole batch, run exactly
   artifacts.py       read_artifact: exact stored values, tenant-checked
+  product_knowledge.py       inspect_product_knowledge: the versioned pack,
+                     its always-on synopsis, and keyword retrieval over it
+  product_knowledge.json     the Product Knowledge Pack (generated, reviewed)
   finalization.py    evidence binding and numeric-claim rendering
   orchestration.py   the single analyst loop
   worker.py          lease claimant and dispatch
@@ -86,16 +98,28 @@ frontend/src/components/cockpit-v4/
   cockpit-v4-home.tsx  the Cockpit page in a V4 runtime
   cockpit-v4.tsx       the Ask surface: question, mode, Ask, Stop, replay
   not-in-this-runtime.tsx  the neutral state for an absent optional widget
-  client.ts          start/status/events/cancel/artifacts, bounded reconnect
-  reducer.ts         run-id and sequence fenced UI state
+  client.ts          start/status/events/cancel/artifacts, bounded reconnect;
+                     subscribes to every *named* SSE frame, not just onmessage
+  reducer.ts         run-id and sequence fenced UI state, substeps, failures,
+                     and server-authoritative elapsed time
   process-panel.tsx  the hideable live trace
   response-panel.tsx answer/referral/clarification/stop
-  cockpit-v4.tsx     the ask surface
+  markdown-parse.ts  Markdown -> a data tree (never an HTML string)
+  markdown.tsx       that tree -> React elements; hrefs allow-listed
+  live-run-fixture.ts  the 15 recorded events of a real 29.4s run, so the
+                     panel is tested against a trace that actually happened
 
 scripts/cockpit_v4/
   start.py status.py stop.py  + three .command wrappers
   seed_release.py             isolated synthetic release
   live_path_evidence.py       real socket/SSE evidence capture
+  ingest_product_deck.py      one-time deck -> Product Knowledge Pack
+  browser_evidence.py         brings the stack up and runs real Chromium
+  stub_server.py              a scripted analyst, for tests only
+
+docs/product_knowledge/
+  creditprobe_product_knowledge.md  the human-reviewable rendering of the pack,
+                     generated from the JSON so the two cannot drift
 ```
 
 ## Three properties that were built, not asserted

@@ -83,6 +83,45 @@ export type FinalResponse = {
 
 export const API_PREFIX = "/api/v1/cockpit-v4";
 
+/**
+ * Every event type the backend emits, by name.
+ *
+ * This list is load-bearing, not documentation. The server sends NAMED SSE
+ * frames (`event: run.accepted`), and `EventSource.onmessage` fires only for
+ * frames whose name is `message` or absent. Without a listener per name the
+ * browser silently discards every analytical event and keeps only the ones it
+ * was explicitly told to listen for — which is exactly how a run with fifteen
+ * correctly persisted events rendered as "Answered in 0s" with every stage
+ * still marked "not started".
+ *
+ * Kept in step with `backend/cockpit_v4/events.py:EVENT_TYPES`; a test
+ * asserts the two agree, so a new backend event cannot go unrendered.
+ */
+export const EVENT_TYPES = [
+  "run.accepted",
+  "run.started",
+  "context.ready",
+  "model.requested",
+  "model.response_received",
+  "model.parsed",
+  "intent.validated",
+  "tool.requested",
+  "tool.validated",
+  "tool.started",
+  "tool.completed",
+  "tool.failed",
+  "retry.requested",
+  "answer.validated",
+  "answer.ready",
+  "run.failed",
+  "run.cancelled",
+  "run.expired",
+  "run.interrupted",
+  "memory.started",
+  "memory.completed",
+  "memory.failed",
+] as const;
+
 export type RunMode = "standard" | "deep";
 
 /**
@@ -332,13 +371,16 @@ export function watch(
       }
     });
 
-    source.onmessage = (raw) => {
+    const deliver = (raw: MessageEvent) => {
       let event: RunEvent;
       try {
         event = JSON.parse(raw.data) as RunEvent;
       } catch {
         return;
       }
+      // A replayed or duplicated event is not new information. Applying it
+      // twice would double-count a substep and move elapsed time backwards.
+      if (event.seq <= cursor) return;
       // A gap means events were missed, not that they did not happen. The
       // authoritative status is re-read rather than reconstructed.
       if (event.seq > cursor + 1 && cursor !== 0) {
@@ -347,6 +389,12 @@ export function watch(
       cursor = Math.max(cursor, event.seq);
       handlers.onEvent(event);
     };
+
+    // A listener per named event, plus `onmessage` for any unnamed frame.
+    for (const name of EVENT_TYPES) {
+      source.addEventListener(name, (raw) => deliver(raw as MessageEvent));
+    }
+    source.onmessage = deliver;
 
     source.onerror = () => {
       source?.close();

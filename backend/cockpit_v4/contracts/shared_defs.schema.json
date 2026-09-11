@@ -34,18 +34,26 @@
           "type": "string"
         },
         "ambiguities": {
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "items": {
             "type": "string"
           },
-          "minItems": 0
+          "minItems": 0,
+          "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         },
         "excluded_parts": {
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "items": {
             "type": "string"
           },
-          "minItems": 0
+          "minItems": 0,
+          "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         },
         "public_rationale": {
           "type": "string",
@@ -282,11 +290,15 @@
           ]
         },
         "evidence_refs": {
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "items": {
             "$ref": "#/$defs/EvidenceRef"
           },
-          "minItems": 0
+          "minItems": 0,
+          "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         }
       },
       "required": [
@@ -314,24 +326,36 @@
           "description": "Exact Opus-authored source. Reject invalid/oversized input; never edit or truncate."
         },
         "parameters": {
-          "type": "object"
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         },
         "purpose": {
           "type": "string"
         },
         "input_artifact_ids": {
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "items": {
             "type": "string"
           },
-          "minItems": 0
+          "minItems": 0,
+          "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         },
         "depends_on_step_ids": {
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "items": {
             "type": "string"
           },
-          "minItems": 0
+          "minItems": 0,
+          "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         }
       },
       "required": [
