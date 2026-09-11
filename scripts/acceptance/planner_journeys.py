@@ -381,8 +381,14 @@ def _journey_e(page: Any, report: Report, project_id: int) -> None:
                  any(name in body for name in
                      ("Priya", "Daniel", "Tom", "Samir", "Amina")),
                  "no author name appeared on any update")
+    # Prose, rather than two particular words. The earlier version looked
+    # for "steering" or "extraction", which are words one seeded programme
+    # happens to use: rebuilding the demonstration portfolio changed the
+    # wording and this failed on a fixture rather than on the product. What
+    # the check is FOR is that an update is a sentence somebody wrote and not
+    # a status token, so that is what it asks.
     report.check("E", "a seeded narrative is visible",
-                 "steering" in body.lower() or "extraction" in body.lower(),
+                 bool(re.search(r"[A-Za-z][^\n]{39,}\.", body)),
                  body[-400:])
     report.check("E", "somewhere to post an update", "Say something" in body)
 

@@ -34,6 +34,28 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _tidy_domain():
+    """Take "Test Domain" away with the module, for the same reason as above.
+
+    The datasets are cleaned; the domain they were filed under never was, and
+    a domain row left behind makes the governed catalogue advertise eight
+    business domains where seven are real. `tests/proof` asserts exactly that
+    — so leaking this one fails an unrelated suite, permanently, on a shared
+    database.
+    """
+    yield
+    from sqlalchemy import delete
+
+    from backend.db.engine import get_session
+    from backend.models.platform import DataDomain
+
+    with get_session() as session:
+        session.execute(delete(DataDomain).where(
+            DataDomain.name == "Test Domain"))
+        session.commit()
+
+
 @pytest.fixture()
 def dataset_name():
     """A unique dataset per test, removed afterwards.
