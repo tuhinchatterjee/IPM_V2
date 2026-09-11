@@ -271,6 +271,14 @@ class Analyst:
                 # Every HTTP attempt must pass through the ledger, so the
                 # SDK is not allowed to retry behind our back.
                 allow_retry=False)
+        except BudgetExceeded:
+            # OUR accounting refused the attempt, so nothing was sent and
+            # nothing can have been billed. Settled at zero, and the budget
+            # code is passed through: a run that used its attempt allowance
+            # stopped on CALL_LIMIT, and reporting that as an outage sends an
+            # operator looking for a provider that is working perfectly.
+            self.ledger.settle(reservation, usage={}, uncertain=False)
+            raise
         except Exception as exc:  # noqa: BLE001
             # The request may have reached the provider and been billed.
             # Held pending, never booked as zero.
@@ -380,7 +388,15 @@ def _classify(exc: Exception) -> ProviderFailure:
     looking for an outage while the actual fault was in the schema
     CreditProbe published, and nothing in the trace said the request had been
     rejected BEFORE any inference.
+
+    A failure that ALREADY carries a code is returned untouched. Re-reading
+    its message would throw away a classification made by the layer that had
+    the provider's own response in hand, and re-derive a worse one from the
+    string: that is exactly how a rejected credential or a rate limit ends up
+    reported as an outage.
     """
+    if isinstance(exc, ProviderFailure):
+        return exc
     text = str(exc)
     lowered = text.lower()
     name = type(exc).__name__.lower()

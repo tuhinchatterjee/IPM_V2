@@ -61,6 +61,13 @@ class Outcome:
     error_id: str = ""
     response: dict[str, Any] | None = None
     message: str = ""
+    #: True when the orchestrator has already emitted the run's terminal
+    #: failure event, with the stage it actually failed at. The worker then
+    #: does not emit a second one. Two RUN_FAILED events for one run read as
+    #: two failures, and the second always says "publishing" -- which is the
+    #: exact misreading that sent an operator hunting for a delivery problem
+    #: while the provider had refused the request before any inference.
+    terminal_event_emitted: bool = False
 
 
 #: Which disposition settles into which terminal state.
@@ -159,13 +166,29 @@ class Orchestrator:
         except (StorageUnavailable, LeaseLost, TerminalAlready) as exc:
             # No further paid or executable operation is launched when the
             # store cannot commit or this worker has been fenced.
+            #
+            # The reference is minted in memory, because the store is exactly
+            # what may be unavailable. It reaches the reader through the
+            # outcome whether or not the event can be written, and the event
+            # is attempted rather than assumed: a store that is merely
+            # refusing one table can still record why the run stopped.
+            fenced = isinstance(exc, (LeaseLost, TerminalAlready))
+            error_id = f"err-{uuid.uuid4().hex[:12]}"
+            message = f"{exc} Reference {error_id}."
+            if not fenced:
+                try:
+                    self.emitter.append(
+                        ev.RUN_FAILED, stage="publishing",
+                        operation=st.STORAGE_UNAVAILABLE.lower(),
+                        status=ev.STATUS_FAILED, error_id=error_id,
+                        public_message=message)
+                except Exception:                             # noqa: BLE001
+                    pass
             return Outcome(
-                st.INTERRUPTED if isinstance(exc, (LeaseLost, TerminalAlready))
-                else st.FAILED,
-                error_code=(st.WORKER_LOST
-                            if isinstance(exc, (LeaseLost, TerminalAlready))
-                            else st.STORAGE_UNAVAILABLE),
-                message=str(exc))
+                st.INTERRUPTED if fenced else st.FAILED,
+                error_code=st.WORKER_LOST if fenced else st.STORAGE_UNAVAILABLE,
+                error_id=error_id, message=message,
+                terminal_event_emitted=not fenced)
         except Exception as exc:  # noqa: BLE001
             # An application defect. Recorded under an error id that is
             # PERSISTED (V3's was only ever written to a log line), with the
@@ -208,7 +231,7 @@ class Orchestrator:
             public_message=(
                 f"{str(exc)} Reference {error_id}."))
         return Outcome(st.FAILED, error_code=exc.code, error_id=error_id,
-                       message=str(exc))
+                       message=str(exc), terminal_event_emitted=True)
 
     def _stop(self, code: str, message: str) -> Outcome:
         """A mechanical stop, generated from the error record.
@@ -220,6 +243,13 @@ class Orchestrator:
         interesting fact. A run that hit a binder failure, retried, and then
         ran out of time stops as DEADLINE_EXPIRED -- and "what went wrong
         first" is the binder failure. Both are reported.
+
+        An OPERATOR-class stop also mints a reference. Rephrasing the question
+        will not fix a rejected credential, an unprepared state database or a
+        missing model configuration, so the reader needs something to quote to
+        somebody who can fix it. Those codes reached this path without one,
+        which left the person in front of the screen with nothing to carry to
+        an operator.
         """
         self.ledger.cancel()
         if self.first_failure:
@@ -231,15 +261,21 @@ class Orchestrator:
                                       st.ROUND_LIMIT):
             # Verified partial evidence exists; it is preserved and labelled.
             state = st.PARTIAL
+        error_id = ""
+        if code in st.OPERATOR_CODES and state != st.PARTIAL:
+            error_id = f"err-{uuid.uuid4().hex[:12]}"
+            message = f"{message} Reference {error_id}."
         self.emitter.append(
             ev.RUN_EXPIRED if state == st.EXPIRED else ev.RUN_FAILED,
             stage="publishing", operation=code.lower(),
             status=ev.STATUS_FAILED, public_message=message,
+            error_id=error_id,
             detail_ref=(self._detail({"terminal_code": code,
                                       "first_analytical_failure":
                                       self.first_failure})
                         if self.first_failure else ""))
-        return Outcome(state, error_code=code, message=message)
+        return Outcome(state, error_code=code, error_id=error_id,
+                       message=message, terminal_event_emitted=True)
 
     def _loop(self) -> Outcome:
         self.emitter.append(

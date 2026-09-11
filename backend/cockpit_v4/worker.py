@@ -215,7 +215,10 @@ class Worker:
                 ev.ANSWER_READY, stage="publishing", operation="publish",
                 status=ev.STATUS_OK,
                 public_message="Answer ready.")
-        elif outcome.state not in (st.CANCELLED,):
+        elif (outcome.state not in (st.CANCELLED,)
+              and not outcome.terminal_event_emitted):
+            # Only when the orchestrator has not already said so, and said it
+            # at the stage the run actually stopped at.
             emitter.append(
                 ev.RUN_EXPIRED if outcome.state == st.EXPIRED
                 else ev.RUN_FAILED,
