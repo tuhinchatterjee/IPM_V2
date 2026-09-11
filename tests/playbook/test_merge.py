@@ -38,8 +38,9 @@ def parsed(markdown: str) -> D.Document:
     """Every fixture through one parse, so a difference in the test setup can
     never be mistaken for a difference the merge produced.
 
-    Note the parser emits an empty leading section for the H1 title; parsing
-    both sides the same way is what keeps that out of the comparisons.
+    The parser consumes the H1 as the document's title rather than emitting a
+    section for it, so these fixtures have exactly the sections they read as
+    having.
     """
     return D.parse(markdown, title=TITLE)
 

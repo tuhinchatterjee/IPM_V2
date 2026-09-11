@@ -235,8 +235,15 @@ def parse(markdown: str, *, title: str = "") -> Document:
         heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if heading:
             level, text = len(heading.group(1)), heading.group(2).strip()
-            if level == 1 and not doc.title and not doc.sections and not current.blocks:
-                doc.title = text
+            # The leading H1 is the document's title, not its first section —
+            # including when the caller already supplied that title. Without
+            # the second clause a round-trip through Markdown (which writes
+            # "# {title}") comes back with a phantom empty section named after
+            # the document, which then reads as a section the model added.
+            at_the_top = not doc.sections and not current.blocks
+            if level == 1 and at_the_top and (
+                    not doc.title or _normalise(text) == _normalise(doc.title)):
+                doc.title = doc.title or text
                 current = Section(heading="", level=1)
                 continue
             close_section()

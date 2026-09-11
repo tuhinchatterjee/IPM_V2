@@ -353,6 +353,77 @@ after their check line had printed. Durations are now named separately —
 `provider_ms`, `authoring_ms`, `render_ms`, `check_ms`, `suite_ms` — measured on
 one clock, and a test asserts they nest.
 
+## The second targeted live re-run
+
+Against `c68dfa1`. The latency architecture held — PB-015 completed in 90.6s
+where it had timed out at 281s, with authoring and rendering timed separately —
+and both remaining failures turned out to be comparison defects rather than
+model behaviour. Neither was diagnosed by reading; both were reproduced by
+executing the real parser, renderers and readers.
+
+**PB-017 — the pipeline destroyed the sections it claimed to carry forward.**
+Thirteen unrelated sections were reported as changed with before/after snippets
+that read identically. Two independent causes, and the answer to "did the
+canonical content actually change" is yes for the first and no for the second.
+
+*The merge base was not the approved version.* `_current_document` returned the
+stored version re-rendered to Markdown, and `_markdown_of` never re-emits the
+`[[locator]]` citation markers, `subtitle` or `meta`; parsing it back with the
+title already supplied also injected an empty section named after the document.
+Measured on a twelve-section report: eight citation locators in, zero out,
+`subtitle` and `meta` gone, thirteen sections where there had been twelve, and
+seven sections whose first differing field was `block[0].sources`. `scoped_merge`
+deep-copies its base, so that damage was carried forward and written to
+canonical storage as version 2. The base is now the stored canonical
+`Document` — `from_dict(as_dict(...))` is exact, verified by content hash and by
+every section fingerprint — and the Markdown remains what it always should have
+been, a rendering for the prompt and the thread. `parse` now consumes a leading
+H1 that matches the supplied title instead of making a section of it.
+
+*`_fingerprint` compared `repr(block.data)`.* Dict `repr` is sensitive to key
+insertion order; PostgreSQL's JSONB is not, and returns object keys in its own
+order. So every section holding a table reported as changed after a round-trip
+through storage, with nothing about the document altered — a pure representation
+difference. The comparison now serialises `data` with sorted keys, exactly as
+`Document.content_hash` always has. Values are still compared exactly; only the
+key order, which the canonical model does not preserve, is normalised.
+
+*And grounding had no scope.* It walked every section and mutated in place, so a
+revision whose ledger differed from the create-time ledger deleted figures from
+sections nobody touched — demonstrated: a bullet reading "CET1 closed at 14.9
+per cent" removed outright from an untouched section. `check()` now takes the
+set of headings the model actually drafted and records the rest as `attested`.
+Nothing about the draft is checked less strictly: sections carried forward are
+byte-identical to an approved version that was grounded when it was written, and
+re-checking them against a different ledger is a false test, not a stricter one.
+
+The live check now compares stored canonical against stored canonical, and
+prints for each differing section the canonical hash on both sides, the rendered
+text hash on both sides, the first differing field, the first differing
+character with its codepoint, and a verdict of canonical drift or render
+normalisation.
+
+**PB-015 — 10, 11 and 13 were structural numerals, not claims.** Reproduced
+byte-identically: a thirteen-item numbered list whose prose happened to carry 1
+to 9 and 12. They are the tenth, eleventh and thirteenth *markers* of that list.
+`pdf_writer` draws them as literal text (`f"{i}."`), `pypdf` reads them back as
+prose, and the canonical `Document` stores list items without their ordinals —
+so a marker can never be in the allowed set. Markers 1 to 9 and 12 escaped only
+because those digits appeared elsewhere in the report. Word was never affected:
+it writes ordinals as a list style and page numbers as `PAGE` fields, which come
+back as "Page  of" with no digits at all. Two further channels of the same class
+were found and fixed with it: `Page {n}` furniture on any PDF long enough, and
+`doc.meta`, which every writer renders and `plain_text()` omitted.
+
+The distinction is positional and never by value. A numeral is structural only
+when it is a leading ordinal whose line is a heading or ordered-list item **of
+this document**, or a line that is nothing but page furniture. Everything else
+on every line still has to be supported — in "10. SAR 10 million was drawn" the
+marker goes and the claim stays. `SAR 10 million`, `10%`, `Stage 10`, `10 basis
+points`, `10 accounts` and `10.0` are all still rejected when the document does
+not state them, and each has a test saying so beside the test that accepts the
+same digits as a marker.
+
 ## What is genuinely not done
 
 Stated here rather than left to be discovered.

@@ -18,7 +18,14 @@ consequences follow that no amount of prompting can give you:
 * unrelated sections are identical because they were never replaced — not
   "identical as far as we checked";
 * grounding only has to scrutinise the one section that actually changed, so a
-  figure elsewhere cannot be removed by a revision that never touched it.
+  figure elsewhere cannot be removed by a revision that never touched it
+  (`grounding.check` takes the scope for exactly this).
+
+Both of those depend on the base being the STORED CANONICAL version. A later
+live run showed what happens otherwise: the base was a Markdown re-render of
+the approved version, which drops every citation locator and the document's
+header block, and the merge then carried that damage forward into canonical
+storage under the name "unchanged".
 
 What this does not do
 ---------------------
@@ -30,6 +37,8 @@ exactly as before. This bounds the blast radius; it does not lower the bar.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 from dataclasses import dataclass, field
 
 from backend.playbook import document as D
@@ -51,6 +60,10 @@ class MergeResult:
     document: D.Document
     #: The heading actually edited, resolved from the requested scope.
     target: str = ""
+    #: What that section is called in the merged document. The same as
+    #: `target` unless the draft retitled it, which is inside the scope of
+    #: editing it — and which grounding then has to look for by its new name.
+    applied_heading: str = ""
     #: Sections the model changed that it was not asked to change. Carried
     #: forward from the approved version instead, and named here so the user
     #: is told rather than left to notice.
@@ -89,6 +102,23 @@ def _names(headings: list[str]) -> str:
     return ", ".join(quoted)
 
 
+def _canonical_data(data: dict) -> str:
+    """A block's typed content, in the one form storage preserves.
+
+    Sorted keys, because `repr(dict)` is sensitive to insertion order and
+    PostgreSQL's JSONB is not: it stores object keys in its own order, so a
+    table read back from a version row reprs differently from the identical
+    table that was written. That made every section holding a table report as
+    changed after a round-trip through storage — a representation difference,
+    with nothing about the document altered. Values are still compared
+    exactly; only the key order, which the canonical model does not preserve,
+    is normalised. `Document.content_hash` has always sorted keys for the same
+    reason.
+    """
+    return json.dumps(data or {}, sort_keys=True, ensure_ascii=False,
+                      default=str)
+
+
 def _fingerprint(section: D.Section) -> tuple:
     """What "this section is unchanged" means, exactly.
 
@@ -97,7 +127,7 @@ def _fingerprint(section: D.Section) -> tuple:
     cell change silently.
     """
     return (section.heading, section.level,
-            tuple((b.kind, b.text, repr(b.data), tuple(b.sources))
+            tuple((b.kind, b.text, _canonical_data(b.data), tuple(b.sources))
                   for b in section.blocks))
 
 
@@ -149,7 +179,8 @@ def scoped_merge(base: D.Document, drafted: D.Document,
         )
 
     merged = copy.deepcopy(base)
-    result = MergeResult(document=merged, target=target.heading)
+    result = MergeResult(document=merged, target=target.heading,
+                         applied_heading=drafted_target.heading)
 
     for section in merged.sections:
         if section.heading == target.heading:
@@ -202,12 +233,86 @@ def unchanged_outside(base: D.Document, after: D.Document,
     return differing
 
 
+#: What a section reports as changed but reads as identical actually was.
+#:
+#: CANONICAL_DRIFT   the stored content differs — wording, a figure, a table
+#:                   cell, a citation. The contract was broken.
+#: RENDER_NORMALISED the canonical content is identical and only a rendered or
+#:                   re-parsed representation differs — line endings, a
+#:                   collapsed newline, a serializer's whitespace. A reporting
+#:                   artefact, not an edit.
+CANONICAL_DRIFT = "canonical drift"
+RENDER_NORMALISED = "render normalisation"
+
+
+def section_hash(section: D.Section) -> str:
+    """The canonical identity of one section.
+
+    Sorted keys, so it cannot disagree with `Document.content_hash` about what
+    two sections having the same content means — unlike `_fingerprint`, whose
+    `repr(data)` is sensitive to dict insertion order.
+    """
+    payload = json.dumps(section.as_dict(), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def text_hash(text: str) -> str:
+    """The identity of a rendered or re-parsed string, for the same comparison."""
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
+
+
+def first_difference(before: str, after: str) -> dict | None:
+    """Where two strings first diverge, with the character on each side.
+
+    A diff that prints two strings which look the same is unactionable, and
+    that is exactly what a whitespace or punctuation difference produces. This
+    names the offset and shows the codepoint, so "identical" can be
+    distinguished from "identical to the eye".
+    """
+    if before == after:
+        return None
+    limit = min(len(before), len(after))
+    index = next((i for i in range(limit) if before[i] != after[i]), limit)
+    return {
+        "offset": index,
+        "before": before[index:index + 24],
+        "after": after[index:index + 24],
+        "before_codepoint": (f"U+{ord(before[index]):04X}"
+                             if index < len(before) else "end of string"),
+        "after_codepoint": (f"U+{ord(after[index]):04X}"
+                            if index < len(after) else "end of string"),
+        "context": before[max(0, index - 40):index],
+    }
+
+
+def _differing_field(before: D.Section, after: D.Section) -> str:
+    """Which field of a section changed first. `_fingerprint`'s own order."""
+    if before.heading != after.heading:
+        return "heading"
+    if before.level != after.level:
+        return "level"
+    for i, (b, a) in enumerate(zip(before.blocks, after.blocks,
+                                   strict=False)):
+        for name, left, right in (("kind", b.kind, a.kind),
+                                  ("text", b.text, a.text),
+                                  ("data", _canonical_data(b.data), _canonical_data(a.data)),
+                                  ("sources", tuple(b.sources), tuple(a.sources))):
+            if left != right:
+                return f"blocks[{i}].{name}"
+    if len(before.blocks) != len(after.blocks):
+        return "block count"
+    return ""
+
+
 def diff_sections(before: D.Document, after: D.Document) -> list[dict]:
     """Section-by-section, what changed — for a report a person has to read.
 
     Exists because a live check that says only "v1 intact, v2 written" cannot
-    be acted on. Every entry names the section, what happened to it, and the
-    text on both sides.
+    be acted on. Every entry names the section, what happened to it, the text
+    on both sides, the canonical hash on both sides, which field diverged
+    first, and whether that divergence is canonical drift or a rendering
+    artefact — because those two demand opposite fixes and a printed text diff
+    alone cannot tell them apart.
     """
     before_by = {s.heading: s for s in before.sections}
     after_by = {s.heading: s for s in after.sections}
@@ -216,12 +321,46 @@ def diff_sections(before: D.Document, after: D.Document) -> list[dict]:
         other = after_by.get(heading)
         if other is None:
             out.append({"section": heading, "change": "dropped",
-                        "before": section.text, "after": ""})
+                        "before": section.text, "after": "",
+                        "before_hash": section_hash(section), "after_hash": "",
+                        "field": "the whole section",
+                        "classification": CANONICAL_DRIFT})
         elif _fingerprint(other) != _fingerprint(section):
-            out.append({"section": heading, "change": "changed",
-                        "before": section.text, "after": other.text})
+            field = _differing_field(section, other)
+            out.append({
+                "section": heading, "change": "changed",
+                "before": section.text, "after": other.text,
+                "before_hash": section_hash(section),
+                "after_hash": section_hash(other),
+                "field": field,
+                # Both sides are canonical Sections here, so a fingerprint
+                # difference IS canonical drift. The distinction earns its keep
+                # one level up, where a caller compares canonical against a
+                # rendered or re-parsed representation.
+                "classification": CANONICAL_DRIFT,
+                "first_difference": first_difference(section.text, other.text),
+            })
     for heading, section in after_by.items():
         if heading not in before_by:
             out.append({"section": heading, "change": "added",
-                        "before": "", "after": section.text})
+                        "before": "", "after": section.text,
+                        "before_hash": "", "after_hash": section_hash(section),
+                        "field": "the whole section",
+                        "classification": CANONICAL_DRIFT})
     return out
+
+
+def classify(canonical_before: str, canonical_after: str,
+             rendered_before: str, rendered_after: str) -> str:
+    """Canonical drift, or a rendering artefact — the question a failure asks.
+
+    Canonical hashes decide it. When they agree and the rendered strings do
+    not, nothing in the document changed and the difference belongs to the
+    renderer or the reader. Deliberately not tolerant: it compares canonical
+    identity exactly and never treats differing content as equivalent.
+    """
+    if canonical_before != canonical_after:
+        return CANONICAL_DRIFT
+    if rendered_before != rendered_after:
+        return RENDER_NORMALISED
+    return ""

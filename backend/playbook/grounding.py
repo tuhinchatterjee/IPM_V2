@@ -64,6 +64,9 @@ class GroundingResult:
     #: Figures the evidence supports that the draft never used. Not a failure —
     #: reported so a gap check can tell "not mentioned" from "not available".
     unused_figures: list[str] = field(default_factory=list)
+    #: Sections carried forward unchanged from an already-grounded version, and
+    #: therefore not re-checked here. Named rather than silently skipped.
+    attested: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -78,6 +81,7 @@ class GroundingResult:
                 for f in self.findings
             ],
             "unused_figures": list(self.unused_figures),
+            "attested": list(self.attested),
         }
 
     def note(self) -> str:
@@ -100,14 +104,31 @@ REPLACEMENT = ("[A figure stated here could not be traced to the attached "
                "evidence and has been removed.]")
 
 
-def check(doc: D.Document, ledger: Ledger, *,
-          remove: bool = True) -> GroundingResult:
-    """Reconcile every figure in a drafted document against the ledger."""
+def check(doc: D.Document, ledger: Ledger, *, remove: bool = True,
+          scope: set[str] | None = None) -> GroundingResult:
+    """Reconcile every figure in a drafted document against the ledger.
+
+    `scope`, when given, names the sections the model actually drafted. The
+    rest of the document is a scoped edit's carried-forward content: sections
+    copied byte-for-byte out of an approved version that was itself grounded
+    when it was written. Re-checking those against a different ledger is not a
+    stricter test — it removes figures from sections the revision never
+    touched, which is a live failure this has already produced. They are
+    recorded as `attested` so the chain of custody is stated rather than
+    assumed.
+
+    This narrows nothing about the draft. Every section the model wrote is
+    checked exactly as before, `ok` still means zero findings, and removal
+    still happens before anything is committed.
+    """
     supported = ledger.figures()
     result = GroundingResult(document=doc)
     used: set[str] = set()
 
     for section in doc.sections:
+        if scope is not None and section.heading not in scope:
+            result.attested.append(section.heading)
+            continue
         for block in section.blocks:
             if block.kind == D.TABLE:
                 _check_table(block, supported, used, section.heading, result,

@@ -351,7 +351,8 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     parts = [_framed(task_kind, instruction, task_scope, ws.document_family)]
     current = _current_document(session, artifact_id)
     if current is not None:
-        parts.append(prompts.current_document(current[0], version=current[1]))
+        parts.append(prompts.current_document(current.markdown,
+                                              version=current.version))
     parts.append(ledger.render())
     user = "\n\n".join(p for p in parts if p)
 
@@ -394,8 +395,15 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     # rather than true as far as anybody checked — and it means grounding only
     # scrutinises the section that actually changed, so a revision cannot cause
     # a figure to be stripped from a section it never touched.
+    #
+    # The base is the STORED CANONICAL version, not the Markdown the prompt
+    # showed the model. A Markdown round-trip drops every citation locator,
+    # `meta` and `subtitle`, renumbers ordered lists and renormalises
+    # whitespace — so merging against it rewrote every unrelated section it
+    # claimed to carry forward, and wrote that damage to canonical storage.
+    drafted_only: set[str] | None = None
     if task_kind == "edit" and current is not None:
-        base_doc = D.parse(current[0], title=title)
+        base_doc = current.canonical
         if base_doc.sections:
             try:
                 merged = merge.scoped_merge(base_doc, doc, task_scope)
@@ -405,10 +413,16 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
             doc = merged.document
             outcome.scoped_to = merged.target
             outcome.rejected_sections = list(merged.rejected)
+            drafted_only = {merged.applied_heading}
             if merged.note():
                 outcome.notes.append(merged.note())
 
-    ground = grounding.check(doc, ledger)
+    # Grounding scrutinises what the model actually wrote. On a scoped edit
+    # that is the target section; every other section is byte-identical to an
+    # approved version that was itself grounded when it was written, and
+    # re-checking it against a DIFFERENT ledger is not a stricter test but a
+    # false one — it deletes figures from sections nobody touched.
+    ground = grounding.check(doc, ledger, scope=drafted_only)
     outcome.grounding = ground
     if ground.note():
         outcome.notes.append(ground.note())
@@ -510,9 +524,25 @@ def _framed(kind: str, instruction: str, scope: str, family: str) -> str:
     return f"{framing}\n\n{instruction}" if instruction else framing
 
 
-def _current_document(session, artifact_id: int | None
-                      ) -> tuple[str, int] | None:
-    """The artifact's current version as Markdown, or None if there is none."""
+@dataclass
+class _Current:
+    """The approved version, in both the forms an edit needs.
+
+    `canonical` is the stored Document, unchanged. `markdown` is a rendering of
+    it for the prompt and the thread. They are separate fields rather than one,
+    because the Markdown is lossy — it drops citation locators, `meta` and
+    `subtitle` — and a scoped edit that merged against it would silently rewrite
+    every unrelated section it carried forward. Prose for the model; canonical
+    for the merge.
+    """
+
+    canonical: D.Document
+    markdown: str
+    version: int
+
+
+def _current_document(session, artifact_id: int | None) -> _Current | None:
+    """The artifact's current version, or None if there is none."""
     if not artifact_id:
         return None
     from backend.models.playbook import PlaybookArtifact, PlaybookArtifactVersion
@@ -523,7 +553,9 @@ def _current_document(session, artifact_id: int | None
     version = session.get(PlaybookArtifactVersion, artifact.current_version_id)
     if version is None:
         return None
-    return _markdown_of(D.Document.from_dict(version.content or {})), version.version
+    doc = D.Document.from_dict(version.content or {})
+    return _Current(canonical=doc, markdown=_markdown_of(doc),
+                    version=version.version)
 
 
 def _slug(text: str) -> str:

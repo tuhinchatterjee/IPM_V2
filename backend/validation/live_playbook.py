@@ -438,6 +438,14 @@ def a_scoped_edit_changes_only_its_scope() -> Outcome:
                 change_summary="Sharpened the executive summary.")
             versions = repo.versions(session, first.artifact_id)
             v2_doc = second.document
+            # Read back from the version rows, not from the objects still in
+            # memory. The comparison has to be canonical-against-canonical:
+            # mixing an in-memory document with one that went through storage
+            # is what made this check report thirteen sections as changed when
+            # the divergence was a representation the two sides did not share.
+            stored_v1 = D.Document.from_dict(versions[0].content or {})
+            stored_v2 = D.Document.from_dict(versions[1].content or {}) \
+                if len(versions) > 1 else D.Document()
             _cleanup(session, ws.id)
     except Exception as exc:  # noqa: BLE001
         return _fail("scoped_edit", exc, calls=3)
@@ -448,7 +456,8 @@ def a_scoped_edit_changes_only_its_scope() -> Outcome:
 
     # Every invariant named, so a failure says which one rather than "it
     # failed". Compared with validate.figures(), the same rule grounding uses.
-    drifted = merge.unchanged_outside(v1_doc, v2_doc, scope_name)
+    drifted = merge.unchanged_outside(stored_v1, stored_v2, scope_name)
+    in_memory_drift = merge.unchanged_outside(v1_doc, v2_doc, scope_name)
     v1_figures = validate.figures(v1_doc.plain_text())
     v2_figures = validate.figures(v2_doc.plain_text())
     target_before = target.text if target else ""
@@ -459,7 +468,13 @@ def a_scoped_edit_changes_only_its_scope() -> Outcome:
         "version 2 was written": second.version == 2,
         "exactly two versions exist": len(versions) == 2,
         "version 1 is byte-identical": versions[0].content_hash == v1_hash,
-        "version 2 genuinely differs": versions[1].content_hash != v1_hash,
+        "version 1 reads back unchanged": (
+            stored_v1.content_hash() == v1_hash),
+        # Guarded rather than indexed: when only one version exists this is
+        # already false, and a traceback here would replace a named invariant
+        # with a stack trace.
+        "version 2 genuinely differs": (
+            len(versions) > 1 and versions[1].content_hash != v1_hash),
         "the requested section changed": target_after != target_before,
         "no unrelated section changed": not drifted,
         "no figure was lost": not (v1_figures - v2_figures),
@@ -471,16 +486,49 @@ def a_scoped_edit_changes_only_its_scope() -> Outcome:
     detail = f"scope={target_heading!r}"
     if broken:
         detail += "; FAILED: " + "; ".join(broken)
-        if drifted:
-            for entry in merge.diff_sections(v1_doc, v2_doc):
+        detail += (f"\n      canonical v1 {stored_v1.content_hash()[:16]}"
+                   f"  v2 {stored_v2.content_hash()[:16]}")
+        if drifted or in_memory_drift:
+            for entry in merge.diff_sections(stored_v1, stored_v2):
                 if entry["section"] == target_heading:
                     continue
-                detail += (f"\n      {entry['section']} ({entry['change']})"
-                           f"\n        before: {entry['before'][:160]}"
-                           f"\n        after:  {entry['after'][:160]}")
+                rendered_before = merge.text_hash(entry["before"])
+                rendered_after = merge.text_hash(entry["after"])
+                verdict = merge.classify(entry["before_hash"],
+                                         entry["after_hash"],
+                                         entry["before"], entry["after"])
+                detail += (
+                    f"\n      {entry['section']} ({entry['change']}) "
+                    f"— {verdict or 'identical'}, first difference in "
+                    f"{entry['field'] or 'nothing'}"
+                    f"\n        canonical {entry['before_hash'][:16]} -> "
+                    f"{entry['after_hash'][:16]}"
+                    f"\n        rendered  {rendered_before[:16]} -> "
+                    f"{rendered_after[:16]}"
+                    f"\n        before: {entry['before'][:160]}"
+                    f"\n        after:  {entry['after'][:160]}")
+                where = entry.get("first_difference")
+                if where:
+                    detail += (
+                        f"\n        first differing character at offset "
+                        f"{where['offset']}: "
+                        f"{where['before_codepoint']} -> "
+                        f"{where['after_codepoint']}"
+                        f"  ...{where['context'][-30:]}"
+                        f"[{where['before'][:12]!r} vs "
+                        f"{where['after'][:12]!r}]")
+            if in_memory_drift and not drifted:
+                detail += (
+                    "\n      NOTE: the in-memory documents differ where the "
+                    f"stored versions do not ({in_memory_drift}); that is a "
+                    "representation difference in this check, not an edit.")
         lost = sorted(v1_figures - v2_figures)
         if lost:
             detail += f"\n      figures lost: {lost}"
+        if second.grounding is not None and second.grounding.attested:
+            detail += ("\n      carried forward from the approved version, "
+                       "already grounded when written: "
+                       f"{second.grounding.attested}")
         if second.grounding is not None and not second.grounding.ok:
             detail += f"\n      grounding: {second.grounding.note()}"
             for finding in getattr(second.grounding, "findings", [])[:5]:

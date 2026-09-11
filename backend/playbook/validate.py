@@ -80,8 +80,99 @@ def figures(text: str) -> set[str]:
     return out
 
 
+#: A whole line that is nothing but the page furniture a writer draws:
+#: "Page 7", "Page 7 of 12". Anchored at both ends on purpose — "Page 10 of
+#: the annex was reviewed" is prose making a claim, and is checked.
+_PAGE_FURNITURE = re.compile(
+    r"^\s*page\s+\d+(?:\s*(?:of|/)\s*\d+)?\s*$", re.IGNORECASE)
+
+#: A list or heading ordinal as a renderer draws it: "10. " or "3) ". The
+#: punctuation is required. Without it a prose line opening with a figure
+#: ("10 accounts were reviewed") would look like a marker.
+_LEADING_ORDINAL = re.compile(r"^\s*\d+(?:\.\d+)*[.)]\s+(?=\S)")
+
+
+def _structure_of(doc: D.Document) -> tuple[set[str], set[str]]:
+    """The canonical positions an ordinal is allowed to occupy.
+
+    Headings and ordered-list items, normalised. Bullets are excluded: they
+    have no ordinals, so nothing about them can excuse a numeral.
+    """
+    headings = {D._normalise(s.heading) for s in doc.sections if s.heading}
+    items: set[str] = set()
+    for section in doc.sections:
+        for block in section.blocks:
+            if block.kind == D.NUMBERS:
+                for item in block.data.get("items", []):
+                    key = D._normalise(item)
+                    if key:
+                        items.add(key)
+    return headings - {""}, items
+
+
+def _is_structural_position(remainder: str, headings: set[str],
+                            items: set[str]) -> bool:
+    """Is what follows this ordinal a heading or ordered item of this document?
+
+    Prefix matching, because a PDF wraps a long list item across lines and the
+    marker sits on the first of them.
+    """
+    key = D._normalise(remainder)
+    if not key:
+        return False
+    if key in headings or key in items:
+        return True
+    return any(candidate.startswith(key)
+               for candidate in items | headings)
+
+
+def structural_numerals(text: str, doc: D.Document) -> tuple[str, int]:
+    """Remove the numerals a renderer produced, leaving every claim intact.
+
+    A committee paper numbers its headings, numbers its recommendations and
+    puts a page number at the foot of every page. None of those are things the
+    evidence has to support — but the ordinals are drawn into a PDF's text
+    layer as ordinary characters (`pdf_writer` writes `f"{i}."`; DOCX uses a
+    list style and a PAGE field, which is why only PDFs ever failed this), and
+    the canonical document stores list items *without* their ordinals. So the
+    validator saw them as figures stated in no source.
+
+    The distinction is positional, never by value. A numeral is structural only
+    when it is a leading ordinal whose line is a heading or ordered item **of
+    this document**, or a line that is nothing but page furniture. Everything
+    else on every line is left exactly as it was and still has to be supported:
+    in "10. SAR 10 million was drawn" the marker goes and the SAR 10 million
+    stays, because one is furniture and the other is a claim.
+    """
+    headings, items = _structure_of(doc)
+    kept: list[str] = []
+    removed = 0
+    for line in (text or "").splitlines():
+        if _PAGE_FURNITURE.match(line):
+            removed += 1
+            continue
+        match = _LEADING_ORDINAL.match(line)
+        if match:
+            remainder = line[match.end():]
+            if _is_structural_position(remainder, headings, items):
+                line = remainder
+                removed += 1
+        kept.append(line)
+    return "\n".join(kept), removed
+
+
 def _document_text(doc: D.Document) -> str:
-    return doc.plain_text()
+    """Everything the canonical document states, including its header block.
+
+    `plain_text()` omits `meta`, and every writer renders it — so a reporting
+    period or a threshold living there came back from the rendered file as a
+    figure with no source. `plain_text()` itself is deliberately left alone:
+    it also decides what an approved version makes admissible as evidence, and
+    widening that is a different question from reading the whole document.
+    """
+    parts = [doc.plain_text()]
+    parts.extend(str(value) for value in (doc.meta or {}).values() if value)
+    return "\n".join(parts)
 
 
 def _check_content(v: Validation, doc: D.Document, found_text: str,
@@ -100,8 +191,10 @@ def _check_content(v: Validation, doc: D.Document, found_text: str,
     v.checked["sections_expected"] = len(expected)
     v.checked["sections_found"] = len(expected) - len(missing)
 
+    claims, structural = structural_numerals(found_text, doc)
+    v.checked["structural_numerals"] = structural
     allowed = figures(_document_text(doc))
-    present = figures(found_text)
+    present = figures(claims)
     invented = sorted(present - allowed)
     if invented:
         v.fail("the rendered file states figure(s) that are in no source: "
