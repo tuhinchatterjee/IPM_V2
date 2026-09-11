@@ -851,6 +851,68 @@ _LEVEL_SAID = {
     "sponsor": "the sponsor",
 }
 
+#: The order somebody actually works this list in.
+#:
+#: Ranking by severity alone put "due in 12 days" above "12 days overdue" on
+#: the real screen, because both are CRITICAL and both carry the number 12.
+#: What a person wants is: what is already late, then what threatens the
+#: plan behind it, then what is stuck, then what is merely approaching.
+_URGENCY = {
+    "overdue": 3,        # promoted to 0 when the item is on the critical path
+    "dependency": 1,
+    "milestone": 1,
+    "blocked": 2,
+    "not_started": 3,
+    "due_soon": 4,
+    "stale": 5,
+    "raid": 6,
+    "no_plan": 7,
+}
+
+
+def _urgency(finding: Any) -> tuple[int, int, float, int]:
+    """Where one finding sits in that order. Total, so the list is stable.
+
+    The last element of the tuple is the entity id, which makes the order
+    deterministic: two findings that are equally urgent must not swap places
+    between two loads of the same page.
+    """
+    rule = str(getattr(finding, "rule", "") or "")
+    critical = getattr(finding, "severity", "") == control.CRITICAL
+    band = _URGENCY.get(rule, 8)
+    if rule == "overdue" and critical:
+        band = 0
+    value = float(getattr(finding, "value", None) or 0.0)
+    # "Worse" is a BIGGER number for the rules that count days elapsed, and a
+    # SMALLER one for the rule that counts days remaining: a task due in two
+    # days needs somebody before one due in twelve.
+    within = value if rule == "due_soon" else -value
+    return (band, 0 if critical else 1, within,
+            int(getattr(finding, "entity_id", 0) or 0))
+
+
+def _when_said(moment: Any) -> str:
+    """When something happened, as a person would say it.
+
+    The screen used to print the stored timestamp — "was reminded on
+    2026-09-11T06:58:24.956015+00:00" — which is precise, unreadable, and the
+    single most developer-looking thing on the Project Planner. Nobody needs
+    the microseconds to decide whether to chase somebody again; they need to
+    know whether it was today. The exact value is still in the `at` field for
+    anything that wants to sort or audit by it.
+    """
+    if moment is None:
+        return "at an unrecorded time"
+    when = moment.date() if hasattr(moment, "date") else moment
+    gap = (today() - when).days
+    if gap <= 0:
+        return "today"
+    if gap == 1:
+        return "yesterday"
+    if gap < 7:
+        return f"{gap} days ago"
+    return f"on {when.strftime('%-d %b %Y')}"
+
 
 def _escalation_state(reminder: Any,
                       directory: dict[int, dict[str, Any]]) -> dict[str, Any]:
@@ -868,14 +930,16 @@ def _escalation_state(reminder: Any,
     who = person["name"] if person else _LEVEL_SAID.get(reminder.level or "",
                                                         "somebody")
     when = _iso(reminder.sent_at)
+    said_when = _when_said(reminder.sent_at)
     if reminder.state == "answered":
         state, said = "answered", f"{who} answered."
     elif reminder.level:
         state = "escalated"
         said = (f"Escalated to {who} — "
-                f"{_LEVEL_SAID.get(reminder.level, reminder.level)} — {when}.")
+                f"{_LEVEL_SAID.get(reminder.level, reminder.level)} — "
+                f"{said_when}.")
     else:
-        state, said = "reminded", f"{who} was reminded on {when}."
+        state, said = "reminded", f"{who} was reminded {said_when}."
     return {"state": state, "level": reminder.level or "", "said": said,
             "person": person, "at": when}
 
@@ -909,16 +973,13 @@ def needs_attention(session: Any, principal: Any, *,
 
     # One pass for the findings, then one query each for the names and the
     # chase records — never a lookup inside the loop.
-    raw: list[tuple[tuple[int, int, int], int, Any]] = []
+    raw: list[tuple[tuple[int, int, float, int], int, Any]] = []
     for pid in projects:
         verdict = control.health(plans[pid], now)
         for finding in verdict.findings:
             if finding.severity == control.INFO:
                 continue
-            rank = (0 if finding.severity == control.CRITICAL else 1,
-                    0 if finding.entity_type else 1,
-                    -int(finding.value or 0))
-            raw.append((rank, pid, finding))
+            raw.append((_urgency(finding), pid, finding))
     raw.sort(key=lambda row: row[0])
     chosen = raw[:limit]
 

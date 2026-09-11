@@ -36,8 +36,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/input";
-import { api, type PlannerTaskRow } from "@/lib/api";
+import {
+  api,
+  type PlannerFinding,
+  type PlannerHealth,
+  type PlannerMilestone,
+  type PlannerProjectDetail,
+  type PlannerRaidItem,
+  type PlannerTaskRow,
+} from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { shortDate } from "@/lib/planner-format";
+import { cn } from "@/lib/utils";
 
 /**
  * One delivery project, in full.
@@ -120,6 +130,16 @@ export default function DeliveryProjectPage() {
   const openTasks = tasks.filter(
     (t) => !["COMPLETED", "CANCELLED"].includes(t.status));
 
+  // Health as it should be READ: what somebody set by hand if they set it,
+  // and otherwise what the rules calculate. "UNKNOWN" is a storage state,
+  // not an answer to "is this project all right?".
+  const shownHealth = (project.health_overridden || project.health !== "UNKNOWN"
+    ? project.health
+    : (project.calculated_health || project.health)) as typeof project.health;
+  const shownReason = project.health_overridden || project.health !== "UNKNOWN"
+    ? project.health_reason
+    : (project.calculated_health_reason || project.health_reason);
+
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-6">
       <PageHeader
@@ -140,12 +160,17 @@ export default function DeliveryProjectPage() {
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-surface px-4 py-3">
         <div className="flex items-center gap-2">
-          <HealthPill health={project.health}
-                      reason={project.health_reason}
+          {/*
+            The stored health is UNKNOWN until the first sweep runs, and a
+            project published five minutes ago showed a grey UNKNOWN pill
+            beside its own sentence saying the calculation was GREEN. The
+            calculated value is the honest answer when nobody has overridden
+            it; the override case is called out underneath, as before.
+          */}
+          <HealthPill health={shownHealth}
+                      reason={shownReason}
                       overridden={project.health_overridden} />
-          <span className="text-sm text-text-secondary">
-            {project.health_reason}
-          </span>
+          <span className="text-sm text-text-secondary">{shownReason}</span>
         </div>
         <Progress percent={project.percent_complete} />
         <span className="text-xs text-text-muted">
@@ -153,7 +178,7 @@ export default function DeliveryProjectPage() {
         </span>
         {project.target_end_date && (
           <span className="text-xs text-text-muted">
-            Target {project.target_end_date}
+            Target {shortDate(project.target_end_date)}
           </span>
         )}
         <span className="text-xs text-text-muted">
@@ -176,7 +201,11 @@ export default function DeliveryProjectPage() {
       <div className="mt-4 flex flex-col gap-4">
         {tab === "overview" && (
           <>
-            <SectionCard title="What the schedule rules flag">
+            <ExecutiveSummary project={project} tasks={tasks}
+                              milestones={milestones} raid={raid}
+                              findings={findings} health={shownHealth} />
+
+            <SectionCard title="What needs somebody">
               <FindingList findings={findings} />
             </SectionCard>
 
@@ -589,6 +618,107 @@ export default function DeliveryProjectPage() {
  * liability on a page somebody opened to find out whether the project is all
  * right.
  */
+/**
+ * What a sponsor needs in the first thirty seconds.
+ *
+ * Opening a project used to mean reading three paragraphs of narrative to
+ * find out whether anything was late. The narrative is still underneath —
+ * it explains WHY — but the facts a senior reader scans for are now a grid
+ * at the top: is it healthy, how far along, who runs it, when is it due,
+ * what is next, what is late, what is stuck, what is coming, and what has
+ * been raised. Every number here is counted from the project's own rows;
+ * nothing is asked of a model.
+ */
+function ExecutiveSummary({
+  project,
+  tasks,
+  milestones,
+  raid,
+  findings,
+  health,
+}: {
+  project: PlannerProjectDetail["project"];
+  tasks: PlannerTaskRow[];
+  milestones: PlannerMilestone[];
+  raid: PlannerRaidItem[];
+  findings: PlannerFinding[];
+  health: PlannerHealth;
+}) {
+  const open = tasks.filter(
+    (t) => !["COMPLETED", "CANCELLED"].includes(t.status));
+  const overdue = open.filter((t) => (t.days_overdue ?? 0) > 0).length;
+  const blocked = open.filter((t) => t.blocked || t.status === "BLOCKED").length;
+  const dueSoon = open.filter(
+    (t) => (t.days_overdue ?? 0) <= 0
+      && (t.days_until_due ?? 99) <= 7).length;
+  const onPath = findings.filter(
+    (f) => f.rule === "dependency" || f.rule === "milestone").length;
+  const raidOpen = raid.filter(
+    (r) => !["CLOSED", "RESOLVED"].includes(String(r.status).toUpperCase())
+      && ["HIGH", "CRITICAL"].includes(String(r.severity).toUpperCase())).length;
+
+  const next = milestones
+    .filter((m) => !["COMPLETE", "COMPLETED", "CANCELLED"]
+      .includes(String(m.status).toUpperCase()) && m.target_date)
+    .sort((a, b) => String(a.target_date).localeCompare(String(b.target_date)))[0];
+
+  // The clock is read ONCE, when this panel first mounts, rather than on
+  // every render: a component that asks what time it is while rendering
+  // gives a different answer each time React happens to re-run it.
+  const [now] = React.useState(() => Date.now());
+  const daysToNext = next?.target_date
+    ? Math.round((new Date(next.target_date).getTime() - now) / 86_400_000)
+    : null;
+
+  const cells: { label: string; value: React.ReactNode; tone?: string }[] = [
+    { label: "Health", value: health, tone: health === "RED" ? "text-negative"
+      : health === "AMBER" ? "text-warning"
+        : health === "GREEN" ? "text-positive" : "text-text-muted" },
+    { label: "Progress", value: `${Math.round(project.percent_complete)}%` },
+    { label: "Status",
+      value: project.status.replace(/_/g, " ").toLowerCase() },
+    { label: "Project manager", value: project.manager?.name ?? "—" },
+    { label: "Sponsor", value: project.sponsor?.name ?? "—" },
+    { label: "Owner", value: project.owner?.name ?? "—" },
+    { label: "Start", value: shortDate(project.start_date) },
+    { label: "Target completion", value: shortDate(project.target_end_date) },
+    { label: "Next milestone",
+      value: next ? `${next.code} ${next.name}` : "None set" },
+    { label: "Days to it",
+      value: daysToNext === null ? "—"
+        : daysToNext < 0 ? `${Math.abs(daysToNext)} late` : `${daysToNext}`,
+      tone: daysToNext !== null && daysToNext < 0 ? "text-negative" : "" },
+    { label: "Overdue tasks", value: overdue,
+      tone: overdue ? "text-negative" : "text-text-muted" },
+    { label: "Blocked tasks", value: blocked,
+      tone: blocked ? "text-warning" : "text-text-muted" },
+    { label: "Due within 7 days", value: dueSoon },
+    { label: "Critical-path risks", value: onPath,
+      tone: onPath ? "text-negative" : "text-text-muted" },
+    { label: "Open high RAID", value: raidOpen,
+      tone: raidOpen ? "text-warning" : "text-text-muted" },
+    { label: "Last updated", value: when(project.updated_at) },
+  ];
+
+  return (
+    <SectionCard title="Where this project is">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 px-4 py-3 sm:grid-cols-4">
+        {cells.map((cell) => (
+          <div key={cell.label}>
+            <dt className="text-[11px] uppercase tracking-wide text-text-muted">
+              {cell.label}
+            </dt>
+            <dd className={cn("mt-0.5 text-sm font-medium",
+                              cell.tone || "text-text-primary")}>
+              {cell.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </SectionCard>
+  );
+}
+
 function ProjectBrief({
   brief,
 }: {

@@ -73,6 +73,23 @@ export function when(iso: string | null | undefined, now = Date.now()): string {
 }
 
 /**
+ * A plan date, as short as it can be without becoming ambiguous.
+ *
+ * "2026-05-08" in a narrow table column wraps onto two lines and reads as a
+ * serial number; "8 May 26" fits, and a person recognises it as a date
+ * without stopping. The ISO form stays in the API and in exports, where a
+ * machine reads it.
+ */
+export function shortDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const day = new Date(iso);
+  if (Number.isNaN(day.getTime())) return iso;
+  return day.toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "2-digit", timeZone: "UTC",
+  });
+}
+
+/**
  * The label for a claim in an AI brief.
  *
  * Short words, because they sit in a badge at the start of every line and a

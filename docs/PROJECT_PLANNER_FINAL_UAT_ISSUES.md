@@ -1,0 +1,27 @@
+# Project Planner — final human UAT issue log
+
+Every issue noticed while using the product as a person, recorded when it was
+noticed rather than reconstructed afterwards.
+
+**Branch** `claude/project-planner-copilot`
+**HEAD at the start of this UAT** `5994af300f916924ea81bed12738b17f98880cb5`
+**Docker images** built from that HEAD (see the report for the provenance line)
+
+Severity:
+
+| | |
+|---|---|
+| **P0** | blocks project creation or publishing, or corrupts state |
+| **P1** | major functionality broken |
+| **P2** | confusing or materially poor UX |
+| **P3** | cosmetic or minor |
+
+| UAT ID | Screen | User action | Expected | Actual | Sev | Root cause | Fix | Retest evidence | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| **F-001** | Project Planner home | Opened `/delivery` as an administrator | A page about this deployment's projects | 1,993 projects and 2,525 attention items, every one of them a pytest fixture ("Actions fixture", "Permission fixture project", "Alice's task"). The product was unusable to look at and impossible to judge. | P1 (environment) | Interrupted test runs leave fixtures behind; nothing ever removed them | Wrote `scripts/clean_test_fixtures.py` — dry-run by default, refuses to run outside development, removes fixture accounts and every planner project that is not a seeded demo programme | After: 5 demo programmes, 56 attention items across 4 projects; screenshot `home-clean.png` | **Fixed** |
+| **F-002** | Needs attention | Read the first six rows in priority order | The most urgent thing first | "M-6 Month-End Posting **is due in 12 days**" ranked ABOVE "D-201 Missing default dates **is 12 days overdue**"; inside the due-soon group, 12 days away ranked above 10 days away | P2 | `needs_attention` ranked on (severity, has-entity, −value) without asking what `value` counted: days elapsed and days remaining were sorted with the same sign | New `_urgency()` in `backend/planner/query.py`: explicit bands (critical overdue → schedule risk → blocked → overdue → due soon → stale → the rest), severity inside the band, and days-remaining sorted the other way round. Ends in the entity id so the list is stable | `tests/planner/test_attention_order.py` (11 tests); screenshot `home-fixed.png` now reads 12 days overdue → 12 days overdue → 8 → 2 → dependency risk | **Fixed** |
+| **F-003** | Needs attention | Read the chase state on a row | When somebody was last chased, in words | "Escalated to Ananya Shah — the sponsor — 2026-09-11T10:01:31.754497+00:00." — a raw stored timestamp with microseconds, on every row | P2 | `_escalation_state` interpolated `_iso(sent_at)` straight into the sentence | `_when_said()`: today / yesterday / N days ago / "on 2 Sep 2026". The exact timestamp is still returned in the row's `at` field for sorting and audit | `test_attention_order.py::test_a_recent_chase_…` and `…no_machine_noise`; screenshot `home-fixed.png` reads "— the sponsor — today." | **Fixed** |
+| **F-004** | Project Planner home → Current projects | Read the portfolio table on a 1440px laptop | A table I can read | 13 columns: project names wrapped onto four lines and "Last updated" hung half-drawn off the right edge, which reads as broken rather than scrollable | P2 | One column per field, including two date columns and two single-digit count columns | Paired the fields the way a person reads them: code under the name, "11 Sept 26 → 8 Jul 27" as one span, "2 overdue · 1 blocked" as one thought. Ten columns, nothing dropped. Dates now render as `shortDate()` rather than ISO | Screenshot `home-table-fixed.png`; `tsc`, `eslint` clean | **Fixed** |
+| **F-005** | Creation → step 5 (tasks) | Opened the task owner picker in a narrow column | A compact hint | "Showing 50 of 9441 matches in the directory — type more of the name, username or email to narrow it." wrapped over six lines inside the column and pushed the form around; the count had no thousands separator | P3 | The honest-truncation note added earlier was written for a wide composer, not a narrow table cell | Still open — see the report's remaining-limitations section | — | **Open (P3)** |
+| **F-006** | Project → Overview | Published a project and opened it | The health of the project | The pill read **UNKNOWN** while the page's own sentence underneath said `calculated=GREEN`. The stored column is only written by the first sweep | P1 | The header read `project.health` (storage) rather than the calculated value when nobody has overridden it | Overview now shows the calculated health and its reason when there is no manual override; the override banner is unchanged | Screenshot `proj-summary.png` — pill reads GREEN with "Nothing overdue, blocked or stale, and no milestone is at risk." | **Fixed** |
+| **F-007** | Project → Overview | Opened a project as a sponsor would | §19's list: health, progress, status, manager, sponsor, owner, start, target, next milestone, days to it, overdue, blocked, due soon, critical-path risks, open high RAID, last updated | A thin strip with five of those, then three paragraphs of narrative. A sponsor had to read prose to find out whether anything was late | P2 | No executive summary existed; the narrative was doing the job | New `ExecutiveSummary` panel: sixteen deterministic cells counted from the project's own rows, at the top of Overview, above the narrative. "What the schedule rules flag" renamed "What needs somebody" | Screenshot `proj-summary.png`; `tsc`, `eslint` clean | **Fixed** |

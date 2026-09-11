@@ -6,6 +6,7 @@ import * as React from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Empty, HealthPill, Progress, SectionCard, when }
   from "@/components/planner/parts";
+import { shortDate } from "@/lib/planner-format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -183,7 +184,16 @@ export default function DeliveryPortfolioPage() {
   );
 }
 
-/** §2. Every column a person reads before deciding to open a project. */
+/**
+ * §2. Every column a person reads before deciding to open a project.
+ *
+ * Thirteen columns did not fit a laptop: the project names wrapped onto four
+ * lines and "Last updated" hung off the right edge half-drawn, which reads
+ * as broken rather than as scrollable. Nothing was dropped — the same facts
+ * are here, paired the way somebody reads them: the code belongs to the
+ * name, the two dates are one span, and "2 overdue · 1 blocked" is one
+ * thought rather than two numeric columns to line up by eye.
+ */
 function ProjectTable({ rows }: { rows: PlannerProjectRow[] }) {
   return (
     <div className="overflow-x-auto">
@@ -191,17 +201,14 @@ function ProjectTable({ rows }: { rows: PlannerProjectRow[] }) {
         <thead>
           <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-text-muted">
             <th className="px-4 py-2 font-medium">Project</th>
-            <th className="px-3 py-2 font-medium">Code</th>
             <th className="px-3 py-2 font-medium">Sponsor</th>
             <th className="px-3 py-2 font-medium">Project manager</th>
             <th className="px-3 py-2 font-medium">Health</th>
             <th className="px-3 py-2 font-medium">Status</th>
             <th className="px-3 py-2 font-medium">Progress</th>
-            <th className="px-3 py-2 font-medium">Start</th>
-            <th className="px-3 py-2 font-medium">Target</th>
+            <th className="px-3 py-2 font-medium">Dates</th>
             <th className="px-3 py-2 font-medium">Next milestone</th>
-            <th className="px-3 py-2 text-right font-medium">Overdue</th>
-            <th className="px-3 py-2 text-right font-medium">Blocked</th>
+            <th className="px-3 py-2 font-medium">Needs attention</th>
             <th className="px-4 py-2 font-medium">Last updated</th>
           </tr>
         </thead>
@@ -214,9 +221,9 @@ function ProjectTable({ rows }: { rows: PlannerProjectRow[] }) {
                       className="text-text-primary hover:text-accent">
                   {row.name}
                 </Link>
-              </td>
-              <td className="px-3 py-2.5 font-mono text-[11px] text-text-muted">
-                {row.code}
+                <div className="font-mono text-[11px] text-text-muted">
+                  {row.code}
+                </div>
               </td>
               <td className="px-3 py-2.5 text-xs text-text-secondary">
                 {row.sponsor?.name ?? "—"}
@@ -234,36 +241,42 @@ function ProjectTable({ rows }: { rows: PlannerProjectRow[] }) {
               <td className="px-3 py-2.5">
                 <Progress percent={row.percent_complete} />
               </td>
-              <td className="px-3 py-2.5 text-xs text-text-muted">
-                {row.start_date ?? "—"}
-              </td>
-              <td className="px-3 py-2.5 text-xs text-text-muted">
-                {row.target_end_date ?? "—"}
+              <td className="px-3 py-2.5 whitespace-nowrap text-xs text-text-muted">
+                {shortDate(row.start_date)}
+                <span className="mx-1">→</span>
+                {shortDate(row.target_end_date)}
               </td>
               <td className="px-3 py-2.5 text-xs text-text-secondary">
                 {row.next_milestone ? (
                   <>
-                    {row.next_milestone}
-                    <span className="ml-1 text-text-muted">
-                      {row.next_milestone_date}
-                    </span>
+                    <div>{row.next_milestone}</div>
+                    <div className="text-text-muted">
+                      {shortDate(row.next_milestone_date)}
+                    </div>
                   </>
                 ) : (
                   <span className="text-text-muted">None set</span>
                 )}
               </td>
-              <td className="px-3 py-2.5 text-right tabular-nums">
-                {row.overdue_tasks > 0 ? (
-                  <span className="text-negative">{row.overdue_tasks}</span>
+              <td className="px-3 py-2.5 whitespace-nowrap text-xs tabular-nums">
+                {row.overdue_tasks === 0 && row.blocked_tasks === 0 ? (
+                  <span className="text-text-muted">Nothing</span>
                 ) : (
-                  <span className="text-text-muted">—</span>
-                )}
-              </td>
-              <td className="px-3 py-2.5 text-right tabular-nums">
-                {row.blocked_tasks > 0 ? (
-                  <span className="text-warning">{row.blocked_tasks}</span>
-                ) : (
-                  <span className="text-text-muted">—</span>
+                  <>
+                    {row.overdue_tasks > 0 && (
+                      <span className="text-negative">
+                        {row.overdue_tasks} overdue
+                      </span>
+                    )}
+                    {row.overdue_tasks > 0 && row.blocked_tasks > 0 && (
+                      <span className="text-text-muted"> · </span>
+                    )}
+                    {row.blocked_tasks > 0 && (
+                      <span className="text-warning">
+                        {row.blocked_tasks} blocked
+                      </span>
+                    )}
+                  </>
                 )}
               </td>
               <td className="px-4 py-2.5 text-xs text-text-muted">
