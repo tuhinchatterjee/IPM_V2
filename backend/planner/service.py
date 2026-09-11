@@ -711,6 +711,7 @@ def create_task(session: Any, principal: Any, project_id: int, *,
         tags=[str(t) for t in (tags or [])], notes=_text(notes),
         created_by=actor, updated_by=actor)
     _align_task_state(row)
+    _blocked_with_a_reason(row)
     session.add(row)
     session.flush()
     record(session, project_id, entity_type=ENTITY_TASK, entity_id=row.id,
@@ -719,6 +720,20 @@ def create_task(session: Any, principal: Any, project_id: int, *,
            narrative=f"{code} — {row.title} was created.")
     signal(session, int(project_id), "task_created")
     return row
+
+
+def _blocked_with_a_reason(task: Any) -> None:
+    """A task cannot be blocked without saying what it is waiting for.
+
+    The one rule, in one place, so that the creation path and the edit path
+    cannot drift apart — and applied AFTER the status and the flag have been
+    reconciled, because "blocked" arrives both ways: as the flag, and as the
+    status somebody picked from a dropdown.
+    """
+    if task.blocked and not (task.blocker_reason or "").strip():
+        raise PlannerError(
+            "A blocked task needs a reason. 'Blocked' with no explanation "
+            "tells the project manager nothing they can act on.")
 
 
 def _align_task_state(task: Any) -> None:
@@ -909,17 +924,19 @@ def update_task(session: Any, principal: Any, task_id: int, *,
     if "tags" in fields and fields["tags"] is not None:
         task.tags = [str(t) for t in fields["tags"]]
 
-    if task.blocked and not task.blocker_reason.strip():
-        raise PlannerError(
-            "A blocked task needs a reason. 'Blocked' with no explanation "
-            "tells the project manager nothing they can act on.")
+    # Align BEFORE the invariants rather than after. Setting the STATUS to
+    # BLOCKED is how a person blocks a task — the flag is something
+    # `_align_task_state` derives from the status — so a check that reads
+    # the flag first passes on a task that is about to become blocked, and
+    # lets through exactly the state it exists to prevent: BLOCKED, with
+    # nothing written down about what it is waiting for.
+    _align_task_state(task)
+    _blocked_with_a_reason(task)
     if (task.start_date and task.due_date
             and task.due_date < task.start_date):
         raise PlannerError(
             f"{task.code}: the due date ({task.due_date}) is before the "
             f"start date ({task.start_date}).")
-
-    _align_task_state(task)
 
     said = _text(narrative)
     if not changes and not said:
