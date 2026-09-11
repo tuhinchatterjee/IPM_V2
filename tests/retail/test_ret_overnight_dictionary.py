@@ -172,14 +172,31 @@ class TestAnAggregationIsNeverMeaningless:
         ("What is the average behavioural score?", "avg"),
         ("Show me the mean debt burden ratio", "avg"),
         ("What is the total exposure at default?", "sum"),
-        ("Which product has the highest 30+ DPD rate?", "max"),
-        ("What is the lowest application score?", "min"),
+        ("What is the maximum days past due?", "max"),
+        ("What is the minimum application score?", "min"),
     ])
     def test_the_word_the_reader_wrote_is_read(self, question, wanted):
         assert ap._asked_rollup(question) == wanted
 
     def test_a_sentence_that_names_none_is_left_to_the_unit(self):
         assert ap._asked_rollup("Show expected credit loss by product.") == ""
+
+    @pytest.mark.parametrize("question", [
+        "Show me the worst 10 customers by expected credit loss.",
+        "Which product has the highest 30+ DPD rate?",
+        "Show the largest exposures.",
+        "Who are the best customers by application score?",
+        "The top five customers by ECL.",
+    ])
+    def test_an_ordering_word_is_not_an_aggregation(self, question):
+        """"worst 10 customers by ECL" grouped by customer with max(ECL).
+
+        The ranking was then of each customer's largest FACILITY: the true
+        top customer by ECL — 199,719.56 across two facilities — never
+        appeared, and the share column was computed against 14,781,702
+        rather than the book's 15,952,109.
+        """
+        assert ap._asked_rollup(question) == ""
 
 
 class TestTheAnswersReconcileWithTheBook:

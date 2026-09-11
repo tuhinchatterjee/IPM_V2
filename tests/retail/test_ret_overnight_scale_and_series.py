@@ -185,3 +185,35 @@ class TestACompositionEnumeratedIsStillAComposition:
                 book.groupby("ifrs9_stage").gross_carrying_amount_sar.sum()
                 .items()}
         assert shown == want
+
+
+class TestARankingSumsTheSubjectSFacilities:
+    """"Show me the worst 10 customers by expected credit loss" ranked each
+    customer by their LARGEST FACILITY. The true top customer by ECL —
+    199,719.56 SAR across two facilities — never appeared, and the share
+    column was computed against 14,781,702 rather than the book's
+    15,952,109.
+    """
+
+    def test_the_top_customer_is_the_top_customer(self, book):
+        got = rows(f"Show me the worst 10 customers by expected credit loss "
+                   f"at {LATEST}.")
+        assert len(got) == 10
+        want = book.groupby("customer_id").ecl_final_sar.sum().sort_values(
+            ascending=False)
+        assert got[0]["customer_id"] == want.index[0]
+        assert round(float(got[0]["ecl_final_sar"]), 2) == round(
+            float(want.iloc[0]), 2)
+
+    def test_the_share_is_against_the_whole_book(self, book):
+        got = rows(f"Show me the worst 10 customers by expected credit loss "
+                   f"at {LATEST}.")
+        population = float(got[0]["ecl_final_sar_population"])
+        assert round(population, 2) == round(float(book.ecl_final_sar.sum()), 2)
+
+    def test_the_order_is_the_book_s_order(self, book):
+        got = rows(f"Show me the worst 10 customers by expected credit loss "
+                   f"at {LATEST}.")
+        want = list(book.groupby("customer_id").ecl_final_sar.sum()
+                    .sort_values(ascending=False).index[:10])
+        assert [r["customer_id"] for r in got] == want

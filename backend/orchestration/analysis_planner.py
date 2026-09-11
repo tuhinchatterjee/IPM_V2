@@ -122,12 +122,21 @@ _DEFAULT_ROLLUP = "sum"
 #: "What is the AVERAGE behavioural score?" was answered with a sum, and
 #: before that with a maximum, because nothing read the word the reader wrote.
 #: A question that names its own aggregation has already settled it.
+#:
+#: ORDERING WORDS ARE NOT AGGREGATIONS. "highest", "worst", "largest", "top"
+#: and their opposites were in this table, and they describe how the rows are
+#: SORTED. "Show me the worst 10 customers by expected credit loss" then
+#: grouped by customer with `max(ecl)` — so the ranking was of each customer's
+#: largest FACILITY, the top customer by ECL (199,719.56 across two
+#: facilities) never appeared, and the share column was computed against
+#: 14,781,702 rather than the book's 15,952,109. Only the words that name an
+#: aggregation and nothing else are here.
 _ASKED_ROLLUP: tuple[tuple[str, str], ...] = (
     (r"\b(?:average|avg|mean)\b", "avg"),
     (r"\b(?:median)\b", "median"),
     (r"\b(?:total|sum|aggregate|combined)\b", "sum"),
-    (r"\b(?:highest|maximum|max|largest|worst|peak)\b", "max"),
-    (r"\b(?:lowest|minimum|min|smallest|best)\b", "min"),
+    (r"\b(?:maximum|peak)\b", "max"),
+    (r"\b(?:minimum)\b", "min"),
 )
 
 #: Aggregations DuckDB has and the validator accepts. A median is written

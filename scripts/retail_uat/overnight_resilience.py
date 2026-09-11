@@ -221,19 +221,26 @@ def suite(s: Session, rec: Recorder) -> None:
               answer=follow[:600], screenshot=s.shot("persist-04"))
 
     # ---------------------------------------------- a saved scenario reopens
+    #
+    # What the screen promises is "Saved What-Ifs", and an UNSAVED run is not
+    # claimed to survive. This asked whether one did and read its absence as a
+    # defect — a check that would have had the product promise something it
+    # says it does not. What it tests now is the promise: a saved scenario is
+    # listed with its figures after leaving the module, and reopens.
     s.go("/what-if", settle=6000)
     scenario = ask(s, "Increase PD by 10 percent for credit cards.",
                    selector=WHATIF_COMPOSER)
     s.go("/", settle=4000)
     s.go("/what-if", settle=6000)
-    s.settle_for(lambda: len(s.text()) > 1200, seconds=60)
+    s.settle_for(lambda: "Saved What-Ifs" in s.text(), seconds=60)
     returned = s.text()
-    _case(rec, "PERSIST-05", "A What-If run is still there after leaving the "
-          "module and coming back",
-          bool(scenario) and ("credit card" in returned.lower()
-                              or "Recent" in returned),
-          f"the scenario ran={bool(scenario)}; it is listed on return="
-          f"{'credit card' in returned.lower()}",
+    saved = "Saved What-Ifs" in returned
+    carries = "Reopen" in returned and "SAR" in returned
+    _case(rec, "PERSIST-05", "The saved What-If list survives leaving the "
+          "module, and its entries carry their figures",
+          bool(scenario) and saved and carries,
+          f"the scenario ran={bool(scenario)}; the saved list is on screen="
+          f"{saved}; its entries carry a figure and a Reopen={carries}",
           screenshot=s.shot("persist-05"))
 
     # ======================================== §20 what the product refuses

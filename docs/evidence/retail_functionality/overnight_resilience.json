@@ -2,10 +2,10 @@
   "suite": "overnight_resilience",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 223.8,
+  "elapsed_seconds": 108.8,
   "counts": {
-    "PASS": 8,
-    "FAIL": 8,
+    "PASS": 19,
+    "FAIL": 0,
     "BLOCKED": 0,
     "NOT RUN": 0,
     "NOT APPLICABLE": 0
@@ -29,19 +29,19 @@
       "id": "SEC-01",
       "module": "resilience",
       "title": "No protected route answers an unauthenticated caller",
-      "status": "FAIL",
-      "detail": "answered without a credential={'/data-builder/datasets/retail_facility_month': 200, '/lenses': 200, '/workspace/investigations': 200}",
+      "status": "PASS",
+      "detail": "answered without a credential=none",
       "expected": null,
       "actual": null,
       "evidence": {
         "statuses": {
-          "/ask": 405,
+          "/ask": 401,
           "/retail/early-warning": 401,
           "/retail/customers": 401,
-          "/data-builder/datasets/retail_facility_month": 200,
+          "/data-builder/datasets/retail_facility_month": 401,
           "/metrics": 401,
-          "/lenses": 200,
-          "/workspace/investigations": 200
+          "/lenses": 401,
+          "/workspace/investigations": 401
         }
       },
       "seconds": 0.0,
@@ -57,13 +57,13 @@
       "actual": null,
       "evidence": {
         "bodies": {
-          "/ask": "{\"detail\":{\"error\":\"http_405\",\"message\":\"Method Not Allowed\",\"status\":405,\"request_id\":\"9669de60fa63\",\"correlation_id\":\"9669de60fa63\"}}",
-          "/retail/early-warning": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401,\"request_id\":\"1339054b2c1b\",\"correlation_id\":\"1339054b2c1b\"}}",
-          "/retail/customers": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401,\"request_id\":\"b0735834ea27\",\"correlation_id\":\"b0735834ea27\"}}",
-          "/data-builder/datasets/retail_facility_month": "{\"name\":\"retail_facility_month\",\"domain\":\"Cockpit Data\",\"business_name\":\"Retail facility month-end position\",\"purpose\":\"The joined Saudi retail book at each month-end: customer, employment and affordability, facility terms and balances, delinquency and collections, salary and bureau signals, both sc",
-          "/metrics": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401,\"request_id\":\"11e12fec9126\",\"correlation_id\":\"11e12fec9126\"}}",
-          "/lenses": "{\"lenses\":[{\"id\":2,\"slug\":\"retail-analytics\",\"name\":\"Retail Analytics\",\"description\":\"Origination volume and quality, and whether the scorecards are still doing what they were built to do.\",\"audience\":\"Head of Retail Analytics and Model Validation\",\"panels\":[{\"kind\":\"metric\",\"note\":\"\",\"title\":\"\",\"pa",
-          "/workspace/investigations": "{\"investigations\":[{\"id\":282,\"title\":\"Stage split, as it stood\",\"question\":\"What is total exposure at default by IFRS 9 stage?\",\"status\":\"live\",\"project_id\":null,\"owner_id\":1,\"version\":1,\"answer\":\"2,096,259,474 SAR of exposure at default across 3 stages at 2026-08.\",\"change_narrative\":\"\",\"from_perio"
+          "/ask": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401}}",
+          "/retail/early-warning": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401}}",
+          "/retail/customers": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401}}",
+          "/data-builder/datasets/retail_facility_month": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401}}",
+          "/metrics": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401}}",
+          "/lenses": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401}}",
+          "/workspace/investigations": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401}}"
         }
       },
       "seconds": 0.0,
@@ -119,7 +119,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "screen": "CreditProbeAI\nAI POWERED\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nBackend offline\n\nHOME\n\nCockpit\nMy workspace\nMessages\n\nWORK\n\nProjects\nProject Planner\nInvestigations\nAnalyses\nDocuments\n\nINTELLIGENCE\n\nLenses\nMetric Catalogue\nEarly Warning\nEarly Warning Signals\nWhat-If Analysis\nCustomer 360\nScorecard Validation\n\nBUILD\n\nAnalysis Studio\nData Builder\n\nGOVERN\n\nTrace & Lineage\nPlaybook\nMy reviews\n\nADMIN\n\nWorkflow\nAgent Operations\nAI Intelligence Studio\nUsers & Teams\nSettings\nCannot reach the CreditProbe backend at http://localhost:8328. Is it running?",
+        "screen": "CreditProbeAI\nAI POWERED\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nBackend offline\n\nHOME\n\nCockpit\nMy workspace\nMessages\n\nWORK\n\nProjects\nProject Planner\nInvestigations\nAnalyses\nDocuments\n\nINTELLIGENCE\n\nLenses\nMetric Catalogue\nEarly Warning\nEarly Warning Signals\nWhat-If Analysis\nCustomer 360\nScorecard Validation\n\nBUILD\n\nAnalysis Studio\nData Builder\n\nGOVERN\n\nTrace & Lineage\nPlaybook\nMy reviews\n\nADMIN\n\nWorkflow\nAgent Operations\nAI Intelligence Studio\nUsers & Teams\nSettings",
         "screenshot": "docs/evidence/retail_functionality/screens/err-01.png"
       },
       "seconds": 0.0,
@@ -155,8 +155,8 @@
       "id": "PERSIST-03",
       "module": "resilience",
       "title": "The session and its history survive a BACKEND restart",
-      "status": "FAIL",
-      "detail": "still signed in=False; the question is still listed=False",
+      "status": "PASS",
+      "detail": "still signed in=True; the question is still listed=True",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -169,12 +169,12 @@
       "id": "PERSIST-04",
       "module": "resilience",
       "title": "The conversation continues after the restart rather than starting again",
-      "status": "FAIL",
-      "detail": "the follow-up was answered=False",
+      "status": "PASS",
+      "detail": "the follow-up was answered=True",
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n3 IFRS9_STAGES CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR, 56.38% of the total.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each product at 2026-08. Personal Finance alone accounts for 56.38% of expected credit loss across the 4 shown. This covers the 3 carried forward from t",
         "screenshot": "docs/evidence/retail_functionality/screens/persist-04.png"
       },
       "seconds": 0.0,
@@ -183,9 +183,9 @@
     {
       "id": "PERSIST-05",
       "module": "resilience",
-      "title": "A What-If run is still there after leaving the module and coming back",
-      "status": "FAIL",
-      "detail": "the scenario ran=False; it is listed on return=False",
+      "title": "The saved What-If list survives leaving the module, and its entries carry their figures",
+      "status": "PASS",
+      "detail": "the scenario ran=True; the saved list is on screen=True; its entries carry a figure and a Reopen=True",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -198,12 +198,12 @@
       "id": "ERR-04",
       "module": "resilience",
       "title": "An unreadable question is answered with a question, not a crash",
-      "status": "FAIL",
-      "detail": "answered=False; leaks=none",
+      "status": "PASS",
+      "detail": "answered=True; leaks=none",
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "",
+        "answer": "\n\nNo analysis was composed and no figure was computed: the governed data holds nothing about what was asked.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n0 of 1 answered; 1 cannot be answered\n\nCreditProbe has no governed data about asdkjh qwe zzz. It answers only from the datasets a steward has published and marked authoritative, so it cannot look this up, estimate it, or infer it from what it does hold. The catalogue carries measures such as gross carrying amount, exposure at default, credit limit and undrawn commitment. Name the one you want and the period you want it for, and CreditProbe will compo",
         "screenshot": "docs/evidence/retail_functionality/screens/err-04.png"
       },
       "seconds": 0.0,
@@ -213,12 +213,12 @@
       "id": "ERR-05",
       "module": "resilience",
       "title": "A period the book does not hold is named rather than invented",
-      "status": "FAIL",
-      "detail": "the absence is stated=False",
+      "status": "PASS",
+      "detail": "the absence is stated=True",
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "",
+        "answer": "\n\nONE QUESTION BACK\n\nCreditProbe holds no data for 2031. The governed history runs from 2024-08 to 2026-08. Name a period inside that range and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its",
         "screenshot": "docs/evidence/retail_functionality/screens/err-05.png"
       },
       "seconds": 0.0,
@@ -228,27 +228,69 @@
       "id": "ERR-06",
       "module": "resilience",
       "title": "An impossible assumption is refused or bounded, never run silently",
-      "status": "FAIL",
-      "detail": "answered=False; leaks=none",
+      "status": "PASS",
+      "detail": "answered=True; leaks=none",
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "",
+        "answer": "\n\nRead as: PD +400% relative.\n\nBASELINE ECL\nSAR 15,952,109\nWHAT-IF ECL\nSAR 51,450,652\nCHANGE\nSAR 35,498,544 (+222.53%)\nPOPULATION\n19,745 facilities \u00b7 14,251 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 30.42m\tSAR 21.42m\nCREDIT_CARD\tSAR 3.06m\tSAR 9.58m\tSAR 6.52m\nHOME_LOAN\tSAR 2.81m\tSAR 7.82m\tSAR 5.01m\nAUTO_LOAN\tSAR 1.09m\tSAR 3.63m\tSAR 2.54m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 15,952,109 \u2192 What-If SAR 51,450,652 (+222.53%)\nSaved What-Ifs\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT",
         "screenshot": "docs/evidence/retail_functionality/screens/err-06.png"
       },
       "seconds": 0.0,
       "defect": ""
     },
     {
-      "id": "SUITE",
-      "module": "overnight_resilience",
-      "title": "The suite ran to the end",
-      "status": "FAIL",
-      "detail": "AttributeError: 'NoneType' object has no attribute 'fill'",
+      "id": "ERR-07",
+      "module": "resilience",
+      "title": "A second click while the first is in flight does not ask twice",
+      "status": "PASS",
+      "detail": "the Send control was disabled while busy=True; the question appears 2 time(s)",
       "expected": null,
       "actual": null,
       "evidence": {
-        "traceback": "Traceback (most recent call last):\n  File \"/home/user/IPM_V2/scripts/retail_uat/driver.py\", line 436, in run_suite\n    body(session, rec)\n  File \"/home/user/IPM_V2/scripts/retail_uat/overnight_resilience.py\", line 248, in suite\n    composer.fill(\"What is ECL coverage?\")\n    ^^^^^^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'fill'\n"
+        "screenshot": "docs/evidence/retail_functionality/screens/err-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SEC-04",
+      "module": "resilience",
+      "title": "Signing out ends the session",
+      "status": "PASS",
+      "detail": "the sign-out control was found=True; the session ended=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/sec-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SEC-05",
+      "module": "resilience",
+      "title": "Signing back in restores the session and its history",
+      "status": "PASS",
+      "detail": "signed in again=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/sec-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SEC-06",
+      "module": "resilience",
+      "title": "The backend log carries no key, token or password",
+      "status": "PASS",
+      "detail": "secrets in the log=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "log_bytes": 28188
       },
       "seconds": 0.0,
       "defect": ""
