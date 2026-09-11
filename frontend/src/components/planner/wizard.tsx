@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import {
   api,
   ApiError,
+  type AgenticSetting,
   type CopilotPerson,
   type DraftCatalogueRow,
   type DraftDetail,
@@ -16,6 +17,9 @@ import {
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
+
+import { anchorId, focusField, SetupAssistant, SetupProgress }
+  from "./setup-assistant";
 
 /**
  * Setting a project up, one decision at a time.
@@ -28,28 +32,34 @@ import { cn } from "@/lib/utils";
  * the work under them, what waits for what, the whole thing read back, and
  * then one deliberate Publish.
  *
- * Two rules hold throughout.
+ * Three rules hold throughout.
  *
- * **The server is the plan.** Every control calls `api.planner.plan.apply`
- * with a named command, and the step re-reads the draft afterwards. There is
- * no client-side copy to reconcile, so Save Draft is not a separate save — by
- * the time you press it there is nothing unsaved except the box you are
- * typing in, which the step saves on its way forward.
+ * **There is one save.** Every field saves itself, shortly after you stop
+ * typing, and one status line says whether it worked: Saved, Saving…, or
+ * Save failed. There is no per-section Save button anywhere — a form with
+ * five of them is a form where "did that save?" is a fair question — and the
+ * single Save draft in the action bar is a way to leave, not a second way to
+ * save.
  *
- * **Next validates.** Moving forward saves the step and then reads the
- * server's own completeness notes for that step. A wizard that let you walk
- * past a missing sponsor and told you about it on step eight would be the
- * same unstructured page with extra clicks.
+ * **The server is the plan.** A field's value is what the server holds,
+ * overlaid with what you are typing into it right now and nothing else. So
+ * the fields, the completeness notes and the progress bar are three views of
+ * one document: they cannot drift, because there is nothing between them to
+ * drift.
+ *
+ * **Next validates.** Moving forward flushes the pending save and then reads
+ * the server's own completeness notes for that step. A wizard that let you
+ * walk past a missing sponsor and told you about it on step eight would be
+ * the same unstructured page with extra clicks.
  */
 
 type Row = Record<string, unknown>;
 
 const text = (row: Row, key: string) => String(row[key] ?? "");
-const num = (row: Row, key: string): number | null => {
-  const found = row[key];
-  return found === null || found === undefined || found === "" ? null
+const num = (row: Row, key: string): number | null => asNumber(row[key]);
+const asNumber = (found: unknown): number | null =>
+  found === null || found === undefined || found === "" ? null
     : Number(found);
-};
 
 /** The eight steps, and which completeness scopes belong to each. */
 export const STEPS = [
@@ -123,18 +133,22 @@ export function ProjectWizard({
   const [error, setError] = React.useState("");
   const [blockers, setBlockers] = React.useState<DraftNote[]>([]);
   const [busy, setBusy] = React.useState(false);
+  const [save, setSave] = React.useState<SaveState>("idle");
   const step = STEPS[at];
 
   const apply = React.useCallback(
     async (command: string, payload: Row = {}) => {
       setBusy(true);
       setError("");
+      setSave("saving");
       try {
         await api.planner.plan.apply(detail.key, command, payload,
                                      detail.version);
+        setSave("saved");
         onChanged();
         return true;
       } catch (failure) {
+        setSave("failed");
         setError(
           failure instanceof ApiError
             ? failure.message
@@ -149,22 +163,24 @@ export function ProjectWizard({
   );
 
   /**
-   * A step's own gate: save what is on screen, then read the server's
-   * blockers for the scopes this step is responsible for.
+   * A step's own gate: flush whatever it has pending, and say whether what
+   * is on screen is valid.
    *
-   * Each step registers its saver here rather than the wizard reaching into
-   * the step's state, so the step that knows what a valid Overview is is the
-   * one that decides whether Overview is valid.
+   * Each step registers this here rather than the wizard reaching into the
+   * step's state, so the step that knows what a valid Overview is is the one
+   * that decides whether Overview is valid. With autosave there is usually
+   * nothing to flush — the field saved itself a second after it was typed —
+   * but Next pressed inside the debounce window must not outrun the save.
    */
   const saver = React.useRef<null | (() => Promise<boolean>)>(null);
   const register = React.useCallback(
     (fn: null | (() => Promise<boolean>)) => { saver.current = fn; }, []);
 
-  const goto = React.useCallback(async (next: number) => {
+  const jump = React.useCallback(async (next: number, gated: boolean) => {
     setError("");
     setBlockers([]);
-    if (next > at) {
-      if (saver.current && !(await saver.current())) return;
+    if (saver.current && !(await saver.current())) return false;
+    if (gated && next > at) {
       const fresh = await api.planner.plan.draft(detail.key);
       const scopes = STEPS[at].scopes as readonly string[];
       const stopping = fresh.completeness.blockers.filter(
@@ -172,7 +188,7 @@ export function ProjectWizard({
       if (stopping.length > 0) {
         setBlockers(stopping);
         onChanged();
-        return;
+        return false;
       }
     }
     const target = STEPS[Math.max(0, Math.min(STEPS.length - 1, next))];
@@ -180,7 +196,28 @@ export function ProjectWizard({
                                  { step: SERVER_STEP[target.key] });
     setAt(stepIndex(target.key));
     onChanged();
+    return true;
   }, [at, detail.key, onChanged]);
+
+  /** Next: validated. */
+  const goto = React.useCallback(
+    (next: number) => jump(next, true), [jump]);
+
+  /**
+   * The assistant's answer to "where is that?": go to the step the note
+   * belongs to and put the cursor on the field.
+   *
+   * Deliberately NOT gated. A person clicking "The project has no sponsor"
+   * is being sent to fix it; stopping them on the way with the step's own
+   * blockers would be refusing to take them to the thing they asked for.
+   */
+  const goTo = React.useCallback(async (stepKey: string, field: string) => {
+    const wanted = stepKey ? stepIndex(stepKey) : at;
+    if (wanted !== at) {
+      if (!(await jump(wanted, false))) return;
+    }
+    focusField(field);
+  }, [at, jump]);
 
   const saveDraft = React.useCallback(async () => {
     setError("");
@@ -190,10 +227,18 @@ export function ProjectWizard({
     onSaved();
   }, [detail.key, onSaved, step.key]);
 
+  const last = at === STEPS.length - 1;
+
   return (
     <div className="space-y-4">
-      <StepRail at={at} onJump={(index) => void goto(index)} />
+      <SetupProgress
+        progress={detail.progress}
+        at={SERVER_STEP[step.key] === "REVIEW" && step.key === "PUBLISH"
+          ? "PUBLISH" : step.key}
+        onJump={(stepKey) => void goTo(stepKey, "")}
+      />
 
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="overflow-hidden rounded-lg border border-border bg-surface">
         <header className="border-b border-border px-4 py-3">
           <p className="text-[11px] uppercase tracking-wide text-text-muted">
@@ -216,31 +261,18 @@ export function ProjectWizard({
             <p className="text-[11px] uppercase tracking-wide text-negative">
               This step is not finished
             </p>
-            <ul className="mt-1.5 space-y-1">
-              {blockers.map((note, index) => (
-                <li key={index} className="text-sm text-text-primary">
-                  {note.code && (
-                    <span className="mr-2 font-mono text-xs text-text-muted">
-                      {note.code}
-                    </span>
-                  )}
-                  {note.message}
-                  {note.fix && (
-                    <span className="ml-1 text-text-muted">{note.fix}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <NoteList notes={blockers}
+                      onGo={(stepKey, field) => void goTo(stepKey, field)} />
           </div>
         )}
 
         <div className="px-4 py-4">
           {step.key === "OVERVIEW" && (
-            <OverviewStep key={`o${detail.version}`} detail={detail}
+            <OverviewStep key={`o${detail.key}`} detail={detail}
                           apply={apply} register={register} />
           )}
           {step.key === "GOVERNANCE" && (
-            <GovernanceStep key={`g${detail.version}`} detail={detail}
+            <GovernanceStep key={`g${detail.key}`} detail={detail}
                             people={named} apply={apply}
                             register={register} />
           )}
@@ -261,82 +293,107 @@ export function ProjectWizard({
                               register={register} />
           )}
           {step.key === "REVIEW" && (
-            <PreviewStep detail={detail} people={named} register={register} />
+            <PreviewStep detail={detail} people={named} register={register}
+                         onGo={(stepKey, field) => void goTo(stepKey, field)} />
           )}
           {step.key === "PUBLISH" && (
-            <PublishStep detail={detail} onPublished={onPublished}
-                         register={register} />
+            <PublishStep detail={detail} register={register}
+                         onGo={(stepKey, field) => void goTo(stepKey, field)} />
           )}
         </div>
 
+        {/*
+          * One action bar, on every step, in one order. §14.
+          *
+          * Back, Save draft, Next — and on the last step Preview and Publish
+          * in place of Next, because there is nowhere further forward to go.
+          * Nothing else on this page saves anything, which is why "did that
+          * save?" now has one answer, printed beside these buttons.
+          */}
         <footer className="flex flex-wrap items-center gap-2 border-t border-border bg-surface-sunken px-4 py-3">
           <Button variant="outline" size="sm" disabled={busy || at === 0}
                   onClick={() => void goto(at - 1)}>
             Back
           </Button>
-          {at < STEPS.length - 1 && (
-            <Button size="sm" disabled={busy} onClick={() => void goto(at + 1)}>
-              Next
-            </Button>
-          )}
           <Button variant="ghost" size="sm" disabled={busy}
                   onClick={() => void saveDraft()}>
             Save draft
           </Button>
-          <span className="ml-auto text-xs text-text-muted">
-            Saved {detail.version} {detail.version === 1 ? "time" : "times"} ·
-            nothing exists until you publish.
-          </span>
+          {!last && (
+            <Button size="sm" disabled={busy} onClick={() => void goto(at + 1)}>
+              Next
+            </Button>
+          )}
+          {last && (
+            <>
+              <Button variant="outline" size="sm" disabled={busy}
+                      onClick={() => void goTo("REVIEW", "")}>
+                Preview
+              </Button>
+              <PublishButton detail={detail} busy={busy}
+                             onPublished={onPublished} onFailed={setError} />
+            </>
+          )}
+          <SaveStatus state={save} />
         </footer>
       </section>
+
+      <SetupAssistant guidance={detail.guidance}
+                      onGo={(stepKey, field) => void goTo(stepKey, field)} />
+      </div>
     </div>
   );
 }
 
-/** Where you are, and how to get back to a step you have already passed. */
-function StepRail({ at, onJump }: { at: number; onJump: (n: number) => void }) {
+/** Saved · Saving… · Save failed. One line, one place, §2. */
+function SaveStatus({ state }: { state: SaveState }) {
+  if (state === "idle") {
+    return (
+      <span className="ml-auto text-xs text-text-muted">
+        Every field saves itself. Nothing exists until you publish.
+      </span>
+    );
+  }
   return (
-    <ol className="flex flex-wrap gap-1.5" aria-label="Project setup steps">
-      {STEPS.map((step, index) => {
-        const state = index === at ? "current"
-          : index < at ? "done" : "todo";
-        return (
-          <li key={step.key}>
-            <button
-              type="button"
-              aria-current={state === "current" ? "step" : undefined}
-              disabled={state === "todo"}
-              onClick={() => onJump(index)}
-              className={cn(
-                "rounded-md border px-2.5 py-1.5 text-xs transition",
-                state === "current" && "border-accent bg-accent-muted text-text-primary",
-                state === "done" && "border-border bg-surface text-text-secondary hover:border-accent",
-                state === "todo" && "border-border bg-surface text-text-muted",
-              )}
-            >
-              <span className="font-mono">{step.n}</span>
-              <span className="ml-1.5">{step.title}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ol>
+    <span
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "ml-auto rounded-md px-2 py-1 text-xs",
+        state === "saving" && "bg-surface text-text-secondary",
+        state === "saved" && "bg-positive/10 text-positive",
+        state === "failed" && "bg-negative/10 text-negative",
+      )}
+    >
+      {state === "saving" ? "Saving…"
+        : state === "saved" ? "Saved" : "Save failed"}
+    </span>
   );
 }
 
 // ------------------------------------------------------------------- shell
 
+/**
+ * One labelled control, and the address a completeness note can send
+ * somebody to.
+ *
+ * `anchor` is the plan path the field holds — `governance.sponsor_id`. The
+ * assistant's notes carry the same string, so "The project has no sponsor"
+ * is one click from the sponsor rather than a search through eight steps.
+ */
 function Field({
   label,
   hint,
+  anchor,
   children,
 }: {
   label: string;
   hint?: string;
+  anchor?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className="block" id={anchor ? `${anchorId(anchor)}-row` : undefined}>
       <span className="text-[11px] uppercase tracking-wide text-text-muted">
         {label}
       </span>
@@ -362,12 +419,15 @@ function PersonSelect({
   people,
   onChange,
   label,
+  anchor,
 }: {
   value: number | null;
   /** Everybody already named on this plan, offered before any search. */
   people: CopilotPerson[];
   onChange: (id: number | null) => void;
   label?: string;
+  /** The plan path this picker sets, so a note can send somebody here. */
+  anchor?: string;
 }) {
   const [search, setSearch] = React.useState("");
   const [query, setQuery] = React.useState("");
@@ -405,6 +465,7 @@ function PersonSelect({
       <select
         value={value ?? ""}
         aria-label={label}
+        id={anchor ? anchorId(anchor) : undefined}
         onChange={(event) =>
           onChange(event.target.value ? Number(event.target.value) : null)}
         className="mt-1 h-9 w-full rounded-md border border-border bg-surface-raised px-2 text-sm text-text-primary"
@@ -427,6 +488,94 @@ function nameOf(people: CopilotPerson[], id: number | null): string {
 
 type Apply = (command: string, payload?: Row) => Promise<boolean>;
 type Register = (fn: null | (() => Promise<boolean>)) => void;
+
+/** What the one status line on the screen is currently saying. */
+export type SaveState = "idle" | "saving" | "saved" | "failed";
+
+/** How long after the last keystroke a field saves itself. */
+const AUTOSAVE_MS = 700;
+
+/**
+ * One field, saved shortly after you stop typing.
+ *
+ * The value of a control is the server's value, overlaid with what is being
+ * typed into it and nothing else. That overlay is cleared the moment the
+ * server confirms what it was, so the form cannot end up holding a different
+ * plan from the one the completeness panel is describing — which is exactly
+ * what UAT saw, and exactly what a local copy of the whole section produces
+ * when the server derives a field the copy does not know about.
+ *
+ * `flush` is what Back, Next and Save draft call: a save that is scheduled
+ * but has not fired yet must not be outrun by the button that assumes it has.
+ */
+function useAutosave({
+  apply,
+  command,
+  server,
+  extra,
+}: {
+  apply: Apply;
+  command: string;
+  /** The section of the plan as the server currently holds it. */
+  server: Row;
+  /** Merged into every patch — the code of the row being edited. */
+  extra?: Row;
+}) {
+  const [pending, setPending] = React.useState<Row>({});
+  const queued = React.useRef<Row>({});
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The row being edited — `{code}` — which every patch has to carry. In a
+  // ref rather than a dependency because `flush` is called from a timer, and
+  // in an effect rather than during render because a ref written while
+  // rendering is a ref React is allowed to throw away.
+  const carry = React.useRef<Row>(extra ?? {});
+  React.useEffect(() => { carry.current = extra ?? {}; });
+
+  const flush = React.useCallback(async () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const patch = queued.current;
+    queued.current = {};
+    if (Object.keys(patch).length === 0) return true;
+    const ok = await apply(command, { ...carry.current, ...patch });
+    if (!ok) {
+      // Keep it pending: the field still shows what the person typed, and
+      // the status line says the save failed. Losing their typing silently
+      // would be the worse of the two failures.
+      queued.current = { ...patch, ...queued.current };
+      return false;
+    }
+    setPending((was) => {
+      const next = { ...was };
+      for (const key of Object.keys(patch)) {
+        if (!(key in queued.current) && next[key] === patch[key]) {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+    return true;
+  }, [apply, command]);
+
+  const set = React.useCallback((key: string, value: unknown) => {
+    setPending((was) => ({ ...was, [key]: value }));
+    queued.current = { ...queued.current, [key]: value };
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => { void flush(); }, AUTOSAVE_MS);
+  }, [flush]);
+
+  React.useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+
+  const value = React.useCallback(
+    (key: string): unknown => (key in pending ? pending[key] : server[key]),
+    [pending, server]);
+
+  return { value, set, flush };
+}
 
 /**
  * Give the wizard this step's saver, and take it back when the step leaves.
@@ -454,13 +603,15 @@ function OverviewStep({
   apply: Apply;
   register: Register;
 }) {
-  const [form, setForm] = React.useState(detail.plan.overview);
+  const form = useAutosave({ apply, command: "set_overview",
+                             server: detail.plan.overview as Row });
   const [taken, setTaken] = React.useState("");
 
   useSaver(register, async () => {
     setTaken("");
-    if (!form.name.trim()) return false;
-    const wanted = form.code.trim();
+    if (!(await form.flush())) return false;
+    const wanted = String(form.value("code") ?? "").trim();
+    if (!String(form.value("name") ?? "").trim()) return false;
     if (wanted) {
       // §7. The duplicate is caught here rather than at publish, because
       // finding out on step eight that the code is taken means redoing the
@@ -476,7 +627,7 @@ function OverviewStep({
         // A failed check must not block a plan; publish checks it again.
       }
     }
-    return apply("set_overview", { ...form });
+    return true;
   });
 
   return (
@@ -487,27 +638,29 @@ function OverviewStep({
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Project name">
-          <Input value={form.name}
+        <Field label="Project name" anchor="overview.name">
+          <Input id={anchorId("overview.name")}
+                 value={String(form.value("name") ?? "")}
                  placeholder="LGD Model Redevelopment"
-                 onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                 onChange={(e) => form.set("name", e.target.value)} />
         </Field>
-        <Field label="Project code"
+        <Field label="Project code" anchor="overview.code"
                hint="How people refer to it in exports, messages and reports.">
-          <Input value={form.code}
+          <Input id={anchorId("overview.code")}
+                 value={String(form.value("code") ?? "")}
                  placeholder="LGDMR-2026"
-                 onChange={(e) => setForm({ ...form, code: e.target.value })} />
+                 onChange={(e) => form.set("code", e.target.value)} />
         </Field>
-        <Field label="Description">
-          <Input value={form.description}
-                 onChange={(e) =>
-                   setForm({ ...form, description: e.target.value })} />
+        <Field label="Description" anchor="overview.description">
+          <Input id={anchorId("overview.description")}
+                 value={String(form.value("description") ?? "")}
+                 onChange={(e) => form.set("description", e.target.value)} />
         </Field>
-        <Field label="Objective"
+        <Field label="Objective" anchor="overview.objective"
                hint="What has to be true for this to be finished?">
-          <Input value={form.objective}
-                 onChange={(e) =>
-                   setForm({ ...form, objective: e.target.value })} />
+          <Input id={anchorId("overview.objective")}
+                 value={String(form.value("objective") ?? "")}
+                 onChange={(e) => form.set("objective", e.target.value)} />
         </Field>
       </div>
     </div>
@@ -527,18 +680,20 @@ function GovernanceStep({
   apply: Apply;
   register: Register;
 }) {
-  const [form, setForm] = React.useState(detail.plan.governance);
+  const form = useAutosave({ apply, command: "set_governance",
+                             server: detail.plan.governance as Row });
   const [local, setLocal] = React.useState("");
+  const start = String(form.value("start_date") ?? "");
+  const end = String(form.value("target_end_date") ?? "");
 
   useSaver(register, async () => {
     setLocal("");
-    if (form.start_date && form.target_end_date
-        && form.target_end_date < form.start_date) {
-      setLocal(`Target completion (${form.target_end_date}) is before the ` +
-               `start date (${form.start_date}).`);
+    if (start && end && end < start) {
+      setLocal(`Target completion (${end}) is before the start date ` +
+               `(${start}).`);
       return false;
     }
-    return apply("set_governance", { ...form });
+    return form.flush();
   });
 
   return (
@@ -549,50 +704,59 @@ function GovernanceStep({
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Sponsor" hint="Accountable for the project existing.">
-          <PersonSelect label="Sponsor" value={form.sponsor_id} people={people}
-                        onChange={(id) => setForm({ ...form, sponsor_id: id })} />
+        <Field label="Sponsor" anchor="governance.sponsor_id"
+               hint="Accountable for the project existing.">
+          <PersonSelect label="Sponsor" anchor="governance.sponsor_id"
+                        value={asNumber(form.value("sponsor_id"))} people={people}
+                        onChange={(id) => form.set("sponsor_id", id)} />
         </Field>
-        <Field label="Project manager" hint="Runs it day to day.">
-          <PersonSelect label="Project manager" value={form.manager_id}
-                        people={people}
-                        onChange={(id) => setForm({ ...form, manager_id: id })} />
+        <Field label="Project manager" anchor="governance.manager_id"
+               hint="Runs it day to day.">
+          <PersonSelect label="Project manager" anchor="governance.manager_id"
+                        value={asNumber(form.value("manager_id"))} people={people}
+                        onChange={(id) => form.set("manager_id", id)} />
         </Field>
-        <Field label="Owner" hint="Often the manager. Say so explicitly.">
-          <PersonSelect label="Owner" value={form.owner_id} people={people}
-                        onChange={(id) => setForm({ ...form, owner_id: id })} />
+        <Field label="Owner" anchor="governance.owner_id"
+               hint="Often the manager. Say so explicitly.">
+          <PersonSelect label="Owner" anchor="governance.owner_id"
+                        value={asNumber(form.value("owner_id"))} people={people}
+                        onChange={(id) => form.set("owner_id", id)} />
         </Field>
-        <Field label="Escalation contact"
+        <Field label="Escalation contact" anchor="governance.escalation_id"
                hint="The last stop when a milestone's own contact has not resolved something.">
-          <PersonSelect label="Escalation contact" value={form.escalation_id}
-                        people={people}
-                        onChange={(id) =>
-                          setForm({ ...form, escalation_id: id })} />
+          <PersonSelect label="Escalation contact"
+                        anchor="governance.escalation_id"
+                        value={asNumber(form.value("escalation_id"))} people={people}
+                        onChange={(id) => form.set("escalation_id", id)} />
         </Field>
-        <Field label="Start date">
-          <Input type="date" value={form.start_date ?? ""}
+        <Field label="Start date" anchor="governance.start_date">
+          <Input id={anchorId("governance.start_date")} type="date"
+                 value={start}
+                 onChange={(e) => form.set("start_date", e.target.value)} />
+        </Field>
+        <Field label="Target completion" anchor="governance.target_end_date">
+          <Input id={anchorId("governance.target_end_date")} type="date"
+                 value={end}
                  onChange={(e) =>
-                   setForm({ ...form, start_date: e.target.value })} />
+                   form.set("target_end_date", e.target.value)} />
         </Field>
-        <Field label="Target completion">
-          <Input type="date" value={form.target_end_date ?? ""}
-                 onChange={(e) =>
-                   setForm({ ...form, target_end_date: e.target.value })} />
-        </Field>
-        <Field label="Priority">
-          <select value={form.priority} aria-label="Priority"
-                  onChange={(e) =>
-                    setForm({ ...form, priority: e.target.value })}
+        <Field label="Priority" anchor="governance.priority">
+          <select value={String(form.value("priority") ?? "MEDIUM")}
+                  aria-label="Priority"
+                  id={anchorId("governance.priority")}
+                  onChange={(e) => form.set("priority", e.target.value)}
                   className="mt-1 h-9 w-full rounded-md border border-border bg-surface-raised px-2 text-sm text-text-primary">
             {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((level) => (
               <option key={level} value={level}>{level}</option>
             ))}
           </select>
         </Field>
-        <Field label="Reporting cadence">
-          <select value={form.reporting_cadence} aria-label="Reporting cadence"
+        <Field label="Reporting cadence" anchor="governance.reporting_cadence">
+          <select value={String(form.value("reporting_cadence") ?? "WEEKLY")}
+                  aria-label="Reporting cadence"
+                  id={anchorId("governance.reporting_cadence")}
                   onChange={(e) =>
-                    setForm({ ...form, reporting_cadence: e.target.value })}
+                    form.set("reporting_cadence", e.target.value)}
                   className="mt-1 h-9 w-full rounded-md border border-border bg-surface-raised px-2 text-sm text-text-primary">
             {["DAILY", "WEEKLY", "FORTNIGHTLY", "MONTHLY"].map((cadence) => (
               <option key={cadence} value={cadence}>{cadence}</option>
@@ -637,6 +801,7 @@ function AgenticStep({
             key={choice.mode}
             type="button"
             disabled={busy}
+            id={choice.mode === "CUSTOM" ? anchorId("agentic.mode") : undefined}
             aria-pressed={choice.mode === chosen}
             onClick={() => void apply("set_agentic", { mode: choice.mode })}
             className={cn(
@@ -654,7 +819,169 @@ function AgenticStep({
           </button>
         ))}
       </div>
+      {chosen === "CUSTOM" && (
+        <CustomPolicy detail={detail} apply={apply} busy={busy} />
+      )}
     </div>
+  );
+}
+
+/**
+ * Custom, actually set. §11.
+ *
+ * Choosing Custom used to select a label and leave the thresholds on
+ * Standard, which is the worst of the four answers: the screen says the
+ * policy is yours and the agent behaves as though it is not. Every field
+ * here is a real threshold the monitoring engine reads, rendered from the
+ * server's own list of them with the server's own bounds — so a field cannot
+ * appear that the policy does not have, and a number cannot be shown as
+ * acceptable that the policy will refuse.
+ *
+ * Nothing is saved per field here either: the panel writes the whole custom
+ * document through `set_agentic`, which is one command, and the sentence
+ * underneath is the policy read back in the words it will behave in.
+ */
+function CustomPolicy({
+  detail,
+  apply,
+  busy,
+}: {
+  detail: DraftDetail;
+  apply: Apply;
+  busy: boolean;
+}) {
+  const stored = (detail.plan.agentic?.policy ?? {}) as Row;
+  const settings = detail.agentic_settings ?? [];
+  const [error, setError] = React.useState("");
+  const [saying, setSaying] = React.useState("");
+  const [draft, setDraft] = React.useState<Row>(() => {
+    const start: Row = {};
+    for (const setting of settings) {
+      start[setting.key] = setting.key in stored
+        ? stored[setting.key] : setting.default;
+    }
+    return start;
+  });
+
+  const write = React.useCallback(async (next: Row) => {
+    setError("");
+    const ok = await apply("set_agentic", { mode: "CUSTOM", policy: next });
+    if (!ok) {
+      setError("Those thresholds were refused. The message above says why.");
+      return;
+    }
+    setSaying("");
+  }, [apply]);
+
+  const change = (setting: AgenticSetting, raw: unknown) => {
+    const next = { ...draft, [setting.key]: raw };
+    setDraft(next);
+    void write(next);
+  };
+
+  return (
+    <section className="rounded-lg border border-accent/40 bg-surface px-4 py-3"
+             aria-label="Custom agentic policy">
+      <p className="text-[11px] uppercase tracking-wide text-text-muted">
+        Your thresholds
+      </p>
+      {error && (
+        <p role="alert"
+           className="mt-1.5 rounded-md border border-negative/40 bg-negative/10 px-3 py-2 text-sm text-negative">
+          {error}
+        </p>
+      )}
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {settings.map((setting) => {
+          const held = draft[setting.key];
+          if (setting.kind === "flag") {
+            return (
+              <label key={setting.key}
+                     className="flex items-start gap-2 rounded-md border border-border px-3 py-2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={Boolean(held)}
+                  aria-label={setting.label}
+                  disabled={busy}
+                  onChange={(e) => change(setting, e.target.checked)}
+                />
+                <span className="min-w-0">
+                  <span className="block text-xs text-text-primary">
+                    {setting.label}
+                  </span>
+                  {setting.help && (
+                    <span className="mt-0.5 block text-[11px] text-text-muted">
+                      {setting.help}
+                    </span>
+                  )}
+                </span>
+              </label>
+            );
+          }
+          if (setting.kind === "days_list") {
+            return (
+              <Field key={setting.key} label={setting.label}
+                     hint={setting.help}>
+                <Input
+                  value={Array.isArray(held) ? held.join(", ") : ""}
+                  aria-label={setting.label}
+                  placeholder="7, 3, 1, 0"
+                  disabled={busy}
+                  onChange={(e) => setSaying(e.target.value)}
+                  onBlur={(e) => change(setting, e.target.value
+                    .split(",")
+                    .map((part) => part.trim())
+                    .filter(Boolean)
+                    .map(Number)
+                    .filter((day) => Number.isFinite(day)))}
+                />
+              </Field>
+            );
+          }
+          const never = setting.kind === "days_or_never";
+          return (
+            <Field key={setting.key} label={setting.label} hint={setting.help}>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  className="mt-1"
+                  aria-label={setting.label}
+                  min={setting.minimum ?? undefined}
+                  max={setting.maximum ?? undefined}
+                  disabled={busy || (never && held === null)}
+                  value={held === null || held === undefined
+                    ? "" : String(held)}
+                  onChange={(e) => change(setting, e.target.value === ""
+                    ? null : Number(e.target.value))}
+                />
+                {never && (
+                  <label className="mt-1 flex shrink-0 items-center gap-1 text-[11px] text-text-muted">
+                    <input
+                      type="checkbox"
+                      checked={held === null}
+                      aria-label={`${setting.label}: never`}
+                      disabled={busy}
+                      onChange={(e) => change(
+                        setting, e.target.checked ? null : setting.default)}
+                    />
+                    Never
+                  </label>
+                )}
+              </div>
+            </Field>
+          );
+        })}
+      </div>
+      {saying && (
+        <p className="mt-2 text-[11px] text-text-muted">
+          Reminder days are saved when you leave the box.
+        </p>
+      )}
+      <p className="mt-3 rounded-md border border-border bg-surface-sunken px-3 py-2 text-xs text-text-secondary">
+        {detail.agentic_choices.find((row) => row.mode === "CUSTOM")?.sentence}
+      </p>
+    </section>
   );
 }
 
@@ -737,9 +1064,8 @@ function MilestonesStep({
                 </div>
               </div>
               {editing === code && (
-                <MilestoneEditor key={`${code}-${detail.version}`}
-                                 milestone={milestone} people={people}
-                                 apply={apply} busy={busy} />
+                <MilestoneEditor key={code} milestone={milestone}
+                                 people={people} apply={apply} />
               )}
             </li>
           );
@@ -791,58 +1117,62 @@ function MilestonesStep({
   );
 }
 
+/**
+ * Editing one milestone, with no Save button of its own. §2.
+ *
+ * Each field saves itself, and the one status line in the action bar says
+ * whether it worked. A milestone editor with its own Save was one of five
+ * places on this page that claimed to save something, which is how a person
+ * ends up not knowing whether any of them did.
+ */
 function MilestoneEditor({
   milestone,
   people,
   apply,
-  busy,
 }: {
   milestone: Row;
   people: CopilotPerson[];
   apply: Apply;
-  busy: boolean;
 }) {
-  const [form, setForm] = React.useState(milestone);
   const code = text(milestone, "code");
+  const form = useAutosave({ apply, command: "update_milestone",
+                             server: milestone, extra: { code } });
+  const at = (field: string) => `milestone.${code}.${field}`;
   return (
     <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2">
-      <Field label="Name">
-        <Input value={text(form, "name")}
-               onChange={(e) => setForm({ ...form, name: e.target.value })} />
+      <Field label="Name" anchor={at("name")}>
+        <Input id={anchorId(at("name"))}
+               value={String(form.value("name") ?? "")}
+               onChange={(e) => form.set("name", e.target.value)} />
       </Field>
-      <Field label="Owner">
-        <PersonSelect label="Owner" value={num(form, "owner_id")} people={people}
-                      onChange={(id) => setForm({ ...form, owner_id: id })} />
+      <Field label="Owner" anchor={at("owner_id")}>
+        <PersonSelect label="Owner" anchor={at("owner_id")}
+                      value={asNumber(form.value("owner_id"))} people={people}
+                      onChange={(id) => form.set("owner_id", id)} />
       </Field>
-      <Field label="Starts">
-        <Input type="date" value={text(form, "start_date")}
-               onChange={(e) =>
-                 setForm({ ...form, start_date: e.target.value })} />
+      <Field label="Starts" anchor={at("start_date")}>
+        <Input id={anchorId(at("start_date"))} type="date"
+               value={String(form.value("start_date") ?? "")}
+               onChange={(e) => form.set("start_date", e.target.value)} />
       </Field>
-      <Field label="Target date">
-        <Input type="date" value={text(form, "target_date")}
-               onChange={(e) =>
-                 setForm({ ...form, target_date: e.target.value })} />
+      <Field label="Target date" anchor={at("target_date")}>
+        <Input id={anchorId(at("target_date"))} type="date"
+               value={String(form.value("target_date") ?? "")}
+               onChange={(e) => form.set("target_date", e.target.value)} />
       </Field>
-      <Field label="Critical date"
+      <Field label="Critical date" anchor={at("critical_date")}
              hint="After this it cannot recover. Not the target date.">
-        <Input type="date" value={text(form, "critical_date")}
-               onChange={(e) =>
-                 setForm({ ...form, critical_date: e.target.value })} />
+        <Input id={anchorId(at("critical_date"))} type="date"
+               value={String(form.value("critical_date") ?? "")}
+               onChange={(e) => form.set("critical_date", e.target.value)} />
       </Field>
-      <Field label="Escalation contact"
+      <Field label="Escalation contact" anchor={at("escalation_id")}
              hint="Leave empty to inherit the project's.">
-        <PersonSelect label="Escalation contact"
-                      value={num(form, "escalation_id")} people={people}
-                      onChange={(id) =>
-                        setForm({ ...form, escalation_id: id })} />
+        <PersonSelect label="Escalation contact" anchor={at("escalation_id")}
+                      value={asNumber(form.value("escalation_id"))}
+                      people={people}
+                      onChange={(id) => form.set("escalation_id", id)} />
       </Field>
-      <div className="sm:col-span-2">
-        <Button size="sm" disabled={busy}
-                onClick={() => void apply("update_milestone", { ...form, code })}>
-          Save milestone
-        </Button>
-      </div>
     </div>
   );
 }
@@ -880,7 +1210,7 @@ function TasksStep({
         const code = text(milestone, "code");
         return (
           <MilestoneTasks
-            key={`${code}-${detail.version}`}
+            key={code}
             milestone={milestone}
             tasks={tasks.filter(
               (task) => text(task, "milestone_code") === code)}
@@ -981,8 +1311,8 @@ function MilestoneTasks({
                 </div>
               </div>
               {editing === taskCode && (
-                <TaskEditor task={task} people={people} apply={apply}
-                            busy={busy} />
+                <TaskEditor key={taskCode} task={task} people={people}
+                            apply={apply} />
               )}
             </li>
           );
@@ -1037,58 +1367,55 @@ function MilestoneTasks({
   );
 }
 
+/** Editing one task. Like the milestone editor, it has no Save. §2. */
 function TaskEditor({
   task,
   people,
   apply,
-  busy,
 }: {
   task: Row;
   people: CopilotPerson[];
   apply: Apply;
-  busy: boolean;
 }) {
-  const [form, setForm] = React.useState(task);
   const code = text(task, "code");
+  const form = useAutosave({ apply, command: "update_task",
+                             server: task, extra: { code } });
+  const at = (field: string) => `task.${code}.${field}`;
   return (
     <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-3">
-      <Field label="Title">
-        <Input value={text(form, "title")}
-               onChange={(e) => setForm({ ...form, title: e.target.value })} />
+      <Field label="Title" anchor={at("title")}>
+        <Input id={anchorId(at("title"))}
+               value={String(form.value("title") ?? "")}
+               onChange={(e) => form.set("title", e.target.value)} />
       </Field>
-      <Field label="Description"
+      <Field label="Description" anchor={at("description")}
              hint="The owner reads this when the agent reminds them.">
-        <Input value={text(form, "description")}
-               onChange={(e) =>
-                 setForm({ ...form, description: e.target.value })} />
+        <Input id={anchorId(at("description"))}
+               value={String(form.value("description") ?? "")}
+               onChange={(e) => form.set("description", e.target.value)} />
       </Field>
-      <Field label="Owner">
-        <PersonSelect label="Owner" value={num(form, "owner_id")} people={people}
-                      onChange={(id) => setForm({ ...form, owner_id: id })} />
+      <Field label="Owner" anchor={at("owner_id")}>
+        <PersonSelect label="Owner" anchor={at("owner_id")}
+                      value={asNumber(form.value("owner_id"))} people={people}
+                      onChange={(id) => form.set("owner_id", id)} />
       </Field>
-      <Field label="Starts">
-        <Input type="date" value={text(form, "start_date")}
-               onChange={(e) =>
-                 setForm({ ...form, start_date: e.target.value })} />
+      <Field label="Starts" anchor={at("start_date")}>
+        <Input id={anchorId(at("start_date"))} type="date"
+               value={String(form.value("start_date") ?? "")}
+               onChange={(e) => form.set("start_date", e.target.value)} />
       </Field>
-      <Field label="Due">
-        <Input type="date" value={text(form, "due_date")}
-               onChange={(e) =>
-                 setForm({ ...form, due_date: e.target.value })} />
+      <Field label="Due" anchor={at("due_date")}>
+        <Input id={anchorId(at("due_date"))} type="date"
+               value={String(form.value("due_date") ?? "")}
+               onChange={(e) => form.set("due_date", e.target.value)} />
       </Field>
-      <Field label="Escalation contact"
+      <Field label="Escalation contact" anchor={at("escalation_id")}
              hint="Leave empty to inherit the milestone's.">
-        <PersonSelect label="Escalation contact"
-                      value={num(form, "escalation_id")} people={people}
-                      onChange={(id) =>
-                        setForm({ ...form, escalation_id: id })} />
+        <PersonSelect label="Escalation contact" anchor={at("escalation_id")}
+                      value={asNumber(form.value("escalation_id"))}
+                      people={people}
+                      onChange={(id) => form.set("escalation_id", id)} />
       </Field>
-      <div className="sm:col-span-3">
-        <Button size="sm" disabled={busy}
-                onClick={() => void apply("update_task", { ...form, code })}>
-          Save task
-        </Button>
-      </div>
     </div>
   );
 }
@@ -1303,10 +1630,12 @@ function PreviewStep({
   detail,
   people,
   register,
+  onGo,
 }: {
   detail: DraftDetail;
   people: CopilotPerson[];
   register: Register;
+  onGo: (step: string, field: string) => void;
 }) {
   const [preview, setPreview] = React.useState<DraftPreview | null>(null);
   const [error, setError] = React.useState("");
@@ -1431,7 +1760,7 @@ function PreviewStep({
         </div>
       )}
 
-      <CompletenessPanel notes={preview.completeness.blockers}
+      <CompletenessPanel onGo={onGo} notes={preview.completeness.blockers}
                          warnings={preview.completeness.warnings} />
     </div>
   );
@@ -1489,9 +1818,11 @@ function Timeline({ schedule }: { schedule: DraftPreview["schedule"] }) {
 function CompletenessPanel({
   notes,
   warnings,
+  onGo,
 }: {
   notes: DraftNote[];
   warnings: DraftNote[];
+  onGo: (step: string, field: string) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -1504,7 +1835,7 @@ function CompletenessPanel({
             Nothing outstanding. This plan can be published.
           </p>
         ) : (
-          <NoteList notes={notes} />
+          <NoteList notes={notes} onGo={onGo} />
         )}
       </div>
       <div className="rounded-md border border-border px-3 py-2.5">
@@ -1516,25 +1847,41 @@ function CompletenessPanel({
             Nothing a careful reader would change.
           </p>
         ) : (
-          <NoteList notes={warnings} />
+          <NoteList notes={warnings} onGo={onGo} />
         )}
       </div>
     </div>
   );
 }
 
-function NoteList({ notes }: { notes: DraftNote[] }) {
+/** Every note is a way back to the field it is about. §9. */
+function NoteList({
+  notes,
+  onGo,
+}: {
+  notes: DraftNote[];
+  onGo: (step: string, field: string) => void;
+}) {
   return (
     <ul className="mt-1.5 space-y-1">
       {notes.map((note, index) => (
-        <li key={`${note.scope}-${note.code}-${index}`} className="text-sm">
-          {note.code && (
-            <span className="mr-2 font-mono text-xs text-text-muted">
-              {note.code}
-            </span>
-          )}
-          <span className="text-text-primary">{note.message}</span>
-          {note.fix && <span className="ml-1 text-text-muted">{note.fix}</span>}
+        <li key={`${note.scope}-${note.code}-${index}`}>
+          <button
+            type="button"
+            aria-label={`Fix: ${note.message}`}
+            onClick={() => onGo(stepOfScope(note.scope), note.field)}
+            className="w-full rounded-md border border-transparent px-1.5 py-1 text-left text-sm transition hover:border-accent"
+          >
+            {note.code && (
+              <span className="mr-2 font-mono text-xs text-text-muted">
+                {note.code}
+              </span>
+            )}
+            <span className="text-text-primary">{note.message}</span>
+            {note.fix && (
+              <span className="ml-1 text-text-muted">{note.fix}</span>
+            )}
+          </button>
         </li>
       ))}
     </ul>
@@ -1543,17 +1890,22 @@ function NoteList({ notes }: { notes: DraftNote[] }) {
 
 // --------------------------------------------------------------- 8 publish
 
+/**
+ * What publishing does, and what is still in the way. §15.
+ *
+ * The button itself is in the action bar with Back, Save draft and Preview,
+ * because §14 asks for one row of controls and a Publish that sits somewhere
+ * else is a second one.
+ */
 function PublishStep({
   detail,
-  onPublished,
   register,
+  onGo,
 }: {
   detail: DraftDetail;
-  onPublished: (projectId: number) => void;
   register: Register;
+  onGo: (step: string, field: string) => void;
 }) {
-  const [error, setError] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
   useSaver(register, async () => true);
 
   if (detail.status === "PUBLISHED") {
@@ -1569,42 +1921,97 @@ function PublishStep({
 
   return (
     <div className="space-y-3">
-      {error && (
-        <p role="alert" className="rounded-md border border-negative/40 bg-negative/10 px-3 py-2 text-sm text-negative">
-          {error}
-        </p>
-      )}
       <p className="text-sm text-text-secondary">
         Publishing creates the project, its milestones, its tasks, its
         dependencies and everybody&apos;s access in one transaction. If any
         part of it fails, none of it is created.
       </p>
+      <p className={cn(
+        "rounded-md border px-3 py-2 text-sm",
+        publishable
+          ? "border-positive/40 bg-positive/5 text-positive"
+          : "border-negative/40 bg-negative/5 text-negative",
+      )}>
+        {detail.progress.publish_message}
+      </p>
       {!publishable && (
-        <div className="rounded-md border border-negative/40 bg-negative/5 px-3 py-2.5">
+        <div className="rounded-md border border-border px-3 py-2.5">
           <p className="text-[11px] uppercase tracking-wide text-negative">
-            {blockers.length} {blockers.length === 1 ? "thing has" : "things have"}{" "}
-            to be settled first
+            {blockers.length === 1 ? "It is this" : "They are these"}
           </p>
-          <NoteList notes={blockers} />
+          <ul className="mt-1.5 space-y-1">
+            {blockers.map((note, index) => (
+              <li key={index}>
+                <button
+                  type="button"
+                  aria-label={`Fix: ${note.message}`}
+                  onClick={() => onGo(stepOfScope(note.scope), note.field)}
+                  className="w-full rounded-md border border-border px-2.5 py-1.5 text-left text-sm transition hover:border-accent"
+                >
+                  {note.code && (
+                    <span className="mr-2 font-mono text-xs text-text-muted">
+                      {note.code}
+                    </span>
+                  )}
+                  <span className="text-text-primary">{note.message}</span>
+                  {note.fix && (
+                    <span className="ml-1 text-text-muted">{note.fix}</span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-      <Button
-        disabled={busy || !publishable}
-        onClick={async () => {
-          setBusy(true);
-          setError("");
-          try {
-            const made = await api.planner.plan.publish(detail.key, true);
-            onPublished(made.project_id);
-          } catch (failure) {
-            setError(failure instanceof ApiError
-              ? failure.message : "The project was not created.");
-            setBusy(false);
-          }
-        }}
-      >
-        Publish project
-      </Button>
     </div>
+  );
+}
+
+/** Which step of the form a completeness note belongs to. */
+function stepOfScope(scope: string): string {
+  if (scope === "overview") return "OVERVIEW";
+  if (scope === "governance") return "GOVERNANCE";
+  if (scope === "agentic") return "AGENTIC";
+  if (scope === "milestones" || scope === "milestone") return "MILESTONES";
+  if (scope === "task") return "TASKS";
+  if (scope === "link") return "DEPENDENCIES";
+  return "REVIEW";
+}
+
+/** The one Publish, in the action bar. */
+function PublishButton({
+  detail,
+  busy,
+  onPublished,
+  onFailed,
+}: {
+  detail: DraftDetail;
+  busy: boolean;
+  onPublished: (projectId: number) => void;
+  onFailed: (message: string) => void;
+}) {
+  const [going, setGoing] = React.useState(false);
+  const publishable = detail.completeness.publishable
+    && detail.status !== "PUBLISHED";
+  return (
+    <Button
+      size="sm"
+      disabled={busy || going || !publishable}
+      title={detail.progress.publish_message}
+      onClick={async () => {
+        setGoing(true);
+        onFailed("");
+        try {
+          const made = await api.planner.plan.publish(detail.key, true);
+          onPublished(made.project_id);
+        } catch (failure) {
+          onFailed(failure instanceof ApiError
+            ? failure.message : "The project was not created.");
+          setGoing(false);
+        }
+      }}
+    >
+      Publish project
+    </Button>
   );
 }

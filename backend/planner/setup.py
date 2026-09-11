@@ -347,33 +347,42 @@ def _publish_message(publishable: bool, required: int,
 #: What the assistant offers to do on each step, beyond filling the fields in
 #: front of the person. Each one is a control the form already has; the
 #: assistant points at it rather than doing anything of its own.
-def _actions(plan: dict[str, Any], key: str,
-             found: dr.Completeness) -> list[dict[str, Any]]:
+def _actions(plan: dict[str, Any], key: str) -> list[dict[str, Any]]:
     governance = plan.get("governance") or {}
+    here = STEP_OF_SECTION.get(key, STEP_OVERVIEW)
     actions: list[dict[str, Any]] = []
+    if key == "overview":
+        if not _text((plan.get("overview") or {}).get("objective")):
+            actions.append({"label": "Add the objective", "step": here,
+                            "field": "overview.objective"})
     if key == "governance":
         if not governance.get("sponsor_id"):
-            actions.append({"label": "Assign sponsor",
+            actions.append({"label": "Assign sponsor", "step": here,
                             "field": "governance.sponsor_id"})
         if not governance.get("escalation_id"):
-            actions.append({"label": "Set escalation contact",
+            actions.append({"label": "Set escalation contact", "step": here,
                             "field": "governance.escalation_id"})
     if key == "milestones":
-        actions.append({"label": "Add milestone", "field": "milestones.add"})
+        actions.append({"label": "Add milestone", "step": here,
+                        "field": "milestones.add"})
     if key == "tasks":
         empty = [str(m.get("code") or "") for m in dr.milestones_of(plan)
                  if not dr.tasks_of(plan, str(m.get("code") or ""))]
         if empty:
-            actions.append({"label": f"Add work to {empty[0]}",
+            actions.append({"label": f"Add work to {empty[0]}", "step": here,
                             "field": f"tasks.{empty[0]}.add"})
+        else:
+            actions.append({"label": "Add task", "step": here,
+                            "field": "tasks.add"})
     if key == "dependencies":
         loose = unlinked_tasks(plan)
         if loose:
             actions.append({"label": f"Show {len(loose)} unlinked task"
                                      f"{'' if len(loose) == 1 else 's'}",
-                            "field": "dependencies.unlinked",
+                            "step": here, "field": "dependencies.unlinked",
                             "codes": loose})
-    actions.append({"label": "Check readiness", "field": "readiness"})
+    actions.append({"label": "Check readiness", "step": STEP_REVIEW,
+                    "field": "readiness"})
     return actions
 
 
@@ -467,7 +476,7 @@ def guidance(plan: dict[str, Any], *, names: dict[int, str] | None = None,
         "recommended": recommended,
         "conflicts": _conflicts(found),
         "next": _next_step(plan, bars, found, wanted),
-        "actions": _actions(plan, here, found),
+        "actions": _actions(plan, here),
         "readiness": {
             "publishable": bars["publishable"],
             "required_remaining": bars["required_remaining"],

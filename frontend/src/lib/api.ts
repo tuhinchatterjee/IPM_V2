@@ -8208,6 +8208,13 @@ export type DraftNote = {
   code: string;
   message: string;
   fix: string;
+  /**
+   * Where in the plan this is set — `governance.sponsor_id`,
+   * `milestone.M01.owner_id`. The form turns it into the control to scroll
+   * to and focus, so a note about a missing sponsor is one click from the
+   * sponsor. Empty when the finding is about the plan rather than a field.
+   */
+  field: string;
 };
 
 export type DraftCompleteness = {
@@ -8276,8 +8283,89 @@ export type DraftCatalogueRow = {
   end_date: string | null;
 };
 
+/** One of the eight sections, as the plan currently stands. */
+export type DraftSection = {
+  key: string;
+  step: string;
+  number: number;
+  title: string;
+  state: "not_started" | "in_progress" | "needs_attention" | "complete";
+  label: string;
+  done: number;
+  total: number;
+  blockers: number;
+  warnings: number;
+  /** The line a finished section collapses to. */
+  summary: string;
+  /** The first thing this section still wants. */
+  field: string;
+};
+
+export type DraftProgress = {
+  sections: DraftSection[];
+  complete: number;
+  total: number;
+  /** "5 of 8 sections complete". */
+  sentence: string;
+  publishable: boolean;
+  required_remaining: number;
+  /** "Publish unavailable — 3 required items remain." */
+  publish_message: string;
+};
+
+/** One thing the assistant points at, and where it lives. */
+export type DraftPointer = {
+  message: string;
+  fix?: string;
+  field: string;
+  code: string;
+  step: string;
+  level?: string;
+};
+
+/**
+ * The Project Setup Assistant's whole output.
+ *
+ * Computed from the plan on the server. There is no message to send it and
+ * no text field to type into: it reports on the draft, and the draft is the
+ * only thing it can see.
+ */
+export type DraftGuidance = {
+  here: string;
+  headline: string;
+  complete: { section: string; summary: string; step: string }[];
+  missing: DraftPointer[];
+  recommended: DraftPointer[];
+  conflicts: DraftPointer[];
+  next: {
+    step: string; field: string; title: string; why: string;
+    required: boolean;
+  };
+  actions: {
+    label: string; step: string; field: string; codes?: string[];
+  }[];
+  readiness: {
+    publishable: boolean;
+    required_remaining: number;
+    message: string;
+  };
+};
+
+/** One threshold a Custom agentic policy can set. */
+export type AgenticSetting = {
+  key: string;
+  kind: "days" | "days_list" | "days_or_never" | "flag";
+  label: string;
+  help?: string;
+  default: unknown;
+  minimum: number | null;
+  maximum: number | null;
+};
+
 export type DraftDetail = DraftRow & {
   completeness: DraftCompleteness;
+  progress: DraftProgress;
+  guidance: DraftGuidance;
   catalogue: DraftCatalogueRow[];
   /**
    * Everybody this plan names, and nobody else. The person-pickers search
@@ -8286,6 +8374,7 @@ export type DraftDetail = DraftRow & {
    */
   people: CopilotPerson[];
   agentic_choices: AgenticChoice[];
+  agentic_settings: AgenticSetting[];
 };
 
 export type AgenticChoice = {
