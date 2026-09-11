@@ -8375,6 +8375,9 @@ export type DraftDetail = DraftRow & {
   people: CopilotPerson[];
   agentic_choices: AgenticChoice[];
   agentic_settings: AgenticSetting[];
+  /** The policy this plan has now, read back in the words it behaves in. */
+  agentic_policy: { mode: string; label: string; sentence: string } &
+    Record<string, unknown>;
 };
 
 export type AgenticChoice = {

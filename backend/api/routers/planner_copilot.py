@@ -158,7 +158,22 @@ def read_draft(key: str, session: Session = Depends(get_db),
             "catalogue": dr.catalogue(plan),
             "people": people,
             "agentic_choices": pol.choices(),
-            "agentic_settings": pol.settings()}
+            "agentic_settings": pol.settings(),
+            # The policy this plan currently has, resolved and read back in
+            # the words it will behave in. Custom is the reason it is here: a
+            # panel that showed "set the thresholds yourself" after somebody
+            # had set them would be describing the button, not the policy.
+            "agentic_policy": _agentic_now(plan)}
+
+
+def _agentic_now(plan: dict[str, Any]) -> dict[str, Any]:
+    agentic = (plan.get("agentic") or {})
+    try:
+        resolved = pol.resolve(agentic.get("mode", ""), agentic.get("policy"))
+    except pol.PolicyError as exc:
+        return {"mode": agentic.get("mode", ""), "label": "",
+                "sentence": f"This policy is not valid: {exc}"}
+    return pol.describe(resolved)
 
 
 class ApplyIn(BaseModel):

@@ -979,7 +979,7 @@ function CustomPolicy({
         </p>
       )}
       <p className="mt-3 rounded-md border border-border bg-surface-sunken px-3 py-2 text-xs text-text-secondary">
-        {detail.agentic_choices.find((row) => row.mode === "CUSTOM")?.sentence}
+        {detail.agentic_policy?.sentence}
       </p>
     </section>
   );
