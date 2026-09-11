@@ -1385,6 +1385,11 @@ def _inherit_filters(filters: list[tuple[str, str]],
     Finance, under a heading saying BY PRODUCT. So the dimension the planner
     has already chosen settles it too: a field the answer has one row per
     cannot also be pinned to one of its values, whatever the sentence said.
+
+    And not only that field. A carried `product_subsegment = CARD` pins the
+    product just as surely, so the same question came back "3,061,762 SAR of
+    final ECL in CARD across 1 product … 100.00% of the total". Which
+    dimensions determine which is declared in `dimensions.RETAIL_REFINES`.
     """
     named = {field_name for field_name, _ in filters}
     out = list(filters)
@@ -1393,7 +1398,8 @@ def _inherit_filters(filters: list[tuple[str, str]],
     for field_name, value in state.filter_pairs():
         if field_name in named:
             continue
-        if field_name == grouped_by or _groups_by(text, field_name):
+        if dm.pins(field_name, grouped_by) \
+                or _groups_by(text, field_name):
             dropped.append(f"{field_name} = {value}")
             continue
         if field_name in context.dimensions and value in context.dimensions[field_name]:
@@ -2587,6 +2593,27 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     elif want.explicit and want.grain == gr.SEGMENT and dimension:
         group_by = [dimension]
         label = f"Total by {dimension}"
+    elif count_grain and not dimension:
+        # "How many customers are in Stage 2?" is ONE NUMBER.
+        #
+        # The grain contract reads "customers" out of the sentence and asks
+        # for one row per customer, which is right for "show me the customers
+        # in Stage 2" and wrong for "how many". The two sentences name the
+        # same population and ask for different shapes of answer, and this
+        # branch is the difference: a question that COUNTS a population is
+        # answered by the count, not by the population.
+        #
+        # It answered with the population. Every "how many customers …"
+        # question in the product returned a list — one row per customer,
+        # each carrying `customer_count: 1` — under a question asking for a
+        # single figure. A reader had to count the rows themselves, and the
+        # table was truncated long before they could.
+        #
+        # `count_grain and dimension` is the branch below: "how many
+        # facilities in each stage" is one row per stage, and the count is the
+        # measure on it.
+        group_by = []
+        label = "Count the population as one row"
     elif want.explicit and wanted_key:
         group_by = [wanted_key] + ([dimension] if dimension else [])
         label = f"Aggregate to one row per {want.grain}"

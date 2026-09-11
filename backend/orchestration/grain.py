@@ -178,6 +178,21 @@ class Requested:
                 "keys": list(self.keys())}
 
 
+#: A question that COUNTS a population rather than listing it. The nouns are
+#: the ones `analysis_planner._wants_count` recognises, and the two readings
+#: have to agree: one decides the shape of the plan and the other decides what
+#: the grain contract will accept, and a disagreement between them is a refusal
+#: rather than a wrong answer — which is how it was found.
+_COUNTS = re.compile(
+    r"\bhow many\s+(?:\w+\s+){0,2}?"
+    r"(?:customers?|borrowers?|names?|obligors?|clients?|facilities|accounts?)\b"
+    r"|\bnumber of\s+(?:\w+\s+){0,2}?"
+    r"(?:customers?|borrowers?|names?|obligors?|clients?|facilities|accounts?)\b"
+    r"|\bcount of\s+(?:\w+\s+){0,2}?"
+    r"(?:customers?|borrowers?|names?|obligors?|clients?|facilities|accounts?)\b",
+    re.I)
+
+
 def requested(text: str, *, dimension: str = "", population_grain: str = "",
               dataset_grain: str = "", rows_requested: bool = False,
               dimension_is_head: bool = False,
@@ -210,6 +225,34 @@ def requested(text: str, *, dimension: str = "", population_grain: str = "",
     is grouped.
     """
     sentence = text or ""
+
+    # "How many customers are in Stage 2?" is ONE NUMBER, not a list of
+    # customers. The entity noun is there as the thing being COUNTED, and
+    # reading it as the grain asked for one row per customer — so the plan
+    # rolled the book up to a single count, the contract saw customer against
+    # portfolio and refused the question outright:
+    #
+    #     "CreditProbe read this as a question about one row per customer …
+    #      but the governed data behind it can only be reported as one row for
+    #      the whole book."
+    #
+    # Checked above the entity branches and below the carried population,
+    # because a count INSIDE a carried population is still a count of it. With
+    # a breakdown the answer is one row per group — "how many facilities in
+    # each stage" is three rows — and without one it is a single figure.
+    if _COUNTS.search(sentence):
+        if dimension:
+            return Requested(
+                grain=SEGMENT, explicit=True, source="count",
+                dimension=dimension,
+                because=(f"the question counts, broken down by "
+                         f"{dimension.replace('_', ' ')}, so each row is one "
+                         f"{dimension.replace('_', ' ')} and the count is on "
+                         "it"))
+        return Requested(
+            grain=PORTFOLIO, explicit=True, source="count",
+            because=("the question asks how many, so the answer is the count "
+                     "itself rather than the population it counts"))
 
     if population_grain in LEVEL:
         return Requested(

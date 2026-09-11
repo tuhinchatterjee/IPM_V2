@@ -1,0 +1,329 @@
+{
+  "suite": "overnight_data_and_lenses",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 100.2,
+  "counts": {
+    "PASS": 22,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_data_and_lenses-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-01",
+      "module": "data_and_lenses",
+      "title": "Data Builder holds ONE retail domain and ONE dataset",
+      "status": "PASS",
+      "detail": "one dataset and 546 governed fields on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-02",
+      "module": "data_and_lenses",
+      "title": "The period coverage is the 25 months this lake holds",
+      "status": "PASS",
+      "detail": "2024-08 to 2026-08 on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-03",
+      "module": "data_and_lenses",
+      "title": "No corporate domain, rating or statement is offered",
+      "status": "PASS",
+      "detail": "corporate vocabulary on screen=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-04",
+      "module": "data_and_lenses",
+      "title": "The Datasets badge counts the domain's datasets ONCE",
+      "status": "PASS",
+      "detail": "the badge reads 1 where the domain holds one dataset",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-05",
+      "module": "data_and_lenses",
+      "title": "The dictionary carries every governed field",
+      "status": "PASS",
+      "detail": "the badge reads 546 of 546",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-06",
+      "module": "data_and_lenses",
+      "title": "No field sends the reader to a path inside the repository",
+      "status": "PASS",
+      "detail": "an internal repository path is on screen=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-07",
+      "module": "data_and_lenses",
+      "title": "The definitions say what a column IS and how it aggregates",
+      "status": "PASS",
+      "detail": "aggregation semantics visible in the definitions=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-08",
+      "module": "data_and_lenses",
+      "title": "The Versions tab does not contradict the published dataset",
+      "status": "PASS",
+      "detail": "the page says nothing is published beside a published dataset=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-09",
+      "module": "data_and_lenses",
+      "title": "The relationship example names no corporate dataset",
+      "status": "PASS",
+      "detail": "corporate vocabulary=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-10",
+      "module": "data_and_lenses",
+      "title": "The dataset states its name, domain, grain and period field",
+      "status": "PASS",
+      "detail": "every governed property on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-10.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-11",
+      "module": "data_and_lenses",
+      "title": "The row count is the one the lake holds",
+      "status": "PASS",
+      "detail": "447,853 rows on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-11.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-12",
+      "module": "data_and_lenses",
+      "title": "No path, credential or connection string is exposed",
+      "status": "PASS",
+      "detail": "leaked=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-12.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-13",
+      "module": "data_and_lenses",
+      "title": "The preview offers all 25 month-ends, consecutively",
+      "status": "PASS",
+      "detail": "missing from the period list=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-13.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "DB-14",
+      "module": "data_and_lenses",
+      "title": "The preview reads the governed columns by their business names",
+      "status": "PASS",
+      "detail": "the key columns are named on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/db-14.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "LN-01",
+      "module": "data_and_lenses",
+      "title": "The Lenses screen offers retail lenses only",
+      "status": "PASS",
+      "detail": "corporate vocabulary=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ln-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "LN-02",
+      "module": "data_and_lenses",
+      "title": "Every headline tile of the risk lens reconciles with the book",
+      "status": "PASS",
+      "detail": "gross carrying amount=True; expected credit loss=True; facilities=True; customers=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "expected": {
+          "gross_carrying_amount_sar": 2082852855.82,
+          "ecl_final_sar": 15952108.84,
+          "facilities": 19745,
+          "customers": 14251
+        },
+        "screenshot": "docs/evidence/retail_functionality/screens/ln-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "LN-03",
+      "module": "data_and_lenses",
+      "title": "The discrimination tiles carry the measured Gini",
+      "status": "PASS",
+      "detail": "application Gini on screen=True; behavioural=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ln-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "LN-04",
+      "module": "data_and_lenses",
+      "title": "No tile on either lens is empty",
+      "status": "PASS",
+      "detail": "lenses with an empty tile=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ln-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "LN-05",
+      "module": "data_and_lenses",
+      "title": "Neither lens carries the corporate book's vocabulary",
+      "status": "PASS",
+      "detail": "corporate vocabulary=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/ln-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MX-01",
+      "module": "data_and_lenses",
+      "title": "The whole metric catalogue lists governed metrics",
+      "status": "PASS",
+      "detail": "9903 characters of catalogue on screen",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/mx-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MX-02",
+      "module": "data_and_lenses",
+      "title": "The browser's own Back and Forward both work",
+      "status": "PASS",
+      "detail": "back=True; forward returned a rendered page=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/mx-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

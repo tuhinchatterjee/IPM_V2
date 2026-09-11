@@ -531,8 +531,33 @@ _THRESHOLD_OPS: tuple[tuple[str, str], ...] = (
 
 _THRESHOLD = re.compile(
     r"\b(?P<word>" + "|".join(p for p, _ in _THRESHOLD_OPS) + r")\s+"
-    r"(?P<value>-?\d+(?:\.\d+)?)\s*(?P<unit>%|percent|percentage points?|"
+    r"(?P<value>-?\d+(?:\.\d+)?|zero|nil|nought)\s*"
+    r"(?P<unit>%|percent|percentage points?|"
     r"pp|x|times|notch(?:es)?|days?|bps)?", re.I)
+
+#: Zero, written out. "disposable income BELOW ZERO" stated a bound the reader
+#: could not see, because the value had to be digits — so the condition was
+#: dropped and the question answered over the whole book.
+_WRITTEN = {"zero": 0.0, "nil": 0.0, "nought": 0.0}
+
+
+def _bound_value(said: str) -> float:
+    text = (said or "").strip().lower()
+    return _WRITTEN[text] if text in _WRITTEN else float(text)
+
+
+#: A bound stated as a SIGN rather than as a number: "negative disposable
+#: income", "customers whose affordability buffer is negative".
+#:
+#: "How many customers have negative disposable income?" carried no bound word
+#: and no digit, so nothing read it: the condition was dropped silently and the
+#: answer was a ranking of the HIGHEST POSITIVE values, under a question asking
+#: for the negative ones. Both directions are read, because "positive" is the
+#: same claim the other way and reading one of them alone is worse than
+#: reading neither.
+_SIGN_BOUND = re.compile(
+    r"\b(?P<sign>negative|positive)\b|"
+    r"\b(?:is|are|was|were)\s+(?P<sign2>negative|positive)\b", re.I)
 
 _OP_BY_WORD: dict[str, str] = {}
 
@@ -580,11 +605,20 @@ def find_threshold(text: str) -> Threshold | None:
             return Threshold(op="gte", value=float(plus.group("value")),
                              unit=(plus.group("unit") or "").lower().strip(),
                              phrase=plus.group(0).strip())
+        # A sign is a bound at zero. Read only where the clause states no
+        # numeric bound at all, so a sentence that says both keeps the one it
+        # wrote down.
+        sign = _SIGN_BOUND.search(said)
+        if sign is not None:
+            which = (sign.group("sign") or sign.group("sign2") or "").lower()
+            return Threshold(op="lt" if which == "negative" else "gt",
+                             value=0.0, unit="",
+                             phrase=sign.group(0).strip())
         return None
     op = _threshold_op(match.group("word"))
     if not op:
         return None
-    return Threshold(op=op, value=float(match.group("value")),
+    return Threshold(op=op, value=_bound_value(match.group("value")),
                      unit=(match.group("unit") or "").lower().strip(),
                      phrase=match.group(0).strip())
 

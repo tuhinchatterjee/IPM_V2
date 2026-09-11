@@ -324,3 +324,120 @@ class TestACorrectionReplacesTheMeasureRatherThanAddingIt:
                                         catalogue=get_catalog()).matches)
         assert matches, "the sentence names a governed measure"
         assert ap._rejected_measures(text, matches) == []
+
+
+# ------------------------------------------------- what the answer CALLS itself
+
+
+class TestAnAnswerNamesThePopulationItCovers:
+    """The caption was right about the figures and wrong about the book.
+
+        "12,717,681 SAR of final ECL in True across 4 products at 2026-08."
+
+    `salary_transfer_flag = True` reached the sentence as the word **True**.
+    And a follow-up inside Personal Finance was captioned "3 ifrs9_stages
+    carried from the previous answer · 2026-07 to 2026-08 · expected credit
+    loss" — the carried population named, the carried FILTER not, so nothing
+    on the line said which book the movement was of.
+    """
+
+    def test_a_yes_no_filter_is_said_as_the_state_it_selects(self):
+        from backend.orchestration import scope as sc
+
+        assert sc.say("salary_transfer_flag", True) == "with salary transfer"
+        assert sc.say("salary_transfer_flag", False) == "without salary transfer"
+        assert sc.say("forbearance_flag", "True") == "with forbearance"
+
+    def test_an_ordinal_is_still_said_as_a_number(self):
+        """"1" is a rank, not a truth. Reading it as one said "with charge rank"."""
+        from backend.orchestration import scope as sc
+
+        assert sc.say("charge_rank", "1") == "charge rank 1"
+        assert sc.say("ifrs9_stage", "2") == "Stage 2"
+        assert sc.say("ifrs9_stage", "2", "gte") == "Stage 2 or worse"
+
+    def test_the_scope_line_names_both_halves(self):
+        from backend.orchestration import scope as sc
+
+        frame = sc.ScopeFrame(
+            entity_ids=["a", "b", "c"], entity_key="facility_id",
+            filters=[{"field": "product_label", "value": "Personal Finance"}],
+            opening="2026-07", closing="2026-08",
+            metrics=["expected credit loss"], dimension="ifrs9_stage")
+        line = frame.line()
+        assert "carried from the previous answer" in line
+        assert "Personal Finance" in line, (
+            "a movement inside one product, captioned without naming it")
+
+    def test_a_whole_book_answer_still_says_so(self):
+        from backend.orchestration import scope as sc
+
+        assert "the whole portfolio" in sc.ScopeFrame(
+            metrics=["expected credit loss"], period="2026-08").line()
+
+
+class TestABreakdownIsNotPinnedByARefiningField:
+    """`product_subsegment = CARD` pins the product as surely as the product
+    does. "Break ECL down by product", asked after a credit-card question,
+    dropped the carried `product_label` and kept the carried subsegment —
+    "3,061,762 SAR of final ECL in CARD across 1 product … 100.00% of the
+    total", under a heading saying BY PRODUCT LABEL.
+    """
+
+    def test_the_refinement_is_declared(self):
+        from backend.orchestration import dimensions as dm
+
+        assert dm.refines()["product_subsegment"] == "product_label"
+        assert dm.pins("product_subsegment", "product_label")
+        assert dm.pins("product_label", "product_subsegment")
+        assert dm.pins("product_label", "product_label")
+        assert not dm.pins("customer_segment", "product_label")
+
+    def test_a_breakdown_by_product_covers_every_product(self, retail_oracle):
+        thread = Thread()
+        first = thread.ask("Show expected credit loss for credit cards at "
+                           "August 2026.")
+        assert not first.clarification
+        answered = thread.ask("Break ECL down by product")
+        products = {r.get("product_label") for r in rows(answered)}
+        assert products == {"Personal Finance", "Credit Card",
+                            "Home Finance", "Auto Finance"}
+        total = sum(float(r["ecl_final_sar"]) for r in rows(answered))
+        assert round(total, 2) == retail_oracle.book_ecl()
+
+
+class TestAQuestionAboutTheRESULTDoesNotRescanTheBOOK:
+    """"What can you NOT conclude from this result?" ran a fresh ECL analysis,
+    and read the word "not" as an EXCLUSION — so the answer also carried
+    "CreditProbe could not apply the exclusion the question stated", twice.
+    """
+
+    @pytest.mark.parametrize("question", [
+        "What can you NOT conclude from this result?",
+        "What can we not conclude?",
+        "What are the limitations?",
+        "What does this not tell me?",
+        "What should I be careful about?",
+        "How much can I rely on this?",
+    ])
+    def test_it_is_read_as_a_question_about_the_result(self, question):
+        from backend.orchestration import reuse
+
+        assert reuse.wants(question)
+
+    @pytest.mark.parametrize("question", [
+        "Show expected credit loss by product",
+        "Which customers are not in default?",
+        "Break this down by customer",
+    ])
+    def test_an_ordinary_question_is_not(self, question):
+        from backend.orchestration import reuse
+
+        assert not reuse.wants(question)
+
+    def test_it_assesses_rather_than_planning(self, opened):
+        from backend.orchestration import conversation as conv
+
+        answered = continued(opened, "What can you NOT conclude from this "
+                                     "result?")
+        assert answered.continuation.action == conv.ASSESS_PREVIOUS_RESULT

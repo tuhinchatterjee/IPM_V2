@@ -43,6 +43,11 @@ BOOK_ECL = ORACLE["book"]["ecl_final_sar"]
 BOOK_GCA = ORACLE["book"]["gross_carrying_amount_sar"]
 PERSONAL_ECL = sum(r["ecl_final_sar"]
                    for r in ORACLE["by_stage_personal_finance"]["rows"])
+#: Personal finance one month earlier, and the salary-transfer book. Read from
+#: the Parquet by the oracle builder, never from the product.
+PERSONAL_ECL_JULY = 8_012_418.68
+SALARY_ECL = 12_717_680.53
+SALARY_GCA = 1_611_005_576.58
 
 
 def _case(rec: Recorder, cid: str, title: str, ok: bool, detail: str,
@@ -113,12 +118,21 @@ def suite(s: Session, rec: Recorder) -> None:
           screenshot=s.shot("nl-05"))
 
     # ------------------------------------------------------ pronoun follow-up
+    #
+    # The sentence names no measure, no population and no breakdown. All three
+    # come from the turn before it, and the answer has to SAY so: a movement
+    # in Personal Finance captioned only "3 stages carried from the previous
+    # answer" is a figure with no book named over it.
     turn = ask(s, "How did that move since July 2026?")
-    moved = said(turn, "2026-07") and said(turn, "personal")
+    moved = (said(turn, "2026-07") and said(turn, "personal")
+             and has(turn, PERSONAL_ECL, tolerance=PERSONAL_ECL * 0.002)
+             and has(turn, PERSONAL_ECL_JULY,
+                     tolerance=PERSONAL_ECL_JULY * 0.002))
     _case(rec, "NL-06", "A pronoun follow-up keeps the population it points at",
           bool(turn) and moved,
-          f"the comparison month and the personal-finance scope both survived="
-          f"{moved}",
+          f"the comparison month, the personal-finance scope and both "
+          f"totals survived={moved}; oracle {PERSONAL_ECL_JULY:,.0f} -> "
+          f"{PERSONAL_ECL:,.0f}",
           answer=turn[:900], screenshot=s.shot("nl-06"))
 
     # ------------------------------------------------------------ narrowing
@@ -130,25 +144,43 @@ def suite(s: Session, rec: Recorder) -> None:
           answer=turn[:900], screenshot=s.shot("nl-07"))
 
     # ----------------------------------------------------------- broadening
+    #
+    # "All products" drops the PRODUCT restriction and keeps the salary
+    # transfer condition the reader added one turn earlier — widening out of
+    # one filter is not a reset, and answering it with the whole book would
+    # silently discard what they had just asked for. So the right answer is
+    # every product among salary-transfer customers, and the caption has to
+    # say that is the population.
     turn = ask(s, "Now show all products.")
-    widened = has(turn, BOOK_ECL, tolerance=BOOK_ECL * 0.002) or has(
-        turn, BOOK_GCA, tolerance=BOOK_GCA * 0.002)
-    _case(rec, "NL-08", "A broadening turn drops the filter it widens out of",
+    products = sum(1 for p in ("Personal Finance", "Credit Card",
+                               "Home Finance", "Auto Finance")
+                   if p.lower() in turn.lower())
+    widened = (products == 4
+               and has(turn, SALARY_ECL, tolerance=SALARY_ECL * 0.002)
+               and said(turn, "salary"))
+    _case(rec, "NL-08", "A broadening turn drops the filter it widens out of "
+          "and keeps the one it does not",
           bool(turn) and widened,
-          f"the whole book is back={widened}; oracle ECL {BOOK_ECL:,.0f}",
-          answer=turn[:900], expected=f"{BOOK_ECL:,.0f}",
+          f"{products} of 4 products on screen; the salary-transfer total and "
+          f"the population are stated={widened}; oracle {SALARY_ECL:,.0f}",
+          answer=turn[:900], expected=f"{SALARY_ECL:,.0f}",
           screenshot=s.shot("nl-08"))
 
     # ----------------------------------------------------------- correction
+    #
+    # The population is still salary-transfer customers across all products,
+    # because a correction changes the MEASURE and nothing else. What must not
+    # survive is the figure being corrected: an answer carrying both columns
+    # has answered the question and the one it replaced.
     turn = ask(s, "No, I meant gross carrying amount, not expected credit "
                   "loss.")
-    corrected = (has(turn, BOOK_GCA, tolerance=BOOK_GCA * 0.002)
-                 and not has(turn, BOOK_ECL, tolerance=BOOK_ECL * 0.002))
+    corrected = (has(turn, SALARY_GCA, tolerance=SALARY_GCA * 0.002)
+                 and not has(turn, SALARY_ECL, tolerance=SALARY_ECL * 0.002))
     _case(rec, "NL-09", "A correction REPLACES the measure rather than adding "
           "it", bool(turn) and corrected,
           f"gross carrying amount replaced ECL={corrected}; oracle "
-          f"{BOOK_GCA:,.0f}",
-          answer=turn[:900], expected=f"{BOOK_GCA:,.0f}",
+          f"{SALARY_GCA:,.0f}, and {SALARY_ECL:,.0f} must be gone",
+          answer=turn[:900], expected=f"{SALARY_GCA:,.0f}",
           screenshot=s.shot("nl-09"))
 
     # ------------------------------------------- a paragraph with three parts

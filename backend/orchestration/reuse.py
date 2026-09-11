@@ -110,6 +110,24 @@ _ABOUT_THE_RESULT: tuple[str, ...] = (
     r"\bhow (?:reliable|robust|solid) is (?:this|that|the) ",
     r"\bdo (?:these|those|the) (?:figures|numbers|results|rows) "
     r"(?:hold together|agree|line up)\b",
+    # What the result does NOT establish. A reader asking this is asking
+    # about the table in front of them, and it was read as a fresh request:
+    # "What can you NOT conclude from this result?" ran an ECL analysis, and
+    # the word "not" was taken for an EXCLUSION, so the answer also carried
+    # "CreditProbe could not apply the exclusion the question stated" — twice.
+    # The limitations of a result are a property of that result; asking for
+    # them must never rescan the book.
+    r"\bwhat can(?:'?t| ?not)? (?:you|we|i|one) ?(?:not )?conclude\b",
+    r"\bwhat (?:can|could)(?:'?t| ?not)? (?:be|this|that|it) "
+    r"(?:be )?concluded\b",
+    r"\bwhat (?:does|do) (?:this|that|these|those|it) not "
+    r"(?:tell|show|prove|establish|say)\b",
+    r"\bwhat are the (?:limitations|caveats|weaknesses|limits)\b",
+    r"\bwhat (?:should|must) (?:i|we) be careful (?:about|of|with)\b",
+    r"\bwhat would (?:break|undermine|invalidate) (?:this|that|the) "
+    r"(?:reading|conclusion|finding|result)\b",
+    r"\bhow much can (?:i|we) rely on (?:this|that|these|it)\b",
+    r"\bwhat (?:are|is) (?:this|that|it) not evidence (?:of|for)\b",
 )
 
 _PATTERN = re.compile("|".join(_ABOUT_THE_RESULT), re.I)

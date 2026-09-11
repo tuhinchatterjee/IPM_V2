@@ -81,17 +81,49 @@ NEEDS_ITS_NAME: dict[str, str] = {
 WIDENED_SAYS: dict[str, str] = {"gte": "or worse", "lte": "or better"}
 
 
+#: Truth written as a value rather than as a state.
+#:
+#: The words only. "1" and "0" were in here and `charge_rank = "1"` — an
+#: ordinal, not a truth — came back "with charge rank". A flag stored as a
+#: number still reaches this as a real `bool` and is read on that branch.
+_BOOLEAN = {"true": True, "false": False, "yes": True, "no": False}
+
+
+def _state(field_name: str, truth: bool) -> str:
+    """A yes/no restriction, said as the state it selects.
+
+    `salary_transfer_flag = True` reached the screen as the word **True**:
+    "12,717,681 SAR of final ECL in True across 4 products". The reader cannot
+    tell from that what was restricted, let alone which way. A flag names a
+    condition, so the condition is what the answer says, with the polarity in
+    front of it where it is false.
+    """
+    name = str(field_name or "")
+    for suffix in ("_flag", "_indicator"):
+        if name.endswith(suffix):
+            name = name[: -len(suffix)]
+            break
+    name = name.replace("_", " ").strip() or str(field_name)
+    return f"with {name}" if truth else f"without {name}"
+
+
 def say(field_name: str, value: Any, widened_op: str = "") -> str:
     """One filter, as a credit officer would say it.
 
-    A coded value is named by its field; a value that is already a name is
-    said as it is. This is the ONE place that rule lives: the answer's first
-    sentence, the share finding, the interpretation, the formula gloss and the
-    scope line above the table all read the same restriction, and when each of
-    them joined the raw values itself four surfaces disagreed about what the
-    population was called.
+    A coded value is named by its field; a yes/no value is said as the state
+    it selects; a value that is already a name is said as it is. This is the
+    ONE place that rule lives: the answer's first sentence, the share finding,
+    the interpretation, the formula gloss and the scope line above the table
+    all read the same restriction, and when each of them joined the raw values
+    itself four surfaces disagreed about what the population was called.
     """
     said = str(value)
+    if isinstance(value, bool) or said.strip().lower() in _BOOLEAN:
+        truth = bool(value) if isinstance(value, bool) \
+            else _BOOLEAN[said.strip().lower()]
+        tail = WIDENED_SAYS.get(widened_op or "", "")
+        state = _state(field_name, truth)
+        return f"{state} {tail}" if tail else state
     prefix = NEEDS_ITS_NAME.get(field_name)
     if prefix is None and said.replace(".", "").replace("-", "").isdigit():
         # An unmapped field with a numeric value is still unreadable bare, so
@@ -189,16 +221,21 @@ class ScopeFrame:
         above a table a credit officer is about to act on.
         """
         parts: list[str] = []
+        # A carried population and a restriction are not alternatives — an
+        # answer can have both, and this said only the first. So a follow-up
+        # inside Personal Finance was captioned "3 ifrs9_stages carried from
+        # the previous answer · 2026-07 to 2026-08 · expected credit loss",
+        # with nothing on the line saying which book the figures were of.
         if self.entity_ids:
             parts.append(f"{len(self.entity_ids)} "
                          f"{(self.entity_key or 'row').replace('_id', '')}s "
                          "carried from the previous answer")
-        elif self.filters:
+        if self.filters:
             # Through the shared reader, not by joining the raw values: the
             # line above the table has to name the same population the answer
             # names, and "2 · Q2 2026 · exposure at default" names none.
             parts.append(phrase(self.filters))
-        else:
+        elif not self.entity_ids:
             parts.append("the whole portfolio")
 
         if self.opening and self.closing:

@@ -86,6 +86,51 @@ ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
+#: Which dimension is a REFINEMENT of which — "a value of the first names
+#: exactly one value of the second".
+#:
+#: `product_subsegment = CARD` is a credit card and nothing else, so a filter
+#: on it pins the product as surely as a filter on `product_label` does. "Break
+#: ECL down by product", asked after a question about credit cards, dropped the
+#: carried `product_label` and kept the carried `product_subsegment` — and
+#: returned one bar reading Credit Card, 100.00% of the total, under a heading
+#: saying BY PRODUCT LABEL. A breakdown whose every group is the same group is
+#: a table with the answer taken out of it.
+#:
+#: Declared rather than inferred, and only where the containment is a fact of
+#: the governed vocabulary: every subsegment belongs to exactly one product and
+#: every city to exactly one region. Nothing is claimed for the corporate book,
+#: because nothing here has been established about it.
+RETAIL_REFINES: dict[str, str] = {
+    "product_subsegment": "product_label",
+    "city": "region_label",
+}
+
+
+def refines() -> dict[str, str]:
+    """Dimension -> the coarser dimension it determines, for this profile."""
+    from backend.retail import profile
+
+    return dict(RETAIL_REFINES) if profile.is_retail() else {}
+
+
+def pins(field_name: str, grouped_by: str) -> bool:
+    """Whether a filter on `field_name` also pins `grouped_by`.
+
+    True for the field itself and for anything that refines it, in either
+    direction: pinning the subsegment pins the product, and grouping BY the
+    subsegment while pinned to one product is the same defect wearing the
+    other hat.
+    """
+    if not field_name or not grouped_by:
+        return False
+    if field_name == grouped_by:
+        return True
+    chart = refines()
+    return (chart.get(field_name) == grouped_by
+            or chart.get(grouped_by) == field_name)
+
+
 def aliases() -> dict[str, tuple[str, ...]]:
     """The spellings THIS installation's dimensions are written with.
 

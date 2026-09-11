@@ -469,6 +469,19 @@ class TestRET048LayoutPreserved:
             "frontend/src/app/data-builder/domain/[...domain]/page.tsx",
             "frontend/src/app/data-builder/new/page.tsx",
             "frontend/src/app/engine-builder/new/page.tsx",
+            # ---------------------------------------------------------------
+            # §4 and §5, found by asking a Head of Retail Risk's own
+            # questions: an answer that named its population "True", a
+            # breakdown pinned by a field that refines the one it broke down
+            # by, a question about a RESULT that rescanned the book, a count
+            # that returned the population it counts, and a sign that was not
+            # read as a bound.
+            "backend/orchestration/scope.py",
+            "backend/orchestration/dimensions.py",
+            "backend/orchestration/reuse.py",
+            "backend/orchestration/grain.py",
+            "backend/orchestration/semantics.py",
+            "backend/orchestration/thresholds.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

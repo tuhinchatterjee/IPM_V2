@@ -83,10 +83,66 @@ _BOUNDS: tuple[tuple[str, str], ...] = (
 #: catalogue already knows.
 _BOUND_VALUE = re.compile(
     r"(?P<bound>" + "|".join(p for p, _ in _BOUNDS) + r")\s*"
-    r"(?P<number>-?\d+(?:\.\d+)?)\s*"
+    r"(?P<number>-?\d+(?:\.\d+)?|zero|nil|nought)\s*"
     r"(?P<unit>%|per ?cent|percent|x|times|days?|bps|basis points)?",
     re.IGNORECASE,
 )
+
+#: Zero, written. "How many customers have disposable income BELOW ZERO?" read
+#: as no threshold at all — the bound pattern needed digits — so the question
+#: was answered over the whole book, with nothing saying the condition had
+#: been dropped.
+_WRITTEN_ZERO = {"zero": 0.0, "nil": 0.0, "nought": 0.0}
+
+
+def _number(said: str) -> float:
+    """The bound's value, whether it was typed or written."""
+    text = (said or "").strip().lower()
+    return _WRITTEN_ZERO.get(text, 0.0) if text in _WRITTEN_ZERO \
+        else float(text)
+
+
+#: A sign stated as an adjective: "negative disposable income", "customers
+#: whose affordability buffer is negative". No bound word and no number, so
+#: nothing above reads it, and the question came back as a ranking of the
+#: HIGHEST POSITIVE values under a heading asking for the negative ones.
+#:
+#: Both directions, because "positive disposable income" is the same claim the
+#: other way round and reading only one of them would be worse than reading
+#: neither.
+_SIGNED = re.compile(
+    r"\b(?P<sign>negative|positive)\s+(?P<measure>[a-z][a-z ']{2,40}?)"
+    r"(?=\s*(?:$|[,.?;]|\bat\b|\bin\b|\bfor\b|\bby\b|\band\b|\bwho\b))"
+    r"|(?P<measure2>[a-z][a-z ']{2,40}?)\s+(?:is|are|was|were)\s+"
+    r"(?P<sign2>negative|positive)\b",
+    re.IGNORECASE)
+
+
+def read_signs(text: str, *, resolver: Any = None, whole: str = ""
+               ) -> list[Condition]:
+    """Level tests stated as a sign rather than as a bound.
+
+    "negative disposable income" is `disposable_income < 0`. It is a level
+    test like any other; what is unusual is only that the reader wrote the
+    bound as an adjective, which is how people say it.
+    """
+    out: list[Condition] = []
+    seen: set[str] = set()
+    for match in _SIGNED.finditer(text or ""):
+        sign = (match.group("sign") or match.group("sign2") or "").lower()
+        measure = (match.group("measure") or match.group("measure2") or "")
+        found = _field_for(measure, resolver, whole or text)
+        if not found:
+            continue
+        field, higher_is_worse = found
+        if field in seen:
+            continue
+        seen.add(field)
+        out.append(Condition(
+            field=field, kind="level",
+            op="lt" if sign == "negative" else "gt", value=0.0,
+            phrase=match.group(0).strip(), higher_is_worse=higher_is_worse))
+    return out
 
 #: "30+ DPD", "90+ days past due" — a bound written as a suffix.
 _PLUS_SUFFIX = re.compile(r"(?P<number>\d+(?:\.\d+)?)\s*\+", re.IGNORECASE)
@@ -231,7 +287,7 @@ def read_levels(text: str, *, resolver: Any = None, whole: str = ""
             continue
         field, higher_is_worse = found
         op = _bound_op(match.group("bound"))
-        value = float(match.group("number"))
+        value = _number(match.group("number"))
         key = (field, "level")
         if key in seen:
             continue
@@ -268,7 +324,7 @@ def read_levels(text: str, *, resolver: Any = None, whole: str = ""
             seen.add(key)
             conditions.append(Condition(
                 field=field, kind="level", op=_bound_op(match.group("bound")),
-                value=float(match.group("number")),
+                value=_number(match.group("number")),
                 phrase=match.group(0).strip(),
                 higher_is_worse=higher_is_worse))
             unread = [u for u in unread if u != match.group(0).strip()]
@@ -302,7 +358,7 @@ def read_crossings(text: str, *, resolver: Any = None, whole: str = ""
             field, higher_is_worse = found
             if field in seen:
                 continue
-            value = float(match.group("number"))
+            value = _number(match.group("number"))
             if has_bound:
                 closing_op = _bound_op(match.group("bound"))
             else:
@@ -339,9 +395,15 @@ def read(text: str, *, resolver: Any = None, whole: str = ""
                                        whole=whole or text)
     levels, level_unread = read_levels(text, resolver=resolver,
                                        whole=whole or text)
+    # A sign stated as an adjective is a level test written the way people
+    # write it, and it is read last so it never displaces a bound the sentence
+    # stated outright on the same field.
+    signed = read_signs(text, resolver=resolver, whole=whole or text)
     crossed = {c.field for c in crossings}
     levels = [c for c in levels if c.field not in crossed]
-    return crossings + levels, unread + level_unread
+    already = crossed | {c.field for c in levels}
+    return (crossings + levels + [c for c in signed if c.field not in already],
+            unread + level_unread)
 
 
 def crossing_for(field: str, higher_is_worse: bool, phrase: str
@@ -364,7 +426,7 @@ def crossing_for(field: str, higher_is_worse: bool, phrase: str
     match = _CROSSING.search(phrase) or _CROSSING_PLUS.search(phrase)
     if match is None:
         return []
-    value = float(match.group("number"))
+    value = _number(match.group("number"))
     try:
         closing_op = _bound_op(match.group("bound"))
     except IndexError:
