@@ -1,0 +1,268 @@
+{
+  "suite": "cockpit_journeys",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 164.1,
+  "counts": {
+    "PASS": 16,
+    "FAIL": 0,
+    "BLOCKED": 1,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit_journeys-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-01",
+      "module": "cockpit",
+      "title": "Exposure, customers, facilities and weighted ECL by retail product, at the month the question named",
+      "status": "PASS",
+      "detail": "completed=True; the four measures and the four products are on screen=True; the largest product named matches the table=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " and weighted ECL by retail product.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 2 answered; 1 partly answered\n1 analysis performed\nUse Cockpit Data for August 2026Answered\nShow exposure, customers, facilities and weighted ECL by retail productFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS, CUSTOMERS \u00b7 BY PRODUCT LABEL\n\n2,082,852,856 SAR of gross carrying amount across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nHome Finance is the largest at 1,330,366,315 SAR.\n\nHome Finance\n1,330,366,315.45\n\nCREDITPROBE INTERPRETATION\n\nOrdered by expected credit loss, largest first. The figures are sums across every facility in each product at 2026-08. Home Finance alone accounts for 63.87% of gross carrying amount across the 4 shown.\n\nTOTAL GROSS CARRYING AMOUNT\n\n2,082,852,855.82\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n2,082,852,855.82\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n4 measures across 4 groups.\n\nAsk about this\nChart\nTable\nProduct label\n\t\nGross carrying amount\n\t\nExpected credit loss\nsar mn",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-02",
+      "module": "cockpit",
+      "title": "Narrowing to one product and then comparing periods keeps the measure and changes only what was asked",
+      "status": "PASS",
+      "detail": "the narrowing answered=True; the comparison answered=True; it names both periods=True; it stayed in personal finance=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "narrowed": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 CUSTOMERS, GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n6,781 customers in Personal Finance across 1 product at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 6,781.\n\nPersonal Finance\n6,781\n\nCREDITPROBE INTERPRETATION\n\nThe figures are sums across every facility in each product at 2026-08. This covers the 4 carried forward from the previous answer, not the whole book.\n\nTOTAL CUSTOMERS\n\n6,781\n\nAggregated across the governed book\nDy",
+        "compared": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n1 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-07 TO 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\nGross carrying amount rose from 453,309,241 to 463,168,890 SAR between 2026-07 and 2026-08 \u2014 a change of 9,859,649 SAR (2.17%).\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance carries the largest gross carrying amount at 463,168,890 SAR.\n\nPersonal Finance\n463,168,889.69\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\n\nGROSS CARRYING AMOUNT AT 2026-08\n\n463,168,889.69\nSAR\n\n9,859,649.08\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-03",
+      "module": "cockpit",
+      "title": "A period decomposition reconciles opening, contributions and closing rather than showing an unrelated chart",
+      "status": "PASS",
+      "detail": "completed=True; both ends of the bridge are named=True; it invents a corporate dimension=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " for personal financeAnswered\nexplain the PD impactFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nECL rose by 981,593.2 between 2026-07 and 2026-08, led by accounts arriving at +607,460.7.\n\nAnalysis\nGoverned metadata\nTrace\n\nMOVEMENT\n\n981,593.19\n\nATTRIBUTED\n\n981,593.19\n\nCLOSING TOTAL\n\n8,994,011.87\n\nOPENING TOTAL\n\n8,012,418.68\n\n9 groups, one measure.\n\nAsk about this\nChart\nTable\nDriver\n\t\nEffect on ECL\nsar\n\t\nShare of movement\n%\n\t\nDirection\n\nAccounts arriving\t607,461\t61.9\tadverse\nStage migration (SICR)\t524,458\t53.4\tadverse\nExposure\t-338,157\t-34.5\tfavourable\nProbability of default\t216,854\t22.1\tadverse\nAccounts leaving\t-187,846\t-19.1\tfavourable\nPortfolio mix\t152,460\t15.5\tadverse\nModel residual\t6,362\t0.7\tadverse\nLoss given default\t0.00\t0.0\tfavourable\nManagement and macro overlay\t0.00\t0.0\tfavourable\n9 rows\n4 ",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-04",
+      "module": "cockpit",
+      "title": "A definitional question is answered as an explanation, without inventing a portfolio figure",
+      "status": "PASS",
+      "detail": "completed=True; the answer distinguishes the base scenario from the weighted baseline=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " and the baseline in What-If?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nThat is a What-If question. Before I can put a number on it, I need to know how big the movement is.\n\nYou named a 'base' severity. This engine applies the shock a scenario states rather than a named preset, so tell me what 'base' should mean here.\n\nFor example: downgrade them two notches, increase PD by 20%, increase LGD by five percentage points, or unemployment up one percentage point.\n\nWhat data is available\nGoverned metadata\nTrace\n\nNo rows returned.\n\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nDowngrade them one notch.\nIncrease PD by 20%.\nIncrease LGD by five percentage points.\n\nCompleted by Credit Analyst \u2014 1 cal",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-05",
+      "module": "cockpit",
+      "title": "A misspelt, single-paragraph instruction is read by the ordinary parser rather than refused",
+      "status": "PASS",
+      "detail": "completed=True; the stage breakdown and the month were understood=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": ", persnal finaceAnswered\nShow ECL by stageFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\ntell me what changed from JulyFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nPERSONAL FINANCE \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\nFinal ECL rose from 8,012,419 to 8,994,012 SAR between 2026-07 and 2026-08 \u2014 a change of 981,593 SAR (12.25%).\n\nLARGEST CONTRIBUTOR\n\n1 carries the largest final ECL at 4,093,815 SAR.\n\n1\n4,093,815.37\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted. The population is concentrated: IFRS 9 stage 1, IFRS 9 stage 1, IFRS 9 stage 3 together hold 63.41%",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-06",
+      "module": "cockpit",
+      "title": "An under-specified scorecard question is clarified once, and a typed answer resolves it",
+      "status": "PASS",
+      "detail": "the product asked rather than guessing=True; the typed clarification was answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "clarification": "\n\nNo analysis was composed and no figure was computed: the governed data holds nothing about what was asked.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n0 of 1 answered; 1 cannot be answered\n\nCreditProbe has no governed data about scorecard performance. It answers only from the datasets a steward has published and marked authoritative, so it cannot look this up, estimate it, or infer it from what it does hold. The catalogue carries measures such as gross carrying amount, exposure at default, credit limit and undrawn commitment. Name the one you want and the period you want it for, and CreditProbe wil",
+        "resolved": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE \u00b7 2026-08 \u00b7 APPLICATION SCORE\n\n726.5 points of application score in Personal Finance at 2026-08.\n\nTOTAL APPLICATION SCORE\n\n726.46\npoints\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n726.46\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nApplication score\npoints\n\t\nProduct label\n\n726.46\tPersonal Finance\n\nNo certified analysis answers this combination of conditions, so CreditProbe composed one. It ran through the same governed runtime as every certified analysis \u2014 the same catalogue, the sam",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-07",
+      "module": "cockpit",
+      "title": "A discrimination question either reports the cohort, its counts and its statistic, or says what is missing",
+      "status": "PASS",
+      "detail": "completed=True; the answer names the cohort or the evidence it lacks=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " discrimination using the latest fully observed 12-month cohort.\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-08",
+      "module": "cockpit",
+      "title": "A calibration question is not answered with a discrimination statistic",
+      "status": "PASS",
+      "detail": "completed=True; Gini offered as calibration evidence=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nNo analysis was composed and no figure was computed: the governed data holds nothing about what was asked.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n0 of 1 answered; 1 cannot be answered\n\nCreditProbe has no governed data about well calibrated. It answers only from the datasets a steward has published and marked authoritative, so it cannot look this up, estimate it, or infer it from what it does hold. The catalogue carries measures such as gross carrying amount, exposure at default, credit limit and undrawn commitment. Name the one you want and the period you want it for, and CreditProbe will compose the analysis.\n\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\n\nCompleted by Credit Analyst \u2014 not validated\nTrace\n\nLIMITE",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-09",
+      "module": "cockpit",
+      "title": "A statistic that needs outcomes the book cannot have yet is refused with the reason, not fabricated",
+      "status": "PASS",
+      "detail": "completed=True; the answer explains why the outcome window is not complete=True; it invents a figure=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " for applications originated in August 2026.\n\nONE QUESTION BACK\n\nCreditProbe could not find Gini in the published data. It only reads datasets that have been published and marked authoritative, so a borrower it has never been given cannot be looked up. Check the name, or ask a Data Steward whether that book has been onboarded.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-09.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-11",
+      "module": "cockpit",
+      "title": "An explain-and-compare question separates the explanation from the comparison it can actually run",
+      "status": "PASS",
+      "detail": "completed=True; the answer is about utilisation=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "Answered\nshow which customers worsened between July and August 2026Folded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nCREDIT CARD, CARD \u00b7 2026-07 TO 2026-08 \u00b7 UTILISATION\n\nUtilisation rose from 2,243 to 2,331 ratio between 2026-07 and 2026-08 \u2014 a change of 87.93 ratio (3.92%).\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\n\nUTILISATION AT 2026-08\n\n2,330.62\nratio\n\n87.93\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n87.93\n\nMATCHING\n\n2\n\nCHANGE PCT\n\n3.92\n\nCLOSING TOTAL\n\n2,330.62\n\nOPENING TOTAL\n\n2,242.70\n\nCLOSING PERIOD\n\n2026-08\n\nUtilisation at 2026-07\nratio\n\t\nReporting month\n\n2,330.62\t2026-08\n2,242.70\t2026-07\n\nNo certified analysis answ",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-11.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-13",
+      "module": "cockpit",
+      "title": "A filter that matches nothing gives an honest empty answer rather than the previous populated one",
+      "status": "PASS",
+      "detail": "completed=True; an empty or refusing answer=True; the previous result was reused=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": ".\n\nONE QUESTION BACK\n\nCreditProbe could not find Aviation Finance in the published data. It only reads datasets that have been published and marked authoritative, so a borrower it has never been given cannot be looked up. Check the name, or ask a Data Steward whether that book has been onboarded.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nIt asks for a figure computed from governed data.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-13.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-14",
+      "module": "cockpit",
+      "title": "Opening the evidence and coming back lands on the same conversation, and a follow-up there is contextual",
+      "status": "PASS",
+      "detail": "the evidence opened=True; Back returned to the conversation=True; the contextual follow-up answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-14.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-15",
+      "module": "cockpit",
+      "title": "Two conversations at two months do not contaminate each other",
+      "status": "PASS",
+      "detail": "the July conversation is at 2026-07=True; the August one is at 2026-08=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-15.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-CONT",
+      "module": "cockpit",
+      "title": "One continuous five-turn conversation: analysis, narrowing, comparison, explanation and evidence",
+      "status": "PASS",
+      "detail": "Use Cockpit Data for August \u2026=ok; Now only personal finance\u2026=ok; Compare with July 2026\u2026=ok; Explain that change\u2026=ok; Show the evidence\u2026=ok (23s)",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-continuous.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-10",
+      "module": "cockpit",
+      "title": "Explain a named customer's behavioural-score change through the Customer 360 screen",
+      "status": "BLOCKED",
+      "detail": "the Customer 360 route renders the previous module's layout and offers no retail customer to open; the retail position is served by GET /api/v1/retail/customer/{id} and is not on a screen. Recorded as BLOCKED rather than passed against the API, which is not what this case asks for.",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/borrower-360",
+        "documented_in": "docs/RETAIL_ONLY_HANDOVER.md \u00a78.2"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CP-12",
+      "module": "cockpit",
+      "title": "A drafting request is answered from the result, and says plainly that no model wrote the prose",
+      "status": "PASS",
+      "detail": "completed=True; the deterministic fallback is disclosed on the answer=True \u2014 this is NOT a live-provider pass",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " about this scorecard's continuing performance.\n\nNo analysis was composed and no figure was computed: the governed data holds nothing about what was asked.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n0 of 1 answered; 1 cannot be answered\n\nCreditProbe has no governed data about what that asks for. It answers from the figures a steward has published \u2014 exposure, impairment, ratings, delinquency, covenants \u2014 and it holds nothing that measures this. It has NOT answered a different question instead. It did recognise drift, so a question framed around those can be answered. Name the figure you want and the period you want it for.\n\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\n\nCompleted by Credit Analyst \u2014 not validated\nTrace\n\n",
+        "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-12.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

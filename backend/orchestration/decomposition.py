@@ -658,14 +658,67 @@ def _ranked(bucket: dict[str, list[float]], names: dict[str, str],
 #: carrying EAD, stage, both PDs, LGD, modelled ECL and the overlay together,
 #: and a decomposition assembled from several sources would attribute a join
 #: rather than a book.
-DATASET = "ifrs9_staging"
+CORPORATE_DATASET = "ifrs9_staging"
 
 #: The fields it needs, named so the read is a governed projection rather than
 #: "everything".
-FIELDS: tuple[str, ...] = (
+CORPORATE_FIELDS: tuple[str, ...] = (
     "account_id", "customer_id", "sector", "segment", "ifrs9_stage", "ead",
     "pd_12m_pct", "pd_lifetime_pct", "lgd_pct", "model_ecl", "total_ecl",
 )
+
+#: The same eleven things, as the retail book names them.
+#:
+#: The failure this prevents
+#: -------------------------
+#:     "Give me the July to August ECL decomposition for personal finance"
+#:
+#: was answered "This decomposition needs two published periods to compare and
+#: CreditProbe cannot find them" — on a book that publishes twenty-five. The
+#: method read `ifrs9_staging`, which this installation retired, so it saw no
+#: periods at all.
+#:
+#: The PD and LGD columns are FRACTIONS here where the corporate book holds
+#: percentages. That is safe and deliberate: the factorisation attributes the
+#: RATIO of each factor between the two periods, so a constant scale cancels,
+#: and what does not cancel lands in the residual K, which is reported.
+RETAIL_FIELDS: dict[str, str] = {
+    "account_id": "facility_id",
+    "customer_id": "customer_id",
+    "sector": "product_label",
+    "ifrs9_stage": "ifrs9_stage",
+    "ead": "ead_base_sar",
+    "pd_12m_pct": "pd_pit_12m_anchor",
+    "pd_lifetime_pct": "pd_pit_lifetime_base",
+    "lgd_pct": "lgd_base",
+    "model_ecl": "ecl_weighted_sar",
+    "total_ecl": "ecl_final_sar",
+}
+
+
+def dataset() -> str:
+    """The book this installation decomposes."""
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return CORPORATE_DATASET
+    from backend.retail import CANONICAL_DATASET
+
+    return CANONICAL_DATASET
+
+
+def field_map() -> dict[str, str]:
+    """What each of the method's eleven inputs is called in the active book."""
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return {name: name for name in CORPORATE_FIELDS}
+    return dict(RETAIL_FIELDS)
+
+
+#: Kept as the name the corporate code imports.
+DATASET = dataset()
+FIELDS: tuple[str, ...] = CORPORATE_FIELDS
 
 #: The verb has to be a decomposition verb AND the subject an ECL movement.
 #: Either alone is a different question: "what drove the increase in DPD" is not
@@ -682,9 +735,14 @@ _ABOUT = re.compile(
 _MOVED = re.compile(
     # "bridge", "walk" and "waterfall" are themselves names for a change
     # decomposition — an ECL waterfall is not a picture of a position — so
-    # they satisfy this on their own.
+    # they satisfy this on their own. So do "decomposition" and "attribution":
+    # "give me the July to August ECL decomposition" names both ends of a
+    # movement and the method that explains it, and it was read as a request
+    # for a total at one date. "Breakdown" is deliberately NOT here — a
+    # breakdown by product is a grouping, not a bridge.
     r"\b(?:change|movement|moved|increase|decrease|rose|fell|grew|"
-    r"deterioration|improvement|delta|variance|bridge|walk|waterfall)\b", re.I)
+    r"deterioration|improvement|delta|variance|bridge|walk|waterfall|"
+    r"decompos\w*|attribut\w*)\b", re.I)
 
 #: The drivers, named. A question that lists two or more of these is asking for
 #: this method whichever verb it used.
@@ -732,9 +790,15 @@ def read_book(period: str, *, context: Any = None,
                                 filters=dict(getattr(scope, "filters", {}) or {}),
                                 user_id=getattr(scope, "user_id", None))
 
-    frame = get_data_source().fetch(DATASET, context=scope,
-                                    fields=list(FIELDS), period=period)
-    return [account_from(row) for row in frame.to_dict("records")]
+    mapping = field_map()
+    frame = get_data_source().fetch(dataset(), context=scope,
+                                    fields=sorted(set(mapping.values())),
+                                    period=period)
+    # Read back under the names the method uses, so one mapping serves both
+    # books and `account_from` stays about the arithmetic.
+    return [account_from({name: row.get(column)
+                          for name, column in mapping.items()})
+            for row in frame.to_dict("records")]
 
 
 def account_from(row: dict[str, Any]) -> Account:
@@ -786,6 +850,12 @@ def name_customers(found: Decomposition, period: str,
 
         scope = context if getattr(context, "period", None) == period else \
             AnalysisContext(period=period)
+        from backend.retail import profile
+
+        if profile.is_retail():
+            # The retail book is one table: the names are already beside the
+            # drivers, and there is nothing to join out to.
+            return
         frame = get_data_source().fetch(
             "portfolio_facility", context=scope,
             fields=["customer_id", "borrower_name"], period=period)
@@ -874,7 +944,8 @@ def answer(question: str, reading: Any, *, context: Any = None,
         follow_ups=[
             f"Which customers drove the {found.material[0].label.lower()} "
             f"effect?" if found.material else "Which customers drove this?",
-            "Show the same decomposition for one sector only",
+            f"Show the same decomposition for one "
+            f"{_breakdown_word()} only",
             "How does this compare with the previous year?",
         ],
         warnings=warnings)
@@ -892,14 +963,44 @@ def _rows(found: Decomposition) -> list[dict[str, Any]]:
             for c in sorted(found.components, key=lambda x: -abs(x.effect))]
 
 
+def _money_unit() -> dict[str, Any]:
+    """How the active book writes an amount of money."""
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return {"unit": "SAR mn", "currency": "SAR", "scale": "mn"}
+    return {"unit": "SAR", "currency": "SAR", "scale": ""}
+
+
+def _breakdown_word() -> str:
+    """A breakdown this installation governs, for the follow-up it offers.
+
+    The suggestion under every decomposition read "Show the same decomposition
+    for one sector only". Sector is a corporate dimension this installation
+    retired: the one thing the answer offered to do next was something the book
+    cannot do.
+    """
+    try:
+        from backend.orchestration.dimensions import readable
+        from backend.orchestration.vocabulary import filterable_dimensions
+
+        governed = filterable_dimensions()
+        return readable(governed[0]) if governed else "population"
+    except Exception:  # noqa: BLE001 - no vocabulary, no suggestion
+        return "population"
+
+
 def _columns() -> list[dict[str, Any]]:
     from backend.orchestration import presentation as pr
 
     return [
         {"name": "component", "label": "Driver", "semantic": pr.TEXT,
          "rank": pr.RANK_SUBJECT},
+        # The unit the ACTIVE book keeps its money in. Hard-coded "SAR mn" put
+        # a driver worth SAR 607,461 on screen as "607 SAR bn" — the retail
+        # book publishes whole riyals.
         {"name": "effect", "label": "Effect on ECL", "semantic": pr.MONEY,
-         "unit": "SAR mn", "decimals": 1, "rank": pr.RANK_PRIMARY},
+         **_money_unit(), "decimals": 1, "rank": pr.RANK_PRIMARY},
         {"name": "share_pct", "label": "Share of movement",
          "semantic": pr.PERCENT, "unit": "%", "decimals": 1,
          "rank": pr.RANK_DERIVED},
@@ -914,7 +1015,7 @@ def _available_periods() -> list[str]:
     try:
         from backend.data_access import get_data_source
 
-        return list(get_data_source().periods(DATASET))
+        return list(get_data_source().periods(dataset()))
     except Exception as e:  # noqa: BLE001
         logger.warning("Could not read the published periods: %s", e)
         return []

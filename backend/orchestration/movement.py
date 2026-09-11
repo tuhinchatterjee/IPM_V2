@@ -69,6 +69,13 @@ CHANGE = (
     # that moved has nothing after the verb, and "move this to the Contracting
     # sector" has its object there.
     r"|move(?=\s*[?.!]*\s*$)"
+    # "How did ECL move FROM July TO August?" — the words after the verb are
+    # two dates, not an object. Without this the sentence read as an
+    # instruction to move something and the answer was a single-period total,
+    # which the invariant then caught and reported as a refusal: "the question
+    # asks how a measure moved between two dates, and the analysis produced a
+    # total".
+    r"|move(?=\s+(?:from|between|over)\b)"
     r"|increas\w*|decreas\w*|ris(?:e|es|en|ing)|rose|risen"
     r"|fell|fall(?:s|en|ing)|dropped|grew|grow(?:th|n)"
     r"|declin\w*|worsen\w*|improv\w*|deteriorat\w*"

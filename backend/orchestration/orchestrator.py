@@ -1577,8 +1577,9 @@ def _decompose_ecl(answered: Answered, question: str, reading: cap.Reading,
     """
     try:
         answered.result = dcp.answer(
-            question, reading, context=context, period=period,
-            user_id=getattr(context, "user_id", None))
+            question, reading,
+            context=_decomposition_scope(reading, context, question),
+            period=period, user_id=getattr(context, "user_id", None))
     except Exception as e:  # noqa: BLE001 - a method must not become a 500
         logger.exception("The ECL decomposition failed: %s", e)
         answered.failure = (
@@ -1586,6 +1587,41 @@ def _decompose_ecl(answered: Answered, question: str, reading: cap.Reading,
             "partial has been reported as an answer.")
         answered.failure_kind = "EXECUTION"
     return answered
+
+
+def _decomposition_scope(reading: cap.Reading, context: Any,
+                         question: str = "") -> Any:
+    """The population the decomposition should read, not the whole book.
+
+    The failure this prevents
+    -------------------------
+        "Give me the July to August ECL decomposition for personal finance"
+
+    was answered with the movement of the WHOLE retail book — SAR 1,882,500
+    against personal finance's SAR 981,593 — because the handler was handed the
+    governed CONTEXT, which carries the catalogue rather than the population,
+    and the filters the question stated never reached the read.
+    """
+    from backend.data_access.context import AnalysisContext
+    from backend.orchestration.vocabulary import get_vocabulary
+
+    vocabulary = get_vocabulary()
+    governed = set(vocabulary.dimensions)
+    filters = {str(f.get("field")): f.get("value")
+               for f in (reading.filters or [])
+               if str(f.get("field")) in governed and f.get("value")}
+    if not filters:
+        # The reading carries no filter, so read the population out of the
+        # sentence against the governed values — the same resolver the planner
+        # uses, so "personal finance" means the same thing on both paths.
+        found = vocabulary.resolve_dimension_value(
+            question or reading.objective or "")
+        if found:
+            filters = {found[0]: found[1]}
+    if not filters:
+        return context
+    return AnalysisContext(period="", filters=filters,
+                           user_id=getattr(context, "user_id", None))
 
 
 def _nothing_to_measure(question: str, continuation: Any) -> bool:

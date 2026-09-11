@@ -386,3 +386,100 @@ def test_scenario_weights_are_read_exactly_as_written() -> None:
                                         "downturn": 0.4}
     total = sum(weights.scenario_weights.values())
     assert abs(total - 1.1) < 1e-9, "the weights were rescaled on the way in"
+
+
+@pytest.mark.parametrize(("question", "expected_from", "expected_to"), [
+    ("Give me the July to August ECL decomposition for personal finance",
+     "2026-07", "2026-08"),
+    ("How did ECL move from June to August?", "2026-06", "2026-08"),
+    ("Compare December with January", "2025-12", "2026-01"),
+])
+def test_months_written_without_a_year_resolve(question: str,
+                                               expected_from: str,
+                                               expected_to: str) -> None:
+    """"The July to August decomposition" named no period at all.
+
+    The question fell through to a single-period total at the governed
+    default, and the product's own invariant caught it: "The question asks for
+    how a measure moved between two dates, and the analysis produced a total."
+    Correct, and not an answer.
+    """
+    intent = read_period_intent(question, MONTHS)
+    assert intent.specified, intent.source
+    assert (intent.from_period, intent.to_period) == (expected_from, expected_to)
+
+
+@pytest.mark.parametrize("question", [
+    "Show the ECL decomposition",          # "dec" inside "decomposition"
+    "Show total exposure",
+    "This may be understated",             # the modal verb, not the month
+    "Explain the marginal PD",             # "mar" inside "marginal"
+])
+def test_a_month_is_only_matched_as_a_whole_word(question: str) -> None:
+    """"decomposition" named December, and the answer used the wrong window."""
+    assert not read_period_intent(question, MONTHS).specified
+
+
+def test_a_bare_month_pair_never_runs_backwards() -> None:
+    """Each bare month resolves at or before the one after it."""
+    intent = read_period_intent("Compare July with August", MONTHS)
+    assert MONTHS.index(intent.from_period) < MONTHS.index(intent.to_period)
+
+
+def test_the_ecl_decomposition_reads_the_active_book() -> None:
+    """"Give me the July to August ECL decomposition" was refused.
+
+    "This decomposition needs two published periods to compare and CreditProbe
+    cannot find them" — on a book that publishes twenty-five. The method read
+    `ifrs9_staging`, which this installation retired, so it saw no periods at
+    all and no field it needed.
+    """
+    import json
+
+    from backend.orchestration import decomposition as dcp
+    from backend.retail import CANONICAL_DATASET
+
+    if profile.is_retail():
+        assert dcp.dataset() == CANONICAL_DATASET
+    mapping = dcp.field_map()
+    assert set(mapping) >= {"ead", "pd_12m_pct", "lgd_pct", "total_ecl",
+                            "ifrs9_stage", "customer_id"}
+
+    document = json.loads((ROOT / "metadata/retail/catalog.json").read_text())
+    dataset = next(d for d in document["datasets"] if d["name"] == dcp.dataset())
+    columns = {field["name"] for field in dataset["fields"]}
+    missing = [column for column in mapping.values() if column not in columns]
+    assert not missing, f"not columns of {dcp.dataset()}: {missing}"
+
+
+@pytest.mark.parametrize(("question", "wanted"), [
+    ("Give me the July to August ECL decomposition for personal finance", True),
+    ("Decompose the change in expected credit loss between two months", True),
+    ("Show the ECL waterfall between July and August", True),
+    ("Show expected credit loss by retail product", False),
+    ("Break that down by product", False),
+])
+def test_a_decomposition_request_is_recognised(question: str,
+                                               wanted: bool) -> None:
+    """"ECL decomposition" named a movement and was read as a total.
+
+    The product's own invariant caught it — "the question asks how a measure
+    moved between two dates, and the analysis produced a total" — which is the
+    right refusal to the wrong plan.
+    """
+    from backend.orchestration import decomposition as dcp
+
+    assert dcp.wants(question) is wanted
+
+
+@pytest.mark.parametrize(("question", "wanted"), [
+    ("How did expected credit loss move from July to August?", True),
+    ("How has ECL moved between July and August?", True),
+    ("Move this to the project", False),
+    ("Move the chart to the top", False),
+])
+def test_move_from_x_to_y_is_a_movement(question: str, wanted: bool) -> None:
+    """"How did ECL move from July to August" came back as one month's total."""
+    from backend.orchestration.movement import asks_for_change
+
+    assert asks_for_change(question) is wanted

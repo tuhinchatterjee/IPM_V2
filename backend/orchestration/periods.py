@@ -245,8 +245,20 @@ _MONTH_NUMBER: dict[str, int] = {
     name: number for number, name in enumerate(MONTH_NAMES.split("|"), start=1)
 }
 
+#: The month names in full, so a month is matched as a WORD.
+#:
+#: `{MONTH_NAMES}` plus a loose `[a-z]*` reads "dec" out of "decomposition",
+#: and "the July to August ECL decomposition" then named three periods — July,
+#: August and December — and was answered over the wrong window.
+_MONTH_WORD = (r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|"
+               r"jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|"
+               r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?")
+
 #: A month written in words, e.g. "August 2026" or "aug 2026".
-_NAMED_MONTH = re.compile(rf"\b({MONTH_NAMES})[a-z]*\s+(\d{{4}})\b", re.I)
+_NAMED_MONTH = re.compile(rf"\b({_MONTH_WORD})\s+(\d{{4}})\b", re.I)
+
+#: A month written in words with no year — "the July to August bridge".
+_BARE_MONTH = re.compile(rf"\b({_MONTH_WORD})\b", re.I)
 
 
 def period_year(label: str) -> str:
@@ -307,7 +319,56 @@ def _canonical_periods(lowered: str, periods: list[str]) -> str:
         label = index.get((match.group(2), number))
         return f" {_normalise(label)} " if label else match.group(0)
 
-    return _NAMED_MONTH.sub(swap, lowered)
+    written = _NAMED_MONTH.sub(swap, lowered)
+    return _bare_months(written, periods, index)
+
+
+def _bare_months(lowered: str, periods: list[str],
+                 index: dict[tuple[str, int], str]) -> str:
+    """Months written without a year — "the July to August decomposition".
+
+    The failure this prevents
+    -------------------------
+        "Give me the July to August ECL decomposition for personal finance"
+
+    named no year, so neither month was read as a period at all. The question
+    fell through to a single-period total at the governed default, and the
+    product's own invariant caught it and said so: "The question asks for how a
+    measure moved between two dates, and the analysis produced a total."
+    Correct, and not an answer.
+
+    Resolved RIGHT TO LEFT, each month to its most recent publication at or
+    before the one after it. "July to August" on a book ending in August 2026
+    is therefore 2026-07 to 2026-08, and never 2026-07 to 2025-08 — a window
+    running backwards, which is how a month-on-month question becomes a year.
+    """
+    ordered = {label: at for at, label in enumerate(periods)}
+    matches = list(_BARE_MONTH.finditer(lowered))
+    if not matches:
+        return lowered
+
+    ceiling = len(periods) - 1
+    replacements: list[tuple[int, int, str]] = []
+    for match in reversed(matches):
+        word = match.group(1).lower()
+        # "may" is the modal verb far more often than the month, and a
+        # question that says "this may be understated" is not asking for May.
+        if word == "may":
+            continue
+        number = _MONTH_NUMBER.get(word[:3], 0)
+        candidates = [label for (_, month), label in index.items()
+                      if month == number and ordered.get(label, -1) <= ceiling]
+        if not candidates:
+            continue
+        chosen = max(candidates, key=lambda label: ordered.get(label, -1))
+        ceiling = max(ordered.get(chosen, 0) - 1, 0)
+        replacements.append((match.start(), match.end(),
+                             f" {_normalise(chosen)} "))
+
+    out = lowered
+    for start, end, text in replacements:  # right to left: offsets stay valid
+        out = out[:start] + text + out[end:]
+    return out
 
 
 #: A reporting period as people write one. Matched against the question so a
