@@ -11,8 +11,57 @@
  * act on.
  */
 
-import type { FinalResponse } from "./client";
+import { API_PREFIX, type FinalResponse } from "./client";
 import type { RunView } from "./reducer";
+
+/**
+ * A link to the exact rows a figure came from.
+ *
+ * The artifact endpoint is authenticated and tenant-checked, so this is a
+ * link to evidence the reader is already entitled to see — not a public
+ * export. It exists because "trust the number" is not the claim being made:
+ * "here is the query output it was read from" is.
+ */
+function ArtifactLinks({
+  runId,
+  response,
+}: {
+  runId: string;
+  response: FinalResponse;
+}) {
+  const ids = new Set<string>();
+  for (const table of response.tables) {
+    if (table.artifact_id) ids.add(table.artifact_id);
+  }
+  for (const claim of response.numeric_claims) {
+    const id = (claim as { evidence?: { artifact_id?: string } }).evidence
+      ?.artifact_id;
+    if (id) ids.add(id);
+  }
+  if (ids.size === 0) return null;
+
+  return (
+    <div className="mt-3" data-testid="v4-artifacts">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        Evidence
+      </h4>
+      <ul className="mt-1 space-y-1">
+        {[...ids].map((id) => (
+          <li key={id}>
+            <a
+              href={`${API_PREFIX}/runs/${runId}/artifacts/${id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-xs text-sky-700 underline underline-offset-2"
+            >
+              {id}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 const DISPOSITION_LABEL: Record<string, string> = {
   answer: "Answer",
@@ -78,7 +127,10 @@ export function ResponsePanel({
   const response = view.response;
   if (!response) {
     return (
-      <section className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+      <section
+        data-testid="v4-terminal-failure"
+        className="rounded-lg border border-rose-200 bg-rose-50 p-3"
+      >
         <h3 className="text-sm font-medium text-rose-900">
           {view.state === "CANCELLED"
             ? "Cancelled"
@@ -94,7 +146,10 @@ export function ResponsePanel({
             : "No answer was produced, and nothing was substituted for one."}
         </p>
         {view.errorId ? (
-          <p className="mt-1 text-xs text-rose-700">
+          <p
+            data-testid="v4-support-reference"
+            className="mt-1 text-xs text-rose-700"
+          >
             Quote <span className="font-mono">{view.errorId}</span> to an
             operator. Rephrasing the question is unlikely to help.
           </p>
@@ -104,7 +159,11 @@ export function ResponsePanel({
   }
 
   return (
-    <section className="rounded-lg border border-slate-200 p-3">
+    <section
+      data-testid="v4-response"
+      data-disposition={response.disposition}
+      className="rounded-lg border border-slate-200 p-3"
+    >
       <h3 className="text-xs font-medium uppercase tracking-wide text-slate-500">
         {DISPOSITION_LABEL[response.disposition] ?? response.disposition}
       </h3>
@@ -155,6 +214,18 @@ export function ResponsePanel({
             ))}
           </ul>
         </div>
+      ) : null}
+
+      <ArtifactLinks runId={view.runId} response={response} />
+
+      {view.errorId ? (
+        <p
+          data-testid="v4-support-reference"
+          className="mt-3 text-xs text-slate-600"
+        >
+          Support reference{" "}
+          <span className="font-mono">{view.errorId}</span>
+        </p>
       ) : null}
 
       {response.limitations.length ? (

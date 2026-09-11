@@ -9,7 +9,14 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 
-import { CockpitV4NotConfigured, apiOrigin } from "./client.ts";
+import {
+  CockpitV4NotConfigured,
+  apiOrigin,
+  cockpitV4Enabled,
+  forgetRun,
+  recallRun,
+  rememberRun,
+} from "./client.ts";
 
 const LEGACY = "http://127.0.0.1:8000";
 
@@ -75,11 +82,8 @@ test("no V4 request can be addressed to the legacy backend port", () => {
   setEnv(undefined, LEGACY);
   const resolved = apiOrigin();
   assert.equal(resolved.ok, false);
-  assert.equal(
-    resolved.ok ? resolved.origin : "",
-    "",
-    "there is no origin at all, so there is nothing to send to 8000",
-  );
+  // There is no origin at all, so there is nothing to send to 8000.
+  assert.equal("origin" in resolved, false);
 });
 
 test("an empty or whitespace value is not configuration", () => {
@@ -103,4 +107,44 @@ test("the thrown error is typed so callers can render it", () => {
     },
     CockpitV4NotConfigured,
   );
+});
+
+test("V4 mode is decided by the Cockpit variable alone", () => {
+  setEnv(undefined, LEGACY);
+  assert.equal(cockpitV4Enabled(), false,
+    "the shell variable must not put the build into V4 mode");
+
+  setEnv("http://127.0.0.1:8414", LEGACY);
+  assert.equal(cockpitV4Enabled(), true);
+
+  setEnv("   ", LEGACY);
+  assert.equal(cockpitV4Enabled(), false,
+    "whitespace is not configuration");
+});
+
+test("a remembered run survives and is forgotten deliberately", () => {
+  // A minimal sessionStorage, because this runs outside a browser.
+  const store = new Map<string, string>();
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  };
+
+  assert.equal(recallRun(), null);
+  rememberRun({ runId: "run-abc", threadId: "th-1", cursor: 7 });
+  assert.deepEqual(recallRun(), {
+    runId: "run-abc",
+    threadId: "th-1",
+    cursor: 7,
+  });
+  forgetRun();
+  assert.equal(recallRun(), null,
+    "a settled run is forgotten, so a later refresh does not resurrect it");
+
+  // A corrupt entry is ignored rather than crashing the page on load.
+  store.set("cockpit-v4:active-run", "{not json");
+  assert.equal(recallRun(), null);
+  store.set("cockpit-v4:active-run", JSON.stringify({ cursor: 3 }));
+  assert.equal(recallRun(), null, "an entry with no run id is not a run");
 });

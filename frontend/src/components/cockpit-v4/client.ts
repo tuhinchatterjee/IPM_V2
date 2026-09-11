@@ -83,6 +83,56 @@ export type FinalResponse = {
 
 export const API_PREFIX = "/api/v1/cockpit-v4";
 
+export type RunMode = "standard" | "deep";
+
+/**
+ * Where the active run is remembered across a refresh.
+ *
+ * A run is durable on the server; reloading the page must not orphan it. The
+ * id and the last sequence the browser actually rendered are kept here, so a
+ * refresh reconnects to the SAME run from where it left off rather than
+ * re-asking the question and paying for it twice.
+ *
+ * `sessionStorage` rather than `localStorage`: this is about one tab's current
+ * work, and a second tab opening onto a run it never started would show
+ * progress the reader did not ask for.
+ */
+const ACTIVE_RUN_KEY = "cockpit-v4:active-run";
+
+export type ActiveRun = { runId: string; threadId: string; cursor: number };
+
+export function rememberRun(run: ActiveRun): void {
+  try {
+    sessionStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(run));
+  } catch {
+    /* a browser that refuses storage loses replay, not the run */
+  }
+}
+
+export function recallRun(): ActiveRun | null {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_RUN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ActiveRun>;
+    if (typeof parsed.runId !== "string" || !parsed.runId) return null;
+    return {
+      runId: parsed.runId,
+      threadId: typeof parsed.threadId === "string" ? parsed.threadId : "",
+      cursor: typeof parsed.cursor === "number" ? parsed.cursor : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function forgetRun(): void {
+  try {
+    sessionStorage.removeItem(ACTIVE_RUN_KEY);
+  } catch {
+    /* nothing to clean up */
+  }
+}
+
 /** Bounded backoff, then a status fallback. Not an unlimited retry loop. */
 export const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 8000, 8000];
 
@@ -127,6 +177,18 @@ function base(): string {
   if (!configured) throw new CockpitV4NotConfigured();
   if (configured === "same-origin") return "";
   return configured.replace(/\/$/, "");
+}
+
+/**
+ * Is this build running as a Cockpit V4 runtime?
+ *
+ * Read at module scope rather than in a hook, because the answer decides WHICH
+ * page component is instantiated. A hook-based check would have to run inside
+ * the legacy page — and by then its own hooks have already fired off the
+ * legacy requests this mode exists to avoid.
+ */
+export function cockpitV4Enabled(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_COCKPIT_V4_API?.trim());
 }
 
 /** The configured origin, or a reason it is unusable. For diagnostics. */
@@ -174,7 +236,7 @@ export async function createThread(): Promise<{ thread_id: string }> {
 export async function startRun(input: {
   question: string;
   threadId?: string;
-  mode?: "standard" | "deep";
+  mode?: RunMode;
   filters?: Record<string, unknown>;
   idempotencyKey?: string;
 }): Promise<{ run_id: string; thread_id: string; duplicate: boolean }> {
@@ -237,8 +299,12 @@ export type WatchHandlers = {
  * browser on its own automatic reconnects. Both resume from committed events;
  * neither invents a missing one.
  */
-export function watch(runId: string, handlers: WatchHandlers): () => void {
-  let cursor = 0;
+export function watch(
+  runId: string,
+  handlers: WatchHandlers,
+  startCursor = 0,
+): () => void {
+  let cursor = startCursor;
   let attempt = 0;
   let stopped = false;
   let source: EventSource | null = null;

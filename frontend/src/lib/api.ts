@@ -11,6 +11,7 @@
  */
 
 import { filenameFrom } from "@/lib/downloads";
+import { servedByCurrentRuntime } from "@/lib/runtime";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -2473,10 +2474,35 @@ interface RequestOptions extends Omit<RequestInit, "signal"> {
   rawBody?: boolean;
 }
 
+/**
+ * Raised INSTEAD of making a request the current runtime cannot serve.
+ *
+ * Deliberately not a translated call: nothing here reinterprets a legacy path
+ * as a V4 one. It declines, says why, and leaves the caller to render a
+ * neutral state — which every shell widget already does, because they all
+ * treat a failed optional fetch as "show nothing" rather than "show red".
+ */
+export class NotInThisRuntime extends ApiError {
+  constructor(path: string) {
+    super(
+      `${path} is served by the main CreditProbe backend, which is not part ` +
+        `of this isolated Cockpit V4 runtime. It was not requested.`,
+      0,
+      "not_in_this_runtime",
+      { path, runtime: "cockpit_v4" },
+    );
+    this.name = "NotInThisRuntime";
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
+  // Checked before the fetch, not after the 404. The point is that the
+  // request never leaves the browser.
+  if (!servedByCurrentRuntime(path)) throw new NotInThisRuntime(path);
+
   const { timeoutMs = DEFAULT_TIMEOUT_MS, headers, rawBody, ...init } = options;
 
   // Without a timeout a stopped backend leaves the UI spinning indefinitely,

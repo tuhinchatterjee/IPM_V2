@@ -346,3 +346,92 @@ def test_the_shell_health_route_needs_no_session(shell_client):
     response = shell_client.get("/api/v1/health")
     assert response.status_code == 200
     assert "cockpit_v4_api" in response.text
+
+
+# ---- the Cockpit page uses the V4 architecture, not a shim --------------
+
+PAGE_TSX = ROOT / "frontend" / "src" / "app" / "page.tsx"
+V4_DIR = ROOT / "frontend" / "src" / "components" / "cockpit-v4"
+
+#: The endpoints a V4 runtime must never reach. The live Mac API log showed
+#: POSTs to the first two returning 404 while Opus V4 was never called.
+LEGACY_ENDPOINTS = (
+    "/investigations", "/agentic/officer", "/ask/mode", "/ask/briefing",
+    "/ask/suggestions", "/ask/cockpit-v2/diagnostics", "/cockpit/diagnostics")
+
+
+def test_the_cockpit_page_chooses_the_runtime_before_mounting_either():
+    """The root cause: the V4 component existed and was never rendered.
+
+    The choice has to happen BEFORE either component is instantiated. React
+    runs the hooks a component declares as soon as it mounts, and the legacy
+    Cockpit opens with four `useAsync` calls; guarding its JSX would not have
+    stopped a single one of those requests.
+    """
+    source = _code_only(PAGE_TSX)
+    assert "cockpitV4Enabled()" in source, (
+        "the page must decide which Cockpit it is")
+    assert "<CockpitV4Home />" in source
+    # The decision sits in the dispatcher, above the legacy component.
+    decision = source.index("cockpitV4Enabled()")
+    legacy_hooks = source.index("api.askSuggestions()")
+    assert decision < legacy_hooks, (
+        "the runtime check must precede the legacy component's own hooks")
+
+
+def test_the_v4_components_never_name_a_legacy_endpoint():
+    """No shim: V4 does not translate /investigations into anything."""
+    for path in sorted(V4_DIR.glob("*.ts*")):
+        if path.name.endswith(".test.ts"):
+            continue
+        code = _code_only(path)
+        for endpoint in LEGACY_ENDPOINTS:
+            assert endpoint not in code, (
+                f"{path.name} names {endpoint}. The V4 frontend must use the "
+                f"V4 run API explicitly, not imitate the legacy flow.")
+
+
+def test_the_v4_client_speaks_only_the_v4_run_api():
+    """Every route the required Ask flow needs, and nothing else."""
+    code = _code_only(CLIENT_TS)
+    assert 'export const API_PREFIX = "/api/v1/cockpit-v4"' in code
+    for fragment in ("/runs", "/events", "/cancel", "/threads",
+                     "/delivered"):
+        assert fragment in code, f"the client must address {fragment}"
+
+
+def test_the_generic_client_declines_rather_than_requesting(tmp_path):
+    """The shell's 404 noise is prevented before the fetch, not caught after."""
+    guard = (ROOT / "frontend" / "src" / "lib" / "runtime.ts").read_text(
+        encoding="utf-8")
+    assert "servedByCurrentRuntime" in guard
+    api = _code_only(LIB_API_TS)
+    assert "if (!servedByCurrentRuntime(path)) throw new NotInThisRuntime(path);" \
+        in api, "the guard must run before the request is built"
+    # And it must sit ahead of the fetch, not in the error handler.
+    assert api.index("servedByCurrentRuntime(path)") < api.index("fetch("), (
+        "a check after the fetch still makes the request")
+
+
+def test_every_route_the_ask_flow_needs_is_served_by_the_v4_api(shell_client):
+    """The flow the requirement specifies, asserted against the real router."""
+    from backend.cockpit_v4 import routes
+
+    served = {getattr(r, "path", "") for r in routes.router.routes}
+    for required in (
+            "/api/v1/cockpit-v4/runs",
+            "/api/v1/cockpit-v4/runs/{run_id}",
+            "/api/v1/cockpit-v4/runs/{run_id}/events",
+            "/api/v1/cockpit-v4/runs/{run_id}/cancel",
+            "/api/v1/cockpit-v4/runs/{run_id}/artifacts/{artifact_id}",
+            "/api/v1/cockpit-v4/threads"):
+        assert required in served, f"the Ask flow needs {required}"
+
+
+def test_the_v4_api_does_not_serve_the_legacy_endpoints(shell_client):
+    """V4 must not imitate the legacy agentic API, even helpfully."""
+    for endpoint in LEGACY_ENDPOINTS:
+        response = shell_client.post(f"/api/v1{endpoint}")
+        assert response.status_code in (404, 405), (
+            f"/api/v1{endpoint} must not be implemented by V4; a shim here "
+            f"would hide the frontend still using the legacy flow")

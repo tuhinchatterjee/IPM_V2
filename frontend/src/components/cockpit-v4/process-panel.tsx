@@ -100,17 +100,24 @@ export function ProcessPanel({
 
   return (
     <section
+      data-testid="v4-process-panel"
+      data-open={open ? "true" : "false"}
       className="rounded-lg border border-slate-200 bg-slate-50/60 text-sm"
       aria-label="Process"
     >
       <div className="flex items-center justify-between gap-3 px-3 py-2">
-        <p className="min-w-0 truncate text-slate-700" aria-live="polite">
+        <p
+          data-testid="v4-process-summary"
+          className="min-w-0 truncate text-slate-700"
+          aria-live="polite"
+        >
           {summary}
         </p>
         <div className="flex shrink-0 items-center gap-2">
           {!view.terminal && onCancel ? (
             <button
               type="button"
+              data-testid="v4-stop"
               onClick={onCancel}
               className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-white"
             >
@@ -119,6 +126,7 @@ export function ProcessPanel({
           ) : null}
           <button
             type="button"
+            data-testid="v4-toggle-process"
             onClick={toggle}
             aria-expanded={open}
             aria-controls="cockpit-v4-process-detail"
@@ -152,7 +160,7 @@ export function ProcessPanel({
           id="cockpit-v4-process-detail"
           className="border-t border-slate-200 px-3 py-2"
         >
-          <ol className="space-y-1">
+          <ol className="space-y-1" data-testid="v4-process-steps">
             {view.steps.map((step) => {
               const isOpen = Boolean(expanded[step.stage]);
               const hasDetail = step.substeps.length > 0;

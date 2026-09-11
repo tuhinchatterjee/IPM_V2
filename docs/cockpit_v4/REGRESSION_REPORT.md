@@ -71,7 +71,7 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python3 -m pytest tests/cockpit_v4 -q
 
 | tests collected | passed | failures | errors | skipped | elapsed |
 |---:|---:|---:|---:|---:|---:|
-| 167 | 167 | 0 | 0 | 0 | ~8.2 s |
+| 173 | 173 | 0 | 0 | 0 | ~8 s |
 
 Frontend reducer:
 
@@ -82,7 +82,7 @@ cd frontend && node --test --experimental-strip-types \
 
 | tests | pass | fail |
 |---:|---:|---:|
-| 23 | 23 | 0 |
+| 30 | 30 | 0 |
 
 Run as:
 
@@ -114,6 +114,25 @@ Each was found by a test that failed for the right reason, not by review:
 | 8 | The V4 API served no `/api/v1/health`, so pointing the shell at it produced a 404. | The header rendered **"Backend offline"** while V4 was answering every request — the status indicator lying about the service next to it. |
 | 9 | `wait_for_health` JSON-decoded the UI's root page, which serves HTML. | The decode raised, was swallowed as "not ready yet", and a healthy UI was reported as failed until the timeout expired. |
 | 10 | The V4 client resolved an unset address to `""` (same origin). | A silent wrong address rather than a stated one. It now has no default at all. |
+
+### Third round — the Cockpit page was still the legacy one
+
+| # | Defect | Consequence |
+|---|---|---|
+| 11 | `frontend/src/app/page.tsx` rendered the legacy Cockpit. The V4 component existed and was imported by nothing. | Pressing Ask ran the legacy flow: `POST /api/v1/investigations` and `/api/v1/agentic/officer`, both 404 against the V4 API. **Opus V4 was never reached.** |
+| 12 | Shell chrome polled `/demo`, `/auth/me`, `/ai/status` and `/workspace/notifications`. | Four 404s per page load in the V4 API log, obscuring the Cockpit under test. |
+| 13 | The replay effect aborted its own async work under React StrictMode's double mount. | A browser refresh silently failed to reconnect to the running run. |
+| 14 | The stub's "slow" case blocked 30s inside one `converse`. | Made a correct implementation look broken: V4 observes a cancellation *between* actions and does not abort an in-flight provider call — that is what the deadline and supervisor are for. Fixed in the test, not the product. |
+
+### Browser suite
+
+```
+python3 scripts/cockpit_v4/browser_evidence.py
+```
+
+Real Chromium, real Next.js UI, real V4 API, **stubbed analyst**. 10/10 pass.
+Every network request the page makes is recorded, so "never calls the legacy
+flow" is checked rather than asserted.
 
 Two design rules were also refined because a test showed the original was
 wrong, not because a test was inconvenient:

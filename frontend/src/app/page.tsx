@@ -11,6 +11,8 @@ import {
   CockpitV3Progress,
 } from "@/components/ask/cockpit-agentic";
 import { failureFrom } from "@/components/ask/cockpit-v3-outcome";
+import { cockpitV4Enabled } from "@/components/cockpit-v4/client";
+import { CockpitV4Home } from "@/components/cockpit-v4/cockpit-v4-home";
 import { Composer, useGreeting } from "@/components/ask/composer";
 import { PendingOfficer } from "@/components/agentic/pending";
 import { RequiresAttention } from "@/components/attention/requires-attention";
@@ -50,10 +52,21 @@ import { fromCockpit, linkBack, useReturnTo } from "@/lib/return-to";
  * Nothing on this page is a hard-coded portfolio figure. Every number comes from
  * a registered analysis executed on request, and carries a Trace.
  */
+/**
+ * Which Cockpit this build is.
+ *
+ * The check happens HERE, before either page component is instantiated,
+ * because React runs the hooks a component declares as soon as it mounts. The
+ * legacy `Cockpit` opens with four `useAsync` calls to `/ask/suggestions`,
+ * `/ask/mode`, `/ask/briefing` and `/investigations`; in a V4 runtime those
+ * are 404s against an API that never served them. Guarding the JSX would not
+ * have stopped a single one of those requests — only declining to instantiate
+ * the component does.
+ */
 export default function CockpitPage() {
   return (
     <React.Suspense fallback={<Skeleton className="h-96 w-full" />}>
-      <Cockpit />
+      {cockpitV4Enabled() ? <CockpitV4Home /> : <Cockpit />}
     </React.Suspense>
   );
 }

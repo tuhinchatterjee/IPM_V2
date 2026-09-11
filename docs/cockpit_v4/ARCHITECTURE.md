@@ -79,7 +79,13 @@ backend/cockpit_v4/
 frontend/src/components/system/
   runtime-surfaces.ts  reads a partial runtime out of a health payload
 
+frontend/src/lib/
+  runtime.ts           which backend this build talks to, and what it serves
+
 frontend/src/components/cockpit-v4/
+  cockpit-v4-home.tsx  the Cockpit page in a V4 runtime
+  cockpit-v4.tsx       the Ask surface: question, mode, Ask, Stop, replay
+  not-in-this-runtime.tsx  the neutral state for an absent optional widget
   client.ts          start/status/events/cancel/artifacts, bounded reconnect
   reducer.ts         run-id and sequence fenced UI state
   process-panel.tsx  the hideable live trace

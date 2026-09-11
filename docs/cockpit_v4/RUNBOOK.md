@@ -105,6 +105,31 @@ The V4 Cockpit client has no default address at all. If
 borrowing the shell's variable — there is nothing for it to silently fall back
 *to*.
 
+### What the Cockpit page is, in V4 mode
+
+When `NEXT_PUBLIC_COCKPIT_V4_API` is set, `/` renders the **Cockpit V4** Ask
+surface: a question box, a Standard/Deep control, Ask, Stop, a hideable
+**Show process / Hide process** panel driven by the backend's own persisted
+events, the final answer, links to the artifacts a figure was read from, and
+an explicit terminal failure with a support reference.
+
+The legacy Cockpit page is not rendered at all in this mode — which is the
+point. It opens with four `useAsync` calls to `/ask/suggestions`, `/ask/mode`,
+`/ask/briefing` and `/investigations`, and React fires a component's hooks the
+moment it mounts. Guarding the JSX would not have stopped those requests;
+declining to instantiate the component does.
+
+Asking runs the V4 lifecycle end to end:
+`POST /runs` → `run_id` → the process panel appears → the browser subscribes to
+`/runs/{run_id}/events` → `GET /runs/{run_id}` for authoritative state →
+the answer renders. Stop calls `/runs/{run_id}/cancel`. A browser refresh
+reconnects to the **same** run from the last sequence it rendered — it does not
+ask again.
+
+Widgets whose backend is not part of this runtime (risk cases, investigations,
+early warning, the briefing, workspace notifications) render a neutral "not
+available in this isolated V4 runtime" state and **make no request at all**.
+
 ### What the status badge will say
 
 The header polls `/api/v1/health`, which the V4 API now serves about itself.
@@ -165,6 +190,21 @@ Live at `http://127.0.0.1:8414/api/v1/cockpit-v4/diagnostics`.
 
 Logs: `$COCKPIT_V4_RUNTIME_DIR/logs/{api,ui}.log`, default
 `~/.creditprobe/cockpit_v4/logs`.
+
+## Running the browser suite
+
+A real Chromium against the real UI and a stubbed analyst. It starts and stops
+everything it needs on free ports:
+
+```bash
+python3 scripts/cockpit_v4/browser_evidence.py
+```
+
+Evidence lands in `docs/cockpit_v4/evidence/browser.json`. Add `--keep-up` to
+leave the stack running afterwards for manual poking — and remember to stop it.
+
+The analyst is a **stub**. The suite proves the wiring, the run lifecycle and
+the rendering. It is not a live Opus validation.
 
 ## Settings
 
