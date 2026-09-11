@@ -2,7 +2,7 @@
   "suite": "inventory",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 111.3,
+  "elapsed_seconds": 112.3,
   "counts": {
     "PASS": 26,
     "FAIL": 0,
@@ -222,7 +222,7 @@
       "module": "inventory",
       "title": "/what-if renders with its controls",
       "status": "PASS",
-      "detail": "36 buttons, 27 links, 7 inputs, 1 selects, 0 tabs, 0 tables",
+      "detail": "44 buttons, 27 links, 9 inputs, 1 selects, 0 tabs, 0 tables",
       "expected": null,
       "actual": null,
       "evidence": {

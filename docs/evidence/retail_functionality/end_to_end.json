@@ -2,7 +2,7 @@
   "suite": "end_to_end",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 77.5,
+  "elapsed_seconds": 78.1,
   "counts": {
     "PASS": 3,
     "FAIL": 0,

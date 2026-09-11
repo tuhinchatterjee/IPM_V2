@@ -214,19 +214,19 @@
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/investigations/125"
+          "href": "/investigations/146"
         },
         {
           "label": "Show exposure by retail product for August 2026 2",
-          "href": "/investigations/124"
+          "href": "/investigations/145"
         },
         {
           "label": "Show exposure by retail product for August 2026 2",
-          "href": "/investigations/123"
+          "href": "/investigations/144"
         },
         {
           "label": "What data do you have in Retail facility month-end position? 2",
-          "href": "/investigations/122"
+          "href": "/investigations/143"
         }
       ],
       "inputs": [
@@ -424,24 +424,24 @@
           "href": "/investigations"
         },
         {
-          "label": "Explain that result more simply. 7:46 AM",
-          "href": "/analysis/252"
+          "label": "Explain that result more simply. 7:59 AM",
+          "href": "/analysis/302"
         },
         {
           "label": "Assess the personal finance application scorecard on the latest fully observed c",
-          "href": "/analysis/251"
+          "href": "/analysis/301"
         },
         {
-          "label": "Compare with July 2026 7:45 AM",
-          "href": "/analysis/250"
+          "label": "Compare with July 2026 7:58 AM",
+          "href": "/analysis/300"
         },
         {
-          "label": "Now only personal finance 7:45 AM",
-          "href": "/analysis/249"
+          "label": "Now only personal finance 7:58 AM",
+          "href": "/analysis/299"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/analysis/248"
+          "href": "/analysis/298"
         }
       ],
       "inputs": [],
@@ -1107,6 +1107,11 @@
           "testid": ""
         },
         {
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
           "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
           "disabled": false,
           "testid": ""
@@ -1162,57 +1167,12 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "label": "Open investigation: Show expected credit loss by product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show weighted ECL by retail product for July 2026",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show exposure by retail product for August 2026 where the pr",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Explain credit-card utilisation and show which customers wor",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Calculate the next-12-month Gini for applications originated",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Assess personal-finance application-scorecard discrimination",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Show scorecard performance.",
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
           "disabled": false,
           "testid": ""
         },
@@ -1222,27 +1182,7 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
-          "disabled": false,
-          "testid": ""
-        },
-        {
-          "label": "Open investigation: Break that down by product",
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
           "disabled": false,
           "testid": ""
         },
@@ -1252,57 +1192,77 @@
           "testid": ""
         },
         {
-          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "label": "Open investigation: Show exposure by retail product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How did expected credit loss move from July to August?",
+          "label": "Open investigation: What data do you have in Retail facility month-end position?",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
+          "label": "Open investigation: Show expected credit loss by IFRS 9 stage for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How did expected credit loss move from July to August?",
+          "label": "Open investigation: Draft an evidence-backed response to the auditor about this ",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How has expected credit loss moved from July to August?",
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "label": "Open investigation: Show weighted ECL by retail product for July 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Decompose the change in expected credit loss between July 20",
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: How did expected credit loss move from July to August for pe",
+          "label": "Open investigation: Show exposure by retail product for August 2026 where the pr",
           "disabled": false,
           "testid": ""
         },
         {
-          "label": "Open investigation: Give me the July to August ECL decomposition for personal fi",
+          "label": "Open investigation: Explain credit-card utilisation and show which customers wor",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Calculate the next-12-month Gini for applications originated",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Assess personal-finance application-scorecard discrimination",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show scorecard performance.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
           "disabled": false,
           "testid": ""
         },
@@ -1323,6 +1283,46 @@
         },
         {
           "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for July 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show weighted ECL by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026 where the pr",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Explain credit-card utilisation and show which customers wor",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Calculate the next-12-month Gini for applications originated",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Assess personal-finance application-scorecard discrimination",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show scorecard performance.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
           "disabled": false,
           "testid": ""
         }
@@ -1448,7 +1448,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": true,
-      "characters": 11645,
+      "characters": 12158,
       "opened": true,
       "url": "http://localhost:5328/investigations",
       "console_errors": [],
@@ -2585,6 +2585,46 @@
         {
           "label": "Reopen",
           "disabled": false,
+          "testid": "retail-whatif-reopen-11"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-11"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-11"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-11"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-10"
+        },
+        {
+          "label": "CSV",
+          "disabled": false,
+          "testid": "retail-whatif-csv-10"
+        },
+        {
+          "label": "JSON",
+          "disabled": false,
+          "testid": "retail-whatif-json-10"
+        },
+        {
+          "label": "Delete",
+          "disabled": false,
+          "testid": "retail-whatif-delete-10"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
           "testid": "retail-whatif-reopen-8"
         },
         {
@@ -2821,6 +2861,18 @@
           "disabled": false
         },
         {
+          "label": "Compare NAV-03 test scenario (4)",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-11",
+          "disabled": false
+        },
+        {
+          "label": "Compare WIJ-19 075452",
+          "type": "checkbox",
+          "testid": "retail-whatif-pick-10",
+          "disabled": false
+        },
+        {
           "label": "Compare NAV-03 test scenario (3)",
           "type": "checkbox",
           "testid": "retail-whatif-pick-8",
@@ -2895,7 +2947,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": false,
-      "characters": 3014,
+      "characters": 3212,
       "opened": true,
       "url": "http://localhost:5328/what-if",
       "console_errors": [],
@@ -4826,51 +4878,51 @@
         },
         {
           "label": "Explain that result more simply. application score for Personal Finance across t",
-          "href": "/trace/252"
+          "href": "/trace/302"
         },
         {
           "label": "Assess the personal finance application scorecard on the latest fully observed c",
-          "href": "/trace/251"
+          "href": "/trace/301"
         },
         {
           "label": "Compare with July 2026 How gross carrying amount moved between 2026-07 and 2026-",
-          "href": "/trace/250"
+          "href": "/trace/300"
         },
         {
           "label": "Now only personal finance gross carrying amount, final ECL by product label for ",
-          "href": "/trace/249"
+          "href": "/trace/299"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/trace/248"
+          "href": "/trace/298"
         },
         {
           "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/247"
+          "href": "/trace/297"
         },
         {
           "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
-          "href": "/trace/246"
+          "href": "/trace/296"
         },
         {
           "label": "What data do you have in Retail facility month-end position? the question asks a",
-          "href": "/trace/245"
+          "href": "/trace/295"
         },
         {
           "label": "Show expected credit loss by IFRS 9 stage for August 2026 final ECL by ifrs9 sta",
-          "href": "/trace/244"
+          "href": "/trace/294"
         },
         {
           "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
-          "href": "/trace/243"
+          "href": "/trace/293"
+        },
+        {
+          "label": "Show weighted ECL by retail product for August 2026 final ECL by product label a",
+          "href": "/trace/292"
         },
         {
           "label": "Draft an evidence-backed response to the auditor about this scorecard's continui",
-          "href": "/trace/242"
-        },
-        {
-          "label": "Show the evidence gross carrying amount, final ECL by product label for Personal",
-          "href": "/trace/241"
+          "href": "/trace/291"
         }
       ],
       "inputs": [],
@@ -4880,7 +4932,7 @@
       "tables": 0,
       "empty_state": false,
       "refused": true,
-      "characters": 3131,
+      "characters": 3120,
       "opened": true,
       "url": "http://localhost:5328/trace",
       "console_errors": [],
