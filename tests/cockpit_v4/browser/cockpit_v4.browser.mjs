@@ -33,7 +33,13 @@ const FORBIDDEN = [
 const results = [];
 let failures = 0;
 
+/** Run a subset while diagnosing. Unset in CI, so the default is everything. */
+const ONLY = process.env.V4_BROWSER_ONLY
+  ? new RegExp(process.env.V4_BROWSER_ONLY, "i")
+  : null;
+
 async function test(name, fn) {
+  if (ONLY && !ONLY.test(name)) return;
   const started = Date.now();
   try {
     await fn();
@@ -1208,6 +1214,163 @@ await test("the landing page mounts the V4 Cockpit and nothing legacy",
   },
 );
 
+
+/* ---- responsive: five real viewports -------------------------------- */
+/*
+ * The complaint these exist for: a 1728px Mac rendered a 1128px ribbon with
+ * two empty thirds. Two separate things can cause that, so two ratios are
+ * measured rather than one.
+ *
+ *   columnFill  the Cockpit's share of the content area the shell gives it.
+ *               This is the Cockpit's own responsibility and should be near
+ *               1 at every width.
+ *   windowFill  the content area's share of the window. This belongs to the
+ *               application shell -- the navigation rail and the column cap --
+ *               and its floor is set per viewport from the rail's real width,
+ *               expanded above 767px and collapsed to its icon rail below.
+ *
+ * Neither number is allowed to hide behind the other.
+ */
+
+const VIEWPORTS = [
+  { name: "mac-16-inch", width: 1728, height: 1117, minWindowFill: 0.84 },
+  { name: "desktop-1440", width: 1440, height: 900, minWindowFill: 0.82 },
+  { name: "laptop-1280", width: 1280, height: 800, minWindowFill: 0.8 },
+  { name: "tablet-834", width: 834, height: 1112, minWindowFill: 0.72 },
+  { name: "phone-390", width: 390, height: 844, minWindowFill: 0.8 },
+];
+
+const MIN_COLUMN_FILL = 0.89;
+const responsive = [];
+
+for (const viewport of VIEWPORTS) {
+  await test(`the landing page fills a ${viewport.name} window`, async () => {
+    const context = await browser.newContext({
+      viewport: { width: viewport.width, height: viewport.height },
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(`${UI}/`, { waitUntil: "domcontentloaded" });
+      await page.waitForSelector('[data-testid="cockpit-v4-home"]', {
+        timeout: 60_000,
+      });
+      const measured = await page.evaluate(() => {
+        const home = document.querySelector('[data-testid="cockpit-v4-home"]');
+        const column = document.querySelector(
+          '[data-testid="app-content-column"]',
+        );
+        const main = document.querySelector("main");
+        // When something is narrow, the useful question is WHICH ancestor
+        // stopped being wide -- so the chain is measured, not guessed at.
+        const chain = [];
+        for (let node = home; node && node !== document.documentElement;
+             node = node.parentElement) {
+          chain.push({
+            tag: node.tagName.toLowerCase(),
+            testid: node.getAttribute("data-testid") ?? "",
+            width: Math.round(node.getBoundingClientRect().width),
+            maxWidth: window.getComputedStyle(node).maxWidth,
+          });
+        }
+        return {
+          contentWidth: Math.round(home.getBoundingClientRect().width),
+          mainWidth: Math.round(main?.getBoundingClientRect().width ?? 0),
+          wideRequested: column?.getAttribute("data-wide") === "true",
+          navCollapsed:
+            document.querySelector("[data-collapsed]")?.getAttribute(
+              "data-collapsed",
+            ) === "true",
+          innerWidth: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+          askVisible: !!document.querySelector(
+            '[data-testid="cockpit-v4-question"]',
+          ),
+          chain,
+        };
+      });
+      const columnFill = measured.contentWidth / measured.mainWidth;
+      const windowFill = measured.mainWidth / measured.innerWidth;
+      responsive.push({
+        viewport: viewport.name,
+        width: viewport.width,
+        height: viewport.height,
+        contentWidth: measured.contentWidth,
+        mainWidth: measured.mainWidth,
+        innerWidth: measured.innerWidth,
+        navCollapsed: measured.navCollapsed,
+        wideRequested: measured.wideRequested,
+        columnFill: Number(columnFill.toFixed(3)),
+        windowFill: Number(windowFill.toFixed(3)),
+      });
+
+      assert.ok(
+        measured.wideRequested,
+        `${viewport.name}: the Cockpit did not ask the shell for the wide ` +
+          `content column`,
+      );
+      assert.ok(
+        columnFill >= MIN_COLUMN_FILL,
+        `${viewport.name}: the Cockpit used ${measured.contentWidth}px of the ` +
+          `${measured.mainWidth}px it was given (` +
+          `${(columnFill * 100).toFixed(0)}%). Ancestors: ` +
+          JSON.stringify(measured.chain),
+      );
+      assert.ok(
+        windowFill >= viewport.minWindowFill,
+        `${viewport.name}: the shell gave the page ${measured.mainWidth}px of ` +
+          `${measured.innerWidth}px (${(windowFill * 100).toFixed(0)}%), below ` +
+          `the ${(viewport.minWindowFill * 100).toFixed(0)}% this width ` +
+          `should reach. Navigation collapsed: ${measured.navCollapsed}.`,
+      );
+      assert.ok(
+        measured.scrollWidth <= measured.innerWidth + 1,
+        `${viewport.name}: the page scrolls sideways ` +
+          `(${measured.scrollWidth} > ${measured.innerWidth})`,
+      );
+      assert.ok(measured.askVisible, `${viewport.name}: no ask box`);
+    } finally {
+      await context.close();
+    }
+  });
+}
+
+await test("the navigation rail collapses itself on a phone", async () => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto(`${UI}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="cockpit-v4-home"]');
+    const collapsed = await page.getAttribute("[data-collapsed]", "data-collapsed");
+    assert.equal(
+      collapsed,
+      "true",
+      "at 390px an expanded 212px rail is more than half the screen",
+    );
+  } finally {
+    await context.close();
+  }
+});
+
+await test("the greeting never addresses a deployment profile as a person",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      const heading = await page.textContent(
+        '[data-testid="cockpit-v4-greeting"]',
+      );
+      assert.ok(
+        !/Local UAT|Service Account|Demo User/i.test(heading ?? ""),
+        `the greeting read "${heading}", which is a profile label, not a name`,
+      );
+      assert.match(heading ?? "", /Good (morning|afternoon|evening)/);
+    } finally {
+      await context.close();
+    }
+  },
+);
+
 if (process.env.V4_LANDING_SCREENSHOT) {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1200 },
@@ -1240,10 +1403,13 @@ const summary = {
   passed: results.filter((r) => r.ok).length,
   failed: failures,
   forbidden_endpoints_checked: FORBIDDEN,
+  responsive,
   results,
 };
 console.log(`\n${summary.passed}/${summary.total} browser tests passed\n`);
-if (process.env.V4_BROWSER_EVIDENCE) {
+// A filtered run is a diagnostic, not evidence: it must never overwrite
+// the artifact with a partial result.
+if (process.env.V4_BROWSER_EVIDENCE && !ONLY) {
   const { writeFileSync } = await import("node:fs");
   writeFileSync(
     process.env.V4_BROWSER_EVIDENCE,

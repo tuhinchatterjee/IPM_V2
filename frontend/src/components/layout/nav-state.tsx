@@ -64,8 +64,42 @@ function write(value: boolean): void {
   listeners.forEach((listener) => listener());
 }
 
+/**
+ * Below this width the sidebar's 212px is most of the screen.
+ *
+ * A phone rendering a 375px window was leaving the content area 163px, which
+ * is not a layout so much as a column of broken words. The navigation
+ * collapses to its icon rail there -- a state the sidebar already renders
+ * properly -- and the stored preference is untouched, so a person who
+ * expands it on a laptop still finds it expanded when they go back.
+ */
+const NARROW = "(max-width: 767px)";
+
+function subscribeNarrow(onChange: () => void): () => void {
+  if (typeof window === "undefined" || !window.matchMedia) return () => {};
+  const query = window.matchMedia(NARROW);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+function readNarrow(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) return false;
+  return window.matchMedia(NARROW).matches;
+}
+
+/** The server has no viewport, so it renders for the wide case. */
+function readNarrowOnServer(): boolean {
+  return false;
+}
+
 export function NavProvider({ children }: { children: React.ReactNode }) {
-  const collapsed = React.useSyncExternalStore(subscribe, read, readOnServer);
+  const stored = React.useSyncExternalStore(subscribe, read, readOnServer);
+  const narrow = React.useSyncExternalStore(
+    subscribeNarrow,
+    readNarrow,
+    readNarrowOnServer,
+  );
+  const collapsed = stored || narrow;
   const toggle = React.useCallback(() => write(!read()), []);
 
   const value = React.useMemo(() => ({ collapsed, toggle }), [collapsed, toggle]);

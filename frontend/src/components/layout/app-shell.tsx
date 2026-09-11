@@ -4,6 +4,7 @@ import { useAuth } from "@/components/system/auth";
 import { LoginScreen } from "@/components/system/login";
 import { ErrorBoundary } from "@/components/system/error-boundary";
 
+import { ContentWidthProvider, useContentWidth } from "./content-width";
 import { Header } from "./header";
 import { NavProvider } from "./nav-state";
 import { Sidebar } from "./sidebar";
@@ -18,24 +19,49 @@ import { Sidebar } from "./sidebar";
  * The content column is capped at 1200px and generously padded. A wide screen
  * is not a reason to stretch a paragraph to 1600px; it is a reason to leave
  * space around what matters.
+ *
+ * A page whose content IS the width can ask for more with `useWideContent`,
+ * and the Cockpit does: two dashboards, wide tables and a chat column were
+ * being squeezed into 1128px of a 1728px display. Nothing else changes, and
+ * a page that asks for nothing keeps the 1200px default.
+ *
+ * The horizontal padding is generous from `sm` up and modest below it. At
+ * 375px, 36px of padding on each side is a tenth of the screen spent on
+ * nothing.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <NavProvider>
-      <AuthGate>
-        <div className="flex h-dvh flex-col overflow-hidden">
-          <Header />
-          <div className="flex min-h-0 flex-1">
-            <Sidebar />
-            <main className="min-w-0 flex-1 overflow-y-auto">
-              <div className="mx-auto max-w-[1200px] px-9 py-8">
-                <ErrorBoundary area="This page">{children}</ErrorBoundary>
-              </div>
-            </main>
+      <ContentWidthProvider>
+        <AuthGate>
+          <div className="flex h-dvh flex-col overflow-hidden">
+            <Header />
+            <div className="flex min-h-0 flex-1">
+              <Sidebar />
+              <main className="min-w-0 flex-1 overflow-y-auto">
+                <ContentColumn>{children}</ContentColumn>
+              </main>
+            </div>
           </div>
-        </div>
-      </AuthGate>
+        </AuthGate>
+      </ContentWidthProvider>
     </NavProvider>
+  );
+}
+
+function ContentColumn({ children }: { children: React.ReactNode }) {
+  const { wide } = useContentWidth();
+  return (
+    <div
+      data-testid="app-content-column"
+      data-wide={wide ? "true" : "false"}
+      className={
+        "mx-auto px-4 py-8 sm:px-6 lg:px-9 " +
+        (wide ? "max-w-[1600px]" : "max-w-[1200px]")
+      }
+    >
+      <ErrorBoundary area="This page">{children}</ErrorBoundary>
+    </div>
   );
 }
 

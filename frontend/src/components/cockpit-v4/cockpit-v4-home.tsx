@@ -24,6 +24,8 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 
+import { useWideContent } from "@/components/layout/content-width";
+
 import { AttentionDrawer } from "./attention-drawer";
 import { AttentionPanel } from "./attention-panel";
 import {
@@ -109,6 +111,10 @@ export function CockpitV4Home() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, []);
+
+  // Two dashboards, wide tables and a chat column: this page IS the
+  // width. Every other page keeps the shell default.
+  useWideContent();
 
   const hello = greeting(name);
 
