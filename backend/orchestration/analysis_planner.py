@@ -966,8 +966,19 @@ def _plan(reading: Reading, context: GovernedContext, *,
     return build
 
 
-#: What a rolled-up cohort calls its count of qualifying members.
-COHORT_MEMBERS = "borrowers"
+def cohort_members() -> str:
+    """What a rolled-up cohort calls its count of qualifying members.
+
+    In the installation's own word. A retail book has customers, and a column
+    headed "Borrowers" beside a sentence that says customers is the corporate
+    vocabulary reaching the screen through the TABLE rather than the prose —
+    which is where it survived every sweep of the wording.
+
+    A function rather than a constant because the profile is read at call
+    time: a module-level constant would freeze whichever product was active
+    when this module was first imported.
+    """
+    return f"{_subject_word()}s"
 
 #: Columns that are rates or ratios rather than amounts. Averaged when rolled
 #: up, because a sum of percentages is a number with no unit.
@@ -1039,8 +1050,8 @@ def _roll_up_to_dimension(build: AnalysisBuild, dimension: str,
     order = list((operations[sort_at].get("params") or {}).get("by") or [])
 
     aggregates: list[dict[str, Any]] = [
-        {"function": "count_distinct", "column": key, "as": COHORT_MEMBERS}]
-    seen = {COHORT_MEMBERS}
+        {"function": "count_distinct", "column": key, "as": cohort_members()}]
+    seen = {cohort_members()}
     for entry in order:
         column = str(entry.get("column") or "")
         if column and column not in seen and column != dimension:
@@ -1064,7 +1075,7 @@ def _roll_up_to_dimension(build: AnalysisBuild, dimension: str,
     if not order:
         operations[sort_at + 1] = {
             **operations[sort_at + 1],
-            "params": {"by": [{"column": COHORT_MEMBERS, "direction": "desc"}]}}
+            "params": {"by": [{"column": cohort_members(), "direction": "desc"}]}}
 
     plan = dict(build.plan or {})
     plan["operations"] = operations
@@ -2837,9 +2848,9 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     if (count_members and dimension and group_by
             and count_members in available
             and count_members not in group_by
-            and not any(a["as"] == COHORT_MEMBERS for a in aggregates)):
+            and not any(a["as"] == cohort_members() for a in aggregates)):
         aggregates.append({"function": "count_distinct",
-                           "column": count_members, "as": COHORT_MEMBERS})
+                           "column": count_members, "as": cohort_members()})
         if count_members not in read_fields:
             operations[0]["params"]["fields"] = sorted(
                 set(read_fields) | {count_members})
@@ -3675,13 +3686,21 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
 
 
 #: What a dimension-grain concern answer reports, and in this order. Every one
-#: is counted or summed from the same governed signal flags the borrower
+#: is counted or summed from the same governed signal flags the subject
 #: ranking uses; none is weighted and none is invented.
-CONCERN_AT_RISK = "borrowers_with_concern_evidence"
+#:
+#: Named in the installation's OWN word. The answer's sentence was put into
+#: retail vocabulary and the TABLE was not, so the most likely opening
+#: question in a demonstration came back with columns headed **Borrowers**,
+#: **Borrowers with concern evidence**, **Concern borrower pct** and **Avg
+#: signals per affected borrower** — the corporate word, four times, beside a
+#: sentence that says customers.
+CONCERN_SUBJECTS = f"{_subject_word()}s"
+CONCERN_AT_RISK = f"{_subject_word()}s_with_concern_evidence"
 CONCERN_EXPOSURE = "exposure_with_concern_evidence"
 CONCERN_SHARE = "concern_exposure_pct"
-CONCERN_BORROWER_SHARE = "concern_borrower_pct"
-CONCERN_DEPTH = "avg_signals_per_affected_borrower"
+CONCERN_BORROWER_SHARE = f"concern_{_subject_word()}_pct"
+CONCERN_DEPTH = f"avg_signals_per_affected_{_subject_word()}"
 
 
 def _composite_by_dimension(operations: list[dict[str, Any]], current: str,
@@ -3720,7 +3739,7 @@ def _composite_by_dimension(operations: list[dict[str, Any]], current: str,
 
     readable = grouping.replace("_", " ")
     aggregates: list[dict[str, Any]] = [
-        {"function": "count_distinct", "column": key, "as": "borrowers"},
+        {"function": "count_distinct", "column": key, "as": CONCERN_SUBJECTS},
         {"function": "sum", "column": "shows_concern", "as": CONCERN_AT_RISK},
         {"function": "sum", "column": score, "as": "signals_shown"},
     ]
@@ -3744,7 +3763,7 @@ def _composite_by_dimension(operations: list[dict[str, Any]], current: str,
         "expression": {"type": "function", "function": "multiply",
                        "args": [{"type": "function", "function": "safe_divide",
                                  "args": [{"type": "column", "name": CONCERN_AT_RISK},
-                                          {"type": "column", "name": "borrowers"}]},
+                                          {"type": "column", "name": CONCERN_SUBJECTS}]},
                                 {"type": "literal", "value": 100}]}}, {
         "as": CONCERN_DEPTH,
         "expression": {"type": "function", "function": "safe_divide",
@@ -3769,7 +3788,7 @@ def _composite_by_dimension(operations: list[dict[str, Any]], current: str,
     order = [{"column": lead, "direction": "desc"}]
     order.append({"column": CONCERN_EXPOSURE if size else CONCERN_AT_RISK,
                   "direction": "desc"})
-    columns = [grouping, "borrowers", CONCERN_AT_RISK,
+    columns = [grouping, CONCERN_SUBJECTS, CONCERN_AT_RISK,
                *( [size, CONCERN_EXPOSURE, CONCERN_SHARE] if size else []),
                CONCERN_BORROWER_SHARE, CONCERN_DEPTH, *flags]
     return ("shares", order, columns)

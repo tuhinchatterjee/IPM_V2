@@ -193,3 +193,42 @@ class TestTheThresholdIsTheOneTheLabelDescribes:
                 assert share < 0.95, (
                     f"{composite.key}/{signal.key} fires on {share:.1%} of the "
                     "book, so it separates nothing")
+
+
+class TestTheTABLESpeaksTheInstallationsVocabulary:
+    """The SENTENCE was put into retail words and the table was not.
+
+    "Which employer sector has the most customers needing attention?" — the
+    likeliest opening question in a demonstration — came back with columns
+    headed **Borrowers**, **Borrowers with concern evidence**, **Concern
+    borrower pct** and **Avg signals per affected borrower**, beside a
+    sentence that says customers. The corporate vocabulary survived every
+    sweep of the wording because it was reaching the screen through the table.
+    """
+
+    def test_the_concern_columns_are_named_in_the_retail_word(self):
+        from backend.orchestration import analysis_planner as ap
+
+        assert ap.CONCERN_SUBJECTS == "customers"
+        assert ap.CONCERN_AT_RISK == "customers_with_concern_evidence"
+        assert ap.CONCERN_BORROWER_SHARE == "concern_customer_pct"
+        assert ap.CONCERN_DEPTH == "avg_signals_per_affected_customer"
+
+    def test_a_cohort_counts_customers(self):
+        from backend.orchestration import analysis_planner as ap
+
+        assert ap.cohort_members() == "customers"
+
+    def test_no_column_of_the_answer_says_borrower(self):
+        from backend.orchestration.executor import answer_investigation
+
+        inv, _ = answer_investigation(
+            "Which employer sector has the most customers needing attention?",
+            persist=False)
+        steps = inv.to_dict().get("steps") or []
+        columns = [c for step in steps
+                   for c in ((step.get("result") or {}).get("columns") or [])]
+        assert columns, "the answer carried no table"
+        said = " ".join(f"{c.get('name')} {c.get('label')}" for c in columns)
+        assert "borrower" not in said.lower(), (
+            f"the corporate word is on a column heading: {said[:200]}")

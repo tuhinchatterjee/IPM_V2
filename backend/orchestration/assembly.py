@@ -1271,7 +1271,7 @@ def _composite_by_dimension_narrative(build: ap.AnalysisBuild,
 
     share = top.get(ap.CONCERN_SHARE)
     affected = int(top.get(ap.CONCERN_AT_RISK) or 0)
-    borrowers = int(top.get("borrowers") or 0)
+    borrowers = int(top.get(ap.CONCERN_SUBJECTS) or 0)
     exposure = top.get("ead")
 
     lead = (f"{named} carries the most governed {label} evidence of the "
