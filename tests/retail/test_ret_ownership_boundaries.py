@@ -23,9 +23,38 @@ pytest.importorskip("sqlalchemy")
 
 from backend.config import settings  # noqa: E402
 
+
+def _database_is_reachable() -> bool:
+    """Configured is not the same as reachable.
+
+    `settings.has_database` only says a URL exists. Run without the launcher's
+    environment — `pytest tests/retail` on its own — the URL can be present and
+    the server absent, and every gate in this file then ERRORS on a connection
+    refused instead of skipping. An error that means "you did not start
+    PostgreSQL" is indistinguishable, in a summary, from a boundary that
+    stopped holding.
+    """
+    if not settings.has_database:
+        return False
+    try:
+        from sqlalchemy import text
+
+        from backend.db.engine import get_session
+
+        # A real round trip. Opening a session is lazy: it succeeds against a
+        # server that is not there, and the connection is refused later, inside
+        # a fixture, where it reads as a failing gate.
+        with get_session() as session:
+            session.execute(text("SELECT 1"))
+        return True
+    except Exception:  # noqa: BLE001 - any failure to connect is a skip
+        return False
+
+
 pytestmark = pytest.mark.skipif(
-    not settings.has_database,
-    reason="the saved-scenario store needs DATABASE_URL")
+    not _database_is_reachable(),
+    reason=("the saved-scenario store needs a reachable database — run with "
+            "the launcher's environment: `set -a; . ./.env.retail; set +a`"))
 
 #: Two disposable accounts, created by this module and removed afterwards.
 #:

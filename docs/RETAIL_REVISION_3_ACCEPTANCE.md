@@ -236,7 +236,8 @@ code change.
 
 | Suite | Result | Evidence |
 |---|---|---|
-| Retail acceptance gates | **564 passed, 1 skipped, 0 failed** (the skip is now closed; 565 passed on the re-run of that file) | `docs/evidence/gates_revision3.log` |
+| Retail acceptance gates RET-001…RET-060 plus every Revision 3 regression | **565 passed, 0 failed, 0 skipped** | `docs/evidence/gates_revision3.log` |
+| — of which, regressions added by Revision 3 | **149** | `test_ret_customer_360.py` (13), `test_ret_whatif_fidelity.py` (51), `test_ret_whatif_reconciliation.py` (29), `test_ret_retail_only_surfaces.py` (38), `test_ret_ownership_boundaries.py` (18) |
 | Route and control inventory RUI-001…RUI-025 | 26 of 26 | `inventory.json` |
 | Cockpit chat CHAT-01…CHAT-18 | 19 of 19 | `cockpit_chat.json` |
 | Cockpit journeys CP-01…CP-15, CP-CONT | **17 of 17, 0 blocked** | `cockpit_journeys.json` |
