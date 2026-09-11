@@ -18,12 +18,13 @@ hundred columns across nineteen thousand rows into memory to add up one of them.
 from __future__ import annotations
 
 import functools
+import re
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 
 from backend.api.permissions import Principal, RequireAnalyst, RequireCommenter
@@ -34,7 +35,7 @@ from backend.retail import ews as ews_mod
 from backend.retail import monitoring as mon
 from backend.retail import whatif as wif
 from backend.retail.config import load_config
-from backend.retail.exports import json_safe
+from backend.retail.exports import json_safe, to_csv, to_json
 from backend.retail.generate import PERIOD_FIELD
 from backend.retail.models_registry import APPLICATION_SCORECARDS, BEHAVIOURAL_SCORECARDS
 from backend.retail.movement import decompose
@@ -587,6 +588,9 @@ class AskIn(BaseModel):
     carried: dict[str, Any] = Field(default_factory=dict)
     #: Set when the user answers a units clarification by clicking an option.
     chosen: dict[str, Any] | None = None
+    #: The run already on the table, so "what changed, and why?" is answered
+    #: about THAT run instead of being read as a scenario with no shocks.
+    last_run: dict[str, Any] | None = None
 
 
 class SaveIn(BaseModel):
@@ -649,6 +653,9 @@ def whatif_ask(payload: AskIn,
 
     month = _resolve_month(payload.month or ask.month or None)
 
+    if lang.wants_explanation(payload.question) and not payload.chosen:
+        return _explain(payload, month)
+
     if ask.needs_clarification:
         return json_safe({
             **_envelope(month),
@@ -705,6 +712,69 @@ def whatif_ask(payload: AskIn,
         "neutral": ask.is_neutral,
         "unsupported": ask.unsupported,
         **result,
+    })
+
+
+def _explain(payload: "AskIn", month: str) -> dict:
+    """Explain the run already on the table, from that run's own figures.
+
+    Nothing is recomputed and nothing is invented: every number in the answer
+    is read out of the run the reader is looking at, and the assumptions and
+    limitations are the ones that run carried.
+    """
+    run = payload.last_run or {}
+    scenario = run.get("scenario") or {}
+    baseline = run.get("baseline") or {}
+    result = run.get("scenario_result") or {}
+    delta = run.get("delta") or {}
+    if not scenario:
+        return json_safe({
+            **_envelope(month),
+            "kind": "explanation",
+            "question": payload.question,
+            "message": ("There is no scenario on the table yet. Describe a "
+                        "change and CreditProbe will run it, then explain it."),
+            "lines": [],
+        })
+
+    shocks = scenario.get("shocks") or {}
+    change = float(delta.get("ecl_final_sar") or 0.0)
+    pct = delta.get("ecl_final_pct")
+    direction = "rose" if change > 0 else ("fell" if change < 0 else "did not move")
+    lines = [
+        f"Expected credit loss {direction} from SAR "
+        f"{baseline.get('ecl_final_sar', 0):,.0f} to SAR "
+        f"{result.get('ecl_final_sar', 0):,.0f}"
+        + (f" — a change of SAR {change:,.0f}"
+           f" ({pct * 100:+.2f}%)." if isinstance(pct, (int, float)) else "."),
+        "The population is "
+        + (_pairs(scenario.get("filters") or {}) if scenario.get("filters")
+           else "the whole retail book")
+        + f", {baseline.get('facilities', 0):,} facilities held by "
+          f"{baseline.get('customers', 0):,} customers at {month}.",
+        ("Nothing was shocked: this is the published book."
+         if not shocks else
+         "What moved it: " + _pairs(shocks)
+         + f", with staging {scenario.get('staging_mode', '')}."),
+    ]
+    drivers = sorted((run.get("drivers") or []),
+                     key=lambda d: abs(float(d.get("delta_sar") or 0.0)),
+                     reverse=True)[:3]
+    if drivers:
+        lines.append(
+            "Largest contributions: "
+            + "; ".join(f"{d.get('product_code')} SAR "
+                        f"{float(d.get('delta_sar') or 0.0):,.0f}"
+                        for d in drivers) + ".")
+    return json_safe({
+        **_envelope(month),
+        "kind": "explanation",
+        "question": payload.question,
+        "lines": lines,
+        "assumptions": run.get("assumptions") or [],
+        "limitations": run.get("limitations") or [],
+        "run_id": scenario.get("run_id", ""),
+        "methodology_version": scenario.get("methodology_version", ""),
     })
 
 
@@ -765,3 +835,150 @@ def whatif_delete(scenario_id: int,
     except KeyError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e).strip('"')) from e
     return {"deleted": scenario_id}
+
+
+@router.get("/whatif/saved/{scenario_id}/export",
+            summary="Download a saved What-If")
+def whatif_export(scenario_id: int, fmt: str = Query("csv", pattern="^(csv|json)$"),
+                  principal: Principal = RequireCommenter) -> Response:
+    """The saved run as a file, carrying everything needed to check it.
+
+    Not a picture of the screen: the file names the run, the snapshot, the
+    methodology and its version, the population, every shock and every figure
+    — so somebody who opens it a month later can reconcile it against the
+    published book rather than take the number on trust.
+    """
+    from fastapi.responses import Response as FileResponse
+
+    from backend.retail import whatif_store as store
+
+    try:
+        row = store.get(scenario_id, owner=_owner_of(principal))
+    except store.Unavailable as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e).strip('"')) from e
+
+    run = row.body.get("run") or {}
+    scenario = run.get("scenario") or {}
+    baseline = run.get("baseline") or {}
+    result = run.get("scenario_result") or {}
+    delta = run.get("delta") or {}
+    stem = _safe_filename(row.name)
+
+    if fmt == "json":
+        payload = {
+            "disclosure": SYNTHETIC_DISCLOSURE,
+            "saved": row.card(),
+            "run": run,
+        }
+        return FileResponse(
+            content=to_json(payload, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition":
+                     f'attachment; filename="{stem}.json"'})
+
+    rows = [
+        {"field": "Saved as", "value": row.name},
+        {"field": "Question", "value": row.body.get("question", "")},
+        {"field": "Reporting month", "value": row.body.get("month", "")},
+        {"field": "Run id", "value": scenario.get("run_id", "")},
+        {"field": "Dataset version", "value": scenario.get("dataset_version", "")},
+        {"field": "Snapshot date", "value": scenario.get("snapshot_date", "")},
+        {"field": "Methodology", "value": scenario.get("methodology_version", "")},
+        {"field": "Staging mode", "value": scenario.get("staging_mode", "")},
+        {"field": "Population filters",
+         "value": _pairs(scenario.get("filters") or {})},
+        {"field": "Shocks", "value": _pairs(scenario.get("shocks") or {})},
+        {"field": "Scenario weights",
+         "value": _pairs(scenario.get("scenario_weights") or {})},
+        {"field": "Facilities", "value": baseline.get("facilities")},
+        {"field": "Customers", "value": baseline.get("customers")},
+        {"field": "Baseline ECL (SAR)", "value": baseline.get("ecl_final_sar")},
+        {"field": "What-If ECL (SAR)", "value": result.get("ecl_final_sar")},
+        {"field": "Change (SAR)", "value": delta.get("ecl_final_sar")},
+        {"field": "Change (fraction of baseline)",
+         "value": delta.get("ecl_final_pct")},
+    ]
+    for driver in (run.get("drivers") or []):
+        rows.append({"field": f"Driver — {driver.get('product_code')} (SAR)",
+                     "value": driver.get("delta_sar")})
+    for line in (run.get("assumptions") or []) + (run.get("limitations") or []):
+        rows.append({"field": "Assumption or limitation", "value": line})
+
+    csv = to_csv(pd.DataFrame(rows), disclosure=True)
+    return FileResponse(
+        content=csv, media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{stem}.csv"'})
+
+
+def _pairs(mapping: dict[str, Any]) -> str:
+    return "; ".join(f"{k}={v}" for k, v in sorted(mapping.items())) or "none"
+
+
+def _safe_filename(name: str) -> str:
+    """A filename a browser will accept and a header cannot be broken with."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(name or "whatif")).strip("._")
+    return (cleaned or "whatif")[:60]
+
+
+@router.get("/whatif/compare", summary="Compare two saved What-Ifs")
+def whatif_compare(left: int = Query(...), right: int = Query(...),
+                   principal: Principal = RequireCommenter) -> dict:
+    """Two saved runs side by side, with what differs between them named.
+
+    The comparison is of the SELECTED runs, read back from the store, never of
+    whatever happened to be in memory. Where the two do not share a month, a
+    population or a methodology the difference is stated rather than papered
+    over: two ECL figures from different books are not a movement.
+    """
+    from backend.retail import whatif_store as store
+
+    owner = _owner_of(principal)
+    try:
+        rows = [store.get(left, owner=owner), store.get(right, owner=owner)]
+    except store.Unavailable as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
+    except KeyError as e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e).strip('"')) from e
+
+    cards = [row.card() for row in rows]
+    differences: list[str] = []
+    if cards[0]["month"] != cards[1]["month"]:
+        differences.append(
+            f"Different reporting months: {cards[0]['month']} and "
+            f"{cards[1]['month']}. The two baselines are different books, so "
+            "the gap between the results is not a scenario effect.")
+    if cards[0]["filters"] != cards[1]["filters"]:
+        differences.append(
+            f"Different populations: {_pairs(cards[0]['filters'])} against "
+            f"{_pairs(cards[1]['filters'])}.")
+    if cards[0]["methodology_version"] != cards[1]["methodology_version"]:
+        differences.append(
+            "Different methodology versions: "
+            f"{cards[0]['methodology_version']} and "
+            f"{cards[1]['methodology_version']}.")
+    if cards[0]["dataset_version"] != cards[1]["dataset_version"]:
+        differences.append(
+            "Different dataset versions: the two runs read different "
+            "publications of the book.")
+
+    comparable = not differences
+    left_ecl = cards[0]["whatif_ecl"]
+    right_ecl = cards[1]["whatif_ecl"]
+    gap = (None if left_ecl is None or right_ecl is None
+           else round(float(right_ecl) - float(left_ecl), 2))
+    return json_safe({
+        "left": cards[0],
+        "right": cards[1],
+        "comparable": comparable,
+        "differences": differences,
+        "ecl_gap_sar": gap,
+        "note": ("Both runs are on the same book, so the difference between "
+                 "them is the difference between the two scenarios."
+                 if comparable else
+                 "These runs do not share a baseline. The figures are shown "
+                 "side by side and the difference is NOT reported as a "
+                 "scenario effect."),
+        "disclosure": SYNTHETIC_DISCLOSURE,
+    })

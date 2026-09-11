@@ -5786,6 +5786,16 @@ export interface RetailWhatIfCard {
   facilities: number | null;
 }
 
+export interface RetailWhatIfComparison {
+  left: RetailWhatIfCard;
+  right: RetailWhatIfCard;
+  comparable: boolean;
+  differences: string[];
+  ecl_gap_sar: number | null;
+  note: string;
+  disclosure: string;
+}
+
 export interface RetailWhatIfLanding {
   heading: string;
   domain: string;
@@ -5814,7 +5824,7 @@ export interface RetailWhatIfTotals {
 }
 
 export interface RetailWhatIfTurn {
-  kind: "result" | "clarification" | "refusal" | "invalid";
+  kind: "result" | "clarification" | "refusal" | "invalid" | "explanation";
   month?: string;
   question?: string;
   read_as?: string[];
@@ -5860,6 +5870,10 @@ export interface RetailWhatIfTurn {
   } | null;
   assumptions?: string[];
   limitations?: string[];
+  /** An explanation of the run already on the table. */
+  lines?: string[];
+  run_id?: string;
+  methodology_version?: string;
   evidence?: Record<string, unknown>;
   dataset_version?: string;
   disclosure?: string;
@@ -6796,6 +6810,7 @@ export const api = {
     month?: string | null;
     carried?: Record<string, unknown>;
     chosen?: Record<string, unknown> | null;
+    last_run?: Record<string, unknown> | null;
   }) =>
     request<RetailWhatIfTurn>("/retail/whatif/ask", {
       method: "POST",
@@ -6818,6 +6833,12 @@ export const api = {
   retailWhatIfReopen: (id: number) =>
     request<{ saved: RetailWhatIfCard; run: RetailWhatIfTurn; month: string;
               question: string }>(`/retail/whatif/saved/${id}`),
+  retailWhatIfExport: (id: number, fmt: "csv" | "json") =>
+    download(`/retail/whatif/saved/${id}/export?fmt=${fmt}`,
+             `CreditProbe_what_if.${fmt}`, 120_000),
+  retailWhatIfCompare: (left: number, right: number) =>
+    request<RetailWhatIfComparison>(
+      `/retail/whatif/compare?left=${left}&right=${right}`),
   retailWhatIfDelete: (id: number) =>
     request<{ deleted: number }>(`/retail/whatif/saved/${id}`,
                                  { method: "DELETE" }),

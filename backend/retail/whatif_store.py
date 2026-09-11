@@ -22,7 +22,10 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-STORE_VERSION = "retail-whatif-store-1.0.0"
+#: Stamped into the row's `version` column, which is VARCHAR(24) — a longer
+#: string is not truncated, it is a 500 on save. Kept short and checked by a
+#: test rather than by the database.
+STORE_VERSION = "retail-whatif-1.0.0"
 SAVED = "saved"
 KIND = "retail_whatif"
 

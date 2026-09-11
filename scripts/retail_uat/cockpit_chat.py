@@ -166,6 +166,15 @@ def suite(s: Session, rec: Recorder) -> None:
           f"{submit_disabled_when_empty}")
 
     # ---------------------------------------------------------------- CHAT-09
+    # A follow-up is only a follow-up to a RESULT. The cases above deliberately
+    # include a clarification, so the thread is put back on a settled answer
+    # first — otherwise this case would measure the clarification, not the
+    # follow-up.
+    settled = s.ask("Show weighted ECL by retail product for August 2026",
+                    timeout=240)
+    if "ONE QUESTION BACK" in s.latest_turn(
+            "Show weighted ECL by retail product for August 2026"):
+        s.ask("Expected credit loss.", timeout=240)
     follow = s.ask("Now only personal finance", timeout=240)
     # Only what THIS turn added. An assertion against the whole page would be
     # satisfied by the answer above it, which already named the product.
@@ -242,7 +251,10 @@ def suite(s: Session, rec: Recorder) -> None:
     new_url = page.url
     inherited = "Personal Finance" in fresh_turn
     history = s.go("/investigations", settle=2500)
-    listed = page.query_selector_all(f'a[href^="/investigations/"]')
+    # The list rows are not anchors — they are clickable cards — so the earlier
+    # selector found nothing and reported an empty history on a page showing
+    # three conversations.
+    listed = page.query_selector_all("[data-investigation-id]")
     resumed = False
     if listed:
         listed[0].click()
@@ -258,6 +270,10 @@ def suite(s: Session, rec: Recorder) -> None:
           screenshot=s.shot("cockpit-chat-11"))
 
     # ---------------------------------------------------------------- CHAT-04
+    # Back to a conversation with a composer: CHAT-11 above ends on the
+    # Investigations list, which has none.
+    if s.composer() is None:
+        s.go("/", settle=2500)
     pasted = ("Use Cockpit Data for August 2026.\n"
               "Personal finance only.\n"
               "Show expected credit loss by IFRS 9 stage, and tell me which "

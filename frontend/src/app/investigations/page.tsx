@@ -60,6 +60,12 @@ export default function InvestigationsPage() {
               <button
                 key={thread.id}
                 type="button"
+                // Which conversation this row opens, on the row itself. It was
+                // an unlabelled button: nothing on it said which investigation
+                // it led to, so neither a reader's assistive technology nor a
+                // test could tell three rows apart.
+                data-investigation-id={thread.id}
+                aria-label={`Open investigation: ${thread.title}`}
                 onClick={() =>
                   router.push(
                     linkBack(`/investigations/${thread.id}`, {

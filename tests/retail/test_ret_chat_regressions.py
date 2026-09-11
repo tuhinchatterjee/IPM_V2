@@ -334,3 +334,55 @@ def test_the_ungrouped_follow_up_offers_a_governed_breakdown() -> None:
     assert suggestion
     if profile.is_retail():
         assert suggestion != "sector"
+
+
+def test_the_saved_whatif_row_fits_the_columns_it_is_written_to() -> None:
+    """Saving a What-If answered 500, and the screen said the backend was down.
+
+    The store stamped a 25-character version into a VARCHAR(24). PostgreSQL
+    does not truncate — it refuses the insert — so every Save failed, and the
+    failure reached the user as "Cannot reach the CreditProbe backend".
+    """
+    from backend.models.platform import StressScenario
+    from backend.retail.whatif_store import SAVED, STORE_VERSION
+
+    columns = StressScenario.__table__.columns
+    assert len(STORE_VERSION) <= columns["version"].type.length
+    assert len(SAVED) <= columns["status"].type.length
+    for severity in ("low", "moderate", "high", "severe"):
+        assert len(severity) <= columns["severity"].type.length
+
+
+def test_the_whatif_language_never_guesses_a_unit() -> None:
+    """"Increase PD by 2" is two scenarios. On a PD of 2% they are 2.04% and 4%."""
+    from backend.retail import whatif_language as lang
+
+    ambiguous = lang.read("Increase PD by 2.", [])
+    assert ambiguous.needs_clarification
+    assert not ambiguous.shocks, "a shock was applied to an ambiguous sentence"
+    assert {o["id"] for o in ambiguous.options} == {"relative", "absolute"}
+
+    relative = lang.read("Increase PD by 20% relative.", [])
+    assert relative.shocks == {"pd_relative": 0.2}
+    absolute = lang.read("Increase PD by 2 percentage points.", [])
+    assert absolute.shocks == {"pd_absolute_pp": 2.0}
+
+
+def test_the_whatif_language_refuses_a_retired_operation_whole() -> None:
+    """A sentence this engine cannot run is never run as the half it understood."""
+    from backend.retail import whatif_language as lang
+
+    notches = lang.read("Downgrade everyone one notch.", [])
+    assert not notches.shocks
+    assert notches.unsupported and "notch" in notches.unsupported[0]
+
+
+def test_scenario_weights_are_read_exactly_as_written() -> None:
+    """Weights are validated, never renormalised behind the reader."""
+    from backend.retail import whatif_language as lang
+
+    weights = lang.read("Use base 60%, upturn 10%, downturn 40%.", [])
+    assert weights.scenario_weights == {"base": 0.6, "upturn": 0.1,
+                                        "downturn": 0.4}
+    total = sum(weights.scenario_weights.values())
+    assert abs(total - 1.1) < 1e-9, "the weights were rescaled on the way in"

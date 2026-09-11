@@ -29,9 +29,14 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { save as saveBlob } from "@/components/exports/download";
 import { Unavailable } from "@/components/ui/unavailable";
 import { Composer, count, money } from "@/components/whatif/parts";
-import type { RetailWhatIfCard, RetailWhatIfTurn } from "@/lib/api";
+import type {
+  RetailWhatIfCard,
+  RetailWhatIfComparison,
+  RetailWhatIfTurn,
+} from "@/lib/api";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
@@ -62,6 +67,9 @@ export function RetailWhatIf() {
   const [saveName, setSaveName] = React.useState("");
   const [saved, setSaved] = React.useState<RetailWhatIfCard[]>([]);
   const [reopened, setReopened] = React.useState<RetailWhatIfCard | null>(null);
+  const [picked, setPicked] = React.useState<number[]>([]);
+  const [comparison, setComparison] =
+    React.useState<RetailWhatIfComparison | null>(null);
 
   React.useEffect(() => {
     if (landing.data && !month) setMonth(landing.data.latest_month ?? "");
@@ -93,6 +101,11 @@ export function RetailWhatIf() {
     return null;
   }, [turns]);
 
+  // Held in a ref as well as in state: `send` is a callback the composer keeps,
+  // and closing over `last` would send whatever run was on the table when the
+  // callback was made rather than the one on it now.
+  const lastRef = React.useRef<RetailWhatIfTurn | null>(null);
+
   const send = React.useCallback(
     async (question: string, chosen?: Record<string, unknown>) => {
       const said = question.trim();
@@ -108,6 +121,9 @@ export function RetailWhatIf() {
           month: month || null,
           carried,
           chosen: chosen ?? null,
+          // The run on the table, so "what changed, and why?" is answered
+          // about THAT run rather than read as a scenario with no shocks.
+          last_run: (lastRef.current as unknown as Record<string, unknown>) ?? null,
         });
         setTurns((t) => [...t, { kind: "turn", body }]);
       } catch (e) {
@@ -161,6 +177,44 @@ export function RetailWhatIf() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    lastRef.current = last;
+  }, [last]);
+
+  const exportRun = React.useCallback(
+    async (id: number, fmt: "csv" | "json") => {
+      setError(null);
+      try {
+        const file = await api.retailWhatIfExport(id, fmt);
+        saveBlob(file.blob, file.filename);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [],
+  );
+
+  const remove = React.useCallback(async (id: number) => {
+    setError(null);
+    try {
+      await api.retailWhatIfDelete(id);
+      setSaved((rows) => rows.filter((r) => r.id !== id));
+      setPicked((ids) => ids.filter((x) => x !== id));
+      setComparison(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  const compare = React.useCallback(async (ids: number[]) => {
+    setError(null);
+    try {
+      setComparison(await api.retailWhatIfCompare(ids[0], ids[1]));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 
@@ -304,10 +358,82 @@ export function RetailWhatIf() {
                       >
                         Reopen
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void exportRun(card.id, "csv")}
+                        data-testid={`retail-whatif-csv-${card.id}`}
+                      >
+                        CSV
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void exportRun(card.id, "json")}
+                        data-testid={`retail-whatif-json-${card.id}`}
+                      >
+                        JSON
+                      </Button>
+                      <label className="flex items-center gap-1 text-[11px] text-text-secondary">
+                        <input
+                          type="checkbox"
+                          checked={picked.includes(card.id)}
+                          aria-label={`Compare ${card.name}`}
+                          data-testid={`retail-whatif-pick-${card.id}`}
+                          onChange={(e) =>
+                            setPicked((ids) =>
+                              e.target.checked
+                                ? [...ids, card.id].slice(-2)
+                                : ids.filter((x) => x !== card.id),
+                            )
+                          }
+                        />
+                        Compare
+                      </label>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void remove(card.id)}
+                        data-testid={`retail-whatif-delete-${card.id}`}
+                      >
+                        Delete
+                      </Button>
                     </li>
                   ))}
                 </ul>
               )}
+
+              {picked.length === 2 ? (
+                <Button
+                  size="sm"
+                  onClick={() => void compare(picked)}
+                  data-testid="retail-whatif-compare"
+                >
+                  Compare the two selected
+                </Button>
+              ) : null}
+
+              {comparison ? (
+                <div className="rounded-md border border-border p-3 text-[12px]"
+                     data-testid="retail-whatif-comparison">
+                  <p className="font-medium text-text-primary">
+                    {comparison.left.name} against {comparison.right.name}
+                  </p>
+                  <p className="text-text-secondary">{comparison.note}</p>
+                  {comparison.differences.map((line) => (
+                    <p key={line} className="text-warning">
+                      {line}
+                    </p>
+                  ))}
+                  <p className="text-text-secondary">
+                    {sar(comparison.left.whatif_ecl)} against{" "}
+                    {sar(comparison.right.whatif_ecl)}
+                    {comparison.comparable && comparison.ecl_gap_sar !== null
+                      ? ` — a difference of ${sar(comparison.ecl_gap_sar)}`
+                      : ""}
+                  </p>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -382,6 +508,39 @@ function TurnView({
               </Button>
             ))}
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (body.kind === "explanation") {
+    return (
+      <Card data-turn="explanation">
+        <CardContent className="space-y-2 pt-4">
+          {(body.lines ?? []).map((line) => (
+            <p key={line} className="text-[13px] text-text-primary">
+              {line}
+            </p>
+          ))}
+          {body.message ? (
+            <p className="text-[13px] text-text-primary">{body.message}</p>
+          ) : null}
+          {(body.assumptions ?? []).length || (body.limitations ?? []).length ? (
+            <details>
+              <summary className="cursor-pointer text-[12px] text-text-secondary">
+                The assumptions this run carried
+              </summary>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-[12px] text-text-secondary">
+                {(body.assumptions ?? []).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+                {(body.limitations ?? []).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+                {body.run_id ? <li>Run {body.run_id}</li> : null}
+              </ul>
+            </details>
+          ) : null}
         </CardContent>
       </Card>
     );

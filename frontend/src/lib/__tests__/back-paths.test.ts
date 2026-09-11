@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, test } from "node:test";
 
 import { stepHref } from "../analysis-links.ts";
 import {
@@ -14,6 +14,7 @@ import {
   INDEX_OF,
   linkBack,
   readReturn,
+  withReturnTo,
 } from "../return-context.ts";
 
 /**
@@ -143,4 +144,42 @@ test("a return context survives being carried through two hops", () => {
   assert.equal(back(thread).type, "cockpit");
   const trace = linkBack("/trace/1", fromInvestigation(7, "Thread", 0));
   assert.equal(back(trace).href, "/investigations/7#turn-0");
+});
+
+/**
+ * The Trace of an answer must come back to that answer.
+ *
+ * The observed defect: the Trace page's Back was hard-coded to the Trace
+ * index. A reader who opened the Trace of an answer to check one figure lost
+ * the conversation, and had to find it again in Investigations — on a screen
+ * whose whole purpose is to show the working behind the answer they were
+ * reading. The link into the page already carried the way back; the page
+ * ignored it.
+ */
+describe("the Trace returns to the answer that opened it", () => {
+  test("builds a Trace link that carries the conversation it came from", () => {
+    const href = withReturnTo(
+      "/trace/42",
+      "/investigations/7",
+      "Back to conversation",
+    );
+    assert.match(href, /^\/trace\/42\?/);
+    const url = new URL(href, "http://x");
+    assert.equal(url.searchParams.get("returnTo"), "/investigations/7");
+    assert.equal(url.searchParams.get("returnLabel"), "Back to conversation");
+  });
+
+  test("reads that context back rather than falling to the index", () => {
+    const back = readReturn("/investigations/7", "Back to conversation",
+                            "investigation",
+                            { href: "/trace", label: "Trace & Lineage" });
+    assert.equal(back.href, "/investigations/7");
+    assert.equal(back.label, "Back to conversation");
+  });
+
+  test("falls back to the Trace index only when no origin was carried", () => {
+    const back = readReturn(null, null, null,
+                            { href: "/trace", label: "Trace & Lineage" });
+    assert.equal(back.href, "/trace");
+  });
 });

@@ -340,6 +340,35 @@ def _unsupported(said: str, ask: Ask) -> list[str]:
     return out
 
 
+#: A question ABOUT the run that is already on the table, rather than a new one.
+_EXPLAINS = re.compile(
+    r"\bwhat changed\b|\bwhy (?:did|is|has|does)\b|\bexplain\b|"
+    r"\bwhich assumptions\b|\bwhat drove\b|\bwhat matters\b|"
+    r"\bwalk me through\b|\bwhat does (?:that|this) mean\b")
+
+
+def wants_explanation(question: str) -> bool:
+    """Whether the sentence asks about the LAST run rather than for a new one.
+
+    The failure this prevents
+    -------------------------
+        "What changed, why, and which assumptions matter?"
+
+    named no shock, so it was read as a scenario with no shocks — a neutral run
+    over the whole book — and answered with a baseline the reader had not asked
+    for, under a question about the scenario they were looking at.
+    """
+    said = " ".join(str(question or "").lower().split())
+    if not said:
+        return False
+    if not _EXPLAINS.search(said):
+        return False
+    # A sentence that also names a change is a new scenario that happens to ask
+    # for an explanation with it.
+    probe = read(said, [])
+    return not probe.shocks and probe.scenario_weights is None
+
+
 def describe(ask: Ask) -> str:
     """What CreditProbe understood, in one line, for the answer to open with."""
     if not ask.read_as:

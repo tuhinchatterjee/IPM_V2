@@ -1,0 +1,429 @@
+{
+  "suite": "inventory",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 111.6,
+  "counts": {
+    "PASS": 26,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/inventory-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-001",
+      "module": "inventory",
+      "title": "/ renders with its controls",
+      "status": "PASS",
+      "detail": "19 buttons, 32 links, 1 inputs, 0 selects, 5 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/",
+        "heading": "Good morning, Mr. Sajid",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-002",
+      "module": "inventory",
+      "title": "/workspace renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 37 links, 0 inputs, 0 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/workspace",
+        "heading": "My workspace",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-workspace.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-003",
+      "module": "inventory",
+      "title": "/messages renders with its controls",
+      "status": "PASS",
+      "detail": "13 buttons, 27 links, 2 inputs, 0 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/messages",
+        "heading": "Messages",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-messages.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-004",
+      "module": "inventory",
+      "title": "/projects renders with its controls",
+      "status": "PASS",
+      "detail": "9 buttons, 27 links, 0 inputs, 0 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/projects",
+        "heading": "Projects",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-projects.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-005",
+      "module": "inventory",
+      "title": "/delivery renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 30 links, 1 inputs, 2 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/delivery",
+        "heading": "Project Planner",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-delivery.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-006",
+      "module": "inventory",
+      "title": "/investigations renders with its controls",
+      "status": "PASS",
+      "detail": "57 buttons, 28 links, 0 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/investigations",
+        "heading": "Investigations",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-investigations.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-007",
+      "module": "inventory",
+      "title": "/analyses renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 28 links, 0 inputs, 0 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/analyses",
+        "heading": "Analyses",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-analyses.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-008",
+      "module": "inventory",
+      "title": "/documents renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 30 links, 0 inputs, 0 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/documents",
+        "heading": "Documents",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-documents.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-009",
+      "module": "inventory",
+      "title": "/lenses renders with its controls",
+      "status": "PASS",
+      "detail": "8 buttons, 28 links, 1 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/lenses",
+        "heading": "Lenses",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-lenses.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-010",
+      "module": "inventory",
+      "title": "/metrics renders with its controls",
+      "status": "PASS",
+      "detail": "9 buttons, 27 links, 1 inputs, 0 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/metrics",
+        "heading": "Metric Catalogue",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-metrics.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-011",
+      "module": "inventory",
+      "title": "/early-warning renders with its controls",
+      "status": "PASS",
+      "detail": "11 buttons, 30 links, 0 inputs, 0 selects, 3 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/early-warning",
+        "heading": "Early Warning",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-early-warning.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-012",
+      "module": "inventory",
+      "title": "/early-warning/signals renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 29 links, 0 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/early-warning/signals",
+        "heading": "Early Warning Signals",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-early-warning-signals.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-013",
+      "module": "inventory",
+      "title": "/what-if renders with its controls",
+      "status": "PASS",
+      "detail": "15 buttons, 27 links, 1 inputs, 1 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/what-if",
+        "heading": "What-If",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-what-if.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-014",
+      "module": "inventory",
+      "title": "/borrower-360 renders with its controls",
+      "status": "PASS",
+      "detail": "6 buttons, 27 links, 0 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/borrower-360",
+        "heading": "Borrower 360",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-borrower-360.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-015",
+      "module": "inventory",
+      "title": "/scorecard-validation renders with its controls",
+      "status": "PASS",
+      "detail": "29 buttons, 30 links, 1 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/scorecard-validation",
+        "heading": "Scorecard Validation",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-scorecard-validation.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-016",
+      "module": "inventory",
+      "title": "/studio renders with its controls",
+      "status": "PASS",
+      "detail": "8 buttons, 330 links, 1 inputs, 2 selects, 0 tabs, 1 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/studio",
+        "heading": "Analysis Studio",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-studio.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-017",
+      "module": "inventory",
+      "title": "/data-builder renders with its controls",
+      "status": "PASS",
+      "detail": "13 buttons, 33 links, 1 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/data-builder",
+        "heading": "Data Builder",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-data-builder.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-018",
+      "module": "inventory",
+      "title": "/trace renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 40 links, 0 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/trace",
+        "heading": "Trace & Lineage",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-trace.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-019",
+      "module": "inventory",
+      "title": "/playbook renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 30 links, 0 inputs, 0 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/playbook",
+        "heading": "Playbook",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-playbook.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-020",
+      "module": "inventory",
+      "title": "/reviews renders with its controls",
+      "status": "PASS",
+      "detail": "12 buttons, 27 links, 0 inputs, 0 selects, 5 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/reviews",
+        "heading": "My reviews",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-reviews.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-021",
+      "module": "inventory",
+      "title": "/workflow renders with its controls",
+      "status": "PASS",
+      "detail": "7 buttons, 28 links, 1 inputs, 0 selects, 0 tabs, 1 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/workflow",
+        "heading": "Workflow",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-workflow.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-022",
+      "module": "inventory",
+      "title": "/agent-operations renders with its controls",
+      "status": "PASS",
+      "detail": "26 buttons, 27 links, 0 inputs, 0 selects, 6 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/agent-operations",
+        "heading": "Agent Operations",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-agent-operations.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-023",
+      "module": "inventory",
+      "title": "/ai-studio renders with its controls",
+      "status": "PASS",
+      "detail": "25 buttons, 27 links, 0 inputs, 0 selects, 18 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/ai-studio",
+        "heading": "AI Intelligence Studio",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-ai-studio.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-024",
+      "module": "inventory",
+      "title": "/users renders with its controls",
+      "status": "PASS",
+      "detail": "10 buttons, 27 links, 0 inputs, 1 selects, 0 tabs, 0 tables",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/users",
+        "heading": "Users",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-users.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "RUI-025",
+      "module": "inventory",
+      "title": "/settings renders with its controls",
+      "status": "PASS",
+      "detail": "16 buttons, 27 links, 0 inputs, 0 selects, 0 tabs, 0 tables \u2014 the screen reports something unavailable",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/settings",
+        "heading": "Settings",
+        "screenshot": "docs/evidence/retail_functionality/screens/route-settings.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

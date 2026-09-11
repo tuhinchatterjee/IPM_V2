@@ -1,0 +1,6548 @@
+{
+  "routes": {
+    "/": {
+      "heading": "Good morning, Mr. Sajid",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Ask",
+          "disabled": true,
+          "testid": ""
+        },
+        {
+          "label": "From the governed catalogue",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Hide suggested questions",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "All0",
+          "disabled": false,
+          "testid": "attention-filter-ALL"
+        },
+        {
+          "label": "Portfolio0",
+          "disabled": false,
+          "testid": "attention-filter-PORTFOLIO"
+        },
+        {
+          "label": "Segments0",
+          "disabled": false,
+          "testid": "attention-filter-SEGMENTS"
+        },
+        {
+          "label": "Borrowers0",
+          "disabled": false,
+          "testid": "attention-filter-BORROWERS"
+        },
+        {
+          "label": "Data0",
+          "disabled": false,
+          "testid": "attention-filter-DATA"
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "All",
+          "href": "/investigations"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 2",
+          "href": "/investigations/50"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 2",
+          "href": "/investigations/49"
+        },
+        {
+          "label": "What data do you have in Retail facility month-end position? 2",
+          "href": "/investigations/48"
+        },
+        {
+          "label": "Show expected credit loss by IFRS 9 stage for August 2026 2",
+          "href": "/investigations/47"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Ask CreditProbe a question about the portfolio",
+          "type": "textarea",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [],
+      "tabs": [
+        "All0",
+        "Portfolio0",
+        "Segments0",
+        "Borrowers0",
+        "Data0"
+      ],
+      "details": [],
+      "tables": 0,
+      "empty_state": true,
+      "refused": false,
+      "characters": 1401,
+      "opened": true,
+      "url": "http://localhost:5328/",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-.png"
+    },
+    "/workspace": {
+      "heading": "My workspace",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "0 Unread messages",
+          "href": "/messages?box=inbox"
+        },
+        {
+          "label": "0 Awaiting my review",
+          "href": "/messages?box=action"
+        },
+        {
+          "label": "0 Shared with me",
+          "href": "/messages?box=inbox"
+        },
+        {
+          "label": "5 Recent investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "See all",
+          "href": "/investigations"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 6:45 AM",
+          "href": "/analysis/119"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 6:45 AM",
+          "href": "/analysis/118"
+        },
+        {
+          "label": "What data do you have in Retail facility month-end position? 6:45 AM",
+          "href": "/analysis/117"
+        },
+        {
+          "label": "Show expected credit loss by IFRS 9 stage for August 2026 6:44 AM",
+          "href": "/analysis/116"
+        },
+        {
+          "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
+          "href": "/analysis/115"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 1114,
+      "opened": true,
+      "url": "http://localhost:5328/workspace",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-workspace.png"
+    },
+    "/messages": {
+      "heading": "Messages",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "New message",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Inbox",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Action required",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Sent",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Drafts",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Archived",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Search messages",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        },
+        {
+          "label": "",
+          "type": "checkbox",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 640,
+      "opened": true,
+      "url": "http://localhost:5328/messages",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-messages.png"
+    },
+    "/projects": {
+      "heading": "Projects",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "New project",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "New project",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": true,
+      "refused": false,
+      "characters": 688,
+      "opened": true,
+      "url": "http://localhost:5328/projects",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-projects.png"
+    },
+    "/delivery": {
+      "heading": "Project Planner",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Plan template",
+          "href": "http://localhost:8328/api/v1/planner/template"
+        },
+        {
+          "label": "New project",
+          "href": "/delivery/new"
+        },
+        {
+          "label": "My work",
+          "href": "/delivery/my-work"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Search projects",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [
+        {
+          "label": "Filter by health",
+          "options": [
+            "",
+            "RED",
+            "AMBER",
+            "GREEN",
+            "UNKNOWN"
+          ],
+          "testid": ""
+        },
+        {
+          "label": "Filter by status",
+          "options": [
+            "",
+            "DRAFT",
+            "ACTIVE",
+            "ON_HOLD",
+            "COMPLETED"
+          ],
+          "testid": ""
+        }
+      ],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 1077,
+      "opened": true,
+      "url": "http://localhost:5328/delivery",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-delivery.png"
+    },
+    "/investigations": {
+      "heading": "Investigations",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: What data do you have in Retail facility month-end position?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show expected credit loss by IFRS 9 stage for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: What data do you have in Retail facility month-end position?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show expected credit loss by IFRS 9 stage for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: What data do you have in Retail facility month-end position?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show expected credit loss by IFRS 9 stage for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure and weighted",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show expected credit loss by product for August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How has expected credit loss moved between July 2026 and Aug",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Show exposure by retail product for August 2026.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many customers are in each retail product at August 2026",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: How many facilities are in each IFRS 9 stage?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Open investigation: Use Cockpit Data for August 2026. Show exposure, customers, ",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "New investigation",
+          "href": "/?focus=ask"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": true,
+      "characters": 12434,
+      "opened": true,
+      "url": "http://localhost:5328/investigations",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-investigations.png"
+    },
+    "/analyses": {
+      "heading": "Analyses",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Ask a question",
+          "href": "/?focus=ask"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": true,
+      "refused": false,
+      "characters": 680,
+      "opened": true,
+      "url": "http://localhost:5328/analyses",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-analyses.png"
+    },
+    "/documents": {
+      "heading": "Documents",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "in review March 2026 CRO Portfolio Review Board Risk Committee paper 7 sections ",
+          "href": "/documents/march-2026-cro-review"
+        },
+        {
+          "label": "draft Real Estate Sector Review Sector committee paper 5 sections \u00b7 Sector Credi",
+          "href": "/documents/real-estate-sector-review"
+        },
+        {
+          "label": "approved IFRS 9 Committee Pack IFRS 9 Committee pack 5 sections \u00b7 IFRS 9 Reporti",
+          "href": "/documents/ifrs9-committee-pack"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 850,
+      "opened": true,
+      "url": "http://localhost:5328/documents",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-documents.png"
+    },
+    "/lenses": {
+      "heading": "Lenses",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Build it",
+          "disabled": true,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Live CRO Portfolio Lens The monthly executive view: position, staging, coverage,",
+          "href": "/lenses/cro"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "IFRS 9 staging, ECL coverage and where the SICR triggers are firing",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": true,
+      "refused": true,
+      "characters": 1173,
+      "opened": true,
+      "url": "http://localhost:5328/lenses",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-lenses.png"
+    },
+    "/metrics": {
+      "heading": "Metric Catalogue",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Show the whole catalogue",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Build a metric",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Search metrics",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 691,
+      "opened": true,
+      "url": "http://localhost:5328/metrics",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-metrics.png"
+    },
+    "/early-warning": {
+      "heading": "Early Warning",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Stage 1 to Stage 2",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Stage 1 to default",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Stage 2 to default",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "Model Lab",
+          "href": "/early-warning/lab"
+        },
+        {
+          "label": "Open the Model Lab",
+          "href": "/early-warning/lab"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [
+        "Stage 1 to Stage 2",
+        "Stage 1 to default",
+        "Stage 2 to default"
+      ],
+      "details": [],
+      "tables": 0,
+      "empty_state": true,
+      "refused": false,
+      "characters": 2330,
+      "opened": true,
+      "url": "http://localhost:5328/early-warning",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-early-warning.png"
+    },
+    "/early-warning/signals": {
+      "heading": "Early Warning Signals",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Download the watchlist",
+          "href": "http://localhost:8328/api/v1/early-warning/watchlist/workbook"
+        },
+        {
+          "label": "Fitted signal",
+          "href": "/early-warning"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": true,
+      "characters": 652,
+      "opened": true,
+      "url": "http://localhost:5328/early-warning/signals",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-early-warning-signals.png"
+    },
+    "/what-if": {
+      "heading": "What-If",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Send",
+          "disabled": true,
+          "testid": ""
+        },
+        {
+          "label": "Increase personal-finance PD by 20% relative",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Reduce verified salary by 15% for salary-transfer customers",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Reduce mortgage collateral values by 10% and lengthen recovery by six months",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change scenario weights to base 50%, upturn 10%, downturn 40%",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-3"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-2"
+        },
+        {
+          "label": "Reopen",
+          "disabled": false,
+          "testid": "retail-whatif-reopen-1"
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Ask What-If about a scenario",
+          "type": "textarea",
+          "testid": "whatif-composer",
+          "disabled": false
+        }
+      ],
+      "selects": [
+        {
+          "label": "Reporting month",
+          "options": [
+            "2024-08",
+            "2024-09",
+            "2024-10",
+            "2024-11",
+            "2024-12",
+            "2025-01",
+            "2025-02",
+            "2025-03",
+            "2025-04",
+            "2025-05",
+            "2025-06",
+            "2025-07",
+            "2025-08",
+            "2025-09",
+            "2025-10",
+            "2025-11",
+            "2025-12",
+            "2026-01",
+            "2026-02",
+            "2026-03",
+            "2026-04",
+            "2026-05",
+            "2026-06",
+            "2026-07",
+            "2026-08"
+          ],
+          "testid": "retail-whatif-month"
+        }
+      ],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 2651,
+      "opened": true,
+      "url": "http://localhost:5328/what-if",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-what-if.png"
+    },
+    "/borrower-360": {
+      "heading": "Borrower 360",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": true,
+      "characters": 601,
+      "opened": true,
+      "url": "http://localhost:5328/borrower-360",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-borrower-360.png"
+    },
+    "/scorecard-validation": {
+      "heading": "Scorecard Validation",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Retail Application Scorecard MDL-RTL-APP-001 v1.1.0 \u00b7 TIER_1",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Retail Behaviour Scorecard MDL-RTL-BEH-001 v1.1.0 \u00b7 TIER_1",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Saudi SME Scorecard MDL-SME-KSA-001 v1.0.0 \u00b7 TIER_1",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Ask",
+          "disabled": true,
+          "testid": ""
+        },
+        {
+          "label": "Is it still ranking risk?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Has the population drifted?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Which characteristics have stopped working?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What does STAB-CSI measure?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Which periods have matured?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What are the biggest weaknesses?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Run full validation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Data & Representativeness Is this data complete, current, and representative of ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Conceptual Soundness & Design Is the design defensible, documented and used as i",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Discrimination Does this model rank risk? not run",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Calibration & Accuracy Are the predicted default rates right, not just ordered r",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Stability Is the model still looking at the same kind of book? not run",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Robustness & Sensitivity How much does the answer depend on choices we happened ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Variables & Binning Which variables are doing the work, and which have stopped? ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Model Usage, Overrides & Policy Is the score being followed, and do the departur",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Implementation Verification Does the system compute what the document says it co",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Segmentation Does the aggregate result conceal a segment where it fails? not run",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Champion vs Challenger Should we replace the champion \u2014 and what would we be tra",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Validation History",
+          "href": "/scorecard-validation/history"
+        },
+        {
+          "label": "Ongoing monitoring",
+          "href": "/scorecard-validation/monitoring"
+        },
+        {
+          "label": "Draft report (Word)",
+          "href": "http://localhost:8328/api/v1/scorecard-validation/models/retail_application_champion/report.docx"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Ask about validating this scorecard",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": true,
+      "characters": 3199,
+      "opened": true,
+      "url": "http://localhost:5328/scorecard-validation",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-scorecard-validation.png"
+    },
+    "/studio": {
+      "heading": "Analysis Studio",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Certified only",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Regulatory Intelligence",
+          "href": "/studio/regulatory-intelligence"
+        },
+        {
+          "label": "Build a method",
+          "href": "/studio/new"
+        },
+        {
+          "label": "Approaching the SICR Threshold Stage 1 facilities close to breaching a significa",
+          "href": "/studio/approaching_sicr"
+        },
+        {
+          "label": "Arrears Position Amount overdue, arrears bucket, forbearance and collections sta",
+          "href": "/studio/arrears_position"
+        },
+        {
+          "label": "Collateral Coverage Collateral value as a percentage of exposure.",
+          "href": "/studio/collateral_coverage"
+        },
+        {
+          "label": "Credit File Signals What the credit file notes raised, as structured signals.",
+          "href": "/studio/credit_file_signals"
+        },
+        {
+          "label": "Days Past Due Distribution Facilities and exposure across arrears buckets.",
+          "href": "/studio/dpd_distribution"
+        },
+        {
+          "label": "Delinquency Rate The share of facilities with any arrears.",
+          "href": "/studio/delinquency_rate"
+        },
+        {
+          "label": "Downgrade Rate The share of customers downgraded in a period.",
+          "href": "/studio/downgrade_rate"
+        },
+        {
+          "label": "DPD Migration Exposure moving between arrears buckets across two periods.",
+          "href": "/studio/dpd_migration"
+        },
+        {
+          "label": "ECL Change Decomposition Opening ECL to closing ECL through its drivers, attribu",
+          "href": "/studio/ecl_change_decomposition"
+        },
+        {
+          "label": "ECL Contribution Each sector or borrower's share of the total ECL movement.",
+          "href": "/studio/ecl_contribution"
+        },
+        {
+          "label": "ECL Coverage Expected credit loss as a percentage of exposure at default.",
+          "href": "/studio/ecl_coverage"
+        },
+        {
+          "label": "ECL Coverage by Stage Coverage computed within each IFRS 9 stage.",
+          "href": "/studio/ecl_coverage_by_stage"
+        },
+        {
+          "label": "ECL Movement The change in expected credit loss between two periods, decomposed.",
+          "href": "/studio/ecl_movement"
+        },
+        {
+          "label": "Exposure by Obligor Exposure aggregated to the obligor, across all their facilit",
+          "href": "/studio/exposure_concentration_by_obligor"
+        },
+        {
+          "label": "Geographic Concentration Exposure distribution across regions or countries.",
+          "href": "/studio/geographic_concentration"
+        },
+        {
+          "label": "Macroeconomic Context The macro series the portfolio lends into.",
+          "href": "/studio/macroeconomic_context"
+        },
+        {
+          "label": "NPL Ratio Non-performing exposure as a percentage of total exposure.",
+          "href": "/studio/npl_ratio"
+        },
+        {
+          "label": "Portfolio Summary The headline position: exposure, staging, coverage, NPL and ap",
+          "href": "/studio/portfolio_summary"
+        },
+        {
+          "label": "Portfolio Trend Exposure, staging and coverage across every available period.",
+          "href": "/studio/portfolio_trend"
+        },
+        {
+          "label": "Product Concentration Exposure distribution across products.",
+          "href": "/studio/product_concentration"
+        },
+        {
+          "label": "Rating Actions Upgrades, downgrades, affirmations and new ratings in a period.",
+          "href": "/studio/rating_actions"
+        },
+        {
+          "label": "Rating Distribution Exposure and customers across internal rating grades.",
+          "href": "/studio/rating_distribution"
+        },
+        {
+          "label": "Rating Migration Movement between rating grades across two periods.",
+          "href": "/studio/rating_migration"
+        },
+        {
+          "label": "Rating Transition Matrix The full from-grade to to-grade transition matrix, as c",
+          "href": "/studio/rating_transition_matrix"
+        },
+        {
+          "label": "Sector Concentration Exposure distribution across industry sectors.",
+          "href": "/studio/sector_concentration"
+        },
+        {
+          "label": "SICR Trigger Breakdown Which significant-increase triggers fired, separately.",
+          "href": "/studio/sicr_trigger_breakdown"
+        },
+        {
+          "label": "Single Name Concentration The largest single obligor exposure as a share of the ",
+          "href": "/studio/single_name_concentration"
+        },
+        {
+          "label": "Stage 1 to 2 Migration Exposure moving from Stage 1 to Stage 2 between periods.",
+          "href": "/studio/stage_1_to_2_migration"
+        },
+        {
+          "label": "Stage 2 Share Stage 2 exposure as a percentage of the total.",
+          "href": "/studio/stage_2_share"
+        },
+        {
+          "label": "Stage 2 to 3 Migration Exposure moving from Stage 2 to Stage 3 between periods.",
+          "href": "/studio/stage_2_to_3_migration"
+        },
+        {
+          "label": "Stage 3 Share Stage 3 exposure as a percentage of the total.",
+          "href": "/studio/stage_3_share"
+        },
+        {
+          "label": "Stage Distribution Exposure and impairment split across IFRS 9 stages.",
+          "href": "/studio/stage_distribution"
+        },
+        {
+          "label": "Stage Migration Flow Stage movements drawn as a flow between opening and closing",
+          "href": "/studio/stage_migration_flow"
+        },
+        {
+          "label": "Stage Migration Matrix The full opening-stage to closing-stage transition matrix",
+          "href": "/studio/stage_migration_matrix"
+        },
+        {
+          "label": "Top Deteriorating Borrowers The borrowers whose position worsened most between t",
+          "href": "/studio/top_deteriorating_borrowers"
+        },
+        {
+          "label": "Top-N Concentration The share of exposure held by the largest N obligors.",
+          "href": "/studio/top_n_concentration"
+        },
+        {
+          "label": "Total Exposure at Default The sum of exposure at default across the portfolio at",
+          "href": "/studio/total_ead"
+        },
+        {
+          "label": "Upgrade Rate The share of customers upgraded in a period.",
+          "href": "/studio/upgrade_rate"
+        },
+        {
+          "label": "Utilisation Drift Change in utilisation between two reporting periods.",
+          "href": "/studio/utilisation_drift"
+        },
+        {
+          "label": "Utilisation Rate Drawn balance as a percentage of the committed limit.",
+          "href": "/studio/utilisation_rate"
+        },
+        {
+          "label": "Watchlist Exposure Exposure on names currently on the watchlist.",
+          "href": "/studio/watchlist_exposure"
+        },
+        {
+          "label": "Watchlist Movement Names entering and leaving the watchlist between periods.",
+          "href": "/studio/watchlist_movement"
+        },
+        {
+          "label": "30+ Delinquency Rate The share of exposure 30 or more days past due.",
+          "href": "/studio/thirty_plus_rate"
+        },
+        {
+          "label": "90+ Delinquency by Country 90+ Delinquency broken down by country.",
+          "href": "/studio/dpd90_by_country"
+        },
+        {
+          "label": "90+ Delinquency by IFRS 9 Stage 90+ Delinquency broken down by ifrs 9 stage.",
+          "href": "/studio/dpd90_by_stage"
+        },
+        {
+          "label": "90+ Delinquency by Product 90+ Delinquency broken down by product.",
+          "href": "/studio/dpd90_by_product"
+        },
+        {
+          "label": "90+ Delinquency by Rating Grade 90+ Delinquency broken down by rating grade.",
+          "href": "/studio/dpd90_by_rating"
+        },
+        {
+          "label": "90+ Delinquency by Region 90+ Delinquency broken down by region.",
+          "href": "/studio/dpd90_by_region"
+        },
+        {
+          "label": "90+ Delinquency by Sector 90+ Delinquency broken down by sector.",
+          "href": "/studio/dpd90_by_sector"
+        },
+        {
+          "label": "90+ Delinquency by Segment 90+ Delinquency broken down by segment.",
+          "href": "/studio/dpd90_by_segment"
+        },
+        {
+          "label": "90+ Delinquency by Vintage 90+ Delinquency broken down by vintage.",
+          "href": "/studio/dpd90_by_vintage"
+        },
+        {
+          "label": "90+ Delinquency Rate The share of exposure 90 or more days past due.",
+          "href": "/studio/ninety_plus_rate"
+        },
+        {
+          "label": "Alert Stability How persistently the same names are flagged across periods.",
+          "href": "/studio/alert_stability"
+        },
+        {
+          "label": "Appetite Breach Ageing How long each appetite breach has been outstanding.",
+          "href": "/studio/appetite_breach_ageing"
+        },
+        {
+          "label": "Appetite Utilisation Trend Movement towards or away from appetite thresholds ove",
+          "href": "/studio/appetite_utilisation_trend"
+        },
+        {
+          "label": "Arrears by Country Arrears broken down by country.",
+          "href": "/studio/arrears_by_country"
+        },
+        {
+          "label": "Arrears by IFRS 9 Stage Arrears broken down by ifrs 9 stage.",
+          "href": "/studio/arrears_by_stage"
+        },
+        {
+          "label": "Arrears by Product Arrears broken down by product.",
+          "href": "/studio/arrears_by_product"
+        },
+        {
+          "label": "Arrears by Rating Grade Arrears broken down by rating grade.",
+          "href": "/studio/arrears_by_rating"
+        },
+        {
+          "label": "Arrears by Region Arrears broken down by region.",
+          "href": "/studio/arrears_by_region"
+        },
+        {
+          "label": "Arrears by Sector Arrears broken down by sector.",
+          "href": "/studio/arrears_by_sector"
+        },
+        {
+          "label": "Arrears by Segment Arrears broken down by segment.",
+          "href": "/studio/arrears_by_segment"
+        },
+        {
+          "label": "Arrears by Vintage Arrears broken down by vintage.",
+          "href": "/studio/arrears_by_vintage"
+        },
+        {
+          "label": "Arrears Change Change in arrears between two reporting periods.",
+          "href": "/studio/arrears_change"
+        },
+        {
+          "label": "Average Facility Size Mean exposure per facility.",
+          "href": "/studio/average_facility_size"
+        },
+        {
+          "label": "Average LGD by Country Average LGD broken down by country.",
+          "href": "/studio/lgd_by_country"
+        },
+        {
+          "label": "Average LGD by IFRS 9 Stage Average LGD broken down by ifrs 9 stage.",
+          "href": "/studio/lgd_by_stage"
+        },
+        {
+          "label": "Average LGD by Product Average LGD broken down by product.",
+          "href": "/studio/lgd_by_product"
+        },
+        {
+          "label": "Average LGD by Rating Grade Average LGD broken down by rating grade.",
+          "href": "/studio/lgd_by_rating"
+        },
+        {
+          "label": "Average LGD by Region Average LGD broken down by region.",
+          "href": "/studio/lgd_by_region"
+        },
+        {
+          "label": "Average LGD by Sector Average LGD broken down by sector.",
+          "href": "/studio/lgd_by_sector"
+        },
+        {
+          "label": "Average LGD by Segment Average LGD broken down by segment.",
+          "href": "/studio/lgd_by_segment"
+        },
+        {
+          "label": "Average LGD by Vintage Average LGD broken down by vintage.",
+          "href": "/studio/lgd_by_vintage"
+        },
+        {
+          "label": "Average PD by Country Average PD broken down by country.",
+          "href": "/studio/pd_by_country"
+        },
+        {
+          "label": "Average PD by IFRS 9 Stage Average PD broken down by ifrs 9 stage.",
+          "href": "/studio/pd_by_stage"
+        },
+        {
+          "label": "Average PD by Product Average PD broken down by product.",
+          "href": "/studio/pd_by_product"
+        },
+        {
+          "label": "Average PD by Rating Grade Average PD broken down by rating grade.",
+          "href": "/studio/pd_by_rating"
+        },
+        {
+          "label": "Average PD by Region Average PD broken down by region.",
+          "href": "/studio/pd_by_region"
+        },
+        {
+          "label": "Average PD by Sector Average PD broken down by sector.",
+          "href": "/studio/pd_by_sector"
+        },
+        {
+          "label": "Average PD by Segment Average PD broken down by segment.",
+          "href": "/studio/pd_by_segment"
+        },
+        {
+          "label": "Average PD by Vintage Average PD broken down by vintage.",
+          "href": "/studio/pd_by_vintage"
+        },
+        {
+          "label": "Book Growth Decomposition Growth split into new lending, runoff and drawdown.",
+          "href": "/studio/book_growth_decomposition"
+        },
+        {
+          "label": "Bucket Persistence The share of a delinquency bucket still in the same bucket ne",
+          "href": "/studio/bucket_persistence"
+        },
+        {
+          "label": "Capital Consumption Capital absorbed by a portfolio or a name.",
+          "href": "/studio/capital_consumption"
+        },
+        {
+          "label": "Cohort Cure Rate Cure experience within a fixed cohort.",
+          "href": "/studio/cohort_cure_rate"
+        },
+        {
+          "label": "Cohort Default Rate Default rate within a fixed opening cohort over time.",
+          "href": "/studio/cohort_default_rate"
+        },
+        {
+          "label": "Cohort Migration Rating or stage movement within a fixed cohort.",
+          "href": "/studio/cohort_migration"
+        },
+        {
+          "label": "Collateral Coverage by Country Collateral Coverage broken down by country.",
+          "href": "/studio/collateral_by_country"
+        },
+        {
+          "label": "Collateral Coverage by IFRS 9 Stage Collateral Coverage broken down by ifrs 9 st",
+          "href": "/studio/collateral_by_stage"
+        },
+        {
+          "label": "Collateral Coverage by Product Collateral Coverage broken down by product.",
+          "href": "/studio/collateral_by_product"
+        },
+        {
+          "label": "Collateral Coverage by Rating Grade Collateral Coverage broken down by rating gr",
+          "href": "/studio/collateral_by_rating"
+        },
+        {
+          "label": "Collateral Coverage by Region Collateral Coverage broken down by region.",
+          "href": "/studio/collateral_by_region"
+        },
+        {
+          "label": "Collateral Coverage by Sector Collateral Coverage broken down by sector.",
+          "href": "/studio/collateral_by_sector"
+        },
+        {
+          "label": "Collateral Coverage by Segment Collateral Coverage broken down by segment.",
+          "href": "/studio/collateral_by_segment"
+        },
+        {
+          "label": "Collateral Coverage by Vintage Collateral Coverage broken down by vintage.",
+          "href": "/studio/collateral_by_vintage"
+        },
+        {
+          "label": "Collateral Coverage Change Change in collateral coverage between two reporting p",
+          "href": "/studio/collateral_change"
+        },
+        {
+          "label": "Collateral Shortfall Exposure in excess of collateral value.",
+          "href": "/studio/collateral_shortfall"
+        },
+        {
+          "label": "Collateral Type Mix Distribution of collateral by type.",
+          "href": "/studio/collateral_type_mix"
+        },
+        {
+          "label": "Collections Effectiveness Amount collected as a share of amount due in the perio",
+          "href": "/studio/collections_effectiveness"
+        },
+        {
+          "label": "Commitment Conversion Credit conversion factor applied to undrawn commitments.",
+          "href": "/studio/commitment_conversion"
+        },
+        {
+          "label": "Composition Shift How the mix of the book changed between periods.",
+          "href": "/studio/portfolio_composition_shift"
+        },
+        {
+          "label": "Concentration Change Change in concentration between two reporting periods.",
+          "href": "/studio/concentration_change"
+        },
+        {
+          "label": "Concentration Threshold Breach Concentrations exceeding the threshold set by app",
+          "href": "/studio/concentration_threshold_breach"
+        },
+        {
+          "label": "Connected Group Concentration Exposure aggregated across a connected group of bo",
+          "href": "/studio/group_concentration"
+        },
+        {
+          "label": "Connected Party Exposure Exposure to parties connected to the bank.",
+          "href": "/studio/connected_party_exposure"
+        },
+        {
+          "label": "Consecutive Deterioration Names that worsened in two or more consecutive periods",
+          "href": "/studio/consecutive_deterioration"
+        },
+        {
+          "label": "Cost of Risk Impairment charge as a rate on average exposure.",
+          "href": "/studio/cost_of_risk"
+        },
+        {
+          "label": "Country Limit Utilisation Country exposure against its approved limit.",
+          "href": "/studio/country_limit_utilisation"
+        },
+        {
+          "label": "Covenant and Rating Together Names where covenant headroom is thin and the ratin",
+          "href": "/studio/covenant_and_rating_together"
+        },
+        {
+          "label": "Covenant Breach Rate The share of facilities in breach of a financial covenant.",
+          "href": "/studio/covenant_breach_rate"
+        },
+        {
+          "label": "Covenant Breach Severity How far past the threshold a breach is.",
+          "href": "/studio/covenant_breach_severity"
+        },
+        {
+          "label": "Covenant Cure Rate Breaches remedied within the cure period.",
+          "href": "/studio/covenant_cure_rate"
+        },
+        {
+          "label": "Covenant Deterioration Reduction in headroom between periods.",
+          "href": "/studio/covenant_deterioration"
+        },
+        {
+          "label": "Covenant Headroom Distance between the current ratio and its covenant threshold.",
+          "href": "/studio/covenant_headroom"
+        },
+        {
+          "label": "Covenant Test Calendar When each covenant is next tested.",
+          "href": "/studio/covenant_test_calendar"
+        },
+        {
+          "label": "Coverage Change Change in coverage between two reporting periods.",
+          "href": "/studio/coverage_change"
+        },
+        {
+          "label": "Coverage Deterioration Reduction in collateral coverage between periods.",
+          "href": "/studio/coverage_deterioration"
+        },
+        {
+          "label": "Cure Rate The share of non-performing exposure that returned to performing.",
+          "href": "/studio/cure_rate"
+        },
+        {
+          "label": "Cure Roll Rate The share of a delinquency bucket that improves rather than worse",
+          "href": "/studio/cure_roll_rate"
+        },
+        {
+          "label": "Default Emergence Rate New defaults in a period as a share of the opening perfor",
+          "href": "/studio/default_emergence_rate"
+        },
+        {
+          "label": "Default Rate The share of the population in default at a reporting date.",
+          "href": "/studio/default_rate"
+        },
+        {
+          "label": "Delinquency Change Change in delinquency between two reporting periods.",
+          "href": "/studio/dpd_change"
+        },
+        {
+          "label": "Deterioration Breadth How many names are deteriorating, as against how much expo",
+          "href": "/studio/deterioration_breadth"
+        },
+        {
+          "label": "DSCR Covenant Position Debt service coverage against its covenant threshold.",
+          "href": "/studio/dscr_covenant_position"
+        },
+        {
+          "label": "Duplicate Key Rate Keys appearing more than once where the grain says they shoul",
+          "href": "/studio/duplicate_key_rate"
+        },
+        {
+          "label": "EAD Movement Change in exposure at default between periods.",
+          "href": "/studio/ead_movement"
+        },
+        {
+          "label": "ECL Change Change in ecl between two reporting periods.",
+          "href": "/studio/ecl_change"
+        },
+        {
+          "label": "ECL Coverage by Country ECL Coverage broken down by country.",
+          "href": "/studio/ecl_coverage_by_country"
+        },
+        {
+          "label": "ECL Coverage by Product ECL Coverage broken down by product.",
+          "href": "/studio/ecl_coverage_by_product"
+        },
+        {
+          "label": "ECL Coverage by Rating Grade ECL Coverage broken down by rating grade.",
+          "href": "/studio/ecl_coverage_by_rating"
+        },
+        {
+          "label": "ECL Coverage by Region ECL Coverage broken down by region.",
+          "href": "/studio/ecl_coverage_by_region"
+        },
+        {
+          "label": "ECL Coverage by Sector ECL Coverage broken down by sector.",
+          "href": "/studio/ecl_coverage_by_sector"
+        },
+        {
+          "label": "ECL Coverage by Segment ECL Coverage broken down by segment.",
+          "href": "/studio/ecl_coverage_by_segment"
+        },
+        {
+          "label": "ECL Coverage by Vintage ECL Coverage broken down by vintage.",
+          "href": "/studio/ecl_coverage_by_vintage"
+        },
+        {
+          "label": "ECL Rate Expected credit loss as a rate on the exposure that carries it.",
+          "href": "/studio/ecl_rate"
+        },
+        {
+          "label": "ECL Stress Expected credit loss under stressed assumptions.",
+          "href": "/studio/ecl_stress"
+        },
+        {
+          "label": "Economic Capital Capital required for unexpected loss.",
+          "href": "/studio/economic_capital"
+        },
+        {
+          "label": "Expected Loss Rate Expected loss as a rate on exposure.",
+          "href": "/studio/expected_loss_rate"
+        },
+        {
+          "label": "Exposure by Country Exposure broken down by country.",
+          "href": "/studio/ead_by_country"
+        },
+        {
+          "label": "Exposure by Currency Exposure split by currency of the facility.",
+          "href": "/studio/exposure_by_currency"
+        },
+        {
+          "label": "Exposure by IFRS 9 Stage Exposure broken down by ifrs 9 stage.",
+          "href": "/studio/ead_by_stage"
+        },
+        {
+          "label": "Exposure by Product Exposure split across product types.",
+          "href": "/studio/exposure_by_product"
+        },
+        {
+          "label": "Exposure by Product Exposure broken down by product.",
+          "href": "/studio/ead_by_product"
+        },
+        {
+          "label": "Exposure by Rating Grade Exposure broken down by rating grade.",
+          "href": "/studio/ead_by_rating"
+        },
+        {
+          "label": "Exposure by Region Exposure broken down by region.",
+          "href": "/studio/ead_by_region"
+        },
+        {
+          "label": "Exposure by Sector Exposure broken down by sector.",
+          "href": "/studio/ead_by_sector"
+        },
+        {
+          "label": "Exposure by Segment Exposure split across customer segments.",
+          "href": "/studio/exposure_by_segment"
+        },
+        {
+          "label": "Exposure by Segment Exposure broken down by segment.",
+          "href": "/studio/ead_by_segment"
+        },
+        {
+          "label": "Exposure by Vintage Exposure broken down by vintage.",
+          "href": "/studio/ead_by_vintage"
+        },
+        {
+          "label": "Exposure Change Change in exposure between two reporting periods.",
+          "href": "/studio/ead_change"
+        },
+        {
+          "label": "Exposure Growth Percentage change in exposure between two periods.",
+          "href": "/studio/exposure_growth"
+        },
+        {
+          "label": "Exposure Runoff Exposure leaving the book through repayment, maturity or exit.",
+          "href": "/studio/exposure_runoff"
+        },
+        {
+          "label": "Exposure Stress Exposure under stressed drawdown assumptions.",
+          "href": "/studio/exposure_stress"
+        },
+        {
+          "label": "False Alert Rate The share of alerts not followed by deterioration.",
+          "href": "/studio/false_alert_rate"
+        },
+        {
+          "label": "Fee Income Share Fee income as a share of total income from a relationship.",
+          "href": "/studio/fee_income_share"
+        },
+        {
+          "label": "First Payment Default Facilities that miss their first scheduled payment.",
+          "href": "/studio/first_payment_default"
+        },
+        {
+          "label": "Forbearance Rate The share of exposure carrying a forbearance measure.",
+          "href": "/studio/forbearance_rate"
+        },
+        {
+          "label": "Forward Default Rate The share of a performing opening population that defaults ",
+          "href": "/studio/forward_default_rate"
+        },
+        {
+          "label": "Forward Risk Signal CreditProbe's composite forward-looking risk indicator.",
+          "href": "/studio/early_warning_signal"
+        },
+        {
+          "label": "Gini Coefficient Inequality of the exposure distribution.",
+          "href": "/studio/gini_coefficient"
+        },
+        {
+          "label": "Grade Monotonicity Whether realised default rates increase monotonically across ",
+          "href": "/studio/grade_monotonicity"
+        },
+        {
+          "label": "Haircut Impact Coverage after applying valuation haircuts.",
+          "href": "/studio/haircut_impact"
+        },
+        {
+          "label": "Herfindahl-Hirschman Index The sum of squared exposure shares, as a concentratio",
+          "href": "/studio/herfindahl_index"
+        },
+        {
+          "label": "High Utilisation Watchlist Facilities drawn unusually heavily against their limi",
+          "href": "/studio/high_utilisation_watchlist"
+        },
+        {
+          "label": "Identifier Continuity Whether facility and customer identifiers persist across p",
+          "href": "/studio/identifier_continuity"
+        },
+        {
+          "label": "Interest Cover Position Interest coverage against its covenant threshold.",
+          "href": "/studio/interest_cover_position"
+        },
+        {
+          "label": "Internal versus External Notch Gap Difference between the internal grade and the",
+          "href": "/studio/notch_gap_internal_external"
+        },
+        {
+          "label": "Large Exposure Count Number of exposures above the large-exposure threshold.",
+          "href": "/studio/large_exposure_count"
+        },
+        {
+          "label": "Large Exposure Share Exposure above the regulatory large-exposure threshold, as ",
+          "href": "/studio/large_exposure_share"
+        },
+        {
+          "label": "Leverage Covenant Position Net leverage against its covenant threshold.",
+          "href": "/studio/leverage_covenant_position"
+        },
+        {
+          "label": "LGD Change Change in lgd between two reporting periods.",
+          "href": "/studio/lgd_change"
+        },
+        {
+          "label": "LGD Movement Change in loss given default between periods.",
+          "href": "/studio/lgd_movement"
+        },
+        {
+          "label": "LGD Stress Loss given default under stressed assumptions.",
+          "href": "/studio/lgd_stress"
+        },
+        {
+          "label": "Lifetime versus 12-month ECL The uplift from measuring ECL over the lifetime rat",
+          "href": "/studio/lifetime_vs_12m_ecl"
+        },
+        {
+          "label": "Limit Breach Facilities or portfolios exceeding an approved limit.",
+          "href": "/studio/limit_breach"
+        },
+        {
+          "label": "Limit Drawdown Spike Sudden increases in utilisation.",
+          "href": "/studio/limit_drawdown_spike"
+        },
+        {
+          "label": "Limit Headroom Remaining capacity under approved limits.",
+          "href": "/studio/limit_headroom"
+        },
+        {
+          "label": "Loan to Value Exposure as a percentage of collateral value.",
+          "href": "/studio/loan_to_value"
+        },
+        {
+          "label": "Macro Overlay Share The portion of ECL arising from post-model overlay rather th",
+          "href": "/studio/macro_overlay_share"
+        },
+        {
+          "label": "Management Stress Scenario Portfolio impact under a declared set of shocks.",
+          "href": "/studio/stress_scenario_basic"
+        },
+        {
+          "label": "Maturity Profile Exposure by remaining time to maturity.",
+          "href": "/studio/maturity_profile"
+        },
+        {
+          "label": "Missing Field Rate The share of records with no value in a mandatory field.",
+          "href": "/studio/missing_field_rate"
+        },
+        {
+          "label": "Model versus Reported ECL Modelled ECL against the figure actually booked.",
+          "href": "/studio/model_vs_reported_ecl"
+        },
+        {
+          "label": "Months on Book Distribution The age profile of the portfolio.",
+          "href": "/studio/months_on_book_distribution"
+        },
+        {
+          "label": "Multi-notch Downgrade Customers downgraded by two or more notches.",
+          "href": "/studio/multi_notch_downgrade"
+        },
+        {
+          "label": "Name Concentration Capital Add-on Capital uplift for single-name concentration.",
+          "href": "/studio/name_concentration_capital"
+        },
+        {
+          "label": "Near-Breach Rate Facilities within a defined margin of breaching.",
+          "href": "/studio/near_breach_rate"
+        },
+        {
+          "label": "Net Credit Loss Write-offs less recoveries.",
+          "href": "/studio/net_credit_loss"
+        },
+        {
+          "label": "Net Interest Margin Interest income less funding cost, over earning assets.",
+          "href": "/studio/net_interest_margin"
+        },
+        {
+          "label": "New Lending Exposure on facilities present this period and absent last.",
+          "href": "/studio/new_lending"
+        },
+        {
+          "label": "New NPL Rate Exposure newly non-performing as a share of the opening performing ",
+          "href": "/studio/new_npl_rate"
+        },
+        {
+          "label": "NPL Appetite Threshold NPL ratio against its appetite threshold.",
+          "href": "/studio/npl_appetite_threshold"
+        },
+        {
+          "label": "NPL Flow Exposure entering and leaving non-performing status between periods.",
+          "href": "/studio/npl_flow"
+        },
+        {
+          "label": "NPL Ratio by Country NPL Ratio broken down by country.",
+          "href": "/studio/npl_by_country"
+        },
+        {
+          "label": "NPL Ratio by IFRS 9 Stage NPL Ratio broken down by ifrs 9 stage.",
+          "href": "/studio/npl_by_stage"
+        },
+        {
+          "label": "NPL Ratio by Product NPL Ratio broken down by product.",
+          "href": "/studio/npl_by_product"
+        },
+        {
+          "label": "NPL Ratio by Rating Grade NPL Ratio broken down by rating grade.",
+          "href": "/studio/npl_by_rating"
+        },
+        {
+          "label": "NPL Ratio by Region NPL Ratio broken down by region.",
+          "href": "/studio/npl_by_region"
+        },
+        {
+          "label": "NPL Ratio by Sector NPL Ratio broken down by sector.",
+          "href": "/studio/npl_by_sector"
+        },
+        {
+          "label": "NPL Ratio by Segment NPL Ratio broken down by segment.",
+          "href": "/studio/npl_by_segment"
+        },
+        {
+          "label": "NPL Ratio by Vintage NPL Ratio broken down by vintage.",
+          "href": "/studio/npl_by_vintage"
+        },
+        {
+          "label": "NPL Ratio Change Change in npl ratio between two reporting periods.",
+          "href": "/studio/npl_change"
+        },
+        {
+          "label": "NPL Stock The absolute amount of non-performing exposure.",
+          "href": "/studio/npl_stock"
+        },
+        {
+          "label": "One-Year Forward ODR The share of facilities performing at a quarter end that ar",
+          "href": "/studio/one_year_forward_odr"
+        },
+        {
+          "label": "Origination Quality Rating and financial profile of new lending by period.",
+          "href": "/studio/origination_quality"
+        },
+        {
+          "label": "Orphan Rate Records in one dataset with no match in the dataset they should join",
+          "href": "/studio/orphan_rate"
+        },
+        {
+          "label": "Outstanding Exposure Drawn balances outstanding, before undrawn commitments.",
+          "href": "/studio/outstanding_exposure"
+        },
+        {
+          "label": "Payment Behaviour Shift Change in payment timing or amount ahead of formal arrea",
+          "href": "/studio/payment_behaviour_shift"
+        },
+        {
+          "label": "PD by Grade Average probability of default within each rating grade.",
+          "href": "/studio/pd_by_grade"
+        },
+        {
+          "label": "PD Change Change in pd between two reporting periods.",
+          "href": "/studio/pd_change"
+        },
+        {
+          "label": "PD Movement Change in probability of default between periods.",
+          "href": "/studio/pd_movement"
+        },
+        {
+          "label": "PD Stress Probability of default under stressed assumptions.",
+          "href": "/studio/pd_stress"
+        },
+        {
+          "label": "Period Completeness Whether every expected reporting period is present.",
+          "href": "/studio/period_completeness"
+        },
+        {
+          "label": "Population Reconciliation Whether the facilities in one dataset match those in a",
+          "href": "/studio/population_reconciliation"
+        },
+        {
+          "label": "Portfolio Yield Interest yield on the credit book.",
+          "href": "/studio/portfolio_yield"
+        },
+        {
+          "label": "Product Limit Utilisation Product exposure against its limit.",
+          "href": "/studio/product_limit_utilisation"
+        },
+        {
+          "label": "Provision Adequacy Coverage compared against realised loss experience.",
+          "href": "/studio/provision_adequacy"
+        },
+        {
+          "label": "Provision Charge The impairment charge recognised in the period.",
+          "href": "/studio/provision_charge"
+        },
+        {
+          "label": "Quality Migration Summary Every migration measure in one view.",
+          "href": "/studio/quality_migration_summary"
+        },
+        {
+          "label": "RAROC Risk-adjusted return on capital.",
+          "href": "/studio/raroc"
+        },
+        {
+          "label": "Rating Coverage The share of exposure carrying a current internal rating.",
+          "href": "/studio/rating_coverage"
+        },
+        {
+          "label": "Rating Distribution Change Change in rating distribution between two reporting p",
+          "href": "/studio/rating_change"
+        },
+        {
+          "label": "Rating Drift Net notch movement across the portfolio.",
+          "href": "/studio/rating_drift"
+        },
+        {
+          "label": "Rating Momentum Direction of rating movement sustained across several periods.",
+          "href": "/studio/rating_momentum"
+        },
+        {
+          "label": "Rating Override Rate The share of ratings overridden from the model output.",
+          "href": "/studio/rating_override_rate"
+        },
+        {
+          "label": "Rating Stability The share of customers whose grade is unchanged.",
+          "href": "/studio/rating_stability"
+        },
+        {
+          "label": "Rating Staleness Time since the last rating review.",
+          "href": "/studio/rating_staleness"
+        },
+        {
+          "label": "Re-default Rate The share of cured exposures that returned to default within a h",
+          "href": "/studio/redefault_rate"
+        },
+        {
+          "label": "Realised Loss Given Default One minus the realised recovery rate, discounted.",
+          "href": "/studio/loss_given_default_realised"
+        },
+        {
+          "label": "Recovery Rate Cash recovered as a share of exposure at default.",
+          "href": "/studio/recovery_rate"
+        },
+        {
+          "label": "Restructuring Rate The share of exposure restructured in a period.",
+          "href": "/studio/restructuring_rate"
+        },
+        {
+          "label": "Return on Exposure Income as a rate on average exposure.",
+          "href": "/studio/return_on_exposure"
+        },
+        {
+          "label": "Reverse Stress The shock required to breach a stated threshold.",
+          "href": "/studio/reverse_stress"
+        },
+        {
+          "label": "Risk Appetite Position Every appetite measure against its threshold, in one view",
+          "href": "/studio/appetite_dashboard"
+        },
+        {
+          "label": "Risk Weighted Assets Exposure weighted by risk under the applicable approach.",
+          "href": "/studio/risk_weighted_assets"
+        },
+        {
+          "label": "Risk-Adjusted Margin Margin after expected loss.",
+          "href": "/studio/risk_adjusted_margin"
+        },
+        {
+          "label": "Risk-Adjusted Return Return after adjusting for expected loss and capital.",
+          "href": "/studio/risk_adjusted_return"
+        },
+        {
+          "label": "Roll Forward The full opening-to-closing movement across arrears buckets.",
+          "href": "/studio/roll_forward"
+        },
+        {
+          "label": "Roll Rate The share of a delinquency bucket that moves to the next bucket.",
+          "href": "/studio/roll_rate"
+        },
+        {
+          "label": "Scenario Comparison Two or more scenarios side by side.",
+          "href": "/studio/scenario_comparison"
+        },
+        {
+          "label": "Scenario Impact on ECL ECL under an alternative macroeconomic scenario.",
+          "href": "/studio/scenario_impact_ecl"
+        },
+        {
+          "label": "Seasoning Curve How default rates vary with months on book.",
+          "href": "/studio/seasoning_curve"
+        },
+        {
+          "label": "Sector Appetite Headroom Remaining capacity within each sector limit.",
+          "href": "/studio/sector_appetite_headroom"
+        },
+        {
+          "label": "Sector Correlation Co-movement of default experience across sectors.",
+          "href": "/studio/sector_correlation"
+        },
+        {
+          "label": "Sector Limit Utilisation Sector exposure against its approved limit.",
+          "href": "/studio/sector_limit_utilisation"
+        },
+        {
+          "label": "Sector Stress A shock applied to one sector rather than the whole book.",
+          "href": "/studio/sector_stress"
+        },
+        {
+          "label": "Sensitivity Analysis How the result moves as one assumption moves.",
+          "href": "/studio/sensitivity_analysis"
+        },
+        {
+          "label": "SICR Emergence Rate The share of Stage 1 exposure newly showing a significant in",
+          "href": "/studio/sicr_emergence"
+        },
+        {
+          "label": "Signal Lead Time How far in advance of default a signal fired.",
+          "href": "/studio/signal_lead_time"
+        },
+        {
+          "label": "Single Name Limit Utilisation Obligor exposure against the single-name limit.",
+          "href": "/studio/single_name_limit"
+        },
+        {
+          "label": "Six-Month Forward ODR As the one-year measure, over a two-quarter horizon.",
+          "href": "/studio/six_month_forward_odr"
+        },
+        {
+          "label": "Stage 1 to Default Emergence Facilities moving from Stage 1 directly to default.",
+          "href": "/studio/stage_1_to_default"
+        },
+        {
+          "label": "Stage 2 Appetite Threshold Stage 2 share against its appetite threshold.",
+          "href": "/studio/stage_2_appetite_threshold"
+        },
+        {
+          "label": "Stage 2 Share by Country Stage 2 Share broken down by country.",
+          "href": "/studio/stage2_by_country"
+        },
+        {
+          "label": "Stage 2 Share by IFRS 9 Stage Stage 2 Share broken down by ifrs 9 stage.",
+          "href": "/studio/stage2_by_stage"
+        },
+        {
+          "label": "Stage 2 Share by Product Stage 2 Share broken down by product.",
+          "href": "/studio/stage2_by_product"
+        },
+        {
+          "label": "Stage 2 Share by Rating Grade Stage 2 Share broken down by rating grade.",
+          "href": "/studio/stage2_by_rating"
+        },
+        {
+          "label": "Stage 2 Share by Region Stage 2 Share broken down by region.",
+          "href": "/studio/stage2_by_region"
+        },
+        {
+          "label": "Stage 2 Share by Sector Stage 2 Share broken down by sector.",
+          "href": "/studio/stage2_by_sector"
+        },
+        {
+          "label": "Stage 2 Share by Segment Stage 2 Share broken down by segment.",
+          "href": "/studio/stage2_by_segment"
+        },
+        {
+          "label": "Stage 2 Share by Vintage Stage 2 Share broken down by vintage.",
+          "href": "/studio/stage2_by_vintage"
+        },
+        {
+          "label": "Stage 2 Share Change Change in stage 2 share between two reporting periods.",
+          "href": "/studio/stage2_change"
+        },
+        {
+          "label": "Stage 3 Share by Country Stage 3 Share broken down by country.",
+          "href": "/studio/stage3_by_country"
+        },
+        {
+          "label": "Stage 3 Share by IFRS 9 Stage Stage 3 Share broken down by ifrs 9 stage.",
+          "href": "/studio/stage3_by_stage"
+        },
+        {
+          "label": "Stage 3 Share by Product Stage 3 Share broken down by product.",
+          "href": "/studio/stage3_by_product"
+        },
+        {
+          "label": "Stage 3 Share by Rating Grade Stage 3 Share broken down by rating grade.",
+          "href": "/studio/stage3_by_rating"
+        },
+        {
+          "label": "Stage 3 Share by Region Stage 3 Share broken down by region.",
+          "href": "/studio/stage3_by_region"
+        },
+        {
+          "label": "Stage 3 Share by Sector Stage 3 Share broken down by sector.",
+          "href": "/studio/stage3_by_sector"
+        },
+        {
+          "label": "Stage 3 Share by Segment Stage 3 Share broken down by segment.",
+          "href": "/studio/stage3_by_segment"
+        },
+        {
+          "label": "Stage 3 Share by Vintage Stage 3 Share broken down by vintage.",
+          "href": "/studio/stage3_by_vintage"
+        },
+        {
+          "label": "Stage 3 Share Change Change in stage 3 share between two reporting periods.",
+          "href": "/studio/stage3_change"
+        },
+        {
+          "label": "Stage Cure Exposure improving to a better stage between periods.",
+          "href": "/studio/stage_cure"
+        },
+        {
+          "label": "Temporary Excess Approved excesses over limit and their expiry.",
+          "href": "/studio/temporary_excess"
+        },
+        {
+          "label": "Tenor Limit Utilisation Long-tenor exposure against its limit.",
+          "href": "/studio/tenor_limit_utilisation"
+        },
+        {
+          "label": "Three-Month Forward ODR As the one-year measure, over a one-quarter horizon.",
+          "href": "/studio/three_month_forward_odr"
+        },
+        {
+          "label": "Time to Recovery Elapsed time between default and final recovery.",
+          "href": "/studio/time_to_recovery"
+        },
+        {
+          "label": "Top Borrowers by Arrears The largest borrowers ranked by arrears.",
+          "href": "/studio/top_borrowers_by_arrears"
+        },
+        {
+          "label": "Top Borrowers by Coverage Gap The largest borrowers ranked by coverage gap.",
+          "href": "/studio/top_borrowers_by_coverage_gap"
+        },
+        {
+          "label": "Top Borrowers by Downgrade The largest borrowers ranked by downgrade.",
+          "href": "/studio/top_borrowers_by_downgrade"
+        },
+        {
+          "label": "Top Borrowers by ECL The largest borrowers ranked by ecl.",
+          "href": "/studio/top_borrowers_by_ecl"
+        },
+        {
+          "label": "Top Borrowers by ECL Increase The largest borrowers ranked by ecl increase.",
+          "href": "/studio/top_borrowers_by_ecl_increase"
+        },
+        {
+          "label": "Top Borrowers by Exposure The largest borrowers ranked by exposure.",
+          "href": "/studio/top_borrowers_by_ead"
+        },
+        {
+          "label": "Top Borrowers by Limit Excess The largest borrowers ranked by limit excess.",
+          "href": "/studio/top_borrowers_by_limit_excess"
+        },
+        {
+          "label": "Top Borrowers by PD Increase The largest borrowers ranked by pd increase.",
+          "href": "/studio/top_borrowers_by_pd_increase"
+        },
+        {
+          "label": "Top Borrowers by Uncovered Exposure The largest borrowers ranked by uncovered ex",
+          "href": "/studio/top_borrowers_by_uncovered"
+        },
+        {
+          "label": "Top Borrowers by Utilisation The largest borrowers ranked by utilisation.",
+          "href": "/studio/top_borrowers_by_utilisation"
+        },
+        {
+          "label": "Undrawn Commitment Committed limits not yet drawn.",
+          "href": "/studio/undrawn_commitment"
+        },
+        {
+          "label": "Unsecured Share Exposure with no collateral, as a share of the book.",
+          "href": "/studio/unsecured_share"
+        },
+        {
+          "label": "Utilisation by Country Utilisation broken down by country.",
+          "href": "/studio/utilisation_by_country"
+        },
+        {
+          "label": "Utilisation by IFRS 9 Stage Utilisation broken down by ifrs 9 stage.",
+          "href": "/studio/utilisation_by_stage"
+        },
+        {
+          "label": "Utilisation by Product Utilisation broken down by product.",
+          "href": "/studio/utilisation_by_product"
+        },
+        {
+          "label": "Utilisation by Rating Grade Utilisation broken down by rating grade.",
+          "href": "/studio/utilisation_by_rating"
+        },
+        {
+          "label": "Utilisation by Region Utilisation broken down by region.",
+          "href": "/studio/utilisation_by_region"
+        },
+        {
+          "label": "Utilisation by Sector Utilisation broken down by sector.",
+          "href": "/studio/utilisation_by_sector"
+        },
+        {
+          "label": "Utilisation by Segment Utilisation broken down by segment.",
+          "href": "/studio/utilisation_by_segment"
+        },
+        {
+          "label": "Utilisation by Vintage Utilisation broken down by vintage.",
+          "href": "/studio/utilisation_by_vintage"
+        },
+        {
+          "label": "Utilisation Change Change in utilisation between two reporting periods.",
+          "href": "/studio/utilisation_change"
+        },
+        {
+          "label": "Valuation Staleness Time since the last collateral valuation.",
+          "href": "/studio/valuation_staleness"
+        },
+        {
+          "label": "Vintage Default Rate Default experience by origination cohort and months on book",
+          "href": "/studio/vintage_default_rate"
+        },
+        {
+          "label": "Vintage Delinquency Delinquency by origination cohort and months on book.",
+          "href": "/studio/vintage_delinquency"
+        },
+        {
+          "label": "the engine registry",
+          "href": "/engine-builder"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Search methods",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [
+        {
+          "label": "Filter by category",
+          "options": [
+            "",
+            "Portfolio Quality",
+            "Default & Delinquency",
+            "Ratings",
+            "IFRS 9 / Impairment",
+            "Migration",
+            "Concentration",
+            "Watchlist",
+            "Early Warning",
+            "Collateral",
+            "Covenants",
+            "Exposure / Utilisation",
+            "Vintage / Cohort",
+            "Recovery / Cure",
+            "Risk Appetite",
+            "Stress / Scenario",
+            "Return / Profitability",
+            "Limits / Large Exposure"
+          ],
+          "testid": ""
+        },
+        {
+          "label": "Filter by state",
+          "options": [
+            "",
+            "draft",
+            "built",
+            "tested",
+            "validated",
+            "certified",
+            "preconfigured",
+            "preview",
+            "custom",
+            "deprecated"
+          ],
+          "testid": ""
+        }
+      ],
+      "tabs": [],
+      "details": [],
+      "tables": 1,
+      "empty_state": false,
+      "refused": false,
+      "characters": 41631,
+      "opened": true,
+      "url": "http://localhost:5328/studio",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-studio.png"
+    },
+    "/data-builder": {
+      "heading": "Data Builder",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Actions for Cockpit Data",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Ask",
+          "disabled": true,
+          "testid": ""
+        },
+        {
+          "label": "What does ead mean?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Which datasets share a common field?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Relationships",
+          "href": "/data-builder/relationships"
+        },
+        {
+          "label": "Data Inbox",
+          "href": "/data-builder/inbox"
+        },
+        {
+          "label": "Browse the data",
+          "href": "/data-builder/browse"
+        },
+        {
+          "label": "Add dataset",
+          "href": "/data-builder/new"
+        },
+        {
+          "label": "Cockpit Data",
+          "href": "/data-builder/domain/Cockpit%20Data"
+        },
+        {
+          "label": "Open domain",
+          "href": "/data-builder/domain/Cockpit%20Data"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Ask about the governed metadata",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [],
+      "tabs": [],
+      "details": [
+        "Advanced diagnostics \u2014 governed purpose resolutionwhich dataset answers each gov"
+      ],
+      "tables": 0,
+      "empty_state": false,
+      "refused": true,
+      "characters": 1673,
+      "opened": true,
+      "url": "http://localhost:5328/data-builder",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-data-builder.png"
+    },
+    "/trace": {
+      "heading": "Trace & Lineage",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Ask a question",
+          "href": "/?focus=ask"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
+          "href": "/trace/119"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
+          "href": "/trace/118"
+        },
+        {
+          "label": "What data do you have in Retail facility month-end position? the question asks a",
+          "href": "/trace/117"
+        },
+        {
+          "label": "Show expected credit loss by IFRS 9 stage for August 2026 final ECL by ifrs9 sta",
+          "href": "/trace/116"
+        },
+        {
+          "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
+          "href": "/trace/115"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
+          "href": "/trace/114"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
+          "href": "/trace/113"
+        },
+        {
+          "label": "What data do you have in Retail facility month-end position? the question asks a",
+          "href": "/trace/112"
+        },
+        {
+          "label": "Show expected credit loss by IFRS 9 stage for August 2026 final ECL by ifrs9 sta",
+          "href": "/trace/111"
+        },
+        {
+          "label": "Use Cockpit Data for August 2026. Show exposure and weighted ECL by retail produ",
+          "href": "/trace/110"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
+          "href": "/trace/109"
+        },
+        {
+          "label": "Show exposure by retail product for August 2026 Show exposure by retail product ",
+          "href": "/trace/108"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": true,
+      "characters": 2857,
+      "opened": true,
+      "url": "http://localhost:5328/trace",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-trace.png"
+    },
+    "/playbook": {
+      "heading": "Playbook",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Committees",
+          "href": "/playbook/committees"
+        },
+        {
+          "label": "New pack",
+          "href": "/playbook/packs/new"
+        },
+        {
+          "label": "Manage",
+          "href": "/playbook/committees"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": true,
+      "refused": false,
+      "characters": 1092,
+      "opened": true,
+      "url": "http://localhost:5328/playbook",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-playbook.png"
+    },
+    "/reviews": {
+      "heading": "My reviews",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Assigned to me0",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Sent by me0",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Mentions0",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Due soon0",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Completed0",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [
+        "Assigned to me0",
+        "Sent by me0",
+        "Mentions0",
+        "Due soon0",
+        "Completed0"
+      ],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 734,
+      "opened": true,
+      "url": "http://localhost:5328/reviews",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-reviews.png"
+    },
+    "/workflow": {
+      "heading": "Workflow",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        },
+        {
+          "label": "Manage users \u2192",
+          "href": "/users"
+        }
+      ],
+      "inputs": [
+        {
+          "label": "Find a person",
+          "type": "input",
+          "testid": "",
+          "disabled": false
+        }
+      ],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 1,
+      "empty_state": false,
+      "refused": false,
+      "characters": 837,
+      "opened": true,
+      "url": "http://localhost:5328/workflow",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-workflow.png"
+    },
+    "/agent-operations": {
+      "heading": "Agent Operations",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AGENTS",
+          "disabled": false,
+          "testid": "agent-ops-tab-agents"
+        },
+        {
+          "label": "RUNS",
+          "disabled": false,
+          "testid": "agent-ops-tab-runs"
+        },
+        {
+          "label": "SCHEDULES",
+          "disabled": false,
+          "testid": "agent-ops-tab-schedules"
+        },
+        {
+          "label": "POLICIES",
+          "disabled": false,
+          "testid": "agent-ops-tab-policies"
+        },
+        {
+          "label": "APPROVALS",
+          "disabled": false,
+          "testid": "agent-ops-tab-approvals"
+        },
+        {
+          "label": "EVALUATIONS",
+          "disabled": false,
+          "testid": "agent-ops-tab-evaluations"
+        },
+        {
+          "label": "Data Steward ACTIVE Autonomy 0 \u2014 Observe Confirms what data exists, at which gra",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Credit Analyst ACTIVE Autonomy 1 \u2014 Recommend Answers a bounded descriptive or di",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Ratings & Financials ACTIVE Autonomy 1 \u2014 Recommend Rating migration, financial-r",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "IFRS 9 ACTIVE Autonomy 1 \u2014 Recommend Stage, SICR, ECL, coverage and impairment m",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Delinquency & Collections ACTIVE Autonomy 1 \u2014 Recommend DPD migration, roll rate",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Covenant & Collateral ACTIVE Autonomy 1 \u2014 Recommend Headroom, breach proximity, ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Portfolio Risk ACTIVE Autonomy 1 \u2014 Recommend Portfolio and segment trends, conce",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Relationship Graph ACTIVE Autonomy 1 \u2014 Recommend Ownership, control, connected c",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Early Warning ACTIVE Autonomy 1 \u2014 Recommend Proactive deterioration signals and ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Stress & Scenario ACTIVE Autonomy 1 \u2014 Recommend Governed scenario and sensitivit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Validation & Assurance ACTIVE Autonomy 0 \u2014 Observe Checks every calculation befo",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Workflow Coordinator ACTIVE Autonomy 2 \u2014 Draft Drafts assignments, review reques",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Chief Orchestrator ACTIVE Autonomy 2 \u2014 Draft Decomposes a broad request into bou",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [
+        "AGENTS",
+        "RUNS",
+        "SCHEDULES",
+        "POLICIES",
+        "APPROVALS",
+        "EVALUATIONS"
+      ],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 4461,
+      "opened": true,
+      "url": "http://localhost:5328/agent-operations",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-agent-operations.png"
+    },
+    "/ai-studio": {
+      "heading": "AI Intelligence Studio",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is running, how it is performing, and whether it is safe to put in front of",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "The foundations everything else is built on: the credit-risk ontology, the certi",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Every case CreditProbe learns from, what state it is in, and whether a person ha",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What a competent analyst would look at for each kind of investigation, and what ",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "The policies that decide how large, how broad, how sustained and how contradicto",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What each result field MEANS, which picture that permits, and what the critic re",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Which model role handles what, why, and what it costs.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "The versioned prompts and the pack policy that governs what reaches a model.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What has been measured, over how many cases, and what the evidence actually supp",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "How recent investigations performed, turn by turn.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What users told us, and what was done about it.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "How much has been learned since a chosen baseline, and \u2014 separately, and never a",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What Brain is running, what this installation has learned, what has been importe",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What the bank learned from the regulations it read: which teaching cases, ontolo",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Whether the agentic layer is genuinely running.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is frozen, what is approved, and what has gone stale underneath it.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "The provider, the roles, and what a live check would cost.",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Who may do what, and what the Studio will never show.",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [
+        "What is running, how it is performing, and whether it is safe to put in front of",
+        "The foundations everything else is built on: the credit-risk ontology, the certi",
+        "Every case CreditProbe learns from, what state it is in, and whether a person ha",
+        "What a competent analyst would look at for each kind of investigation, and what ",
+        "The policies that decide how large, how broad, how sustained and how contradicto",
+        "What each result field MEANS, which picture that permits, and what the critic re",
+        "Which model role handles what, why, and what it costs.",
+        "The versioned prompts and the pack policy that governs what reaches a model.",
+        "What has been measured, over how many cases, and what the evidence actually supp",
+        "How recent investigations performed, turn by turn.",
+        "What users told us, and what was done about it.",
+        "How much has been learned since a chosen baseline, and \u2014 separately, and never a",
+        "What Brain is running, what this installation has learned, what has been importe",
+        "What the bank learned from the regulations it read: which teaching cases, ontolo",
+        "Whether the agentic layer is genuinely running.",
+        "What is frozen, what is approved, and what has gone stale underneath it.",
+        "The provider, the roles, and what a live check would cost.",
+        "Who may do what, and what the Studio will never show."
+      ],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 4081,
+      "opened": true,
+      "url": "http://localhost:5328/ai-studio",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-ai-studio.png"
+    },
+    "/users": {
+      "heading": "Users",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Add user",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Set a new password",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Deactivate",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [],
+      "selects": [
+        {
+          "label": "Role for retail.demo",
+          "options": [
+            "ADMIN",
+            "DATA_STEWARD",
+            "ANALYST",
+            "VIEWER"
+          ],
+          "testid": ""
+        }
+      ],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": false,
+      "refused": false,
+      "characters": 1066,
+      "opened": true,
+      "url": "http://localhost:5328/users",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-users.png"
+    },
+    "/settings": {
+      "heading": "Settings",
+      "buttons": [
+        {
+          "label": "Collapse navigation",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "AI validation \u2014 run an intelligence check",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Notifications",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Personalise the Cockpit",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Change theme",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "What is this screen for?",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Executive Ivory Paper-like and high contrast. Reads as a printed board pack rath",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Midnight Boardroom Deep navy-black, for long analytical sessions and presentatio",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Graphite Neutral low-chroma grey. Sober and engineering-toned; colour is reserve",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Warm Sand Warm off-white and ink. Traditional and document-like, in the manner o",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Alpine Cool glacial light with a deep teal accent. The crispest of the light the",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Porcelain Near-white and almost chroma-free, so the only saturated colour belong",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Oxblood Deep wine and brass. Warm and closed \u2014 the panelled room rather than the",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Forest Deep pine with a eucalyptus accent. The calmest of the dark themes at low",
+          "disabled": false,
+          "testid": ""
+        },
+        {
+          "label": "Signed in as retail.demo \u2014 sign out",
+          "disabled": false,
+          "testid": ""
+        }
+      ],
+      "links": [
+        {
+          "label": "CreditProbeAI",
+          "href": "/"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Cockpit",
+          "href": "/"
+        },
+        {
+          "label": "My workspace",
+          "href": "/workspace"
+        },
+        {
+          "label": "Messages",
+          "href": "/messages"
+        },
+        {
+          "label": "Projects",
+          "href": "/projects"
+        },
+        {
+          "label": "Project Planner",
+          "href": "/delivery"
+        },
+        {
+          "label": "Investigations",
+          "href": "/investigations"
+        },
+        {
+          "label": "Analyses",
+          "href": "/analyses"
+        },
+        {
+          "label": "Documents \u2014 Preview: Placeholder by design",
+          "href": "/documents"
+        },
+        {
+          "label": "Lenses",
+          "href": "/lenses"
+        },
+        {
+          "label": "Metric Catalogue",
+          "href": "/metrics"
+        },
+        {
+          "label": "Early Warning \u2014 Partial: Prototype signal, fitted on synthetic data. Not a valid",
+          "href": "/early-warning"
+        },
+        {
+          "label": "Early Warning Signals",
+          "href": "/early-warning/signals"
+        },
+        {
+          "label": "What-If Analysis",
+          "href": "/what-if"
+        },
+        {
+          "label": "Customer 360",
+          "href": "/borrower-360"
+        },
+        {
+          "label": "Scorecard Validation",
+          "href": "/scorecard-validation"
+        },
+        {
+          "label": "Analysis Studio",
+          "href": "/studio"
+        },
+        {
+          "label": "Data Builder",
+          "href": "/data-builder"
+        },
+        {
+          "label": "Trace & Lineage",
+          "href": "/trace"
+        },
+        {
+          "label": "Playbook",
+          "href": "/playbook"
+        },
+        {
+          "label": "My reviews",
+          "href": "/reviews"
+        },
+        {
+          "label": "Workflow",
+          "href": "/workflow"
+        },
+        {
+          "label": "Agent Operations",
+          "href": "/agent-operations"
+        },
+        {
+          "label": "AI Intelligence Studio",
+          "href": "/ai-studio"
+        },
+        {
+          "label": "Users & Teams \u2014 Preview: Placeholder records",
+          "href": "/users"
+        },
+        {
+          "label": "Settings \u2014 Partial",
+          "href": "/settings"
+        }
+      ],
+      "inputs": [],
+      "selects": [],
+      "tabs": [],
+      "details": [],
+      "tables": 0,
+      "empty_state": true,
+      "refused": true,
+      "characters": 4460,
+      "opened": true,
+      "url": "http://localhost:5328/settings",
+      "console_errors": [],
+      "screenshot": "docs/evidence/retail_functionality/screens/route-settings.png"
+    }
+  }
+}

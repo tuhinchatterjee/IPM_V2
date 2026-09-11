@@ -1,0 +1,161 @@
+{
+  "suite": "navigation",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 100.9,
+  "counts": {
+    "PASS": 9,
+    "FAIL": 1,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 1
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/navigation-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-01",
+      "module": "navigation",
+      "title": "Evidence opened from an answer returns to THAT conversation, not to the home page",
+      "status": "FAIL",
+      "detail": "the Trace opened=True; Back returned to http://localhost:5328/investigations/46#turn-1 (the conversation is http://localhost:5328/investigations/46?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit)",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/nav-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-02",
+      "module": "navigation",
+      "title": "The returned conversation still carries its question, its month and its completed result",
+      "status": "PASS",
+      "detail": "the question is still on screen=True; the month 2026-08 is still the answer's month=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-04",
+      "module": "navigation",
+      "title": "Browser Back undoes ONE intentional navigation and Forward redoes it",
+      "status": "PASS",
+      "detail": "http://localhost:5328/investigations/46#turn-1 -> http://localhost:5328/early-warning; Back -> http://localhost:5328/investigations/46#turn-1; Forward -> http://localhost:5328/early-warning",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/nav-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-05",
+      "module": "navigation",
+      "title": "A detail route opened directly renders with a working in-app parent rather than a sign-in loop",
+      "status": "PASS",
+      "detail": "still signed in=True; a way back is present=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/nav-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-03",
+      "module": "navigation",
+      "title": "A saved scenario survives leaving the module and reopens with its own pinned inputs and month",
+      "status": "PASS",
+      "detail": "saved=True; reopened with its inputs=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/nav-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-08",
+      "module": "navigation",
+      "title": "Leaving mid-question does not show the answer in another module, and returning does not resubmit it",
+      "status": "PASS",
+      "detail": "the pending answer appeared in Early Warning=False; returning resubmitted it=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/nav-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-10",
+      "module": "navigation",
+      "title": "A stale or deleted link lands on an informative, recoverable screen rather than a crash or a spinner",
+      "status": "PASS",
+      "detail": "an explanation is shown=True; stuck on a loader=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/nav-10.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-06",
+      "module": "navigation",
+      "title": "An overlay closes with Escape and leaves the page usable",
+      "status": "PASS",
+      "detail": "closed with Escape=True; the composer is usable after=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-09",
+      "module": "navigation",
+      "title": "The composer and its Send stay visible and unobstructed at MacBook and narrow desktop widths",
+      "status": "PASS",
+      "detail": "MacBook 13 (1280x800): ok; narrow desktop (1024x768): ok",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "NAV-07",
+      "module": "navigation",
+      "title": "An unsaved scenario name is neither silently saved nor reported as saved",
+      "status": "NOT APPLICABLE",
+      "detail": "the What-If composer holds no document-style edit: a scenario is not persisted until Save is pressed, and the draft is a single field that the module restores on return",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}
