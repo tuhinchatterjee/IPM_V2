@@ -1,0 +1,257 @@
+{
+  "suite": "overnight_resilience",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 223.8,
+  "counts": {
+    "PASS": 8,
+    "FAIL": 8,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_resilience-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SEC-01",
+      "module": "resilience",
+      "title": "No protected route answers an unauthenticated caller",
+      "status": "FAIL",
+      "detail": "answered without a credential={'/data-builder/datasets/retail_facility_month': 200, '/lenses': 200, '/workspace/investigations': 200}",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "statuses": {
+          "/ask": 405,
+          "/retail/early-warning": 401,
+          "/retail/customers": 401,
+          "/data-builder/datasets/retail_facility_month": 200,
+          "/metrics": 401,
+          "/lenses": 200,
+          "/workspace/investigations": 200
+        }
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SEC-02",
+      "module": "resilience",
+      "title": "No refusal body carries a retail figure or an identifier",
+      "status": "PASS",
+      "detail": "bodies carrying book data=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "bodies": {
+          "/ask": "{\"detail\":{\"error\":\"http_405\",\"message\":\"Method Not Allowed\",\"status\":405,\"request_id\":\"9669de60fa63\",\"correlation_id\":\"9669de60fa63\"}}",
+          "/retail/early-warning": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401,\"request_id\":\"1339054b2c1b\",\"correlation_id\":\"1339054b2c1b\"}}",
+          "/retail/customers": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401,\"request_id\":\"b0735834ea27\",\"correlation_id\":\"b0735834ea27\"}}",
+          "/data-builder/datasets/retail_facility_month": "{\"name\":\"retail_facility_month\",\"domain\":\"Cockpit Data\",\"business_name\":\"Retail facility month-end position\",\"purpose\":\"The joined Saudi retail book at each month-end: customer, employment and affordability, facility terms and balances, delinquency and collections, salary and bureau signals, both sc",
+          "/metrics": "{\"detail\":{\"error\":\"not_signed_in\",\"message\":\"You are signed out. Please sign in again. Nothing you were working on has been lost.\",\"status\":401,\"request_id\":\"11e12fec9126\",\"correlation_id\":\"11e12fec9126\"}}",
+          "/lenses": "{\"lenses\":[{\"id\":2,\"slug\":\"retail-analytics\",\"name\":\"Retail Analytics\",\"description\":\"Origination volume and quality, and whether the scorecards are still doing what they were built to do.\",\"audience\":\"Head of Retail Analytics and Model Validation\",\"panels\":[{\"kind\":\"metric\",\"note\":\"\",\"title\":\"\",\"pa",
+          "/workspace/investigations": "{\"investigations\":[{\"id\":282,\"title\":\"Stage split, as it stood\",\"question\":\"What is total exposure at default by IFRS 9 stage?\",\"status\":\"live\",\"project_id\":null,\"owner_id\":1,\"version\":1,\"answer\":\"2,096,259,474 SAR of exposure at default across 3 stages at 2026-08.\",\"change_narrative\":\"\",\"from_perio"
+        }
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SEC-03",
+      "module": "resilience",
+      "title": "No refusal prints a stack trace, a path or a connection string",
+      "status": "PASS",
+      "detail": "leaks=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PERSIST-01",
+      "module": "resilience",
+      "title": "A question is answered and joins the session's history",
+      "status": "PASS",
+      "detail": "answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY IFRS9 STAGE\n\n15,952,109 SAR of final ECL across 3 stages at 2026-08.\n\nLARGEST CONTRIBUTOR\n\n1 is the largest at 6,489,537 SAR, 40.68% of the total.\n\n1\n6,489,536.92\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each stage at 2026-08. IFRS 9 stage 1 alone accounts for 40.68% of expected credit loss across the 3 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method",
+        "screenshot": "docs/evidence/retail_functionality/screens/persist-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PERSIST-02",
+      "module": "resilience",
+      "title": "The session survives a full page reload",
+      "status": "PASS",
+      "detail": "still signed in=True; the question is still listed=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/persist-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ERR-01",
+      "module": "resilience",
+      "title": "The screen SAYS the backend is unreachable rather than spinning",
+      "status": "PASS",
+      "detail": "an explanation is on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screen": "CreditProbeAI\nAI POWERED\nExecutive Ivory\nActing role\nAdministrator\nData Steward\nAnalyst\nViewer\nBackend offline\n\nHOME\n\nCockpit\nMy workspace\nMessages\n\nWORK\n\nProjects\nProject Planner\nInvestigations\nAnalyses\nDocuments\n\nINTELLIGENCE\n\nLenses\nMetric Catalogue\nEarly Warning\nEarly Warning Signals\nWhat-If Analysis\nCustomer 360\nScorecard Validation\n\nBUILD\n\nAnalysis Studio\nData Builder\n\nGOVERN\n\nTrace & Lineage\nPlaybook\nMy reviews\n\nADMIN\n\nWorkflow\nAgent Operations\nAI Intelligence Studio\nUsers & Teams\nSettings\nCannot reach the CreditProbe backend at http://localhost:8328. Is it running?",
+        "screenshot": "docs/evidence/retail_functionality/screens/err-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ERR-02",
+      "module": "resilience",
+      "title": "Nothing on the failed screen is a stack trace or a path",
+      "status": "PASS",
+      "detail": "leaks=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/err-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ERR-03",
+      "module": "resilience",
+      "title": "The backend comes back on the same port with the launcher's environment",
+      "status": "PASS",
+      "detail": "restart_backend.sh succeeded=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PERSIST-03",
+      "module": "resilience",
+      "title": "The session and its history survive a BACKEND restart",
+      "status": "FAIL",
+      "detail": "still signed in=False; the question is still listed=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/persist-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PERSIST-04",
+      "module": "resilience",
+      "title": "The conversation continues after the restart rather than starting again",
+      "status": "FAIL",
+      "detail": "the follow-up was answered=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "",
+        "screenshot": "docs/evidence/retail_functionality/screens/persist-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PERSIST-05",
+      "module": "resilience",
+      "title": "A What-If run is still there after leaving the module and coming back",
+      "status": "FAIL",
+      "detail": "the scenario ran=False; it is listed on return=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/persist-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ERR-04",
+      "module": "resilience",
+      "title": "An unreadable question is answered with a question, not a crash",
+      "status": "FAIL",
+      "detail": "answered=False; leaks=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "",
+        "screenshot": "docs/evidence/retail_functionality/screens/err-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ERR-05",
+      "module": "resilience",
+      "title": "A period the book does not hold is named rather than invented",
+      "status": "FAIL",
+      "detail": "the absence is stated=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "",
+        "screenshot": "docs/evidence/retail_functionality/screens/err-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ERR-06",
+      "module": "resilience",
+      "title": "An impossible assumption is refused or bounded, never run silently",
+      "status": "FAIL",
+      "detail": "answered=False; leaks=none",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": "",
+        "screenshot": "docs/evidence/retail_functionality/screens/err-06.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "SUITE",
+      "module": "overnight_resilience",
+      "title": "The suite ran to the end",
+      "status": "FAIL",
+      "detail": "AttributeError: 'NoneType' object has no attribute 'fill'",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "traceback": "Traceback (most recent call last):\n  File \"/home/user/IPM_V2/scripts/retail_uat/driver.py\", line 436, in run_suite\n    body(session, rec)\n  File \"/home/user/IPM_V2/scripts/retail_uat/overnight_resilience.py\", line 248, in suite\n    composer.fill(\"What is ECL coverage?\")\n    ^^^^^^^^^^^^^\nAttributeError: 'NoneType' object has no attribute 'fill'\n"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

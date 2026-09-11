@@ -28,7 +28,28 @@ stop_one() {
     local cmd; cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
     case "$cmd" in
       *8328*|*5328*|*retail*)
-        kill "$pid" 2>/dev/null && printf '  %s: stopped pid %s\n' "$what" "$pid"
+        # Asked politely, then confirmed. SIGTERM alone was sent and the
+        # script returned at once, so "Done" was printed over a process that
+        # had not stopped: uvicorn can sit in "Waiting for background tasks to
+        # complete" indefinitely, and the next start then finds its port
+        # taken. Twenty seconds is longer than any request this product makes.
+        kill "$pid" 2>/dev/null && printf '  %s: stopping pid %s\n' "$what" "$pid"
+        waited=0
+        while kill -0 "$pid" 2>/dev/null && [ "$waited" -lt 20 ]; do
+          sleep 1; waited=$((waited+1))
+        done
+        if kill -0 "$pid" 2>/dev/null; then
+          printf '  %s: pid %s did not stop in %ss; ending it\n' \
+            "$what" "$pid" "$waited"
+          kill -9 "$pid" 2>/dev/null || true
+          sleep 1
+        fi
+        if kill -0 "$pid" 2>/dev/null; then
+          printf '  %s: pid %s is STILL running. Stop it by hand before starting again.\n' \
+            "$what" "$pid"
+        else
+          printf '  %s: stopped pid %s\n' "$what" "$pid"
+        fi
         stopped=$((stopped+1)) ;;
       *)
         printf '  %s: pid %s is %s — NOT the retail process, leaving it alone\n' \

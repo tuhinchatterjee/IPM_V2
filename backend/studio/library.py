@@ -30,6 +30,7 @@ before anybody has built it — and says honestly that it has not been built.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 from backend.studio.model import (
@@ -1293,7 +1294,89 @@ def _serves_the_active_book(method: MethodDefinition) -> bool:
     if method.category in _RETIRED_CATEGORIES:
         return False
     text = f"{method.name} {method.definition}".lower()
-    return not any(word in text for word in _RETIRED_WORDS)
+    if any(word in text for word in _RETIRED_WORDS):
+        return False
+    return _engine_can_read_this_book(method, _published_datasets(),
+                                      _engine_contracts())
+
+
+@lru_cache(maxsize=1)
+def _published_datasets() -> frozenset[str]:
+    """The datasets this installation publishes.
+
+    Read from the catalogue FILE rather than through the governed context.
+    The context consults PostgreSQL as well, and this runs while the Analysis
+    Studio registry is being loaded — which happens during application start,
+    before the database is necessarily answering. A library that blocks on a
+    database to decide what it contains is a start-up deadlock waiting for a
+    slow first connection.
+
+    Read once, not once per method, and empty where it cannot be read — in
+    which case nothing is judged and every method stays.
+    """
+    import json
+
+    try:
+        from backend.config import settings
+
+        path = settings.metadata_dir / "catalog.json"
+        if not path.exists():
+            return frozenset()
+        catalogue = json.loads(path.read_text(encoding="utf-8"))
+        return frozenset(str(d.get("name") or "")
+                         for d in (catalogue.get("datasets") or [])
+                         if d.get("name"))
+    except Exception:  # noqa: BLE001 - without a catalogue, judge nothing
+        return frozenset()
+
+
+@lru_cache(maxsize=1)
+def _engine_contracts() -> dict[str, tuple[str, ...]]:
+    """Each engine analysis's required datasets, read once."""
+    try:
+        from backend.engine import get_registry
+
+        registry = get_registry()
+        return {str(cid): tuple(
+            str(d) for d in
+            (getattr(registry.contract(cid), "required_datasets", ()) or ()))
+            for cid in registry.ids()}
+    except Exception:  # noqa: BLE001 - without a registry, judge nothing
+        return {}
+
+
+def _engine_can_read_this_book(method: MethodDefinition,
+                               published: frozenset[str],
+                               contracts: dict[str, tuple[str, ...]]) -> bool:
+    """Whether the ENGINE this method binds can read a published dataset.
+
+    The word list above catches a method whose NAME says corporate. It does
+    not catch one whose name says nothing and whose engine reads
+    `portfolio_facility` — and every one of the thirty registered engine
+    analyses does. Collateral Coverage is the case that found this: its own
+    trigger question is "How much of the book is secured?", the orchestrator
+    matched it on that exact wording, the engine could not run, and the
+    fallback composition then found no measure and asked
+
+        "Which figure should CreditProbe measure?"
+
+    for a question the metric catalogue answers — 74.97% — one phrasing away.
+    A certified analysis that cannot run is worse than no certified analysis:
+    it intercepts the question and hands back a clarification.
+
+    Bound to the CATALOGUE rather than to a word list, so it stays true as the
+    book changes, and defaults to keeping the method wherever it cannot tell.
+    """
+    if not published or not contracts:
+        return True
+    engine_id = str(getattr(method, "engine", "") or method.id)
+    needed = contracts.get(engine_id)
+    if not needed:
+        # No engine behind it, or one that declares no dataset. Not judged:
+        # this test answers "can its engine read this book", and where there
+        # is no engine there is nothing to answer.
+        return True
+    return all(name in published for name in needed)
 
 
 def active_definitions() -> list[MethodDefinition]:

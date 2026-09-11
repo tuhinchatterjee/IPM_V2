@@ -165,6 +165,41 @@ def _phrases() -> tuple[tuple[str, Any], ...]:
     return tuple(out)
 
 
+def _qualified_away(text: str, hit: re.Match[str], phrase: str) -> bool:
+    """Whether a one-word metric name was QUALIFIED into a different measure.
+
+    "coverage" is in `UNAMBIGUOUS` because a reader who writes it alone means
+    ECL coverage. A reader who writes "COLLATERAL coverage" does not, and this
+    served them ECL Coverage — 0.77%, confidently, under a question about
+    collateral. The right answer is that this installation publishes no
+    collateral coverage metric, which the planner says on its own.
+
+    Read from the LIBRARY rather than from a list of qualifiers: the word in
+    front is a qualifier where no governed metric of this installation is
+    spelled with the pair. "Stage 2 coverage" survives because a metric IS
+    spelled that way; "collateral coverage" does not because none is.
+    """
+    if len(phrase.split()) > 1:
+        return False
+    before = text[:hit.start()].strip().split()
+    if not before:
+        return False
+    qualifier = re.sub(r"[^a-z0-9+]", "", before[-1].lower())
+    if not qualifier or qualifier in _NOT_A_QUALIFIER:
+        return False
+    pair = f"{qualifier} {phrase}"
+    return not any(pair == spelling for spelling, _ in _phrases())
+
+
+#: Words that stand in front of a metric name without qualifying it.
+_NOT_A_QUALIFIER = frozenset({
+    "the", "a", "an", "our", "its", "their", "this", "that", "is", "was",
+    "of", "in", "at", "for", "on", "and", "or", "what", "whats", "show",
+    "give", "me", "current", "total", "latest", "overall", "book", "portfolio",
+    "retail", "governed", "reported", "s",
+})
+
+
 def _pattern(phrase: str) -> re.Pattern[str]:
     """A whole-phrase matcher tolerant of how people space and punctuate.
 
@@ -206,7 +241,8 @@ def read(question: str) -> Routed | None:
 
     found = None
     for pattern, phrase, metric in _compiled():
-        if pattern.search(text):
+        hit = pattern.search(text)
+        if hit and not _qualified_away(text, hit, phrase):
             found = (phrase, metric)
             break
     if found is None:

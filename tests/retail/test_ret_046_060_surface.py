@@ -490,6 +490,22 @@ class TestRET048LayoutPreserved:
             # composition enumerated rather than named.
             "backend/orchestration/metric_route.py",
             "backend/orchestration/movement.py",
+            # ---------------------------------------------------------------
+            # §19. Thirty-eight GET routes answered a caller with no
+            # credential, among them the saved investigations and the whole
+            # governed dictionary. The API is default-deny now.
+            "backend/api/main.py",
+            "backend/api/auth.py",
+            # §18. The backend did not stop on SIGTERM, and a restart signed
+            # everybody out.
+            "launchers/retail/stop-retail.command",
+            # Every certified analysis in the product read the corporate book.
+            "backend/studio/library.py",
+            # The corporate transition gates, scoped to the book they describe:
+            # on a book that carries the origin on the row, a transition is
+            # planned exactly rather than by dropping the origin. Both
+            # expectations are kept, chosen by the profile.
+            "tests/orchestration/test_planner_and_validator.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

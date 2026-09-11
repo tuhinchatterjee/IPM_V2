@@ -60,33 +60,68 @@ _FAILED_LOGIN_DELAY_S = 0.4
 def _secret() -> bytes:
     """The key the session cookie is signed with.
 
-    Derived from the application secret so there is one thing to configure. In
-    a deployment without one set, sessions do not survive a restart — which is
-    the correct failure: it is visible, and it is not a silently insecure
-    default key.
+    Derived from the application secret so there is one thing to configure.
+    Where none is set, the key is generated once for THIS INSTALLATION and
+    kept in its own log directory — never in the repository, never a published
+    constant, and never printed.
+
+    It used to be generated per PROCESS, on the reasoning that a restart
+    invalidating every session is a visible failure rather than a silently
+    insecure default. The reasoning is right and the consequence was not: a
+    backend restart signed everybody out, including the restart the launcher
+    itself performs, so a presenter who restarted the server mid-session was
+    returned to the sign-in form with their thread behind it. A per-
+    installation key keeps the property that matters — no shared constant that
+    anyone could have read out of this repository — and loses the one that
+    helped nobody.
     """
     configured = getattr(settings, "secret_key", "") or ""
     if not configured:
-        # Per-process, so a restart invalidates sessions rather than trusting a
-        # published constant.
-        configured = _process_key()
+        configured = _installation_key()
     return hashlib.sha256(configured.encode("utf-8")).digest()
 
 
-_PROCESS_KEY: str | None = None
+_INSTALLATION_KEY: str | None = None
 
 
-def _process_key() -> str:
-    global _PROCESS_KEY
-    if _PROCESS_KEY is None:
-        import secrets
+def _installation_key() -> str:
+    """A key generated once for this installation and kept out of the repo.
 
-        _PROCESS_KEY = secrets.token_urlsafe(32)
+    Stored under the installation's own log directory, which is ignored by
+    git, and readable only by the account that runs the server. If it cannot
+    be stored — a read-only volume, a container with no writable path — the
+    old per-process behaviour is what happens, and the log says so.
+    """
+    global _INSTALLATION_KEY
+    if _INSTALLATION_KEY is not None:
+        return _INSTALLATION_KEY
+
+    import secrets
+    from pathlib import Path
+
+    try:
+        holder = Path(getattr(settings, "log_dir", "") or "var") / "session.key"
+        holder.parent.mkdir(parents=True, exist_ok=True)
+        if holder.exists():
+            stored = holder.read_text(encoding="utf-8").strip()
+            if stored:
+                _INSTALLATION_KEY = stored
+                return _INSTALLATION_KEY
+        made = secrets.token_urlsafe(32)
+        holder.write_text(made, encoding="utf-8")
+        holder.chmod(0o600)
+        _INSTALLATION_KEY = made
+        logger.info(
+            "No SECRET_KEY configured; generated a session key for this "
+            "installation. Sessions now survive a restart.")
+        return _INSTALLATION_KEY
+    except Exception as e:  # noqa: BLE001 - stated, then the old behaviour
+        _INSTALLATION_KEY = secrets.token_urlsafe(32)
         logger.warning(
-            "No SECRET_KEY configured; sessions are signed with a per-process key "
-            "and will not survive a restart."
-        )
-    return _PROCESS_KEY
+            "No SECRET_KEY configured and the session key could not be "
+            "stored (%s); signing with a per-process key, so sessions will "
+            "not survive a restart.", e)
+        return _INSTALLATION_KEY
 
 
 def _sign(payload: dict[str, Any]) -> str:

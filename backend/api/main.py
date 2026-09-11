@@ -78,6 +78,40 @@ logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"
 
+#: The paths a SIGNED-OUT browser legitimately needs.
+#:
+#: Deliberately short, and every entry is something that must work before
+#: anyone has signed in: the sign-in endpoints themselves, the health and
+#: build reports a deployment checks, the flags the shell reads to decide
+#: what to render, and the OpenAPI document. Nothing here carries a figure,
+#: a field definition, a saved investigation or a customer.
+PUBLIC_PATHS: frozenset[str] = frozenset({
+    f"{API_PREFIX}/health",
+    f"{API_PREFIX}/health/live",
+    f"{API_PREFIX}/health/ready",
+    f"{API_PREFIX}/build",
+    f"{API_PREFIX}/demo",
+    f"{API_PREFIX}/auth/me",
+    f"{API_PREFIX}/auth/login",
+    f"{API_PREFIX}/auth/logout",
+    f"{API_PREFIX}/auth/session",
+    f"{API_PREFIX}/ai/status",
+    f"{API_PREFIX}/ask/mode",
+})
+
+#: Prefixes under which everything is public, for the health and auth trees.
+PUBLIC_PREFIXES: tuple[str, ...] = (
+    f"{API_PREFIX}/health/",
+    f"{API_PREFIX}/auth/",
+)
+
+
+def _is_public(path: str) -> bool:
+    """Whether this path may be served without a signed-in caller."""
+    if path in PUBLIC_PATHS:
+        return True
+    return any(path.startswith(prefix) for prefix in PUBLIC_PREFIXES)
+
 
 def create_app() -> FastAPI:
     init_logging()
@@ -120,6 +154,56 @@ def create_app() -> FastAPI:
             "X-Request-ID",
         ],
     )
+
+    @app.middleware("http")
+    async def require_a_signed_in_caller(request: Request, call_next):
+        """Default deny. A route that declares no principal is still guarded.
+
+        The failure this closes
+        -----------------------
+        Thirty-eight of the API's GET routes answered a caller with NO
+        credential at all, because authentication is declared per handler and
+        these handlers declared none. Among them:
+
+            /api/v1/workspace/investigations   saved investigations — their
+                                               titles and the questions people
+                                               had asked
+            /api/v1/ask/recent                 the questions asked recently
+            /api/v1/catalog                    the governed data dictionary
+            /api/v1/data-builder/datasets/…    all 546 field definitions
+            /api/v1/lenses                     the lens definitions
+            /api/v1/early-warning/taxonomy     the early warning rulebook
+
+        `/api/v1/metrics` returned 401 correctly, which is the point: the
+        mechanism worked and these routes had not opted into it. Per-handler
+        authentication fails open, and a security control that fails open is
+        one nobody can audit by reading the code — you have to call every
+        route to find out, which is how this was found.
+
+        So the rule is inverted: every path under the API prefix requires a
+        principal unless it is named below, and the names are the ones a
+        SIGNED-OUT browser legitimately needs to render its sign-in page and
+        report the server's health.
+        """
+        path = request.url.path
+        if (request.method != "OPTIONS"
+                and path.startswith(API_PREFIX)
+                and not _is_public(path)):
+            from backend.api.auth import principal_from_request
+
+            if (settings.require_login
+                    and principal_from_request(request) is None):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": {
+                        "error": "not_signed_in",
+                        "message": ("You are signed out. Please sign in "
+                                    "again. Nothing you were working on has "
+                                    "been lost."),
+                        "status": 401,
+                    }},
+                )
+        return await call_next(request)
 
     @app.middleware("http")
     async def add_request_context(request: Request, call_next):
