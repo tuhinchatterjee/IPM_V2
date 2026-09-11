@@ -64,6 +64,7 @@ from backend.early_warning.conversation import execute as ex
 from backend.early_warning.conversation import normalise as norm
 from backend.early_warning.conversation import packet as packet_mod
 from backend.early_warning.conversation import plan as plan_mod
+from backend.early_warning.conversation import progress as progress_mod
 from backend.early_warning.conversation import reading as reading_mod
 from backend.early_warning.conversation import seam as seam_mod
 from backend.early_warning.conversation import select as select_mod
@@ -86,6 +87,19 @@ VALIDATION_FAILED = "validation_failed"
 REPAIR_ATTEMPTED = "opus_plan_repair"
 EXECUTION_COMPLETE = "execution"
 EXECUTION_DECLINED = "execution_declined"
+#: One governed analysis, as it finishes. `EXECUTION_COMPLETE` is emitted
+#: after the whole loop, which is the right grain for the audit trail and the
+#: wrong one for a reader watching: a six-analysis investigation would be one
+#: line that sits still for twenty seconds and then says "done". This reports
+#: each analysis as it lands, so the investigation visibly takes shape.
+EXECUTION_STEP = "execution_step"
+#: A stage announcing that it has BEGUN, carrying the user-facing step it is
+#: about to work on. Every other event here is emitted when a stage FINISHES,
+#: which is the right record of what happened and useless for saying what is
+#: happening — the expensive part of a stage is over by the time its event
+#: exists. Purely an instrumentation signal: it decides nothing, gates
+#: nothing, and spends nothing.
+STAGE_STARTED = "stage_started"
 RESULT_PACKET = "result_packet"
 SUFFICIENCY_COMPLETE = "opus_sufficiency_review"
 REVISION_EXECUTED = "revision_executed"
@@ -249,8 +263,16 @@ def answer(question: str, *, thread_id: str = "",
            recent: list[dict[str, Any]] | None = None,
            mode: str = budget_mod.STANDARD,
            permissions: dict[str, Any] | None = None,
-           compose: Callable[..., Any] | None = None) -> Turn:
-    """Answer one Early Warning question, or decline for a stated reason."""
+           compose: Callable[..., Any] | None = None,
+           on_event: Callable[[Event], None] | None = None) -> Turn:
+    """Answer one Early Warning question, or decline for a stated reason.
+
+    `on_event` is handed every event as it is recorded, so a caller can show
+    the turn happening rather than only its result. It is an observer and
+    nothing more: it cannot change what runs, and an exception raised inside
+    it is swallowed, because a progress panel must never be able to cost
+    somebody their answer.
+    """
     started = time.perf_counter()
     turn = Turn(request_id=uuid.uuid4().hex[:16], question=question,
                 thread_id=thread_id, mode=mode)
@@ -263,9 +285,19 @@ def answer(question: str, *, thread_id: str = "",
         call = detail.get("model_call")
         if isinstance(call, dict) and call.get("engine") == seam_mod.MODEL:
             turn.model_calls.append({"stage": stage, **call})
-        turn.events.append(Event(
-            stage=stage, detail=detail,
-            at_ms=int((time.perf_counter() - started) * 1000)))
+        event = Event(stage=stage, detail=detail,
+                      at_ms=int((time.perf_counter() - started) * 1000))
+        turn.events.append(event)
+        if on_event is not None:
+            try:
+                on_event(event)
+            except Exception:  # noqa: BLE001 - an observer cannot break a turn
+                logger.warning("An Early Warning progress observer failed.",
+                               exc_info=True)
+
+    def begin(step: str) -> None:
+        """Announce the user-facing step this stage is about to work on."""
+        emit(STAGE_STARTED, step=step)
 
     emit(REQUEST_STARTED, mode=mode, thread=thread_id,
          has_ui_state=bool(ui_state), has_summary=bool(rolling_summary))
@@ -273,6 +305,7 @@ def answer(question: str, *, thread_id: str = "",
     prior = summary_mod.load(rolling_summary)
 
     # ---- pass one: language ------------------------------------------
+    begin(progress_mod.UNDERSTANDING)
     cleaned = norm.clean(question, ledger=ledger)
     emit(SONNET_PASS_1, engine=cleaned.engine,
          cleaned=cleaned.cleaned_english,
@@ -281,6 +314,7 @@ def answer(question: str, *, thread_id: str = "",
          model_call=dict(cleaned.model_call))
 
     # ---- pass two: the business request -------------------------------
+    begin(progress_mod.SCOPING)
     request = norm.read(cleaned, ui_state=ui_state,
                         rolling_summary=prior.to_dict(), recent=recent,
                         ledger=ledger)
@@ -292,6 +326,7 @@ def answer(question: str, *, thread_id: str = "",
          model_call=dict(request.model_call))
 
     # ---- the domain, described ----------------------------------------
+    begin(progress_mod.EVIDENCE)
     package = grain_mod.build(
         request.normalized_business_request,
         period=request.requested_period or None,
@@ -304,6 +339,7 @@ def answer(question: str, *, thread_id: str = "",
                               "f": package.field_count}))
 
     # ---- THE GATE: who owns this? -------------------------------------
+    begin(progress_mod.OWNERSHIP)
     selection = select_mod.decide(request.normalized_business_request,
                                   ledger=ledger)
     turn.selection = selection.to_dict()
@@ -314,6 +350,7 @@ def answer(question: str, *, thread_id: str = "",
          model_call=dict(selection.model_call))
 
     if selection.ambiguous and not selection.active_product_is_best:
+        begin(progress_mod.CLARIFYING)
         turn.answer = {
             "answered": False, "scope": "clarification",
             "direct": selection.clarification,
@@ -326,6 +363,7 @@ def answer(question: str, *, thread_id: str = "",
         return _finish(turn, request, prior, ledger, ui_state, emit)
 
     if selection.selected != fn.EARLY_WARNING:
+        begin(progress_mod.ROUTING)
         turn.answer = alt_mod.redirect_answer(
             request.normalized_business_request, selection)
         emit(REDIRECT_ANSWER, to=selection.selected,
@@ -347,7 +385,7 @@ def answer(question: str, *, thread_id: str = "",
     # ---- Early Warning won. Only now does a plan exist. ----------------
     try:
         return _analyse(turn, request, package, ledger, prior, ui_state,
-                        emit, compose)
+                        emit, begin, compose)
     except budget_mod.Exhausted as stop:
         turn.answer = _stopped(str(stop), turn)
         emit(STOPPED_HONESTLY, reason=str(stop))
@@ -369,13 +407,16 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
              ledger: budget_mod.Ledger, prior: summary_mod.RollingSummary,
              ui_state: dict[str, Any] | None,
              emit: Callable[..., None],
+             begin: Callable[[str], None],
              compose: Callable[..., Any] | None) -> Turn:
+    begin(progress_mod.PLANNING)
     plan = plan_mod.build(request, package, ledger=ledger)
     emit(PLAN_CREATED, steps=[s.analysis for s in plan.steps],
          output_grain=plan.output_grain, engine=plan.engine,
          plan_hash=_hash(plan.to_dict()),
          model_call=dict(plan.model_call))
 
+    begin(progress_mod.VALIDATING)
     checked = val.check(plan, package,
                         permissions=package.permissions or None)
     while not checked.ok:
@@ -435,6 +476,8 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
     emit(VALIDATION_PASSED, checked=list(checked.checked),
          steps=len(plan.steps))
 
+    begin(progress_mod.ANALYSING)
+
     # Every planned step gets its turn at the executor before any correction
     # gets a second one. An inline retry spends the execution a later planned
     # step was going to need, so one failing step could starve a step that
@@ -464,6 +507,10 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
         except ex.ExecutionError as failure:
             ledger.settle_execution(analysis=step.analysis, ok=False,
                                     reason=failure.code, corrected=corrected)
+            emit(EXECUTION_STEP, analysis=step.analysis, ok=False,
+                 rows=0, corrected=corrected, group_by=step.group_by,
+                 filters=dict(step.filters), period=step.period,
+                 comparison_period=step.comparison_period)
             if corrected:
                 return False
             # The last boundary held: the executor refused rather than
@@ -490,6 +537,10 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
         executed.append(result)
         ledger.settle_execution(analysis=step.analysis, ok=True,
                                 rows=result.row_count, corrected=corrected)
+        emit(EXECUTION_STEP, analysis=step.analysis, ok=True,
+             rows=result.row_count, corrected=corrected,
+             group_by=step.group_by, filters=dict(step.filters),
+             period=step.period, comparison_period=step.comparison_period)
         return True
 
     for step in plan.steps:
@@ -514,6 +565,7 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
     emit(RESULT_PACKET, figures=len(packet.figures), rows=len(packet.rows),
          packs=len(packet.packs), packet_hash=_hash(packet.figures))
 
+    begin(progress_mod.CHECKING)
     reviewed = suff.review(request, plan, packet,
                            can_revise=ledger.may_revise(), ledger=ledger)
     emit(SUFFICIENCY_COMPLETE, complete=reviewed.complete,
@@ -556,6 +608,10 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
         executed.append(revised)
         ledger.settle_execution(analysis=step.analysis, ok=True,
                                 rows=revised.row_count)
+        emit(EXECUTION_STEP, analysis=step.analysis, ok=True,
+             rows=revised.row_count, corrected=False,
+             group_by=step.group_by, filters=dict(step.filters),
+             period=step.period, comparison_period=step.comparison_period)
         emit(REVISION_EXECUTED, analysis=step.analysis,
              revisions_spent=ledger.revisions)
         plan.steps.append(step)
@@ -569,6 +625,7 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
              presentation=reviewed.presentation, engine=reviewed.engine,
              model_call=dict(reviewed.model_call))
 
+    begin(progress_mod.INTERPRETING)
     floor = _compose(turn, request, packet, reviewed, compose)
     read = reading_mod.write(turn.question, packet, floor, reviewed,
                              ledger=ledger)
@@ -858,6 +915,7 @@ def _finish(turn: Turn, request: Any, prior: summary_mod.RollingSummary,
             ledger: budget_mod.Ledger, ui_state: dict[str, Any] | None,
             emit: Callable[..., None]) -> Turn:
     """One summary update, then persistence. Always both, on every path."""
+    emit(STAGE_STARTED, step=progress_mod.CONTEXT)
     turn.rolling_summary = summary_mod.update(
         prior, question=turn.question, request=request, answer=turn.answer,
         packet=turn.packet, ui_state=ui_state, ledger=ledger)
@@ -876,11 +934,12 @@ def _finish(turn: Turn, request: Any, prior: summary_mod.RollingSummary,
 
 __all__ = ["ANALYTICAL_STAGES", "STAGE_ORDER",
            "CLARIFICATION_ANSWER", "CONTEXT_BUILT",
-           "EXECUTION_COMPLETE", "EXECUTION_DECLINED", "Event",
-           "FINAL_ANSWER",
+           "EXECUTION_COMPLETE", "EXECUTION_DECLINED", "EXECUTION_STEP",
+           "Event", "FINAL_ANSWER",
            "FUNCTIONALITY_SELECTED", "PLAN_CREATED", "REDIRECT_ANSWER",
            "REPAIR_ATTEMPTED", "REQUEST_STARTED", "RESULT_PACKET",
            "REVISION_EXECUTED", "SONNET_PASS_1", "SONNET_PASS_2",
-           "STOPPED_HONESTLY", "SUFFICIENCY_COMPLETE", "SUMMARY_UPDATED",
+           "STAGE_STARTED", "STOPPED_HONESTLY", "SUFFICIENCY_COMPLETE",
+           "SUMMARY_UPDATED",
            "THREAD_PERSISTED", "Turn", "VALIDATION_FAILED",
            "VALIDATION_PASSED", "answer"]

@@ -45,6 +45,7 @@ from backend.early_warning import (
     triggers_v2 as trg,
     v2_service as svc,
 )
+from backend.early_warning.conversation import progress as ews_progress
 from backend.early_warning.v2_service import EarlyWarningDataNotBuilt
 
 logger = logging.getLogger(__name__)
@@ -456,6 +457,14 @@ class AskRequest(BaseModel):
     rolling_summary: dict[str, Any] | None = None
     thread_id: str | None = Field(None, max_length=64)
     mode: str = Field("standard", pattern="^(standard|deep)$")
+    #: A key the client chose for THIS turn, so it can watch the turn happen.
+    #: Optional: a caller that does not send one simply gets no progress
+    #: document, and the answer is identical either way.
+    turn_key: str | None = Field(None, max_length=64)
+
+
+class ProgressRequest(BaseModel):
+    turn_key: str = Field(..., min_length=1, max_length=64)
 
 
 @router.post("/ask", summary="Ask the Early Warning domain a question")
@@ -474,6 +483,7 @@ def ask_early_warning(payload: AskRequest,
     additive: the routing decision, the stages that ran, the budget spent,
     and the rolling summary to hand back on the next turn.
     """
+    from backend.early_warning.conversation import live as ews_live
     from backend.early_warning.conversation import pipeline as ews_pipeline
 
     ui_state = dict(payload.ui_state or {})
@@ -482,6 +492,11 @@ def ask_early_warning(payload: AskRequest,
     if payload.period:
         ui_state.setdefault("period", payload.period)
 
+    # The turn writes its events where `/ask/progress` can read them while it
+    # is still running. An observer and nothing more: the pipeline decides
+    # nothing differently for having one, and a client that sent no key gets
+    # the same answer by the same path.
+    watch = ews_live.open_turn(payload.turn_key or "", principal)
     try:
         turn = ews_pipeline.answer(
             payload.question,
@@ -490,9 +505,16 @@ def ask_early_warning(payload: AskRequest,
             rolling_summary=payload.rolling_summary,
             mode=payload.mode,
             permissions={"can_read": True, "role": principal.role},
+            on_event=(lambda event: ews_live.record(watch, event))
+            if watch else None,
         )
     except EarlyWarningDataNotBuilt as exc:
         raise _not_built(exc)
+    finally:
+        # However the turn ended, it is no longer live. A watcher that polls
+        # after this sees the finished document rather than a panel that
+        # animates forever.
+        ews_live.close_turn(watch)
 
     answer = dict(turn.answer)
     packet = turn.packet
@@ -525,6 +547,61 @@ def ask_early_warning(payload: AskRequest,
              "governed_actions": packet.governed_actions,
              "escalation": packet.escalation}
             if packet is not None else {}),
+        # The finished progress panel, so the client does not have to race a
+        # last poll to render the completed history it has been showing.
+        "progress": ews_progress.build(
+            turn.events, turn_id=payload.turn_key or turn.request_id,
+            active=False).to_dict(),
+    }
+
+
+@router.post("/ask/progress", summary="What this turn is doing now")
+def ask_progress(payload: ProgressRequest,
+                 principal: Principal = RequireEarlyWarningView) -> dict:
+    """The live progress panel for a turn that is still running.
+
+    Polled while `/ask` is in flight, on the same cadence the Cockpit's
+    working indicator uses. Deliberately the smallest call in this router:
+    the steps, their statuses and their timings, and nothing else.
+
+    An unknown key is not an error. The turn may have finished and expired, or
+    this worker may never have run it, and in both cases the client shows a
+    plain working state — which is what it would have shown anyway.
+
+    Every label in the response comes from the governed mapping. There is no
+    model in this path, no additional call is made to produce it, and nothing
+    a model wrote can reach it.
+    """
+    from backend.early_warning.conversation import live as ews_live
+
+    found = ews_live.read(payload.turn_key or "", principal)
+    if found is None:
+        return {"watching": False, "version": ews_progress.CONTRACT_VERSION}
+    return {"watching": True, **found}
+
+
+@router.get("/ask/vocabulary", summary="The progress vocabulary, in full")
+def ask_vocabulary(principal: Principal = RequireEarlyWarningView) -> dict:
+    """Every sentence the progress panel can say.
+
+    Published so the wording is reviewable in one place rather than being
+    discovered by watching turns, and so a test can assert that no internal
+    model vocabulary has leaked into it.
+    """
+    del principal
+    return {
+        "version": ews_progress.CONTRACT_VERSION,
+        "steps": [{"key": key, "label": ews_progress.LABELS[key]}
+                  for key in ews_progress.STEP_ORDER],
+        "notes": [{"key": key, "label": ews_progress.LABELS[key]}
+                  for key in (ews_progress.ROUTING, ews_progress.CLARIFYING,
+                               ews_progress.REFINING, ews_progress.DEFERRED,
+                               ews_progress.FALLBACK,
+                               ews_progress.STOPPED_STEP)],
+        "analyses": dict(ews_progress.ANALYSIS_LABELS),
+        "statuses": [ews_progress.WAITING, ews_progress.ACTIVE,
+                     ews_progress.DONE, ews_progress.NOTE,
+                     ews_progress.STOPPED],
     }
 
 

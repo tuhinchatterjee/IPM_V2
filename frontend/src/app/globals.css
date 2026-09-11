@@ -31,6 +31,18 @@
   --color-border: var(--ipm-border);
   --color-border-strong: var(--ipm-border-strong);
 
+  /* The activity colour: the theme's own positive tone, which is the register
+     "healthy, live, monitored" in every palette.
+
+     It has to be declared HERE rather than in a plain `:root`, because
+     Tailwind generates `bg-pulse` and `text-pulse` from the theme block and
+     from nothing else. Declared outside it, the token resolved but the
+     utilities did not exist, so every mark that asked for the pulse colour
+     was painted transparent — the working indicator was invisible rather
+     than green. */
+  --color-pulse: var(--ipm-positive);
+  --color-pulse-muted: var(--ipm-positive-muted);
+
   /* Text, in decreasing prominence. */
   --color-text-primary: var(--ipm-text-primary);
   --color-text-secondary: var(--ipm-text-secondary);
@@ -768,22 +780,16 @@ table th {
    playful is the duty cycle — the mark is still for most of its cycle, so the
    eye registers activity without being drawn back to it every second.
 
-   The colour is a semantic token (--color-pulse), never a literal. §10 forbids
-   hard-coded green in components, and the reason is not only theming: the
-   "green" in the oxblood theme is not the "green" in porcelain, and a literal
-   would be right in one theme and wrong in seven.
+   The colour is a semantic token (--color-pulse, declared in the @theme block
+   at the top of this file), never a literal. §10 forbids hard-coded green in
+   components, and the reason is not only theming: the "green" in the oxblood
+   theme is not the "green" in porcelain, and a literal would be right in one
+   theme and wrong in seven.
 
    Both animations stop dead under prefers-reduced-motion — the global block
    above already collapses their duration, and the components render a static
    status icon instead.
    -------------------------------------------------------------------------- */
-
-:root {
-  /* The activity colour: the theme's own positive tone, which is the register
-     "healthy, live, monitored" in every palette. */
-  --color-pulse: var(--ipm-positive);
-  --color-pulse-muted: var(--ipm-positive-muted);
-}
 
 @keyframes officer-beat {
   /* Flat, then one beat, then flat again. The long flat tail is the point. */
@@ -792,6 +798,17 @@ table th {
   69%      { transform: scaleY(0.3);  opacity: 0.8; }
   76%      { transform: scaleY(0.6);  opacity: 0.9; }
   84%, 100% { transform: scaleY(0.15); opacity: 0.5; }
+}
+
+@keyframes step-pulse {
+  /* The running mark on a step row.
+     A dot rather than the ECG bars, so it needs its own keyframe:
+     `officer-beat` is a scaleY built for tall thin rectangles and it
+     flattens a circle to a sliver for most of its cycle, which reads as a
+     rendering fault rather than as activity. This one breathes and never
+     fades out. */
+  0%, 100% { opacity: 0.5; transform: scale(0.75); }
+  50%      { opacity: 1;   transform: scale(1); }
 }
 
 @keyframes officer-trace {

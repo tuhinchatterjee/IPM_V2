@@ -3396,6 +3396,59 @@ export interface EarlyWarningV2Answer extends EarlyWarningV2Reading {
    */
   rolling_summary?: Record<string, unknown>;
   request_id?: string;
+  /**
+   * The finished progress panel, so the client can render the completed
+   * history without racing a last poll for it.
+   */
+  progress?: EwsProgressDocument;
+}
+
+/**
+ * One row of the Early Warning progress panel.
+ *
+ * Shaped by `backend/early_warning/conversation/progress.py`, which owns
+ * every label in it. Nothing here is written in the browser — see
+ * `components/agentic/steps.ts` for why.
+ */
+export interface EwsProgressStep {
+  key: string;
+  label: string;
+  status: "waiting" | "active" | "done" | "note" | "stopped";
+  started_ms: number | null;
+  completed_ms: number | null;
+  elapsed_ms: number | null;
+  substeps: {
+    key: string;
+    label: string;
+    status: "waiting" | "active" | "done" | "note" | "stopped";
+    completed_ms: number | null;
+    rows: number;
+  }[];
+  detail: Record<string, unknown>;
+}
+
+export interface EwsProgressDocument {
+  turn_id: string;
+  version: number;
+  sequence: number;
+  steps: EwsProgressStep[];
+  summary: Record<string, unknown>;
+  elapsed_ms: number;
+  active: boolean;
+  outcome: string;
+  completion_line: string;
+}
+
+/**
+ * What a poll returns.
+ *
+ * `watching: false` is an ordinary answer, not an error: the turn may have
+ * finished and expired, or this worker may never have run it. The panel shows
+ * a plain working state for it.
+ */
+export interface EwsProgressReply extends Partial<EwsProgressDocument> {
+  watching: boolean;
+  version: number;
 }
 
 export interface EarlyWarningV2LevelRow {
@@ -4538,6 +4591,8 @@ export const api = {
     rollingSummary?: Record<string, unknown>;
     threadId?: string;
     mode?: "standard" | "deep";
+    /** A key for THIS turn, so the browser can watch it happen. */
+    turnKey?: string;
   }) =>
     request<EarlyWarningV2Answer>("/early-warning/v2/ask", {
       method: "POST",
@@ -4549,9 +4604,28 @@ export const api = {
         rolling_summary: payload.rollingSummary ?? null,
         thread_id: payload.threadId ?? null,
         mode: payload.mode ?? "standard",
+        turn_key: payload.turnKey ?? null,
       }),
       timeoutMs: 60_000,
     }),
+  // Polled while `earlyWarningV2Ask` is in flight, so it is deliberately the
+  // smallest call in this file: the steps, their statuses and their timings.
+  // A short timeout, because a poll that outlives its own interval is a poll
+  // that has already been superseded.
+  earlyWarningV2Progress: (turnKey: string) =>
+    request<EwsProgressReply>("/early-warning/v2/ask/progress", {
+      method: "POST",
+      body: JSON.stringify({ turn_key: turnKey }),
+      timeoutMs: 8_000,
+    }),
+  earlyWarningV2ProgressVocabulary: () =>
+    request<{
+      version: number;
+      steps: { key: string; label: string }[];
+      notes: { key: string; label: string }[];
+      analyses: Record<string, string>;
+      statuses: string[];
+    }>("/early-warning/v2/ask/vocabulary"),
   earlyWarningV2Suggestions: () =>
     request<{ questions: { question: string; note: string }[] }>(
       "/early-warning/v2/suggestions",

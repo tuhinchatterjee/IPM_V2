@@ -5,10 +5,11 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Composer } from "@/components/ask/composer";
-import { Skeleton } from "@/components/ui/skeleton";
+import { type ProgressDocument } from "@/components/agentic/steps";
 import { api, ApiError, type EarlyWarningV2Answer } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { chartFor, showsChart, type EwsScope } from "./chart-rules";
+import { TurnProgress, useTurnKey } from "./ews-progress";
 import { TrendChart, CategoryBarChart } from "@/components/analytics/charts";
 
 /**
@@ -47,8 +48,21 @@ export function EarlyWarningChat({
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [turns, setTurns] = React.useState<
-    { question: string; answer: EarlyWarningV2Answer }[]
+    {
+      question: string;
+      answer: EarlyWarningV2Answer;
+      /** The completed progress history for THIS turn, kept so an older
+       *  turn's trace can still be reopened after newer ones have run. */
+      progress: ProgressDocument | null;
+    }[]
   >([]);
+  /**
+   * The turn currently in flight, named before it is sent so the browser can
+   * watch it. Null between questions, which is what stops the panel polling
+   * a turn that has already finished.
+   */
+  const [live, setLive] = React.useState<string | null>(null);
+  const nextTurnKey = useTurnKey();
   /**
    * The thread's analytical context, as the server last wrote it, handed
    * straight back on the next turn. Stored rather than reconstructed: the
@@ -65,8 +79,10 @@ export function EarlyWarningChat({
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || busy) return;
+      const turnKey = nextTurnKey();
       setBusy(true);
       setError(null);
+      setLive(turnKey);
       try {
         const answer = await api.earlyWarningV2Ask({
           question: trimmed,
@@ -74,9 +90,17 @@ export function EarlyWarningChat({
           uiState: { ...(uiState ?? {}), customer_id: customerId ?? undefined },
           rollingSummary: summary.current,
           threadId,
+          turnKey,
         });
         if (answer.rolling_summary) summary.current = answer.rolling_summary;
-        setTurns((prior) => [...prior, { question: trimmed, answer }]);
+        setTurns((prior) => [
+          ...prior,
+          {
+            question: trimmed,
+            answer,
+            progress: (answer.progress as ProgressDocument | undefined) ?? null,
+          },
+        ]);
         setQuestion("");
       } catch (e) {
         setError(
@@ -86,9 +110,10 @@ export function EarlyWarningChat({
         );
       } finally {
         setBusy(false);
+        setLive(null);
       }
     },
-    [busy, customerId, uiState, threadId],
+    [busy, customerId, uiState, threadId, nextTurnKey],
   );
 
   return (
@@ -104,7 +129,10 @@ export function EarlyWarningChat({
       {error && (
         <Card className="border-negative/40 p-3 text-sm text-negative">{error}</Card>
       )}
-      {busy && <Skeleton className="h-24 w-full" />}
+      {/* The investigation as it happens. Replaces a grey rectangle that was
+          indistinguishable from a hang for the fifteen to sixty seconds an
+          Early Warning turn takes. */}
+      {busy && <TurnProgress turnKey={live} />}
       {turns
         .slice()
         .reverse()
@@ -113,6 +141,7 @@ export function EarlyWarningChat({
             key={turns.length - i}
             question={turn.question}
             answer={turn.answer}
+            progress={turn.progress}
             onAsk={(q) => void ask(q)}
             onOpenBorrower={onOpenBorrower}
           />
@@ -124,11 +153,13 @@ export function EarlyWarningChat({
 function Answer({
   question,
   answer,
+  progress,
   onAsk,
   onOpenBorrower,
 }: {
   question: string;
   answer: EarlyWarningV2Answer;
+  progress?: ProgressDocument | null;
   onAsk: (question: string) => void;
   onOpenBorrower?: (customerId: string) => void;
 }) {
@@ -138,13 +169,20 @@ function Answer({
 
   if (answer.redirected) {
     return (
-      <RedirectCard question={question} answer={answer} onAsk={onAsk} />
+      <RedirectCard
+        question={question}
+        answer={answer}
+        progress={progress}
+        onAsk={onAsk}
+      />
     );
   }
 
   return (
     <Card className="space-y-3 p-4">
       <p className="text-xs text-text-muted">{question}</p>
+      {/* What CreditProbe did, collapsed to one line and reopenable. §17. */}
+      <TurnProgress turnKey={null} finished={progress ?? null} />
       <p className="text-[15px] font-medium leading-relaxed text-text-primary">
         {answer.direct}
       </p>
@@ -290,15 +328,20 @@ function AnswerChart({
 function RedirectCard({
   question,
   answer,
+  progress,
   onAsk,
 }: {
   question: string;
   answer: EarlyWarningV2Answer;
+  progress?: ProgressDocument | null;
   onAsk: (question: string) => void;
 }) {
   return (
     <Card className="space-y-3 border-accent/30 p-4">
       <p className="text-xs text-text-muted">{question}</p>
+      {/* The routing decision, visible: four stages ran and none of them
+          touched the Early Warning data. §10. */}
+      <TurnProgress turnKey={null} finished={progress ?? null} />
       <div className="flex items-baseline gap-2">
         <Badge variant="info">{answer.selected_name ?? "Another product"}</Badge>
         <p className="text-[15px] font-medium leading-relaxed text-text-primary">

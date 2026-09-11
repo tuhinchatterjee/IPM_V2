@@ -700,6 +700,108 @@ configuration — configured, offline, provider error and malformed reply.
 
 ---
 
+## Watching a turn happen
+
+An Early Warning turn takes fifteen to sixty seconds against a real provider,
+and for all of that time the screen used to show a grey rectangle. A grey
+rectangle is indistinguishable from a hang: the reader cannot tell whether
+CreditProbe is thinking, stuck, or about to fail, so they wait through it or
+reload and pay for the turn twice.
+
+Nothing about the reasoning changed to fix that. The turn already knew what it
+was doing — it emits an event at every stage — and the work was to make those
+events readable while the turn is still running, in language a credit officer
+rather than an engineer can use.
+
+### The two rules
+
+**Nothing is invented.** Every visible step is produced by a real pipeline
+event. No timer advances the display while the server is quiet, no percentage
+is estimated, and no step appears because it usually comes next. That is why
+`progress.build` is a pure function of the event list rather than a state
+machine with its own clock: a step the pipeline never reported is a step the
+reader never sees.
+
+**Nothing is model engineering.** The reader does not see `sonnet_pass_1`, a
+provider name, a token count, a schema error or a call budget. They see
+"Understanding your question". The internal vocabulary is the audit record;
+`backend/early_warning/conversation/progress.py` holds the sentence, and the
+two live in one file so they cannot drift apart.
+
+It is emphatically **not** a chain-of-thought viewer. The only strings it can
+produce are the constants in that module and values the governed plan already
+recorded — an analysis type, a segment name, a period. There is no path from a
+model's intermediate text to a progress label.
+
+### Stages announce themselves
+
+Every other event in this pipeline is emitted when a stage FINISHES, which is
+the right record of what happened and useless for saying what is happening: by
+the time the event exists, the expensive part is over. So a stage also emits a
+`stage_started` marker naming the user-facing step it is about to work on.
+
+The alternative — guessing the next stage from the one that just finished — was
+rejected. It is a prediction, and on the turns where the pipeline branches
+(ownership going to another product, a plan that cannot be repaired) the guess
+would put a step on screen that never ran.
+
+`execution_step` does the same job one level down. `execution` is emitted after
+the whole loop, so a six-analysis investigation would be one line that sits
+still for twenty seconds and then says "done"; the per-analysis event lets the
+investigation visibly take shape.
+
+Both are instrumentation. They decide nothing, gate nothing and spend nothing.
+
+### The order on screen is the order in the pipeline
+
+"Loading Early Warning evidence" comes before "Checking the right CreditProbe
+functionality", because the domain package is built first and ownership is
+decided from the normalised request against that package. Listing ownership
+first would read better and would be a lie — the reader would watch a step tick
+after the step below it had already ticked. The Cockpit learned the same lesson
+(`backend/agentic/stages.py` moved COORDINATING after CALCULATING for exactly
+this reason), and truthfulness wins over the tidier reading order.
+
+### How it reaches the browser
+
+Polling, against a turn key, on the cadence the Cockpit's working indicator
+already uses — 700ms while the early stages are quick, 1.5s to thirty seconds,
+4s after that, and it stops dead when the turn reports it is no longer active.
+A second transport in the same product would be a second thing to operate, to
+authenticate and to get wrong.
+
+The client names the turn before it sends it; the server writes that turn's
+events under the same name in an in-process, bounded, TTL'd registry, and a
+very small `POST /ask/progress` reads them back. A turn key is only ever
+written by the worker running that turn, so behind several workers a poll can
+miss — which degrades to "no progress document" and a plain working state, and
+never to a wrong one.
+
+### What it costs
+
+Nothing that matters. No model call is made to produce a label — progress is
+orchestration metadata, not generated prose. The observer cannot change what
+the turn does, and an exception raised inside it is swallowed, because a
+progress panel must never be able to cost somebody their answer.
+
+### What the reader is told when something is withheld
+
+A governed limit is not an error and is not rendered as one. An execution the
+ceiling refused becomes "Additional drill-down deferred", a note beside the
+analyses that did run; the arithmetic behind it stays on the audit trail, where
+`6 of 6` means something. A provider that could not be reached becomes "Using
+governed Early Warning reader" — the answer is a governed answer either way,
+and an HTTP status is not something a credit officer can act on. A plan the
+validator sent back becomes "Refining the investigation plan", once, and only
+if a repair actually happened.
+
+And the progress text never pre-judges the answer. A turn is allowed to come
+back and say the premise was wrong — "Contracting has not deteriorated" — so
+the step says "Checking movement over the selected period", never "Finding why
+Contracting deteriorated", which would read as a broken promise when it does.
+
+---
+
 ## What did not change
 
 The scoring model. 123 signals of which 105 are scored and 18 are dropped,
@@ -713,6 +815,13 @@ anchor 72, notches −1/−1/0/0/0, **final EWS 56 MEDIUM**.
 
 The governed action library, the escalation matrix, Messages, Investigations,
 the DOCX reports and the dedicated screens all continue to work unchanged.
+
+The conversational architecture itself. Two Sonnet passes, the Early Warning
+context build, the Opus ownership gate, the Opus plan, governed validation and
+execution, the Opus sufficiency review, the Opus interpretation and the Sonnet
+summary — the same stages, the same model families, the same budgets, ceilings,
+grounding and repair semantics. The progress panel observes that pipeline; it
+did not reshape it.
 
 **The model is not calibrated.** Every weight, band and multiplier is a
 documented starting calibration rather than an estimate fitted to default data.

@@ -478,13 +478,18 @@ are not comparable with the narrower sweep above, and the identifiers are what
 matters.
 
 ```
-before   22 failed, 10,282 passed, 25 skipped, 0 errors in 1070s
-after    22 failed, 10,302 passed, 25 skipped, 0 errors in 1073s
+before the execution-budget fix   22 failed, 10,282 passed, 25 skipped, 0 errors
+after  the execution-budget fix   22 failed, 10,302 passed, 25 skipped, 0 errors
+after  the progress experience    22 failed, 10,368 passed, 25 skipped, 0 errors
 ```
 
-The failing identifiers are **identical, line for line** — 22 before, 22 after,
-none of them in `tests/early_warning/`. The twenty additional passes are
-`test_execution_budget.py`.
+The failing identifiers are **identical, line for line** across all three — 22
+each time, none of them in `tests/early_warning/`. The additional passes are
+`test_execution_budget.py` (20), `test_turn_progress.py` (53) and
+`test_ews_progress_api.py` (13).
+
+Frontend after the progress work: **429 of 429** passing, `tsc --noEmit` clean,
+`eslint src` clean, `next build` clean.
 
 ---
 
@@ -919,6 +924,94 @@ live Contracting question reaching every closing stage, seven model stages
 served by a model at 7 charged / 7 succeeded / 0 failed, and the ceilings
 unchanged.
 
+### The agentic chat experience — watching a turn happen
+
+Not a defect. The reasoning was right and invisible: an Early Warning turn takes
+fifteen to sixty seconds against a real provider, and the screen showed a grey
+skeleton for all of it. A grey rectangle is indistinguishable from a hang.
+
+**Nothing in the reasoning architecture changed.** Two Sonnet passes, the
+context build, the Opus ownership gate, the Opus plan, governed validation and
+execution, the Opus sufficiency review, the Opus interpretation, the Sonnet
+summary — same stages, same families, same budgets, same ceilings, same
+grounding, same repair semantics. The panel observes that pipeline.
+
+**What the reader now sees.** Each stage as it begins and as it finishes, with
+its own measured duration; the governed analyses filling in one by one
+underneath "Running Early Warning analysis"; a live clock; then one collapsed
+line that reopens into the full history, with a Details table.
+
+```
+✓ Understanding your question                          2.0s
+✓ Resolving scope and intent                           2.1s
+✓ Loading Early Warning evidence                       4.1s
+✓ Checking the right CreditProbe functionality         2.0s
+✓ Planning the investigation                           0.0s
+✓ Validating the analysis                              0.0s
+✓ Running Early Warning analysis                       4.6s
+    ✓ Establishing the Contracting portfolio position
+    ✓ Checking movement over the selected period
+    ⓘ Testing concentration in high-risk obligors
+    ⓘ Diagnosing the main drivers
+ⓘ Additional drill-down deferred
+✓ Checking evidence and completeness                   2.0s
+✓ Preparing risk interpretation                        2.0s
+ⓘ Using governed Early Warning reader
+✓ Updating conversation context
+✓ Analysis complete
+
+✓ Analysed in 18.7s · 2 analyses · governed Early Warning reader ·
+  evidence checked · some limitations remain · additional drill-down deferred
+```
+
+**Two rules govern it.** Nothing is invented — every visible step comes from a
+real pipeline event, and `progress.build` is a pure function of the event list
+rather than a state machine with a clock. And nothing is model engineering: no
+stage name, family, provider, token count, schema error or budget counter
+reaches the reader. A test reads every sentence the panel can say, looking for
+exactly those words.
+
+**Two instrumentation events were added**, and they decide nothing, gate
+nothing and spend nothing. `stage_started` names the user-facing step a stage is
+about to work on — without it the panel is blank for the first seconds of every
+turn, because every other event fires when a stage FINISHES. `execution_step`
+reports each governed analysis as it lands, because `execution` is emitted after
+the whole loop and would be one line that sits still for twenty seconds.
+
+Guessing the next stage from the one that just finished was considered and
+rejected. It is a prediction, and where the pipeline branches the guess puts a
+step on screen that never runs.
+
+**Reuse.** The Cockpit's `Pulse`, `usePrefersReducedMotion`, polling cadence,
+pure-contract-plus-component split and live-region discipline are shared, in
+`components/agentic/steps.ts` and `components/agentic/step-progress.tsx`.
+Early Warning supplies only the endpoint and the turn key. What was deliberately
+NOT copied is `pending.tsx`, which advances its stage on a timer — fabricated
+progress, which this brief forbids.
+
+**A latent bug found on the way.** `--color-pulse` was declared in a plain
+`:root` rather than in the `@theme` block, so Tailwind never generated
+`bg-pulse` or `text-pulse` and every mark asking for the activity colour was
+painted transparent. The Cockpit's working indicator had the same problem. The
+token now sits in `@theme`, and both products' marks paint the theme's positive
+tone.
+
+| What | Where |
+|---|---|
+| Governed labels, event→step mapping, the document | `backend/early_warning/conversation/progress.py` |
+| The in-flight registry | `backend/early_warning/conversation/live.py` |
+| `POST /ask/progress`, `GET /ask/vocabulary` | `backend/api/routers/early_warning_v2.py` |
+| Shared contract | `frontend/src/components/agentic/steps.ts` |
+| Shared panel | `frontend/src/components/agentic/step-progress.tsx` |
+| Early Warning's polling hook | `frontend/src/components/early-warning/ews-progress.tsx` |
+
+`tests/early_warning/test_turn_progress.py`: **53 passed**.
+`tests/api/test_ews_progress_api.py`: **13 passed**, including a turn polled
+from a second thread while it runs, which is the only way to prove the panel
+fills in rather than arriving complete.
+`frontend/src/components/agentic/__tests__/steps.test.ts`: 24 behavioural cases
+inside the suite's **429 passed**.
+
 ### What was NOT changed
 
 The What-If journey, the functionality gate, the domain locks, the 20-month
@@ -927,6 +1020,10 @@ engine, Rawabi at 56 MEDIUM, the Sonnet/Opus assignments, the eight-call model
 budget, the two-call closing reserve, the execution ceilings, the stage output
 allowances, the numeric grounding guard, the action and escalation workflow,
 Messages, Investigations, the reports and the thread semantics.
+
+The conversational architecture is unchanged by the progress work: the same
+stages in the same order, served by the same model families, spending the same
+budgets. No model call was added, and no label is generated by a model.
 
 ---
 
