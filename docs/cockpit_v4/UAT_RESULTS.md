@@ -140,7 +140,7 @@ At handoff:
 
 | Suite | Result |
 |---|---:|
-| V4 backend (`tests/cockpit_v4`) | 458 passed, 0 failed |
+| V4 backend (`tests/cockpit_v4`) | 492 passed, 0 failed |
 | Frontend unit (`npm test`, 38 suites) | 470 passed, 0 failed |
 | Real Chromium (`browser_evidence.py`) | 33 / 33 passed |
 | V3 regression (`tests/cockpit_agentic`) | 564 passed, 26 skipped, 0 failed |
@@ -222,3 +222,17 @@ latest year?" — 2026Q2 against 2025Q2, outer-preserving, with no sector lost
 to an inner join, matching `oracles.stage2_year_change`.
 
 Only after these pass does testing widen.
+
+## What the next paid run should show
+
+"What is total exposure at default by sector in the latest quarter?"
+
+| | |
+|---|---|
+| Semantics | resolved automatically, as they already are |
+| Catalogue calls | zero, or one targeted call naming field ids |
+| Never | a 60-field dump, a `sample_rows` rejection, a repeated identical call |
+| Path | generation 1 → `execute_analysis` → bind proof → SQL → generation 2 → answer |
+| Inside | 120 s and $1.50 |
+
+Then ECL top-five by sector, then Stage 2 over the latest year.

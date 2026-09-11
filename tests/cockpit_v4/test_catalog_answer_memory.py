@@ -87,20 +87,43 @@ def test_a_relation_outside_the_domain_is_named_not_invented(catalog_service):
 
 
 def test_a_large_field_request_paginates_rather_than_dropping_fields(
-        catalog_service):
-    """V4-AT-032. An explicit request that will not fit one page."""
+        catalog_service, runtime):
+    """V4-AT-032. An EXPLICIT request that will not fit one page.
+
+    An explicit list of field ids is always served, however long, because it
+    is a request someone actually made. It is an unnamed relation EXPANSION
+    that is refused — see the test below.
+    """
+    columns = list(runtime.catalog.columns("cockpit_facility_quarter"))
+    assert len(columns) > 60, "this relation should not fit one page"
+    field_ids = [f"cockpit_facility_quarter.{c}" for c in columns]
+
     result = catalog_service.inspect(request(
-        detail=["fields"], relation_ids=["cockpit_facility_quarter"]))
-    assert result.get("next_cursor"), (
-        "the widest relation should not fit one page in this build")
+        detail=["fields"], field_ids=field_ids))
+    assert result.get("next_cursor"), "an explicit long list still pages"
     assert result["omitted"]["remaining_fields"] > 0
     assert "nothing was abbreviated" in result["omitted"]["note"]
     page_two = catalog_service.inspect(request(
-        detail=["fields"], relation_ids=["cockpit_facility_quarter"],
+        detail=["fields"], field_ids=field_ids,
         cursor=result["next_cursor"]))
     first = {f["field_id"] for f in result["fields"]}
     second = {f["field_id"] for f in page_two["fields"]}
     assert first and second and not (first & second)
+
+
+def test_expanding_a_relation_into_a_field_dump_is_refused(catalog_service):
+    """The live loop's fuel: 60 definitions and an invitation to page 931.
+
+    A partial dump that says more remains looks like progress and is not.
+    """
+    result = catalog_service.inspect(request(
+        detail=["fields"], relation_ids=["cockpit_facility_quarter"]))
+    assert result["status"] == "needs_scope"
+    assert result.get("fields") is None
+    assert result.get("next_cursor") is None
+    assert "Name the field ids you need" in result["reason"]
+    assert result["relation_sizes"]["cockpit_facility_quarter"] > 60
+    assert result["added_new_information"] is False
 
 
 def test_join_warnings_name_the_repetition_they_prevent(catalog_service):

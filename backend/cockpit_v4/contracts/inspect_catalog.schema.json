@@ -49,7 +49,7 @@
         ]
       },
       "minItems": 1,
-      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+      "description": "Which metadata categories to return. 'samples' may be given on its own or implied by a non-zero sample_rows. Absent, null and empty all mean the same thing; the server stores one canonical form."
     },
     "reporting_quarters": {
       "type": [
@@ -69,7 +69,7 @@
       ],
       "minimum": 0,
       "maximum": 10,
-      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+      "description": "Masked sample rows, 0-10. Requesting one or more IS the request for samples: 'samples' in detail and a non-zero sample_rows mean the same thing, and either alone is honoured. Absent and null mean none."
     },
     "cursor": {
       "type": [
@@ -88,5 +88,11 @@
     "sample_rows",
     "cursor"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "title": "sample_rows and detail:samples are the same request",
+      "description": "A non-zero sample_rows is a request for samples whether or not 'samples' appears in detail, and 'samples' in detail with no sample_rows takes the default row count. Neither form is rejected."
+    }
+  ]
 }

@@ -52,7 +52,8 @@ about a particular model's behaviour or elapsed time.
 | `product_knowledge.py` | return exact recorded sections of the versioned pack, with slide provenance | answer a product question itself; surface the historical multi-agent slide as current |
 | `intake.py` | normalise Unicode, whitespace and invisible control characters | correct spelling, translate, transliterate, fold case, expand an abbreviation, or change any number, date or name |
 | `attention.py` | compute a published ranking over the pinned release and carry its evidence | interpret what a movement means, assert a cause, or call a model |
-| `semantics.py` | state what the catalogue already defines, and resolve a period phrase against the calendar | invent a meaning the catalogue does not carry, or resolve a term with two defensible readings |
+| `semantics.py` | state what the catalogue already defines — relation, column, type, unit, grain, period column, join key — and resolve a period phrase against the calendar | invent a meaning the catalogue does not carry, resolve a term with two defensible readings, or say which measure answers a question |
+| `catalog_tool.py` | return exactly the metadata asked for, say what was returned and what is still missing, and refuse a request with no scope | expand an unnamed relation into hundreds of definitions, or let a repeat look like a first read |
 | `sqlbind.py` | prove the submitted SQL binds, and return the engine's own diagnostic when it does not | rewrite the query, substitute a column, or inline a parameter |
 | `contracts.py` + `execute_tool.py` | validate schema, permissions, safety, grain, limits | rewrite a query, trim a step, substitute a field, compute a substitute answer |
 | `execute_tool.py` runner | execute exactly the approved code in isolation | reach another domain, a credential, the shell, the network or host files |
@@ -88,8 +89,9 @@ backend/cockpit_v4/
                      and ECL highlights, server-authored SQL, no model call
   intake.py          the only thing done to a question before the analyst
                      reads it: Unicode, whitespace, invisible controls
-  semantics.py       what a term means when it has one meaning, and how a
-                     period phrase resolves against this release's calendar
+  semantics.py       what a term means when it has one meaning, how a period
+                     phrase resolves against this release's calendar, and the
+                     mechanical schema facts for every mapped field
   sqlbind.py         proving a query bindable BEFORE saying it was validated,
                      and carrying the step's parameters to the engine
   product_knowledge.py       inspect_product_knowledge: the versioned pack,

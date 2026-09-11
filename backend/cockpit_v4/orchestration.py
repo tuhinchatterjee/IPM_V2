@@ -106,6 +106,8 @@ class Orchestrator:
     #: The first analytical failure in this run, kept so a later deadline or
     #: cost stop cannot bury it.
     first_failure: dict[str, Any] | None = None
+    #: Consecutive inspect_catalog calls that added nothing.
+    barren_catalog_calls: int = 0
     _version: int = 0
 
     # -- helpers ---------------------------------------------------------
@@ -432,16 +434,54 @@ class Orchestrator:
         self.ledger.spend_catalog_call()
         self._advance(st.TOOL_RUNNING, operation=TOOL_INSPECT)
         result = self.catalog_service.inspect(request)
+
+        # The no-progress guard. A catalogue call that adds nothing is not a
+        # refusal -- the analyst may have had a reason -- but a RUN that keeps
+        # making them is going nowhere, and the live defect spent its whole
+        # deadline doing exactly that. Two in a row is a typed warning; a
+        # third ends the run rather than burning the remaining budget on a
+        # loop that has already proven itself.
+        if result.get("added_new_information") is False:
+            self.barren_catalog_calls += 1
+        else:
+            self.barren_catalog_calls = 0
+
+        if self.barren_catalog_calls >= BARREN_CATALOG_TERMINAL:
+            raise BudgetExceeded(
+                st.NO_PROGRESS,
+                f"{self.barren_catalog_calls} consecutive inspect_catalog "
+                f"calls added no new information. The metadata already in "
+                f"this conversation is what there is; the run stopped rather "
+                f"than spend the remaining deadline on it.")
+        if self.barren_catalog_calls >= BARREN_CATALOG_WARN:
+            result["no_progress"] = {
+                "consecutive_calls_without_new_information":
+                    self.barren_catalog_calls,
+                "message": (
+                    "No new catalogue information was added. The requested "
+                    "fields are already available in this conversation. "
+                    "Continue with the analysis, or request a different, "
+                    "specific metadata item. One further request that adds "
+                    "nothing ends this run."),
+            }
+
         result["budgets_remaining"] = self.ledger.snapshot()
         self.analyst.tool_result(call.id, result)
         self.emitter.append(
             ev.TOOL_COMPLETED, stage="catalog", operation=TOOL_INSPECT,
-            status=ev.STATUS_OK,
-            public_message=(
-                f"Read {len(result.get('fields') or [])} field definition(s)"
-                + (f" across {len(result.get('discovery') or [])} relation(s)"
-                   if result.get("discovery") else "") + "."),
+            status=(ev.STATUS_REJECTED
+                    if result.get("status") == "needs_scope"
+                    else ev.STATUS_OK),
+            public_message=_catalog_message(result, request),
             detail_ref=self._detail({
+                "requested": result.get("requested"),
+                "returned": result.get("returned"),
+                "already_known": result.get("already_known"),
+                "still_missing": result.get("still_missing"),
+                "coverage_complete_for_request":
+                    result.get("coverage_complete_for_request"),
+                "added_new_information":
+                    result.get("added_new_information"),
                 "requested_fields": list(request.field_ids),
                 "requested_relations": list(request.relation_ids),
                 "detail": list(request.detail),
@@ -829,6 +869,35 @@ class Orchestrator:
 #: Product-knowledge reads a single run may make. Generous, because each is
 #: a dictionary lookup, and bounded, because nothing is unbounded.
 MAX_PRODUCT_CALLS = 4
+
+#: Consecutive catalogue calls that add nothing before the analyst is told
+#: so, and before the run stops. The bound is on REPEATING, not on asking:
+#: a complex question may legitimately need four distinct metadata reads, and
+#: `catalog_calls` still allows them. What it may not do is ask the same
+#: thing until the deadline expires.
+BARREN_CATALOG_WARN = 2
+BARREN_CATALOG_TERMINAL = 3
+
+
+def _catalog_message(result: dict[str, Any], request: Any) -> str:
+    """What the panel says a catalogue read actually did."""
+    if result.get("status") == "needs_scope":
+        return "Catalogue request needs a scope; nothing was read."
+    if result.get("added_new_information") is False:
+        return "No new catalogue information added; it was already in context."
+    returned = (result.get("returned") or {}).get("field_ids") or []
+    parts = []
+    asked = (result.get("requested") or {}).get("field_ids") or []
+    if asked:
+        parts.append("Requested " + ", ".join(
+            f.rpartition(".")[2] for f in asked[:6])
+            + (f" and {len(asked) - 6} more" if len(asked) > 6 else ""))
+    parts.append(f"returned {len(returned)} definition(s)")
+    if result.get("coverage_complete_for_request"):
+        parts.append("coverage complete")
+    elif result.get("still_missing"):
+        parts.append(f"{len(result['still_missing'])} still missing")
+    return " · ".join(parts) + "."
 
 
 def _stage_for(tool: str) -> str:

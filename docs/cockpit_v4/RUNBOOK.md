@@ -332,6 +332,20 @@ The effective values appear in the run budget, the process trace and
 `/diagnostics`. Counters — submissions, rounds, generations, catalog calls,
 steps — are the same in both cases.
 
+Reading a catalogue step in the trace:
+
+- **"Requested ead_reported, sector_name · returned 2 definition(s) · coverage
+  complete"** — the request was satisfied.
+- **"Catalogue request needs a scope; nothing was read"** — the request would
+  have expanded a whole relation, or named nothing at all. Neither returns a
+  partial dump.
+- **"No new catalogue information added; it was already in context"** — a
+  repeat. Two in a row warns the analyst; a third ends the run as
+  `NO_PROGRESS` rather than spending the deadline on a loop.
+
+`catalog_calls` is still 4: distinct, useful metadata reads remain available.
+The bound is on repeating.
+
 Two things worth knowing when reading a trace:
 
 - **"Query validated and bound"** means DuckDB was asked, with the step's own

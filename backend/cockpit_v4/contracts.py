@@ -528,6 +528,9 @@ def parse_execution(payload: Any, *, max_steps: int) -> ExecutionSubmission:
 CATALOG_DETAILS: tuple[str, ...] = (
     "discovery", "fields", "relationships", "coverage", "samples")
 MAX_SAMPLE_ROWS = 10
+#: What "samples" without a row count means. Small on purpose: a sample shows
+#: SHAPE, and ten rows of a 198-column relation is already a lot of text.
+DEFAULT_SAMPLE_ROWS = 3
 
 
 @dataclass(frozen=True)
@@ -566,10 +569,17 @@ def parse_catalog(payload: Any) -> CatalogRequest:
             "INVALID_MODEL_OUTPUT",
             f"sample_rows must be between 0 and {MAX_SAMPLE_ROWS}.",
             field_path="sample_rows")
+    # `sample_rows` and `detail: ["samples"]` are the same request written two
+    # ways, so neither is refused for lacking the other. Rejecting
+    # `sample_rows: 5` because "samples" was absent cost a live run a whole
+    # generation for a tool call the published schema said was valid -- the
+    # same class of defect as the finalize_response null, in a different
+    # field. Representation is normalised here; nothing about what was asked
+    # for changes.
     if rows and "samples" not in detail:
-        raise Rejection("INVALID_MODEL_OUTPUT",
-                        "sample_rows requires 'samples' in detail.",
-                        field_path="detail")
+        detail = detail + ("samples",)
+    if "samples" in detail and not rows:
+        rows = DEFAULT_SAMPLE_ROWS
     if rows and intent.query_mode != DATA_ANALYSIS:
         raise Rejection(
             "SECURITY_DENIED",

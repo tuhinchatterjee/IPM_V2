@@ -162,6 +162,94 @@ def measures(catalog: Any = None) -> list[dict[str, str]]:
     return out
 
 
+#: The relation-level facts a query needs and a term mapping does not carry.
+_RELATION_FACTS: dict[str, dict[str, str]] = {
+    "cockpit_facility_quarter": {
+        "grain": "one row per facility per reporting quarter",
+        "period_field": "reporting_quarter",
+        "key": "facility_id",
+        "borrower_key": "borrower_id"},
+    "cockpit_rating_ratio_quarter": {
+        "grain": "one row per borrower per reporting quarter",
+        "period_field": "reporting_quarter",
+        "key": "borrower_id",
+        "borrower_key": "borrower_id"},
+    "cockpit_covenant_quarter": {
+        "grain": "one row per covenant per borrower per reporting quarter",
+        "period_field": "reporting_quarter",
+        "key": "covenant_id",
+        "borrower_key": "borrower_id"},
+    "cockpit_borrower_financial_quarter": {
+        "grain": "one row per borrower per reporting quarter",
+        "period_field": "reporting_quarter",
+        "key": "borrower_id",
+        "borrower_key": "borrower_id"},
+    "cockpit_collateral_quarter": {
+        "grain": "one row per collateral item per reporting quarter",
+        "period_field": "reporting_quarter",
+        "key": "collateral_id",
+        "borrower_key": ""},
+}
+
+
+def field_packet(catalog: Any) -> list[dict[str, Any]]:
+    """Mechanical schema facts for the canonically mapped fields.
+
+    Enough to WRITE a query without exploring the catalogue: the relation, the
+    column, what it means, its type and unit, the grain of its relation, the
+    column that carries the reporting period, and the key to join on. Read
+    straight off the catalogue, so nothing here is a definition someone
+    invented.
+
+    What it deliberately is not: a method. It does not say which measure
+    answers a question, how to aggregate it, which quarter to pick, or what
+    the answer is. Choosing those is the analysis, and the analyst does that.
+
+    This exists because a live run spent three generations and its whole
+    deadline calling `inspect_catalog` for "what is total exposure at default
+    by sector in the latest quarter?" -- a question whose every term the
+    server had already resolved. It knew the fields and did not say what type
+    they were.
+    """
+    seen: set[str] = set()
+    packet: list[dict[str, Any]] = []
+    for mapping in measures(catalog):
+        relation, column = mapping["relation"], mapping["field"]
+        field_id = f"{relation}.{column}"
+        if field_id in seen:
+            continue
+        seen.add(field_id)
+        entry: dict[str, Any] = {
+            "term": mapping["term"],
+            "field_id": field_id,
+            "relation": relation,
+            "column": column,
+            "means": mapping["means"],
+        }
+        try:
+            spec = catalog.resolve(relation, column)
+        except Exception:  # noqa: BLE001
+            spec = None
+        if spec is not None:
+            entry["dtype"] = getattr(spec, "dtype", "")
+            unit = getattr(spec, "unit", "")
+            if unit:
+                entry["unit"] = unit
+            aggregation = getattr(spec, "aggregation", "")
+            if aggregation:
+                entry["aggregation"] = aggregation
+            enumeration = tuple(getattr(spec, "enumeration", ()) or ())
+            if enumeration:
+                entry["allowed_values"] = list(enumeration)
+            if getattr(spec, "currency_scoped", False):
+                entry["currency"] = getattr(catalog, "reporting_currency", "")
+                entry["amount_scale"] = getattr(catalog, "amount_scale", "")
+        facts = _RELATION_FACTS.get(relation, {})
+        entry.update({k: v for k, v in facts.items() if v})
+        packet.append(entry)
+    return packet
+
+
 def populated_quarters(catalog: Any) -> list[str]:
     calendar = getattr(catalog, "calendar", None)
     return [str(q) for q in (getattr(calendar, "populated", ()) or ())]
@@ -233,7 +321,7 @@ def ambiguous_terms_in(question: str) -> list[dict[str, Any]]:
 def block(catalog: Any) -> dict[str, Any]:
     """The semantics block carried in the starting context."""
     return {
-        "canonical_measures": measures(catalog),
+        "canonical_measures": field_packet(catalog),
         "periods": periods(catalog),
         "terms_needing_a_question": {
             term: {"candidate_fields": list(options),
@@ -245,9 +333,15 @@ def block(catalog: Any) -> dict[str, Any]:
             "These are resolutions, not assumptions to ask about. Declare "
             "them in canonical_mappings or resolved_assumptions and proceed. "
             "Reserve blocking_ambiguities for a term with two defensible "
-            "readings that would produce materially different numbers."),
+            "readings that would produce materially different numbers. "
+            "`canonical_measures` carries the relation, column, type, unit, "
+            "grain, period column and join key for each mapped term: a "
+            "question that uses only these terms can go straight to "
+            "execute_analysis. Call inspect_catalog for a fact that is "
+            "genuinely missing from here, naming the field ids you need."),
     }
 
 
-__all__ = ["AMBIGUOUS_TERMS", "ambiguous_terms_in", "block", "measures",
+__all__ = ["AMBIGUOUS_TERMS", "ambiguous_terms_in", "block", "field_packet",
+           "measures",
            "period_phrases", "periods", "populated_quarters"]

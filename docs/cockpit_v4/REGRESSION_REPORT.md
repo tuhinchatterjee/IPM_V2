@@ -74,7 +74,7 @@ COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 python3 -m pytest tests/cockpit_v4 -q
 
 | tests collected | passed | failures | errors | skipped | elapsed |
 |---:|---:|---:|---:|---:|---:|
-| 466 | 466 | 0 | 0 | 0 | ~16 s |
+| 492 | 492 | 0 | 0 | 0 | ~16 s |
 
 Frontend unit suite — the whole thing, not only the Cockpit:
 
@@ -184,6 +184,24 @@ Neither changed the ranking. The engine's SQL, gates, formula, tie-breaks,
 cache and pandas oracle are untouched, and a test asserts the top five are
 still the oracle's top five.
 
+### Eighth round — the catalogue loop
+
+| # | Defect | Consequence |
+|---|---|---|
+| 42 | `inspect_catalog` expanded `relation_ids` into every column when `field_ids` was empty: 991 definitions, first page of 60, "931 remaining". | The live loop's fuel. A partial dump that advertises more looks like progress, so the analyst paged on — three catalogue calls, a truncated generation, and a 120-second deadline spent without reaching SQL. Expansion beyond one page is now refused with the relation sizes and what to specify; an explicit field-id list is still served and still pages. |
+| 43 | An unscoped request returned the full relation list, or an unexplained empty array. | An unscoped request is not a request for the whole catalogue. Refused compactly, under 2 KB, naming the authorized relations. |
+| 44 | Responses did not say whether the request had been satisfied. | A model that cannot tell whether it made progress asks again. Every response now carries `requested` / `returned` / `already_known` / `still_missing` / `coverage_complete_for_request` / `added_new_information`. |
+| 45 | Nothing bounded repetition; `catalog_calls = 4` bounded only the count. | Four identical calls, four generations. Two consecutive calls adding nothing now produce a typed warning; a third is terminal `NO_PROGRESS`. `catalog_calls` stays at 4 — the fix is on repeating, not on asking, and a test asserts distinct exploration is unaffected. |
+| 46 | The starting context carried term→field mappings but no type, unit, grain, period column or join key. | A defensible reason to read the catalogue for a question whose every term was already resolved. `semantics.field_packet()` now supplies those facts for all 16 mapped fields, ≈6.9 KB, and a test fails if any method language appears in it. |
+| 47 | `sample_rows` was an independent integer in the published schema and rejected by the parser without `"samples"` in `detail`. | "sample_rows requires 'samples' in detail" — the finalize_response null defect in a different field. The two forms are now the same request, and six schema-valid payloads are asserted to parse. |
+| 48 | A sample ran `SELECT *`: 198 columns of borrower data to show shape. | Samples now read the requested columns only, at most 12 unnamed, 10 rows, 2 relations, with their purpose and exact scope returned. An unscoped sample is refused. |
+
+The truncated generation's stop reason was `max_tokens`. The handling was
+already correct — nothing executes, the partial turn is rolled out of history,
+one counted regeneration — so the fix was upstream: the dumps that inflated
+the conversation, and a prompt that now asks for compact tool actions. Neither
+the output allowance nor the 120-second deadline was increased.
+
 ### Browser suite
 
 ```
@@ -225,13 +243,15 @@ All run in this container, in this order, on the commit being handed off.
 
 | Suite | Command | Result |
 |---|---|---:|
-| V4 backend | `python3 -m pytest tests/cockpit_v4` | **466 passed**, 0 failed |
+| V4 backend | `python3 -m pytest tests/cockpit_v4` | **492 passed**, 0 failed |
 | — launcher + frontend wiring subset | `… test_launcher_safety.py test_frontend_wiring.py` | 43 passed |
 | — Product Help benchmark | `… test_product_help_benchmark.py` | 81 passed |
 | — Product Help semantics / tool policy | `… test_product_help_semantics.py` | 61 passed |
 | — spelling, telegraphic and multilingual input | `… test_language_and_intent.py` | 40 passed |
 | — attention ranking, oracles, seeding and composition | `… test_attention_feed.py` | 42 passed |
 | — analytical execution, binding and budgets | `… test_analytical_execution.py` | 31 passed |
+| — catalogue convergence and the no-progress guard | `… test_catalog_convergence.py` | 18 passed |
+| — tool schema / parser agreement | `… test_tool_contract_agreement.py` | 33 passed |
 | — tool contract agreement | `… test_tool_contract_agreement.py` | 26 passed |
 | — event contract parity | `… test_event_contract_parity.py` | 5 passed |
 | — "Who are you?" acceptance | `… test_who_are_you_acceptance.py` | 7 passed |

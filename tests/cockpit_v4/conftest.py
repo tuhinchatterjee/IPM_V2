@@ -284,3 +284,16 @@ def ledger_factory(store_db, capability):
         return Ledger(limits=limits, capability=capability, store=store_db,
                       run_id=run_id)
     return _make
+
+
+@pytest.fixture
+def catalog_service(runtime, release_id):
+    """The real catalog tool over the pinned release, with no session."""
+    from backend.cockpit_agentic import scope as v3_scope
+    from backend.cockpit_v4.catalog_tool import CatalogService
+    from backend.cockpit_v4.service import _Principal
+
+    scope = v3_scope.for_principal(
+        _Principal({"tenant": "demo-tenant", "id": "u"}),
+        dataset_release_id=release_id)
+    return CatalogService(catalog=runtime.catalog, scope=scope)

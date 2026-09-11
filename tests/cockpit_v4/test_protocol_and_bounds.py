@@ -307,7 +307,12 @@ def test_the_run_deadline_stops_the_loop(drive, store_db, make_run,
         config_mod.STANDARD_LIMITS = original
 
     assert outcome.state in (st.EXPIRED, st.FAILED)
-    assert outcome.error_code in (st.DEADLINE_EXPIRED, st.CALL_LIMIT)
+    # NO_PROGRESS is the newest and best of the three: thirty identical
+    # catalogue calls are stopped as a loop rather than left to consume the
+    # deadline. The property under test — a stalled loop cannot outlive its
+    # bounds — holds more strongly, not less.
+    assert outcome.error_code in (st.DEADLINE_EXPIRED, st.CALL_LIMIT,
+                                  st.NO_PROGRESS)
 
 
 def test_spend_is_reserved_before_the_call_and_settled_after(

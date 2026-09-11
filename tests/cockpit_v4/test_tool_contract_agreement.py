@@ -21,7 +21,10 @@ from pathlib import Path
 
 import pytest
 
+import jsonschema
+
 from backend.cockpit_v4 import contracts as c
+from backend.cockpit_v4.contracts import parse_catalog
 
 SCHEMAS = Path(c.CONTRACTS_DIR)
 
@@ -260,3 +263,55 @@ def test_every_nullable_field_still_rejects_a_wrong_type():
         payload = {**LIVE_FINALIZE_PAYLOAD, field: wrong}
         with pytest.raises(c.Rejection):
             c.parse_final(payload)
+
+
+# ---- inspect_catalog: sample_rows and detail cannot disagree -----------
+
+def _catalog_payload(**body):
+    payload = {
+        "intent": {"query_mode": "DATA_ANALYSIS", "owner": "COCKPIT",
+                   "understood_request": "x", "response_language": "en",
+                   "blocking_ambiguities": None, "resolved_assumptions": None,
+                   "canonical_mappings": None, "excluded_parts": None,
+                   "public_rationale": "r"},
+        "query": None, "relation_ids": None, "field_ids": None,
+        "detail": None, "reporting_quarters": None, "sample_rows": None,
+        "cursor": None,
+    }
+    payload.update(body)
+    return payload
+
+
+@pytest.mark.parametrize("body", [
+    {"detail": ["fields"], "sample_rows": 3},
+    {"detail": ["samples"]},
+    {"detail": ["samples"], "sample_rows": 0},
+    {"detail": ["samples"], "sample_rows": 10},
+    {"detail": ["fields", "samples"], "sample_rows": 1},
+    {"sample_rows": 2},
+])
+def test_every_sample_request_the_schema_allows_is_accepted(body):
+    """A live run was refused for a call its own schema called valid.
+
+    "sample_rows requires 'samples' in detail" was a parser rule the published
+    schema did not state. The two forms are the same request and neither is
+    refused for lacking the other.
+    """
+    payload = _catalog_payload(**body)
+    # The INLINED schema, which is what the provider is actually sent.
+    published = next(tool["input_schema"] for tool in c.provider_tools()
+                     if tool["name"] == "inspect_catalog")
+    jsonschema.validate(payload, published)
+    parsed = parse_catalog(payload)
+    assert "samples" in parsed.detail
+    assert parsed.sample_rows >= 1
+
+
+def test_the_schema_says_the_two_forms_mean_the_same_thing():
+    schema = next(tool["input_schema"] for tool in c.provider_tools()
+                  if tool["name"] == "inspect_catalog")
+    described = (schema["properties"]["sample_rows"]["description"]
+                 + schema["properties"]["detail"]["description"]
+                 + json.dumps(schema.get("allOf", [])))
+    assert "mean the same thing" in described
+    assert "rejected" in described or "Neither form is rejected" in described

@@ -35,6 +35,10 @@ from backend.cockpit_v4.contracts import CatalogRequest, Rejection
 #: silently drop fields.
 OUTPUT_TARGET_TOKENS = 4_000
 MAX_FIELDS_PER_PAGE = 60
+#: Columns a sample may show when none were named. A sample is about shape.
+MAX_SAMPLE_COLUMNS = 12
+#: Mirrors the contract's bound, so a sample cannot exceed it by another path.
+MAX_SAMPLE_ROWS = 10
 
 
 @dataclass
@@ -68,6 +72,14 @@ class CatalogService:
     coverage: Any = None
     session: Any = None
     receipts: dict[str, MetadataReceipt] = field(default_factory=dict)
+    #: What this RUN already holds. The point of tracking it is not to refuse
+    #: a repeat but to be able to SAY it is a repeat: a response that does not
+    #: distinguish "here is what you asked for" from "you already had this"
+    #: leaves the model to infer whether it made progress, and a model that
+    #: cannot tell asks again.
+    known_fields: set[str] = field(default_factory=set)
+    known_relations: set[str] = field(default_factory=set)
+    known_details: set[str] = field(default_factory=set)
 
     # -- helpers ---------------------------------------------------------
 
@@ -148,6 +160,70 @@ class CatalogService:
 
     # -- the tool --------------------------------------------------------
 
+    def _expansion_refusal(self, request: CatalogRequest, detail: set[str],
+                           relations: tuple[str, ...],
+                           requested_relations: tuple[str, ...]
+                           ) -> dict[str, Any] | None:
+        """Refuse a request that would page through the whole catalogue.
+
+        The live loop's fuel. A request for `fields` across eleven relations
+        expanded to 991 field definitions, returned the first 60, and said
+        931 remained -- so the model asked again, and again, and the deadline
+        went on catalogue paging. A partial dump with an invitation to
+        continue is worse than a refusal: it looks like progress.
+
+        An explicit list of field ids is always served, however long, because
+        that is a request someone actually made.
+        """
+        # Only field EXPANSION is refused. Asking for a relation's joins or
+        # its coverage names the relation legitimately and returns a handful
+        # of facts, not hundreds.
+        if "fields" not in detail:
+            return None
+        if request.field_ids or not requested_relations:
+            return None
+        total = sum(len(self.catalog.columns(r)) for r in requested_relations)
+        if total <= MAX_FIELDS_PER_PAGE:
+            return None
+        return {
+            "status": "needs_scope",
+            "catalog_version": self.catalog_version,
+            "requested": {"relation_ids": list(requested_relations),
+                          "detail": sorted(set(request.detail))},
+            "returned": [],
+            "coverage_complete_for_request": False,
+            "reason": (
+                f"Expanding {len(requested_relations)} relation(s) would be "
+                f"{total} field definitions. Name the field ids you need in "
+                f"field_ids, or narrow to one relation, or use "
+                f"detail=['discovery'] with a query to find the canonical "
+                f"ids. Nothing was returned and nothing was abbreviated."),
+            "relation_sizes": {r: len(self.catalog.columns(r))
+                               for r in requested_relations},
+            "authorized_relations": list(relations),
+        }
+
+    @staticmethod
+    def _underspecified(request: CatalogRequest, detail: set[str],
+                        relations: tuple[str, ...]) -> dict[str, Any] | None:
+        """A request with no scope is not a request for everything."""
+        scoped = bool(request.relation_ids or request.field_ids
+                      or request.query)
+        if scoped or detail & {"coverage", "relationships", "samples"}:
+            return None
+        return {
+            "status": "needs_scope",
+            "requested": {"detail": sorted(detail)},
+            "returned": [],
+            "coverage_complete_for_request": False,
+            "reason": ("Specify relation(s), field(s), or a query. An "
+                       "unscoped request is not a request for the whole "
+                       "catalogue, and none of it was returned."),
+            "authorized_relations": list(relations),
+            "next": ("detail=['discovery'] with a query finds canonical ids; "
+                     "field_ids returns exact definitions."),
+        }
+
     def inspect(self, request: CatalogRequest) -> dict[str, Any]:
         """Answer one catalog request. Every branch returns what is there."""
         detail = set(request.detail) or {"discovery"}
@@ -163,6 +239,14 @@ class CatalogService:
         relations = self._relations()
         requested_relations = tuple(
             r for r in request.relation_ids if r in relations)
+
+        refusal = (self._underspecified(request, detail, relations)
+                   or self._expansion_refusal(request, detail, relations,
+                                              requested_relations))
+        if refusal is not None:
+            refusal.setdefault("catalog_version", self.catalog_version)
+            refusal["added_new_information"] = False
+            return refusal
         unknown_relations = tuple(
             r for r in request.relation_ids if r not in relations)
         if unknown_relations:
@@ -295,8 +379,12 @@ class CatalogService:
             }
 
         if "samples" in detail and request.sample_rows:
-            out["samples"] = self._samples(requested_relations,
-                                           request.sample_rows)
+            out["samples"] = self._samples(
+                requested_relations or tuple(
+                    sorted({f.partition(".")[0] for f in request.field_ids
+                            if f.partition(".")[0] in relations})),
+                request.sample_rows,
+                columns=tuple(request.field_ids))
 
         receipt = MetadataReceipt(
             receipt_id=f"mr-{uuid.uuid4().hex[:12]}",
@@ -305,11 +393,91 @@ class CatalogService:
             catalog_version=self.catalog_version)
         self.receipts[receipt.receipt_id] = receipt
         out["metadata_receipt_id"] = receipt.receipt_id
+        out.update(self._account(request, detail, out, delivered_fields,
+                                 requested_relations))
         return out
 
-    def _samples(self, relations: tuple[str, ...], rows: int
-                 ) -> dict[str, Any]:
-        """At most ten masked rows, and never a population profile."""
+    def _account(self, request: CatalogRequest, detail: set[str],
+                 out: dict[str, Any], delivered_fields: list[str],
+                 requested_relations: tuple[str, ...]) -> dict[str, Any]:
+        """Say what was asked for, what came back, and what is still missing.
+
+        Monotonic and self-describing, so the analyst never has to infer
+        whether its request succeeded. `already_known` is the important one:
+        without it, a second identical call looks exactly like the first.
+        """
+        asked_fields = [f for f in request.field_ids]
+        unresolved = set(
+            (out.get("unresolved_fields") or {}).get("requested", ()))
+        returned = list(delivered_fields)
+        # What the RUN already had before this call. A field can be both
+        # returned and already known -- that is exactly the case worth
+        # naming, because otherwise a second identical call looks like the
+        # first one.
+        already = sorted(set(asked_fields) & self.known_fields)
+        missing = sorted(unresolved)
+
+        new_fields = set(returned) - self.known_fields
+        new_relations = set(requested_relations) - self.known_relations
+        new_details = (detail & {"relationships", "coverage", "samples"}
+                       ) - self.known_details
+        added = bool(new_fields or new_relations or new_details
+                     or (detail & {"discovery"} and "discovery"
+                         not in self.known_details))
+
+        self.known_fields |= set(returned)
+        self.known_relations |= set(requested_relations)
+        self.known_details |= (detail & {"discovery", "relationships",
+                                         "coverage", "samples"})
+
+        complete = not missing and not out.get("next_cursor")
+        account: dict[str, Any] = {
+            "requested": {
+                "detail": sorted(detail),
+                "relation_ids": list(request.relation_ids),
+                "field_ids": asked_fields,
+                **({"query": request.query} if request.query else {}),
+                **({"sample_rows": request.sample_rows}
+                   if request.sample_rows else {}),
+            },
+            "returned": {
+                "field_ids": returned,
+                "relations": list(requested_relations),
+                "detail": sorted(
+                    d for d in detail
+                    if d in out or d == "fields" and returned),
+            },
+            "already_known": already,
+            "still_missing": missing,
+            "coverage_complete_for_request": complete,
+            "added_new_information": added,
+            "known_so_far": {
+                "field_count": len(self.known_fields),
+                "relations": sorted(self.known_relations),
+            },
+        }
+        if not added:
+            account["no_new_information"] = (
+                "No new catalogue information was added. The requested "
+                "fields are already available in this conversation. Continue "
+                "with the analysis, or request a different, specific "
+                "metadata item.")
+        return account
+
+    def _samples(self, relations: tuple[str, ...], rows: int, *,
+                 columns: tuple[str, ...] = ()) -> dict[str, Any]:
+        """A few masked rows of the requested columns. Never a table.
+
+        Narrow on purpose: `SELECT *` on the widest relation is 198 columns
+        of borrower data to answer a question about shape. When field ids were
+        named, only those columns are read; otherwise a small bounded slice of
+        the relation's own columns, so the response cannot become a dump by
+        another route.
+        """
+        if not relations:
+            return {"status": "needs_scope",
+                    "reason": ("Name the relation or the field ids to sample. "
+                               "No sample was read.")}
         if self.session is None:
             return {"status": "unavailable",
                     "reason": ("No execution session is open, so no sample "
@@ -317,16 +485,30 @@ class CatalogService:
         from backend.cockpit_agentic import sql as v3_sql
 
         out: dict[str, Any] = {"note": (
-            "Masked sample rows. These are examples of SHAPE, never a "
-            "population profile: do not read a total, a rate or a "
-            "distribution off them.")}
+            "Masked sample rows of the requested columns only. These are "
+            "examples of SHAPE, never a population profile: do not read a "
+            "total, a rate or a distribution off them.")}
+        rows = max(1, min(int(rows), MAX_SAMPLE_ROWS))
         for relation in relations[:2]:
+            available = list(self.catalog.columns(relation))
+            wanted = [c.partition(".")[2] for c in columns
+                      if c.partition(".")[0] == relation
+                      and c.partition(".")[2] in available]
+            selected = wanted[:MAX_SAMPLE_COLUMNS] or \
+                available[:MAX_SAMPLE_COLUMNS]
+            projection = ", ".join(f'"{c}"' for c in selected)
             try:
                 result = v3_sql.execute(
-                    f"SELECT * FROM {relation} LIMIT {int(rows)}",
-                    self.session, deadline_seconds=5.0, max_rows=int(rows))
-                out[relation] = {"columns": [c["name"] for c in result.columns],
-                                 "rows": result.rows[:int(rows)]}
+                    f"SELECT {projection} FROM {relation} LIMIT {rows}",
+                    self.session, deadline_seconds=5.0, max_rows=rows)
+                out[relation] = {
+                    "purpose": "column shape and example values",
+                    "scope": {"relation": relation,
+                              "columns": selected,
+                              "row_limit": rows,
+                              "columns_requested": bool(wanted)},
+                    "columns": [c["name"] for c in result.columns],
+                    "rows": result.rows[:rows]}
             except Exception as exc:  # noqa: BLE001
                 out[relation] = {"status": "unavailable",
                                  "reason": str(exc)[:200]}
