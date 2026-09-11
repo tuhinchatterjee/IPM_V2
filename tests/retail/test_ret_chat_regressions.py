@@ -483,3 +483,30 @@ def test_move_from_x_to_y_is_a_movement(question: str, wanted: bool) -> None:
     from backend.orchestration.movement import asks_for_change
 
     assert asks_for_change(question) is wanted
+
+
+def test_the_studio_offers_no_method_the_retail_book_cannot_run() -> None:
+    """Analysis Studio offered a retail user a menu of dead methods.
+
+    Rating Distribution, Rating Migration, Rating Transition Matrix, Sector
+    Concentration, Single Name Concentration and Exposure by Obligor — every
+    one of them reads a dataset this conversion retired, so every one of them
+    is a control that cannot work.
+    """
+    import re
+
+    from backend.studio.library import active_definitions, all_definitions
+
+    active = active_definitions()
+    assert active, "the library offers nothing at all"
+    if not profile.is_retail():
+        assert len(active) == len(all_definitions())
+        return
+
+    retired = re.compile(r"rating|notch|grade|obligor|sector|covenant|ebitda|"
+                         r"dscr|single name|large exposure", re.I)
+    offending = [m.name for m in active
+                 if retired.search(f"{m.name} {m.definition}")]
+    assert not offending, f"the active library still offers {offending[:5]}"
+    # Retired, not deleted: the corporate book must remain restorable.
+    assert len(all_definitions()) > len(active)

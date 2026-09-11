@@ -77,14 +77,14 @@ class Registry:
     # ---- loading -----------------------------------------------------------
 
     def load(self) -> Registry:
-        from backend.studio.library import all_definitions
+        from backend.studio.library import active_definitions
 
         with self._lock:
             self._methods.clear()
             self._aliases.clear()
             self._audit = CertificationAudit()
 
-            for method in all_definitions():
+            for method in active_definitions():
                 self._verify(method)
                 self._methods[method.id] = method
 

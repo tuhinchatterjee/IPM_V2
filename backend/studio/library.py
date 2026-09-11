@@ -1264,6 +1264,48 @@ _WRITTEN = [PORTFOLIO, ASSET_QUALITY, IFRS9, RATINGS, CONCENTRATION, VINTAGE,
 _GENERATED = [CUTS, CHANGES, RANKINGS]
 
 
+#: Categories this installation's book cannot support. A retail book has
+#: scorecards and bands, not internal rating grades, and no obligor group to
+#: concentrate on.
+_RETIRED_CATEGORIES = frozenset({C.RATINGS, C.MIGRATION, C.CONCENTRATION,
+                                 C.COVENANTS, C.LIMITS})
+
+#: Words that make a method a corporate one whatever its category says.
+_RETIRED_WORDS = ("rating", "notch", "grade", "obligor", "sector",
+                  "covenant", "ebitda", "dscr", "single name",
+                  "large exposure", "master scale")
+
+
+def _serves_the_active_book(method: MethodDefinition) -> bool:
+    """Whether this method can run on the book this installation publishes.
+
+    The failure this prevents
+    -------------------------
+    Analysis Studio offered a retail user Rating Distribution, Rating
+    Migration, Rating Transition Matrix, Sector Concentration, Single Name
+    Concentration and Exposure by Obligor. Every one of them reads a dataset
+    this conversion retired, so every one of them is a control that cannot
+    work — a menu of dead methods in front of somebody looking for a real one.
+
+    Filtered rather than deleted: the definitions stay in the library so the
+    corporate book can be restored with the profile.
+    """
+    if method.category in _RETIRED_CATEGORIES:
+        return False
+    text = f"{method.name} {method.definition}".lower()
+    return not any(word in text for word in _RETIRED_WORDS)
+
+
+def active_definitions() -> list[MethodDefinition]:
+    """The library, restricted to what the active product can actually run."""
+    from backend.retail import profile
+
+    everything = all_definitions()
+    if not profile.is_retail():
+        return everything
+    return [method for method in everything if _serves_the_active_book(method)]
+
+
 def all_definitions() -> list[MethodDefinition]:
     """Every entry in the library, deduplicated by id.
 
@@ -1290,4 +1332,4 @@ def all_definitions() -> list[MethodDefinition]:
     return list(seen.values())
 
 
-__all__ = ["all_definitions"]
+__all__ = ["active_definitions", "all_definitions"]

@@ -40,10 +40,22 @@ export const SEVERITY_TONE: Record<string, string> = {
   low: "bg-surface-sunken text-text-muted",
 };
 
+// The LEVEL is a governed constant; its label is what the reader sees. A
+// retail book has customers, not borrowers, and a case raised against one was
+// headed "Borrower" on the Cockpit of a retail installation.
+//
+// Read inline rather than imported: this module is deliberately dependency-free
+// so `node --test` can exercise its rules without a bundler, and one import of
+// a path alias took the whole file out of the test runner's reach.
+/** Whether this installation serves the retail book. See lib/profile.ts. */
+const RETAIL =
+  (process.env.NEXT_PUBLIC_PRODUCT_PROFILE ?? "retail").trim().toLowerCase()
+  !== "corporate";
+
 export const LEVEL_LABEL: Record<string, string> = {
   PORTFOLIO: "Portfolio",
   SEGMENT: "Segment",
-  BORROWER: "Borrower",
+  BORROWER: RETAIL ? "Customer" : "Borrower",
   DATA_QUALITY: "Data",
 };
 
@@ -62,7 +74,7 @@ export const FILTER_LABEL: Record<Filter, string> = {
   ALL: "All",
   PORTFOLIO: "Portfolio",
   SEGMENTS: "Segments",
-  BORROWERS: "Borrowers",
+  BORROWERS: RETAIL ? "Customers" : "Borrowers",
   DATA: "Data",
 };
 
