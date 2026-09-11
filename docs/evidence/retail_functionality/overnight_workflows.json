@@ -1,0 +1,293 @@
+{
+  "suite": "overnight_workflows",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 114.5,
+  "counts": {
+    "PASS": 20,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/overnight_workflows-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "UAT-USERS",
+      "module": "workflows",
+      "title": "Disposable UAT accounts exist and are addressable",
+      "status": "PASS",
+      "detail": "2 of 2 accounts ready: ['uat.risk.head', 'uat.analyst']",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-01",
+      "module": "workflows",
+      "title": "A thread starts from a real Cockpit answer",
+      "status": "PASS",
+      "detail": "the opening answer rendered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "answer": " for August 2026\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each product at 2026-08. Personal Finance alone accounts for 56.38% of expected credit loss across the 4 shown.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n4 groups, one measure.\n\nAsk about this\nChart\nTable\nProduct label\n\t\nExpected credit loss\nsar mn\n\nPersonal Fi",
+        "screenshot": "docs/evidence/retail_functionality/screens/th-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-02",
+      "module": "workflows",
+      "title": "Follow-up 1 is answered in the same thread",
+      "status": "PASS",
+      "detail": "answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Which stage contributes most of that?",
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/th-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-03",
+      "module": "workflows",
+      "title": "Follow-up 2 is answered in the same thread",
+      "status": "PASS",
+      "detail": "answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Narrow it to personal finance.",
+        "answer": "\n\nONE QUESTION BACK\n\nWhich figure should CreditProbe measure? Name one of the governed concepts \u2014 gross carrying amount, exposure at default, credit limit, undrawn commitment \u2014 and it will compose the analysis.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, which will ask if it cannot read the question.\n\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "screenshot": "docs/evidence/retail_functionality/screens/th-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-04",
+      "module": "workflows",
+      "title": "Follow-up 3 is answered in the same thread",
+      "status": "PASS",
+      "detail": "answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "How did it move since July 2026?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nOrdered largest first. The figures are sums across every facility in each product at 2026-08. Personal Finance alone accounts for 56.38% of expected credit loss across the 4 shown. This covers the 4 carried forward from the previous answer, not the whole book.\n\nTOTAL FINAL ECL\n\n15,952,108.84\nSAR\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n15,952,108.84\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n4\n\n4 groups, one",
+        "screenshot": "docs/evidence/retail_functionality/screens/th-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-05",
+      "module": "workflows",
+      "title": "The thread survives a refresh with its scope intact",
+      "status": "PASS",
+      "detail": "the conversation is still on screen after a reload",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/th-05.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-06",
+      "module": "workflows",
+      "title": "The thread is listed under Investigations after leaving the module",
+      "status": "PASS",
+      "detail": "50 investigations listed",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-07",
+      "module": "workflows",
+      "title": "Reopening carries the conversation, not only the title",
+      "status": "PASS",
+      "detail": "the reopened thread renders 6259 characters",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/th-07.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-08",
+      "module": "workflows",
+      "title": "The conversation continues after reopening",
+      "status": "PASS",
+      "detail": "the follow-up was answered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/th-08.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "TH-09",
+      "module": "workflows",
+      "title": "Back from a thread returns to Investigations",
+      "status": "PASS",
+      "detail": "landed on http://localhost:5328/investigations",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PB-01",
+      "module": "workflows",
+      "title": "The Playbook lists this installation's packs",
+      "status": "PASS",
+      "detail": "3 packs listed; corporate wording=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/pb-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PB-02",
+      "module": "workflows",
+      "title": "Every block on the pack carries a figure rather than a dash",
+      "status": "PASS",
+      "detail": "90 figures and 1 empty markers on the page",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "route": "/playbook/packs/1523",
+        "screenshot": "docs/evidence/retail_functionality/screens/pb-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PB-03",
+      "module": "workflows",
+      "title": "The pack says nothing about the corporate book",
+      "status": "PASS",
+      "detail": "corporate wording=[]",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PB-04",
+      "module": "workflows",
+      "title": "A pack has a Back control",
+      "status": "PASS",
+      "detail": "back-link present",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PB-05",
+      "module": "workflows",
+      "title": "Back returns to the Playbook",
+      "status": "PASS",
+      "detail": "landed on http://localhost:5328/playbook",
+      "expected": null,
+      "actual": null,
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MSG-01",
+      "module": "workflows",
+      "title": "A recipient is found by a partial name",
+      "status": "PASS",
+      "detail": "2 accounts offered for 'uat'",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/msg-01.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MSG-02",
+      "module": "workflows",
+      "title": "A message is addressed to a disposable UAT account and sent",
+      "status": "PASS",
+      "detail": "recipient chips=1; the subject appears in the mailbox=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "subject": "UAT 194213 retail scorecard review",
+        "screenshot": "docs/evidence/retail_functionality/screens/msg-02.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MSG-03",
+      "module": "workflows",
+      "title": "The message is in the recipient's mailbox, not only in the sender's",
+      "status": "PASS",
+      "detail": "the subject is in the recipient's inbox=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "subject": "UAT 194213 retail scorecard review",
+        "screenshot": "docs/evidence/retail_functionality/screens/msg-03.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "MSG-04",
+      "module": "workflows",
+      "title": "The recipient sees the message body as sent",
+      "status": "PASS",
+      "detail": "the body is rendered=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/msg-04.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

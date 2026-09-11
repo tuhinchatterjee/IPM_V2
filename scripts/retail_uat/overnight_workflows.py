@@ -38,6 +38,9 @@ from retail_uat.driver import (  # noqa: E402
 
 MODULE = "workflows"
 
+#: Where the application's own JavaScript sends its API calls.
+API_BASE = "http://localhost:8328"
+
 #: The disposable accounts this suite creates and uses. Real seeded users are
 #: never messaged: a UAT that sends work to somebody's actual inbox overnight
 #: is a UAT that gets switched off.
@@ -80,9 +83,14 @@ def api(s: Session, method: str, path: str,
     under test — creating the disposable accounts, reading back what the screen
     should be showing. Every assertion below is made against the rendered page.
     """
+    # The app's OWN base URL, not the page's origin. The frontend talks to
+    # the backend directly (NEXT_PUBLIC_API_URL); a relative path goes through
+    # Next's rewrite instead, which is a different route into the product and
+    # answered a POST with a 500 the backend never saw.
+    base = s.page.evaluate("() => window.__CREDITPROBE_API__ || ''") or API_BASE
     script = """
-    async ([method, path, body]) => {
-      const res = await fetch(path, {
+    async ([method, url, body]) => {
+      const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -93,7 +101,7 @@ def api(s: Session, method: str, path: str,
       return [res.status, payload];
     }
     """
-    return tuple(s.page.evaluate(script, [method, path, body]))
+    return tuple(s.page.evaluate(script, [method, f"{base}{path}", body]))
 
 
 # ------------------------------------------------------------ the accounts
@@ -117,6 +125,11 @@ def make_uat_users(s: Session, rec: Recorder) -> list[dict[str, Any]]:
                 return made
             found = created.get("user", created)
         else:
+            # Reused, and therefore possibly deactivated by a previous run's
+            # own cleanup. An inactive recipient is not addressable, which is
+            # a fact about the tidy-up rather than about the product.
+            api(s, "PATCH", f"/api/v1/users/{found['id']}",
+                {"is_active": True})
             api(s, "POST", f"/api/v1/users/{found['id']}/password",
                 {"password": UAT_PASSWORD})
         made.append(found)
@@ -186,9 +199,13 @@ def threads(s: Session, rec: Recorder) -> str:
           f"the reopened thread renders {len(reopened)} characters",
           screenshot=s.shot("th-07"))
 
+    # The same composer component, and therefore the same selector: the
+    # investigation page renders `ask/composer.tsx` with a different
+    # placeholder and the identical aria-label. Selecting on the placeholder
+    # found the box and no send button, and recorded the product as unable to
+    # continue a conversation it continues perfectly well.
     made = s.ask("And what does that imply for coverage?",
-                 selector='textarea[placeholder="Ask a follow-up…"]',
-                 timeout=300)
+                 selector=COCKPIT_COMPOSER, timeout=300)
     _case(rec, "TH-08", "The conversation continues after reopening",
           bool(made.get("completed")),
           f"the follow-up was answered={bool(made.get('completed'))}",
@@ -210,7 +227,11 @@ def threads(s: Session, rec: Recorder) -> str:
 def packs(s: Session, rec: Recorder) -> None:
     s.go("/playbook", settle=6000)
     body = s.text()
-    rows = s.page.query_selector_all('a[href^="/playbook/packs/"]')
+    # A real pack, not the "New pack" button — which is also an anchor under
+    # /playbook/packs/ and sorts first, so the previous selector opened an
+    # empty form and recorded the Playbook as having no figures on it.
+    rows = [row for row in s.page.query_selector_all('a[href^="/playbook/packs/"]')
+            if not (row.get_attribute("href") or "").endswith("/new")]
     _case(rec, "PB-01", "The Playbook lists this installation's packs",
           bool(rows) and not said(body, *CORPORATE),
           f"{len(rows)} packs listed; corporate wording="
@@ -282,6 +303,11 @@ def messaging(s: Session, rec: Recorder, recipients: list[dict[str, Any]],
     offered[0].click()
     s.page.wait_for_timeout(800)
     chips = s.page.query_selector_all('[data-testid="recipient-chip"]')
+    # WHO was chosen, read off the chip. The directory sorts by display name,
+    # so index 0 is not necessarily the first account this suite created —
+    # and signing in as the wrong one reports a message that arrived
+    # correctly as one that never did.
+    chosen = (chips[0].inner_text() if chips else "").strip().rstrip("×").strip()
 
     subject = f"UAT {time.strftime('%H%M%S')} retail scorecard review"
     body_text = ("Please review the personal-finance scorecard investigation. "
@@ -300,6 +326,7 @@ def messaging(s: Session, rec: Recorder, recipients: list[dict[str, Any]],
         return ""
     send.click()
     s.page.wait_for_timeout(5000)
+    rec.chosen_recipient = chosen
     after = s.text()
     _case(rec, "MSG-02", "A message is addressed to a disposable UAT account "
           "and sent",
@@ -318,8 +345,7 @@ def read_as_recipient(s: Session, rec: Recorder, subject: str,
                  "nothing was sent, so nothing could be read")
         return
     api(s, "POST", "/api/v1/auth/logout", {})
-    s.page.goto(f"{s.page.url.split('/')[0]}//localhost:5328/")
-    s.page.wait_for_timeout(1500)
+    s.go("/", settle=2500)
     code, _ = api(s, "POST", "/api/v1/auth/login",
                   {"username": username, "password": UAT_PASSWORD})
     if code != 200:
@@ -354,7 +380,13 @@ def suite(s: Session, rec: Recorder) -> None:
     packs(s, rec)
     subject = messaging(s, rec, recipients, investigation_id)
     if recipients:
-        read_as_recipient(s, rec, subject, recipients[0]["username"])
+        wanted = getattr(rec, "chosen_recipient", "")
+        addressed = next(
+            (u for u in recipients
+             if wanted and wanted.lower() in
+             f"{u['first_name']} {u['last_name']}".lower()),
+            recipients[0])
+        read_as_recipient(s, rec, subject, addressed["username"])
         # Leave the disposable accounts inactive rather than lying around
         # able to sign in.
         api(s, "POST", "/api/v1/auth/logout", {})
