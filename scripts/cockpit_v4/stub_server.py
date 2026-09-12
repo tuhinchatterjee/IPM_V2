@@ -34,7 +34,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests" / "cockpit_v4"))
 
-RELEASE = os.environ.get("COCKPIT_V4_TEST_RELEASE", "v4-uat-20q-v1")
+RELEASE = os.environ.get("COCKPIT_V4_TEST_RELEASE", "v4-saudi-20q-v1")
 
 
 def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
@@ -72,10 +72,10 @@ def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
 
     catalog, _, summary = load_release(cfg)
     quarter = oracles.latest_quarter(RELEASE)
-    ead_sql = (f"SELECT sector_name, SUM(ead_reported) AS ead_crore "
+    ead_sql = (f"SELECT sector_name, SUM(ead_reported) AS ead_sar_mn "
                f"FROM cockpit_facility_quarter "
                f"WHERE reporting_quarter = '{quarter}' "
-               f"GROUP BY sector_name ORDER BY ead_crore DESC")
+               f"GROUP BY sector_name ORDER BY ead_sar_mn DESC")
 
     #: A product-help answer in the shape a real one takes: Markdown, and
     #: every optional field left null, because there is no clarification and
@@ -144,7 +144,7 @@ This environment uses synthetic demonstration data rather than a real bank portf
             "metadata_receipt_ids": [],
             "fields_required": ["cockpit_facility_quarter.ead_reported"],
             "expected_output_grain": "sector",
-            "expected_units": "INR crore",
+            "expected_units": "SAR million",
             "steps": [{"step_id": "s1", "language": "sql", "code": ead_sql,
                        "parameters": {}, "purpose": "EAD by sector",
                        "input_artifact_ids": [], "depends_on_step_ids": []}],
@@ -166,18 +166,18 @@ This environment uses synthetic demonstration data rather than a real bank portf
                                  {"artifact_id": step["artifact_id"],
                                   "row_key": f"sector_name="
                                              f"{cell['sector_name']}",
-                                  "column_id": "ead_crore"}]}],
+                                  "column_id": "ead_sar_mn"}]}],
                   numeric_claims=[{
                       "claim_id": "top",
-                      "decimal_value": repr(float(cell["ead_crore"])),
-                      "unit": "INR crore", "display_precision": 2,
+                      "decimal_value": repr(float(cell["ead_sar_mn"])),
+                      "unit": "SAR million", "display_precision": 2,
                       "evidence": {"artifact_id": step["artifact_id"],
                                    "row_key": f"sector_name="
                                               f"{cell['sector_name']}",
-                                   "column_id": "ead_crore"}}],
+                                   "column_id": "ead_sar_mn"}}],
                   tables=[{"title": "Reported EAD by sector",
                            "artifact_id": step["artifact_id"],
-                           "columns": ["sector_name", "ead_crore"]}]),
+                           "columns": ["sector_name", "ead_sar_mn"]}]),
             "tu-final")])
 
     def stall():

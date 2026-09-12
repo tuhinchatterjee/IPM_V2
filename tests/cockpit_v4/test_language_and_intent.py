@@ -86,7 +86,7 @@ PARAGRAPH = (
     "book came up again. Acme Infra Ltd was downgraded in 2026Q1, their "
     "DSCR fell to 0.85x and the collateral revaluation knocked 12.5% off "
     "the plant and machinery values. Someone claimed ECL for that sector "
-    "was up about INR 45.75 crore but nobody had the number.\n\n"
+    "was up about SAR 45.75 million but nobody had the number.\n\n"
     "So: what is the ECL by sector for the latest quarter?"
 )
 
@@ -94,7 +94,7 @@ PARAGRAPH = (
 def test_a_long_paragraph_keeps_its_shape_and_every_figure():
     result = normalize_question(PARAGRAPH)
     for token in ("Acme Infra Ltd", "2026Q1", "0.85x", "12.5%",
-                  "INR 45.75 crore", "DSCR"):
+                  "SAR 45.75 million", "DSCR"):
         assert token in result.text, token
     # The paragraph break the user typed is structure, not whitespace noise.
     assert "\n\n" in result.text
@@ -181,11 +181,11 @@ def test_bidi_controls_are_removed_and_the_words_are_not():
 
 EAD_SQL = """
 SELECT sector_name,
-       SUM(ead_reported) AS ead_reported_crore
+       SUM(ead_reported) AS ead_reported_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = '{quarter}'
 GROUP BY sector_name
-ORDER BY ead_reported_crore DESC
+ORDER BY ead_reported_sar_mn DESC
 """
 
 EAD_VARIANTS = [
@@ -209,7 +209,7 @@ def _ead_script(quarter: str, top_sector: str):
         "metadata_receipt_ids": [],
         "fields_required": ["cockpit_facility_quarter.ead_reported",
                             "cockpit_facility_quarter.sector_name"],
-        "expected_output_grain": "sector", "expected_units": "INR crore",
+        "expected_output_grain": "sector", "expected_units": "SAR million",
         "steps": [{"step_id": "s1", "language": "sql",
                    "code": EAD_SQL.format(quarter=quarter), "parameters": {},
                    "purpose": "EAD by sector",
@@ -221,7 +221,7 @@ def _ead_script(quarter: str, top_sector: str):
 
         body = json.loads(messages[-1]["content"][0]["content"])
         step = body["steps"][0]
-        cell = next(r["ead_reported_crore"] for r in step["preview"]
+        cell = next(r["ead_reported_sar_mn"] for r in step["preview"]
                     if r["sector_name"] == top_sector)
         return ScriptedResult(tool_calls=[tool_call(
             "finalize_response",
@@ -233,14 +233,14 @@ def _ead_script(quarter: str, top_sector: str):
                              "evidence_refs": [{
                                  "artifact_id": step["artifact_id"],
                                  "row_key": f"sector_name={top_sector}",
-                                 "column_id": "ead_reported_crore"}]}],
+                                 "column_id": "ead_reported_sar_mn"}]}],
                   numeric_claims=[{
                       "claim_id": "top",
                       "decimal_value": repr(float(cell)),
-                      "unit": "INR crore", "display_precision": 2,
+                      "unit": "SAR million", "display_precision": 2,
                       "evidence": {"artifact_id": step["artifact_id"],
                                    "row_key": f"sector_name={top_sector}",
-                                   "column_id": "ead_reported_crore"}}]),
+                                   "column_id": "ead_reported_sar_mn"}}]),
             "tu-final")])
 
     return [submit, finish]
@@ -271,7 +271,7 @@ def test_every_phrasing_reaches_the_same_number(label, question, drive,
     artifact_id = body["numeric_claims"][0]["evidence"]["artifact_id"]
     rows = store_db.get_artifact(artifact_id,
                                  tenant_id=record.tenant_id)["rows"]
-    actual = {str(r["sector_name"]): float(r["ead_reported_crore"])
+    actual = {str(r["sector_name"]): float(r["ead_reported_sar_mn"])
               for r in rows}
     assert set(actual) == set(expected), label
     for sector, value in expected.items():

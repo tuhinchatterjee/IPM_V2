@@ -54,9 +54,9 @@ neither, is refused by name.
 **DIRECT** — the value appears in one executed result cell:
 
 ```json
-{"claim_id": "it_ead", "decimal_value": "5231.58", "unit": "INR crore",
+{"claim_id": "it_ead", "decimal_value": "5231.58", "unit": "SAR million",
  "evidence": {"artifact_id": "art-…", "row_key": "r0",
-              "column_id": "ead_reported_crore"}}
+              "column_id": "ead_reported_sar_mn"}}
 ```
 
 **DERIVED** — the value is calculated from cells that exist:
@@ -64,9 +64,9 @@ neither, is refused by name.
 ```json
 {"claim_id": "top4_pct", "decimal_value": "83.61…", "unit": "percent",
  "derivation": {"operation": "percentage", "operands": [
-   {"artifact_id": "art-…", "column_id": "ead_reported_crore",
+   {"artifact_id": "art-…", "column_id": "ead_reported_sar_mn",
     "row_ids": ["r0", "r1", "r2", "r3"]},
-   {"artifact_id": "art-…", "column_id": "ead_reported_crore",
+   {"artifact_id": "art-…", "column_id": "ead_reported_sar_mn",
     "row_ids": ["r0", …, "r10"]}]}}
 ```
 
@@ -116,7 +116,7 @@ anywhere in the engine.
   percentage-point confusions are caught.
 - The value is recomputed and compared at a relative 1e-9 — enough to absorb
   a rounded display string, nothing wider. A dropped row moves these figures
-  by whole crores.
+  by whole millions.
 
 **Direct and derived claims now share one row-id vocabulary.** The packet
 publishes `r0`; a direct claim citing `r0` being refused while a derivation
@@ -150,7 +150,7 @@ user anything. One answer-only rewrite, unchanged from existing policy.
 ## 8. M01–M15 oracle results
 
 Computed with pandas straight from the pinned Parquet; nothing imports the
-query path. Release `v4-uat-20q-v1`, latest quarter 2026Q2.
+query path. Release `v4-saudi-20q-v1`, latest quarter 2026Q2.
 
 | | Oracle |
 | --- | --- |
@@ -347,7 +347,7 @@ First question to ask, because it is the one that failed:
 > What is total exposure at default by sector in the latest quarter?
 
 Expect: the quarter stated, eleven sectors with a table, a ranked bar chart,
-a total of **20,720.34 INR crore**, and a top-four share — with the total and
+a total of **20,720.34 SAR million**, and a top-four share — with the total and
 the share arriving as `sum` and `percentage` derivations rather than as
 pointers to a row called "all sectors". Check the published figures against
 `tests/cockpit_v4/math_bank.py::oracle("M01")`, which is already in the repo.

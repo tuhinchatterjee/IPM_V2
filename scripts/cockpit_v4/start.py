@@ -152,7 +152,7 @@ def main() -> int:
     parser.add_argument("--api-port", type=int, default=DEFAULT_API_PORT)
     parser.add_argument("--ui-port", type=int, default=DEFAULT_UI_PORT)
     parser.add_argument("--release", default=os.environ.get(
-        "COCKPIT_V4_RELEASE_ID", "v4-uat-20q-v1"))
+        "COCKPIT_V4_RELEASE_ID", "v4-saudi-20q-v1"))
     parser.add_argument("--runtime-dir", default=os.environ.get(
         "COCKPIT_V4_RUNTIME_DIR",
         str(Path.home() / ".creditprobe" / "cockpit_v4")))

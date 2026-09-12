@@ -30,6 +30,7 @@ from typing import Any
 
 from backend.cockpit_agentic import sql as v3_sql
 from backend.cockpit_v4 import derivation as deriv
+from backend.cockpit_v4.precision import MONEY_UNIT as _MONEY_UNIT
 from backend.cockpit_v4.contracts import ExecutionSubmission, Rejection, Step
 from backend.cockpit_v4.provider import code_digest
 from backend.cockpit_v4.sqlbind import (BindFailure, parameter_argument,
@@ -44,6 +45,11 @@ CHECK_BIND = "bind"
 CHECK_GRAIN = "join_grain"
 CHECK_RUNTIME = "runtime"
 CHECK_SANDBOX = "sandbox"
+
+
+def deriv_unit() -> str:
+    """The money unit the worked example should show."""
+    return _MONEY_UNIT
 
 
 def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
@@ -79,7 +85,7 @@ def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
             "A total is a derivation over the real rows."),
         "operations": deriv.describe(),
         "example_total": {
-            "claim_id": "total_x", "unit": "INR crore",
+            "claim_id": "total_x", "unit": deriv_unit(),
             "derivation": {"operation": "sum", "operands": [
                 {"artifact_id": artifact_id,
                  "column_id": (columns[-1] if columns else "value"),

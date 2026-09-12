@@ -48,7 +48,7 @@ ARTIFACT = EVIDENCE / "overnight_analytical_benchmark.json"
 
 #: Money here is a float column summed two different ways. A relative
 #: tolerance of 1e-9 compares the analysis; anything looser could hide a
-#: dropped row, which moves these figures by whole crores.
+#: dropped row, which moves these figures by whole millions.
 REL = 1e-9
 
 ALL = [q["id"] for q in bank.QUESTIONS]
@@ -198,16 +198,16 @@ CHART_KIND = {bank.BAR: "bar", bank.LINE: "line", bank.STACKED: "bar",
 #: figure, and the units it is in. Q13 has no headline because its answer is
 #: legitimately "none", which is a finding rather than a figure.
 HEADLINE = {
-    "Q01": ("ead", "INR crore"), "Q02": ("ecl", "INR crore"),
-    "Q03": ("stage2_ead", "INR crore"), "Q04": ("breaches", "count"),
-    "Q05": ("ead", "INR crore"), "Q06": ("change", "INR crore"),
-    "Q07": ("gap", "ratio"), "Q08": ("contribution", "INR crore"),
-    "Q09": ("ead", "INR crore"), "Q10": ("ecl_change", "INR crore"),
-    "Q11": ("contribution", "INR crore"), "Q12": ("ead", "INR crore"),
-    "Q13": ("", ""), "Q14": ("ecl_change", "INR crore"),
-    "Q15": ("ecl_change", "INR crore"), "Q16": ("ead", "INR crore"),
-    "Q17": ("sector_ead", "INR crore"), "Q18": ("ecl", "INR crore"),
-    "Q19": ("ead", "INR crore"), "Q20": ("ecl_change", "INR crore"),
+    "Q01": ("ead", "SAR million"), "Q02": ("ecl", "SAR million"),
+    "Q03": ("stage2_ead", "SAR million"), "Q04": ("breaches", "count"),
+    "Q05": ("ead", "SAR million"), "Q06": ("change", "SAR million"),
+    "Q07": ("gap", "ratio"), "Q08": ("contribution", "SAR million"),
+    "Q09": ("ead", "SAR million"), "Q10": ("ecl_change", "SAR million"),
+    "Q11": ("contribution", "SAR million"), "Q12": ("ead", "SAR million"),
+    "Q13": ("", ""), "Q14": ("ecl_change", "SAR million"),
+    "Q15": ("ecl_change", "SAR million"), "Q16": ("ead", "SAR million"),
+    "Q17": ("sector_ead", "SAR million"), "Q18": ("ecl", "SAR million"),
+    "Q19": ("ead", "SAR million"), "Q20": ("ecl_change", "SAR million"),
 }
 
 #: Which relation each question's fields come from, so `fields_required`
@@ -255,7 +255,7 @@ def _execute_call(question_id: str, period: dict) -> dict:
         "metadata_receipt_ids": [],
         "fields_required": _fields_for(question),
         "expected_output_grain": question["group"][-1],
-        "expected_units": "INR crore",
+        "expected_units": "SAR million",
         "steps": [{"step_id": "s1", "language": "sql",
                    "code": layer_b.sql_for(question_id),
                    "parameters": layer_b.parameters_for(question_id, period),
@@ -294,8 +294,12 @@ def _finalizer(question_id: str, period: dict):
                                       "column_id": ""}]}],
                       tables=[{"title": question["text"][:80],
                                "artifact_id": artifact,
+                               # The artifact's REAL columns. Naming a
+                               # column it does not have renders an empty
+                               # column, which reads as missing data rather
+                               # than as an empty result.
                                "columns": list(preview[0]) if preview
-                               else ["borrower_id"]}]))],
+                               else list(step["columns"])}]))],
                 output_tokens=320)
 
         row_key = (f"{key_column}={preview[0][key_column]}" if key_column
@@ -380,11 +384,14 @@ def test_the_pipeline_publishes_the_answer_the_oracle_expects(
 
     # The declared visual matches the policy the bank states for it.
     kind = CHART_KIND[question["chart"]]
-    if kind:
+    if kind and a["row_count"]:
         assert body["charts"], (
             f"{question_id} warrants a {question['chart']}: "
             f"{question['chart_reason']}")
         assert body["charts"][0]["kind"] == kind
+    elif not a["row_count"]:
+        assert not body["charts"], (
+            f"{question_id} returned no rows; there is nothing to chart")
     else:
         assert not body["charts"], (
             f"{question_id} warrants no chart: {question['chart_reason']}")
@@ -442,8 +449,8 @@ RUBRIC = [
 SCORABLE = sum(r["weight"] for r in RUBRIC if not r["model_dependent"])
 
 
-def _score(question_id: str, body: dict, stored: dict, question: dict
-           ) -> dict:
+def _score(question_id: str, body: dict, stored: dict, question: dict, *,
+           rows: int = -1) -> dict:
     marks: dict[str, int] = {}
 
     marks["numerical_correctness"] = 40  # asserted above, row for row
@@ -464,7 +471,10 @@ def _score(question_id: str, body: dict, stored: dict, question: dict
             claim["evidence"]["column_id"] in cell)
     marks["evidence_and_traceability"] = 10 if resolvable else 0
 
-    kind = CHART_KIND[question["chart"]]
+    # A question that returned no rows warrants no chart, whatever its
+    # standing policy says: there is nothing to plot, and charting an empty
+    # result would be the wrong judgement rather than the right one.
+    kind = "" if rows == 0 else CHART_KIND[question["chart"]]
     published = body["charts"][0]["kind"] if body["charts"] else ""
     marks["visualization_judgement"] = 10 if published == kind else 0
 
@@ -487,7 +497,8 @@ def test_the_published_answer_scores_full_marks_on_what_can_be_measured(
     body = outcome.response
     stored = store_db.get_artifact(body["tables"][0]["artifact_id"],
                                    tenant_id="demo-tenant")
-    card = _score(question_id, body, stored, question)
+    card = _score(question_id, body, stored, question,
+                  rows=bank.oracle(question_id, release_id)["row_count"])
     assert card["scored"] == SCORABLE, (
         f"{question_id} lost marks: "
         f"{[k for k, v in card['marks'].items() if v == 0]}")
@@ -507,10 +518,10 @@ def test_a_figure_the_artifact_does_not_hold_is_not_published(drive,
         return ScriptedResult(tool_calls=[tool_call(
             "finalize_response",
             final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
-                  narrative="Total exposure is {{claim.x}} INR crore.",
+                  narrative="Total exposure is {{claim.x}} SAR million.",
                   numeric_claims=[{
                       "claim_id": "x", "decimal_value": "99999999.99",
-                      "unit": "INR crore", "display_precision": 2,
+                      "unit": "SAR million", "display_precision": 2,
                       "evidence": {"artifact_id": artifact,
                                    "row_key": "0",
                                    "column_id": "ead"}}]))])

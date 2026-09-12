@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-09-12T06:42:32Z",
-  "release_id": "v4-uat-20q-v1",
+  "generated_at": "2026-09-12T07:01:52Z",
+  "release_id": "v4-saudi-20q-v1",
   "periods": {
     "latest": "2026Q2",
     "prior": "2026Q1",
@@ -23,7 +23,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "a ranked sector comparison reads faster as bars",
-      "wall_ms": 42
+      "wall_ms": 49
     },
     {
       "question_id": "M02",
@@ -37,7 +37,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "five ranked sectors on one measure",
-      "wall_ms": 35
+      "wall_ms": 48
     },
     {
       "question_id": "M03",
@@ -51,7 +51,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "shares of one total compare as bars",
-      "wall_ms": 47
+      "wall_ms": 40
     },
     {
       "question_id": "M04",
@@ -79,7 +79,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "the answer is one share; a chart of one number is decoration",
-      "wall_ms": 51
+      "wall_ms": 37
     },
     {
       "question_id": "M06",
@@ -93,7 +93,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "a ranked movement compares as bars",
-      "wall_ms": 42
+      "wall_ms": 44
     },
     {
       "question_id": "M07",
@@ -101,8 +101,8 @@
       "question": "Which sectors had ECL grow faster than EAD this quarter?",
       "terminal_state": "COMPLETED",
       "generations": 2,
-      "claims": 1,
-      "derived_claims": 1,
+      "claims": 0,
+      "derived_claims": 0,
       "table": true,
       "chart_policy": "none",
       "chart_published": null,
@@ -121,7 +121,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "the parts sum exactly to the whole movement",
-      "wall_ms": 43
+      "wall_ms": 41
     },
     {
       "question_id": "M09",
@@ -149,7 +149,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "an intersection of two conditions is a short list, possibly empty",
-      "wall_ms": 45
+      "wall_ms": 51
     },
     {
       "question_id": "M11",
@@ -163,7 +163,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "four KPIs with movements is a KPI table; a chart of four scalars is decoration",
-      "wall_ms": 45
+      "wall_ms": 38
     },
     {
       "question_id": "M12",
@@ -177,7 +177,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "three numbers and their movements",
-      "wall_ms": 38
+      "wall_ms": 40
     },
     {
       "question_id": "M13",
@@ -185,13 +185,13 @@
       "question": "Which sectors combine rising ECL and weakening collateral coverage?",
       "terminal_state": "COMPLETED",
       "generations": 2,
-      "claims": 1,
-      "derived_claims": 1,
+      "claims": 0,
+      "derived_claims": 0,
       "table": true,
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "two movements on different scales; a dual axis would imply a relationship the evidence does not support",
-      "wall_ms": 43
+      "wall_ms": 45
     },
     {
       "question_id": "M14",
@@ -205,7 +205,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "the answer is one percentage",
-      "wall_ms": 40
+      "wall_ms": 36
     },
     {
       "question_id": "M15",
@@ -219,17 +219,17 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "a ranked concentration per sector",
-      "wall_ms": 42
+      "wall_ms": 44
     }
   ],
   "catalogue_calls_per_question": 0,
   "generations_per_question": 2,
   "performance_ms": {
-    "m01_end_to_end_ms": 43.2,
-    "derivation_250_cells_ms": 0.18
+    "m01_end_to_end_ms": 38.9,
+    "derivation_250_cells_ms": 0.189
   },
   "release_fingerprint": {
-    "fingerprint": "724fe14954f7ea61",
+    "fingerprint": "bdb0be4662d63207",
     "relations": 11
   }
 }

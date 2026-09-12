@@ -391,7 +391,7 @@ def test_t01_a_follow_up_resolves_against_the_previous_turn(drive, store_db):
     """'Show me the borrowers behind that' must not need the whole sentence."""
     _, _, first = _answer_in_new_thread(
         drive, store_db, "Which sectors had the largest ECL increase?",
-        "Manufacturing rose most, by 3.07 INR crore.")
+        "Manufacturing rose most, by 3.07 SAR million.")
     outcome, provider, _ = _turn(
         drive, store_db, first, "Show me the borrowers behind that.",
         "Three borrowers carry the move; BRW0055 is the largest.")
@@ -413,7 +413,7 @@ def test_t02_a_period_switch_keeps_the_measure_and_the_grouping(drive,
                                                                 store_db):
     _, _, first = _answer_in_new_thread(
         drive, store_db, "Stage 2 EAD by sector for the latest quarter?",
-        "Manufacturing 218.97 and Real Estate 53.11 INR crore.")
+        "Manufacturing 218.97 and Real Estate 53.11 SAR million.")
     _, provider, _ = _turn(drive, store_db, first, "And a year ago?",
                            "A year ago the same measure stood lower.")
     sent = provider.first_input_text()

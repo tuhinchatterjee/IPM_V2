@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-RELEASE_ID = os.environ.get("COCKPIT_V4_TEST_RELEASE", "v4-uat-20q-v1")
+RELEASE_ID = os.environ.get("COCKPIT_V4_TEST_RELEASE", "v4-saudi-20q-v1")
 os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
 
 

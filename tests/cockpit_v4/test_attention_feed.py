@@ -144,11 +144,19 @@ def test_ecl_highlights_match_the_oracle_exactly(feed, release_id):
     deltas = {s: new[s] - old[s] for s in new if s in old}
 
     by_metric = {i["metric"]: i for i in feed["ecl_highlights"]}
-    rise = by_metric["ecl_increase_sector"]
-    top = max((s for s in deltas if deltas[s] > 0),
-              key=lambda s: (deltas[s], s))
-    assert rise["segment"] == top
-    assert rise["evidence"]["delta"] == pytest.approx(deltas[top], rel=1e-9)
+    rising = [s for s in deltas if deltas[s] > 0]
+    if rising:
+        rise = by_metric["ecl_increase_sector"]
+        top = max(rising, key=lambda s: (deltas[s], s))
+        assert rise["segment"] == top
+        assert rise["evidence"]["delta"] == pytest.approx(deltas[top],
+                                                          rel=1e-9)
+    else:
+        # Every sector's ECL fell this quarter. The engine must not dress the
+        # least bad fall up as a rise: an increase highlight with no increase
+        # behind it would be the dashboard inventing a finding.
+        assert "ecl_increase_sector" not in by_metric, (
+            "no sector's ECL rose, so there is no largest riser to show")
 
     contributor = by_metric["ecl_largest_contributor"]
     totals = oracle.book_totals(release_id, quarter)
@@ -243,7 +251,7 @@ def test_a_spike_off_a_single_facility_is_refused():
 
 
 def test_a_hundred_percent_move_on_a_tiny_sector_is_refused():
-    """Relative movement is not materiality. 4 crore of a 10,000 book."""
+    """Relative movement is not materiality. 4 million of a 10,000 book."""
     old = _row("2026Q1", ead=4.0)
     new = _row("2026Q2", ead=4.0, stage2_ead=4.0)
     candidate, reason = _try("stage2_share", old, new)
@@ -253,7 +261,7 @@ def test_a_hundred_percent_move_on_a_tiny_sector_is_refused():
 
 def test_a_real_but_immaterial_move_on_a_large_sector_is_refused():
     old = _row("2026Q1", ead=1_000.0, stage2_ead=0.0)
-    new = _row("2026Q2", ead=1_000.0, stage2_ead=1.0)   # 0.1pp = 1.0 crore
+    new = _row("2026Q2", ead=1_000.0, stage2_ead=1.0)   # 0.1pp = 1.0 million
     candidate, reason = _try("stage2_share", old, new)
     assert candidate is None
     assert reason == "below_materiality"

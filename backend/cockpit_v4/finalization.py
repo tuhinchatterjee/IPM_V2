@@ -419,7 +419,7 @@ def _close(asserted: Decimal, computed: Decimal) -> bool:
 
     Not a licence to be approximately right. A derived figure is compared at
     a relative 1e-9, which absorbs a decimal string the analyst rounded and
-    nothing wider -- a dropped row moves these by whole crores.
+    nothing wider -- a dropped row moves these by whole millions.
     """
     if asserted == computed:
         return True

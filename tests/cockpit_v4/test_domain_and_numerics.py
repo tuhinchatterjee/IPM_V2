@@ -15,6 +15,7 @@ import oracles
 import pytest
 from conftest import intent
 
+from backend.cockpit_v4 import precision as prec
 from backend.cockpit_v4 import states as st
 from backend.cockpit_v4.config import STANDARD_LIMITS
 from backend.cockpit_v4.contracts import Rejection, parse_execution
@@ -204,8 +205,17 @@ def test_the_release_declares_its_own_currency_and_scale(runtime):
     catalog = runtime.catalog
     assert getattr(catalog, "reporting_currency", "")
     assert getattr(catalog, "amount_scale", "")
-    assert catalog.reporting_currency != "SAR" or catalog.amount_scale != "crore", (
-        "currency and scale must be a coherent pair from this release")
+    # The V4 demonstration book is Saudi, quoted in SAR million. The guard
+    # that matters is that the pair is COHERENT: a currency from one country
+    # with a scale word from another is how a reader ends up off by orders of
+    # magnitude without anything looking wrong.
+    assert (catalog.reporting_currency, catalog.amount_scale) == (
+        prec.CURRENCY, prec.AMOUNT_SCALE), (
+        f"this release declares {catalog.reporting_currency} "
+        f"{catalog.amount_scale}; the V4 book is "
+        f"{prec.CURRENCY} {prec.AMOUNT_SCALE}")
+    assert catalog.amount_scale not in ("crore", "lakh"), (
+        "an Indian scale word under a Saudi currency is an incoherent pair")
 
 
 def test_no_eligible_rows_is_not_reported_as_zero(service, store_db,
@@ -237,7 +247,7 @@ def test_a_claim_pointing_at_a_null_cell_is_refused(store_db, release_id):
         "intent": intent("DATA_ANALYSIS", "COCKPIT"), "disposition": "answer",
         "narrative": "Exposure is {{claim.z}}.",
         "coverage": [], "numeric_claims": [{
-            "claim_id": "z", "decimal_value": "0", "unit": "INR crore",
+            "claim_id": "z", "decimal_value": "0", "unit": "SAR million",
             "display_precision": 2,
             "evidence": {"artifact_id": artifact_id, "row_key": "0",
                          "column_id": "ead"}}],

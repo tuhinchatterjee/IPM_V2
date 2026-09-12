@@ -1,126 +1,61 @@
 {
-  "release": "v4-uat-20q-v1",
+  "release": "v4-saudi-20q-v1",
   "namespace": "cockpit_v4",
   "relations": {
     "cockpit_reporting_calendar": {
       "rows": 20,
       "columns": 29,
-      "bytes": 18354
+      "bytes": 18383
     },
     "cockpit_facility_quarter": {
-      "rows": 1655,
+      "rows": 3163,
       "columns": 198,
-      "bytes": 654171
+      "bytes": 1140918
     },
     "cockpit_ifrs9_detail": {
-      "rows": 5415,
+      "rows": 10440,
       "columns": 44,
-      "bytes": 512580
+      "bytes": 980130
     },
     "cockpit_borrower_financial_quarter": {
-      "rows": 1010,
+      "rows": 1936,
       "columns": 135,
-      "bytes": 735898
+      "bytes": 1365563
     },
     "cockpit_rating_ratio_quarter": {
-      "rows": 1010,
+      "rows": 1936,
       "columns": 170,
-      "bytes": 490066
+      "bytes": 849749
     },
     "cockpit_qualitative_quarter": {
-      "rows": 20200,
+      "rows": 38720,
       "columns": 33,
-      "bytes": 313810
+      "bytes": 583698
     },
     "cockpit_collateral_quarter": {
-      "rows": 2960,
+      "rows": 6220,
       "columns": 49,
-      "bytes": 383680
+      "bytes": 745511
     },
     "cockpit_collateral_allocation": {
-      "rows": 4440,
+      "rows": 9180,
       "columns": 34,
-      "bytes": 152017
+      "bytes": 311956
     },
     "cockpit_covenant_quarter": {
-      "rows": 3069,
+      "rows": 5838,
       "columns": 59,
-      "bytes": 149588
+      "bytes": 262986
     },
     "cockpit_macro_quarter_window": {
       "rows": 12000,
       "columns": 40,
-      "bytes": 216997
+      "bytes": 217057
     },
     "cockpit_macro_pivot": {
       "rows": 60,
       "columns": 203,
-      "bytes": 234708
+      "bytes": 234759
     }
-  },
-  "conformance": {
-    "added_as_null": {
-      "cockpit_reporting_calendar": [
-        "source_period_start",
-        "source_period_end",
-        "source_published_at",
-        "source_available_at"
-      ],
-      "cockpit_ifrs9_detail": [
-        "source_period_start",
-        "source_period_end",
-        "source_published_at",
-        "source_available_at"
-      ],
-      "cockpit_rating_ratio_quarter": [
-        "quick_ratio_source_value",
-        "cash_ratio_source_value",
-        "operating_cash_flow_to_current_liabilities_source_value",
-        "working_capital_to_total_assets_source_value",
-        "liquid_assets_to_total_assets_source_value",
-        "ebitda_interest_coverage_source_value",
-        "fixed_charge_coverage_ratio_source_value",
-        "operating_cash_flow_to_debt_source_value",
-        "free_cash_flow_to_debt_service_source_value",
-        "debt_to_ebitda_source_value",
-        "liabilities_to_assets_source_value",
-        "equity_to_assets_source_value",
-        "long_term_debt_to_capital_source_value",
-        "tangible_net_worth_to_debt_source_value",
-        "gross_profit_margin_source_value",
-        "ebitda_margin_source_value",
-        "operating_profit_margin_source_value",
-        "net_profit_margin_source_value",
-        "return_on_assets_source_value",
-        "return_on_equity_source_value",
-        "return_on_capital_employed_source_value",
-        "operating_cash_flow_margin_source_value",
-        "free_cash_flow_margin_source_value",
-        "total_asset_turnover_source_value",
-        "fixed_asset_turnover_source_value",
-        "working_capital_turnover_source_value",
-        "inventory_turnover_source_value",
-        "receivables_turnover_source_value",
-        "payables_turnover_source_value",
-        "receivables_days_source_value",
-        "inventory_days_source_value",
-        "payables_days_source_value",
-        "cash_conversion_cycle_days_source_value",
-        "capex_to_operating_cash_flow_source_value"
-      ],
-      "cockpit_qualitative_quarter": [
-        "source_period_start",
-        "source_period_end",
-        "source_published_at",
-        "source_available_at"
-      ],
-      "cockpit_collateral_allocation": [
-        "source_period_start",
-        "source_period_end",
-        "source_published_at",
-        "source_available_at"
-      ]
-    },
-    "removed_undeclared": {}
   }
 }

@@ -33,6 +33,7 @@ import pytest
 from conftest import ScriptedResult, final, intent, tool_call
 
 from backend.cockpit_v4 import events as ev
+from backend.cockpit_v4 import precision as prec
 from backend.cockpit_v4 import states as st
 
 EVIDENCE = (Path(__file__).resolve().parents[2] / "docs" / "cockpit_v4"
@@ -68,7 +69,7 @@ def _execute_call(question_id: str, period: dict) -> dict:
         "fields_required": ["cockpit_facility_quarter.ead_reported",
                             "cockpit_facility_quarter.ecl_reported"],
         "expected_output_grain": "sector",
-        "expected_units": "INR crore",
+        "expected_units": "SAR million",
         "steps": [{"step_id": "s1", "language": "sql",
                    "code": msql.MSQL[question_id],
                    "parameters": _params(question_id, period),
@@ -86,13 +87,13 @@ def _cells(artifact, column, row_ids):
 #: the answer must publish. Written against the SQL's output columns, not
 #: against the oracle.
 MEASURE = {
-    "M01": "ead_reported_crore", "M02": "ecl_reported_crore",
-    "M03": "stage2_ead_crore", "M04": "ecl_reported_crore",
-    "M05": "ead_reported_crore", "M06": "change_crore", "M07": "gap",
-    "M08": "contribution_crore", "M09": "increase_crore",
-    "M10": "ecl_reported_crore", "M11": "ead_reported_crore",
-    "M12": "ead_reported_crore", "M13": "ecl_change_crore",
-    "M14": "ecl_reported_crore", "M15": "share",
+    "M01": "ead_reported_sar_mn", "M02": "ecl_reported_sar_mn",
+    "M03": "stage2_ead_sar_mn", "M04": "ecl_reported_sar_mn",
+    "M05": "ead_reported_sar_mn", "M06": "change_sar_mn", "M07": "gap",
+    "M08": "contribution_sar_mn", "M09": "increase_sar_mn",
+    "M10": "ecl_reported_sar_mn", "M11": "ead_reported_sar_mn",
+    "M12": "ead_reported_sar_mn", "M13": "ecl_change_sar_mn",
+    "M14": "ecl_reported_sar_mn", "M15": "share",
 }
 
 
@@ -102,7 +103,12 @@ def _claims_for(question_id, artifact, rows, row_ids):
     everyone = list(row_ids)
     claims = []
 
-    def derived(claim_id, operation, operands, unit, precision=2):
+    def derived(claim_id, operation, operands, unit, precision=None):
+        # Precision from the UNIT unless the question genuinely wants more.
+        if precision is None:
+            precision = prec.default_precision(unit)
+        assert precision in prec.allowed_precisions(unit), (
+            f"{claim_id}: {precision}dp is not permitted for {unit!r}")
         claims.append({"claim_id": claim_id, "unit": unit,
                        "display_precision": precision,
                        "derivation": {"operation": operation,
@@ -112,59 +118,59 @@ def _claims_for(question_id, artifact, rows, row_ids):
 
     if question_id in ("M01", "M05"):
         derived("total_ead", "sum",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
         top = everyone[:5] if question_id == "M05" else everyone[:4]
         derived("top_share", "percentage",
                 [_cells(artifact, column, top),
                  _cells(artifact, column, everyone)], "percent", 1)
     elif question_id in ("M02",):
         derived("book_ecl", "sum",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
         derived("top_share", "percentage",
                 [_cells(artifact, column, everyone[:5]),
                  _cells(artifact, column, everyone)], "percent", 1)
     elif question_id in ("M03",):
         derived("total_stage2", "sum",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
         derived("top_share", "percentage",
                 [_cells(artifact, column, everyone[:1]),
                  _cells(artifact, column, everyone)], "percent", 1)
     elif question_id in ("M04", "M14"):
         derived("top10_ecl", "sum",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
         derived("largest", "max",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
     elif question_id in ("M06", "M08", "M09"):
         derived("total_change", "sum",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
         derived("largest_mover", "max",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
     elif question_id == "M07":
         derived("widest_gap", "max",
                 [_cells(artifact, column, everyone)], "ratio", 4)
     elif question_id == "M10":
         derived("group_ecl", "sum",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
     elif question_id in ("M11", "M12"):
         # Two rows: latest then prior. The movement is the derivation.
         derived("ead_now", "identity",
-                [_cells(artifact, "ead_reported_crore", everyone[:1])],
-                "INR crore")
+                [_cells(artifact, "ead_reported_sar_mn", everyone[:1])],
+                "SAR million")
         derived("ead_change", "difference",
-                [_cells(artifact, "ead_reported_crore", everyone[:1]),
-                 _cells(artifact, "ead_reported_crore", everyone[1:2])],
-                "INR crore")
+                [_cells(artifact, "ead_reported_sar_mn", everyone[:1]),
+                 _cells(artifact, "ead_reported_sar_mn", everyone[1:2])],
+                "SAR million")
         derived("coverage_now", "percentage",
-                [_cells(artifact, "ecl_reported_crore", everyone[:1]),
-                 _cells(artifact, "ead_reported_crore", everyone[:1])],
+                [_cells(artifact, "ecl_reported_sar_mn", everyone[:1]),
+                 _cells(artifact, "ead_reported_sar_mn", everyone[:1])],
                 "percent", 3)
         derived("stage2_share_now", "percentage",
-                [_cells(artifact, "stage2_ead_crore", everyone[:1]),
-                 _cells(artifact, "ead_reported_crore", everyone[:1])],
+                [_cells(artifact, "stage2_ead_sar_mn", everyone[:1]),
+                 _cells(artifact, "ead_reported_sar_mn", everyone[:1])],
                 "percent", 3)
     elif question_id == "M13":
         derived("worst_ecl_move", "max",
-                [_cells(artifact, column, everyone)], "INR crore")
+                [_cells(artifact, column, everyone)], "SAR million")
     elif question_id == "M15":
         derived("highest_concentration", "max",
                 [_cells(artifact, column, everyone)], "ratio", 4)
@@ -180,7 +186,25 @@ def _finalizer(question_id, period):
         artifact = step["artifact_id"]
         rows = step["preview"]
         row_ids = step["row_ids"]
-        assert row_ids, f"{question_id}: the packet published no row ids"
+        columns = step["columns"]
+
+        if not row_ids:
+            # No sector meets the question's conditions on this book. That is
+            # the finding, and saying so is the answer -- an empty result is
+            # not a failure and must not be dressed up as one.
+            return ScriptedResult(tool_calls=[tool_call(
+                "finalize_response",
+                final(intent=intent("DATA_ANALYSIS", "COCKPIT",
+                                    understood=question["text"]),
+                      narrative=(f"For {period['latest']}, no row meets the "
+                                 f"conditions in this question. That is the "
+                                 f"finding, not a gap in the data."),
+                      coverage=[{"subquestion": question["text"],
+                                 "status": "answered", "evidence_refs": []}],
+                      tables=[{"title": question["text"][:80],
+                               "artifact_id": artifact,
+                               "columns": columns}]))],
+                output_tokens=200)
 
         drafts = _claims_for(question_id, artifact, rows, row_ids)
         claims = []
@@ -202,7 +226,7 @@ def _finalizer(question_id, period):
             charts = [{"kind": "bar", "title": question["text"][:80],
                        "artifact_id": artifact, "x_column": key_column,
                        "y_columns": [MEASURE[question_id]],
-                       "unit": "INR crore"}]
+                       "unit": "SAR million"}]
         narrative = (f"For {period['latest']}, {sentences} "
                      f"The table lists every row behind these figures.")
         return ScriptedResult(tool_calls=[tool_call(
@@ -249,15 +273,26 @@ def _explain_rejection(question_id):
 
 
 def _preview_value(claim, rows, row_ids) -> str:
-    """Compute the claim from the PREVIEW, the way the analyst would."""
+    """Compute the claim from the PREVIEW and write it the way a person would.
+
+    The value is deliberately ROUNDED to the precision the claim declares,
+    not sent at machine precision. An earlier version of this harness sent
+    the full canonical decimal, which made every test pass for the wrong
+    reason: it proved the validator accepts its own arithmetic verbatim, and
+    said nothing about whether a credit officer's `SAR 40,599.17` would
+    publish. That is the exact figure the live run was refused for.
+    """
     from backend.cockpit_v4 import derivation as deriv
+    from backend.cockpit_v4 import precision as prec
 
     index = {row_id: row for row_id, row in zip(row_ids, rows)}
     parsed = deriv.parse(claim["derivation"])
     artifacts = {parsed.operands[0].artifact_id: {
         "columns": list(rows[0]) if rows else [],
         "rows": [index[r] for r in row_ids]}}
-    return str(deriv.compute(parsed, artifacts))
+    canonical = deriv.compute(parsed, artifacts)
+    return str(prec.plain(prec.quantize(canonical,
+                                        claim["display_precision"])))
 
 
 # ---- the fifteen, end to end ------------------------------------------
@@ -282,7 +317,16 @@ def test_the_question_completes_through_final_answer_publication(
     assert body["disposition"] == "answer"
     assert "{{claim." not in body["narrative"], (
         f"{question_id} published an unrendered placeholder")
-    assert body["numeric_claims"], f"{question_id} published no figures"
+    expected = bank.oracle(question_id, release_id)
+    if expected["row_count"]:
+        assert body["numeric_claims"], f"{question_id} published no figures"
+    else:
+        # An empty result answers with a finding, not with a figure. It must
+        # still say so plainly rather than going quiet.
+        assert body["numeric_claims"] == []
+        assert "no row meets" in body["narrative"].lower()
+        assert body["tables"], (
+            f"{question_id}: an empty result still shows the query's shape")
 
     events = [e.event_type for e in store_db.events_since(record.run_id)]
     assert ev.ANSWER_READY in events
@@ -335,26 +379,35 @@ def test_every_published_figure_matches_the_independent_oracle(
     if question_id in ("M11", "M12"):
         latest, prior = stored["rows"][0], stored["rows"][1]
         kpis, kpis_prior = expected["kpis"], expected["kpis_prior"]
-        assert _close(Decimal(str(latest["ead_reported_crore"])),
+        assert _close(Decimal(str(latest["ead_reported_sar_mn"])),
                       Decimal(str(kpis["ead"])))
-        assert _close(Decimal(str(latest["ecl_reported_crore"])),
+        assert _close(Decimal(str(latest["ecl_reported_sar_mn"])),
                       Decimal(str(kpis["ecl"])))
-        assert _close(Decimal(str(prior["ead_reported_crore"])),
+        assert _close(Decimal(str(prior["ead_reported_sar_mn"])),
                       Decimal(str(kpis_prior["ead"])))
-        published_change = Decimal(
-            next(c["decimal_value"] for c in body["numeric_claims"]
-                 if c["claim_id"] == "ead_change"))
-        assert _close(published_change,
-                      Decimal(str(expected["changes"]["ead"]))), (
+        change = next(c for c in body["numeric_claims"]
+                      if c["claim_id"] == "ead_change")
+        places = change["display_precision"]
+        assert prec.quantize(Decimal(change["decimal_value"]),
+                             places) == prec.quantize(
+            Decimal(str(expected["changes"]["ead"])), places), (
             f"{question_id}: the published EAD movement does not match the "
-            f"oracle")
+            f"oracle at {places}dp")
 
+    precisions = {c["claim_id"]: c["display_precision"]
+                  for c in body["numeric_claims"]}
     for claim_id, oracle_key in _ORACLE_KEYS.get(question_id, {}).items():
         assert claim_id in published, f"{question_id} never published {claim_id}"
-        want = Decimal(str(expected[oracle_key]))
-        got = published[claim_id]
-        assert _close(got, want), (
-            f"{question_id} {claim_id}: published {got}, oracle says {want}")
+        places = precisions[claim_id]
+        # The published figure is the canonical value ROUNDED, so it is
+        # compared against the oracle rounded the same way. Comparing a 2dp
+        # business figure against sixteen digits of pandas is the very
+        # mistake that refused the live answer.
+        want = prec.quantize(Decimal(str(expected[oracle_key])), places)
+        got = prec.quantize(published[claim_id], places)
+        assert got == want, (
+            f"{question_id} {claim_id}: published {got} at {places}dp, "
+            f"oracle says {want}")
 
 
 #: Which published claim answers which oracle figure. Only the claims whose
@@ -409,14 +462,22 @@ def test_m01_publishes_everything_the_question_asked_for(drive, store_db,
         r["sector_name"] for r in expected["rows"]], (
         "the sectors, and their order, must match the oracle")
     for produced, want in zip(stored["rows"], expected["rows"]):
-        assert _close(Decimal(str(produced["ead_reported_crore"])),
+        assert _close(Decimal(str(produced["ead_reported_sar_mn"])),
                       Decimal(str(want["ead"])))
 
     published = {c["claim_id"]: c for c in body["numeric_claims"]}
-    assert _close(Decimal(published["total_ead"]["decimal_value"]),
-                  Decimal(str(expected["total_ead"])))
-    assert _close(Decimal(published["top_share"]["decimal_value"]),
-                  Decimal(str(expected["top4_share"] * 100)))
+    total = published["total_ead"]
+    assert prec.quantize(Decimal(total["decimal_value"]), 2) == prec.quantize(
+        Decimal(str(expected["total_ead"])), 2)
+    assert total["unit"] == "SAR million", (
+        "the demonstration book is Saudi and its money says so")
+    share = published["top_share"]
+    assert prec.quantize(Decimal(share["decimal_value"]),
+                         share["display_precision"]) == prec.quantize(
+        Decimal(str(expected["top4_share"] * 100)),
+        share["display_precision"])
+    # And the figure a person actually reads.
+    assert "SAR" in body["narrative"] and "%" in body["narrative"]
     assert published["total_ead"]["derivation"]["operation"] == "sum"
     assert published["top_share"]["derivation"]["operation"] == "percentage"
 
@@ -571,6 +632,38 @@ def test_recomputing_a_wide_derivation_is_fast(store_db, release_id):
         f"recomputing a 250-cell derivation took {median:.1f}ms")
     RESULTS.setdefault("_performance", {})[
         "derivation_250_cells_ms"] = round(median, 3)
+
+
+def test_the_harness_emits_rounded_business_values_not_machine_precision(
+        drive, release_id):
+    """The guard on this whole module's credibility.
+
+    If the scripted analyst sends the full canonical decimal, every test here
+    passes for the wrong reason: it proves the validator accepts its own
+    arithmetic verbatim and says nothing about whether a credit officer's
+    `SAR 40,599.17` publishes. That figure is exactly what the live run was
+    refused for, so the harness must be shown to be sending it.
+    """
+    period = bank.periods(release_id)
+    outcome, _, _ = drive(
+        bank.BY_ID["M01"]["text"],
+        [ScriptedResult(tool_calls=[_execute_call("M01", period)]),
+         _finalizer("M01", period)])
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    for claim in outcome.response["numeric_claims"]:
+        value = Decimal(claim["decimal_value"])
+        places = claim["display_precision"]
+        assert -value.as_tuple().exponent <= places, (
+            f"{claim['claim_id']} was sent as {value}, which carries more "
+            f"decimals than the {places} it declares. The harness is sending "
+            f"machine precision and proving nothing.")
+
+    total = next(c for c in outcome.response["numeric_claims"]
+                 if c["claim_id"] == "total_ead")
+    assert Decimal(total["decimal_value"]) == prec.quantize(
+        Decimal(total["decimal_value"]), 2)
+    assert "SAR" in outcome.response["narrative"]
 
 
 def test_zz_write_the_math_evidence(release_id):

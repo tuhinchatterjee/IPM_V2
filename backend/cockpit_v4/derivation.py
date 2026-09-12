@@ -105,7 +105,7 @@ FRACTION_UNITS = frozenset({"ratio", "fraction", "share", "proportion", "x"})
 #: A derived figure is compared against the recomputation at this relative
 #: tolerance. It is not a licence to be approximately right: it absorbs the
 #: last place of a decimal string the analyst rounded for display, and
-#: nothing wider. A dropped row moves these figures by whole crores.
+#: nothing wider. A dropped row moves these figures by whole millions.
 DEFAULT_TOLERANCE = Decimal("1e-9")
 
 #: No derivation may reference more cells than this. A claim that needs more

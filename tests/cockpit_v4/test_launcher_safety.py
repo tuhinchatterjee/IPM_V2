@@ -142,7 +142,7 @@ def test_seeding_an_existing_release_does_not_overwrite_it(tmp_path):
     out = subprocess.run(
         [sys.executable, "scripts/cockpit_v4/seed_release.py",
          "--release", os.environ.get("COCKPIT_V4_TEST_RELEASE",
-                                     "v4-uat-20q-v1")],
+                                     "v4-saudi-20q-v1")],
         capture_output=True, text=True, timeout=300,
         env={**os.environ, "COCKPIT_AGENTIC_V3_NAMESPACE": "cockpit_v4"})
     assert out.returncode == 0

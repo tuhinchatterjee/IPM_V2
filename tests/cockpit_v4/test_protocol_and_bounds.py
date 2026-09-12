@@ -21,7 +21,7 @@ def _exec(sql: str, call_id="tu-1", step_id="s1", **over):
             "objective": "o", "subquestions": ["a"],
             "scope": {"reporting_quarters": [], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": ["f"],
-            "expected_output_grain": "sector", "expected_units": "INR crore",
+            "expected_output_grain": "sector", "expected_units": "SAR million",
             "steps": [{"step_id": step_id, "language": "sql", "code": sql,
                        "parameters": {}, "purpose": "p",
                        "input_artifact_ids": [], "depends_on_step_ids": []}],
@@ -196,7 +196,7 @@ def test_a_failed_query_is_repaired_by_the_model_not_the_application(
                   numeric_claims=[{
                       "claim_id": "v",
                       "decimal_value": repr(float(cell["e"])),
-                      "unit": "INR crore", "display_precision": 2,
+                      "unit": "SAR million", "display_precision": 2,
                       "evidence": {
                           "artifact_id": artifact,
                           "row_key": f"sector_name={cell['sector_name']}",

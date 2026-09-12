@@ -28,15 +28,15 @@ from backend.cockpit_v4 import states as st
 from backend.cockpit_v4.contracts import Rejection, parse_final
 
 SECTORS = [
-    {"sector_name": "Information Technology", "ead_reported_crore": "5231.58"},
-    {"sector_name": "Real Estate", "ead_reported_crore": "4102.10"},
-    {"sector_name": "Manufacturing", "ead_reported_crore": "3980.25"},
-    {"sector_name": "Construction", "ead_reported_crore": "2411.77"},
-    {"sector_name": "Power and Utilities", "ead_reported_crore": "1877.40"},
-    {"sector_name": "Agriculture", "ead_reported_crore": "1200.00"},
+    {"sector_name": "Information Technology", "ead_reported_sar_mn": "5231.58"},
+    {"sector_name": "Real Estate", "ead_reported_sar_mn": "4102.10"},
+    {"sector_name": "Manufacturing", "ead_reported_sar_mn": "3980.25"},
+    {"sector_name": "Construction", "ead_reported_sar_mn": "2411.77"},
+    {"sector_name": "Power and Utilities", "ead_reported_sar_mn": "1877.40"},
+    {"sector_name": "Agriculture", "ead_reported_sar_mn": "1200.00"},
 ]
-TOTAL = sum(Decimal(r["ead_reported_crore"]) for r in SECTORS)
-TOP4 = sum(Decimal(r["ead_reported_crore"]) for r in SECTORS[:4])
+TOTAL = sum(Decimal(r["ead_reported_sar_mn"]) for r in SECTORS)
+TOP4 = sum(Decimal(r["ead_reported_sar_mn"]) for r in SECTORS[:4])
 ALL_ROWS = [deriv.row_id_for(i) for i in range(len(SECTORS))]
 
 
@@ -46,7 +46,7 @@ def artifact(store_db, release_id):
     artifact_id = store_db.put_artifact(
         run_id="run-live", tenant_id="demo-tenant", kind="result",
         release_id=release_id, scope={},
-        columns=["sector_name", "ead_reported_crore"], rows=SECTORS)
+        columns=["sector_name", "ead_reported_sar_mn"], rows=SECTORS)
     return artifact_id
 
 
@@ -60,7 +60,7 @@ def finalizer(store_db, artifact, release_id):
                      run_artifacts={artifact})
 
 
-def _cells(artifact_id, row_ids, column="ead_reported_crore"):
+def _cells(artifact_id, row_ids, column="ead_reported_sar_mn"):
     return {"artifact_id": artifact_id, "column_id": column,
             "row_ids": list(row_ids)}
 
@@ -74,10 +74,10 @@ def test_the_live_failure_payload_is_still_refused(finalizer, artifact):
         narrative="Total exposure is {{claim.total_ead}}.",
         numeric_claims=[{
             "claim_id": "total_ead", "decimal_value": str(TOTAL),
-            "unit": "INR crore", "display_precision": 2,
+            "unit": "SAR million", "display_precision": 2,
             "evidence": {"artifact_id": artifact,
                          "row_key": "all sectors",
-                         "column_id": "ead_reported_crore"}}])
+                         "column_id": "ead_reported_sar_mn"}}])
     report = finalizer.validate(parse_final(body), executed=True)
     assert not report.ok
     assert any("all sectors" in p for p in report.problems)
@@ -92,7 +92,7 @@ def test_the_live_top_n_payload_is_still_refused(finalizer, artifact):
             "unit": "percent", "display_precision": 2,
             "evidence": {"artifact_id": artifact,
                          "row_key": "top 4 sectors",
-                         "column_id": "ead_reported_crore"}}])
+                         "column_id": "ead_reported_sar_mn"}}])
     report = finalizer.validate(parse_final(body), executed=True)
     assert not report.ok
     assert any("top 4 sectors" in p for p in report.problems)
@@ -106,7 +106,7 @@ def test_a_total_across_rows_is_recomputed_and_accepted(finalizer, artifact):
         narrative="Total exposure at default is {{claim.total_ead}}.",
         numeric_claims=[{
             "claim_id": "total_ead", "decimal_value": str(TOTAL),
-            "unit": "INR crore", "display_precision": 2,
+            "unit": "SAR million", "display_precision": 2,
             "derivation": {"operation": "sum",
                            "operands": [_cells(artifact, ALL_ROWS)]}}])
     report = finalizer.validate(parse_final(body), executed=True)
@@ -160,7 +160,7 @@ def test_a_wrong_total_is_refused_even_though_every_row_is_real(finalizer,
         narrative="Total exposure is {{claim.total_ead}}.",
         numeric_claims=[{
             "claim_id": "total_ead", "decimal_value": "99999.99",
-            "unit": "INR crore", "display_precision": 2,
+            "unit": "SAR million", "display_precision": 2,
             "derivation": {"operation": "sum",
                            "operands": [_cells(artifact, ALL_ROWS)]}}])
     report = finalizer.validate(parse_final(body), executed=True)
@@ -175,9 +175,9 @@ def test_a_direct_claim_still_works_unchanged(finalizer, artifact):
         narrative="Information Technology holds {{claim.it_ead}}.",
         numeric_claims=[{
             "claim_id": "it_ead", "decimal_value": "5231.58",
-            "unit": "INR crore", "display_precision": 2,
+            "unit": "SAR million", "display_precision": 2,
             "evidence": {"artifact_id": artifact, "row_key": "r0",
-                         "column_id": "ead_reported_crore"}}])
+                         "column_id": "ead_reported_sar_mn"}}])
     report = finalizer.validate(parse_final(body), executed=True)
     assert report.ok, report.problems
 
@@ -187,9 +187,9 @@ def test_a_claim_may_not_carry_both_forms(artifact):
         intent=intent("DATA_ANALYSIS", "COCKPIT"),
         narrative="x {{claim.a}}",
         numeric_claims=[{
-            "claim_id": "a", "decimal_value": "1", "unit": "INR crore",
+            "claim_id": "a", "decimal_value": "1", "unit": "SAR million",
             "evidence": {"artifact_id": artifact, "row_key": "r0",
-                         "column_id": "ead_reported_crore"},
+                         "column_id": "ead_reported_sar_mn"},
             "derivation": {"operation": "sum",
                            "operands": [_cells(artifact, ALL_ROWS)]}}])
     with pytest.raises(Rejection) as caught:
@@ -202,7 +202,7 @@ def test_a_claim_must_carry_one_of_them(artifact):
         intent=intent("DATA_ANALYSIS", "COCKPIT"),
         narrative="x {{claim.a}}",
         numeric_claims=[{"claim_id": "a", "decimal_value": "1",
-                         "unit": "INR crore"}])
+                         "unit": "SAR million"}])
     with pytest.raises(Rejection) as caught:
         parse_final(body)
     assert "neither" in str(caught.value)
@@ -215,7 +215,7 @@ def test_a_claim_must_carry_one_of_them(artifact):
 # repair mechanism the analyst has.
 
 def _validate(finalizer, artifact, **over):
-    claim = {"claim_id": "x", "decimal_value": "1", "unit": "INR crore",
+    claim = {"claim_id": "x", "decimal_value": "1", "unit": "SAR million",
              "display_precision": 2}
     claim.update(over)
     body = final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
@@ -238,7 +238,7 @@ def test_a_column_that_does_not_exist_is_named_in_the_refusal(finalizer,
         "operation": "sum",
         "operands": [_cells(artifact, ALL_ROWS, column="ecl_reported")]})
     assert not report.ok
-    assert any("ecl_reported" in p and "ead_reported_crore" in p
+    assert any("ecl_reported" in p and "ead_reported_sar_mn" in p
                for p in report.problems)
 
 
@@ -361,7 +361,7 @@ def test_an_unsupported_operation_is_refused_by_name(finalizer, artifact):
                  narrative="v {{claim.x}}",
                  numeric_claims=[{
                      "claim_id": "x", "decimal_value": "1",
-                     "unit": "INR crore",
+                     "unit": "SAR million",
                      "derivation": {"operation": "standard_deviation",
                                     "operands": [_cells(artifact, ALL_ROWS)]}}])
     with pytest.raises(Rejection) as caught:

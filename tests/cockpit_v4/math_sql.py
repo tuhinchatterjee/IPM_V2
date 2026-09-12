@@ -1,38 +1,38 @@
 MSQL = {
  "M01": """
-SELECT sector_name, SUM(ead_reported) AS ead_reported_crore,
+SELECT sector_name, SUM(ead_reported) AS ead_reported_sar_mn,
        COUNT(DISTINCT facility_id) AS facilities
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = $q AND sector_name IS NOT NULL
-GROUP BY 1 ORDER BY ead_reported_crore DESC, sector_name ASC
+GROUP BY 1 ORDER BY ead_reported_sar_mn DESC, sector_name ASC
 """,
  "M02": """
-SELECT sector_name, SUM(ecl_reported) AS ecl_reported_crore
+SELECT sector_name, SUM(ecl_reported) AS ecl_reported_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = $q AND sector_name IS NOT NULL
-GROUP BY 1 ORDER BY ecl_reported_crore DESC, sector_name ASC
+GROUP BY 1 ORDER BY ecl_reported_sar_mn DESC, sector_name ASC
 """,
  "M03": """
-SELECT sector_name, SUM(ead_reported) AS stage2_ead_crore
+SELECT sector_name, SUM(ead_reported) AS stage2_ead_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = $q AND ifrs9_stage = 2 AND sector_name IS NOT NULL
 GROUP BY 1 HAVING SUM(ead_reported) > 0
-ORDER BY stage2_ead_crore DESC, sector_name ASC
+ORDER BY stage2_ead_sar_mn DESC, sector_name ASC
 """,
  "M04": """
 SELECT borrower_id, ANY_VALUE(sector_name) AS sector_name,
-       SUM(ead_reported) AS ead_reported_crore,
-       SUM(ecl_reported) AS ecl_reported_crore,
+       SUM(ead_reported) AS ead_reported_sar_mn,
+       SUM(ecl_reported) AS ecl_reported_sar_mn,
        MAX(ifrs9_stage) AS stage
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = $q AND sector_name IS NOT NULL
-GROUP BY 1 ORDER BY ecl_reported_crore DESC, borrower_id ASC LIMIT 10
+GROUP BY 1 ORDER BY ecl_reported_sar_mn DESC, borrower_id ASC LIMIT 10
 """,
  "M05": """
-SELECT sector_name, SUM(ead_reported) AS ead_reported_crore
+SELECT sector_name, SUM(ead_reported) AS ead_reported_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = $q AND sector_name IS NOT NULL
-GROUP BY 1 ORDER BY ead_reported_crore DESC, sector_name ASC
+GROUP BY 1 ORDER BY ead_reported_sar_mn DESC, sector_name ASC
 """,
  "M06": """
 WITH s AS (
@@ -42,13 +42,13 @@ WITH s AS (
   WHERE reporting_quarter IN ($q, $y) AND sector_name IS NOT NULL
   GROUP BY 1, 2)
 SELECT COALESCE(n.sector_name, o.sector_name) AS sector_name,
-       COALESCE(n.s2, 0) AS current_stage2_crore,
-       COALESCE(o.s2, 0) AS prior_stage2_crore,
-       COALESCE(n.s2, 0) - COALESCE(o.s2, 0) AS change_crore
+       COALESCE(n.s2, 0) AS current_stage2_sar_mn,
+       COALESCE(o.s2, 0) AS prior_stage2_sar_mn,
+       COALESCE(n.s2, 0) - COALESCE(o.s2, 0) AS change_sar_mn
 FROM (SELECT * FROM s WHERE reporting_quarter = $q) n
 FULL OUTER JOIN (SELECT * FROM s WHERE reporting_quarter = $y) o
   ON o.sector_name = n.sector_name
-ORDER BY change_crore DESC, sector_name ASC
+ORDER BY change_sar_mn DESC, sector_name ASC
 """,
  "M07": """
 WITH s AS (
@@ -74,7 +74,7 @@ WITH s AS (
   WHERE reporting_quarter IN ($q, $p) AND sector_name IS NOT NULL
   GROUP BY 1, 2)
 SELECT COALESCE(n.sector_name, o.sector_name) AS sector_name,
-       COALESCE(n.ecl, 0) - COALESCE(o.ecl, 0) AS contribution_crore
+       COALESCE(n.ecl, 0) - COALESCE(o.ecl, 0) AS contribution_sar_mn
 FROM (SELECT * FROM s WHERE reporting_quarter = $q) n
 FULL OUTER JOIN (SELECT * FROM s WHERE reporting_quarter = $p) o
   ON o.sector_name = n.sector_name
@@ -87,13 +87,13 @@ WITH b AS (
   WHERE reporting_quarter IN ($q, $p) AND sector_name IS NOT NULL
   GROUP BY 1, 2)
 SELECT COALESCE(n.borrower_id, o.borrower_id) AS borrower_id,
-       COALESCE(n.ecl, 0) - COALESCE(o.ecl, 0) AS increase_crore,
-       COALESCE(n.ecl, 0) AS ecl_reported_crore
+       COALESCE(n.ecl, 0) - COALESCE(o.ecl, 0) AS increase_sar_mn,
+       COALESCE(n.ecl, 0) AS ecl_reported_sar_mn
 FROM (SELECT * FROM b WHERE reporting_quarter = $q) n
 FULL OUTER JOIN (SELECT * FROM b WHERE reporting_quarter = $p) o
   ON o.borrower_id = n.borrower_id
 WHERE COALESCE(n.ecl, 0) - COALESCE(o.ecl, 0) > 0
-ORDER BY increase_crore DESC, borrower_id ASC
+ORDER BY increase_sar_mn DESC, borrower_id ASC
 """,
  "M10": """
 WITH b AS (
@@ -105,8 +105,8 @@ WITH b AS (
 r AS (SELECT reporting_quarter, borrower_id, rating_rank
       FROM cockpit_rating_ratio_quarter
       WHERE reporting_quarter IN ($q, $p))
-SELECT nb.borrower_id, nb.ead AS ead_reported_crore,
-       nb.ecl AS ecl_reported_crore
+SELECT nb.borrower_id, nb.ead AS ead_reported_sar_mn,
+       nb.ecl AS ecl_reported_sar_mn
 FROM (SELECT * FROM b WHERE reporting_quarter = $q) nb
 JOIN (SELECT * FROM b WHERE reporting_quarter = $p) ob
   ON ob.borrower_id = nb.borrower_id
@@ -119,20 +119,20 @@ ORDER BY nb.borrower_id ASC
 """,
  "M11": """
 SELECT reporting_quarter,
-       SUM(ead_reported) AS ead_reported_crore,
-       SUM(ecl_reported) AS ecl_reported_crore,
+       SUM(ead_reported) AS ead_reported_sar_mn,
+       SUM(ecl_reported) AS ecl_reported_sar_mn,
        SUM(CASE WHEN ifrs9_stage = 2 THEN ead_reported ELSE 0 END)
-           AS stage2_ead_crore
+           AS stage2_ead_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter IN ($q, $p) AND sector_name IS NOT NULL
 GROUP BY 1 ORDER BY reporting_quarter DESC
 """,
  "M12": """
 SELECT reporting_quarter,
-       SUM(ead_reported) AS ead_reported_crore,
-       SUM(ecl_reported) AS ecl_reported_crore,
+       SUM(ead_reported) AS ead_reported_sar_mn,
+       SUM(ecl_reported) AS ecl_reported_sar_mn,
        SUM(CASE WHEN ifrs9_stage = 2 THEN ead_reported ELSE 0 END)
-           AS stage2_ead_crore
+           AS stage2_ead_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter IN ($q, $y) AND sector_name = $sector
 GROUP BY 1 ORDER BY reporting_quarter DESC
@@ -148,19 +148,19 @@ WITH s AS (
   WHERE reporting_quarter IN ($q, $p) AND sector_name IS NOT NULL
   GROUP BY 1, 2)
 SELECT n.sector_name,
-       n.ecl - o.ecl AS ecl_change_crore,
+       n.ecl - o.ecl AS ecl_change_sar_mn,
        n.uncovered - o.uncovered AS uncovered_share_change
 FROM s n JOIN s o ON o.sector_name = n.sector_name
   AND o.reporting_quarter = $p
 WHERE n.reporting_quarter = $q AND n.ecl > o.ecl
   AND n.uncovered > o.uncovered
-ORDER BY ecl_change_crore DESC, n.sector_name ASC
+ORDER BY ecl_change_sar_mn DESC, n.sector_name ASC
 """,
  "M14": """
-SELECT borrower_id, SUM(ecl_reported) AS ecl_reported_crore
+SELECT borrower_id, SUM(ecl_reported) AS ecl_reported_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = $q AND sector_name IS NOT NULL
-GROUP BY 1 ORDER BY ecl_reported_crore DESC, borrower_id ASC LIMIT 10
+GROUP BY 1 ORDER BY ecl_reported_sar_mn DESC, borrower_id ASC LIMIT 10
 """,
  "M15": """
 WITH b AS (
@@ -172,8 +172,8 @@ ranked AS (SELECT *, ROW_NUMBER() OVER (
              PARTITION BY sector_name ORDER BY ecl DESC, borrower_id ASC) AS rn
            FROM b)
 SELECT sector_name,
-       SUM(CASE WHEN rn <= 3 THEN ecl ELSE 0 END) AS top3_ecl_crore,
-       SUM(ecl) AS sector_ecl_crore,
+       SUM(CASE WHEN rn <= 3 THEN ecl ELSE 0 END) AS top3_ecl_sar_mn,
+       SUM(ecl) AS sector_ecl_sar_mn,
        SUM(CASE WHEN rn <= 3 THEN ecl ELSE 0 END) / SUM(ecl) AS share
 FROM ranked GROUP BY 1 HAVING SUM(ecl) > 0
 ORDER BY share DESC, sector_name ASC

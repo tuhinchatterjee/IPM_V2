@@ -27,6 +27,7 @@ from backend.cockpit_agentic import store as v3_store
 from backend.cockpit_v4 import DOMAIN
 from backend.cockpit_v4 import capability as cap_mod
 from backend.cockpit_v4 import config as config_mod
+from backend.cockpit_v4 import precision as prec
 from backend.cockpit_v4 import states as st
 from backend.cockpit_v4.config import V4Config, limits_for
 
@@ -177,8 +178,13 @@ def load_release(cfg: V4Config) -> tuple[Any, Any, dict[str, Any]]:
     catalog = v3_catalog.build(
         dataset_release_id=cfg.release_id, calendar=calendar,
         tenant_id=str((manifest.get("tenants") or [""])[0]),
-        reporting_currency=str(manifest.get("reporting_currency") or "INR"),
-        amount_scale=str(manifest.get("amount_scale") or "crore"))
+        # The V4 demonstration book is Saudi. The shared release writer does
+        # not record a currency, so this fallback is what a runtime reports
+        # when the manifest is silent -- and it was reporting INR crore over
+        # a Saudi portfolio.
+        reporting_currency=str(manifest.get("reporting_currency")
+                               or prec.CURRENCY),
+        amount_scale=str(manifest.get("amount_scale") or prec.AMOUNT_SCALE))
     with _LOCK:
         _CATALOG_CACHE[cfg.release_id] = (catalog, summary)
     return catalog, _COVERAGE_CACHE.get(cfg.release_id), summary

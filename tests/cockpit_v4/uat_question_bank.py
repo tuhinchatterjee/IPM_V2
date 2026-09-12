@@ -28,7 +28,7 @@ from typing import Any
 
 import pandas as pd
 
-RELEASE = os.environ.get("COCKPIT_V4_TEST_RELEASE", "v4-uat-20q-v1")
+RELEASE = os.environ.get("COCKPIT_V4_TEST_RELEASE", "v4-saudi-20q-v1")
 
 
 def _frame(relation: str, release_id: str = "") -> pd.DataFrame:

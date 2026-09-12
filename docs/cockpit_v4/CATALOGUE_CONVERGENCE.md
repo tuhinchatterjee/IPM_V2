@@ -110,7 +110,7 @@ read straight off the catalogue (≈6.9 KB in total):
  "relation": "cockpit_facility_quarter", "column": "ead_reported",
  "means": "Reported exposure at default.",
  "dtype": "float", "unit": "RCY", "aggregation": "additive",
- "currency": "INR", "amount_scale": "crore",
+ "currency": "SAR", "amount_scale": "million",
  "grain": "one row per facility per reporting quarter",
  "period_field": "reporting_quarter",
  "key": "facility_id", "borrower_key": "borrower_id"}

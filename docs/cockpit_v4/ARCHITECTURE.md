@@ -63,7 +63,7 @@ about a particular model's behaviour or elapsed time.
 
 The one thing that is *not* authorship: deterministic formatting of a value
 already bound to executed evidence. Rendering `5231.577413502459` as
-`5,231.58 INR crore` at the declared precision is presentation. Changing which
+`5,231.58 SAR million` at the declared precision is presentation. Changing which
 column it came from is substance, and no code here can do it.
 
 ## Modules

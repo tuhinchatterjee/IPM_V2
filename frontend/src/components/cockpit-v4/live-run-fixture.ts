@@ -50,7 +50,7 @@ function event(
 /** The fifteen events, exactly as recorded. */
 export const LIVE_RUN_EVENTS: RunEvent[] = [
   event(1, "run.accepted", "accepted", "intake", "ok", 0,
-    "Request accepted · release v4-uat-20q-v1"),
+    "Request accepted · release v4-saudi-20q-v1"),
   event(2, "run.started", "accepted", "start", "ok", 416,
     "Working on your question."),
   event(3, "context.ready", "accepted", "context", "ok", 416,
@@ -87,7 +87,7 @@ export const LIVE_RUN_STATUS: RunStatus = {
   thread_id: "th-live",
   state: "COMPLETED",
   mode: "standard",
-  release_id: "v4-uat-20q-v1",
+  release_id: "v4-saudi-20q-v1",
   error_code: "",
   error_id: "",
   operation: "",

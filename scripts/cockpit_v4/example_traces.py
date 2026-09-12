@@ -31,7 +31,7 @@ from backend.cockpit_v4.run_store import RunStore  # noqa: E402
 from backend.cockpit_v4.service import Runtime, load_release  # noqa: E402
 from backend.cockpit_v4.worker import Worker  # noqa: E402
 
-RELEASE = "v4-uat-20q-v1"
+RELEASE = "v4-saudi-20q-v1"
 SECRET_MARKERS = ("sk-", "Bearer ", "api_key", "authorization", "cookie",
                   "password", "secret")
 
@@ -96,10 +96,10 @@ def _run(runtime, store, question: str, script) -> dict:
 
 def _ead_sql() -> str:
     quarter = oracles.latest_quarter(RELEASE)
-    return (f"SELECT sector_name, SUM(ead_reported) AS ead_crore\n"
+    return (f"SELECT sector_name, SUM(ead_reported) AS ead_sar_mn\n"
             f"FROM cockpit_facility_quarter\n"
             f"WHERE reporting_quarter = '{quarter}'\n"
-            f"GROUP BY sector_name\nORDER BY ead_crore DESC")
+            f"GROUP BY sector_name\nORDER BY ead_sar_mn DESC")
 
 
 def _exec_call(sql: str, call_id="tu-1", step_id="s1"):
@@ -113,7 +113,7 @@ def _exec_call(sql: str, call_id="tu-1", step_id="s1"):
         "metadata_receipt_ids": [],
         "fields_required": ["cockpit_facility_quarter.ead_reported",
                             "cockpit_facility_quarter.sector_name"],
-        "expected_output_grain": "sector", "expected_units": "INR crore",
+        "expected_output_grain": "sector", "expected_units": "SAR million",
         "steps": [{"step_id": step_id, "language": "sql", "code": sql,
                    "parameters": {}, "purpose": "EAD by sector",
                    "input_artifact_ids": [], "depends_on_step_ids": []}],
@@ -137,15 +137,15 @@ def _finish_from_result(call_id="tu-2"):
                                  {"artifact_id": step["artifact_id"],
                                   "row_key": f"sector_name="
                                              f"{cell['sector_name']}",
-                                  "column_id": "ead_crore"}]}],
+                                  "column_id": "ead_sar_mn"}]}],
                   numeric_claims=[{
                       "claim_id": "top",
-                      "decimal_value": repr(float(cell["ead_crore"])),
-                      "unit": "INR crore", "display_precision": 2,
+                      "decimal_value": repr(float(cell["ead_sar_mn"])),
+                      "unit": "SAR million", "display_precision": 2,
                       "evidence": {"artifact_id": step["artifact_id"],
                                    "row_key": f"sector_name="
                                               f"{cell['sector_name']}",
-                                   "column_id": "ead_crore"}}]),
+                                   "column_id": "ead_sar_mn"}}]),
             call_id)])
     return build
 

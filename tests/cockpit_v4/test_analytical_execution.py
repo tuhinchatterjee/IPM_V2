@@ -39,7 +39,7 @@ def _submission(sql: str, *, blocking=(), resolved=(), mappings=(),
         "objective": "o", "subquestions": ["a"],
         "scope": {"reporting_quarters": [], "filters": {}},
         "metadata_receipt_ids": [], "fields_required": ["f"],
-        "expected_output_grain": "sector", "expected_units": "INR crore",
+        "expected_output_grain": "sector", "expected_units": "SAR million",
         "steps": [{"step_id": step_id, "language": "sql", "code": sql,
                    "parameters": dict(parameters or {}), "purpose": "p",
                    "input_artifact_ids": [], "depends_on_step_ids": []}],
@@ -235,11 +235,11 @@ def test_the_parameter_argument_shape_is_what_duckdb_wants():
 
 # ---- 4. the four questions, against independent oracles ----------------
 
-EAD_SQL = ("SELECT sector_name, SUM(ead_reported) AS ead_crore "
+EAD_SQL = ("SELECT sector_name, SUM(ead_reported) AS ead_sar_mn "
            "FROM cockpit_facility_quarter WHERE reporting_quarter = ? "
            "GROUP BY 1 ORDER BY 2 DESC")
 
-ECL_TOP5_SQL = ("SELECT sector_name, SUM(ecl_reported) AS ecl_crore "
+ECL_TOP5_SQL = ("SELECT sector_name, SUM(ecl_reported) AS ecl_sar_mn "
                 "FROM cockpit_facility_quarter WHERE reporting_quarter = ? "
                 "GROUP BY 1 ORDER BY 2 DESC, 1 ASC LIMIT 5")
 
@@ -275,7 +275,7 @@ def test_question_a_total_ead_by_sector_matches_the_oracle(service,
                                deadline_seconds=20.0)
     assert result.status == "ok"
     expected = oracles.ead_by_sector(release_id, quarter)
-    rows = {r["sector_name"]: float(r["ead_crore"])
+    rows = {r["sector_name"]: float(r["ead_sar_mn"])
             for r in result.steps[0].preview}
     assert set(rows) == set(expected)
     for sector, value in expected.items():
@@ -294,7 +294,7 @@ def test_question_b_top_five_sectors_by_ecl_match_the_oracle(service,
                                deadline_seconds=20.0)
     assert result.status == "ok"
     expected = oracles.top_sectors_by_ecl(release_id, quarter, n=5)
-    rows = [(r["sector_name"], float(r["ecl_crore"]))
+    rows = [(r["sector_name"], float(r["ecl_sar_mn"]))
             for r in result.steps[0].preview]
     assert [s for s, _ in rows] == [s for s, _ in expected]
     for (_, got), (_, want) in zip(rows, expected):

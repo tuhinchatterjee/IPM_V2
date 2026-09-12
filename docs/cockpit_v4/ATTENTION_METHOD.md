@@ -121,7 +121,7 @@ amount indicator:         adverse_delta
 
 The sector-size and facility-count gates are what stop a relative spike off a
 tiny base. A sector with two facilities whose Stage-2 share goes 0% → 100% is
-a 100% move and, on a 4-crore book of a 20,000-crore portfolio, not a finding.
+a 100% move and, on a 4-million book of a 20,000-million portfolio, not a finding.
 
 ## Score
 
@@ -271,7 +271,7 @@ browser test assert Ask still works while the feed is failing.
 
 ## What the pinned release currently produces
 
-`v4-uat-20q-v1`, latest quarter **2026Q2**, against 2026Q1 and 2025Q2:
+`v4-saudi-20q-v1`, latest quarter **2026Q2**, against 2026Q1 and 2025Q2:
 
 | Score | Family | Item |
 |---:|---|---|

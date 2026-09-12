@@ -7,7 +7,7 @@ environment.
 | Label | Meaning |
 |---|---|
 | MODEL MOCK | the analyst is scripted; the runner, store, catalog and event stream are real |
-| REAL DATABASE | real DuckDB against the published `v4-uat-20q-v1` release |
+| REAL DATABASE | real DuckDB against the published `v4-saudi-20q-v1` release |
 | REAL HTTP | a real ASGI client over the real router |
 | REAL SOCKET | a real uvicorn process on a real port, real SSE frames read incrementally |
 | REAL PROCESS | real OS processes and ports |
@@ -55,8 +55,8 @@ outstanding, and G1 is proven only through a mock.
 | Execution submissions | 1 of 5 |
 | Sectors returned | 11 |
 | Oracle agreement | **exact for all 11 sectors** (tolerance 1e-5 on float money) |
-| Largest sector | Information Technology, 5,231.577413502459 INR crore |
-| Rendered in the answer | `5,231.58 INR crore` — exact value bound, displayed at declared precision |
+| Largest sector | Information Technology, 5,231.577413502459 SAR million |
+| Rendered in the answer | `5,231.58 SAR million` — exact value bound, displayed at declared precision |
 | Terminal state | `COMPLETED` |
 
 `test_ead_by_sector_matches_an_independent_oracle`
@@ -66,7 +66,7 @@ outstanding, and G1 is proven only through a mock.
 | Measure | Result |
 |---|---|
 | Quarters compared | 2025Q2 → 2026Q2 |
-| Total change | +135.363111 INR crore, matching the oracle |
+| Total change | +135.363111 SAR million, matching the oracle |
 | Sectors that **entered** stage 2 | Manufacturing — present in the result and marked `entered` |
 | Sectors that **exited** | none in this release |
 | Per-sector agreement | **every sector matches the oracle** |
@@ -127,7 +127,7 @@ false claim the case exists to prevent.
 | Capability | Status | Why |
 |---|---|---|
 | `ready_for_product_help` | needs a credential and a verified price card | neither is present here |
-| `ready_for_sql_analysis` | **working** | real DuckDB against `v4-uat-20q-v1` |
+| `ready_for_sql_analysis` | **working** | real DuckDB against `v4-saudi-20q-v1` |
 | `ready_for_python_analysis` | **unavailable** | the jail's escape self-test found network access was not blocked, so the runner refuses to certify itself |
 
 ## Acceptance inventory

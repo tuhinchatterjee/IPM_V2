@@ -712,7 +712,7 @@
       "id": "V4-AT-042",
       "group": "domain_and_numerics",
       "case": "Currency",
-      "expected": "INR/SAR and crore/million are not interchanged; display follows evidence units.",
+      "expected": "SAR/SAR and million/million are not interchanged; display follows evidence units.",
       "evidence": {
         "status": "COVERED",
         "labels": [

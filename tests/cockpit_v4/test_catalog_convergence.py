@@ -49,7 +49,7 @@ def request(**body):
     return parse_catalog(payload)
 
 
-EAD_SQL = ("SELECT sector_name, SUM(ead_reported) AS ead_crore FROM "
+EAD_SQL = ("SELECT sector_name, SUM(ead_reported) AS ead_sar_mn FROM "
            "cockpit_facility_quarter WHERE reporting_quarter = ? "
            "GROUP BY 1 ORDER BY 2 DESC")
 
@@ -60,7 +60,7 @@ def execute_call(sql, parameters, call_id="tu-e"):
         "objective": "o", "subquestions": ["a"],
         "scope": {"reporting_quarters": [], "filters": {}},
         "metadata_receipt_ids": [], "fields_required": ["f"],
-        "expected_output_grain": "sector", "expected_units": "INR crore",
+        "expected_output_grain": "sector", "expected_units": "SAR million",
         "steps": [{"step_id": "s1", "language": "sql", "code": sql,
                    "parameters": dict(parameters), "purpose": "p",
                    "input_artifact_ids": [], "depends_on_step_ids": []}],
@@ -79,14 +79,14 @@ def finish(messages):
                          "evidence_refs": [{
                              "artifact_id": step["artifact_id"],
                              "row_key": f"sector_name={cell['sector_name']}",
-                             "column_id": "ead_crore"}]}],
+                             "column_id": "ead_sar_mn"}]}],
               numeric_claims=[{
                   "claim_id": "top",
-                  "decimal_value": repr(float(cell["ead_crore"])),
-                  "unit": "INR crore", "display_precision": 2,
+                  "decimal_value": repr(float(cell["ead_sar_mn"])),
+                  "unit": "SAR million", "display_precision": 2,
                   "evidence": {"artifact_id": step["artifact_id"],
                                "row_key": f"sector_name={cell['sector_name']}",
-                               "column_id": "ead_crore"}}]),
+                               "column_id": "ead_sar_mn"}}]),
         "tu-f")])
 
 

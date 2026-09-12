@@ -133,7 +133,7 @@ Default is a separate flag, not an automatically added twentieth grade.
 
 Macro data has **two time axes**: 20 reporting snapshots, and for each snapshot a -4/current/+15 quarter window. Forward points remain forecasts at their original vintage. Do not leak later observations into historical-as-known analyses.
 
-Catalog entries retain canonical ID, definition, datatype, unit, grain, aggregation behavior, valid joins, source/basis, lineage, quarterly coverage and missingness. Units are read from the release: do not replace INR crore with SAR million because another dashboard uses SAR. Missing, invalid, withheld, not applicable and carried-forward observations remain distinguishable.
+Catalog entries retain canonical ID, definition, datatype, unit, grain, aggregation behavior, valid joins, source/basis, lineage, quarterly coverage and missingness. Units are read from the release: do not replace SAR million with SAR million because another dashboard uses SAR. Missing, invalid, withheld, not applicable and carried-forward observations remain distinguishable.
 
 The annex and reported current implementation may differ in individual field names or collateral-type mappings. Create an explicit mapping/gap ledger. Preserve existing compatible names; do not quietly rebuild the domain, rename columns or pretend absent data exists. Count of fields is not an acceptance criterion by itself.
 
@@ -2727,7 +2727,7 @@ All cases below are requirements to implement and test, not claims of tests alre
 | V4-AT-039 | domain_and_numerics | Covenant status | Untested/waived/missing results are not silently treated as compliant. |
 | V4-AT-040 | domain_and_numerics | Scenario detail | Scenario/horizon detail does not multiply booked ECL. |
 | V4-AT-041 | domain_and_numerics | Macro vintage | Positive offsets remain historical-vintage forecasts; later actuals do not leak. |
-| V4-AT-042 | domain_and_numerics | Currency | INR/SAR and crore/million are not interchanged; display follows evidence units. |
+| V4-AT-042 | domain_and_numerics | Currency | SAR/SAR and million/million are not interchanged; display follows evidence units. |
 | V4-AT-043 | domain_and_numerics | Zero vs missing | Null, no eligible rows, invalid denominator and genuine zero remain distinguishable. |
 | V4-AT-044 | domain_and_numerics | Schema visibility | Source columns newly added outside the approved catalog are not automatically exposed. |
 | V4-AT-045 | domain_and_numerics | Wide results | Oversized outputs have explicit pagination/limit markers and no whole-population claim from a preview. |

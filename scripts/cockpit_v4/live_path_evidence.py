@@ -66,10 +66,10 @@ def build_app(release_id: str, runtime_dir: Path, port: int):
     import oracles
 
     quarter = oracles.latest_quarter(release_id)
-    sql = (f"SELECT sector_name, SUM(ead_reported) AS ead_reported_crore "
+    sql = (f"SELECT sector_name, SUM(ead_reported) AS ead_reported_sar_mn "
            f"FROM cockpit_facility_quarter "
            f"WHERE reporting_quarter = '{quarter}' "
-           f"GROUP BY sector_name ORDER BY ead_reported_crore DESC")
+           f"GROUP BY sector_name ORDER BY ead_reported_sar_mn DESC")
 
     class SlowScripted(ScriptedProvider):
         """Adds a small, honest delay so progress is observably incremental.
@@ -100,16 +100,16 @@ def build_app(release_id: str, runtime_dir: Path, port: int):
                                      {"artifact_id": step["artifact_id"],
                                       "row_key": f"sector_name="
                                                  f"{cell['sector_name']}",
-                                      "column_id": "ead_reported_crore"}]}],
+                                      "column_id": "ead_reported_sar_mn"}]}],
                       numeric_claims=[{
                           "claim_id": "top",
                           "decimal_value": repr(
-                              float(cell["ead_reported_crore"])),
-                          "unit": "INR crore", "display_precision": 2,
+                              float(cell["ead_reported_sar_mn"])),
+                          "unit": "SAR million", "display_precision": 2,
                           "evidence": {
                               "artifact_id": step["artifact_id"],
                               "row_key": f"sector_name={cell['sector_name']}",
-                              "column_id": "ead_reported_crore"}}]),
+                              "column_id": "ead_reported_sar_mn"}}]),
                 "tu-2")])
 
         return [
@@ -122,7 +122,7 @@ def build_app(release_id: str, runtime_dir: Path, port: int):
                 "metadata_receipt_ids": [],
                 "fields_required": ["cockpit_facility_quarter.ead_reported"],
                 "expected_output_grain": "sector",
-                "expected_units": "INR crore",
+                "expected_units": "SAR million",
                 "steps": [{"step_id": "s1", "language": "sql", "code": sql,
                            "parameters": {}, "purpose": "EAD by sector",
                            "input_artifact_ids": [],
@@ -157,7 +157,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8414)
     parser.add_argument("--release", default=os.environ.get(
-        "COCKPIT_V4_TEST_RELEASE", "v4-uat-20q-v1"))
+        "COCKPIT_V4_TEST_RELEASE", "v4-saudi-20q-v1"))
     parser.add_argument("--runtime-dir",
                         default=str(Path("/tmp/cockpit_v4_evidence")))
     args = parser.parse_args()

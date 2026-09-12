@@ -169,14 +169,14 @@ def test_expected_units_honours_the_published_schema():
     schema = _schema("execute_analysis.schema.json")["properties"]
     assert schema["expected_units"]["type"] == "object", (
         "the published contract is a column -> unit mapping")
-    units = c._parse_units({"ead_crore": "INR crore", "n": "rows"})
-    assert units == {"ead_crore": "INR crore", "n": "rows"}
-    assert c.units_display(units) == "ead_crore: INR crore, n: rows"
+    units = c._parse_units({"ead_sar_mn": "SAR million", "n": "rows"})
+    assert units == {"ead_sar_mn": "SAR million", "n": "rows"}
+    assert c.units_display(units) == "ead_sar_mn: SAR million, n: rows"
 
 
 def test_a_single_unit_string_is_accepted_as_shorthand():
-    assert c._parse_units("INR crore") == {"": "INR crore"}
-    assert c.units_display({"": "INR crore"}) == "INR crore"
+    assert c._parse_units("SAR million") == {"": "SAR million"}
+    assert c.units_display({"": "SAR million"}) == "SAR million"
 
 
 @pytest.mark.parametrize("bad", [None, "", "   ", {}, {"x": None}, 5, []])

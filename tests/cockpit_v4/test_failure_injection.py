@@ -164,7 +164,7 @@ def test_06_sql_that_does_not_bind_is_refused_with_the_binders_own_words(
 
     quarter = oracles.latest_quarter(release_id)
     call = _execute_call(EAD_SQL, purpose="EAD by sector", grain="sector",
-                         units="INR crore", subquestions=["EAD by sector"],
+                         units="SAR million", subquestions=["EAD by sector"],
                          fields=["cockpit_facility_quarter.ead_reported"],
                          quarter=quarter)
     call["input"]["steps"][0]["code"] = (
@@ -198,7 +198,7 @@ def test_07_a_query_outside_the_authorized_relations_is_denied(drive,
 
     quarter = oracles.latest_quarter(release_id)
     call = _execute_call(EAD_SQL, purpose="EAD by sector", grain="sector",
-                         units="INR crore", subquestions=["EAD by sector"],
+                         units="SAR million", subquestions=["EAD by sector"],
                          fields=["cockpit_facility_quarter.ead_reported"],
                          quarter=quarter)
     call["input"]["steps"][0]["code"] = (
@@ -248,7 +248,7 @@ def test_08_a_storage_failure_stops_rather_than_guessing(store_db, runtime,
     runtime.provider = ScriptedProvider([
         ScriptedResult(tool_calls=[_execute_call(
             EAD_SQL, purpose="EAD by sector", grain="sector",
-            units="INR crore", subquestions=["EAD by sector"],
+            units="SAR million", subquestions=["EAD by sector"],
             fields=["cockpit_facility_quarter.ead_reported"],
             quarter=quarter)]),
         stand_down, stand_down])

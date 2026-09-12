@@ -18,7 +18,7 @@ import oracles
 
 #: Money in this release is a float column, so an exact decimal comparison
 #: between two independent aggregations tests IEEE-754 formatting rather than
-#: the analysis. One paisa on a crore-scale figure is well below any tolerance
+#: the analysis. One paisa on a million-scale figure is well below any tolerance
 #: that could hide a real error (a dropped sector moves these by thousands).
 TOLERANCE = Decimal("0.00001")
 
@@ -99,11 +99,11 @@ def test_original_wording_reaches_the_model_unmodified(drive):
 
 EAD_SQL = """
 SELECT sector_name,
-       SUM(ead_reported) AS ead_reported_crore
+       SUM(ead_reported) AS ead_reported_sar_mn
 FROM cockpit_facility_quarter
 WHERE reporting_quarter = ?
 GROUP BY sector_name
-ORDER BY ead_reported_crore DESC
+ORDER BY ead_reported_sar_mn DESC
 """
 
 
@@ -144,7 +144,7 @@ def test_ead_by_sector_matches_an_independent_oracle(drive, store_db,
         # refused by the finalizer, which is the behaviour under test
         # elsewhere -- here the analyst quotes what the evidence holds and
         # sets display_precision for how it should read.
-        cell = next(r["ead_reported_crore"] for r in step["preview"]
+        cell = next(r["ead_reported_sar_mn"] for r in step["preview"]
                     if r["sector_name"] == top_sector)
         return ScriptedResult(tool_calls=[tool_call(
             "finalize_response",
@@ -159,27 +159,27 @@ def test_ead_by_sector_matches_an_independent_oracle(drive, store_db,
                              "evidence_refs": [
                                  {"artifact_id": artifact,
                                   "row_key": f"sector_name={top_sector}",
-                                  "column_id": "ead_reported_crore"}]}],
+                                  "column_id": "ead_reported_sar_mn"}]}],
                   numeric_claims=[{
                       "claim_id": "top_ead",
                       "decimal_value": repr(float(cell)),
-                      "unit": "INR crore",
+                      "unit": "SAR million",
                       "display_precision": 2,
                       "evidence": {
                           "artifact_id": artifact,
                           "row_key": f"sector_name={top_sector}",
-                          "column_id": "ead_reported_crore"}}],
+                          "column_id": "ead_reported_sar_mn"}}],
                   tables=[{"title": "Reported EAD by sector",
                            "artifact_id": artifact,
                            "columns": ["sector_name",
-                                       "ead_reported_crore"]}]))],
+                                       "ead_reported_sar_mn"]}]))],
             output_tokens=400)
 
     outcome, provider, record = drive(
         "What is the EAD by sector for the latest quarter?",
         [ScriptedResult(tool_calls=[_execute_call(
             EAD_SQL, purpose="Reported EAD by sector for the latest quarter",
-            grain="sector", units="INR crore",
+            grain="sector", units="SAR million",
             subquestions=["EAD by sector for the latest quarter"],
             fields=["cockpit_facility_quarter.ead_reported",
                     "cockpit_facility_quarter.sector_name"],
@@ -197,7 +197,7 @@ def test_ead_by_sector_matches_an_independent_oracle(drive, store_db,
     # And the stored artifact matches the independent oracle, row for row.
     artifact_id = body["numeric_claims"][0]["evidence"]["artifact_id"]
     stored = store_db.get_artifact(artifact_id, tenant_id="demo-tenant")
-    produced = {str(r["sector_name"]): r["ead_reported_crore"]
+    produced = {str(r["sector_name"]): r["ead_reported_sar_mn"]
                 for r in stored["rows"]}
     assert set(produced) == set(expected), (
         "the executed SQL returned a different set of sectors than the oracle")
@@ -223,9 +223,9 @@ def test_a_claim_that_does_not_match_the_artifact_is_refused(drive,
                   narrative="Exposure is {{claim.x}}.",
                   numeric_claims=[{
                       "claim_id": "x", "decimal_value": "999999.99",
-                      "unit": "INR crore", "display_precision": 2,
+                      "unit": "SAR million", "display_precision": 2,
                       "evidence": {"artifact_id": artifact, "row_key": "0",
-                                   "column_id": "ead_reported_crore"}}]))],
+                                   "column_id": "ead_reported_sar_mn"}}]))],
             )
 
     def give_up(messages):
@@ -240,7 +240,7 @@ def test_a_claim_that_does_not_match_the_artifact_is_refused(drive,
         "EAD by sector?",
         [ScriptedResult(tool_calls=[_execute_call(
             EAD_SQL, purpose="EAD by sector", grain="sector",
-            units="INR crore", subquestions=["EAD by sector"],
+            units="SAR million", subquestions=["EAD by sector"],
             fields=["cockpit_facility_quarter.ead_reported"],
             quarter=quarter)]),
          wrong_number, give_up])
@@ -255,7 +255,7 @@ def test_a_claim_that_does_not_match_the_artifact_is_refused(drive,
 STAGE2_SQL = """
 WITH stage2 AS (
   SELECT reporting_quarter, sector_name,
-         SUM(ead_reported) AS stage2_ead_crore
+         SUM(ead_reported) AS stage2_ead_sar_mn
   FROM cockpit_facility_quarter
   WHERE ifrs9_stage = 2
     AND reporting_quarter IN (?, ??)
@@ -265,19 +265,19 @@ sectors AS (
   SELECT DISTINCT sector_name FROM stage2
 )
 SELECT s.sector_name,
-       COALESCE(p.stage2_ead_crore, 0) AS prior_stage2_ead_crore,
-       COALESCE(c.stage2_ead_crore, 0) AS current_stage2_ead_crore,
-       COALESCE(c.stage2_ead_crore, 0)
-         - COALESCE(p.stage2_ead_crore, 0) AS change_crore,
-       CASE WHEN p.stage2_ead_crore IS NULL THEN 'entered'
-            WHEN c.stage2_ead_crore IS NULL THEN 'exited'
+       COALESCE(p.stage2_ead_sar_mn, 0) AS prior_stage2_ead_sar_mn,
+       COALESCE(c.stage2_ead_sar_mn, 0) AS current_stage2_ead_sar_mn,
+       COALESCE(c.stage2_ead_sar_mn, 0)
+         - COALESCE(p.stage2_ead_sar_mn, 0) AS change_sar_mn,
+       CASE WHEN p.stage2_ead_sar_mn IS NULL THEN 'entered'
+            WHEN c.stage2_ead_sar_mn IS NULL THEN 'exited'
             ELSE 'present' END AS movement
 FROM sectors s
 LEFT JOIN stage2 p ON p.sector_name = s.sector_name
                   AND p.reporting_quarter = ?
 LEFT JOIN stage2 c ON c.sector_name = s.sector_name
                   AND c.reporting_quarter = ??
-ORDER BY change_crore DESC
+ORDER BY change_sar_mn DESC
 """
 
 
@@ -312,15 +312,15 @@ def test_stage2_year_change_handles_entering_and_exiting_sectors(
                              "status": "answered",
                              "evidence_refs": [{"artifact_id": artifact,
                                                 "row_key": "0",
-                                                "column_id": "change_crore"}]}],
+                                                "column_id": "change_sar_mn"}]}],
                   numeric_claims=[{
                       "claim_id": "total",
-                      "decimal_value": repr(float(lead["change_crore"])),
-                      "unit": "INR crore", "display_precision": 2,
+                      "decimal_value": repr(float(lead["change_sar_mn"])),
+                      "unit": "SAR million", "display_precision": 2,
                       "evidence": {"artifact_id": artifact,
                                    "row_key": f"sector_name="
                                               f"{lead['sector_name']}",
-                                   "column_id": "change_crore"}}],
+                                   "column_id": "change_sar_mn"}}],
                   limitations=[
                       "sectors that entered or exited stage 2 are marked in "
                       "the movement column"]))])
@@ -339,7 +339,7 @@ def test_stage2_year_change_handles_entering_and_exiting_sectors(
             "fields_required": ["cockpit_facility_quarter.ifrs9_stage",
                                 "cockpit_facility_quarter.ead_reported"],
             "expected_output_grain": "sector",
-            "expected_units": "INR crore",
+            "expected_units": "SAR million",
             "steps": [{"step_id": "s1", "language": "sql", "code": sql,
                        "parameters": {}, "purpose": "stage 2 comparison",
                        "input_artifact_ids": [], "depends_on_step_ids": []}],
@@ -357,17 +357,17 @@ def test_stage2_year_change_handles_entering_and_exiting_sectors(
         assert got is not None, (
             f"{row['sector']} is in the oracle and missing from the result; "
             f"an inner join would do exactly this")
-        assert close(got["change_crore"], row["change"]), (
-            f"{row['sector']}: SQL produced {got['change_crore']} and the "
+        assert close(got["change_sar_mn"], row["change"]), (
+            f"{row['sector']}: SQL produced {got['change_sar_mn']} and the "
             f"independent oracle expects {row['change']}")
         assert got["movement"] == row["status"]
 
     # And the sectors that entered are actually present and marked.
     for sector in expected["entered"]:
         assert produced[sector]["movement"] == "entered"
-        assert float(produced[sector]["prior_stage2_ead_crore"]) == 0.0
+        assert float(produced[sector]["prior_stage2_ead_sar_mn"]) == 0.0
 
-    total = sum(Decimal(str(r["change_crore"])) for r in stored["rows"])
+    total = sum(Decimal(str(r["change_sar_mn"])) for r in stored["rows"])
     assert close(total, expected["total_change"]), (
         "the per-sector changes do not add up to the independently computed "
         "total change")
