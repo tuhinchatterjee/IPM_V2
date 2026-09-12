@@ -207,10 +207,21 @@ def _run(step: plan_mod.Step) -> Executed:
                      statement="governed methodology metadata; no query run")
 
     if analysis == plan_mod.ACTION:
-        pack = ff.borrower(step.customer_id) if step.customer_id else None
+        # One obligor, or the population the question was about. Without the
+        # second branch a population-scoped action step returned nothing, so
+        # "should either be escalated?" was headlined by whatever else had
+        # run and answered as a sector summary.
+        if step.customer_id:
+            pack = ff.borrower(step.customer_id)
+            grain = "customer_latest"
+        else:
+            pack = ff.population_actions(step.period or None,
+                                         only=step.filters or None)
+            grain = "population_month"
         return _done(step, started,
                      figures=dict(pack.figures) if pack else {},
-                     grain="customer_latest", pack=pack,
+                     rows=list(pack.rows) if pack else [],
+                     grain=grain, pack=pack,
                      statement=("governed action library and escalation "
                                 "matrix; no analytical query run"))
 
@@ -252,8 +263,13 @@ def _run(step: plan_mod.Step) -> Executed:
                                f"[customer_id={step.customer_id}]")
 
     if analysis == plan_mod.DIAGNOSIS:
-        pack = ff.diagnosis(step.period, band="HIGH_PLUS"
-                            if step.filters.get("high_plus") else None)
+        # The slice the question asked for, carried into the tree. It was
+        # being computed by the planner, validated, and then dropped here.
+        pack = ff.diagnosis(step.period,
+                            band="HIGH_PLUS" if step.filters.get("high_plus")
+                            else None,
+                            where={k: v for k, v in (step.filters or {}).items()
+                                   if k != "high_plus"})
         return _done(step, started, figures=dict(pack.figures),
                      rows=list(pack.rows), grain="population_month", pack=pack,
                      statement=f"variance-reduction driver tree over "
@@ -282,7 +298,8 @@ def _run(step: plan_mod.Step) -> Executed:
 
     if analysis == plan_mod.MOVEMENT:
         pack = ff.movement(step.comparison_period or None, step.period or None,
-                           where=step.filters or None)
+                           where=step.filters or None,
+                           customer_id=step.customer_id or "")
         return _done(step, started, figures=dict(pack.figures),
                      rows=list(pack.rows), grain="population_trend", pack=pack,
                      statement=f"early_warning_borrower_month"
@@ -322,7 +339,17 @@ def _run(step: plan_mod.Step) -> Executed:
             "top_n_share_pct": round(100.0 * top5 / total, 1) if total else 0.0,
             "obligors": int(len(high)),
         }
-        return _done(step, started, figures=figures,
+        # It carries a pack like every other reading. Without one the
+        # concentration a multi-part question asked about ran, produced
+        # figures, and then had nothing to write from — so the part of the
+        # question it answered never reached the page.
+        pack = ff.FactPack(
+            scope="concentration",
+            label=_slice_label(step), period=step.period,
+            figures=figures, rows=_rows(high, step),
+            provenance=["early_warning_borrower_month"],
+            caveats=[ff._NOT_CALIBRATED])
+        return _done(step, started, figures=figures, pack=pack,
                      rows=_rows(high, step), grain="population_month",
                      statement=f"early_warning_borrower_month[{step.period}] "
                                f"where high_plus, ordered by exposure")
@@ -369,6 +396,13 @@ def _run(step: plan_mod.Step) -> Executed:
                  rows=found, grain="population_month", pack=pack,
                  statement=f"early_warning_borrower_month[{step.period}]"
                            + (f" where {where}" if where else ""))
+
+
+def _slice_label(step: plan_mod.Step) -> str:
+    """The population a step read, said the way a sentence says it."""
+    named = [str(v) for k, v in (step.filters or {}).items()
+             if k not in ("high_plus",) and not isinstance(v, bool)]
+    return ", ".join(named) if named else "the corporate portfolio"
 
 
 def _population_pack(step: plan_mod.Step) -> ff.FactPack | None:

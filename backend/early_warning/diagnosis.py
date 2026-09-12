@@ -206,12 +206,20 @@ def _grow(frame: pd.DataFrame, label: str, depth: int, floor: int) -> Node:
 
 
 def tree(period: str | None = None, *, band: str | None = None,
-         segment: str | None = None) -> dict[str, Any]:
+         segment: str | None = None,
+         where: dict[str, Any] | None = None) -> dict[str, Any]:
     """Fit the driver tree over the selected population.
 
-    `band` and `segment` select the population the same way the screen does,
-    so the tree describes whatever the reader is looking at rather than
-    always the whole book.
+    `band`, `segment` and `where` select the population the same way the
+    screen does, so the tree describes whatever the reader is looking at
+    rather than always the whole book.
+
+    `where` is the general form and the one the conversational planner
+    supplies. Without it, "why has the Contracting sector deteriorated?"
+    planned a diagnosis WITH a sector filter, the executor dropped the
+    filter on the floor because this function had nowhere to put it, and the
+    reader was told what the whole book's high-risk names have in common —
+    a real finding about a population they had not asked about.
     """
     frame = ff._with_derived(ff.svc.borrower_month(period))
     label = "all obligors in scope"
@@ -224,6 +232,19 @@ def tree(period: str | None = None, *, band: str | None = None,
     if segment:
         frame = frame[frame["segment"].astype(str) == str(segment)]
         label = f"{label} in {segment}"
+    named: list[str] = []
+    for column, value in (where or {}).items():
+        if column in ("high_plus",) or column not in frame.columns:
+            continue
+        if isinstance(value, bool):
+            frame = frame[frame[column] == value]
+            named.append(column.replace("_", " "))
+        else:
+            frame = frame[frame[column].astype(str).str.lower()
+                          == str(value).lower()]
+            named.append(str(value))
+    if named:
+        label = f"{label} in {', '.join(named)}"
 
     if frame.empty:
         return {"period": period or ff.svc.latest_period(),

@@ -1031,18 +1031,37 @@ def derive_notches(curr: pd.Series, month_fired: list[agg.FiredSignal],
     # months ago can still be driving the score while no new event has
     # arrived, and reading only the new ones told the reader every driving
     # signal was internal bank data when it was not.
+    # A notch is an adjustment for something exceptional. Awarding a
+    # favourable one to an obligor merely because NOTHING fired made it the
+    # default: two thirds of the book took -1 here and another -1 for having
+    # recent financials, hit the -2 cap between them, and every anchor of 16
+    # or less was wiped to zero. That is not a notch, it is an offset.
+    #
+    # So evidence quality is judged on the evidence that exists. No signal
+    # is no evidence to judge, not good evidence. Bank and official sources
+    # earn the favourable notch only where more than one layer says the same
+    # thing — a single internal reading is not corroboration.
     tiers = [int(f.explanation["source_tier"]) for f in month_fired
              if f.explanation.get("source_tier") is not None]
-    if not tiers:
-        evidence_quality = -1
+    layers_firing = len({f.sub_category.split(".")[0] for f in month_fired})
+    if not month_fired:
+        evidence_quality = 0
+    elif tiers and max(tiers) >= 3:
+        evidence_quality = 1
+    elif tiers and max(tiers) == 2:
+        evidence_quality = 0
     else:
-        worst_tier = max(tiers)
-        evidence_quality = 1 if worst_tier >= 3 else 0 if worst_tier == 2 else -1
+        evidence_quality = -1 if layers_firing >= 2 else 0
 
+    # Stale statements are the exception the notch is for. Statements under
+    # six months old describe most of a normally-reporting book, so treating
+    # that as exceptional gave two thirds of the obligors a favourable notch
+    # for being ordinary. Only genuinely recent filing — inside one reporting
+    # quarter — earns it.
     age_days = _safe_float(curr.get("financial_statement_age_days"), 0.0)
     if age_days > 365:
         data_staleness = 1
-    elif age_days < 182:
+    elif age_days < 92:
         data_staleness = -1
     else:
         data_staleness = 0

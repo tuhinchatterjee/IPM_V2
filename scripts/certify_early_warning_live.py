@@ -255,10 +255,15 @@ def _check(case: dict, turn) -> tuple[list[dict], list[dict]]:
                  for row in stages if row["schema_errors"]]
     check("every model reply conformed to its schema", not malformed, malformed)
 
+    # "unknown" means the model id is not one whose family can be read off
+    # the id — a stub, or a deployment pointing at an alias. That is a thing
+    # this check cannot tell, and reporting it as a wrong family would be
+    # reporting an absence of evidence as evidence.
     wrong_family = [f"{row['stage']}: asked {row['intended_family']}, "
                     f"served {row['served_family']}"
                     for row in stages
-                    if row["engine"] == seam_mod.MODEL and row["served_family"]
+                    if row["engine"] == seam_mod.MODEL
+                    and row["served_family"] not in ("", "unknown")
                     and row["served_family"] != row["intended_family"]]
     check("each stage was served by the family it asked for",
           not wrong_family, wrong_family)
@@ -307,7 +312,12 @@ def _run_case(case: dict, threads: dict, mode: str) -> dict:
                 "error": _safe(error), "pass": False, "checks": [],
                 "stages": []}
 
-    threads[thread_id] = {"rolling_summary": turn.rolling_summary}
+    # The pipeline takes the summary as a plain document, the way the API
+    # hands it back to the browser. Passing the object through works until
+    # the next turn tries to read it.
+    threads[thread_id] = {
+        "rolling_summary": (turn.rolling_summary.to_dict()
+                            if turn.rolling_summary else None)}
     checks, stages = _check(case, turn)
     budget = turn.budget
     row = {
@@ -366,7 +376,20 @@ def main(argv: list[str] | None = None) -> int:
                         choices=[budget_mod.STANDARD, budget_mod.DEEP])
     parser.add_argument("--only", default="",
                         help="run one case by id, for example LIVE-4")
+    parser.add_argument("--stub", action="store_true",
+                        help=("run against the repository's test double "
+                              "instead of a vendor. Proves the wiring and "
+                              "the assertions; certifies nothing."))
     args = parser.parse_args(argv)
+
+    if args.stub:
+        from tests.early_warning.stub_provider import StubProvider
+        import backend.llm as llm
+
+        stub = StubProvider(name="stub")
+        llm.get_provider = lambda *, refresh=False: stub  # type: ignore[assignment]
+        print("!! STUB PROVIDER. Nothing below is a vendor call and nothing "
+              "here certifies anything.")
 
     provider = _provider()
     print("PROVIDER")
@@ -409,7 +432,8 @@ def main(argv: list[str] | None = None) -> int:
     failed = [r for r in results if not r["pass"]]
     elapsed = [r["elapsed_s"] for r in results]
     report = {
-        "verdict": "CERTIFIED" if not failed else "NOT_CERTIFIED",
+        "verdict": ("STUB_ONLY" if args.stub else
+                    "CERTIFIED" if not failed else "NOT_CERTIFIED"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": args.mode,
         "provider": provider,

@@ -382,6 +382,51 @@ def answer(question: str, *, thread_id: str = "",
         emit(STOPPED_HONESTLY, reason="request_names_another_domain")
         return _finish(turn, request, prior, ledger, ui_state, emit)
 
+    # Asked to CHANGE something rather than to read it. The screen path has
+    # always refused this; the conversation did not, and "change Gulf
+    # Contracting 2's score to 20" came back as a movement decomposition —
+    # a fluent answer to a question nobody asked, and one that leaves a
+    # reader unsure whether the score was changed. Refused before a plan
+    # exists, because there is no analysis that would make it right.
+    # A name that matches several obligors is asked about, not guessed at,
+    # and nothing analytical runs until it is settled. Answering "show me Al
+    # Rabia" with the portfolio summary is the worst of both: the reader's
+    # name went nowhere and nothing said so.
+    if request.ambiguous_obligors:
+        begin(progress_mod.CLARIFYING)
+        options = request.ambiguous_obligors
+        matched = str(options[0].get("matched") or "that name")
+        total = int(options[0].get("total") or len(options))
+        turn.answer = {
+            "answered": False, "scope": "ambiguous_borrower",
+            "direct": (f"{total} obligors match {matched!r}. Which one did "
+                       f"you mean?"),
+            "interpretation": (
+                "Nothing was run. Picking one of several names that match is "
+                "a guess, and a guess that looks like an answer is worse than "
+                "a question — the figures would be right about the wrong "
+                "obligor."),
+            "options": [
+                {"customer_id": o["customer_id"],
+                 "customer_name": o["customer_name"],
+                 "label": (f"{o['customer_name']} — "
+                           f"{float(o.get('ews_score') or 0):.1f} "
+                           f"({str(o.get('ews_band') or '').replace('_', ' ').lower()})")}
+                for o in options],
+            "follow_ups": [f"Show me {o['customer_name']}." for o in options[:5]],
+            "caveats": ["No analysis was run: the obligor is not yet decided."],
+        }
+        emit(CLARIFICATION_ANSWER, reason="ambiguous_obligor",
+             candidates=total)
+        return _finish(turn, request, prior, ledger, ui_state, emit)
+
+    mutation = _refuses_to_mutate(
+        f"{turn.question} {request.normalized_business_request}")
+    if mutation is not None:
+        turn.answer = mutation
+        emit(STOPPED_HONESTLY, reason="request_asks_to_change_a_governed_value")
+        return _finish(turn, request, prior, ledger, ui_state, emit)
+
     # ---- Early Warning won. Only now does a plan exist. ----------------
     try:
         return _analyse(turn, request, package, ledger, prior, ui_state,
@@ -802,6 +847,8 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
         if ranked:
             points.insert(0, ranked)
 
+    points += _other_readings(packet, pack, cp)
+
     out = {
         "answered": True,
         "scope": pack.scope,
@@ -824,6 +871,88 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
             f"this turn's budget."]
     del turn, request
     return out
+
+
+def _refuses_to_mutate(text: str) -> dict[str, Any] | None:
+    """A request to change a governed value, refused with the route that does
+    exist.
+
+    The patterns are the screen path's own, imported rather than restated:
+    two definitions of what counts as a mutation is two chances for one of
+    them to miss.
+    """
+    from backend.early_warning import ask as ask_mod
+
+    if ask_mod._REFUSE_SCORE_CHANGE.search(text):
+        return {
+            "answered": False, "scope": "refusal", "refused": True,
+            "direct": ("CreditProbe does not change a score on request. The "
+                       "assistant explains and navigates; an override goes "
+                       "through the documented override path, where it is "
+                       "recorded and counted as a control."),
+            "interpretation": (
+                "Nothing was changed and nothing was run. A score that could "
+                "be argued down in a chat window would not be a control, and "
+                "the override path exists so that a change has an author, a "
+                "reason and a record."),
+            "points": [], "drivers": [],
+            "follow_ups": ["Why is this obligor scored where it is?",
+                           "Show me the evidence behind that node.",
+                           "What action should I take?"],
+            "caveats": ["No analysis was run: the request asked for a change "
+                        "rather than for a reading."],
+        }
+    if ask_mod._REFUSE_CLOSE.search(text):
+        return {
+            "answered": False, "scope": "refusal", "refused": True,
+            "direct": ("Closing a case is not something the chat layer does. "
+                       "It proposes; the escalation matrix decides, and a "
+                       "case closes on its evidence test rather than on a "
+                       "request."),
+            "interpretation": (
+                "The evidence test is recorded on the action itself, so what "
+                "closes this case is a fact somebody can check rather than a "
+                "decision taken in conversation."),
+            "points": [], "drivers": [],
+            "follow_ups": ["What action should I take?",
+                           "What evidence closes this case?"],
+            "caveats": ["No analysis was run: the request asked for a case "
+                        "decision rather than for a reading."],
+        }
+    return None
+
+
+def _other_readings(packet: packet_mod.ResultPacket, headline: Any,
+                    cp: Any) -> list[str]:
+    """The parts of a multi-part question the headline does not answer.
+
+    "Why has Contracting deteriorated over six months, is it concentrated in
+    a handful of names, and which layer is driving it?" is three questions.
+    The planner runs three steps and the packet holds three packs, and then
+    one composer writes from ONE of them and the other two sit in the packet
+    unread. The reader gets a third of what they asked for, presented as the
+    whole answer.
+
+    Each remaining pack's own composer writes its own leading sentence, so
+    these lines are as grounded as the headline is — they are the same
+    writers over the same facts, not a summary of them.
+    """
+    lines: list[str] = []
+    seen = {headline.scope}
+    for pack in packet.packs:
+        if pack is headline or pack.scope in seen:
+            continue
+        writer = cp.COMPOSERS.get(pack.scope)
+        if writer is None:
+            continue
+        seen.add(pack.scope)
+        try:
+            said = writer(pack).direct
+        except Exception:  # noqa: BLE001 - a supporting line is not the turn
+            continue
+        if said and said not in lines:
+            lines.append(said)
+    return lines
 
 
 def _ranked_obligors(packet: packet_mod.ResultPacket) -> str:

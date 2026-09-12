@@ -36,7 +36,9 @@ from typing import Any
 
 from backend.early_warning import actions as act
 from backend.early_warning import escalation as esc
+from backend.early_warning import executable as ex
 from backend.early_warning import facts as ff
+from backend.early_warning import layers as lay
 from backend.early_warning import reasons
 from backend.early_warning import triggers_v2 as trg
 from backend.early_warning import units
@@ -372,15 +374,17 @@ def level(pack: ff.FactPack) -> Composed:
                        else "the highest is")
         direct = (f"{whole}, grouped by {label} into "
                   f"{_count(f.get('groups'), 'group')}. Ranked by "
-                  f"{measure_label}, {superlative} {leader[field_name]} at "
+                  f"{measure_label}, {superlative} "
+                  f"{_group_said(field_name, leader[field_name])} at "
                   f"{_leading_value(leader, ranked_by)} across "
                   f"{_count(leader['obligors'], 'obligor')} and "
                   f"{_money(leader['exposure'])}.")
 
     paras: list[str] = []
     top = rows[:3]
-    listed = _list_of([f"{r[field_name]} at {_leading_value(r, ranked_by)}"
-                       for r in top])
+    listed = _list_of([
+        f"{_group_said(field_name, r[field_name])} at "
+        f"{_leading_value(r, ranked_by)}" for r in top])
     carrying = f.get("top_three_exposure", sum(r["exposure"] for r in top))
     if is_distribution:
         high = f.get("high_plus_count") or 0
@@ -424,6 +428,23 @@ def level(pack: ff.FactPack) -> Composed:
                     points=points, follow_ups=follow_ups, caveats=pack.caveats,
                     chart={"kind": "comparison",
                            "reason": "a ranking across groups"})
+
+
+def _group_said(field_name: str, value: Any) -> str:
+    """A group under the name a reader recognises.
+
+    "L2" is the model's notation. A credit officer reading "L2 is the
+    weakest" has to know what L2 is before the sentence means anything, and
+    the registry already holds the answer.
+    """
+    text = str(value)
+    if field_name == "dominant_layer":
+        if lay.is_code(text):
+            return f"{text} ({lay.BY_CODE[text.upper()].short})"
+        return "no layer firing" if text == ex.NO_VALUE else text
+    if field_name == "ews_band":
+        return BAND_WORD.get(text, text.lower().replace("_", " "))
+    return text
 
 
 def _leading_value(row: dict[str, Any], ranked_by: str) -> str:
@@ -728,9 +749,19 @@ def movement(pack: ff.FactPack) -> Composed:
         return Composed(direct=f["unavailable"],
                         follow_ups=["Show the periods that are published."])
     lead = f["layers"][0]
-    direct = (f"The score moved {f['ews_change']:+.1f} points between "
+    # Say WHICH WAY, in words, first. "Did it improve?" is a yes-or-no
+    # question and "the score moved -1.8 points" is neither: the reader has
+    # to know that lower is better here, and a reader who has to work that
+    # out has not been answered.
+    change = float(f["ews_change"])
+    way = ("improved" if change < -0.05 else
+           "deteriorated" if change > 0.05 else "held")
+    direct = (f"It {way}: the score moved {change:+.1f} points between "
               f"{f['from_period']} and {f['to_period']}, from "
-              f"{f['ews_before']:.1f} to {f['ews_after']:.1f}.")
+              f"{f['ews_before']:.1f} to {f['ews_after']:.1f}."
+              if way != "held" else
+              f"It held: the score is {f['ews_after']:.1f}, unchanged "
+              f"between {f['from_period']} and {f['to_period']}.")
     contributions = _list_of([
         f"{l['name']} {l['points_contributed']:+.2f}" for l in f["layers"]
         if abs(l["points_contributed"]) >= 0.01])
@@ -741,6 +772,35 @@ def movement(pack: ff.FactPack) -> Composed:
             f"{lead['name']} accounts for most of it, moving "
             f"{lead['score_change']:+.1f} at a published weight of "
             f"{lead['weight']}.")
+    # A score that fell because a notch moved is not the same event as a
+    # score that fell because the condition underneath it eased, and the
+    # difference is the whole reason the anchor and the notches are stored
+    # apart. An answer that says "improved" without saying which of the two
+    # happened invites the reader to close a file that is still open.
+    if way == "improved" and f.get("anchor_change") is not None:
+        # The obligor readings carry the anchor and the notches, so this can
+        # be a measurement rather than a warning.
+        anchor = float(f["anchor_change"])
+        notches = int(f.get("notches_after") or 0) - int(f.get("notches_before") or 0)
+        if anchor >= -0.05 and notches < 0:
+            paras.append(
+                f"This is a notch-driven fall, not an improvement in the "
+                f"position. The anchor moved {anchor:+.1f} — the matrix reads "
+                f"the same trigger and classifier bands as before — while the "
+                f"net notches moved {notches:+d}. What changed is the "
+                f"adjustment, not the condition underneath it.")
+        elif anchor < -0.05:
+            paras.append(
+                f"The anchor itself moved {anchor:+.1f}, so this is the "
+                f"matrix reading a better position rather than a notch "
+                f"adjustment: the trigger or the classifier band has "
+                f"actually changed.")
+    elif way == "improved":
+        paras.append(
+            "Read the anchor and the notches apart before calling this an "
+            "improvement: a score that fell because a notch moved — evidence "
+            "quality, data staleness, direction of travel — has not had its "
+            "underlying condition ease, and the position is where it was.")
     return Composed(direct=direct, interpretation=_sentence(paras),
                     follow_ups=["Show the obligors behind that layer.",
                                 "Run the diagnosis on the high-risk population."],
@@ -1569,8 +1629,113 @@ def transitions(pack: ff.FactPack) -> Composed:
         caveats=pack.caveats, chart={})
 
 
+def concentration(pack: ff.FactPack) -> Composed:
+    """Whether the weakness is a few names or the whole population.
+
+    The question decides the response, which is why it is asked: a
+    concentrated book is a handful of files to open, a broad-based one is a
+    policy problem, and the two call for different people in the room.
+    """
+    f = pack.figures or {}
+    conc = f.get("concentration") or {}
+    obligors = int(conc.get("obligors") or 0)
+    share = float(conc.get("top_n_share_pct") or 0.0)
+    top_n = int(conc.get("top_n") or 5)
+    if not obligors:
+        return Composed(
+            direct=(f"{_as_at(pack)}nothing in {pack.label} is at high "
+                    f"severity or above, so there is no concentration to "
+                    f"measure."),
+            caveats=pack.caveats, chart={})
+    concentrated = share >= 60.0
+    direct = (
+        f"{_as_at(pack)}the high-risk exposure in {pack.label} is "
+        f"{'concentrated' if concentrated else 'broad-based'}: the top "
+        f"{top_n} of {_count(obligors, 'obligor')} carry {share:.1f}% of "
+        f"{_money(conc.get('high_plus_exposure') or 0.0)}.")
+    reading = (
+        "A concentrated position is a set of files to open, not a policy "
+        "problem: the response is single-name and the names are known."
+        if concentrated else
+        "A broad-based position is not a set of files to open. When the "
+        "same weakness appears across the population the response is a "
+        "portfolio action, and treating it as a series of single names "
+        "spends the effort in the wrong place.")
+    return Composed(direct=direct, interpretation=reading,
+                    caveats=pack.caveats, chart={})
+
+
+def population_action(pack: ff.FactPack) -> Composed:
+    """What the matrix decides for a population, name by name.
+
+    An average has no rung. So this counts the rungs instead: how many cases
+    go to whom, how fast each has to be acknowledged and decided, and what
+    the governed library selects for the node these names actually share.
+    """
+    f = pack.figures or {}
+    cases = int(f.get("cases") or 0)
+    routes = list(f.get("routes") or [])
+    if not cases:
+        return Composed(
+            direct=(f"{_as_at(pack)}nothing in {pack.label} is at high "
+                    f"severity or above, so no case is routed for decision "
+                    f"this period."),
+            interpretation=("Escalation is decided per obligor by the "
+                            "governed matrix, so a population with no name "
+                            "above the threshold routes nowhere — that is "
+                            "the matrix working, not an absent answer."),
+            follow_ups=["Show the distribution by risk band.",
+                        "Which obligors are closest to the threshold?"],
+            caveats=pack.caveats, chart={})
+
+    lead = routes[0] if routes else {}
+    direct = (
+        f"{_as_at(pack)}{_count(cases, 'case')} in {pack.label} route for "
+        f"decision. The largest group, {_count(lead.get('obligors'), 'case')} "
+        f"on {_money(lead.get('exposure') or 0.0)}, is decided by "
+        f"{lead.get('decided_by')}.")
+
+    paras = [
+        "Severity decides how fast and exposure decides how high, so these "
+        "route individually rather than as a block: routing an average would "
+        "put a small very-high name and a large high one in the same place, "
+        "and the matrix deliberately does not."
+    ]
+    node = f.get("common_node")
+    if node:
+        paras.append(
+            f"{node} is the node most of them are driven by, which is what "
+            f"makes a single portfolio action worth considering beside the "
+            f"individual escalations.")
+
+    points = [
+        f"{r['decided_by']} — {_count(r['obligors'], 'case')}, "
+        f"{_money(r['exposure'])}"
+        + (f", acknowledge in {r['ack_sla_days']} day(s)"
+           if r.get("ack_sla_days") is not None else "")
+        + (f", decide in {r['decision_sla_days']} working days"
+           if r.get("decision_sla_days") is not None else "")
+        + (f" — {_list_of(r['names'])}" if r.get("names") else "")
+        for r in routes]
+    first = f.get("single_highest_value")
+    if first:
+        points.append(
+            f"If only one thing is done: {first['action']}. "
+            f"{first['owner']}, {first['timeframe']}. "
+            f"Closes on: {str(first['evidence_to_close']).lower()}.")
+
+    return Composed(
+        direct=direct, interpretation=_sentence(paras), points=points,
+        follow_ups=["Open the largest one.",
+                    "What evidence closes these?",
+                    "Why are they flagged?"],
+        caveats=pack.caveats, chart={})
+
+
 #: Which composer answers which scope.
 COMPOSERS = {
+    "population_action": population_action,
+    "concentration": concentration,
     "layer_population": layer_population,
     "transitions": transitions,
     "ranking": ranking,
@@ -1591,4 +1756,5 @@ def compose(pack: ff.FactPack) -> Composed:
 
 __all__ = ["Composed", "COMPOSERS", "compose", "portfolio", "level", "group",
            "borrower", "layer", "layer_population", "evidence", "movement",
-           "comparison", "ranking", "transitions"]
+           "comparison", "concentration", "population_action", "ranking",
+           "transitions"]

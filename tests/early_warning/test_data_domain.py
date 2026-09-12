@@ -147,10 +147,20 @@ def test_the_build_publishes_fewer_months_than_it_computes():
     """The warm-up exists in the build, not just in the docstring."""
     import importlib.util
 
+    import sys
+
     spec = importlib.util.spec_from_file_location(
         "ews_build", "scripts/build_early_warning_v2.py")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Registered before it is executed, which is the documented order. A
+    # dataclass in a module that is not in `sys.modules` cannot resolve its
+    # own string annotations, and the failure surfaces as an AttributeError
+    # inside `dataclasses` rather than as anything to do with this test.
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(spec.name, None)
     assert len(module.VISIBLE_MONTHS) >= REQUIRED_MONTHS
     assert module.PRE_HISTORY_MONTHS >= 12, (
         "the warm-up is shorter than the twelve-month trailing baseline it "
@@ -248,12 +258,23 @@ def test_missingness_is_measured_rather_than_declared():
     for name, found in profile.items():
         assert found["present"], name
         assert 0.0 <= found["missing_rate"] <= 1.0, name
-    # And it reports the fields that really are sparse rather than rounding
-    # them up: most obligors have no fired signal in a given month.
-    sparse = {k: v["missing_rate"] for k, v in profile.items()
-              if v["missing_rate"] > 0.5}
-    assert "dominant_driver" in sparse, (
-        "the dictionary claims a dominant driver for obligors that have none")
+    # And the rate it reports is the rate the data has. Measured here
+    # against the published rows rather than asserted for one field: this
+    # used to pin `dominant_driver` above fifty per cent missing, which was
+    # true only while the build discarded a signal the month after it fired.
+    # Now that signals are carried forward at their decayed weight most
+    # obligors do have a driver, and a test that reads that improvement as a
+    # regression is a test measuring the wrong thing.
+    bm = svc.borrower_month(svc.latest_period())
+    for name in ("dominant_driver", "dominant_subcategory", "ews_score"):
+        if name not in bm.columns or name not in profile:
+            continue
+        blank = bm[name].isna() | (bm[name].astype(str).str.strip() == "")
+        measured = float(blank.sum()) / max(1, len(bm))
+        assert abs(profile[name]["missing_rate"] - measured) <= 0.05, (
+            f"the dictionary reports {name} at "
+            f"{profile[name]['missing_rate']} missing; the published rows say "
+            f"{round(measured, 4)}")
 
 
 def test_time_coverage_is_reported():

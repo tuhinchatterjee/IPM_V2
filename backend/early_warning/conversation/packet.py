@@ -211,6 +211,19 @@ def build(question: str, request: Any, plan: plan_mod.Plan,
     return packet
 
 
+#: The analysis that PRODUCES a given intent, where the two are spelled
+#: differently. "Escalation" and "action" are both answered by the governed
+#: ACTION step, and a headline chooser that compared the words directly
+#: found no match — so "should either be escalated?" was headlined by
+#: whatever else the plan happened to run, and came back as a sector summary.
+_INTENT_ANALYSIS: dict[str, str] = {
+    "escalation": plan_mod.ACTION,
+    "action": plan_mod.ACTION,
+    "remediation": plan_mod.ACTION,
+    "report": plan_mod.ACTION,
+}
+
+
 def _headline(executed: list[ex.Executed], intent: str) -> Any:
     """The run the answer is chiefly about.
 
@@ -223,9 +236,12 @@ def _headline(executed: list[ex.Executed], intent: str) -> Any:
     if not useful:
         return executed[0] if executed else None
     wanted = str(intent or "").strip().lower()
-    for run in useful:
-        if str(run.step.analysis).strip().lower() == wanted:
-            return run
+    for name in (wanted, _INTENT_ANALYSIS.get(wanted, "")):
+        if not name:
+            continue
+        for run in useful:
+            if str(run.step.analysis).strip().lower() == name:
+                return run
     return useful[0]
 
 

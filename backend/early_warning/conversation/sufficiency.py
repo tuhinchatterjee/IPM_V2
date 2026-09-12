@@ -44,7 +44,13 @@ from backend.early_warning.conversation import plan as plan_mod
 #: What each part of a request needs to have been executed for it to count
 #: as covered. Keyed by the analysis the reader asked for.
 COVERED_BY: dict[str, tuple[str, ...]] = {
-    "diagnosis": (plan_mod.DIAGNOSIS,),
+    # A "why" about ONE obligor is answered by that obligor's own drivers.
+    # `diagnosis` partitions a population to find what its members have in
+    # common, which is not a question you can ask of a population of one —
+    # and treating the borrower reading as uncovered sent the review off to
+    # run a driver tree over the whole book, which then became the answer.
+    "diagnosis": (plan_mod.DIAGNOSIS, plan_mod.BORROWER, plan_mod.LAYER,
+                  plan_mod.EVIDENCE),
     "movement": (plan_mod.MOVEMENT,),
     "concentration": (plan_mod.CONCENTRATION,),
     "comparison": (plan_mod.COMPARISON, plan_mod.GROUPING),
@@ -159,11 +165,25 @@ def _review_deterministic(request: Any, plan: plan_mod.Plan,
     out.complete = False
     first = next((p for p in uncovered if p in REPAIR_WITH), "")
     if first and can_revise:
+        # A revision runs over the population the QUESTION was about. Taking
+        # the filters off the packet took them off whichever step happened to
+        # be the headline — for a borrower question that is a step with no
+        # filters at all, so the revision widened to the entire book and the
+        # sector or the obligor the reader named was gone from the answer
+        # that came back.
+        scope = dict(getattr(request, "inherited_context", {}) or {})
+        where = dict(packet.filters)
+        for key, column in (("segment", "segment"), ("sector", "sector"),
+                            ("region", "region"),
+                            ("internal_rating", "internal_rating")):
+            if scope.get(key) and column not in where:
+                where[column] = scope[key]
         out.next_step = plan_mod.Step(
             analysis=REPAIR_WITH[first],
             period=packet.period,
             comparison_period=packet.comparison_period,
-            filters=dict(packet.filters),
+            filters=where,
+            customer_id=str(scope.get("customer_id") or ""),
             measures=list(plan_mod.BASE_MEASURES),
             rationale=(f"The request asked for a {first} and the first "
                        f"execution did not produce one, so it is run now "

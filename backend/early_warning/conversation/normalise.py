@@ -66,6 +66,20 @@ _CORRECTIONS: tuple[tuple[str, str], ...] = (
     (r"\bsegement\b|\bsegmnet\b", "segment"),
     (r"\bportfollio\b|\bportfolo\b", "portfolio"),
     (r"\bborower\b|\bborrwer\b", "borrower"),
+    # Dropped vowels. A credit officer typing quickly writes "lst 6 mnths",
+    # and the whole point of the language pass is that they should not have
+    # to type carefully. Spelling only — no word here changes a tense, a
+    # number or a period, and none of them is a word in its own right.
+    (r"\bwich\b|\bwhcih\b|\bwhich\b", "which"),
+    (r"\blst\b", "last"),
+    (r"\bmnths?\b|\bmths\b|\bmonhts\b", "months"),
+    (r"\bmst\b", "most"),
+    (r"\bnmes\b|\bnames?s\b", "names"),
+    (r"\bcontrcting\b|\bcontracting\b|\bcontractng\b", "Contracting"),
+    (r"\bhgh\b", "high"),
+    (r"\briks\b|\brsik\b", "risk"),
+    (r"\bsectr\b|\bsecotr\b", "sector"),
+    (r"\bincrese[dn]?\b", "increased"),
 )
 
 #: Words that mean the reader is pointing at something already on screen.
@@ -115,6 +129,9 @@ class BusinessRequest:
     comparison_period: str = ""
     inherited_context: dict[str, Any] = field(default_factory=dict)
     requested_grouping: str = ""
+    #: Obligors a name fragment matched, when it matched more than one. The
+    #: reader is asked which; nothing is guessed and nothing is run.
+    ambiguous_obligors: list[dict[str, Any]] = field(default_factory=list)
     #: The detection layer the question names, as a governed code. A layer is
     #: not a grouping and not a filter value; it decides which of the model's
     #: six layer/dimension outputs the answer is about.
@@ -384,7 +401,14 @@ def _merge_cleaned(floor: Cleaned, outcome: seam_mod.Outcome) -> Cleaned:
 # --------------------------------------------------------------- pass two
 
 _ACTION_WORDS: tuple[tuple[str, str], ...] = (
-    (r"\bescalat\w*", "escalate"),
+    # The VERB, not the noun. "How much exposure sits above the escalation
+    # threshold" is a question about the book; reading the bare stem as an
+    # instruction planned a workflow action with no obligor attached to it,
+    # which produced nothing and answered a portfolio question with an empty
+    # result.
+    (r"\bescalate\b|\bescalated\b|\bescalating\b|\bescalation note\b|"
+     r"\bre-?escalate\b|\bneeds? escalation\b|\brequires? escalation\b|"
+     r"\bfor escalation\b|\braise (?:it|this|them) to\b", "escalate"),
     (r"\binform\b|\bnotify\b|\bfyi\b", "inform"),
     (r"\bsave\b.*\binvestigation\b|\bsave this\b", "save_investigation"),
     (r"\breport\b|\bdocx\b|\bdownload\b|\bpublish\b", "report"),
@@ -434,11 +458,23 @@ _ANALYSIS: tuple[tuple[str, str], ...] = (
      "grouping"),
 )
 
+#: How far back a phrase looks. Every spelling a reader uses for the same
+#: window, because a window the reader named and the answer did not use is a
+#: correct answer to a different question — "why has Contracting deteriorated
+#: over six months" was measured over twenty, since only "LAST six months"
+#: was recognised and "over six months" fell through to the whole history.
 _PERIOD_PHRASES: tuple[tuple[str, int], ...] = (
-    (r"last (six|6) months?", 6),
-    (r"last (twelve|12) months?|last year|over the year", 12),
-    (r"last (three|3) months?|last quarter", 3),
-    (r"last month|since last month|month on month", 1),
+    (r"(?:last|past|previous|over|within|in) (?:the )?(?:six|6)[ -]months?|"
+     r"(?:six|6)[ -]month|half.year|(?:since|from) (?:six|6) months? ago", 6),
+    (r"(?:last|past|previous|over|within|in) (?:the )?(?:twelve|12)[ -]months?|"
+     r"(?:twelve|12)[ -]month|last year|over the year|"
+     r"year[ -]on[ -]year|\byoy\b|(?:since|from) a year ago", 12),
+    (r"(?:last|past|previous|over|within|in) (?:the )?(?:three|3)[ -]months?|"
+     r"(?:three|3)[ -]month|last quarter|quarter[ -]on[ -]quarter|"
+     r"\bqoq\b|since the quarter", 3),
+    (r"last month|since last month|month on month|\bmom\b|"
+     r"(?:in|over|during) (?:the )?(?:latest|current|last|this) month|"
+     r"\bthis month\b|\bsince the last (?:published )?month\b", 1),
 )
 
 
@@ -587,10 +623,40 @@ def _corroboration(text: str) -> str:
 
 
 #: "Which names drive it?" — a request to see INTO the current scope.
+#:
+#: Every ordinary way of asking for a list, not three of them. "Show the 10
+#: obligors whose score has risen the most" is a request for ten names and
+#: was read as a movement question, so it came back as one number for the
+#: whole population and no names at all.
 _WANTS_NAMES = re.compile(
-    r"\bwhich (names?|borrowers?|obligors?|customers?)\b|\bwho\b|"
-    r"\bname the\b|\blist the\b|\bshow me the (names?|borrowers?|obligors?)\b|"
+    # "Which CONTRACTING names" is the same request as "which names", and
+    # the qualifier between the two words is usually the population the
+    # reader means.
+    r"\bwhich(?:\s+[A-Za-z&'-]+){0,2}\s+"
+    r"(names?|borrowers?|obligors?|customers?|entit\w+|accounts?|"
+    r"exposures?)\b|\bwho\b|"
+    r"\b(?:show|list|give|name|display|return|fetch|pull)\b"
+    r"(?:\s+me)?(?:\s+the)?(?:\s+top)?(?:\s+\d{1,3})?\s+"
+    r"(names?|borrowers?|obligors?|customers?|entit\w+|accounts?|exposures?)\b|"
+    r"\bthe (?:top|first|worst|weakest)\s+\d{1,3}\b|"
+    # "Which two of those worsened fastest?" asks for two names out of a
+    # population the thread already established. It is the commonest
+    # follow-up there is, and it was read as a movement question.
+    r"\bwhich (?:two|three|four|five|\d{1,3}|few)\b|"
+    r"\b(?:of|among|from) (?:those|them|these|that list|the list)\b|"
     r"\bdriv\w* it\b|\bdriving it\b", re.I)
+
+#: A question that names the population it is about. Not a filter word — a
+#: population word: "obligors", "the book", "the portfolio".
+_STATES_A_POPULATION = re.compile(
+    r"\b(?:all |every |the )?(?:obligors?|borrowers?|customers?|names?|"
+    r"book|portfolio|population)\b", re.I)
+
+#: The inherited keys that NARROW a population rather than identify a
+#: subject. A carried sector is usually still what the reader means; a
+#: carried severity band usually is not, because bands are how a reader
+#: slices rather than what they are looking at.
+_NARROWING: frozenset[str] = frozenset({"band", "level"})
 
 #: "Open the weakest one" — a request to resolve one obligor from that scope.
 _WANTS_WEAKEST = re.compile(
@@ -636,6 +702,34 @@ def _weakest_in(scope: dict[str, Any]) -> dict[str, str] | None:
                 "customer_name": str(row["customer_name"])}
     except Exception:  # noqa: BLE001
         return None
+
+
+def _ambiguous_obligors(text: str, limit: int = 12) -> list[dict[str, Any]]:
+    """Obligors a name fragment matches, when it matches more than one.
+
+    Only a fragment of at least two characters that reaches a real name.
+    A single letter matches half the book and is not a name anybody typed.
+    """
+    try:
+        from backend.early_warning import ask as ask_mod
+
+        found = ask_mod.candidates(text)
+    except Exception:  # noqa: BLE001 - an unreadable domain names nobody
+        return []
+    if len(found) < 2:
+        return []
+    matched = str(found[0].get("matched") or "")
+    # Two characters is the shortest fragment that can be a name in this
+    # book — "Al" prefixes a great many of them. One is not a name anybody
+    # typed, it is a letter.
+    if len(matched.replace(" ", "")) < 2:
+        return []
+    return [{"customer_id": c["customer_id"],
+             "customer_name": c["customer_name"],
+             "ews_score": c.get("ews_score"), "ews_band": c.get("ews_band"),
+             "exposure": c.get("exposure"), "matched": matched,
+             "total": len(found)}
+            for c in found[:limit]]
 
 
 def _named_obligor(text: str) -> dict[str, str] | None:
@@ -761,12 +855,23 @@ def _read_deterministic(
     # one and is RESOLVED here, because here is where the context exists.
     inherited: dict[str, Any] = {}
     referential = bool(_REFERENTIAL.search(text))
+    # A question that names its own population is not asking about the last
+    # one. The SCREEN's filters persist — the reader is looking at them — but
+    # a severity band carried from three turns ago is a stale filter, and it
+    # is exactly the kind that produces a confident answer to a narrower
+    # question than the one typed: "how many obligors changed risk band in
+    # the latest month?" came back as "all 52 held their band", because 52
+    # was the high-risk population an earlier turn had been about.
+    states_its_own = bool(_STATES_A_POPULATION.search(text)) and not referential
     for key in ("customer_id", "customer_name", "segment", "sector", "region",
                 "internal_rating", "period", "band", "level", "layer",
                 "sub_category", "signal"):
-        value = ui.get(key) or summary.get(key)
-        if value:
-            inherited[key] = value
+        from_screen = ui.get(key)
+        from_thread = summary.get(key)
+        if from_screen:
+            inherited[key] = from_screen
+        elif from_thread and not (states_its_own and key in _NARROWING):
+            inherited[key] = from_thread
 
     entities = list(cleaned.detected_entities)
     if referential and inherited.get("customer_name"):
@@ -776,7 +881,16 @@ def _read_deterministic(
     # a reader who typed a name is asking about that name, whatever they were
     # looking at. Resolved against this domain's own obligors, which is the
     # only place that knows which names exist.
+    # A name FRAGMENT that matches several obligors is a question back, not
+    # a guess — and not a reason to answer about the whole book either.
+    # "Show me Al Rabia" returned the portfolio summary: the fragment
+    # resolved to nobody, nothing recorded that it had failed, and the
+    # planner fell through to the population as though no name had been
+    # typed at all.
+    ambiguous_names: list[dict[str, Any]] = []
     named = _named_obligor(text)
+    if not named and not inherited.get("customer_id"):
+        ambiguous_names = _ambiguous_obligors(text)
     if named:
         inherited["customer_id"] = named["customer_id"]
         inherited["customer_name"] = named["customer_name"]
@@ -848,6 +962,15 @@ def _read_deterministic(
     wants_weakest = bool(_WANTS_WEAKEST.search(text))
 
     ambiguities: list[str] = []
+    if ambiguous_names:
+        shown = ", ".join(str(c["customer_name"]) for c in ambiguous_names[:6])
+        total = ambiguous_names[0].get("total", len(ambiguous_names))
+        more = int(total) - 6
+        ambiguities.append(
+            f"{total} obligors match "
+            f"{ambiguous_names[0]['matched']!r}: {shown}"
+            + (f", and {more} more — name one, or add a word to narrow it."
+               if more > 0 else "."))
     if referential and not inherited:
         ambiguities.append(
             "The question points at something — 'it', 'that', 'the weakest "
@@ -884,6 +1007,7 @@ def _read_deterministic(
         escalation_requested="escalate" in actions or "inform" in actions,
         report_requested="report" in actions,
         ambiguities=ambiguities,
+        ambiguous_obligors=ambiguous_names,
         clarification_needed=bool(ambiguities),
         engine="deterministic",
     )
@@ -1151,6 +1275,7 @@ def _merge_request(floor: BusinessRequest,
         comparison_period=comparison,
         inherited_context={**dict(floor.inherited_context),
                             **({"layer": layer} if layer else {})},
+        ambiguous_obligors=list(floor.ambiguous_obligors),
         requested_grouping=grouping,
         requested_layer=layer,
         requested_analysis=(analyses[0] if analyses

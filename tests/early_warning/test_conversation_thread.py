@@ -286,7 +286,12 @@ def test_the_whole_seven_turn_journey_resolves(a_real_group):
 
     # "Why did its score move?" is a movement reading, not the position.
     moved = turns[3].answer["direct"]
-    assert moved.startswith(("No.", "Yes.", "The score")), moved
+    # A movement reading says which way in words before it says by how much:
+    # "did it improve?" is a yes-or-no question and "-1.8 points" is neither.
+    assert moved.startswith(("No.", "Yes.", "It improved", "It deteriorated",
+                             "It held", "The score")), moved
+    assert "the score moved" in moved.lower() or "unchanged" in moved.lower(), \
+        moved
 
     assert scopes[4] == "evidence", "'show the evidence' did not open one"
     # And the action and escalation readings are their own, not the position.

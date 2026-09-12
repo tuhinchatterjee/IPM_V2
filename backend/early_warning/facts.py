@@ -1141,6 +1141,97 @@ def transitions(period_from: str | None = None, period_to: str | None = None,
         caveats=[_NOT_CALIBRATED])
 
 
+def population_actions(period: str | None = None, *,
+                       only: dict[str, Any] | None = None,
+                       limit: int = 10) -> FactPack:
+    """What the matrix and the library say for a POPULATION, not one name.
+
+    "Should either be escalated?" and "what should I do about these names?"
+    are ordinary questions and had no reading at all: the action executor
+    could only read one obligor, so a population-scoped action step produced
+    nothing, and the answer fell back to whatever else the plan had run — a
+    sector summary in place of an escalation decision.
+
+    Routing an average would be meaningless, so nothing here averages: each
+    obligor at high severity or above is routed individually by the governed
+    matrix and the rungs are then counted. What the reader gets is how many
+    cases go where, and which names are behind each.
+    """
+    from backend.early_warning import actions as act
+    from backend.early_warning import escalation as esc
+
+    period = period or svc.latest_period()
+    book = _with_derived(svc.borrower_month(period))
+    pop = _narrow(book, only)
+    high = pop[pop["ews_band"].isin(HIGH_PLUS)].sort_values(
+        "exposure", ascending=False)
+
+    figures: dict[str, Any] = _population_figures(pop)
+    figures["period"] = period
+    figures["considered"] = int(len(pop))
+
+    rungs: dict[str, dict[str, Any]] = {}
+    rows: list[dict[str, Any]] = []
+    for _, row in high.iterrows():
+        route = esc.route_for(str(row["ews_band"]), float(row["exposure"]))
+        # The rung's TITLE, not its code. "L2" is a ladder level and also a
+        # layer name, and a reader told a case is "decided by L2" cannot
+        # tell which of the two they are being told.
+        titles = []
+        for level in (route.get("escalated_to") or []):
+            rung = next((r for r in esc.LADDER if r["level"] == level), None)
+            titles.append(str(rung["role"]) if rung else str(level))
+        if not titles:
+            titles = [str(t) for t in (route.get("escalated_to_roles") or [])]
+        where = ", ".join(titles) or "no escalation required"
+        cell = rungs.setdefault(where, {
+            "decided_by": where, "obligors": 0, "exposure": 0.0,
+            "ack_sla_days": route.get("ack_sla_days"),
+            "decision_sla_days": route.get("decision_sla_days"),
+            "names": []})
+        cell["obligors"] += 1
+        cell["exposure"] = round(cell["exposure"] + float(row["exposure"]), 2)
+        if len(cell["names"]) < 5:
+            cell["names"].append(str(row["customer_name"]))
+        rows.append({
+            "customer_id": row["customer_id"],
+            "customer_name": row["customer_name"],
+            "ews_score": round(float(row["ews_score"]), 2),
+            "ews_band": str(row["ews_band"]),
+            "exposure": round(float(row["exposure"]), 2),
+            "decided_by": where,
+            "ack_sla_days": route.get("ack_sla_days"),
+            "decision_sla_days": route.get("decision_sla_days"),
+            "dominant_subcategory": row.get("dominant_subcategory"),
+        })
+
+    figures["routes"] = sorted(rungs.values(),
+                               key=lambda c: (-c["obligors"], c["decided_by"]))
+    figures["cases"] = int(len(high))
+
+    # The actions the library selects for the nodes these names are actually
+    # driven by — governed, not composed at answer time.
+    nodes = [str(n) for n in high.get("dominant_subcategory", []) if n]
+    selected = act.for_drivers(nodes) if nodes else []
+    figures["actions"] = [a.to_dict() for a in selected][:limit]
+    first = act.single_highest_value(selected) if selected else None
+    figures["single_highest_value"] = first.to_dict() if first else None
+    figures["common_node"] = (max(set(nodes), key=nodes.count)
+                              if nodes else None)
+
+    label = "the corporate portfolio"
+    named = [str(v) for k, v in (only or {}).items()
+             if not isinstance(v, bool)]
+    if named:
+        label = ", ".join(named)
+    return FactPack(
+        scope="population_action", label=label, period=period,
+        figures=figures, rows=rows[:limit],
+        provenance=["early_warning_borrower_month",
+                    "escalation matrix", "governed action library"],
+        caveats=[_NOT_CALIBRATED])
+
+
 def signal_evidence(customer_id: str, signal_key: str,
                      period: str | None = None) -> FactPack | None:
     """One signal's own reading: severity, accelerator, decay and source."""
@@ -1167,8 +1258,20 @@ def _both_published(*periods: str) -> bool:
 
 
 def movement(period_from: str | None = None, period_to: str | None = None,
-             where: dict[str, str] | None = None) -> FactPack:
-    """What moved, and which layer accounts for it."""
+             where: dict[str, str] | None = None, *,
+             customer_id: str = "") -> FactPack:
+    """What moved, and which layer accounts for it.
+
+    `customer_id` narrows the whole reading to ONE obligor. Without it, "did
+    Tihama Projects 3 improve over the last six months?" was planned
+    correctly — a movement step carrying the obligor — and then decomposed
+    over the entire portfolio, because this function had nowhere to put the
+    obligor and the executor quietly dropped it. The answer named a change
+    of -1.8 points that belonged to the book, for a name whose own score is
+    zero.
+    """
+    if customer_id:
+        return _borrower_movement(customer_id, period_from, period_to)
     periods = svc.periods()
     period_from = period_from or (periods[0] if periods else "")
     period_to = period_to or svc.latest_period()
@@ -1195,6 +1298,89 @@ def movement(period_from: str | None = None, period_to: str | None = None,
         provenance=["early_warning_borrower_month"],
         caveats=[_NOT_CALIBRATED],
     )
+
+
+def _borrower_movement(customer_id: str, period_from: str | None,
+                       period_to: str | None) -> FactPack:
+    """One obligor's own move, decomposed the same way the portfolio's is.
+
+    The same shape as the population reading — `from_period`, `to_period`,
+    `ews_before`, `ews_after`, `ews_change`, `layers` — so one composer
+    writes both and the two answers cannot drift into different sentences
+    for the same kind of fact.
+    """
+    periods = list(svc.periods())
+    period_to = period_to or (periods[-1] if periods else "")
+    period_from = period_from or (periods[0] if periods else period_to)
+    label = f"{customer_id}"
+
+    def read(period: str) -> dict[str, Any] | None:
+        frame = svc.borrower_month(period)
+        hit = frame[frame["customer_id"].astype(str) == str(customer_id)]
+        return hit.iloc[0].to_dict() if len(hit) else None
+
+    before, after = read(period_from), read(period_to)
+    if before is None or after is None:
+        return FactPack(
+            scope="movement", label=label, period=period_to,
+            figures={"from_period": period_from, "to_period": period_to,
+                     "unavailable": (
+                         f"{customer_id} is not published in both "
+                         f"{period_from} and {period_to}, so there is "
+                         f"nothing to compare.")},
+            provenance=["early_warning_borrower_month"],
+            caveats=[_NOT_CALIBRATED])
+
+    def scores(row: dict[str, Any]) -> dict[str, float]:
+        raw = row.get("layer_dimension_scores") or {}
+        if isinstance(raw, str):
+            import json as _json
+
+            raw = _json.loads(raw)
+        return {k: float(v or 0.0) for k, v in dict(raw).items()}
+
+    was, now = scores(before), scores(after)
+    layers = []
+    for code, weight in TA_LAYER_WEIGHTS.items():
+        key = f"{code.lower()}_ta"
+        change = now.get(key, 0.0) - was.get(key, 0.0)
+        layers.append({
+            "layer": code, "name": LAYER_NAMES[code], "weight": weight,
+            "score_before": round(was.get(key, 0.0), 2),
+            "score_after": round(now.get(key, 0.0), 2),
+            "score_change": round(change, 2),
+            "points_contributed": round(change * weight, 2),
+        })
+    layers.sort(key=lambda entry: abs(entry["points_contributed"]), reverse=True)
+
+    figures: dict[str, Any] = {
+        "customer_id": customer_id,
+        "customer_name": after.get("customer_name"),
+        "from_period": period_from, "to_period": period_to,
+        "ews_before": round(float(before["ews_score"]), 2),
+        "ews_after": round(float(after["ews_score"]), 2),
+        "ews_change": round(float(after["ews_score"])
+                            - float(before["ews_score"]), 2),
+        "band_before": str(before["ews_band"]),
+        "band_after": str(after["ews_band"]),
+        # The anchor and the notches apart, because a score that fell while
+        # its anchor held has not improved — the notch model moved, and the
+        # condition underneath it did not.
+        "anchor_before": round(float(before["anchor_score"]), 2),
+        "anchor_after": round(float(after["anchor_score"]), 2),
+        "anchor_change": round(float(after["anchor_score"])
+                               - float(before["anchor_score"]), 2),
+        "notches_before": int(before["net_notches"]),
+        "notches_after": int(after["net_notches"]),
+        "layers": layers,
+    }
+    return FactPack(
+        scope="movement",
+        label=f"{after.get('customer_name') or customer_id}, "
+              f"{period_from} to {period_to}",
+        period=period_to, figures=figures, rows=layers,
+        provenance=["early_warning_borrower_month"],
+        caveats=[_NOT_CALIBRATED])
 
 
 #: The parts of the model a reader asks about by name. A question about
@@ -1246,11 +1432,12 @@ def methodology(aspect: str | None = None) -> FactPack:
 
 
 def diagnosis(period: str | None = None, *, band: str | None = None,
-               segment: str | None = None) -> FactPack:
+               segment: str | None = None,
+               where: dict[str, Any] | None = None) -> FactPack:
     """What the selected population has in common, as a driver tree."""
     from backend.early_warning import diagnosis as dg
 
-    found = dg.tree(period, band=band, segment=segment)
+    found = dg.tree(period, band=band, segment=segment, where=where)
     return FactPack(
         scope="diagnosis", label=found["population"],
         period=found["period"], figures=found,
@@ -1341,7 +1528,7 @@ class PackRuntime:
 
 __all__ = [
     "json_safe", "HIGH_PLUS", "BAND_ORDER", "LEVEL_FIELDS", "LAYER_NAMES",
-    "layer_population", "transitions",
+    "layer_population", "population_actions", "transitions",
     "METHODOLOGY_ASPECTS", "FactPack", "PackRuntime",
     "contribution_by_layer", "concentration", "live_versus_structural",
     "movement_attribution", "rating_divergence",

@@ -169,6 +169,29 @@ def _comparison(request: Any, package: grain_mod.GrainPackage,
     return periods[here - back] if here - back >= 0 else periods[0]
 
 
+def _about(steps: list["Step"], asked: str) -> str:
+    """What a plan is ABOUT: an analysis it actually contains.
+
+    Reporting an intent no step matches is how a borrower question came to
+    be answered with a portfolio driver tree. "Why is Gulf Contracting 2
+    flagged?" plans one BORROWER step and reports its intent as `diagnosis`,
+    because that is the word the sentence used. Nothing matched at first, so
+    the headline fell back to the borrower reading and the answer was right.
+    Then the sufficiency review noticed `diagnosis` was uncovered, ran one,
+    and the packet's headline switched to it — the obligor disappeared from
+    its own answer, and a revision meant to ADD something replaced
+    everything.
+
+    So the intent is only the asked-for analysis when a step will produce
+    it; otherwise it is the leading step that is not scene-setting.
+    """
+    present = [step.analysis for step in steps]
+    if asked and asked in present:
+        return asked
+    answered = [name for name in present if name != POPULATION]
+    return answered[0] if answered else (present[0] if present else POPULATION)
+
+
 def build(request: Any, package: grain_mod.GrainPackage, *,
           ledger: Any = None) -> Plan:
     """The plan for one business request.
@@ -241,8 +264,21 @@ def _build_deterministic(request: Any,
                 analysis=BORROWER, period=period, customer_id=customer_id,
                 measures=list(BASE_MEASURES),
                 rationale="The obligor's position, which the action is about."))
+        else:
+            # "What should I do?" asked of a population is still a question
+            # about a population. Without this the plan was one ACTION step
+            # with no obligor attached, the action reader had nothing to read
+            # from, and the turn came back saying nothing was returned.
+            steps.append(Step(
+                analysis=POPULATION, period=period,
+                measures=list(BASE_MEASURES),
+                filters=dict(_population_filters(inherited, scope)),
+                rationale=("No obligor is named, so the action is about the "
+                           "population the question is about.")))
         steps.append(Step(
             analysis=ACTION, period=period, customer_id=customer_id,
+            filters=({} if customer_id
+                     else dict(_population_filters(inherited, scope))),
             rationale=("The question asks what to do or whom to tell. Both "
                        "come from governed sources — the action library and "
                        "the escalation matrix — rather than from the "
@@ -293,8 +329,8 @@ def _build_deterministic(request: Any,
         # and a movement, and answering it with the obligor's current
         # position answers the question before it.
         return Plan(steps=steps, output_grain="customer_month",
-                    intent=("movement" if "movement" in analyses
-                            else analysis or "borrower"), notes=notes)
+                    intent=_about(steps, "movement" if "movement" in analyses
+                                  else analysis), notes=notes)
 
     if "transition" in analyses:
         # The month a transition is measured against is the PREVIOUS
@@ -325,6 +361,14 @@ def _build_deterministic(request: Any,
         return Plan(steps=steps, output_grain="population_transition",
                     intent="transition", notes=notes)
 
+    # The other parts a grouping question may also be asking for. A request
+    # that names a cut AND asks why AND asks whether it is concentrated is
+    # three questions; returning the cut and stopping answers one of them and
+    # reports it as the whole answer.
+    also_asked = [name for name in analyses
+                  if name in ("movement", "concentration", "diagnosis",
+                              "ranking", "comparison")]
+
     if "grouping" in analyses or grouping:
         resolved = _resolve_grouping(grouping, package)
         if resolved:
@@ -351,8 +395,11 @@ def _build_deterministic(request: Any,
                            + (f", read on {layers_mod.described(layer)}"
                               if layer else "")
                            + (f", within {cut}." if cut else "."))))
-            return Plan(steps=steps, output_grain="group_month",
-                        intent="grouping", notes=notes)
+            if not also_asked:
+                return Plan(steps=steps, output_grain="group_month",
+                            intent="grouping", notes=notes)
+            # Otherwise the cut is one step among several, and the rest are
+            # composed below exactly as they are for any other request.
         notes.append(
             f"No grouping field matches {grouping!r}; answered at the "
             f"population level instead.")
@@ -445,10 +492,8 @@ def _build_deterministic(request: Any,
     # request all describe themselves as population requests, and the packet
     # then wrote its headline from the population pack. The reader asked which
     # obligors are High and was told the portfolio's average score.
-    answered = [step.analysis for step in steps if step.analysis != POPULATION]
     return Plan(steps=steps, output_grain="population_month",
-                intent=analysis or (answered[0] if answered else POPULATION),
-                notes=notes)
+                intent=_about(steps, analysis), notes=notes)
 
 
 def _previous_published(package: grain_mod.GrainPackage, period: str) -> str:
@@ -525,7 +570,7 @@ def field_is_known(name: str) -> bool:
 
 
 __all__ = ["ACTION", "ANALYSIS_TYPES", "BASE_MEASURES", "BORROWER",
-           "TRANSITION",
+           "TRANSITION", "_about",
            "COMPARISON", "CONCENTRATION", "DIAGNOSIS", "EVIDENCE",
            "GROUPING", "LAYER", "METHODOLOGY", "MOVEMENT", "NON_ANALYTICAL",
            "POPULATION", "RANKING", "Plan", "Step", "build",
