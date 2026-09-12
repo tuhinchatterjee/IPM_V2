@@ -679,6 +679,23 @@ def _named_group(text: str) -> dict[str, str] | None:
         return None
 
 
+def _named_pair(text: str) -> dict[str, Any] | None:
+    """Two groups of the same field, in the order the reader wrote them."""
+    try:
+        from backend.early_warning import ask as ask_mod
+
+        found = ask_mod.resolve_groups(text)
+    except Exception:  # noqa: BLE001
+        return None
+    if len(found) < 2:
+        return None
+    field_name = found[0][0]
+    same = [value for name, value in found if name == field_name]
+    if len(same) < 2:
+        return None
+    return {"field": field_name, "left": same[0], "right": same[1]}
+
+
 def _weakest_in(scope: dict[str, Any]) -> dict[str, str] | None:
     """The highest-scoring obligor in whatever the thread is looking at.
 
@@ -902,6 +919,12 @@ def _read_deterministic(
     # answering it with the whole book answers a different question. Resolved
     # against the domain's own values, so a sector that does not exist stays
     # unresolved rather than being invented.
+    # Two groups of the same kind is a COMPARISON, and naming only the
+    # first of them answers about one sector and calls it a comparison.
+    pair = _named_pair(text) if not named else None
+    if pair:
+        inherited["comparison_pair"] = pair
+
     group = _named_group(text)
     if group and not named:
         inherited[group["field"]] = group["value"]
@@ -931,6 +954,9 @@ def _read_deterministic(
     layer = layers_mod.resolve(text) or str(inherited.get("layer") or "")
     if layer:
         inherited["layer"] = layer
+    ruled_out = [code for code in layers_mod.excluded(text) if code != layer]
+    if ruled_out:
+        inherited["layers_excluded"] = ruled_out
 
     corroboration = _corroboration(text)
     if corroboration:

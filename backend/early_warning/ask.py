@@ -162,12 +162,8 @@ _LEVEL_WORDS: dict[str, tuple[str, ...]] = {
     "utilisation_band": ("utilisation", "utilisation band", "drawdown"),
 }
 
-_LAYER_WORDS = {
-    "L1": ("layer 1", "l1", "behavioural", "behavioral"),
-    "L2": ("layer 2", "l2", "fundamentals", "financial"),
-    "L3": ("layer 3", "l3", "external"),
-    "L4": ("layer 4", "l4", "network"),
-}
+#: Layer vocabulary lives in `layers.py` now — one registry, read by the
+#: router, by `facts`, by the conversational reader and by this path.
 
 
 @dataclass
@@ -364,12 +360,45 @@ def resolve_group(question: str, period: str | None = None
 
 
 def resolve_layer(question: str) -> str | None:
+    from backend.early_warning import layers as lay
+
+    return lay.resolve(question) or None
+
+
+def resolve_groups(question: str, period: str | None = None
+                    ) -> list[tuple[str, str]]:
+    """EVERY named group, not just the strongest one.
+
+    "Compare Contracting and Manufacturing" names two, and a resolver that
+    returns one answers about one — which is not a comparison, and reads as
+    a summary of whichever sector happened to sort first.
+    """
+    bm = ff._with_derived(svc.borrower_month(period))
     asked = _norm(question)
-    for code, words in _LAYER_WORDS.items():
-        for word in words:
-            if re.search(rf"\b{re.escape(word)}\b", asked):
-                return code
-    return None
+    found: list[tuple[int, int, str, str]] = []
+    for field_name in ff.LEVEL_FIELDS:
+        if field_name not in bm.columns:
+            continue
+        for value in bm[field_name].dropna().unique():
+            token = _norm(str(value))
+            if not token or len(token) < 3:
+                continue
+            at = re.search(rf"\b{re.escape(token)}\b", asked)
+            if at:
+                found.append((at.start(), len(token), field_name, str(value)))
+    # In the order the reader wrote them, longest match first where two
+    # values overlap at the same position.
+    found.sort(key=lambda f: (f[0], -f[1]))
+    out: list[tuple[str, str]] = []
+    taken: set[int] = set()
+    for start, size, field_name, value in found:
+        if any(start < t + 1 and start >= t - size for t in taken):
+            continue
+        if (field_name, value) in out:
+            continue
+        taken.add(start)
+        out.append((field_name, value))
+    return out
 
 
 def resolve_signal(question: str, customer_id: str,

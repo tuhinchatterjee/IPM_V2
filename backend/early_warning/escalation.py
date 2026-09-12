@@ -49,6 +49,58 @@ SPECIALIST_ROUTES: tuple[dict[str, str], ...] = (
     {"code": "S5", "name": "Collateral / Valuation", "handles": "Valuation, security, perfection"},
 )
 
+def team_slug(code: str) -> str:
+    """The team a ladder rung or specialist route is addressed as.
+
+    Derived from the matrix's own role names rather than typed out, so a
+    deployment that renames a rung renames its team and the two cannot
+    drift. `L3` becomes `ews_head_of_credit_risk`; `S4` becomes `ews_legal`.
+
+    Why this exists: the matrix decides the rung, the urgency and the
+    parallel notifications, and the escalate endpoint applied all three —
+    and then still demanded that the CALLER name a recipient, because
+    nothing could turn "Head of Credit Risk" into somebody's inbox. So
+    either the caller hard-coded a demo user, which is not a control, or
+    the escalation could not be sent at all.
+    """
+    for rung in LADDER:
+        if rung["level"] == code:
+            return _slug(rung["role"])
+    for route in SPECIALIST_ROUTES:
+        if route["code"] == code:
+            return _slug(route["name"])
+    return _slug(code)
+
+
+def _slug(name: str) -> str:
+    keep = [c.lower() if c.isalnum() else "_" for c in str(name)]
+    out = "".join(keep)
+    while "__" in out:
+        out = out.replace("__", "_")
+    return f"ews_{out.strip('_')}"
+
+
+def role_of(code: str) -> str:
+    """The human title behind a rung or route code."""
+    for rung in LADDER:
+        if rung["level"] == code:
+            return str(rung["role"])
+    for route in SPECIALIST_ROUTES:
+        if route["code"] == code:
+            return str(route["name"])
+    return str(code)
+
+
+#: Every team a deployment must have for the matrix to be able to route.
+#: A deployment names its own people; what it cannot choose is WHICH rungs
+#: exist, because those are the matrix's.
+def required_teams() -> list[dict[str, str]]:
+    return ([{"code": r["level"], "role": r["role"],
+              "team": team_slug(r["level"])} for r in LADDER]
+            + [{"code": r["code"], "role": r["name"],
+                "team": team_slug(r["code"])} for r in SPECIALIST_ROUTES])
+
+
 #: Exposure tiers, in SAR millions. Severity decides urgency; this decides altitude.
 EXPOSURE_TIERS: tuple[str, ...] = ("<50m", "50-150m", "150-400m", ">400m")
 

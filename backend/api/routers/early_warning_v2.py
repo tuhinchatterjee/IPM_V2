@@ -308,6 +308,29 @@ class ActionRequest(BaseModel):
     closing_evidence_required: str = Field("", max_length=500)
 
 
+def _teams_for_route(route: dict) -> tuple[list[int], list[str]]:
+    """The team ids behind a route's rungs, and the rungs that have none.
+
+    Both halves are returned: a partial directory should still route where
+    it can, and should say plainly which rung it could not reach rather than
+    failing as though nothing were configured.
+    """
+    from backend.db.engine import get_session
+    from backend.models.platform import Team
+
+    codes = [str(c) for c in (route.get("escalated_to") or [])]
+    codes += [str(c) for c in (route.get("notified") or [])]
+    wanted = {esc.team_slug(code): code for code in dict.fromkeys(codes)}
+    if not wanted:
+        return [], []
+    with get_session() as session:
+        rows = session.query(Team).filter(Team.name.in_(list(wanted))).all()
+        found = {str(t.name): int(t.id) for t in rows}
+    ids = [found[name] for name in wanted if name in found]
+    missing = [code for name, code in wanted.items() if name not in found]
+    return ids, missing
+
+
 def _latest_row_dict(customer_id: str) -> dict:
     try:
         detail = svc.borrower_detail(customer_id)
@@ -325,10 +348,6 @@ def escalate(customer_id: str, payload: EscalateRequest,
     deduped on borrower+period) and sends one Message via the existing
     Workflow service — never a parallel inbox (spec Section AG)."""
     row = _latest_row_dict(customer_id)
-    if not payload.recipient_user_ids and not payload.recipient_team_ids:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
-                             detail={"error": "no_recipient",
-                                     "message": "Escalate needs at least one recipient."})
 
     from backend.db.engine import get_session
     from backend.early_warning import facts as ff
@@ -349,6 +368,33 @@ def escalate(customer_id: str, payload: EscalateRequest,
     route = esc.route_with_actions(band, exposure, drivers)
     version, _bundle, _note = _active_escalation_bundle()
 
+    # Who the matrix says decides. Resolved from the rung rather than
+    # supplied by the caller: an escalation whose recipient is chosen by
+    # whoever raised it is not routed, it is addressed, and the matrix's
+    # whole purpose is that severity and materiality decide the altitude.
+    #
+    # A caller may still name people — a specific colleague alongside the
+    # rung is an ordinary thing to want — and those are added, never
+    # substituted.
+    teams = list(payload.recipient_team_ids or [])
+    resolved, missing = _teams_for_route(route)
+    teams += [t for t in resolved if t not in teams]
+    if not teams and not payload.recipient_user_ids:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "no_recipient",
+                    "message": (
+                        "The matrix routes this to "
+                        + ", ".join(esc.role_of(c) for c in missing)
+                        + ", and this deployment has no team for "
+                        + ("them" if len(missing) != 1 else "that role")
+                        + ". Create "
+                        + ", ".join(sorted(esc.team_slug(c) for c in missing))
+                        + " and add its members, or name a recipient "
+                        + "explicitly."),
+                    "routed_to": list(missing),
+                    "expected_teams": sorted(esc.team_slug(c) for c in missing)})
+
     with get_session() as session:
         case = case_bridge.upsert_case(session, row)
         session.flush()
@@ -363,7 +409,7 @@ def escalate(customer_id: str, payload: EscalateRequest,
         f"{row.get('customer_name', customer_id)} scores {row.get('ews_score', 0):.1f} ({band}).")
     view = wf.send(
         object_type="risk_case", object_id=str(case_id), title=title, message=body,
-        recipients=payload.recipient_user_ids, teams=payload.recipient_team_ids,
+        recipients=payload.recipient_user_ids, teams=teams,
         action="review", priority="high" if band == "VERY_HIGH" else "normal",
         requested_by=principal.user_id,
         # The decision clock, from the matrix's own SLA for this severity.

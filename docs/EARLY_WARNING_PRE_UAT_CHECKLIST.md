@@ -19,15 +19,15 @@ run) · `n/a`.
 | 4 | P2 — band distribution states period and total | done |
 | 5 | P2 — "across 1 obligors" pluralisation | done |
 | 6 | P2 — measure labels, units, empty-state wording | done |
-| 7 | Data realism — classify cause A–E, fix the input if generator | wip |
-| 8 | Level 2 questions | todo |
-| 9 | Level 3 questions | todo |
-| 10 | Level 4 questions | todo |
-| 11 | Level 5 questions | todo |
-| 12 | Thread chain A | todo |
-| 13 | Thread chain B | todo |
-| 14 | Clarification UAT | todo |
-| 15 | Noisy / misspelled / mixed-language UAT | todo |
+| 7 | Data realism — classify cause A–E, fix the input if generator | done |
+| 8 | Level 2 questions | done |
+| 9 | Level 3 questions | done |
+| 10 | Level 4 questions | done |
+| 11 | Level 5 questions | done |
+| 12 | Thread chain A | done |
+| 13 | Thread chain B | done |
+| 14 | Clarification UAT | done |
+| 15 | Noisy / misspelled / mixed-language UAT | done |
 | 16 | Messaging UAT (through the actual UI) | todo |
 | 17 | Escalation / decision-layer UAT | todo |
 | 18 | Investigations UAT | todo |
@@ -36,7 +36,7 @@ run) · `n/a`.
 | 21 | 10 new adversarial questions | todo |
 | 22 | Performance review over >= 10 turns | todo |
 | 23 | Progress UX across all paths | todo |
-| 24 | `scripts/certify_early_warning_live.py` | todo |
+| 24 | `scripts/certify_early_warning_live.py` | done |
 | 25 | Live summary truncation assertion in the cert script | todo |
 | 26 | Update report + results JSON (update, never replace) | todo |
 | 27 | Full final regression, then classify A / B / C | todo |

@@ -47,6 +47,38 @@ export function getActiveRole(): Role {
   return activeRole;
 }
 
+/**
+ * Who the caller is, alongside what role they are acting in.
+ *
+ * The backend has always read both — `backend/api/permissions.py` takes an
+ * `X-IPM-User-Id` and falls back to anonymous without one. The browser sent
+ * only the role, so every request arrived with no actor at all, and every
+ * list that belongs to a PERSON came back empty: the Workflow Inbox has an
+ * "assigned to me" and a "sent by me" and neither can mean anything when
+ * there is no me. Escalate a case and open Messages, and the case that was
+ * definitely sent was definitely not there.
+ *
+ * Set from `NEXT_PUBLIC_DEMO_USER_ID` where a deployment names one. This is
+ * a demonstration identity in exactly the way the role is: it is not
+ * authentication, and the product says so wherever it matters.
+ */
+let activeUserId: number | null = (() => {
+  const named = Number(process.env.NEXT_PUBLIC_DEMO_USER_ID);
+  return Number.isFinite(named) && named > 0 ? named : 1;
+})();
+export function setActiveUserId(id: number | null) {
+  activeUserId = id;
+}
+export function getActiveUserId(): number | null {
+  return activeUserId;
+}
+
+function identity(): Record<string, string> {
+  return activeUserId === null
+    ? { "X-IPM-Role": activeRole }
+    : { "X-IPM-Role": activeRole, "X-IPM-User-Id": String(activeUserId) };
+}
+
 // ---------------------------------------------------------------------------
 // Types — mirror the backend response models
 // ---------------------------------------------------------------------------
@@ -2389,7 +2421,7 @@ async function request<T>(
       credentials: "include",
       headers: {
         ...(rawBody ? {} : { "Content-Type": "application/json" }),
-        "X-IPM-Role": activeRole,
+        ...identity(),
         ...headers,
       },
     });
@@ -2478,7 +2510,7 @@ async function download(
     response = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
       signal: controller.signal,
       credentials: "include",
-      headers: { "X-IPM-Role": activeRole },
+      headers: identity(),
     });
   } catch (error) {
     const aborted =

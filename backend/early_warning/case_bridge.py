@@ -131,3 +131,46 @@ def upsert_case(session, row: dict[str, Any]):
         if carried:
             draft.evidence = {**draft.evidence, **carried}
     return agentic_cases.upsert(session, draft, actor_agent="early_warning_v2")
+
+
+def ensure_escalation_teams(session, *,
+                            members: list[int] | None = None) -> dict[str, int]:
+    """Create the teams the escalation matrix routes to, if they are absent.
+
+    Idempotent, and it invents nobody: it creates the empty team that
+    represents a rung, so the matrix has somewhere to send a case, and it
+    leaves who belongs to that team entirely to the deployment. A rung with
+    no members is a visible gap in the operating model; a rung with no team
+    at all is an escalation that cannot be sent and a matrix that decides
+    nothing.
+    """
+    from backend.early_warning import escalation as esc
+    from backend.models.platform import Team
+
+    wanted = {entry["team"]: entry for entry in esc.required_teams()}
+    existing = {str(t.name): int(t.id) for t in
+                session.query(Team).filter(Team.name.in_(list(wanted))).all()}
+    for name, entry in wanted.items():
+        if name in existing:
+            continue
+        team = Team(name=name,
+                    description=(f"Early Warning escalation matrix "
+                                 f"{entry['code']} — {entry['role']}. "
+                                 f"Add the people who hold this rung."))
+        session.add(team)
+        session.flush()
+        existing[name] = int(team.id)
+
+    # A rung with a team and no members is an escalation that arrives
+    # nowhere. A deployment names its own people; `members` is how a demo
+    # says "put this reader on every rung so the loop can be walked".
+    if members:
+        from backend.models.platform import TeamMember
+
+        for team_id in existing.values():
+            for user_id in members:
+                already = session.get(TeamMember, (team_id, user_id))
+                if already is None:
+                    session.add(TeamMember(team_id=team_id, user_id=user_id))
+        session.flush()
+    return existing

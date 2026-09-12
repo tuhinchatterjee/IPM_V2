@@ -305,6 +305,15 @@ def _run(step: plan_mod.Step) -> Executed:
                      statement=f"early_warning_borrower_month"
                                f"[{step.comparison_period} -> {step.period}]")
 
+    if analysis == plan_mod.COMPARISON and step.left and step.right:
+        pack = ff.comparison(step.group_by, step.left, step.right,
+                             step.period or None)
+        return _done(step, started, figures=dict(pack.figures),
+                     rows=list(pack.rows), grain="group_month", pack=pack,
+                     statement=f"early_warning_borrower_month[{step.period}] "
+                               f"{step.left} vs {step.right} by "
+                               f"{step.group_by}")
+
     if analysis == plan_mod.GROUPING:
         # The slice the question asked for is applied before the grouping,
         # not after and not at all: "exposure by sector for obligors at High

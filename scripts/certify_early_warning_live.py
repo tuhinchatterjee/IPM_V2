@@ -444,6 +444,15 @@ def main(argv: list[str] | None = None) -> int:
         "summary_stage_assertion": (
             f"{SUMMARY_STAGE} must report engine=model and must not spend its "
             f"whole output allowance"),
+        # §15's figure, which can only be measured with a provider: offline
+        # no model call is made, so the planner receives nothing.
+        "largest_planner_input_tokens": max(
+            [int(row.get("input_tokens") or 0)
+             for r in results for row in r.get("stages", [])
+             if row.get("stage") == seam_mod.PLAN] or [0]),
+        "largest_input_tokens_any_stage": max(
+            [int(row.get("input_tokens") or 0)
+             for r in results for row in r.get("stages", [])] or [0]),
         "elapsed_seconds": {
             "total": round(sum(elapsed), 2),
             "median": round(sorted(elapsed)[len(elapsed) // 2], 2) if elapsed else 0,

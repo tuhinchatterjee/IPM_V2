@@ -250,6 +250,32 @@ class Match:
     span: int = 0
 
 
+#: A layer the sentence is EXCLUDING rather than asking about. "Network
+#: warnings but no behavioural ones" names two layers and wants one of them:
+#: reading the negated half as the subject answers the opposite question,
+#: which is what happened — the reader asked for network names and was shown
+#: the 158 obligors with behavioural signals.
+_NEGATED = (
+    r"(?:but\s+)?(?:with\s+)?(?:no|not|without|excluding|other than|"
+    r"apart from|except|free of|absent|lacking)\s+"
+    r"(?:any\s+|an?\s+|the\s+)?")
+
+
+def _negated_spans(flat: str) -> list[tuple[int, int]]:
+    """Where in the sentence a negation is in force.
+
+    From the negating word to the end of the clause — a comma, a conjunction
+    that is not "or", or the end of the sentence.
+    """
+    spans: list[tuple[int, int]] = []
+    for hit in re.finditer(_NEGATED, flat):
+        rest = flat[hit.end():]
+        stop = re.search(r"[,;.?]|\band\b|\bbut\b|\bwhile\b", rest)
+        end = hit.end() + (stop.start() if stop else len(rest))
+        spans.append((hit.start(), end))
+    return spans
+
+
 def find(text: str) -> Match | None:
     """The layer a sentence names, and what named it.
 
@@ -260,39 +286,52 @@ def find(text: str) -> Match | None:
     flat = _flatten(text)
     if not flat:
         return None
+    negated = _negated_spans(flat)
+
+    def is_negated(start: int, end: int) -> bool:
+        return any(a <= start and end <= b for a, b in negated)
+
     found: list[Match] = []
 
     for code, pattern in _CODE_PATTERNS.items():
-        hit = pattern.search(flat)
-        if hit:
+        for hit in pattern.finditer(flat):
+            if is_negated(hit.start(), hit.end()):
+                continue
             # The code is the reader saying the layer's name in the model's
             # own notation. Nothing outranks it, so it carries a span that
             # nothing else reaches.
             found.append(Match(code, hit.group(0), "code", 1000))
+            break
 
     for layer in LAYERS:
         for phrase in layer.names:
             flat_phrase = _flatten(phrase)
-            if flat_phrase and flat_phrase in flat:
+            at = flat.find(flat_phrase) if flat_phrase else -1
+            if at >= 0 and not is_negated(at, at + len(flat_phrase)):
                 found.append(Match(layer.code, flat_phrase, "name",
                                    len(flat_phrase)))
         for node_name in layer.node_names:
             flat_node = _flatten(node_name)
-            if flat_node and flat_node in flat:
+            at = flat.find(flat_node) if flat_node else -1
+            if at >= 0 and not is_negated(at, at + len(flat_node)):
                 found.append(Match(layer.code, flat_node, "node",
                                    len(flat_node)))
 
     for code, patterns in _STEM_PATTERNS.items():
         for stem, pattern in patterns:
-            hit = pattern.search(flat)
-            if hit:
+            for hit in pattern.finditer(flat):
+                if is_negated(hit.start(), hit.end()):
+                    continue
                 found.append(Match(code, hit.group(0), "stem", len(stem)))
+                break
 
     for code, patterns in _SOLO_PATTERNS.items():
         for word, pattern in patterns:
-            hit = pattern.search(flat)
-            if hit:
+            for hit in pattern.finditer(flat):
+                if is_negated(hit.start(), hit.end()):
+                    continue
                 found.append(Match(code, hit.group(0), "solo", len(word)))
+                break
 
     if not found:
         return None
@@ -303,6 +342,36 @@ def resolve(text: str) -> str:
     """The layer code a sentence names, or an empty string."""
     hit = find(text)
     return hit.code if hit else ""
+
+
+def excluded(text: str) -> list[str]:
+    """The layers a sentence explicitly rules OUT.
+
+    "Which obligors carry network warnings but no behavioural ones?" is a
+    difference between two populations, and answering it with the first is
+    answering half of it.
+    """
+    flat = _flatten(text)
+    if not flat:
+        return []
+    spans = _negated_spans(flat)
+    if not spans:
+        return []
+    out: list[str] = []
+    for start, end in spans:
+        inside = flat[start:end]
+        for layer in LAYERS:
+            if layer.code in out:
+                continue
+            named = (_CODE_PATTERNS[layer.code].search(inside)
+                     or any(_flatten(n) in inside for n in layer.names)
+                     or any(re.search(rf"\b{re.escape(w)}\b", inside)
+                            for w in layer.solo)
+                     or any(pattern.search(inside)
+                            for _stem, pattern in _STEM_PATTERNS[layer.code]))
+            if named:
+                out.append(layer.code)
+    return out
 
 
 def activity(rows: Any) -> dict[str, list[bool]]:
@@ -357,6 +426,7 @@ C_WEIGHTS: dict[str, float] = dict(clf.CLASSIFIER_LAYER_WEIGHTS)
 __all__ = ["ACTIVE_FIELDS", "BY_CODE", "CODES", "CORROBORATED_FIELD",
            "C_WEIGHTS", "DERIVED_FIELDS", "FIRING_COUNT_FIELD", "LAYERS",
            "Layer", "Match", "TA_KEYS", "TA_WEIGHTS", "WARNING_NOUNS",
-           "activity", "described", "find", "is_code", "name", "of_field",
+           "activity", "described", "excluded", "find", "is_code", "name",
+           "of_field",
            "resolve",
            "vocabulary"]

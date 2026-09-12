@@ -347,3 +347,107 @@ def test_every_population_reading_dates_itself():
                  ff.layer_population("L3", period)):
         written = cp.compose(pack)
         assert period in written.direct, pack.scope
+
+
+# ------------------------------------------- what the score is, and is not
+
+
+@pytest.mark.parametrize("question", [
+    "What is the probability that Gulf Contracting 2 defaults?",
+    "How likely is Gulf Contracting 2 to default?",
+    "What are the odds this one defaults?",
+    "What is the PD on Gulf Contracting 2?",
+])
+def test_a_request_for_a_probability_is_told_the_score_is_not_one(question):
+    """Asked for a probability and shown 95.0, a reader has their answer
+    before they reach any caveat at the bottom. So it is said first."""
+    turn = pipe.answer(question, thread_id=f"test-pd-{hash(question)}")
+    assert turn.answer["direct"].startswith(
+        "The Early Warning score is not a probability of default"), \
+        turn.answer["direct"]
+    assert any("not a probability" in c for c in turn.answer["caveats"])
+
+
+def test_an_ordinary_question_is_not_lectured_about_probability():
+    turn = pipe.answer("Why is Gulf Contracting 2 flagged?",
+                       thread_id="test-no-pd")
+    assert "not a probability of default" not in turn.answer["direct"]
+
+
+# ---------------------------------------------------- two names, two things
+
+
+def test_two_named_groups_and_a_comparison_cue_is_a_comparison(package):
+    read = norm.read(norm.clean(
+        "Compare Contracting and Manufacturing on early warning risk."))
+    pair = read.inherited_context.get("comparison_pair")
+    assert pair == {"field": "sector", "left": "Contracting",
+                    "right": "Manufacturing"}
+    plan = plan_mod.build(read, package)
+    assert [s.analysis for s in plan.steps] == [plan_mod.COMPARISON]
+    assert plan.steps[0].left == "Contracting"
+    assert plan.steps[0].right == "Manufacturing"
+
+
+def test_two_bands_in_one_phrase_are_not_a_comparison(package):
+    """"High or Very High obligors in X" names two bands and wants one
+    population. Read as a comparison it answered "HIGH is at 60.0 and
+    VERY_HIGH at 95.0", which is true and is not the question."""
+    read = norm.read(norm.clean(
+        "Show me High or Very High obligors in Agriculture & Food."))
+    plan = plan_mod.build(read, package)
+    assert plan_mod.COMPARISON not in {s.analysis for s in plan.steps}
+
+
+def test_a_comparison_reads_both_sides():
+    turn = pipe.answer("Compare Contracting and Manufacturing on early "
+                       "warning risk.", thread_id="test-compare")
+    said = turn.answer["direct"]
+    assert "Contracting" in said and "Manufacturing" in said, said
+
+
+# ------------------------------------------------------- a negated layer
+
+
+def test_a_layer_the_sentence_rules_out_is_not_its_subject():
+    from backend.early_warning import layers as lay
+
+    question = "Which obligors carry network warnings but no behavioural ones?"
+    assert lay.resolve(question) == "L4"
+    assert lay.excluded(question) == ["L1"]
+
+
+def test_the_excluded_layer_narrows_the_population(package):
+    read = norm.read(norm.clean(
+        "Which obligors carry network warnings but no behavioural ones?"))
+    plan = plan_mod.build(read, package)
+    population = next(s for s in plan.steps
+                      if s.analysis == plan_mod.POPULATION)
+    assert population.filters.get("l4_active") is True
+    assert population.filters.get("l1_active") is False
+
+
+def test_an_ordinary_layer_question_excludes_nothing():
+    from backend.early_warning import layers as lay
+
+    assert lay.excluded("Which obligors carry external signals?") == []
+
+
+# ----------------------------------------------------- an ambiguous name
+
+
+def test_a_name_that_matches_several_obligors_is_asked_about():
+    turn = pipe.answer("Show me Al Rabia.", thread_id="test-ambiguous")
+    assert turn.answer["scope"] == "ambiguous_borrower"
+    assert turn.budget["executions_attempted"] == 0
+    options = turn.answer.get("options") or []
+    assert len(options) > 1
+    assert all(o.get("customer_id") and o.get("customer_name") for o in options)
+
+
+def test_a_name_that_matches_one_obligor_is_answered():
+    frame = svc.borrower_month(svc.latest_period())
+    name = str(frame.iloc[0]["customer_name"])
+    turn = pipe.answer(f"Show me {name}.", thread_id="test-unambiguous")
+    assert turn.answer["scope"] != "ambiguous_borrower"
+    assert name in turn.answer["direct"]

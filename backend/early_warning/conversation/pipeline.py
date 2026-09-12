@@ -861,6 +861,13 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
         "presentation": reviewed.presentation,
         "complete": reviewed.complete,
     }
+    # Said before the number, not after it. A reader who asked for a
+    # probability and is shown 95.0 has their answer before they reach a
+    # caveat at the bottom.
+    if _asked_for_a_probability(turn.question):
+        out["direct"] = f"{_NOT_A_PROBABILITY} {out['direct']}"
+        out["caveats"] = [_NOT_A_PROBABILITY] + list(out["caveats"])
+
     if not reviewed.complete:
         # A partial answer that does not say so is the failure the whole
         # sufficiency review exists to prevent.
@@ -871,6 +878,34 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
             f"this turn's budget."]
     del turn, request
     return out
+
+
+#: A question that asks the score to be something it is not.
+#:
+#: The Early Warning score orders obligors by how much warning evidence they
+#: carry. It is not fitted to default outcomes and it is not a probability,
+#: and the whole product says so — in the methodology, in the calibration
+#: caveat, in the network score's own published label. It did not say so
+#: where it matters most: asked "what is the probability that Gulf
+#: Contracting 2 defaults?" it answered "95.0 (very high)" and let the
+#: reader draw the obvious and wrong conclusion.
+_ASKS_FOR_A_PROBABILITY = re.compile(
+    r"\bprobabilit\w*|\blikelihood\b|\bhow likely\b|\bchance\b|"
+    r"\bodds\b|\bwhat are the odds\b|\bpd\b|\bexpected loss\b|"
+    r"\bwill (?:it|they|he|she|this|that) default\b|"
+    r"\bgoing to default\b|\bdefault rate\b|\brisk of default\b", re.I)
+
+_NOT_A_PROBABILITY = (
+    "The Early Warning score is not a probability of default. It orders "
+    "obligors by how much warning evidence they carry and is not fitted to "
+    "default outcomes, so it cannot be read as a likelihood, a PD or an "
+    "expected loss. Where a probability is needed the rating model's PD is "
+    "the governed source, and it is a different number for a different "
+    "question.")
+
+
+def _asked_for_a_probability(text: str) -> bool:
+    return bool(_ASKS_FOR_A_PROBABILITY.search(text or ""))
 
 
 def _refuses_to_mutate(text: str) -> dict[str, Any] | None:

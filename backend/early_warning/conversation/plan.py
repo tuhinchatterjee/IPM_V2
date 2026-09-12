@@ -87,6 +87,11 @@ class Step:
     from_band: str = ""
     to_band: str = ""
     direction: str = ""
+    #: A comparison's two sides. Named fields rather than filters, because
+    #: `left` and `right` are not columns and the validator is right to
+    #: refuse a filter on a field this domain does not have.
+    left: str = ""
+    right: str = ""
     #: Why this step exists, for the audit trail and the plan note.
     rationale: str = ""
 
@@ -100,6 +105,7 @@ class Step:
             "customer_id": self.customer_id, "layer": self.layer,
             "signal_key": self.signal_key, "from_band": self.from_band,
             "to_band": self.to_band, "direction": self.direction,
+            "left": self.left, "right": self.right,
             "rationale": self.rationale,
         }
 
@@ -332,6 +338,26 @@ def _build_deterministic(request: Any,
                     intent=_about(steps, "movement" if "movement" in analyses
                                   else analysis), notes=notes)
 
+    # Naming two groups is not the same as asking for a comparison. "High
+    # or Very High obligors in Agriculture & Food" names two bands and wants
+    # one population; reading it as a comparison answered "HIGH is at 60.0
+    # and VERY_HIGH at 95.0", which is true, tautological and not the
+    # question. So the comparison CUE has to be there as well.
+    pair = dict(inherited.get("comparison_pair") or {})
+    if pair and "comparison" in analyses:
+        # Two named groups of the same kind. The comparison is the reading;
+        # answering it with one of them is a summary of half the question.
+        steps.append(Step(
+            analysis=COMPARISON, period=period,
+            group_by=str(pair["field"]),
+            left=str(pair["left"]), right=str(pair["right"]),
+            measures=list(BASE_MEASURES),
+            rationale=(f"The question names {pair['left']} and "
+                       f"{pair['right']}, so the two are read against each "
+                       f"other rather than one being summarised.")))
+        return Plan(steps=steps, output_grain="group_month",
+                    intent="comparison", notes=notes)
+
     if "transition" in analyses:
         # The month a transition is measured against is the PREVIOUS
         # published one unless the question named another. "How many changed
@@ -412,6 +438,11 @@ def _build_deterministic(request: Any,
         # actually fired for — not the whole book with a layer word in the
         # sentence.
         filters[layers_mod.BY_CODE[layer].active_field] = True
+    for excluded in (inherited.get("layers_excluded") or ()):
+        # "Network warnings but NO behavioural ones" names two layers and
+        # wants the difference between them.
+        if layers_mod.is_code(excluded) and excluded != layer:
+            filters[layers_mod.BY_CODE[excluded].active_field] = False
     steps.append(Step(
         analysis=POPULATION, period=period, measures=list(BASE_MEASURES),
         filters=dict(filters), layer=layer,
