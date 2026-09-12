@@ -79,7 +79,11 @@ GROUPINGS: dict[str, str] = dict(ex.GROUPINGS)
 #: finer than the domain's own grain does not exist.
 ANALYTICAL_GRAINS: tuple[str, ...] = (
     "customer_month", "customer_latest", "population_month",
-    "group_month", "population_trend")
+    "group_month", "population_trend",
+    # Two published months read against each other, obligor by obligor. Not
+    # a trend: a trend is one series over time, and a transition is a
+    # contingency between two points in it.
+    "population_transition")
 
 
 @dataclass

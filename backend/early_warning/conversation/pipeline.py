@@ -793,8 +793,11 @@ def _compose(turn: Turn, request: Any, packet: packet_mod.ResultPacket,
     #
     # Not when the reading IS the ranking, though. This line predates the
     # ranking composer and was the patch for its absence — keeping both
-    # prints the names twice, once as a sentence and once as a list.
-    if pack.scope != "ranking":
+    # prints the names twice, once as a sentence and once as a list. The
+    # same is true of a layer population, whose composer lists the names with
+    # the layer score each is on; the generic line lists them again ordered
+    # by exposure and scored on a measure the question did not ask about.
+    if pack.scope not in ("ranking", "layer_population"):
         ranked = _ranked_obligors(packet)
         if ranked:
             points.insert(0, ranked)

@@ -73,6 +73,7 @@ from __future__ import annotations
 
 import argparse
 import glob as globmod
+import dataclasses
 import hashlib
 import sys
 from pathlib import Path
@@ -295,6 +296,102 @@ def build_graph_concentration(borrower_ids: list[str]) -> dict[str, dict[str, fl
     return out
 
 
+#: How bad a COUNTERPARTY has to be before its state is a warning about the
+#: borrower that depends on it. These are the ordinary observable marks of
+#: distress a credit officer would read off a name — stage, arrears, a
+#: breach, a sub-investment-grade internal rating — not a second scoring
+#: model. The severity band the trigger fires at then comes from how bad the
+#: counterparty is AND how material it is to this borrower, which is what
+#: "key supplier distress" means.
+COUNTERPARTY_MATERIAL_PCT = 10.0
+
+
+def counterparty_distress(row) -> int:
+    """The severity band a distressed counterparty justifies, 0 for none."""
+    if row is None:
+        return 0
+    stage = _safe_float(row.get("stage"), 1.0)
+    dpd = _safe_float(row.get("current_dpd"))
+    breach = bool(row.get("breach_flag"))
+    grade = _safe_float(row.get("internal_rating_numeric"))
+    if stage >= 3 or dpd >= 90:
+        return 5
+    if stage >= 2 and (breach or dpd >= 30):
+        return 4
+    if stage >= 2 or dpd >= 30:
+        return 3
+    if breach or grade >= 11:
+        return 2
+    if grade >= 9:
+        return 1
+    return 0
+
+
+def build_relationships(borrower_ids: list[str]) -> dict[str, dict[str, list]]:
+    """Each borrower's material suppliers, customers and group peers.
+
+    From the real `corporate_supply_chain` edges and `corporate_connected_
+    groups` membership — the same graph the Relationship product reads. The
+    L4 triggers are all relationship-event triggers ("distress at a supplier
+    the borrower depends on", "adverse event at a group entity"), so the
+    input they need is the STATE OF THE COUNTERPARTY, not a centrality
+    number.
+
+    What was there before compared `network_risk_score` to an absolute 60.
+    That field is a min-max normalised relative ranking over the whole
+    corporate universe — its own published label says "RELATIVE NETWORK
+    RANKING / NOT A PROBABILITY" — with a median of 3.4 and exactly one row
+    above 60 in 3,300 borrower-quarters. So the L4 trigger could not fire,
+    L4 T&A was identically zero for all 300 obligors in all 20 months, and a
+    quarter of the model was dark.
+    """
+    out: dict[str, dict[str, list]] = {
+        b: {"suppliers": [], "customers": [], "group": []} for b in borrower_ids}
+    wanted = set(borrower_ids)
+
+    files = globmod.glob(
+        str(settings.analytics_dir / "corporate_supply_chain" / "**" / "*.parquet"),
+        recursive=True)
+    if files:
+        edges = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+        if "valid_to" in edges.columns:
+            edges = edges[edges["valid_to"].isna() | (edges["valid_to"] == "")]
+        for borrower_id, chunk in edges[edges["to_node"].isin(wanted)].groupby("to_node"):
+            top = chunk.sort_values("buyer_cost_share_pct", ascending=False).head(5)
+            out[borrower_id]["suppliers"] = [
+                (str(r["from_node"]), float(r["buyer_cost_share_pct"] or 0.0))
+                for _, r in top.iterrows()]
+        for borrower_id, chunk in edges[edges["from_node"].isin(wanted)].groupby("from_node"):
+            top = chunk.sort_values("supplier_revenue_share_pct", ascending=False).head(5)
+            out[borrower_id]["customers"] = [
+                (str(r["to_node"]), float(r["supplier_revenue_share_pct"] or 0.0))
+                for _, r in top.iterrows()]
+
+    files = globmod.glob(
+        str(settings.analytics_dir / "corporate_connected_groups" / "**" / "*.parquet"),
+        recursive=True)
+    if files:
+        groups = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
+        latest = groups.sort_values("period").drop_duplicates("borrower_id", keep="last")
+        named = latest[latest["connected_group_id"].astype(str)
+                       .str.startswith("CG-")]
+        members: dict[str, list[str]] = {}
+        for group_id, chunk in named.groupby("connected_group_id"):
+            members[str(group_id)] = [str(b) for b in chunk["borrower_id"]]
+        guarantees = dict(zip(latest["borrower_id"].astype(str),
+                              pd.to_numeric(latest.get("guarantee_links"),
+                                            errors="coerce").fillna(0)))
+        for _, row in named.iterrows():
+            borrower_id = str(row["borrower_id"])
+            if borrower_id not in wanted:
+                continue
+            peers = [m for m in members.get(str(row["connected_group_id"]), [])
+                     if m != borrower_id]
+            out[borrower_id]["group"] = [
+                (peer, float(guarantees.get(borrower_id, 0.0))) for peer in peers[:8]]
+    return out
+
+
 def generate_l3_events(borrower_ids: list[str]) -> pd.DataFrame:
     """Governed synthetic external-intelligence events, deterministic per
     borrower. Every row is marked `scenario_status="SYNTHETIC_DEMONSTRATION_DATA"`
@@ -328,29 +425,127 @@ def generate_l3_events(borrower_ids: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+@dataclasses.dataclass
+class LiveSignal:
+    """A signal that has fired and has not yet decayed out of scope.
+
+    Kept so it can be RE-EMITTED in later months at its decayed weight. The
+    methodology's whole decay model — class-specific half-lives, a
+    persistence hold while the condition is live, a floor — exists so that a
+    fired signal fades over months rather than vanishing. This build computed
+    the decay correctly and then threw the signal away the following month,
+    so every signal was a one-month spike and the trigger-and-accelerator
+    dimension only ever saw the events of the current month. Across 300
+    obligors that put every one of them in the VERY_LOW T&A row of the
+    published matrix, in every month.
+    """
+
+    trigger_key: str
+    severity_band: int
+    trigger_score: float
+    accel_input: accel.AcceleratorInput
+    causal_chain_id: str
+    context: dict
+    continuous: bool
+
+
 class TriggerDecayState:
     """Per-borrower, per-trigger-key decay/persistence state across the
     15-month build. Continuous conditions hold at decay 1.0 while still
     active; discrete events are cured the same month they occur (a
     documented simplification — see module docstring) and decay from
-    there. A later recurrence resets the clock and raises repetition."""
+    there. A later recurrence resets the clock and raises repetition.
+
+    It also holds the LIVE SIGNALS, so a month can re-emit what fired
+    earlier and has not yet decayed out of scope.
+    """
 
     def __init__(self) -> None:
         self._first_seen_idx: dict[str, int] = {}
         self._cured_idx: dict[str, int | None] = {}
         self._occurrences: dict[str, int] = {}
+        self._last_fired_idx: dict[str, int] = {}
+        self._live: dict[str, LiveSignal] = {}
+
+    def remember(self, live: LiveSignal) -> None:
+        """Hold a signal open so later months can carry it at its decay."""
+        self._live[live.trigger_key] = live
+
+    def stop_if_running(self, trigger_key: str, month_idx: int) -> None:
+        """A continuous condition that did not fire this month has ended.
+
+        The cure clock starts here rather than never: without it a
+        behavioural condition that held for one month would hold at full
+        weight for the rest of the run, which is the opposite error to the
+        one this carry-forward fixes.
+        """
+        if self._cured_idx.get(trigger_key, "missing") is None:
+            self._cured_idx[trigger_key] = month_idx
+
+    def carry(self, month_idx: int,
+              fired_keys: set[str]) -> list[agg.FiredSignal]:
+        """Every live signal that did not fire this month, at its decay.
+
+        A signal whose decay has taken it out of scope is dropped from the
+        registry rather than emitted at a floor value nobody would act on.
+        """
+        out: list[agg.FiredSignal] = []
+        for key, live in list(self._live.items()):
+            if key in fired_keys:
+                continue
+            if live.continuous:
+                self.stop_if_running(key, month_idx)
+            trigger = trg.BY_KEY[key]
+            decay = self.decay_for(key, trigger.sub_category, month_idx)
+            if not decay.in_scope:
+                del self._live[key]
+                continue
+            faded = dataclasses.replace(live.accel_input,
+                                        decay_factor=decay.decay_factor)
+            result = accel.compute_accelerator(faded)
+            out.append(agg.FiredSignal(
+                key, accel.signal_score(live.trigger_score,
+                                        result.accelerator_multiplier),
+                live.causal_chain_id, trigger.sub_category,
+                explanation=signal_explanation(
+                    trigger, severity_band=live.severity_band,
+                    trigger_score=live.trigger_score, accel_input=faded,
+                    accel_result=result, decay=decay, state=self,
+                    month_idx=month_idx, **live.context)))
+        return out
 
     def observe(self, trigger_key: str, month_idx: int, *, continuous_active: bool | None = None) -> None:
         """Record that `trigger_key` fired this month. `continuous_active`
         True means the underlying condition is STILL active this month
         (persistence hold continues); False/None means it is a discrete
-        event, cured immediately."""
-        if trigger_key not in self._first_seen_idx:
+        event, cured immediately.
+
+        The age clock measures the age of the CURRENT EPISODE, not of the
+        first time this trigger ever fired for this borrower.
+
+        That distinction decides whether the book stays alive. The
+        methodology drops a signal from scoring once it is more than 400 days
+        old — "an unresolved condition older than 400 days is flagged rather
+        than scored forever at full weight", which is right. But the clock
+        was started the first time the key fired and never restarted, so a
+        supplier-distress reading that first fired in the warm-up aged out
+        around month thirteen and never came back, even when a DIFFERENT
+        supplier failed a year later. Over twenty months that quietly
+        switched the network layer off: L4 fired for 241 obligors in the
+        first published month and 30 in the last, while the book underneath
+        was getting worse, not better.
+
+        An episode ends when the trigger stops firing for a month. Firing
+        again after that gap starts a new one, with a fresh clock and a
+        higher recurrence count — which is what the class docstring said all
+        along.
+        """
+        last = self._last_fired_idx.get(trigger_key)
+        new_episode = last is None or month_idx - last > 1
+        if new_episode:
             self._first_seen_idx[trigger_key] = month_idx
-            self._occurrences[trigger_key] = 0
-        was_cured = self._cured_idx.get(trigger_key) is not None
-        if was_cured or trigger_key not in self._cured_idx:
-            self._occurrences[trigger_key] += 1
+            self._occurrences[trigger_key] = self._occurrences.get(trigger_key, 0) + 1
+        self._last_fired_idx[trigger_key] = month_idx
         if continuous_active:
             self._cured_idx[trigger_key] = None
         else:
@@ -533,16 +728,20 @@ def l1_signal_scores(borrower_series: dict[str, dict[pd.Timestamp, float]], mont
         )
         result = accel.compute_accelerator(accel_input)
         score = accel.signal_score(trigger_score, result.accelerator_multiplier)
+        context = dict(
+            observed_value=observed, baseline_value=baseline,
+            normalised_value=adverse, observed_metric=metric,
+            observed_unit="% adverse change vs the trailing baseline")
         fired.append(agg.FiredSignal(
             trigger_key, score, trigger_key, t.sub_category,
             explanation=signal_explanation(
                 t, severity_band=band, trigger_score=trigger_score,
                 accel_input=accel_input, accel_result=result, decay=decay,
-                state=state, month_idx=month_idx,
-                observed_value=observed, baseline_value=baseline,
-                normalised_value=adverse, observed_metric=metric,
-                observed_unit="% adverse change vs the trailing baseline"),
+                state=state, month_idx=month_idx, **context),
         ))
+        state.remember(LiveSignal(
+            trigger_key, band, trigger_score, accel_input, trigger_key,
+            context, continuous=True))
 
     utilisation = pct_change("utilisation")
     if utilisation is not None:
@@ -599,16 +798,20 @@ def l2_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
         )
         result = accel.compute_accelerator(accel_input)
         score = accel.signal_score(trigger_score, result.accelerator_multiplier)
+        context = dict(
+            observed_value=observed, baseline_value=baseline,
+            normalised_value=normalised, observed_metric=metric,
+            observed_unit=unit)
         fired.append(agg.FiredSignal(
             trigger_key, score, trigger_key, t.sub_category,
             explanation=signal_explanation(
                 t, severity_band=band, trigger_score=trigger_score,
                 accel_input=accel_input, accel_result=result, decay=decay,
-                state=state, month_idx=month_idx,
-                observed_value=observed, baseline_value=baseline,
-                normalised_value=normalised, observed_metric=metric,
-                observed_unit=unit),
+                state=state, month_idx=month_idx, **context),
         ))
+        state.remember(LiveSignal(
+            trigger_key, band, trigger_score, accel_input, trigger_key,
+            context, continuous=False))
 
     rating_move = curr["internal_rating_numeric"] - prev["internal_rating_numeric"]
     if rating_move >= 1:
@@ -659,36 +862,102 @@ def l2_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
 
 
 def l4_event_signals(curr: pd.Series, prev: pd.Series | None, month_idx: int,
-                      state: TriggerDecayState) -> list[agg.FiredSignal]:
-    """L4 network T&A triggers, proxied from the real DebtRank-based
-    `network_risk_score` already computed by `backend.corporate.network`."""
+                      state: TriggerDecayState, *,
+                      relationships: dict[str, list] | None = None,
+                      counterparty_state: dict[str, object] | None = None
+                      ) -> list[agg.FiredSignal]:
+    """L4 network triggers, from the state of the borrower's counterparties.
+
+    The framework's L4 triggers are relationship EVENTS — "distress at a
+    supplier the borrower depends on", "distress at a customer material to
+    the revenue base", "adverse event at a group entity". So the reading is
+    the counterparty's own observable credit state at this quarter, weighted
+    by how material that counterparty is to this borrower, which is exactly
+    the question the trigger asks.
+
+    Materiality matters as much as distress. A supplier in stage 3 that
+    supplies two per cent of cost is not an early warning about this
+    borrower; the same supplier at thirty per cent of cost is. So the
+    severity band is the counterparty's own band, held back a step where the
+    dependency is immaterial.
+    """
     fired: list[agg.FiredSignal] = []
-    if prev is None:
+    links = dict(relationships or {})
+    others = dict(counterparty_state or {})
+    if not links or not others:
         return fired
 
-    curr_network = _safe_float(curr.get("network_risk_score"))
-    prev_network = _safe_float(prev.get("network_risk_score"))
-    if curr_network > prev_network and curr_network > 60:
-        band = 2 if curr_network < 75 else 3 if curr_network < 85 else 4
-        t = trg.BY_KEY["guarantor_deterioration"]
+    def add(trigger_key: str, band: int, *, counterparty: str, share: float,
+            metric: str, unit: str):
+        t = trg.BY_KEY[trigger_key]
         trigger_score = trg.trigger_score_for_band(band)
-        state.observe("guarantor_deterioration", month_idx, continuous_active=False)
-        decay = state.decay_for("guarantor_deterioration", t.sub_category, month_idx)
-        if decay.in_scope:
-            accel_input = accel.AcceleratorInput(3, 3, 2, 1, 1, decay_factor=decay.decay_factor)
-            result = accel.compute_accelerator(accel_input)
-            score = accel.signal_score(trigger_score, result.accelerator_multiplier)
-            fired.append(agg.FiredSignal(
-                "guarantor_deterioration", score, "guarantor_deterioration", t.sub_category,
-                explanation=signal_explanation(
-                    t, severity_band=band, trigger_score=trigger_score,
-                    accel_input=accel_input, accel_result=result, decay=decay,
-                    state=state, month_idx=month_idx,
-                    observed_value=curr_network, baseline_value=prev_network,
-                    normalised_value=curr_network - prev_network,
-                    observed_metric="network_risk_score",
-                    observed_unit="DebtRank points, and the month-on-month rise"),
-            ))
+        state.observe(trigger_key, month_idx, continuous_active=True)
+        decay = state.decay_for(trigger_key, t.sub_category, month_idx)
+        if not decay.in_scope:
+            return
+        # Corroboration band 2: the reading rests on a named counterparty's
+        # own published credit state, which is one step better than a single
+        # unverified source and one step short of the borrower's own file.
+        accel_input = accel.AcceleratorInput(
+            magnitude_band=band, velocity_band=2, persistence_band=3,
+            repetition_band=state.repetition_band(trigger_key),
+            corroboration_band=2, decay_factor=decay.decay_factor)
+        result = accel.compute_accelerator(accel_input)
+        score = accel.signal_score(trigger_score, result.accelerator_multiplier)
+        context = dict(observed_value=float(band), baseline_value=0.0,
+                       normalised_value=round(float(share), 2),
+                       observed_metric=metric, observed_unit=unit)
+        fired.append(agg.FiredSignal(
+            trigger_key, score, f"{trigger_key}_{counterparty}", t.sub_category,
+            explanation=signal_explanation(
+                t, severity_band=band, trigger_score=trigger_score,
+                accel_input=accel_input, accel_result=result, decay=decay,
+                state=state, month_idx=month_idx, source_tier=1, **context),
+        ))
+        state.remember(LiveSignal(
+            trigger_key, band, trigger_score, accel_input,
+            f"{trigger_key}_{counterparty}", context, continuous=True))
+
+    def worst(kind: str, trigger_key: str, metric: str, unit: str) -> None:
+        best_band, best_id, best_share = 0, "", 0.0
+        for counterparty, share in links.get(kind, ()):
+            band = counterparty_distress(others.get(counterparty))
+            if not band:
+                continue
+            # An immaterial dependency is held back one band. It is still a
+            # reading — a distressed name in the chain is worth knowing — but
+            # it is not the same warning as losing a third of your input cost.
+            if share < COUNTERPARTY_MATERIAL_PCT:
+                band = max(1, band - 1)
+            if band > best_band or (band == best_band and share > best_share):
+                best_band, best_id, best_share = band, counterparty, share
+        if best_band:
+            add(trigger_key, best_band, counterparty=best_id,
+                share=best_share, metric=metric, unit=unit)
+
+    worst("suppliers", "key_supplier_distress",
+          "supplier_credit_state",
+          "severity read off the supplier's own stage, arrears and grade")
+    worst("customers", "key_customer_distress",
+          "customer_credit_state",
+          "severity read off the customer's own stage, arrears and grade")
+
+    # Group and guarantor propagation. A guarantee link makes the same peer
+    # event a credit-support event rather than a commercial one, and the
+    # framework scores those under different triggers.
+    peers = links.get("group", ())
+    best_band, best_id, guaranteed = 0, "", False
+    for counterparty, guarantee_links in peers:
+        band = counterparty_distress(others.get(counterparty))
+        if band > best_band:
+            best_band, best_id, guaranteed = band, counterparty, guarantee_links > 0
+    if best_band:
+        add("guarantor_deterioration" if guaranteed
+            else "group_or_sister_company_deterioration",
+            best_band, counterparty=best_id, share=100.0,
+            metric="connected_group_credit_state",
+            unit=("severity read off the connected entity's own stage, "
+                  "arrears and grade"))
 
     return fired
 
@@ -710,19 +979,25 @@ def l3_event_signals(events_this_month: pd.DataFrame, month_idx: int,
         )
         result = accel.compute_accelerator(accel_input)
         score = accel.signal_score(trigger_score, result.accelerator_multiplier)
+        chain = f"{trigger_key}_{ev['snapshot_month']}"
+        context = dict(
+            source_tier=int(ev["source_tier"]),
+            observed_value=float(ev["severity_band"]),
+            normalised_value=float(ev["severity_band"]),
+            observed_metric="external_event_severity",
+            observed_unit=("severity band assessed on the event, from a "
+                           "tier-%d source" % int(ev["source_tier"])))
         fired.append(agg.FiredSignal(
-            trigger_key, score, f"{trigger_key}_{ev['snapshot_month']}", t.sub_category,
+            trigger_key, score, chain, t.sub_category,
             explanation=signal_explanation(
-                t, severity_band=int(ev["severity_band"]), trigger_score=trigger_score,
-                accel_input=accel_input, accel_result=result, decay=decay,
-                state=state, month_idx=month_idx,
-                source_tier=int(ev["source_tier"]),
-                observed_value=float(ev["severity_band"]),
-                normalised_value=float(ev["severity_band"]),
-                observed_metric="external_event_severity",
-                observed_unit=("severity band assessed on the event, from a "
-                               "tier-%d source" % int(ev["source_tier"]))),
+                t, severity_band=int(ev["severity_band"]),
+                trigger_score=trigger_score, accel_input=accel_input,
+                accel_result=result, decay=decay, state=state,
+                month_idx=month_idx, **context),
         ))
+        state.remember(LiveSignal(
+            trigger_key, int(ev["severity_band"]), trigger_score, accel_input,
+            chain, context, continuous=False))
     return fired
 
 
@@ -746,14 +1021,22 @@ def derive_notches(curr: pd.Series, month_fired: list[agg.FiredSignal],
     else:
         direction_of_travel = 0
 
-    # Evidence quality: the tier of this month's L3 events, if any fired —
-    # tier 1 (bank/official systems) improves confidence, tier 3
-    # (unverified single source) weakens it. No L3 event this month means
-    # every driving signal is internal bank data (tier 1) by construction.
-    if len(events_this_month) == 0:
+    # Evidence quality: the tier of the evidence actually SCORING this
+    # month — tier 1 (bank and official systems) improves confidence, tier 3
+    # (an unverified single source) weakens it.
+    #
+    # Read off the fired signals rather than off this month's fresh external
+    # events. Those were the same thing until signals began to be carried
+    # forward at their decayed weight; now a tier-2 external event from three
+    # months ago can still be driving the score while no new event has
+    # arrived, and reading only the new ones told the reader every driving
+    # signal was internal bank data when it was not.
+    tiers = [int(f.explanation["source_tier"]) for f in month_fired
+             if f.explanation.get("source_tier") is not None]
+    if not tiers:
         evidence_quality = -1
     else:
-        worst_tier = int(events_this_month["source_tier"].max())
+        worst_tier = max(tiers)
         evidence_quality = 1 if worst_tier >= 3 else 0 if worst_tier == 2 else -1
 
     age_days = _safe_float(curr.get("financial_statement_age_days"), 0.0)
@@ -781,7 +1064,10 @@ def score_borrower_month(curr: pd.Series, prev: pd.Series | None, l1_fired: list
                           l3_fired: list[agg.FiredSignal], month_idx: int, state: TriggerDecayState,
                           ews_history: list[float], graph_extra: dict[str, float],
                           sector_medians: dict[tuple[str, str], float],
-                          events_this_month: pd.DataFrame) -> tuple[dict, list[agg.FiredSignal]]:
+                          events_this_month: pd.DataFrame, *,
+                          relationships: dict[str, list] | None = None,
+                          counterparty_state: dict[str, object] | None = None,
+                          ) -> tuple[dict, list[agg.FiredSignal]]:
     sector_median = sector_medians.get((curr.get("sector"), curr.get("period")))
     tenure_years = None
     if curr.get("relationship_start_date") is not None and not pd.isna(curr.get("relationship_start_date")):
@@ -806,7 +1092,14 @@ def score_borrower_month(curr: pd.Series, prev: pd.Series | None, l1_fired: list
     )
 
     fired = list(l1_fired) + l2_event_signals(curr, prev, month_idx, state) \
-        + l4_event_signals(curr, prev, month_idx, state) + l3_fired
+        + l4_event_signals(curr, prev, month_idx, state,
+                           relationships=relationships,
+                           counterparty_state=counterparty_state) + l3_fired
+    # Everything that fired EARLIER and has not decayed out of scope, at the
+    # weight this month's decay gives it. Without this the trigger side saw
+    # only the current month's events and the whole book sat in the VERY_LOW
+    # row of the matrix.
+    fired += state.carry(month_idx, {f.signal_key for f in fired})
     ta_result = agg.aggregate_ta_score(tuple(fired))
 
     notch_values = derive_notches(curr, fired, ews_history, events_this_month)
@@ -882,6 +1175,23 @@ def main(argv: list[str] | None = None) -> int:
     print("> Computing supplier/receivable concentration from corporate_supply_chain")
     graph_extra = build_graph_concentration(borrower_ids)
 
+    print("> Mapping counterparties from corporate_supply_chain and "
+          "corporate_connected_groups")
+    relationships = build_relationships(borrower_ids)
+    # The counterparty's own credit state, by quarter, over the WHOLE
+    # universe rather than the 300 sampled names: a borrower's key supplier
+    # is usually not itself in the Early Warning sample, and reading L4 only
+    # off the sample would make the layer a function of who happened to be
+    # picked.
+    counterparty_by_quarter: dict[str, dict[str, object]] = {}
+    for quarter, chunk in full_universe.groupby("period"):
+        counterparty_by_quarter[str(quarter)] = {
+            str(r["borrower_id"]): r for _, r in chunk.iterrows()}
+    linked = sum(1 for v in relationships.values()
+                 if v["suppliers"] or v["customers"] or v["group"])
+    print(f"  {linked} of {len(borrower_ids)} borrowers have at least one "
+          f"mapped counterparty")
+
     print("> Generating governed synthetic L3 external-intelligence events")
     l3_events = generate_l3_events(borrower_ids)
     print(f"  {len(l3_events)} synthetic L3 events across {len(borrower_ids)} borrowers")
@@ -938,6 +1248,8 @@ def main(argv: list[str] | None = None) -> int:
             row, fired = score_borrower_month(
                 curr, prev_for_event, l1_fired, l3_fired, month_idx, state, ews_history,
                 borrower_extra, sector_medians, events_this_month,
+                relationships=relationships.get(borrower_id),
+                counterparty_state=counterparty_by_quarter.get(quarter),
             )
             row["snapshot_month"] = month_str
             # The warm-up months are scored so the published ones inherit a

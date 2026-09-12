@@ -43,6 +43,7 @@ import pandas as pd
 from backend.early_warning import reasons
 from backend.early_warning import signal_fields as sigf
 from backend.early_warning import v2_service as svc
+from backend.early_warning import layers as lay
 from backend.early_warning import wide
 
 # ------------------------------------------------------------------ groups
@@ -291,8 +292,6 @@ def _subcategory_fields() -> list[Field]:
 
 
 def _layer_fields() -> list[Field]:
-    names = {"l1": "internal behavioural", "l2": "credit events",
-             "l3": "external intelligence", "l4": "network"}
     out: list[Field] = []
     for key in wide.LAYER_KEYS:
         layer, dim = key.split("_")
@@ -300,10 +299,40 @@ def _layer_fields() -> list[Field]:
         out.append(Field(
             key, f"{layer.upper()} {dimension}",
             f"The {dimension} score for layer {layer.upper()}, "
-            f"{names.get(layer, layer)}. One of the six layer/dimension "
-            f"outputs the model produces before combination.",
+            f"{lay.BY_CODE[layer.upper()].short}. One of the six "
+            f"layer/dimension outputs the model produces before combination.",
             LAYER, unit="score", higher_is_worse=True,
             layer=layer.upper(), dimension=dimension))
+    # The per-layer "did anything fire here" flags. They exist because
+    # "which obligors carry external-intelligence warning signals?" is a
+    # question about a layer having fired, and until there was a field for
+    # it the question could only be answered by the score everybody has.
+    for entry in lay.LAYERS:
+        out.append(Field(
+            entry.active_field, f"{entry.code} signals present",
+            f"Whether any signal in {lay.described(entry.code)} fired for "
+            f"this obligor in this month and has not fully decayed — that "
+            f"is, whether {entry.ta_key} is above zero. The trigger side "
+            f"only: the classifier side describes a standing condition every "
+            f"obligor has, so a flag read from it would be true for the "
+            f"whole book.",
+            LAYER, dtype="boolean", derived=True, layer=entry.code,
+            dimension="T&A"))
+    out += [
+        Field(lay.FIRING_COUNT_FIELD, "Layers firing",
+              "How many of the four layers have a signal firing for this "
+              "obligor this month, trigger side. Zero to four.",
+              LAYER, unit="count", higher_is_worse=True, derived=True,
+              dimension="T&A"),
+        Field(lay.CORROBORATED_FIELD, "Corroborated across layers",
+              "Whether more than one layer is firing for this obligor. An "
+              "external event nothing internal echoes is a lead to verify; "
+              "the same event with arrears moving underneath it is a finding "
+              "to act on. This is a cross-layer reading and is not the "
+              "accelerator's own corroboration dimension, which asks a "
+              "different question about one signal's sources.",
+              LAYER, dtype="boolean", derived=True, dimension="T&A"),
+    ]
     out += [
         Field("ta_score", "Trigger & Accelerator score",
               "What is happening now: fresh deterioration measured against "

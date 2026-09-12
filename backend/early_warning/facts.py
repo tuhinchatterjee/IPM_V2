@@ -51,6 +51,7 @@ import pandas as pd
 from backend.early_warning import aggregation as agg
 from backend.early_warning import classifiers_v2 as clf
 from backend.early_warning import executable as ex
+from backend.early_warning import layers as lay
 from backend.early_warning import reasons
 from backend.early_warning import v2_service as svc
 
@@ -100,12 +101,10 @@ TA_LAYER_WEIGHTS = agg.TA_LAYER_WEIGHTS
 #: advertised either.
 LEVEL_FIELDS: dict[str, str] = dict(ex.GROUPINGS)
 
-LAYER_NAMES = {
-    "L1": "Layer 1, internal behavioural",
-    "L2": "Layer 2, credit and financial fundamentals",
-    "L3": "Layer 3, external intelligence",
-    "L4": "Layer 4, network",
-}
+#: One copy of the layer names, read from the registry that owns them. This
+#: used to be a second literal beside the API router's own and the two
+#: disagreed on L2 and L4.
+LAYER_NAMES: dict[str, str] = {code: lay.described(code) for code in lay.CODES}
 
 
 class UnsupportedLevel(KeyError):
@@ -268,6 +267,12 @@ def _with_derived(frame: pd.DataFrame) -> pd.DataFrame:
     if "layer_dimension_scores" in out.columns:
         out["dominant_layer"] = out["layer_dimension_scores"].apply(
             lambda s: _dominant_layer(s or {}) or ex.NO_VALUE)
+        # The per-layer "this layer fired" flags, from the same roll-up the
+        # dominant layer is read from. A question that names a layer needs
+        # the layer's own population, not the layer that happens to lead.
+        for column, values in lay.activity(
+                list(out["layer_dimension_scores"])).items():
+            out[column] = values
     if "utilisation_pct" in out.columns:
         out["utilisation_band"] = pd.cut(
             out["utilisation_pct"], bins=[-0.01, 50, 75, 90, 100, 1e9],
@@ -565,7 +570,8 @@ def _narrow(frame, only: dict[str, Any] | None):
 
 
 def level(field_name: str, period: str | None = None, *,
-          only: dict[str, Any] | None = None) -> FactPack:
+          only: dict[str, Any] | None = None,
+          rank_by: str = "") -> FactPack:
     """The book grouped by one field — segment, grade, stage, region, and so on.
 
     The grouping is not fixed to segment. Any attribute that partitions the
@@ -604,12 +610,32 @@ def level(field_name: str, period: str | None = None, *,
             "weakest_obligor": weakest["customer_name"],
             "weakest_customer_id": weakest["customer_id"],
         })
-    rows.sort(key=lambda r: r["portfolio_ews"], reverse=True)
+    # What the reader asked the groups to be ordered BY. "Which sectors have
+    # the highest external-intelligence score?" is the same partition as
+    # "which sectors are weakest" and a different ranking, and answering the
+    # first with the second names the wrong sector with the right arithmetic.
+    ordering = "portfolio_ews"
+    if rank_by:
+        code = lay.of_field(rank_by)
+        column = code.lower() if code else ""
+        if column and rows and column in rows[0]:
+            ordering = column
+        elif rank_by in (rows[0] if rows else {}):
+            ordering = rank_by
+    rows.sort(key=lambda r: (r.get(ordering) or 0.0), reverse=True)
     figures = _population_figures(bm)
     figures["level_field"] = field_name
     figures["level_label"] = LEVEL_FIELDS[field_name]
+    figures["ranked_by"] = ordering
+    figures["ranked_by_label"] = (
+        f"{lay.described(lay.of_field(rank_by))} score"
+        if rank_by and lay.of_field(rank_by)
+        else "exposure-weighted Early Warning score")
     figures["groups"] = len(rows)
     figures["weakest_group"] = rows[0][field_name] if rows else None
+    figures["leading_group"] = rows[0][field_name] if rows else None
+    figures["leading_value"] = (round(float(rows[0].get(ordering) or 0.0), 2)
+                                if rows else None)
     # The exposure the three weakest groups carry between them. It is derived
     # here rather than in the sentence that states it, because a figure a
     # composer adds up on its way to the page is a figure the pack cannot
@@ -620,6 +646,10 @@ def level(field_name: str, period: str | None = None, *,
     if field_name == "internal_rating":
         caveats.append(_GRADE_IS_NOT_EWS)
         figures["divergence"] = rating_divergence(period)
+    if rank_by and lay.of_field(rank_by) == "L3":
+        caveats.append(_LAYER_3_SYNTHETIC)
+    elif rank_by and lay.of_field(rank_by) == "L4":
+        caveats.append(_LAYER_4_EDGES)
     return FactPack(
         scope="level", label=f"the book by {LEVEL_FIELDS[field_name].lower()}",
         period=period, figures=figures, rows=rows,
@@ -770,6 +800,345 @@ def layer(customer_id: str, layer_code: str) -> FactPack:
         rows=(node or {}).get("sub_categories", []),
         provenance=pack.provenance, caveats=caveats,
     )
+
+
+def layer_population(layer_code: str, period: str | None = None, *,
+                     only: dict[str, Any] | None = None,
+                     limit: int = 25) -> FactPack:
+    """The obligors one detection layer has actually fired for.
+
+    This is the pack behind "which obligors carry external-intelligence
+    warning signals?" — a question about WHERE the risk was detected, not
+    about how severe the score is. Answering it from the severity ranking
+    gives the biggest high-risk names, which is a correct answer to a
+    question nobody asked: an obligor can carry a live external event and
+    still sit at LOW overall, and that obligor is precisely who is being
+    asked after.
+
+    It also carries the corroboration the question after this one always
+    turns out to be: how many of these names have something INTERNAL moving
+    as well, and how many rest on this layer alone. A single-layer external
+    reading is the one a credit officer is right to verify before acting on,
+    and the pack says so rather than leaving the reader to infer it.
+    """
+    entry = lay.BY_CODE.get(str(layer_code).upper())
+    if entry is None:
+        raise KeyError(layer_code)
+    period = period or svc.latest_period()
+    book = _with_derived(svc.borrower_month(period))
+    narrowed = _narrow(book, only)
+    pop = narrowed[narrowed[entry.active_field]]
+
+    figures = _population_figures(pop)
+    figures["layer"] = entry.code
+    figures["layer_name"] = entry.name
+    figures["layer_described"] = lay.described(entry.code)
+    figures["book_obligors"] = int(len(book))
+    figures["book_exposure"] = round(float(book["exposure"].sum()), 2)
+    figures["considered_obligors"] = int(len(narrowed))
+    figures["share_of_book_obligors_pct"] = (
+        round(100.0 * len(pop) / len(book), 1) if len(book) else 0.0)
+    figures["share_of_book_exposure_pct"] = (
+        round(100.0 * float(pop["exposure"].sum())
+              / float(book["exposure"].sum()), 1)
+        if float(book["exposure"].sum()) else 0.0)
+
+    scores = pop["layer_dimension_scores"].apply(
+        lambda row, k=entry.ta_key: float((row or {}).get(k) or 0.0)) \
+        if len(pop) else None
+    figures["layer_score_mean"] = (round(float(scores.mean()), 2)
+                                   if scores is not None and len(pop) else 0.0)
+    figures["layer_score_max"] = (round(float(scores.max()), 2)
+                                  if scores is not None and len(pop) else 0.0)
+
+    # Band mix inside the layer's own population, which is the figure that
+    # says whether these names are already on the watchlist or not.
+    figures["band_mix"] = [
+        {"band": band, "obligors": int((pop["ews_band"] == band).sum())}
+        for band in reversed(BAND_ORDER)
+        if int((pop["ews_band"] == band).sum()) > 0]
+
+    others = [e for e in lay.LAYERS if e.code != entry.code]
+    corroborated = 0
+    alone = 0
+    for _, row in pop.iterrows():
+        elsewhere = any(bool(row.get(e.active_field)) for e in others)
+        corroborated += 1 if elsewhere else 0
+        alone += 0 if elsewhere else 1
+    figures["corroborated_elsewhere"] = corroborated
+    figures["this_layer_alone"] = alone
+    figures["corroboration_note"] = (
+        f"{alone} of {len(pop)} rest on {lay.described(entry.code)} with no "
+        f"other layer firing." if len(pop) else "")
+
+    rows = []
+    ordered = pop.assign(_layer_score=scores).sort_values(
+        "_layer_score", ascending=False) if len(pop) else pop
+    for _, row in ordered.head(limit).iterrows():
+        scored = row.get("layer_dimension_scores") or {}
+        rows.append({
+            "customer_id": row["customer_id"],
+            "customer_name": row["customer_name"],
+            entry.ta_key: round(float(scored.get(entry.ta_key) or 0.0), 2),
+            "ews_score": round(float(row["ews_score"]), 2),
+            "ews_band": row["ews_band"],
+            "exposure": round(float(row["exposure"]), 2),
+            "sector": row.get("sector"),
+            "dominant_driver": row.get("dominant_driver"),
+            "corroborated": any(bool(row.get(e.active_field)) for e in others),
+            **{e.ta_key: round(float(scored.get(e.ta_key) or 0.0), 2)
+               for e in others},
+        })
+
+    caveats = [_NOT_CALIBRATED]
+    if entry.code == "L3":
+        caveats.append(_LAYER_3_SYNTHETIC)
+    elif entry.code == "L4":
+        caveats.append(_LAYER_4_EDGES)
+    label = f"obligors carrying {entry.name.lower()} signals"
+    said: list[str] = []
+    for key, value in (only or {}).items():
+        if key in lay.ACTIVE_FIELDS or key == lay.FIRING_COUNT_FIELD:
+            continue
+        if key == lay.CORROBORATED_FIELD:
+            said.append("corroborated by another layer" if value
+                        else "with no other layer firing")
+        elif key == "high_plus":
+            said.append("at high severity or above")
+        else:
+            said.append(f"{key} {value}")
+    if said:
+        label = f"{label}, {', '.join(said)}"
+    return FactPack(
+        scope="layer_population", label=label, period=period,
+        figures=figures, rows=rows,
+        provenance=["early_warning_borrower_month",
+                    "early_warning_signal_observation"],
+        caveats=caveats)
+
+
+#: "High or Very High" as one name. It is the watchlist threshold, and it is
+#: what a reader means by "moved into High or Very High" — reading it as one
+#: band answers about a fifth of the question.
+BAND_SET = "HIGH_PLUS"
+
+
+def _bands_named(said: Any) -> tuple[str, ...]:
+    """The band or bands a from/to name stands for."""
+    text = str(said or "").upper().replace(" ", "_")
+    if not text:
+        return ()
+    if text == BAND_SET:
+        return tuple(HIGH_PLUS)
+    return (text,) if text in BAND_ORDER else ()
+
+
+def transitions(period_from: str | None = None, period_to: str | None = None,
+                *, only: dict[str, Any] | None = None,
+                from_band: str | None = None, to_band: str | None = None,
+                direction: str = "", group_by: str = "",
+                limit: int = 25) -> FactPack:
+    """Who changed severity band between two published months.
+
+    A band transition is not a score movement, and answering one with the
+    other is the defect this exists to close. "How many obligors changed risk
+    band this month?" came back as a twenty-month decomposition of the
+    portfolio score by layer: correct arithmetic about a real thing, and not
+    the thing that was asked. A band change is discrete, it is per obligor,
+    and it is what the watchlist and the escalation matrix actually key on —
+    a name that crossed into HIGH is a case to open whether its score moved
+    two points or twenty.
+
+    Everything here is recomputed from the two published months. Nothing is
+    stored, nothing is cached and no figure in this pack was written down by
+    anybody: rerun it after a rebuild and it changes with the data, which is
+    the only way a transition count stays true.
+
+    The population is the obligors present in BOTH months. An obligor that
+    appears or disappears has not changed band — it has entered or left the
+    book, which is a different fact and is counted separately rather than
+    folded in as a deterioration.
+    """
+    published = list(svc.periods())
+    if not published:
+        raise KeyError("no published periods")
+    period_to = period_to or published[-1]
+    if period_from is None:
+        earlier = [p for p in published if p < period_to]
+        period_from = earlier[-1] if earlier else period_to
+    if period_from not in published or period_to not in published:
+        raise KeyError(f"{period_from} -> {period_to}")
+
+    before = _narrow(_with_derived(svc.borrower_month(period_from)), only)
+    after = _narrow(_with_derived(svc.borrower_month(period_to)), only)
+    before_by = {str(r["customer_id"]): r for r in before.to_dict("records")}
+    after_by = {str(r["customer_id"]): r for r in after.to_dict("records")}
+    both = [cid for cid in after_by if cid in before_by]
+
+    def rank(band: Any) -> int:
+        text = str(band or "").upper().replace(" ", "_")
+        return BAND_ORDER.index(text) if text in BAND_ORDER else -1
+
+    moves: list[dict[str, Any]] = []
+    matrix: dict[tuple[str, str], dict[str, Any]] = {}
+    improved = deteriorated = unchanged = 0
+    into_high = out_of_high = 0
+    exposure_worse = exposure_better = 0.0
+
+    for cid in both:
+        was, now = before_by[cid], after_by[cid]
+        old_band = str(was["ews_band"])
+        new_band = str(now["ews_band"])
+        step = rank(new_band) - rank(old_band)
+        way = ("deteriorated" if step > 0 else
+               "improved" if step < 0 else "unchanged")
+        exposure = float(now["exposure"])
+        if way == "deteriorated":
+            deteriorated += 1
+            exposure_worse += exposure
+        elif way == "improved":
+            improved += 1
+            exposure_better += exposure
+        else:
+            unchanged += 1
+        was_high = old_band in HIGH_PLUS
+        now_high = new_band in HIGH_PLUS
+        into_high += 1 if (now_high and not was_high) else 0
+        out_of_high += 1 if (was_high and not now_high) else 0
+
+        cell = matrix.setdefault((old_band, new_band),
+                                 {"from_band": old_band, "to_band": new_band,
+                                  "obligors": 0, "exposure": 0.0})
+        cell["obligors"] += 1
+        cell["exposure"] = round(cell["exposure"] + exposure, 2)
+
+        if step == 0:
+            continue
+        moves.append({
+            "customer_id": cid,
+            "customer_name": now.get("customer_name"),
+            "from_band": old_band, "to_band": new_band,
+            "bands_moved": abs(step), "direction": way,
+            "ews_score_before": round(float(was["ews_score"]), 2),
+            "ews_score_after": round(float(now["ews_score"]), 2),
+            "score_change": round(float(now["ews_score"])
+                                  - float(was["ews_score"]), 2),
+            "exposure": round(exposure, 2),
+            "sector": now.get("sector"),
+            "dominant_driver": now.get("dominant_driver"),
+            "crossed_into_high_plus": bool(now_high and not was_high),
+        })
+
+    # The drill-down the question asked for, applied AFTER the counts so the
+    # population figures still describe the whole move and the rows describe
+    # the slice. A reader who asks "who went from High to Very High" needs
+    # both: the four names, and the fact that thirty-one others moved too.
+    drill = list(moves)
+    wanted_from = _bands_named(from_band)
+    wanted_to = _bands_named(to_band)
+    if from_band and not wanted_from:
+        raise KeyError(from_band)
+    if to_band and not wanted_to:
+        raise KeyError(to_band)
+    if wanted_from:
+        # A move that started AND ended inside the named set has not left it.
+        # "Who came out of High or Very High?" must not return a name that
+        # went from HIGH to VERY_HIGH — it deteriorated, inside the set.
+        drill = [m for m in drill if m["from_band"] in wanted_from
+                 and (len(wanted_from) == 1 or m["to_band"] not in wanted_from)]
+    if wanted_to:
+        drill = [m for m in drill if m["to_band"] in wanted_to
+                 and (len(wanted_to) == 1 or m["from_band"] not in wanted_to)]
+    if direction in ("improved", "deteriorated"):
+        drill = [m for m in drill if m["direction"] == direction]
+    drill.sort(key=lambda m: (-m["bands_moved"], -m["exposure"]))
+
+    figures: dict[str, Any] = {
+        "from_period": period_from, "to_period": period_to,
+        "obligors_in_both": len(both),
+        "entered_the_book": len([c for c in after_by if c not in before_by]),
+        "left_the_book": len([c for c in before_by if c not in after_by]),
+        "changed": improved + deteriorated,
+        "improved": improved,
+        "deteriorated": deteriorated,
+        "unchanged": unchanged,
+        "crossed_into_high_plus": into_high,
+        "left_high_plus": out_of_high,
+        "exposure_deteriorated": round(exposure_worse, 2),
+        "exposure_improved": round(exposure_better, 2),
+        "matrix": sorted(
+            (cell for cell in matrix.values()),
+            key=lambda c: (-c["obligors"], c["from_band"], c["to_band"])),
+        "band_counts_before": {
+            band: int((before["ews_band"] == band).sum())
+            for band in reversed(BAND_ORDER)},
+        "band_counts_after": {
+            band: int((after["ews_band"] == band).sum())
+            for band in reversed(BAND_ORDER)},
+        "drilled": len(drill),
+        "drill_filter": {k: v for k, v in
+                         (("from_band", from_band), ("to_band", to_band),
+                          ("direction", direction)) if v},
+        "drill_exposure": round(sum(m["exposure"] for m in drill), 2),
+    }
+
+    # "Which sectors had the most adverse band migrations?" is the same
+    # transition read one level up. Grouped here rather than by the caller,
+    # because a count a composer adds up on its way to the page is a figure
+    # the pack cannot vouch for.
+    if group_by:
+        if group_by not in LEVEL_FIELDS:
+            raise UnsupportedLevel(group_by)
+        if group_by not in after.columns:
+            raise UnsupportedLevel(
+                group_by,
+                f"{group_by!r} is a governed level but the published rows do "
+                f"not carry it.")
+        buckets: dict[str, dict[str, Any]] = {}
+        for cid in both:
+            value = str(after_by[cid].get(group_by) or ex.NO_VALUE)
+            cell = buckets.setdefault(value, {
+                group_by: value, "obligors": 0, "deteriorated": 0,
+                "improved": 0, "unchanged": 0, "changed": 0,
+                "exposure_deteriorated": 0.0, "exposure_improved": 0.0,
+                "crossed_into_high_plus": 0})
+            cell["obligors"] += 1
+        for move in moves:
+            value = str(after_by[move["customer_id"]].get(group_by)
+                        or ex.NO_VALUE)
+            cell = buckets[value]
+            cell["changed"] += 1
+            cell[move["direction"]] += 1
+            key = ("exposure_deteriorated" if move["direction"] == "deteriorated"
+                   else "exposure_improved")
+            cell[key] = round(cell[key] + move["exposure"], 2)
+            cell["crossed_into_high_plus"] += (
+                1 if move["crossed_into_high_plus"] else 0)
+        for cell in buckets.values():
+            cell["unchanged"] = cell["obligors"] - cell["changed"]
+            cell["net_adverse"] = cell["deteriorated"] - cell["improved"]
+        grouped = sorted(
+            buckets.values(),
+            key=lambda c: (-c["deteriorated"], -c["net_adverse"],
+                           -c["exposure_deteriorated"], c[group_by]))
+        figures["grouped_by"] = group_by
+        figures["grouped_label"] = LEVEL_FIELDS[group_by]
+        figures["groups"] = len(grouped)
+        figures["groups_with_adverse_moves"] = sum(
+            1 for c in grouped if c["deteriorated"])
+        figures["worst_group"] = grouped[0][group_by] if grouped else None
+        figures["group_rows"] = grouped
+    if period_from == period_to:
+        figures["single_period"] = True
+
+    label = f"band transitions from {period_from} to {period_to}"
+    rows = (figures["group_rows"][:limit] if group_by
+            else drill[:limit])
+    return FactPack(
+        scope="transitions", label=label, period=period_to,
+        figures=figures, rows=rows,
+        provenance=["early_warning_borrower_month"],
+        caveats=[_NOT_CALIBRATED])
 
 
 def signal_evidence(customer_id: str, signal_key: str,
@@ -972,6 +1341,7 @@ class PackRuntime:
 
 __all__ = [
     "json_safe", "HIGH_PLUS", "BAND_ORDER", "LEVEL_FIELDS", "LAYER_NAMES",
+    "layer_population", "transitions",
     "METHODOLOGY_ASPECTS", "FactPack", "PackRuntime",
     "contribution_by_layer", "concentration", "live_versus_structural",
     "movement_attribution", "rating_divergence",

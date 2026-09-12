@@ -43,6 +43,8 @@ from __future__ import annotations
 import functools
 from typing import Any
 
+from backend.early_warning import layers as _lay
+
 #: What the book can be partitioned by, and what each level is called.
 #:
 #: The test of membership is not "is this field in the dictionary" but "can
@@ -153,6 +155,21 @@ GROUPING_ALIASES: dict[str, str] = {
     "ews_score_band": "ews_band",
     "credit_band": "ews_band",
 }
+
+#: The layer measures and flags, under the names a question gives them.
+#:
+#: Derived from the layer registry rather than typed out, so a layer cannot
+#: be renamed in one place and stay spelled the old way here. Each entry is
+#: still an exact name mapping to exactly one canonical field — the rule the
+#: rest of this module keeps.
+for _entry in _lay.LAYERS:
+    _code = _entry.code.lower()
+    FIELD_ALIASES[f"{_code}_score"] = _entry.ta_key
+    FIELD_ALIASES[f"{_code}_ta_score"] = _entry.ta_key
+    FIELD_ALIASES[f"{_code}_signals"] = _entry.active_field
+    FIELD_ALIASES[f"{_code}_present"] = _entry.active_field
+    FIELD_ALIASES[f"{_code}_fired"] = _entry.active_field
+del _entry, _code
 
 #: The roles a field can be used in. Named because the answer differs by
 #: role: `exposure` is a fine measure and a meaningless partition.

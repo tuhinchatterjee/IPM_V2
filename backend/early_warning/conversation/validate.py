@@ -45,6 +45,14 @@ from typing import Any
 from backend.early_warning import dictionary as dic
 from backend.early_warning import executable as ex
 from backend.early_warning import grain as grain_mod
+from backend.early_warning import layers as layers_mod
+
+#: The five severity bands, from the classifier module that defines them.
+from backend.early_warning.classifiers_v2 import BAND_ORDER as _BAND_ORDER
+
+#: The five bands, plus the one PAIR a question routinely names as a
+#: single thing: "High or Very High" is the watchlist threshold.
+_BANDS: tuple[str, ...] = tuple(_BAND_ORDER) + ("HIGH_PLUS",)
 from backend.early_warning.conversation import plan as plan_mod
 
 #: The one domain any step may name.
@@ -305,15 +313,45 @@ def check(plan: plan_mod.Plan, package: grain_mod.GrainPackage, *,
                          f"reader, not something to pick."),
                 step_index=index, offered=[], repairable=False))
 
-        if step.analysis == plan_mod.LAYER and step.layer \
-                and step.layer.upper() not in ("L1", "L2", "L3", "L4"):
+        # Any step may now name a layer, not only a LAYER step: a ranking or
+        # a grouping read on one carries it too. Checking only the LAYER step
+        # left the other two able to name a layer the model does not have.
+        if step.layer and not layers_mod.is_code(step.layer):
             result.failures.append(Failure(
                 code="unknown_layer",
                 message=(f"Step {index} asks for layer {step.layer!r}. The "
                          f"model has four."),
-                step_index=index, offered=["L1", "L2", "L3", "L4"]))
+                step_index=index, offered=list(layers_mod.CODES)))
 
-        if step.analysis == plan_mod.MOVEMENT and not step.comparison_period:
+        if step.analysis == plan_mod.LAYER and not step.customer_id:
+            result.failures.append(Failure(
+                code="missing_obligor",
+                message=(f"Step {index} reads a layer and names no obligor. "
+                         f"A layer reading is one obligor's; the portfolio "
+                         f"view of a layer is a grouping or a ranking."),
+                step_index=index))
+
+        if step.analysis == plan_mod.TRANSITION:
+            for named, where in (("from_band", step.from_band),
+                                 ("to_band", step.to_band)):
+                if where and str(where).upper() not in _BANDS:
+                    result.failures.append(Failure(
+                        code="unknown_band",
+                        message=(f"Step {index} asks for {named} "
+                                 f"{where!r}. The model has five."),
+                        step_index=index, offered=list(_BANDS)))
+            if step.direction and step.direction not in ("improved",
+                                                          "deteriorated"):
+                result.failures.append(Failure(
+                    code="unknown_direction",
+                    message=(f"Step {index} asks for direction "
+                             f"{step.direction!r}. A band either improved or "
+                             f"deteriorated."),
+                    step_index=index,
+                    offered=["improved", "deteriorated"]))
+
+        if step.analysis in (plan_mod.MOVEMENT, plan_mod.TRANSITION) \
+                and not step.comparison_period:
             result.failures.append(Failure(
                 code="missing_comparison",
                 message=(f"Step {index} is a movement and names nothing to "
@@ -387,7 +425,9 @@ def failure_packet(plan: plan_mod.Plan, result: Result,
     for failure in result.failures:
         if failure.code not in ("ungroupable", "unknown_field",
                                 "unknown_analysis", "unknown_period",
-                                "unknown_layer", "future_leakage",
+                                "unknown_layer", "missing_obligor",
+                                "unknown_band", "unknown_direction",
+                                "future_leakage",
                                 "missing_comparison"):
             continue
         step = (plan.steps[failure.step_index]

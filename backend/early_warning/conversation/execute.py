@@ -42,6 +42,7 @@ import pandas as pd
 from backend.early_warning import executable as ex
 from backend.early_warning import facts as ff
 from backend.early_warning import grain as grain_mod
+from backend.early_warning import layers as layers_mod
 from backend.early_warning import v2_service as svc
 from backend.early_warning import wide
 from backend.early_warning.conversation import plan as plan_mod
@@ -225,6 +226,23 @@ def _run(step: plan_mod.Step) -> Executed:
                      grain="customer_month", pack=pack,
                      statement=f"early_warning_signal_observation[{signal}]")
 
+    if analysis == plan_mod.LAYER:
+        # A layer step used to fall through to the population branch, where
+        # it read the whole book and the layer it named went nowhere. It has
+        # its own pack: the nodes inside the layer for this obligor, which is
+        # what "what external warning events are driving this borrower?"
+        # asks for.
+        if not step.customer_id:
+            raise ExecutionError(
+                f"A {step.layer or 'layer'} reading needs an obligor, and "
+                f"the question named none.", code="no_obligor")
+        pack = ff.layer(step.customer_id, step.layer)
+        return _done(step, started, figures=dict(pack.figures),
+                     rows=list(pack.rows), grain="customer_month", pack=pack,
+                     statement=f"early_warning_layer_tree"
+                               f"[customer_id={step.customer_id}, "
+                               f"layer={step.layer}]")
+
     if analysis == plan_mod.BORROWER:
         pack = ff.borrower(step.customer_id)
         return _done(step, started, figures=dict(pack.figures),
@@ -241,6 +259,27 @@ def _run(step: plan_mod.Step) -> Executed:
                      statement=f"variance-reduction driver tree over "
                                f"early_warning_borrower_month[{step.period}]")
 
+    if analysis == plan_mod.TRANSITION:
+        pack = ff.transitions(step.comparison_period or None,
+                              step.period or None,
+                              only=step.filters or None,
+                              from_band=step.from_band or None,
+                              to_band=step.to_band or None,
+                              direction=step.direction or "",
+                              group_by=step.group_by or "",
+                              limit=max(1, step.limit))
+        cell = ", ".join(
+            f"{k}={v}" for k, v in (("from", step.from_band),
+                                    ("to", step.to_band),
+                                    ("direction", step.direction)) if v)
+        return _done(step, started, figures=dict(pack.figures),
+                     rows=list(pack.rows), grain="population_transition",
+                     pack=pack,
+                     statement=f"early_warning_borrower_month"
+                               f"[{step.comparison_period}] vs "
+                               f"[{step.period}], band by band"
+                               + (f", {cell}" if cell else ""))
+
     if analysis == plan_mod.MOVEMENT:
         pack = ff.movement(step.comparison_period or None, step.period or None,
                            where=step.filters or None)
@@ -254,13 +293,20 @@ def _run(step: plan_mod.Step) -> Executed:
         # not after and not at all: "exposure by sector for obligors at High
         # or Very High" is a cut of the high-risk population, not of the book.
         only = dict(step.filters or {})
-        pack = ff.level(step.group_by, step.period, only=only or None)
+        # A grouping the question read ON a layer is ordered by that layer's
+        # score. Same partition, different ranking — and the ranking is what
+        # the reader asked for.
+        rank_by = (layers_mod.BY_CODE[step.layer].ta_key
+                   if layers_mod.is_code(step.layer) else "")
+        pack = ff.level(step.group_by, step.period, only=only or None,
+                        rank_by=rank_by)
         where = ", ".join(f"{k}={v!r}" for k, v in only.items())
         return _done(step, started, figures=dict(pack.figures),
                      rows=list(pack.rows), grain="group_month", pack=pack,
                      statement=f"early_warning_borrower_month[{step.period}] "
                                + (f"where {where} " if where else "")
-                               + f"grouped by {step.group_by}")
+                               + f"grouped by {step.group_by}"
+                               + (f", ranked by {rank_by}" if rank_by else ""))
 
     frame = _frame(step)
     figures = _population_figures(frame)
@@ -289,7 +335,20 @@ def _run(step: plan_mod.Step) -> Executed:
     pack = _population_pack(step)
     found = _rows(frame, step)
 
-    if step.analysis == plan_mod.RANKING and pack is not None:
+    if step.analysis == plan_mod.RANKING and pack is not None \
+            and pack.scope == "layer_population":
+        # A layer ranking already has its pack: `layer_population` orders by
+        # the layer's own score and carries the corroboration counts. Rewrapping
+        # it as a bare ranking would throw both away and hand the composer a
+        # list of names with nothing to say about why they are on it.
+        found = list(pack.rows)[:max(1, step.limit)]
+        pack = ff.FactPack(
+            scope=pack.scope, label=pack.label, period=pack.period,
+            figures={**dict(pack.figures), "named": len(found),
+                     "ordered_by": step.order_by},
+            rows=found, provenance=list(pack.provenance),
+            caveats=list(pack.caveats))
+    elif step.analysis == plan_mod.RANKING and pack is not None:
         # A ranking is about the NAMES, and until this existed it was not.
         #
         # The ranking step reuses the population frame, so it used to return
@@ -321,8 +380,18 @@ def _population_pack(step: plan_mod.Step) -> ff.FactPack | None:
     the same answer.
     """
     filters = dict(step.filters or {})
-    filters.pop("high_plus", None)
     try:
+        if layers_mod.is_code(step.layer):
+            # A layer question's population is the obligors that layer fired
+            # for. Reading the portfolio pack here answered "which obligors
+            # carry external signals" with the whole book's average score.
+            rest = {k: v for k, v in filters.items()
+                    if k not in layers_mod.ACTIVE_FIELDS}
+            rest.pop(layers_mod.FIRING_COUNT_FIELD, None)
+            return ff.layer_population(step.layer, step.period or None,
+                                       only=rest or None,
+                                       limit=max(1, step.limit))
+        filters.pop("high_plus", None)
         if not filters:
             return ff.portfolio(step.period or None)
         column, value = next(iter(filters.items()))

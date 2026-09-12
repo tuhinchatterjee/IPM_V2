@@ -221,6 +221,11 @@ _ANALYSIS_ALIASES: dict[str, str] = {
     "signals": plan_mod.EVIDENCE,
     "lineage": plan_mod.EVIDENCE,
     "layers": plan_mod.LAYER,
+    "band_transition": plan_mod.TRANSITION,
+    "band_transitions": plan_mod.TRANSITION,
+    "transitions": plan_mod.TRANSITION,
+    "migration": plan_mod.TRANSITION,
+    "band_migration": plan_mod.TRANSITION,
     "methodology_explanation": plan_mod.METHODOLOGY,
 }
 

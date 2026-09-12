@@ -36,6 +36,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.early_warning import layers as layers_mod
 from backend.early_warning.conversation import budget as budget_mod
 from backend.early_warning.conversation import seam as seam_mod
 
@@ -114,6 +115,10 @@ class BusinessRequest:
     comparison_period: str = ""
     inherited_context: dict[str, Any] = field(default_factory=dict)
     requested_grouping: str = ""
+    #: The detection layer the question names, as a governed code. A layer is
+    #: not a grouping and not a filter value; it decides which of the model's
+    #: six layer/dimension outputs the answer is about.
+    requested_layer: str = ""
     requested_analysis: str = ""
     #: EVERY analysis the request asks for, not just the leading one.
     requested_analyses: list[str] = field(default_factory=list)
@@ -137,6 +142,7 @@ class BusinessRequest:
             "comparison_period": self.comparison_period,
             "inherited_context": dict(self.inherited_context),
             "requested_grouping": self.requested_grouping,
+            "requested_layer": self.requested_layer,
             "requested_analysis": self.requested_analysis,
             "requested_analyses": list(self.requested_analyses),
             "requested_evidence": self.requested_evidence,
@@ -436,6 +442,150 @@ _PERIOD_PHRASES: tuple[tuple[str, int], ...] = (
 )
 
 
+#: A question about crossing a severity band, rather than about how far a
+#: score travelled.
+#:
+#: The two look alike in English and are different readings: "has it
+#: deteriorated?" is a movement, "did it change band?" is a transition. The
+#: movement cue below matches "changed" and "moved" too, so this is checked
+#: FIRST and leads the analysis list — otherwise "how many obligors changed
+#: risk band in the latest month?" is answered with a twenty-month
+#: decomposition of the portfolio score, which is what it was.
+_BANDS_SAID = (r"very[ -]?high|high|medium|very[ -]?low|low|"
+               r"watch ?list|watchlist")
+
+_TRANSITION = re.compile(
+    r"\bband (?:change|changes|transition|transitions|movement|movements|"
+    r"migration|migrations|shift|shifts)\b|"
+    r"\b(?:chang\w+|mov\w+|shift\w+|migrat\w+|transition\w*|cross\w+|"
+    r"jump\w*|slip\w*)\s+(?:their |its |the )?"
+    r"(?:risk |severity |ews |early warning )?bands?\b|"
+    r"\bbands?\s+(?:has |have |had )?(?:chang\w+|mov\w+|shift\w+|"
+    r"migrat\w+)\b|"
+    r"\b(?:up|down)graded?\b|"
+    r"\bmoved? (?:up|down) a band\b|"
+    r"\b(?:in)?to (?:the )?watch ?list\b|"
+    rf"\b(?:from|out of) (?:{_BANDS_SAID})\b[^.?]{{0,20}}\bto (?:{_BANDS_SAID})\b|"
+    rf"\bout of (?:the )?(?:{_BANDS_SAID})\b|"
+    r"\b(?:in)?to (?:the )?(?:high or very high|very high or high|"
+    r"high and very high|high or above|high\+)\b|"
+    r"\bband[- ]transition\w*\b|\bband[- ]migration\w*\b|"
+    r"\bmigrations?\b|\btransition matrix\b|"
+    rf"\b(?:moved?|migrat\w+|fell|rose|dropped|climbed|slipp\w+|"
+    rf"deteriorat\w+|improv\w+|worsen\w+|recover\w+) (?:in)?to "
+    rf"(?:{_BANDS_SAID})\b",
+    re.I)
+
+_FROM_TO = re.compile(
+    rf"\bfrom (?P<a>{_BANDS_SAID})\b[^.?]{{0,20}}?\bto (?P<b>{_BANDS_SAID})\b",
+    re.I)
+
+_INTO = re.compile(rf"\b(?:in)?to (?:the )?(?P<b>{_BANDS_SAID})\b", re.I)
+_OUT_OF = re.compile(rf"\bout of (?:the )?(?P<a>{_BANDS_SAID})\b", re.I)
+
+_IMPROVED = re.compile(
+    r"\bimprov\w+|\bupgrad\w+|\bbetter\b|\brecover\w+|\bstrengthen\w+",
+    re.I)
+_WORSENED = re.compile(
+    r"\bdeteriorat\w+|\bdowngrad\w+|\bworse\w*|\bweaken\w+|"
+    r"\bslipp\w+|\bfell into\b", re.I)
+
+
+def _canonical_band(said: str) -> str:
+    """A band as the reader says it, under the name the data stores it."""
+    text = re.sub(r"[\s-]+", "_", str(said or "").strip().lower())
+    if text in ("watchlist", "watch_list"):
+        return ""
+    return text.upper() if text.upper() in (
+        "VERY_HIGH", "HIGH", "MEDIUM", "LOW", "VERY_LOW") else ""
+
+
+#: "into High or Very High" and "out of High or Very High" name the
+#: watchlist threshold, which is a PAIR of bands rather than one. It is the
+#: crossing credit officers actually ask about, and reading it as "Very High"
+#: alone — which is what matching one band out of the phrase does — answers
+#: about a fifth of the names.
+_INTO_HIGH_PLUS = re.compile(
+    r"\b(?:in)?to (?:the )?(?:high or very high|very high or high|"
+    r"high and very high|high or above|high\+|watch ?list)\b", re.I)
+_OUT_OF_HIGH_PLUS = re.compile(
+    r"\b(?:out of|below|off) (?:the )?(?:high or very high|"
+    r"very high or high|high and very high|high or above|high\+|"
+    r"watch ?list)\b", re.I)
+
+#: The pair, under one name the fact builder understands.
+HIGH_PLUS = "HIGH_PLUS"
+
+
+def _band_move(text: str) -> dict[str, str]:
+    """Which cell of the transition matrix the question asked to see.
+
+    Empty where it asked for all of them, which is the common case: "how
+    many obligors changed band?" wants the counts, not one cell.
+    """
+    out: dict[str, str] = {}
+    if _INTO_HIGH_PLUS.search(text):
+        out["to_band"] = HIGH_PLUS
+        out.setdefault("direction", "deteriorated")
+        return out
+    if _OUT_OF_HIGH_PLUS.search(text):
+        out["from_band"] = HIGH_PLUS
+        out.setdefault("direction", "improved")
+        return out
+    pair = _FROM_TO.search(text)
+    if pair:
+        out["from_band"] = _canonical_band(pair.group("a"))
+        out["to_band"] = _canonical_band(pair.group("b"))
+    else:
+        leaving = _OUT_OF.search(text)
+        if leaving:
+            out["from_band"] = _canonical_band(leaving.group("a"))
+        arriving = _INTO.search(text)
+        if arriving:
+            out["to_band"] = _canonical_band(arriving.group("b"))
+    # A question that asks for BOTH directions has no direction. "How many
+    # were upgraded and how many downgraded?" matches the worsening cue and
+    # would come back as half the answer.
+    worse, better = bool(_WORSENED.search(text)), bool(_IMPROVED.search(text))
+    if worse and not better:
+        out["direction"] = "deteriorated"
+    elif better and not worse:
+        out["direction"] = "improved"
+    return {k: v for k, v in out.items() if v}
+
+
+#: Whether the question asks about corroboration, and which way.
+#:
+#: "L3 warnings but weak internal corroboration" is two conditions, and a
+#: reader who is given the first without the second has been handed a longer
+#: list than the one they asked for and no way to see which half is theirs.
+#: The concepts are the credit book's own — a signal nothing else echoes is
+#: uncorroborated; a signal several layers agree on is corroborated.
+_UNCORROBORATED = re.compile(
+    r"\b(?:un|not |without |no |weak(?:ly)? |poor(?:ly)? |little |lacking |"
+    r"absent |thin )\s*"
+    r"(?:internal(?:ly)?\s+)?corroborat\w*|"
+    r"\bcorroborat\w*\s+(?:is\s+)?(?:weak|absent|missing|lacking|poor)\b|"
+    r"\bsingle[- ]source\b|\bone source only\b|"
+    r"\bnothing (?:else|internal)\b|\bunsupported by\b", re.I)
+
+_CORROBORATED = re.compile(
+    r"\b(?:well[- ])?corroborat\w*\b|\bcross[- ]confirmed\b|"
+    r"\bconfirmed (?:by|across) (?:another|other|several|multiple)\b|"
+    r"\bmore than one layer\b|\bmultiple layers\b", re.I)
+
+
+def _corroboration(text: str) -> str:
+    """"weak", "strong" or nothing. Weak wins: "not corroborated" contains
+    the word "corroborated", and reading it as the positive would answer the
+    exact opposite of the question."""
+    if _UNCORROBORATED.search(text):
+        return "weak"
+    if _CORROBORATED.search(text):
+        return "strong"
+    return ""
+
+
 #: "Which names drive it?" — a request to see INTO the current scope.
 _WANTS_NAMES = re.compile(
     r"\bwhich (names?|borrowers?|obligors?|customers?)\b|\bwho\b|"
@@ -655,6 +805,42 @@ def _read_deterministic(
     if band and not inherited.get("band"):
         inherited["band"] = band
 
+    # The DETECTION LAYER the question names, resolved through the governed
+    # layer registry rather than by looking for one spelling of one word.
+    #
+    # Without this, "which obligors carry external-intelligence warning
+    # signals?" was read as an ordinary ranking and answered with the
+    # portfolio's largest high-risk names: a correct answer to a question
+    # about severity, put to a question about where the risk was detected.
+    # A layer NAMED in the question outranks one carried from the screen, for
+    # the same reason a named obligor does.
+    layer = layers_mod.resolve(text) or str(inherited.get("layer") or "")
+    if layer:
+        inherited["layer"] = layer
+
+    corroboration = _corroboration(text)
+    if corroboration:
+        inherited["corroboration"] = corroboration
+
+    # A band transition leads the reading when the sentence asks for one.
+    # The movement cue matches the same verbs, so without this the more
+    # general reading wins and answers a question one step out from the one
+    # that was typed.
+    if _TRANSITION.search(text):
+        if "transition" in analyses:
+            analyses.remove("transition")
+        analyses.insert(0, "transition")
+        analysis = "transition"
+        move = _band_move(text)
+        if move:
+            inherited["band_move"] = move
+            # The bands in "from High to Very High" are the ENDPOINTS of the
+            # transition, not a filter on the population. Left in place they
+            # narrow both months to one band, and the from-band side of the
+            # question disappears.
+            inherited.pop("band", None)
+            inherited.pop("ews_band", None)
+
     # "Open the weakest one" and "which names drive it" both point INTO the
     # current scope rather than away from it. Recorded so the planner can
     # rank within whatever the thread is already about.
@@ -690,6 +876,7 @@ def _read_deterministic(
         comparison_period=comparison,
         inherited_context=inherited,
         requested_grouping=grouping,
+        requested_layer=layer,
         requested_analysis=analysis,
         requested_analyses=analyses,
         requested_evidence=analysis == "evidence" or "evidence" in lowered,
@@ -732,8 +919,8 @@ an ambiguity, not something to guess at.
 #: planner has no step for is a part the sufficiency review would then report
 #: as permanently uncovered.
 _ANALYSIS_LABELS: tuple[str, ...] = (
-    "diagnosis", "movement", "comparison", "concentration", "methodology",
-    "evidence", "grouping", "ranking")
+    "diagnosis", "movement", "transition", "comparison", "concentration",
+    "methodology", "evidence", "grouping", "ranking")
 _SCOPE_LABELS: tuple[str, ...] = (
     "portfolio", "segment", "sector", "rating", "borrower", "group")
 _ACTION_LABELS: tuple[str, ...] = (
@@ -769,6 +956,14 @@ _PASS_2_SCHEMA: dict[str, Any] = {
             "type": "string",
             "description": ("The field the answer should be cut by, or empty. "
                             "Only a field from the grouping list."),
+        },
+        "requested_layer": {
+            "type": "string", "enum": list(layers_mod.CODES) + [""],
+            "description": ("The detection layer the question is about, if "
+                            "it names one — L1 internal behavioural, L2 "
+                            "credit and financial fundamentals, L3 external "
+                            "intelligence, L4 network. Empty when the "
+                            "question is about the score overall."),
         },
         "requested_period": {
             "type": "string",
@@ -872,6 +1067,8 @@ def _pass_2_prompt(cleaned: Cleaned, floor: BusinessRequest,
         "published_periods": periods[-24:],
         "grouping_fields": _grouping_fields(),
         "analysis_labels": list(_ANALYSIS_LABELS),
+        "detection_layers": [{"code": entry.code, "name": entry.name}
+                             for entry in layers_mod.LAYERS],
     }
     return ("Read this Early Warning request.\n\n"
             + json.dumps(context, indent=2, default=str))
@@ -929,6 +1126,14 @@ def _merge_request(floor: BusinessRequest,
     if scope not in _SCOPE_LABELS:
         scope = floor.requested_scope
 
+    # A layer the model names is checked against the registry, like every
+    # other name of a thing in the domain. It may add one the patterns missed;
+    # it cannot unset one they found, because the patterns read the sentence
+    # and the model reads its own summary of it.
+    layer = str(data.get("requested_layer") or "").strip().upper()
+    if not layers_mod.is_code(layer):
+        layer = floor.requested_layer
+
     ambiguities = list(floor.ambiguities)
     for note in data.get("ambiguities") or []:
         note = str(note).strip()
@@ -944,8 +1149,10 @@ def _merge_request(floor: BusinessRequest,
         requested_entities=list(floor.requested_entities),
         requested_period=period,
         comparison_period=comparison,
-        inherited_context=dict(floor.inherited_context),
+        inherited_context={**dict(floor.inherited_context),
+                            **({"layer": layer} if layer else {})},
         requested_grouping=grouping,
+        requested_layer=layer,
         requested_analysis=(analyses[0] if analyses
                             else floor.requested_analysis),
         requested_analyses=analyses,

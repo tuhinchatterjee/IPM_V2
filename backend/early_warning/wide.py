@@ -50,6 +50,7 @@ from backend.early_warning import aggregation as agg
 from backend.early_warning import classifiers_v2 as clf
 from backend.early_warning import actions as actions_mod
 from backend.early_warning import escalation as esc
+from backend.early_warning import layers as layers_mod
 from backend.early_warning import notches as notch_mod
 from backend.early_warning import reasons
 from backend.early_warning import signal_fields as sigf
@@ -345,6 +346,13 @@ def flatten(frame: pd.DataFrame) -> pd.DataFrame:
             float((row or {}).get(key) or 0.0)
             for row in (layers if layers is not None else [{}] * len(out))
         ]
+
+    # "Did this layer fire for this obligor?" — the flag behind every
+    # question that names a layer rather than a score. Derived from the same
+    # roll-up the scores come from, so the flag and the score cannot drift.
+    for column, values in layers_mod.activity(
+            layers if layers is not None else [{}] * len(out)).items():
+        out[column] = values
 
     for key in NOTCH_KEYS:
         out[notch_column(key)] = [

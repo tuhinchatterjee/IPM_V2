@@ -31,12 +31,17 @@ from typing import Any
 from backend.early_warning import dictionary as dic
 from backend.early_warning import executable as ex
 from backend.early_warning import grain as grain_mod
+from backend.early_warning import layers as layers_mod
 
 #: What an analysis step is FOR. Each maps to a governed executor.
 POPULATION = "population"
 RANKING = "ranking"
 GROUPING = "grouping"
 MOVEMENT = "movement"
+#: Who crossed a severity band between two published months. Not the same
+#: reading as MOVEMENT, which measures how far a score travelled: a band
+#: change is discrete, per obligor, and is what the watchlist keys on.
+TRANSITION = "transition"
 BORROWER = "borrower"
 LAYER = "layer"
 EVIDENCE = "evidence"
@@ -51,8 +56,8 @@ METHODOLOGY = "methodology"
 ACTION = "action"
 
 ANALYSIS_TYPES: tuple[str, ...] = (
-    POPULATION, RANKING, GROUPING, MOVEMENT, BORROWER, LAYER, EVIDENCE,
-    DIAGNOSIS, CONCENTRATION, COMPARISON, METHODOLOGY, ACTION)
+    POPULATION, RANKING, GROUPING, MOVEMENT, TRANSITION, BORROWER, LAYER,
+    EVIDENCE, DIAGNOSIS, CONCENTRATION, COMPARISON, METHODOLOGY, ACTION)
 
 #: Types that read no analytical data at all.
 NON_ANALYTICAL: frozenset[str] = frozenset({METHODOLOGY, ACTION})
@@ -77,6 +82,11 @@ class Step:
     customer_id: str = ""
     layer: str = ""
     signal_key: str = ""
+    #: A band transition's drill-down: which cell of the from-band/to-band
+    #: matrix the question asked to see the names in, and which way.
+    from_band: str = ""
+    to_band: str = ""
+    direction: str = ""
     #: Why this step exists, for the audit trail and the plan note.
     rationale: str = ""
 
@@ -88,7 +98,9 @@ class Step:
             "measures": list(self.measures), "order_by": self.order_by,
             "descending": self.descending, "limit": self.limit,
             "customer_id": self.customer_id, "layer": self.layer,
-            "signal_key": self.signal_key, "rationale": self.rationale,
+            "signal_key": self.signal_key, "from_band": self.from_band,
+            "to_band": self.to_band, "direction": self.direction,
+            "rationale": self.rationale,
         }
 
     @property
@@ -192,6 +204,14 @@ def _build_deterministic(request: Any,
     comparison = _comparison(request, package, period)
     customer_id = str(inherited.get("customer_id") or "")
     grouping = str(getattr(request, "requested_grouping", "") or "")
+    # The detection layer the question named, if it named one. A layer is
+    # neither a grouping nor a band: it says WHICH of the model's six
+    # layer/dimension outputs the answer is about, and every branch below
+    # has to honour it or answer a different question.
+    layer = str(getattr(request, "requested_layer", "")
+                or inherited.get("layer") or "").upper()
+    if not layers_mod.is_code(layer):
+        layer = ""
 
     steps: list[Step] = []
     notes: list[str] = []
@@ -246,6 +266,19 @@ def _build_deterministic(request: Any,
             analysis=BORROWER, period=period, customer_id=customer_id,
             measures=list(BASE_MEASURES),
             rationale="The obligor the question is about."))
+        if layer:
+            # "What external warning events are driving this borrower?" is a
+            # question about one layer of one obligor. Answering it with the
+            # obligor's overall position answers the question before it.
+            steps.append(Step(
+                analysis=LAYER, period=period, customer_id=customer_id,
+                layer=layer, measures=[layers_mod.BY_CODE[layer].ta_key],
+                rationale=(f"The question names "
+                           f"{layers_mod.described(layer)}, so the nodes "
+                           f"inside that layer are opened rather than the "
+                           f"score they roll into.")))
+            return Plan(steps=steps, output_grain="customer_month",
+                        intent="layer", notes=notes)
         if "movement" in analyses:
             steps.append(Step(
                 analysis=MOVEMENT, period=period,
@@ -263,6 +296,35 @@ def _build_deterministic(request: Any,
                     intent=("movement" if "movement" in analyses
                             else analysis or "borrower"), notes=notes)
 
+    if "transition" in analyses:
+        # The month a transition is measured against is the PREVIOUS
+        # published one unless the question named another. "How many changed
+        # band this month" means since last month, not since the first
+        # snapshot twenty months ago — which is what a generic movement
+        # window gave it, and why the answer came back as a score
+        # decomposition instead of a count of names.
+        against = comparison or _previous_published(package, period)
+        move = dict(inherited.get("band_move") or {})
+        # "Which sectors had the most adverse band migrations?" is the same
+        # transition read one level up, so the grouping rides on the step
+        # rather than becoming a second, unrelated analysis.
+        cut = _resolve_grouping(grouping, package) if grouping else ""
+        steps.append(Step(
+            analysis=TRANSITION, period=period, comparison_period=against,
+            filters=dict(_population_filters(inherited, scope)),
+            measures=["ews_band", "ews_score", "exposure"],
+            group_by=cut,
+            from_band=str(move.get("from_band") or ""),
+            to_band=str(move.get("to_band") or ""),
+            direction=str(move.get("direction") or ""),
+            rationale=("The question asks who crossed a severity band, "
+                       "which is a comparison of two published months "
+                       "obligor by obligor rather than a movement in the "
+                       "score."
+                       + (f" Rolled up by {cut}." if cut else ""))))
+        return Plan(steps=steps, output_grain="population_transition",
+                    intent="transition", notes=notes)
+
     if "grouping" in analyses or grouping:
         resolved = _resolve_grouping(grouping, package)
         if resolved:
@@ -272,10 +334,22 @@ def _build_deterministic(request: Any,
             # sector — right arithmetic, different question, and nothing on
             # screen to say the filter had been dropped.
             cut = dict(_population_filters(inherited, scope))
+            measures = list(BASE_MEASURES)
+            if layer:
+                # "Which sectors have the highest external-intelligence
+                # score?" is the book cut by sector and READ ON L3. The cut
+                # is the same; the measure that orders it is not, and until
+                # this was carried the answer ranked sectors by total Early
+                # Warning score and called it the external one.
+                measures.append(layers_mod.BY_CODE[layer].ta_key)
             steps.append(Step(
                 analysis=GROUPING, period=period, group_by=resolved,
-                filters=cut, measures=list(BASE_MEASURES),
+                filters=cut, measures=measures, layer=layer,
+                order_by=(layers_mod.BY_CODE[layer].ta_key if layer
+                          else "ews_score"),
                 rationale=(f"The question asks for the book cut by {resolved}"
+                           + (f", read on {layers_mod.described(layer)}"
+                              if layer else "")
                            + (f", within {cut}." if cut else "."))))
             return Plan(steps=steps, output_grain="group_month",
                         intent="grouping", notes=notes)
@@ -286,25 +360,54 @@ def _build_deterministic(request: Any,
     # The population is the ground every remaining reading stands on, so it
     # is always the first step.
     filters = dict(_population_filters(inherited, scope))
+    if layer:
+        # The population a layer question is about is the obligors that layer
+        # actually fired for — not the whole book with a layer word in the
+        # sentence.
+        filters[layers_mod.BY_CODE[layer].active_field] = True
     steps.append(Step(
         analysis=POPULATION, period=period, measures=list(BASE_MEASURES),
-        filters=dict(filters),
-        rationale="The population the question is about."))
+        filters=dict(filters), layer=layer,
+        rationale=("The population the question is about."
+                   if not layer else
+                   f"The obligors {layers_mod.described(layer)} fired for, "
+                   f"which is the population the question is about.")))
 
     if "ranking" in analyses:
         # "Which names drive it?" points INTO the current scope. Ordered by
         # exposure at high severity rather than by score alone: the reader
         # asking which names drive a population is asking which ones matter,
         # and a very high score on a small exposure does not.
-        steps.append(Step(
-            analysis=RANKING, period=period,
-            filters={**filters, "high_plus": True},
-            measures=["ews_score", "ews_band", "exposure",
-                      "dominant_subcategory", "dominant_driver"],
-            order_by="exposure", limit=10,
-            rationale=("The question asks which obligors drive the "
-                       "population, so the population is opened rather than "
-                       "restated.")))
+        if layer:
+            # A layer ranking is ordered by the LAYER's own score and is not
+            # narrowed to high-or-above: an obligor can carry a live external
+            # warning and still sit at LOW overall, and that obligor is
+            # exactly who the question is asking after. The other layers ride
+            # along as measures so the reader can see whether anything
+            # internal corroborates the external reading.
+            entry = layers_mod.BY_CODE[layer]
+            steps.append(Step(
+                analysis=RANKING, period=period, filters=dict(filters),
+                layer=layer,
+                measures=[entry.ta_key, "ews_score", "ews_band", "exposure",
+                          *[e.ta_key for e in layers_mod.LAYERS
+                            if e.code != layer],
+                          "dominant_subcategory", "dominant_driver"],
+                order_by=entry.ta_key, limit=10,
+                rationale=(f"The question asks which obligors carry "
+                           f"{layers_mod.described(layer)}, so they are "
+                           f"ordered by that layer's own score rather than "
+                           f"by the score it rolls into.")))
+        else:
+            steps.append(Step(
+                analysis=RANKING, period=period,
+                filters={**filters, "high_plus": True},
+                measures=["ews_score", "ews_band", "exposure",
+                          "dominant_subcategory", "dominant_driver"],
+                order_by="exposure", limit=10,
+                rationale=("The question asks which obligors drive the "
+                           "population, so the population is opened rather "
+                           "than restated.")))
 
     # Then one step per part the request asked for. Composed rather than
     # selected: a question with three parts gets three steps, and the
@@ -348,6 +451,15 @@ def _build_deterministic(request: Any,
                 notes=notes)
 
 
+def _previous_published(package: grain_mod.GrainPackage, period: str) -> str:
+    """The published month immediately before this one, or this one."""
+    periods = list(package.periods)
+    if period in periods:
+        here = periods.index(period)
+        return periods[here - 1] if here > 0 else period
+    return periods[-2] if len(periods) >= 2 else (periods[-1] if periods else "")
+
+
 def _population_filters(inherited: dict[str, Any], scope: str
                          ) -> dict[str, Any]:
     """The slice of the book the question is about, from the screen."""
@@ -362,6 +474,14 @@ def _population_filters(inherited: dict[str, Any], scope: str
     # the half of the filter that resolved.
     if str(inherited.get("band") or "").lower() == "high_plus":
         out["high_plus"] = True
+
+    # "…but weak internal corroboration" is half the question, and a
+    # population that ignores it is the other half's answer.
+    corroboration = str(inherited.get("corroboration") or "").lower()
+    if corroboration == "weak":
+        out[layers_mod.CORROBORATED_FIELD] = False
+    elif corroboration == "strong":
+        out[layers_mod.CORROBORATED_FIELD] = True
 
     for key, column in (("segment", "segment"), ("sector", "sector"),
                         ("region", "region"),
@@ -405,6 +525,7 @@ def field_is_known(name: str) -> bool:
 
 
 __all__ = ["ACTION", "ANALYSIS_TYPES", "BASE_MEASURES", "BORROWER",
+           "TRANSITION",
            "COMPARISON", "CONCENTRATION", "DIAGNOSIS", "EVIDENCE",
            "GROUPING", "LAYER", "METHODOLOGY", "MOVEMENT", "NON_ANALYTICAL",
            "POPULATION", "RANKING", "Plan", "Step", "build",

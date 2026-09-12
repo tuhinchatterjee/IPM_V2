@@ -185,6 +185,7 @@ PRODUCTS: dict[str, str] = {
 ANALYSIS_LABELS: dict[str, str] = {
     "population": "Establishing the portfolio position",
     "movement": "Checking movement over the selected period",
+    "transition": "Comparing severity bands month on month",
     "layer": "Decomposing movement by intelligence layer",
     "diagnosis": "Diagnosing the main drivers",
     "grouping": "Identifying common warning characteristics",

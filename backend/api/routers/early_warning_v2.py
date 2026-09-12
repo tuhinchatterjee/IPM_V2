@@ -37,6 +37,7 @@ from backend.early_warning import (
     catalog as ews_catalog,
     classifiers_v2 as clf,
     escalation as esc,
+    layers as ews_layers,
     lineage as ews_lineage,
     matrix,
     notches as nt,
@@ -79,12 +80,8 @@ def methodology() -> dict:
     catalog_summary = ews_catalog.describe()
     return {
         "methodology_version": ews_catalog.METHODOLOGY_VERSION,
-        "layers": [
-            {"code": "L1", "name": "Internal Behavioural Intelligence"},
-            {"code": "L2", "name": "Credit & Financial Fundamentals"},
-            {"code": "L3", "name": "External Intelligence"},
-            {"code": "L4", "name": "Graph & Relationship Intelligence"},
-        ],
+        "layers": [{"code": entry.code, "name": entry.name}
+                   for entry in ews_layers.LAYERS],
         "signal_inventory": catalog_summary,
         "classifiers": {
             "count": len(clf.CLASSIFIER_DEFINITIONS),

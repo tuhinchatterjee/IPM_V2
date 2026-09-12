@@ -38,6 +38,7 @@ from backend.early_warning import actions as act
 from backend.early_warning import escalation as esc
 from backend.early_warning import facts as ff
 from backend.early_warning import reasons
+from backend.early_warning import triggers_v2 as trg
 from backend.early_warning import units
 
 BAND_WORD = {
@@ -116,7 +117,7 @@ def _population_escalation_line(figures: dict[str, Any]) -> str:
     if not high:
         return ("Nothing in this population is at high severity or above, so "
                 "no case is routed for decision this period.")
-    return (f"{high} obligors carry "
+    return (f"{_count(high, 'obligor')} carry "
             f"{_money(figures.get('high_plus_exposure') or 0.0)} at high "
             f"severity or above and route individually: severity decides how "
             f"fast, exposure decides how high. Open a name to see its rung.")
@@ -194,6 +195,32 @@ def _live_or_structural_line(figures: dict[str, Any]) -> str:
             f"does not resolve the position underneath it.")
 
 
+def _count(number: Any, singular: str, plural: str = "") -> str:
+    """A number and its noun, agreeing.
+
+    "across 1 obligors" is the kind of thing a reader notices and a test
+    does not, and it costs the whole answer its authority: a sentence that
+    cannot count to one is not a sentence to act on.
+    """
+    try:
+        value = int(round(float(number or 0)))
+    except (TypeError, ValueError):
+        value = 0
+    word = singular if abs(value) == 1 else (plural or f"{singular}s")
+    return f"{value:,} {word}"
+
+
+def _as_at(pack: "ff.FactPack") -> str:
+    """The published month this reading is of.
+
+    Every figure in this product is a figure for ONE month, and an answer
+    that does not say which one is an answer the reader cannot file, cannot
+    reconcile and cannot repeat next month.
+    """
+    period = str(getattr(pack, "period", "") or "")
+    return f"As at {period}, " if period else ""
+
+
 def _drill(label: str) -> str:
     return label
 
@@ -206,12 +233,13 @@ def portfolio(pack: ff.FactPack) -> Composed:
     move = f.get("movement")
     conc = f.get("concentration") or {}
 
-    direct = (f"The portfolio early warning score is "
+    direct = (f"{_as_at(pack)}the portfolio early warning score is "
               f"{_band_phrase(f['portfolio_ews'], f['band'])} on an "
-              f"exposure-weighted basis, with {f['high_plus_count']} of "
-              f"{f['obligors']} obligors at high severity or above carrying "
+              f"exposure-weighted basis, with "
+              f"{_count(f['high_plus_count'], 'obligor')} of "
+              f"{int(f['obligors']):,} at high severity or above carrying "
               f"{_money(f['high_plus_exposure'])}, "
-              f"{f['high_plus_exposure_pct']}% of exposure.")
+              f"{f['high_plus_exposure_pct']:.1f}% of exposure.")
 
     paras: list[str] = []
 
@@ -249,7 +277,7 @@ def portfolio(pack: ff.FactPack) -> Composed:
             paras.append(
                 f"The risk is concentrated rather than systemic: the largest "
                 f"{conc['top_n']} of the {conc['high_plus_count']} high-risk "
-                f"obligors carry {conc['top_n_share_pct']}% of the high-risk "
+                f"obligors carry {conc['top_n_share_pct']:.1f}% of the high-risk "
                 f"exposure, led by {names}. That makes this a name-level "
                 f"review rather than a reason to tighten appetite across the "
                 f"book — the population average is being pulled by those "
@@ -257,7 +285,8 @@ def portfolio(pack: ff.FactPack) -> Composed:
         else:
             paras.append(
                 f"The risk is spread rather than concentrated: the largest "
-                f"{conc['top_n']} names carry {conc['top_n_share_pct']}% of "
+                f"{_count(conc['top_n'], 'name')} carry "
+                f"{conc['top_n_share_pct']:.1f}% of "
                 f"the high-risk exposure, so the {conc['high_plus_count']} "
                 f"obligors at high or above do not reduce to a handful of "
                 f"cases. A population action is likely to be more efficient "
@@ -284,31 +313,94 @@ def portfolio(pack: ff.FactPack) -> Composed:
 
 
 def level(pack: ff.FactPack) -> Composed:
+    """The book cut by one field.
+
+    Three things this reading has to say and did not. WHICH MONTH — every
+    figure here is one month's, and an answer that does not date itself
+    cannot be reconciled next month. HOW BIG THE WHOLE IS — "10 obligors at
+    very high" means one thing out of 300 and another out of 30, and the
+    reader cannot supply the denominator. WHAT IT RANKED BY — grouped by
+    sector, "highest" can mean the exposure-weighted score, the mean, the
+    external-intelligence score or the high-risk exposure, and they do not
+    agree with each other.
+    """
     f, rows = pack.figures, pack.rows
     label = f["level_label"].lower()
-    weakest = rows[0] if rows else None
+    leader = rows[0] if rows else None
     field_name = f["level_field"]
+    ranked_by = str(f.get("ranked_by") or "portfolio_ews")
+    measure_label = str(f.get("ranked_by_label")
+                        or "exposure-weighted Early Warning score")
+    # Grouping the book BY the severity band and then calling the worst band
+    # "the weakest group" says nothing: VERY_HIGH is the weakest band by
+    # definition. A distribution is a distribution, and reads as one.
+    is_distribution = field_name == "ews_band"
 
-    direct = (f"Grouped by {label}, the weakest is "
-              f"{weakest[field_name]} at "
-              f"{_band_phrase(weakest['portfolio_ews'], weakest['band'])} "
-              f"across {weakest['obligors']} obligors and "
-              f"{_money(weakest['exposure'])}." if weakest else
-              f"There is nothing to group by {label} this period.")
+    whole = (f"{_as_at(pack)}{_count(f.get('obligors'), 'obligor')} carrying "
+             f"{_money(f.get('exposure') or 0.0)}")
+
+    if not leader:
+        direct = (f"{_as_at(pack)}the published month has no obligors to "
+                  f"group by {label}. Nothing was filtered away and nothing "
+                  f"failed — the population itself is empty.")
+        return Composed(
+            direct=direct,
+            interpretation=("An empty population is a finding about the "
+                            "month rather than about the book: check that "
+                            "the period is the one you meant before reading "
+                            "anything into it."),
+            follow_ups=["Try the previous published month.",
+                        "Show the whole book instead."],
+            caveats=pack.caveats, chart={})
+
+    if is_distribution:
+        spread = _list_of([
+            f"{_count(r['obligors'], 'obligor')} at "
+            f"{BAND_WORD.get(str(r[field_name]), str(r[field_name]).lower())}"
+            for r in sorted(rows, key=lambda r: (
+                ff.BAND_ORDER.index(r[field_name])
+                if r[field_name] in ff.BAND_ORDER else -1),
+                reverse=True)])
+        direct = (f"{whole} split across "
+                  f"{_count(f.get('groups'), 'band')}: {spread}.")
+    else:
+        # "Weakest" belongs to the overall score. A layer score has no
+        # weakest — the group with the most external intelligence firing is
+        # the HIGHEST on that layer, and may be perfectly sound overall.
+        superlative = ("the weakest is" if ranked_by in ("portfolio_ews",
+                                                          "mean_ews")
+                       else "the highest is")
+        direct = (f"{whole}, grouped by {label} into "
+                  f"{_count(f.get('groups'), 'group')}. Ranked by "
+                  f"{measure_label}, {superlative} {leader[field_name]} at "
+                  f"{_leading_value(leader, ranked_by)} across "
+                  f"{_count(leader['obligors'], 'obligor')} and "
+                  f"{_money(leader['exposure'])}.")
 
     paras: list[str] = []
-    if weakest:
-        top = rows[:3]
-        listed = _list_of([f"{r[field_name]} at {r['portfolio_ews']:.1f}" for r in top])
-        carrying = f.get("top_three_exposure",
-                         sum(r["exposure"] for r in top))
+    top = rows[:3]
+    listed = _list_of([f"{r[field_name]} at {_leading_value(r, ranked_by)}"
+                       for r in top])
+    carrying = f.get("top_three_exposure", sum(r["exposure"] for r in top))
+    if is_distribution:
+        high = f.get("high_plus_count") or 0
         paras.append(
-            f"The three weakest are {listed}, together carrying "
-            f"{_money(carrying)}. The comparison worth making is not the "
-            f"ranking but whether each group's average reflects a common "
-            f"condition or one or two names: a group whose high-risk exposure "
-            f"sits in a minority of obligors is a single-name problem wearing "
-            f"a group's label.")
+            f"{_count(high, 'obligor')} of "
+            f"{int(f.get('obligors') or 0):,} sit at high severity or "
+            f"above, carrying "
+            f"{_money(f.get('high_plus_exposure') or 0.0)} — "
+            f"{f.get('high_plus_exposure_pct', 0.0):.1f}% of the exposure in "
+            f"this population. A distribution is a shape rather than a "
+            f"ranking: what to read from it is how much of the book sits "
+            f"above the escalation threshold, not which band is worst.")
+    else:
+        paras.append(
+            f"The three highest by {measure_label} are {listed}, together "
+            f"carrying {_money(carrying)}. The comparison worth making is "
+            f"not the ranking but whether each group's figure reflects a "
+            f"common condition or one or two names: a group whose high-risk "
+            f"exposure sits in a minority of obligors is a single-name "
+            f"problem wearing a group's label.")
 
     if field_name == "internal_rating" and f.get("divergence", {}).get("rows"):
         worst = f["divergence"]["rows"][0]
@@ -323,13 +415,31 @@ def level(pack: ff.FactPack) -> Composed:
             f"disagreement is itself what to investigate — not a reason to "
             f"change the grade from this screen.")
 
-    points = [_population_escalation_line(f)] if weakest else []
-    follow_ups = ([f"Open {weakest[field_name]}.",
-                   "What is common across the high-risk names?",
-                   "Group by another field."] if weakest else [])
-    return Composed(direct=direct, interpretation=_sentence(paras), points=points,
-                    follow_ups=follow_ups, caveats=pack.caveats,
-                    chart={"kind": "comparison", "reason": "a ranking across groups"})
+    points = [_population_escalation_line(f)]
+    follow_ups = ["What is common across the high-risk names?",
+                  "Group by another field."]
+    if not is_distribution:
+        follow_ups.insert(0, f"Open {leader[field_name]}.")
+    return Composed(direct=direct, interpretation=_sentence(paras),
+                    points=points, follow_ups=follow_ups, caveats=pack.caveats,
+                    chart={"kind": "comparison",
+                           "reason": "a ranking across groups"})
+
+
+def _leading_value(row: dict[str, Any], ranked_by: str) -> str:
+    """One group's figure, written with the unit it is measured in.
+
+    A bare "22.3" beside a sector name could be a score, a percentage or a
+    count. The measure decides, and the sentence says so.
+    """
+    if ranked_by in ("portfolio_ews", "mean_ews"):
+        return _band_phrase(float(row.get(ranked_by) or 0.0),
+                            str(row.get("band") or ""))
+    if ranked_by == "exposure" or ranked_by.endswith("_exposure"):
+        return _money(float(row.get(ranked_by) or 0.0))
+    if ranked_by in ("obligors", "high_plus_count"):
+        return _count(row.get(ranked_by), "obligor")
+    return f"{float(row.get(ranked_by) or 0.0):.1f} points"
 
 
 def group(pack: ff.FactPack) -> Composed:
@@ -338,17 +448,18 @@ def group(pack: ff.FactPack) -> Composed:
     move = f.get("movement")
     layers = f.get("layers") or {}
 
-    direct = (f"{pack.label} is at "
+    direct = (f"{_as_at(pack)}{pack.label} is at "
               f"{_band_phrase(f['portfolio_ews'], f['band'])}, "
-              f"{f['obligors']} obligors and {_money(f['exposure'])}, "
-              f"{f['high_plus_count']} at high or above.")
+              f"{_count(f['obligors'], 'obligor')} and {_money(f['exposure'])}, "
+              f"{_count(f['high_plus_count'], 'obligor')} at high or above.")
 
     paras: list[str] = []
     if conc.get("high_plus_count"):
         if conc.get("is_concentrated"):
             paras.append(
                 f"The weakness is concentrated rather than broad-based: "
-                f"{conc['high_plus_count']} of {f['obligors']} obligors sit at "
+                f"{_count(conc['high_plus_count'], 'obligor')} of "
+                f"{int(f['obligors']):,} sit at "
                 f"high or above and carry {conc['top_n_share_pct']}% of the "
                 f"high-risk exposure. That distinction decides the response — "
                 f"the evidence supports targeted borrower intervention rather "
@@ -358,7 +469,7 @@ def group(pack: ff.FactPack) -> Composed:
         else:
             paras.append(
                 f"The weakness is spread across the group rather than sitting "
-                f"in one or two names: {conc['high_plus_count']} obligors are "
+                f"in one or two names: {_count(conc['high_plus_count'], 'obligor')} are "
                 f"at high or above and no small subset dominates the exposure. "
                 f"That points at a common condition, which is a sector or "
                 f"appetite question rather than a series of workouts.")
@@ -497,21 +608,76 @@ def borrower(pack: ff.FactPack) -> Composed:
                     chart={"kind": "trend", "reason": "a score history"})
 
 
+def _signal_title(key: str) -> str:
+    """A signal under the name the framework gives it.
+
+    `material_litigation` is a column name. "Material litigation" is what
+    the workbook calls the signal, and a reader asking what events are
+    driving a borrower is owed the second.
+    """
+    found = trg.BY_KEY.get(str(key))
+    return found.name if found else str(key).replace("_", " ").capitalize()
+
+
 def layer(pack: ff.FactPack) -> Composed:
+    """One layer of one obligor, and the events inside it.
+
+    "What external warning events are driving this borrower?" is a question
+    about EVENTS. Answering it with the layer's score is answering with the
+    total of the thing that was asked about, so the nodes that fired and the
+    signals behind them are named — and the ones that did not are counted,
+    because "one of five nodes is firing" is a different position from "four
+    of five are".
+    """
     f = pack.figures
     worst = f.get("worst_node")
+    nodes = [n for n in (f.get("sub_categories") or [])
+             if float(n.get("score") or 0.0) > 0]
+    quiet = len(f.get("sub_categories") or []) - len(nodes)
     scores = [s for s in (f.get("ta_score"), f.get("c_score")) if s is not None]
-    direct = (f"{f['layer_name']} scores "
+
+    if not nodes:
+        return Composed(
+            direct=(f"{_as_at(pack)}nothing in {f['layer_name']} is firing "
+                    f"for {f['customer_name']}. The layer scores "
+                    f"{_list_of([f'{s:.1f}' for s in scores]) or '0.0'}."),
+            interpretation=("An absent layer is a reading about where the "
+                            "risk is not, and says nothing about the other "
+                            "three."),
+            follow_ups=["What is driving the score overall?",
+                        "Show the layer breakdown."],
+            caveats=pack.caveats)
+
+    fired = _list_of([f"{n['code']} {n['name'].lower()}" for n in nodes])
+    direct = (f"{_as_at(pack)}{f['layer_name']} scores "
               f"{_list_of([f'{s:.1f}' for s in scores])} for "
-              f"{f['customer_name']}.")
+              f"{f['customer_name']}, on "
+              f"{_count(len(nodes), 'node')} of "
+              f"{len(f.get('sub_categories') or [])}: {fired}.")
+
     paras = []
     if worst:
         paras.append(
             f"The dominant node is {worst['code']} {worst['name']} at "
             f"{worst['score']:.0f}: {worst['reason'].lower()}. That is the "
             f"reading to verify before acting on the layer as a whole.")
+    if quiet:
+        paras.append(
+            f"The other {_count(quiet, 'node')} in this layer are quiet, so "
+            f"this is a single-node reading rather than a layer that has "
+            f"broadly deteriorated.")
+
+    # The events themselves, by name, with the score each carries.
+    points: list[str] = []
+    for node in nodes:
+        for signal in (node.get("signals") or []):
+            points.append(
+                f"{_signal_title(signal.get('signal_key'))} — "
+                f"{float(signal.get('signal_score') or 0.0):.0f} under "
+                f"{node['code']} {node['name'].lower()}")
     action = act.for_subcategory(worst["code"]) if worst else None
-    points = [_action_line(action)] if action else []
+    if action:
+        points.append(_action_line(action))
     return Composed(direct=direct, interpretation=_sentence(paras), points=points,
                     follow_ups=["Show me the evidence behind that node.",
                                 "What action should I take?"],
@@ -591,7 +757,7 @@ def comparison(pack: ff.FactPack) -> Composed:
     paras = [
         f"{f['weaker']} is the weaker of the two. The gap is worth reading "
         f"against size as well as score: {left['label']} carries "
-        f"{left['high_plus_count']} obligors at high or above against "
+        f"{_count(left['high_plus_count'], 'obligor')} at high or above against "
         f"{right['high_plus_count']} for {right['label']}, so a similar "
         f"average can rest on very different populations.",
     ]
@@ -916,7 +1082,7 @@ def ambiguous_borrower(matched: str, found: list[dict[str, Any]]) -> Composed:
     """
     top = found[:6]
     worst = found[0]
-    direct = (f"{len(found)} obligors carry the {matched.title()} name. "
+    direct = (f"{_count(len(found), 'obligor')} carry the {matched.title()} name. "
               f"The weakest is {worst['customer_name']} at "
               f"{_band_phrase(worst['ews_score'], worst['ews_band'])} on "
               f"{money(worst['exposure'])}. Which one did you mean?")
@@ -1007,19 +1173,19 @@ def diagnosis(pack: ff.FactPack) -> Composed:
                         caveats=pack.caveats)
     root = f["root"]
     leaves = f.get("leaves") or []
-    direct = (f"Across {root['obligors']} obligors in {f['population']}, "
+    direct = (f"Across {_count(root['obligors'], 'obligor')} in {f['population']}, "
               f"the strongest partition is {f['strongest_split']}.")
     paras = [f["reading"]]
     if leaves:
         worst = leaves[0]
         paras.append(
             f"The action that follows is aimed at \"{worst['label']}\" — "
-            f"{worst['obligors']} obligors carrying "
+            f"{_count(worst['obligors'], 'obligor')} carrying "
             f"{_money(worst['exposure'])}, {worst['high_plus']} of them at "
             f"high or above. Confirm the hypothesis on those names before "
             f"acting on the population as a whole.")
     points = [
-        f"Minimum leaf {f['min_leaf']} obligors "
+        f"Minimum leaf {_count(f['min_leaf'], 'obligor')} "
         f"({int(f['min_leaf_share'] * 100)}% of the population), depth "
         f"{f['max_depth']}.",
     ]
@@ -1064,11 +1230,12 @@ def ranking(pack: ff.FactPack) -> Composed:
     lead_name = str(lead.get("customer_name") or lead.get("customer_id") or "")
     exposure = sum(float(r.get("exposure") or 0) for r in rows)
 
-    counted = (f"{total} obligors in {pack.label} sit at high or above"
+    counted = (f"{_count(total, 'obligor')} in {pack.label} sit at high or above"
                if isinstance(total, (int, float)) and total
-               else f"{shown} obligors in {pack.label} match")
+               else f"{_count(shown, 'obligor')} in {pack.label} match")
     direct = (
-        f"{counted}. The {shown} largest by exposure are listed, led by "
+        f"{_as_at(pack)}{counted[0].lower() + counted[1:]}. The {shown} "
+        f"largest by exposure are listed, led by "
         f"{lead_name} at "
         f"{_band_phrase(float(lead.get('ews_score') or 0), str(lead.get('ews_band') or ''))} "
         f"on {_money(float(lead.get('exposure') or 0))}; the {shown} together "
@@ -1109,8 +1276,303 @@ def ranking(pack: ff.FactPack) -> Composed:
         chart={})
 
 
+def layer_population(pack: ff.FactPack) -> Composed:
+    """The obligors one detection layer has fired for.
+
+    A different question from "who is high risk", and the answer has to look
+    different or the reader cannot tell which one they got. It names the
+    layer, counts its population against the book, and says how many of the
+    names rest on this layer alone — because a single-layer reading is the
+    one to verify before acting, and leaving the reader to work that out from
+    a table is leaving them to not work it out.
+    """
+    f = pack.figures or {}
+    rows = list(pack.rows or [])
+    described = str(f.get("layer_described") or f.get("layer") or "this layer")
+    key = str(f.get("layer") or "").lower() + "_ta"
+
+    if not rows:
+        return Composed(
+            direct=(f"{_as_at(pack)}no obligor in this population carries a "
+                    f"live {described} signal. That is a reading, not an "
+                    f"empty result: the layer was searched and nothing in it "
+                    f"has fired and not yet decayed."),
+            interpretation=(
+                f"An absence here says where the risk is NOT being detected. "
+                f"It does not say the book is sound — the other three layers "
+                f"are scored separately and a name can be weak on all of "
+                f"them with nothing showing on this one."),
+            follow_ups=["Which obligors are High or Very High?",
+                        "Show the distribution by risk band.",
+                        "Which layer is carrying most of the book's risk?"],
+            caveats=pack.caveats, chart={})
+
+    count = int(f.get("obligors") or len(rows))
+    lead = rows[0]
+    alone = int(f.get("this_layer_alone") or 0)
+    high = int(f.get("high_plus_count") or 0)
+
+    # The label carries whatever the question narrowed the population to, so
+    # the sentence says which population it is answering about rather than
+    # leaving the reader to assume it is all of them.
+    qualifier = str(pack.label or "")
+    qualifier = qualifier.split(", ", 1)[1] if ", " in qualifier else ""
+    direct = (
+        f"{_as_at(pack)}{_count(count, 'obligor')} carry a live {described} "
+        f"signal"
+        + (f" {qualifier}" if qualifier else "")
+        + f" — {f.get('share_of_book_obligors_pct', 0.0):.1f}% of the "
+        f"{int(f.get('book_obligors') or 0):,} in the book, holding "
+        f"{_money(f.get('exposure') or 0.0)}. The highest on that layer is "
+        f"{lead.get('customer_name')} at "
+        f"{float(lead.get(key) or 0.0):.1f} points, overall "
+        f"{_band_phrase(float(lead.get('ews_score') or 0.0), str(lead.get('ews_band') or ''))}.")
+
+    paras = [
+        f"They are ordered by the {described} score itself, not by the "
+        f"Early Warning score they roll into: a name can carry a live "
+        f"external event and still sit low overall, and that name is exactly "
+        f"who this question is asking after. {_count(high, 'of them sits', 'of them sit')} "
+        f"at high severity or above."
+    ]
+    corroborated = int(f.get("corroborated_elsewhere") or 0)
+    if alone and not corroborated:
+        # The list was already drawn on the corroboration test, so saying
+        # "all 14 of 14" would be reporting the filter back as a finding.
+        paras.append(
+            "None of them has any other layer firing — that is the condition "
+            "this list was drawn on. Each rests on this layer alone, which "
+            "makes every one of them a lead to verify rather than a finding "
+            "to act on.")
+    elif alone:
+        paras.append(
+            f"{_count(alone, 'of the names rests', 'of the names rest')} on "
+            f"this layer alone, with nothing firing in any other layer. That "
+            f"is the set to corroborate before acting: a single-layer reading "
+            f"is a lead, not a finding.")
+    else:
+        paras.append(
+            "Every name here has at least one other layer firing as well, so "
+            "none of them rests on this layer alone.")
+
+    points = [
+        f"{r.get('customer_name')} — {float(r.get(key) or 0.0):.1f} points on "
+        f"{described}, overall "
+        f"{_band_phrase(float(r.get('ews_score') or 0.0), str(r.get('ews_band') or ''))}, "
+        f"{_money(float(r.get('exposure') or 0.0))}"
+        + ("" if r.get("corroborated") else " — no other layer firing")
+        for r in rows[:10]]
+
+    return Composed(
+        direct=direct, interpretation=_sentence(paras), points=points,
+        follow_ups=[f"What is driving {lead.get('customer_name')}?",
+                    "Show the evidence behind the first one.",
+                    "Which sectors carry the most of this?"],
+        caveats=pack.caveats, chart={})
+
+
+def _band_said(value: Any) -> str:
+    """A band, or the High-plus pair, as a sentence says it."""
+    text = str(value or "").upper()
+    if text == "HIGH_PLUS":
+        return "high or very high"
+    return BAND_WORD.get(text, text.lower().replace("_", " "))
+
+
+def transitions(pack: ff.FactPack) -> Composed:
+    """Who crossed a severity band, between which two months.
+
+    Not the score movement. A reader asking how many obligors changed band
+    is asking a question with a whole number for an answer, and the number
+    they want is a count of names — so the count comes first, the direction
+    split comes second, and the names come after that.
+
+    The two months are always stated. A transition figure without its window
+    is unusable: "thirty-one moved" means one thing month on month and
+    another over a year, and next month's reader cannot tell which they are
+    looking at.
+    """
+    f = pack.figures or {}
+    was, now = str(f.get("from_period") or ""), str(f.get("to_period") or "")
+    changed = int(f.get("changed") or 0)
+    worse = int(f.get("deteriorated") or 0)
+    better = int(f.get("improved") or 0)
+    same = int(f.get("unchanged") or 0)
+    population = int(f.get("obligors_in_both") or 0)
+    drilled = int(f.get("drilled") or 0)
+    asked = dict(f.get("drill_filter") or {})
+    rows = list(pack.rows or [])
+
+    window = f"between {was} and {now}" if was and now else ""
+
+    if f.get("single_period"):
+        return Composed(
+            direct=(f"There is only one published month, so no band "
+                    f"transition can be measured. {now} is the first."),
+            interpretation=("A transition needs two months. This is a limit "
+                            "of the published data rather than a finding "
+                            "about the book."),
+            follow_ups=["Show the current distribution by risk band."],
+            caveats=pack.caveats, chart={})
+
+    if not changed:
+        direct = (f"No obligor changed severity band {window}. All "
+                  f"{population:,} in both months held the band they were "
+                  f"in.")
+    else:
+        direct = (f"{_count(changed, 'obligor')} of {population:,} changed "
+                  f"severity band {window} — "
+                  f"{_count(worse, 'deteriorated', 'deteriorated')} and "
+                  f"{_count(better, 'improved', 'improved')}. "
+                  f"{_count(same, 'obligor')} held their band.")
+
+    paras: list[str] = []
+    into = int(f.get("crossed_into_high_plus") or 0)
+    left = int(f.get("left_high_plus") or 0)
+    if into or left:
+        paras.append(
+            f"{_count(into, 'obligor')} crossed into high severity or above "
+            f"and {_count(left, 'obligor')} came out of it. Those are the "
+            f"crossings the watchlist and the escalation matrix key on: a "
+            f"name that crossed is a case to open whether its score moved "
+            f"two points or twenty.")
+    elif changed:
+        paras.append(
+            "None of the moves crossed the high-severity threshold, so no "
+            "case is opened or closed by this month's transitions on "
+            "severity alone.")
+
+    if changed:
+        paras.append(
+            f"{_money(f.get('exposure_deteriorated') or 0.0)} sits behind "
+            f"the names that deteriorated and "
+            f"{_money(f.get('exposure_improved') or 0.0)} behind those that "
+            f"improved. A band change is discrete: it says a threshold was "
+            f"crossed, not how far, so read it beside the score movement "
+            f"rather than instead of it.")
+
+    entered = int(f.get("entered_the_book") or 0)
+    gone = int(f.get("left_the_book") or 0)
+    if entered or gone:
+        paras.append(
+            f"{_count(entered, 'obligor')} entered the book and "
+            f"{_count(gone, 'obligor')} left it between the two months. "
+            f"They are excluded from the counts above: appearing is not "
+            f"deteriorating.")
+
+    if asked:
+        named = ", ".join(f"{k.replace('_band', '')} {_band_said(v)}"
+                          for k, v in asked.items())
+        if drilled:
+            paras.append(
+                f"Of those, {_count(drilled, 'obligor')} "
+                f"{'matches' if drilled == 1 else 'match'} the move you "
+                f"asked about ({named}), carrying "
+                f"{_money(f.get('drill_exposure') or 0.0)}.")
+        else:
+            paras.append(
+                f"None of them matches the move you asked about ({named}). "
+                f"That is a finding rather than an empty result: the "
+                f"crossing was looked for between the two months and did not "
+                f"happen.")
+
+    grouped_by = str(f.get("grouped_by") or "")
+    if grouped_by:
+        # Rolled up rather than named: the question asked which SECTORS
+        # migrated, and answering it with a list of obligors is the level
+        # below the one that was asked about.
+        label = str(f.get("grouped_label") or grouped_by).lower()
+        adverse = [r for r in rows if int(r.get("deteriorated") or 0)]
+        if adverse:
+            worst = adverse[0]
+            direct = (f"{_count(changed, 'obligor')} of {population:,} "
+                      f"changed severity band {window}, spread across "
+                      f"{_count(f.get('groups_with_adverse_moves'), label)} "
+                      f"with an adverse move. The most is {worst[grouped_by]} "
+                      f"with {_count(worst['deteriorated'], 'obligor')} "
+                      f"deteriorating on "
+                      f"{_money(worst['exposure_deteriorated'])}.")
+        else:
+            direct = (f"No {label} had an adverse band migration {window}. "
+                      f"{_count(better, 'obligor')} improved and "
+                      f"{_count(same, 'obligor')} held their band.")
+        paras = [
+            f"Adverse migration is counted as obligors crossing DOWN a band "
+            f"between the two months, not as a change in the group's average "
+            f"score: a {label} whose average worsened while every name held "
+            f"its band has migrated nobody.",
+        ]
+        crossings = sum(int(r.get("crossed_into_high_plus") or 0)
+                        for r in rows)
+        if adverse and crossings:
+            paras.append(
+                f"{_count(crossings, 'of the adverse moves crossed', 'of the adverse moves crossed')} "
+                f"into high severity or above, which is the crossing that "
+                f"opens a case.")
+        elif adverse:
+            paras.append(
+                "None of the adverse moves crossed into high severity or "
+                "above, so none of them opens a case on severity alone.")
+        points = [
+            f"{r[grouped_by]} — {_count(r['deteriorated'], 'obligor')} "
+            f"deteriorated, {_count(r['improved'], 'obligor')} improved, "
+            f"net {r['net_adverse']:+d}, "
+            f"{_money(r['exposure_deteriorated'])} behind the adverse moves"
+            for r in rows[:10] if r.get("changed")]
+        if not points:
+            points = [f"Every {label} held its band composition {window}."]
+        return Composed(
+            direct=direct, interpretation=_sentence(paras), points=points,
+            follow_ups=["Which names moved in the worst one?",
+                        "Show the band-transition matrix.",
+                        "Why did they move?"],
+            caveats=pack.caveats,
+            chart={"kind": "comparison",
+                   "reason": "adverse migrations across groups"})
+
+    points = [
+        f"{r.get('customer_name')} — "
+        f"{BAND_WORD.get(str(r.get('from_band')), str(r.get('from_band')).lower())}"
+        f" to "
+        f"{BAND_WORD.get(str(r.get('to_band')), str(r.get('to_band')).lower())}"
+        f", score "
+        f"{float(r.get('ews_score_before') or 0):.1f} to "
+        f"{float(r.get('ews_score_after') or 0):.1f}, "
+        f"{_money(float(r.get('exposure') or 0))}"
+        + (" — crossed into high severity" if r.get("crossed_into_high_plus")
+           else "")
+        for r in rows[:10]]
+
+    if not points and changed:
+        points = ["No name matches that particular move, though "
+                  f"{_count(changed, 'obligor')} changed band overall."]
+
+    # The matrix itself, when the reader asked to see it. Off-diagonal cells
+    # only: the diagonal is the 298 names that did not move, and printing it
+    # buries the six that did.
+    moved_cells = [c for c in (f.get("matrix") or [])
+                   if c["from_band"] != c["to_band"]]
+    if moved_cells:
+        points += [
+            f"{BAND_WORD.get(str(c['from_band']), str(c['from_band']).lower())}"
+            f" to "
+            f"{BAND_WORD.get(str(c['to_band']), str(c['to_band']).lower())}"
+            f": {_count(c['obligors'], 'obligor')}, "
+            f"{_money(c['exposure'])}"
+            for c in moved_cells]
+
+    return Composed(
+        direct=direct, interpretation=_sentence(paras), points=points,
+        follow_ups=["Why did the first one move?",
+                    "Show the distribution by risk band.",
+                    "What should I do about the names that deteriorated?"],
+        caveats=pack.caveats, chart={})
+
+
 #: Which composer answers which scope.
 COMPOSERS = {
+    "layer_population": layer_population,
+    "transitions": transitions,
     "ranking": ranking,
     "portfolio": portfolio, "level": level, "group": group,
     "borrower": borrower, "layer": layer, "evidence": evidence,
@@ -1128,5 +1590,5 @@ def compose(pack: ff.FactPack) -> Composed:
 
 
 __all__ = ["Composed", "COMPOSERS", "compose", "portfolio", "level", "group",
-           "borrower", "layer", "evidence", "movement", "comparison",
-           "ranking"]
+           "borrower", "layer", "layer_population", "evidence", "movement",
+           "comparison", "ranking", "transitions"]
