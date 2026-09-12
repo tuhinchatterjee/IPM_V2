@@ -94,7 +94,15 @@ def _value_pattern(kind: str, token: str) -> str:
     if token.isdigit():
         return _numeric_pattern(kind, token)
 
-    literal = re.escape(token.lower()).replace(r"\ ", r"[\s\-_]+")
+    # Separators are separators, whichever the book wrote and whichever the
+    # reader typed. The value MASS_AFFLUENT was matched only by somebody who
+    # typed the underscore: "mass affluent customers" matched MASS and
+    # AFFLUENT instead — two segments, 9,091 customers and an average debt
+    # burden of 0.58, where MASS_AFFLUENT is 5,155 customers at 0.47. Every
+    # value this book spells with an underscore was unreachable the same way:
+    # FIRST_HOME, NEW_FINANCE, REFINANCE_BUYOUT, SECOND_PROPERTY.
+    literal = re.sub(r"(?:\\ |_|\\-)+", r"[\\s\\-_]+",
+                     re.escape(token.lower()))
     if token.lower() in _ORDINARY_ENGLISH:
         # Long enough to look unmistakable, and an ordinary English word. "What
         # is the average CURRENT LTV for home finance?" resolved the delinquency
@@ -148,6 +156,7 @@ def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMat
     lowered = text.lower()
     out: list[EntityMatch] = []
     claimed: set[str] = set()
+    spans: list[tuple[int, int]] = []
 
     # A TWO-VALUED dimension is named by a phrase, never by its value. Its
     # values are "True" and "False", and nobody types either — so
@@ -165,6 +174,7 @@ def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMat
         if found and found.group(0) not in claimed and kind not in {
                 m.kind for m in out}:
             claimed.add(found.group(0))
+            spans.append(found.span())
             out.append(EntityMatch(kind=kind, value=value,
                                    phrase=found.group(0), confidence=1.0,
                                    exact=True))
@@ -178,12 +188,25 @@ def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMat
                 continue
             pattern = _value_pattern(kind, token)
             found = re.search(pattern, lowered)
-            if found and found.group(0) not in claimed:
+            # Claimed by SPAN, not by text. "mass affluent" was matched by
+            # MASS_AFFLUENT and then again, inside itself, by AFFLUENT and by
+            # MASS: three filters from one phrase, and a population of 9,091
+            # customers where the reader asked about 5,155. A longer value has
+            # consumed the words it matched.
+            if found and not _overlaps(found.span(), spans):
+                spans.append(found.span())
                 claimed.add(found.group(0))
                 out.append(EntityMatch(kind=kind, value=token,
                                        phrase=found.group(0), confidence=1.0,
                                        exact=True))
     return out
+
+
+def _overlaps(span: tuple[int, int], taken: list[tuple[int, int]]) -> bool:
+    """Whether this match sits inside words another value has already claimed."""
+    start, end = span
+    return any(start < was_end and was_start < end
+               for was_start, was_end in taken)
 
 
 def _numeric_pattern(kind: str, token: str) -> str:

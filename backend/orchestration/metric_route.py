@@ -450,8 +450,13 @@ def _period_field(metric: Any) -> str:
 #: They name the STATE and ask for its share, and the planner's answer to that
 #: was the number 2 — the contents of `ifrs9_stage` — presented as a
 #: proportion. The metric exists; only the wording was missing.
+#: "how much OF", not bare "how much". "How much Stage 3 exposure is in
+#: Riyadh?" is an AMOUNT — 221,176 SAR — and it was answered "Stage 3 Share of
+#: Exposure is 0.66%", about the whole book, with the city discarded. "How
+#: much OF the book is in Stage 3" is the share, and keeps the preposition
+#: that makes it one.
 _SHARE_WORD = (r"(?:share|proportion|percentage|percent|%|fraction|"
-               r"how much|what part)")
+               r"how much of|what part)")
 _STAGE_SHARE = re.compile(
     rf"\b{_SHARE_WORD}\b[^.?]{{0,60}}?\bstage\s*(?P<stage>[123]|one|two|three)\b"
     rf"|\bstage\s*(?P<stage2>[123]|one|two|three)\b[^.?]{{0,30}}?\b{_SHARE_WORD}\b",

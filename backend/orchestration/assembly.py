@@ -830,11 +830,48 @@ _ASKS_WHICH_IS_LARGEST = _re.compile(
     r"\bwhich\b[^?]{0,60}\b(?:largest|biggest|highest|most|worst|greatest|"
     r"smallest|lowest|least|best)\b"
     r"|\b(?:largest|biggest|highest|worst|smallest|lowest)\b[^?]{0,20}"
-    r"\b(?:subsegment|segment|product|region|city|band|bucket|stage)s?\b",
+    r"\b(?:subsegment|segment|product|region|city|band|bucket|stage)s?\b"
+    # "Which customers DROVE that?" asks which one leads as plainly as
+    # "which is largest" does, and the answer named nobody.
+    r"|\bdr(?:o?ve|ives|iving)\b|\bcontribut\w+\b"
+    r"|\baccount(?:s|ed)?\s+for\b|\bresponsible\s+for\b",
     _re.IGNORECASE)
 
 
 
+
+
+def _grew_most(build: Any, rows: list[dict[str, Any]], column: str
+               ) -> tuple[str, float, float] | None:
+    """The group that moved furthest, where the question asked which did."""
+    if not column or not rows or not build.dimension:
+        return None
+    if not _ASKS_WHICH_IS_LARGEST.search(
+            str(getattr(build.reading, "objective", "") or "")):
+        return None
+    period_column = _period_column(build)
+    opening: dict[str, float] = {}
+    closing: dict[str, float] = {}
+    for row in rows:
+        group = str(row.get(build.dimension) or "")
+        value = row.get(column)
+        at = str(row.get(period_column) or "")
+        if not group or not isinstance(value, (int, float)):
+            continue
+        if at == build.opening:
+            opening[group] = opening.get(group, 0.0) + float(value)
+        elif at == build.closing:
+            closing[group] = closing.get(group, 0.0) + float(value)
+    moved = {g: (opening.get(g, 0.0), closing[g]) for g in closing
+             if g in opening}
+    if not moved:
+        return None
+    smallest = bool(_re.search(
+        r"\b(?:smallest|lowest|least)\b",
+        str(getattr(build.reading, "objective", "") or ""), _re.IGNORECASE))
+    pick = min if smallest else max
+    name = pick(moved, key=lambda g: moved[g][1] - moved[g][0])
+    return name, moved[name][0], moved[name][1]
 
 def _identity_column(row: dict[str, Any]) -> str:
     """The column that names the row — the customer, the facility, the group."""
@@ -1367,6 +1404,16 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         series = _period_series(build, rows, column)
         if len(series) > 2:
             direct += " " + _reads_as(series, label, unit)
+        # "Which region had the largest Stage 2 increase since March?" was
+        # answered with the movement of the WHOLE book, broken down by region
+        # in the table below and named nowhere. The rows hold the answer.
+        elif build.dimension:
+            grew = _grew_most(build, rows, column)
+            if grew is not None:
+                name, was, now = grew
+                direct += (f" {name} moved most, from {_fmt(was)} to "
+                           f"{_fmt(now)} {unit}".rstrip()
+                           + f" — {_fmt(abs(now - was))} {unit}".rstrip() + ".")
         metrics.append(Metric(
             label=f"{_opening(label)} at {build.closing}",
             value=round(closing_total, 2), unit=unit,

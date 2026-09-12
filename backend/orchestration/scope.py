@@ -107,6 +107,25 @@ def _state(field_name: str, truth: bool) -> str:
     return f"with {name}" if truth else f"without {name}"
 
 
+
+def _lives_in_several_dimensions(value: str) -> bool:
+    """Whether this value is a value of more than one governed dimension."""
+    wanted = " ".join(str(value or "").strip().lower().split())
+    if len(wanted) < 3:
+        return False
+    try:
+        from backend.orchestration.vocabulary import get_vocabulary
+
+        found = 0
+        for values in (get_vocabulary().dimensions or {}).values():
+            if any(" ".join(str(v).lower().split()) == wanted for v in values):
+                found += 1
+                if found > 1:
+                    return True
+    except Exception:  # noqa: BLE001 - no vocabulary, no qualifier
+        return False
+    return False
+
 def say(field_name: str, value: Any, widened_op: str = "") -> str:
     """One filter, as a credit officer would say it.
 
@@ -125,6 +144,12 @@ def say(field_name: str, value: Any, widened_op: str = "") -> str:
         state = _state(field_name, truth)
         return f"{state} {tail}" if tail else state
     prefix = NEEDS_ITS_NAME.get(field_name)
+    if prefix is None and _lives_in_several_dimensions(said):
+        # "Riyadh" is a city AND a region, and the two are 25 times apart:
+        # "how much Stage 3 exposure is in Riyadh?" was answered 5,487,148 SAR
+        # for the region under a scope line that said only "Riyadh", where the
+        # city is 221,176. A reader cannot correct a choice they cannot see.
+        prefix = str(field_name).replace("_label", "").replace("_", " ")
     if prefix is None and said.replace(".", "").replace("-", "").isdigit():
         # An unmapped field with a numeric value is still unreadable bare, so
         # it falls back to its own name rather than to the digit alone.

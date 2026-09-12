@@ -389,9 +389,12 @@ class TestABreakdownIsNotPinnedByARefiningField:
 
         assert dm.refines()["product_subsegment"] == "product_label"
         assert dm.pins("product_subsegment", "product_label")
-        assert dm.pins("product_label", "product_subsegment")
         assert dm.pins("product_label", "product_label")
         assert not dm.pins("customer_segment", "product_label")
+        # A filter COARSER than the breakdown is a drill-down, not a pin:
+        # "what changed in credit cards?" then "break that down by
+        # subsegment" dropped the product and answered about the whole book.
+        assert not dm.pins("product_label", "product_subsegment")
 
     def test_a_breakdown_by_product_covers_every_product(self, retail_oracle):
         thread = Thread()

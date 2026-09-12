@@ -499,8 +499,17 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # `settled_text` is the previous question, used ONLY where this sentence
     # resolves nothing. A narrowing that named its own measure keeps it.
     #
+    # A WIDENING and a RESET keep the analysis too. "What changed in personal
+    # finance this month?" then "now the whole book again" came back asking
+    # which figure to measure: the sentence drops a restriction and names
+    # nothing else, which is the one shape that cannot state its own measure.
+    # `settled_text` is only ever consulted where THIS sentence resolved
+    # nothing, and the population is thrown away by the continuation, not
+    # here — so a reset still resets.
     inheriting = bool(continuation is not None and state is not None
-                      and continuation.action in (cv.NARROW_SCOPE, cv.CONTINUE))
+                      and continuation.action in (cv.NARROW_SCOPE, cv.CONTINUE,
+                                                  cv.WIDEN_SCOPE,
+                                                  cv.RESET_SCOPE))
     settled_text = ""
     if inheriting and state is not None:
         settled_text = (state.result.question
@@ -571,6 +580,23 @@ def _plan(reading: Reading, context: GovernedContext, *,
                 if str(getattr(m, "field", "")) not in carried_dimensions]
         if kept and len(kept) != len(resolved.matches):
             resolved = replace(resolved, matches=kept)
+
+    if not resolved.matches and inheriting and state is not None \
+            and (state.metrics or state.concepts):
+        # The settled QUESTION named no measure either. "What changed in
+        # personal finance this month?" takes its measures from the movement
+        # default, so re-reading its words finds nothing, and "now the whole
+        # book again" came back asking which figure to measure — about the
+        # analysis it was looking at. What the turn SETTLED is on the state.
+        # Re-read against the catalogue rather than recalled, so what reaches
+        # the plan is a governed concept and not a label copied out of a
+        # conversation.
+        carried_labels = ", ".join(state.metrics or state.concepts)
+        again = cx.read_concepts(carried_labels, known=known,
+                                 catalogue=catalogue,
+                                 preferred_datasets=reading_order)
+        if again.matches:
+            resolved = again
     matches = list(resolved.matches)
     carried_concepts: list[str] = []
     if carrying and inherited_metrics:
@@ -868,6 +894,24 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # separately, below, as an ordering.
     condition_text = _defining_clauses(text)
     conditions = _conditions(_without_values(condition_text, filters), matches)
+    # A field the question TESTS is as constrained as one it filters, and is
+    # no more a measure. "Which of those are 60 or more days past due?"
+    # carries a level test on days past due and another measure beside it, and
+    # the days column was SUMMED: "2,078 days of days past due in Stage 3
+    # across 8 subsegments" — the total of a column every row of which
+    # satisfies the same test. Only where another measure survives: "which
+    # customers have days past due above 30?" tests the one field it names,
+    # and that field is still what the question is about.
+    tested = {str(getattr(c, "field", "") or "") for c in conditions
+              if str(getattr(c, "kind", "")) == "level"}
+    if tested:
+        left = [m for m in matches
+                if m.field not in tested and m.concept.id != COUNT_CONCEPT]
+        if left and len(left) < len(matches):
+            logger.info("Dropped %s as a measure: the question tests it.",
+                        ", ".join(m.label for m in matches
+                                  if m.field in tested))
+            matches = [m for m in matches if m.field not in tested]
     # A transition this book can express EXACTLY needs no magnitude test
     # beside it, and the one that was attached contradicted it. "How many
     # facilities IMPROVED from Stage 2 to Stage 1?" planned the pair
@@ -913,12 +957,63 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # single total — correct figures, and neither of them the question the
     # reader had been asking for two turns. A sentence that states only a
     # scope states no shape either, so the settled one stands.
-    if (shape in (AGGREGATE, RANKING) and carrying and state
+    if (shape in (AGGREGATE, RANKING) and state
         and state.shape == MOVEMENT and continuation is not None
-        and continuation.action in (cv.NARROW_SCOPE, cv.CONTINUE)
+        and (carrying or inheriting)
+        and continuation.action in (cv.NARROW_SCOPE, cv.CONTINUE,
+                                    cv.WIDEN_SCOPE, cv.RESET_SCOPE)
             and not mv.asks_for_change(text)
-            and not _explicit_top_n(text)):
+            and not _explicit_top_n(text)
+            # ...unless the sentence asks for the movement AT A GRAIN. "Which
+            # customers drove that?" is the portfolio movement broken open,
+            # not the portfolio movement again — and returning the same three
+            # figures under a question about customers is the repeat this
+            # session found nine of.
+            and not grouping.entity
+            and gr.requested(text).grain not in (gr.CUSTOMER, gr.FACILITY)):
         shape = MOVEMENT
+    elif (shape in (AGGREGATE, RANKING) and state
+          and state.shape == MOVEMENT and continuation is not None
+          and (carrying or inheriting)
+          and gr.requested(text).grain in (gr.CUSTOMER, gr.FACILITY)
+          and _DROVE_IT.search(text)):
+        # "Which customers drove that?" is the settled movement broken open at
+        # the customer grain — a two-period cohort ranked by the change, which
+        # this planner already does well when the sentence spells it out. It
+        # returned the ten largest customers by the measure's LEVEL at the
+        # closing date: a ranking of size, under a question about movement.
+        shape = COHORT
+        # With the condition the sentence implies: the measure MOVED. A cohort
+        # with no test is every customer on the book — "13,961 customers
+        # where , between 2026-07 and 2026-08", an empty clause and a
+        # population nobody asked for.
+        if not conditions and matches:
+            led = matches[0]
+            # And only that measure. The entity profile attached exposure at
+            # default, ECL and stage as columns to show, and its exposure
+            # binding then decided the ORDER — so a cohort of customers whose
+            # ECL rose was sorted by how big they are, under a sentence saying
+            # "ordered worst first" and naming a leader whose ECL moved by 268
+            # SAR while the true leader's moved by 119,967.
+            matches = [led]
+            entity_list = False
+            rose = bool(getattr(led.concept, "higher_is_worse", True))
+            conditions = [Condition(
+                field=led.field, kind="change_abs",
+                op="gt" if rose else "lt", value=0.0,
+                phrase=f"{led.label.lower()} "
+                       + ("rose" if rose else "fell"),
+                higher_is_worse=rose)]
+            planning_notes.append(
+                f"The question asked which {gr.requested(text).grain}s drove "
+                f"the movement, so CreditProbe ranked the ones where "
+                f"{led.label.lower()} "
+                + ("rose" if rose else "fell")
+                + f" between {state.opening_period} and "
+                  f"{state.closing_period}.")
+        if continuation is not None:
+            continuation.inherited["shape"] = (
+                "the movement the conversation is about, at this grain")
         if continuation is not None:
             continuation.inherited["shape"] = (
                 "the movement the conversation is about, narrowed")
@@ -1009,8 +1104,9 @@ def _plan(reading: Reading, context: GovernedContext, *,
                 continuation.inherited["comparison"] = (
                     f"{pair[0]} → {pair[-1]}")
 
-    if carrying and not reading.periods and not period and state.opening_period \
-            and state.closing_period and shape in (COHORT, MOVEMENT) \
+    if (carrying or inheriting) and not reading.periods and not period \
+            and state.opening_period and state.closing_period \
+            and shape in (COHORT, MOVEMENT) \
             and not _states_its_own_window(text, context):
         period = (state.opening_period, state.closing_period)
         if continuation is not None:
@@ -2016,6 +2112,37 @@ def _defining_clauses(text: str) -> str:
     return ". ".join(kept)
 
 
+
+def _owns_the_bound(text: str, match: cx.ConceptMatch, found: Any,
+                    matches: list[cx.ConceptMatch]) -> bool:
+    """Whether this measure is the one the bound stands beside.
+
+    True where no other measure in the sentence is nearer to the bound's own
+    words. Distance in characters, which is the only thing a reader has: they
+    wrote the bound next to the thing it bounds.
+    """
+    # The REWRITTEN sentence, because that is where the bound's own words
+    # are: "60 or more days past due" reaches the reader as "at least 60
+    # days", and looking for that in the raw text finds nothing — so every
+    # measure kept the bound and the guard did nothing at all.
+    said = sm._forward_bounds(str(text or "").lower())
+    phrase = str(getattr(found, "phrase", "") or "").lower()
+    if not phrase:
+        return True
+    at = said.find(phrase)
+    if at < 0:
+        return True
+
+    def gap(candidate: cx.ConceptMatch) -> int:
+        where = said.find(str(candidate.phrase or "").lower())
+        if where < 0:
+            return 10_000
+        return min(abs(where - at), abs(where + len(candidate.phrase) - at))
+
+    mine = gap(match)
+    return all(mine <= gap(other) for other in matches
+               if other.field != match.field)
+
 def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
     """One condition per concept the question attached a test to.
 
@@ -2051,8 +2178,16 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
             continue
         # No movement on this concept. A level test attached to it still is a
         # condition, and one the user can check by eye.
-        level = sm.threshold_condition(
-            match, sm.threshold_near(text, match.phrase))
+        found = sm.threshold_near(text, match.phrase)
+        if found is not None and not _owns_the_bound(text, match, found,
+                                                     matches):
+            # One clause, two measures, one bound. "What is the total ECL for
+            # customers 60 or more days past due?" compiled `ecl >= 60` AND
+            # `dpd >= 60`: the bound was attached to every measure in the
+            # clause, and the ECL test quietly excluded every small allowance.
+            # A bound belongs to the measure it stands beside.
+            found = None
+        level = sm.threshold_condition(match, found)
         if level is not None:
             out.append(level)
             continue
@@ -4742,6 +4877,15 @@ def _two_periods(reading: Reading, context: GovernedContext, text: str, *,
     return default.from_period, default.to_period, "", True
 
 
+
+
+#: "Which customers DROVE that?", "who CONTRIBUTED most?" — the settled
+#: movement, asked about at a finer grain.
+_DROVE_IT = _re.compile(
+    r"\bdr(?:o?ve|iving|ives)\b|\bcontribut\w+\b|\bcaus\w+\b"
+    r"|\baccount(?:s|ed)?\s+for\b|\bbehind\s+(?:that|this|it)\b"
+    r"|\bmade\s+up\b|\bresponsible\s+for\b",
+    _re.IGNORECASE)
 
 def _states_its_own_window(text: str, context: Any) -> bool:
     """Whether the sentence names a window, so it inherits none.

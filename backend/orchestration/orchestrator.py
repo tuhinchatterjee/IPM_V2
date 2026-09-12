@@ -2892,6 +2892,21 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     state.intent = reading.intent
     state.conversation_action = answered.continuation.action
     state.concepts = [m.concept.label for m in build.matches]
+    # The measure the ANSWER led with first, where a movement over several
+    # measures chose one. A follow-up that inherits the analysis inherits the
+    # figure the reader was just shown: "what changed this month?" leads with
+    # ECL, and "which customers drove that?" ranked by gross carrying amount
+    # because that happened to be the first match the planner listed.
+    if (build.shape == ap.MOVEMENT and not build.conditions
+            and not build.dimension and len(build.matches) > 1
+            and answered.runtime is not None):
+        from backend.orchestration import assembly as asm
+
+        led = asm._led_by_the_largest_move(build, answered.runtime.rows)
+        if led is not None:
+            state.concepts = ([led.concept.label]
+                              + [m.concept.label for m in build.matches
+                                 if m.field != led.field])
     state.metrics = list(state.concepts)
     # A composite matches no concept, so the two lines above leave a
     # concern or deterioration ranking with no measure on the state at all.

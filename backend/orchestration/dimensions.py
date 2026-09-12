@@ -141,18 +141,24 @@ def refines() -> dict[str, str]:
 def pins(field_name: str, grouped_by: str) -> bool:
     """Whether a filter on `field_name` also pins `grouped_by`.
 
-    True for the field itself and for anything that refines it, in either
-    direction: pinning the subsegment pins the product, and grouping BY the
-    subsegment while pinned to one product is the same defect wearing the
-    other hat.
+    True for the field itself, and for a filter FINER than the breakdown:
+    `product_subsegment = CARD` pins the product as surely as the product
+    does, so "break ECL down by product" asked after a credit-card question
+    returned one row under a heading saying BY PRODUCT LABEL.
+
+    False the other way round, and that direction was wrong. A filter COARSER
+    than the breakdown is a drill-down, which is the most ordinary follow-up
+    there is: "what changed in credit cards this month?" then "break that down
+    by subsegment" dropped the product and answered about the whole book —
+    2,082,852,856 SAR across eighteen subsegments, under a question about one
+    product. Personal Finance has four subsegments and a reader is entitled to
+    see them.
     """
     if not field_name or not grouped_by:
         return False
     if field_name == grouped_by:
         return True
-    chart = refines()
-    return (chart.get(field_name) == grouped_by
-            or chart.get(grouped_by) == field_name)
+    return refines().get(field_name) == grouped_by
 
 
 def aliases() -> dict[str, tuple[str, ...]]:
