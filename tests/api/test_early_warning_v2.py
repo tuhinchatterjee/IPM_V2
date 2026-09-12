@@ -162,13 +162,43 @@ def test_borrower_detail_shape(client, domain_built):
 # ============================================================= escalate/inform/action
 
 
-def test_escalate_requires_recipient(client, domain_built):
+def test_escalate_addresses_the_rung_the_matrix_chose(client, domain_built):
+    """The caller does not have to know who decides. The matrix does.
+
+    This used to assert a 422 for a request with no recipient, which was the
+    behaviour: the matrix chose the rung, the urgency and the parallel
+    notifications, and the endpoint still demanded that the caller name
+    somebody, because nothing could turn "Head of Credit Risk" into an
+    inbox. So an escalation either carried a hard-coded demo user — not a
+    control — or could not be sent.
+
+    A rung now addresses the team named for it. Where the directory holds
+    that team the escalation goes there; where it does not, the refusal says
+    which rung and which team, which is a thing somebody can act on.
+    """
     _require_domain(domain_built)
+    from backend.early_warning import escalation as esc
+
     overview = client.get("/api/v1/early-warning/v2", headers=headers("ANALYST")).json()
     customer_id = overview["top_high_risk"][0]["customer_id"]
     r = client.post(f"/api/v1/early-warning/v2/borrower/{customer_id}/escalate",
                      headers=headers("ANALYST"), json={})
-    assert r.status_code == 422
+    assert r.status_code in (200, 422), r.text
+
+    if r.status_code == 200:
+        body = r.json()
+        assert body["routing"]["escalated_to"], "the matrix chose no rung"
+        item = body["workflow_item"]
+        assert item.get("teams") or item.get("recipients"), (
+            "the escalation was sent to nobody")
+    else:
+        detail = r.json()["detail"]
+        assert detail["error"] == "no_recipient"
+        # It names the rung and the team, not just that something is missing.
+        assert detail["routed_to"], detail
+        assert detail["expected_teams"], detail
+        for code in detail["routed_to"]:
+            assert esc.role_of(code) in detail["message"], detail["message"]
 
 
 def test_escalate_refused_to_viewer(client, domain_built):

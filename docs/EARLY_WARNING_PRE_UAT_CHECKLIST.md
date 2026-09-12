@@ -28,15 +28,29 @@ run) · `n/a`.
 | 13 | Thread chain B | done |
 | 14 | Clarification UAT | done |
 | 15 | Noisy / misspelled / mixed-language UAT | done |
-| 16 | Messaging UAT (through the actual UI) | todo |
-| 17 | Escalation / decision-layer UAT | todo |
-| 18 | Investigations UAT | todo |
-| 19 | Report / export UAT | todo |
-| 20 | Navigation and history UAT | todo |
-| 21 | 10 new adversarial questions | todo |
-| 22 | Performance review over >= 10 turns | todo |
-| 23 | Progress UX across all paths | todo |
+| 16 | Messaging UAT (through the actual UI) | done |
+| 17 | Escalation / decision-layer UAT | done |
+| 18 | Investigations UAT | done |
+| 19 | Report / export UAT | done |
+| 20 | Navigation and history UAT | done |
+| 21 | 10 new adversarial questions | done |
+| 22 | Performance review over >= 10 turns | done |
+| 23 | Progress UX across all paths | done |
 | 24 | `scripts/certify_early_warning_live.py` | done |
-| 25 | Live summary truncation assertion in the cert script | todo |
-| 26 | Update report + results JSON (update, never replace) | todo |
-| 27 | Full final regression, then classify A / B / C | todo |
+| 25 | Live summary truncation assertion in the cert script | done |
+| 26 | Update report + results JSON (update, never replace) | done |
+| 27 | Full final regression, then classify A / B / C | wip |
+
+
+## Run 2 outcome
+
+**B — READY EXCEPT FOR LOCAL PROVIDER CERTIFICATION.**
+
+78 scenarios run, 78 passing. Nineteen defects found and fixed (the three P1s
+carried from run 1, plus sixteen new). Zero P0 and zero P1 remain under this
+environment's control. Two P2s documented rather than fixed, both with a
+reason: the MEDIUM band stays thin because the matrix makes it so, and there
+is no escalate button on the Early Warning screen.
+
+The only thing outstanding is `scripts/certify_early_warning_live.py`, run on
+a machine that has the Anthropic key.
