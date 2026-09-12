@@ -305,9 +305,31 @@ def _divide(numerator: Decimal, denominator: Decimal, *, what: str
     return numerator / denominator
 
 
+def plain(value: Decimal) -> Decimal:
+    """The same number, never in exponent notation.
+
+    `Decimal` renders some exact results as "0E+12" or "1E+3", and the
+    answer contract requires a plain decimal string -- rightly, because that
+    value is quoted to a credit officer. A zero Stage 2 share came back as
+    "0E+12" and a correct answer was refused for its formatting, which is
+    the engine handing out a value its own contract will not accept. The
+    number is unchanged; only its written form is.
+    """
+    return Decimal(format(value, "f"))
+
+
 def compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
             label: str = "this claim") -> Decimal:
-    """Recompute a derived value from the stored artifacts. Exact, no floats."""
+    """Recompute a derived value from the stored artifacts. Exact, no floats.
+
+    The result is always in plain form, so `str()` of it is a value the
+    answer contract accepts.
+    """
+    return plain(_compute(derivation, artifacts, label=label))
+
+
+def _compute(derivation: Derivation, artifacts: dict[str, dict[str, Any]], *,
+             label: str) -> Decimal:
     operation = derivation.operation
     resolved = [
         _resolve(cells, artifacts,
@@ -417,5 +439,6 @@ __all__ = [
     "DerivationError", "FRACTION_OPERATIONS", "IDENTITY", "MAX", "MAX_REFS",
     "MIN", "OPERATIONS", "PERCENTAGE", "PERCENTAGE_CHANGE",
     "PERCENT_OPERATIONS", "RANK", "RATIO", "SHARE_OF_TOTAL", "SUM",
-    "WEIGHTED_AVERAGE", "compute", "describe", "parse", "row_id_for",
+    "WEIGHTED_AVERAGE", "compute", "describe", "parse", "plain",
+    "row_id_for",
     "unit_problem"]
