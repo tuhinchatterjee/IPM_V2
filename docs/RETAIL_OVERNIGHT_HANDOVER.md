@@ -32,17 +32,26 @@ ECL 15,952,108.84; coverage 0.7659%; stage shares 93.92 / 5.42 / 0.66%;
 
 ## B. Overnight defects
 
-**Thirty-two defects found and fixed tonight**, ON-40 … ON-71, on top of the
-thirty-nine already in the register. Every one was found by USING the product
-— asking it questions a Head of Retail Risk asks, reading the answers against
-the book, and driving the screens in a real browser.
+**Thirty-seven defects found and fixed tonight**, ON-40 … ON-76, on top of the
+thirty-nine already in the register. Thirty-five of them were found by USING
+the product — asking it questions a Head of Retail Risk asks, reading the
+answers against the book, and driving the screens in a real browser. The other
+two were found by the branch's own tooling: the frontend linter (ON-75) and
+the frontend test suite (ON-76).
 
 | Severity | Tonight | Register total |
 |---|---|---|
-| P0 / P1 — a wrong or misleading figure a reader would act on | 20 | 44 |
-| P2 — a broken or confusing control, or a false statement about the product | 11 | 27 |
-| P3 — cosmetic or wording | 1 | 1 |
-| **Total** | **32** | **72** |
+| P0 / P1 — a wrong or misleading figure a reader would act on | 20 | 45 |
+| P2 — a broken or confusing control, or a false statement about the product | 16 | 29 |
+| P3 — cosmetic, wording, or a gate that reports red on correct code | 1 | 2 |
+| **Total** | **37** | **76** |
+
+Two of the thirty-seven are mine. ON-70 was a regression introduced by an
+earlier fix the same night — an ordering word read as an aggregation, so
+*"the worst 10 customers by ECL"* ranked each customer by their largest single
+facility — and ON-75 was a blank select left by the ON-50 fix. Both are in the
+register under their own numbers rather than folded into the fix that caused
+them.
 
 Each carries a reproduction, a root cause, the fix, a named regression test
 and the browser journey re-run afterwards, in
@@ -76,6 +85,18 @@ and the browser journey re-run afterwards, in
   (ON-67).
 * **The backend did not stop on SIGTERM** (ON-68), and a restart signed
   everybody out (ON-69).
+* **"Show me the worst 10 customers by ECL" ranked the wrong thing** (ON-70):
+  each customer by their largest single FACILITY, so the true top customer by
+  ECL did not appear on the list at all.
+* **A 25-month trend was answered with two points** (ON-72), 2025-08 and
+  2026-08, under a heading that said 25 months — and a monthly series was
+  drawn as a horizontal bar ranking with the months ordered by size (ON-73).
+* **No composed answer ever opened as a chart** (ON-74): the visualisation
+  gate decided `chart_first` correctly and the field never reached the
+  screen.
+* **Two builder forms opened with a blank dataset** (ON-75), because the fix
+  that stopped them naming the corporate book seeded the catalogue default
+  from an effect — one render late.
 
 ---
 
@@ -302,3 +323,81 @@ corporate test suite against a retail installation, not a regression.
 
 ## J. Presentation-readiness verdict
 
+## LOCAL UAT CANDIDATE — INTERNAL GAPS REMAIN
+
+That is the honest label, and the reason is not that something is broken on
+screen tonight. It is that the evidence does not yet support the stronger one.
+
+### What the stronger label would have required, and what is missing
+
+`PRESENTATION CANDIDATE — INTERNAL UAT PASS` claims that a session of hard
+use would not turn up a material defect. Three facts say otherwise.
+
+**The discovery curve had not flattened.** Thirty-five defects were found
+tonight, twenty of them the kind a reader would act on — a wrong number, a
+wrong population, a ranking that ranked the wrong thing. They did not taper.
+ON-72 — *"Show the 25-month weighted ECL trend for credit cards"*, a question
+from the demonstration script itself, answered with two points — was found in
+the last hour of the night, from a question nobody had happened to ask until
+then. ON-70, the worst-ten-customers ranking that ranked each customer by
+their largest single facility, was found the same way. A curve still rising
+at the end of a long night means the next session of hard use finds more. It
+would be a claim about untested ground to say otherwise.
+
+**The product's headline path was not exercised.** Every answer in this
+handover came from the deterministic governed semantic reader, because no
+authorised model-provider credential exists in this environment and none was
+requested overnight. That reader is a real path and it is the path the
+product falls back to, but the conversational quality of a provider-backed
+session is untested here. Section C is an honest account of the reader, not
+of the product with a model behind it.
+
+**The shared semantic layer is not green on this installation.** Its suites
+assert the corporate book, and they fail here for that reason — verified
+unchanged, failure list by failure list, before and after every change
+tonight. That is an environment fact rather than a regression, and it is
+also a missing safety net: the layer those files belong to is carrying
+retail changes tonight without its own suite able to confirm them. The
+retail suites cover what was changed; the corporate ones cannot.
+
+### What the weaker label would have required, and why it does not apply
+
+`NOT READY` would mean a material internal workflow is broken now. None is.
+Every defect found tonight was reproduced, fixed, regression-tested, and the
+exact browser journey re-run and looked at again. At the close of the night
+every browser suite passes on the current build:
+
+cockpit 18/18, language 13/13, metrics 11/11, scorecard 14/14, what-if
+15/15, workflows 20/20, early warning 12/12, journeys 23/23, data and lenses
+22/22, retail-only 29/29, Customer 360 11/11, resilience 19/19, visual
+19/19, navigation 10/10 with one case not applicable.
+
+The single NOT APPLICABLE is NAV-07, an unsaved-scenario-name warning. It is
+recorded with its reason — the What-If composer holds no document-style edit,
+so there is no unsaved state to warn about — and not as a way of retiring a
+failure. Nothing else in this handover is marked N/A, BLOCKED or "demo
+limitation".
+
+Every quantitative claim was reconciled against an independent pandas read of
+the Parquet rather than against the code that produced the answer: GCA
+2,082,852,855.82, ECL 15,952,108.84, coverage 0.7659%, stage shares
+93.92/5.42/0.66%, the three Ginis, the migration matrix, the latest matured
+cohort.
+
+### What this means for tomorrow
+
+The build can be driven in front of an internal audience by someone who knows
+it, on the journeys section G records, and it will hold. What it has not
+earned is the claim that an unrehearsed question from the floor lands safely,
+because tonight's own unrehearsed questions kept finding defects until the
+end.
+
+The three shortest routes to the stronger label, in order of what they buy:
+
+1. A second adversarial session on the Cockpit specifically, asking questions
+   nobody has asked yet — the twenty P1s tonight came almost entirely from
+   that surface, and it is the surface a demonstration lives on.
+2. A provider credential, so section C can be written about the product as it
+   ships rather than about its fallback.
+3. A Mac run of the launcher. The launcher scripts changed tonight (ON-68)
+   and have been shell-syntax-checked only; no Mac acceptance is claimed.

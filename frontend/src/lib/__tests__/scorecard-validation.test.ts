@@ -23,6 +23,13 @@ const read = (path: string) => readFileSync(root + path, "utf8");
 // refusals — the tests below are about what it will not draw, and that is
 // unchanged by where it is mounted.
 const page = () => read("app/scorecard-validation/monitoring/page.tsx");
+// A claim about a SENTENCE is checked against the prose with its whitespace
+// collapsed. JSX wraps its text at the column limit, so a sentence the reader
+// sees as one line can carry a newline and an indent in the source: the
+// certification disclaimer below reads "does not provide regulatory\ncertification",
+// which no substring of the sentence matches. Claims about CODE stay on the
+// source as written, where the spacing is meaningful.
+const prose = () => page().replace(/\s+/g, " ");
 
 test("the module has the twelve tabs the brief names", () => {
   const source = page();
@@ -100,7 +107,7 @@ test("the three month notions are shown separately", () => {
   // §7. Latest data month, latest matured performance month, and horizon.
   const source = page();
   assert.ok(source.includes("Latest data month"));
-  assert.ok(source.includes("Latest matured performance month"));
+  assert.ok(prose().includes("Latest matured performance month"));
   assert.ok(source.includes("Performance horizon"));
 });
 
@@ -153,8 +160,8 @@ test("the reports tab offers both downloads and a way to record one", () => {
   // looked at and did not save.
   const source = page();
   assert.ok(source.includes('"reports"'));
-  assert.ok(source.includes("Download validation report (DOCX)"));
-  assert.ok(source.includes("Download validation evidence (XLSX)"));
+  assert.ok(prose().includes("Download validation report (DOCX)"));
+  assert.ok(prose().includes("Download validation evidence (XLSX)"));
   assert.ok(source.includes("Generate validation report"));
   assert.ok(source.includes("scorecardGenerateReport"));
 });
@@ -164,10 +171,10 @@ test("the report panel shows coverage and refuses to claim certification", () =>
   // disclaimer travels with it rather than living only in the file.
   const source = page();
   assert.ok(source.includes("built.coverage.complete"));
-  assert.ok(source.includes("required topics are addressed"));
+  assert.ok(prose().includes("required topics are addressed"));
   assert.ok(source.includes("built.disclaimer"));
   assert.ok(source.includes("built.not_client_data"));
-  assert.ok(source.includes("does not provide regulatory certification"));
+  assert.ok(prose().includes("does not provide regulatory certification"));
 });
 
 test("a section that was not reported shows its reason in the section list", () => {

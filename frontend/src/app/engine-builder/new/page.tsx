@@ -43,11 +43,12 @@ export default function AnalysisBuilderPage() {
   // on a retail installation the form opened pre-filled with the name of a
   // dataset that does not exist here, and an engine built on the default
   // could not resolve its own source.
-  const [dataset, setDataset] = React.useState("");
+  // Held as an override rather than seeded by an effect: until the author
+  // picks one, the field IS the first published dataset, so there is no
+  // render in which the select shows blank while an effect catches up.
+  const [datasetChoice, setDatasetChoice] = React.useState<string | null>(null);
   const firstDataset = catalog.data?.datasets?.[0]?.name ?? "";
-  React.useEffect(() => {
-    if (!dataset && firstDataset) setDataset(firstDataset);
-  }, [dataset, firstDataset]);
+  const dataset = datasetChoice ?? firstDataset;
   const [fields, setFields] = React.useState("");
   const [boundFunction, setBoundFunction] = React.useState("");
   const [visualisation, setVisualisation] = React.useState("table");
@@ -104,7 +105,7 @@ export default function AnalysisBuilderPage() {
               />
             </Field>
             <Field label="Required dataset" hint="Only published datasets may be read.">
-              <Select value={dataset} onChange={(e) => setDataset(e.target.value)}>
+              <Select value={dataset} onChange={(e) => setDatasetChoice(e.target.value)}>
                 {(catalog.data?.datasets ?? []).map((d) => (
                   <option key={d.name} value={d.name}>{d.name}</option>
                 ))}

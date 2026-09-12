@@ -130,12 +130,14 @@ export default function AddDatasetPage() {
   // installation holds rather than to the corporate book's name. Hard-coded,
   // it offered `portfolio_facility.account_id` on an installation that has
   // neither — a join the steward could save and nothing could ever resolve.
-  const [relToDataset, setRelToDataset] = React.useState("");
+  // Held as an override rather than seeded by an effect: until the steward
+  // picks one, the field IS the first dataset this installation holds, and
+  // there is no render in which the select shows blank while an effect
+  // catches up.
+  const [relToChoice, setRelToChoice] = React.useState<string | null>(null);
   const [relToField, setRelToField] = React.useState("");
   const firstExisting = existingDatasets.data?.datasets?.[0]?.name ?? "";
-  React.useEffect(() => {
-    if (!relToDataset && firstExisting) setRelToDataset(firstExisting);
-  }, [relToDataset, firstExisting]);
+  const relToDataset = relToChoice ?? firstExisting;
   const [addedRelationships, setAddedRelationships] = React.useState<string[]>([]);
 
   // Step 7/8
@@ -731,7 +733,7 @@ export default function AddDatasetPage() {
               <Field label="Target dataset">
                 <Select
                   value={relToDataset}
-                  onChange={(e) => setRelToDataset(e.target.value)}
+                  onChange={(e) => setRelToChoice(e.target.value)}
                   className="h-9 font-mono text-xs"
                 >
                   {(existingDatasets.data?.datasets ?? []).map((d) => (

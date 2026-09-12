@@ -469,6 +469,12 @@ class TestRET048LayoutPreserved:
             "frontend/src/app/data-builder/domain/[...domain]/page.tsx",
             "frontend/src/app/data-builder/new/page.tsx",
             "frontend/src/app/engine-builder/new/page.tsx",
+            # ON-75. Those two defaults were then seeded from an effect,
+            # which opens the select blank for one render; the gate that would
+            # have caught it, the frontend test suite, was itself red on
+            # correct code (ON-76).
+            "frontend/src/lib/__tests__/builder-defaults.test.ts",
+            "frontend/src/lib/__tests__/scorecard-validation.test.ts",
             # ---------------------------------------------------------------
             # §4 and §5, found by asking a Head of Retail Risk's own
             # questions: an answer that named its population "True", a
