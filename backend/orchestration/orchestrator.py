@@ -446,6 +446,13 @@ def answer(question: str, *, context: Any = None,
             asked = left_out
             answered.restated = left_out
 
+    # "Back." Before the memory follow-ups, because stepping back is not a
+    # question about anything: it returns the rows the reader was just shown.
+    if _steps_back(question) or continuation.action == cv.STEP_BACK:
+        stepped = _show_previous_again(answered, question, state)
+        if stepped is not None:
+            return finish(stepped)
+
     from_memory = followups.answer(asked, continuation.action, memory, context)
     if from_memory is not None:
         answered.result = from_memory
@@ -472,6 +479,17 @@ def answer(question: str, *, context: Any = None,
     # presenting its figures again under a different question — nine turns of
     # one session came back with the same sentence. Which row the reader means
     # is a question only they can answer, and asking it is the answer.
+    # "Show me the evidence." The product's own suggested follow-up, and a
+    # request for the WORKINGS of the answer on the table — never a request
+    # to run something. It used to be re-planned, which after a governed
+    # metric or a scorecard answer composed a DIFFERENT analysis and showed
+    # its table as though it were the evidence for the figure the reader was
+    # looking at. Nothing is recomputed here either.
+    if _shows_the_workings(question):
+        workings = _show_the_workings(answered, question, state)
+        if workings is not None:
+            return finish(workings)
+
     pointing = nth.points_without_saying_which(question)
     if pointing:
         rows = ru.cached_result(state)
@@ -498,11 +516,6 @@ def answer(question: str, *, context: Any = None,
     # who types one word to step back and watches the numbers change has been
     # given a reason to distrust both answers. Nothing is recomputed: the rows
     # already on the screen are shown again.
-    if _steps_back(question):
-        stepped = _show_previous_again(answered, question, state)
-        if stepped is not None:
-            return finish(stepped)
-
     if continuation.action == cv.MODIFY_PRESENTATION:
         redrawn = _redraw_previous(answered, question, state, continuation)
         if redrawn is not None:
@@ -627,7 +640,20 @@ def answer(question: str, *, context: Any = None,
         validated = _validation_answer(answered, validation, question)
         if validated is not None:
             return finish(validated)
-    governed_metric = None if modifying else metric_route.read(
+    # And never where the sentence points BACK at a population the metric
+    # cannot see. The metric library computes over the whole book or over one
+    # dimension of it; it holds no filters. "Which subsegment has deteriorated
+    # most?" then "How much of THAT is secured?" was answered with the book's
+    # secured share — 75.0%, correct about the book and about nothing the
+    # reader had asked. The planner can apply the carried population, so the
+    # question goes there instead.
+    points_back = bool(
+        continuation.carries_context
+        and referents.points_at_the_previous_population(question)
+        and state is not None
+        and (state.filters or state.result.has_population
+             or state.conditions))
+    governed_metric = None if (modifying or points_back) else metric_route.read(
         question, carried_metric=(state.governed_metric if state else ""),
         carried_dimension=((state.governed_dimension if state else "")
                            or (state.dimensions[0] if state and state.dimensions
@@ -1916,6 +1942,74 @@ def _steps_back(question: str) -> bool:
     return bool(_STEPS_BACK.match(" ".join(str(question or "").split())))
 
 
+_SHOWS_THE_WORKINGS = re.compile(
+    r"^\s*(?:now\s+)?(?:show|give) (?:me )?(?:the )?"
+    r"(?:evidence|workings?|calculation|derivation|trace|proof)\b"
+    r"|^\s*(?:what|where) (?:is|'s) the (?:evidence|workings?|calculation)\b"
+    r"|^\s*how (?:was|is) (?:that|this|it) (?:calculated|computed|derived|"
+    r"worked out)\b",
+    re.IGNORECASE)
+
+
+def _shows_the_workings(question: str) -> bool:
+    """Whether the sentence asks for the workings behind the answer shown."""
+    return bool(_SHOWS_THE_WORKINGS.search(
+        " ".join(str(question or "").split())))
+
+
+def _show_the_workings(answered: Answered, question: str,
+                       state: cv.ConversationState) -> Answered | None:
+    """The rows behind the previous answer, with how it was arrived at.
+
+    Returns None from a standing start, where there is no answer to show the
+    workings of and the ordinary path reads the sentence instead.
+    """
+    from backend.orchestration import handlers
+
+    if state is None:
+        return None
+    cached = ru.cached_result(state)
+    if cached is None or not cached.usable:
+        return None
+    said = cached.question or "the previous question"
+    method = ""
+    for turn in reversed(state.turns or []):
+        if turn.question == question:
+            continue
+        if turn.status == "succeeded" and turn.answer:
+            method = str(turn.answer)
+            break
+    # The METHOD as the answer itself stated it. `state.plan_summary` is not
+    # used: a route answers without composing a plan, so the summary still
+    # describes an older analysis and reads as though it produced these rows.
+    lead = f"The workings behind \u201c{said}\u201d."
+    if method:
+        lead = f"{lead} {method.strip()}"
+    if not lead.endswith((".", "?", "!")):
+        lead += "."
+    held = len(cached.rows)
+    sentence = (f"{lead} That is the one row it was read from; nothing was "
+                "recomputed." if held == 1 else
+                f"{lead} These are the {held} rows it was read from; nothing "
+                "was recomputed.")
+    provenance = ru.provenance_of(cached)
+    answered.cached = cached
+    answered.provenance = provenance
+    answered.from_memory = True
+    answered.decision = rt.decide(question, deterministic=True)
+    answered.result = handlers.HandlerResult(
+        answer=sentence,
+        rows=[dict(r) for r in cached.rows],
+        columns=[dict(c) for c in cached.columns],
+        values=dict(getattr(cached, "values", {}) or {}),
+        detail={"reuse": provenance.to_dict(), "previous": cached.to_dict(),
+                "of": said},
+        follow_ups=[],
+        warnings=[],
+    )
+    return answered
+
+
 def _show_previous_again(answered: Answered, question: str,
                          state: cv.ConversationState) -> Answered | None:
     """The previous result, unchanged and unrecomputed.
@@ -1933,9 +2027,12 @@ def _show_previous_again(answered: Answered, question: str,
     answered.provenance = provenance
     answered.from_memory = True
     answered.decision = rt.decide(question, deterministic=True)
-    said = cached.question or "the previous question"
+    # Quoted, not run into the sentence: without the quotes it ended
+    # "…unchanged: What can I not conclude from this?." — one sentence
+    # carrying a question mark in its middle and two terminators at its end.
+    said = (cached.question or "the previous question").strip()
     answered.result = handlers.HandlerResult(
-        answer=(f"The previous answer, unchanged: {said}. "
+        answer=(f"The previous answer, unchanged: \u201c{said}\u201d. "
                 "Nothing was recomputed, so these are the same rows."),
         rows=[dict(r) for r in cached.rows],
         columns=[dict(c) for c in cached.columns],
@@ -2281,6 +2378,21 @@ def _repeats_the_previous_plan(build: Any, state: cv.ConversationState,
     if not getattr(continuation, "carries_context", False):
         return ""
     if _ASKS_AGAIN.search(str(question or "")):
+        return ""
+    # A question ABOUT the result is never a repeat of it. "Show me the
+    # evidence" was blocked by this guard — told that CreditProbe had not run
+    # the analysis a second time, when what the reader asked for was the
+    # workings of the first.
+    if ru.wants(question) or _steps_back(question):
+        return ""
+    # The same rule, read off the continuation rather than off the words.
+    # "Show me the evidence." is the product's OWN suggested follow-up: it
+    # asks for the workings of the answer on the table, and this guard told
+    # the reader CreditProbe had not run the analysis twice — refusing a
+    # question it had just offered to be asked.
+    if getattr(continuation, "action", "") in (
+            cv.ASK_ABOUT_RESULT, cv.ASSESS_PREVIOUS_RESULT, cv.NAVIGATE,
+            cv.STEP_BACK):
         return ""
     # A plan with something new to SAY is not a repeat, whatever its
     # operations are. A composite asked for a six-month window runs at one
@@ -2825,9 +2937,15 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     settled value exactly as it was, so answering the clarification continues
     where the thread left off rather than from nothing.
     """
+    # The answer as it was SAID. A caller that passes no headline — the API
+    # passes the assembled one — still leaves a turn in the transcript, and a
+    # turn with no answer in it is a turn a later question cannot refer to:
+    # "show me the evidence" had nothing to name as the method.
+    said = headline or str(getattr(getattr(answered, "result", None),
+                                   "answer", "") or "")
     state.remember_turn(cv.Turn(
         question=answered.question,
-        answer=headline or answered.clarification or answered.failure,
+        answer=said or answered.clarification or answered.failure,
         intent=answered.reading.intent,
         run_id=run_id,
         status=("succeeded" if answered.answered else
@@ -2871,6 +2989,14 @@ def remember(state: cv.ConversationState, answered: Answered, *,
             state.governed_dimension = answered.governed_dimension
 
     if answered.runtime is None or answered.build is None:
+        # A ROUTE answered it — a governed metric, a scorecard validation —
+        # and there is no build or runtime to snapshot. The rows are still
+        # what the reader is looking at, so they are what "show me the
+        # evidence", "back" and "does that make sense?" must refer to.
+        # Without this the next such follow-up reached past the answer on
+        # screen to the last COMPOSED analysis, and showed the workings of a
+        # different question without saying so.
+        _remember_a_route_result(state, answered, run_id=run_id)
         _keep_the_population_the_question_named(state, answered)
         return state
 
@@ -2949,6 +3075,54 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     state.plan_fingerprint = str(
         getattr(answered.runtime, "fingerprint", "") or "")
     return state
+
+
+def _remember_a_route_result(state: cv.ConversationState, answered: Answered,
+                             *, run_id: int | None = None) -> None:
+    """Record the rows a route put on screen, so follow-ups refer to them.
+
+    Only the rows and their columns: a route computes no plan, so nothing here
+    touches `state.ir`, the measures or the population. A follow-up that asks
+    for a NEW analysis still composes one; a follow-up that asks about what is
+    on the table now finds what is on the table.
+    """
+    result = getattr(answered, "result", None)
+    if result is None or not answered.answered:
+        return
+    rows = [dict(r) for r in (getattr(result, "rows", None) or [])]
+    columns = [dict(c) for c in (getattr(result, "columns", None) or [])]
+    if not rows or not columns:
+        return
+    truncated = len(rows) > cv.MAX_REUSE_ROWS
+    shape = cv.ResultShape(
+        columns=columns,
+        row_count=len(rows),
+        sample=rows[:5],
+        run_id=run_id,
+        rows=rows[:cv.MAX_REUSE_ROWS],
+        truncated=truncated,
+        question=answered.question,
+    )
+    names = {str(c.get("name")) for c in columns}
+    key = next((c for c in _IDENTITY_COLUMNS if c in names), "")
+    if key:
+        shape.entity_key = key
+        for row in shape.rows[:cv.MAX_ENTITY_IDS]:
+            value = row.get(key)
+            if value is None or str(value) == "":
+                continue
+            shape.entity_ids.append(str(value))
+    state.result = shape
+    state.plan_fingerprint = ""
+    # The period the ROUTE read, so a follow-up that describes this result
+    # says when it was read. Without it the scope line carried whichever
+    # window the last COMPOSED analysis used — "1 rows · 2024-08 to 2026-08"
+    # under a figure computed at one date.
+    values = dict(getattr(result, "values", None) or {})
+    period = str(values.get("period") or "")
+    if period:
+        state.periods = [period]
+        state.opening_period, state.closing_period = "", ""
 
 
 def _result_fingerprint(runtime: Any) -> str:

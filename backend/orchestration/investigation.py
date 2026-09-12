@@ -125,8 +125,32 @@ def wants_investigation(question: str) -> bool:
     from backend.orchestration import deterioration as dr
 
     text = " ".join((question or "").lower().split())
+    # A question that names WHICH group and by WHAT measure is a request to
+    # compute, not a request to look. "Which product subsegment has
+    # deteriorated most on 90+ delinquency since the start of the year?"
+    # matched "has deteriorated" and came back as six governed probes over the
+    # whole book — no subsegments, no delinquency, no window.
+    if _names_the_group_and_the_measure(text):
+        return False
     return (any(re.search(pattern, text) for pattern in _INVESTIGATE)
             or dr.wants_complete_review(question))
+
+
+#: "which <something> has <verb> most/highest/worst …" — a superlative over a
+#: named grouping. The sentence says what to rank and what to rank it by.
+_A_SUPERLATIVE_OVER_A_GROUP = re.compile(
+    r"^\s*(?:and\s+)?which\b.{0,60}?"
+    r"\b(?:most|highest|largest|biggest|worst|fastest|greatest|"
+    r"lowest|smallest|least)\b", re.I)
+
+
+def _names_the_group_and_the_measure(text: str) -> bool:
+    """Whether the sentence says which group to rank and by what."""
+    from backend.orchestration import coverage as cov
+
+    if not _A_SUPERLATIVE_OVER_A_GROUP.search(text):
+        return False
+    return bool(cov.names_a_measure(text))
 
 
 #: The whole portfolio, as a population an investigation can run over.

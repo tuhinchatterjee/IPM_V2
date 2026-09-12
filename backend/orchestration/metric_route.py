@@ -569,7 +569,31 @@ def _period(question: str, metric: Any) -> str:
 
 #: How many groups a breakdown may return before it stops being an answer.
 MAX_PERIODS = 60
-MAX_GROUPS = 25
+#: How many groups a metric breakdown returns.
+#:
+#: It was 25 against a book of 26 cities, and the breakdown is ordered largest
+#: first — so "which city has the LOWEST ECL coverage?" was answered from a
+#: table the answer had been cut out of: Al Ahsa at 0.4835, where Khamis
+#: Mushait is 0.4824 and was the twenty-sixth row. Raised to the engine's own
+#: ceiling, and the ordering below follows the question.
+MAX_GROUPS = 60
+
+
+#: The catalogue's unit, in the vocabulary the presentation layer speaks.
+#: Without it a route's columns carry a label and a number and nothing that
+#: says which column is the group and which is the measure — so a follow-up
+#: that reasons about the result ("what can I not conclude from this?") was
+#: told the result had no group to compare measures across.
+_SEMANTIC: dict[str, str] = {
+    "currency": "money", "percent": "percent", "percentage": "percent",
+    "probability": "ratio", "ratio": "ratio", "count": "count",
+    "days": "days", "months": "count", "years": "count",
+}
+
+
+def _semantic_of(unit: str) -> str:
+    """The presentation semantic for a catalogue unit."""
+    return _SEMANTIC.get(str(unit or "").strip().lower(), "ratio")
 
 
 def _format(value: float | None, unit: str, decimals: int) -> str:
@@ -657,10 +681,13 @@ def _value_answer(routed: Routed, question: str, result_type: Any) -> Any:
     return result_type(
         answer=sentence,
         rows=[{"metric": metric.name, "value": value, "period": period}],
-        columns=[{"name": "metric", "label": "Metric", "type": "string"},
+        columns=[{"name": "metric", "label": "Metric", "type": "string",
+                  "semantic": "text", "rank": 0},
                  {"name": "value", "label": metric.name, "type": "number",
-                  "unit": metric.unit, "decimals": metric.decimals},
-                 {"name": "period", "label": "Period", "type": "string"}],
+                  "unit": metric.unit, "decimals": metric.decimals,
+                  "semantic": _semantic_of(metric.unit), "rank": 10},
+                 {"name": "period", "label": "Period", "type": "string",
+                  "semantic": "text", "rank": 5}],
         values={"value": value, "unit": metric.unit, "period": period,
                 "metric_id": metric.metric_id, "formatted": shown},
         detail={"metric": _panel(metric),
@@ -700,7 +727,11 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
             period="" if routed.trend else period,
             scope=metric.scope,
             sort="label" if routed.trend else "value",
-            direction="asc" if routed.trend else "desc",
+            # Ordered the way the question asked. A breakdown cut at the top
+            # cannot answer a question about the bottom.
+            direction=("asc" if routed.trend
+                       or _ASKS_FOR_THE_LOWEST.search(routed.question or "")
+                       else "desc"),
             limit=MAX_PERIODS if routed.trend else MAX_GROUPS,
             question=question)
     except Exception:  # noqa: BLE001 - stated, then the single figure
@@ -774,10 +805,13 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
               for p in shown],
         columns=[{"name": "label",
                   "label": "Reporting month" if routed.trend else label,
-                  "type": "string"},
+                  "type": "string", "semantic": "text",
+                  "rank": 5 if routed.trend else 0},
                  {"name": "value", "label": metric.name, "type": "number",
-                  "unit": metric.unit, "decimals": metric.decimals},
-                 {"name": "rows", "label": "Facilities", "type": "number"}],
+                  "unit": metric.unit, "decimals": metric.decimals,
+                  "semantic": _semantic_of(metric.unit), "rank": 10},
+                 {"name": "rows", "label": "Facilities", "type": "number",
+                  "semantic": "count", "rank": 40}],
         values={"metric_id": metric.metric_id, "period": period,
                 "dimension": routed.dimension,
                 "highest": top["label"], "lowest": bottom["label"]},

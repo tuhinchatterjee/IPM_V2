@@ -229,16 +229,21 @@ def wants(question: str) -> str:
 
 #: Opening something rather than asking about it.
 _NAVIGATE: tuple[str, ...] = (
-    # "Back." planned an analysis, ran it, and returned a DIFFERENT row count
-    # from the answer it was supposed to be returning to. A reader who types
-    # one word to go back and watches the numbers change has been given a
-    # reason not to trust either answer.
-    r"^\s*(?:go\s+)?back\b\s*[.!]?\s*$",
-    r"^\s*(?:take me\s+)?back to (?:that|the previous|the last)\b",
-    r"^\s*previous (?:answer|result|one)\b",
     r"^\s*open\b", r"^\s*take me to\b", r"^\s*go to\b",
     r"^\s*navigate to\b", r"^\s*let me see\b.*\bdataset\b",
     r"^\s*(?:show|bring up)\s+(?:me\s+)?the\s+\w+\s+(?:dataset|table)\b",
+)
+
+#: Returning to the answer the reader has just left.
+#:
+#: Not NAVIGATE. "Back." was read as navigation, and navigation means opening
+#: what the conversation is ABOUT — so one word typed to return to the
+#: previous answer opened the dataset and returned fifty raw rows of the book.
+#: It is its own action: nothing is opened and nothing is computed.
+_STEPS_BACK: tuple[str, ...] = (
+    r"^\s*(?:go\s+)?back\b\s*[.!]?\s*$",
+    r"^\s*(?:take me\s+)?back to (?:that|the previous|the last)\b",
+    r"^\s*previous (?:answer|result|one)\b",
 )
 
 #: A complaint that the previous answer was incomplete.
@@ -433,6 +438,14 @@ def _read(question: str) -> Reference:
         if re.search(pattern, text):
             return Reference(action=cv.NEW_REQUEST,
                              because="the question opens a new subject")
+
+    for pattern in _STEPS_BACK:
+        if re.search(pattern, text):
+            return Reference(action=cv.STEP_BACK,
+                             changes=["show the previous answer again, "
+                                      "unchanged and unrecomputed"],
+                             because="the question asks to return to the "
+                                     "answer already given")
 
     for pattern in _NAVIGATE:
         if re.search(pattern, text):
@@ -636,6 +649,25 @@ def refine(reference: Reference, memory: Any) -> Reference:
                 because=(f"the previous answer was a {result.result_type} and "
                          "the question refers back to it"))
     return reference
+
+
+#: A bare pointer at the population the previous answer settled — "that",
+#: "it", "those", "them", "these" — used as the SUBJECT of the sentence rather
+#: than as part of a named thing.
+_POINTS_AT_THE_POPULATION = re.compile(
+    r"\b(?:of|in|within|for|across|about|from)\s+(?:that|this|those|these|"
+    r"them|it)\b"
+    r"|\bcompare\s+(?:it|that|this|those|them)\b"
+    r"|\b(?:is|are|was|were)\s+(?:that|this|those|these|it|they)\b"
+    r"|^\s*(?:and\s+)?(?:how much|how many|what share|what proportion)\s+"
+    r"of\s+(?:that|this|those|these|it|them)\b",
+    re.IGNORECASE)
+
+
+def points_at_the_previous_population(question: str) -> bool:
+    """Whether the sentence's subject is the population already on the table."""
+    return bool(_POINTS_AT_THE_POPULATION.search(
+        " ".join(str(question or "").split())))
 
 
 def resolve(question: str, state: cv.ConversationState, *,

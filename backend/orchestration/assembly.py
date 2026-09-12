@@ -873,6 +873,38 @@ def _grew_most(build: Any, rows: list[dict[str, Any]], column: str
     name = pick(moved, key=lambda g: moved[g][1] - moved[g][0])
     return name, moved[name][0], moved[name][1]
 
+def _led_the_change(build: Any, rows: list[dict[str, Any]], column: str
+                    ) -> tuple[str, float, float] | None:
+    """The group that accounts for most of the movement.
+
+    The same arithmetic as `_grew_most`, without the question having to ask
+    which group moved furthest: a breakdown over a window is ABOUT the groups,
+    and naming none of them in the sentence leaves the reader to find the
+    answer in the table.
+    """
+    if not column or not rows or not build.dimension:
+        return None
+    period_column = _period_column(build)
+    opening: dict[str, float] = {}
+    closing: dict[str, float] = {}
+    for row in rows:
+        group = str(row.get(build.dimension) or "")
+        value = row.get(column)
+        at = str(row.get(period_column) or "")
+        if not group or not isinstance(value, (int, float)):
+            continue
+        if at == build.opening:
+            opening[group] = opening.get(group, 0.0) + float(value)
+        elif at == build.closing:
+            closing[group] = closing.get(group, 0.0) + float(value)
+    moved = {g: (opening.get(g, 0.0), closing[g]) for g in closing
+             if g in opening}
+    if not moved:
+        return None
+    name = max(moved, key=lambda g: abs(moved[g][1] - moved[g][0]))
+    return name, moved[name][0], moved[name][1]
+
+
 def _identity_column(row: dict[str, Any]) -> str:
     """The column that names the row — the customer, the facility, the group."""
     for name in ("customer_id", "borrower_name", "facility_id", "account_id"):
@@ -1409,7 +1441,22 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         # in the table below and named nowhere. The rows hold the answer.
         elif build.dimension:
             grew = _grew_most(build, rows, column)
-            if grew is not None:
+            # A breakdown whose headline never mentions the breakdown.
+            # "Break the whole book down by region" over a window was
+            # introduced with the movement of the WHOLE book: true, and not
+            # an answer to the question, which was about regions. Where the
+            # reader did not ask WHICH moved most, the group that contributed
+            # most of the change is still what the table is for.
+            if grew is None:
+                grew = _led_the_change(build, rows, column)
+                if grew is not None:
+                    name, was, now = grew
+                    direct += (
+                        f" {name} contributed most of the move, from "
+                        f"{_fmt(was)} to {_fmt(now)} {unit}".rstrip()
+                        + f" — {_fmt(abs(now - was))} {unit}".rstrip()
+                        + f" of the {_fmt(abs(change))} {unit}".rstrip() + ".")
+            else:
                 name, was, now = grew
                 direct += (f" {name} moved most, from {_fmt(was)} to "
                            f"{_fmt(now)} {unit}".rstrip()

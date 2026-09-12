@@ -59,6 +59,15 @@ def book() -> pd.DataFrame:
     return pd.read_parquet(paths[0])
 
 
+def _month(period: str) -> pd.DataFrame:
+    """One reporting month of the shipped lake, read directly."""
+    paths = glob.glob("data/retail/analytics/retail_facility_month/"
+                      f"reporting_month={period}/*.parquet")
+    if not paths:
+        pytest.skip(f"the shipped retail lake has no {period}")
+    return pd.read_parquet(paths[0])
+
+
 def answer(question: str, *, state: cv.ConversationState | None = None):
     answered = orchestrator.answer(question, state=state)
     assert not answered.clarification, (
@@ -269,8 +278,11 @@ class TestAFollowUpIsReadAsWhatItIs:
 
     def test_back_is_navigation_not_an_analysis(self, carried):
         from backend.orchestration import referents
-        assert referents.resolve("Back.", carried).action == cv.NAVIGATE
-        assert referents.resolve("Go back.", carried).action == cv.NAVIGATE
+        # STEP_BACK, not NAVIGATE: navigation OPENS what the conversation is
+        # about, and one word typed to return to the previous answer opened
+        # the dataset and returned fifty raw rows of the book.
+        assert referents.resolve("Back.", carried).action == cv.STEP_BACK
+        assert referents.resolve("Go back.", carried).action == cv.STEP_BACK
 
     def test_a_contribution_question_points_back(self, carried):
         from backend.orchestration import referents
@@ -1015,3 +1027,318 @@ class TestAnOrdinaryWordIsNotAGovernedValue:
                           "bucket?")
         assert int(answered.runtime.rows[0]["facility_count"]) == int(
             book[book.dpd_bucket == "CURRENT"].facility_id.nunique())
+
+
+# ---------------------------------------------------------------------------
+# The second battery: navigation, reuse, and what a series says
+# ---------------------------------------------------------------------------
+
+
+class TestAWorkingsRequestIsNotARepeat:
+    """"Show me the evidence." is the product's own suggested follow-up."""
+
+    def test_it_is_recognised(self):
+        assert orchestrator._shows_the_workings("Show me the evidence.")
+        assert orchestrator._shows_the_workings("Show the workings.")
+        assert orchestrator._shows_the_workings("How was that calculated?")
+        assert not orchestrator._shows_the_workings(
+            "Show me ECL by region.")
+
+    def test_the_repeat_guard_lets_it_through(self):
+        continuation = cv.Continuation(action=cv.ASK_ABOUT_RESULT)
+        assert continuation.carries_context
+        state = cv.ConversationState(ir={"dataset": "d", "operations": []},
+                                     plan_summary="the previous analysis")
+        build = type("B", (), {"plan": {"dataset": "d", "operations": []},
+                               "warnings": []})()
+        assert orchestrator._repeats_the_previous_plan(
+            build, state, continuation, "Show me the evidence.") == ""
+
+    def test_the_workings_are_of_the_answer_on_the_table(self):
+        _, state = advanced("Break the whole book down by region.")
+        answered, state = advanced("Which region has the highest ECL "
+                                   "coverage?", state)
+        workings = orchestrator._show_the_workings(
+            orchestrator.Answered(question="Show me the evidence.",
+                                  reading=answered.reading,
+                                  verdict=answered.verdict,
+                                  continuation=answered.continuation),
+            "Show me the evidence.", state)
+        assert workings is not None
+        said = str(workings.result.answer)
+        assert "ecl coverage" in said.lower(), said
+        assert "SUM(ecl_final_sar)" in said, said
+        # Never the summary of an EARLIER analysis: a route composes no plan,
+        # so `plan_summary` still described the breakdown before it.
+        assert "by region label at" not in said, said
+
+
+class TestSteppingBackIsNotNavigation:
+    """"Back." opened the dataset and returned fifty raw rows of the book."""
+
+    def test_it_is_its_own_action(self):
+        from backend.orchestration import referents
+
+        _, carried = advanced("Break the whole book down by region.")
+        assert referents.resolve("Back.", carried).action == cv.STEP_BACK
+        assert referents.resolve("Go back.", carried).action == cv.STEP_BACK
+        assert referents.resolve("Open the latest dataset.",
+                                 carried).action == cv.NAVIGATE
+
+    def test_it_is_not_read_as_answering_a_clarification(self):
+        assert not cv.answers_a_clarification("Back.")
+        assert not cv.answers_a_clarification("Never mind.")
+        assert cv.answers_a_clarification("expected credit loss")
+
+    def test_it_returns_the_rows_it_left(self):
+        _, state = advanced("Break the whole book down by region.")
+        answered = orchestrator.answer("Back.", state=state)
+        said = str(answered.result.answer)
+        assert "unchanged" in said, said
+        assert said.count("..") == 0, said
+        assert len(answered.result.rows) == 13, said
+
+
+class TestARouteLeavesItsRowsOnTheTable:
+    """A governed metric answers without a plan. The rows are still on screen."""
+
+    def test_the_state_carries_them(self):
+        answered, state = advanced("Which region has the highest ECL "
+                                   "coverage?")
+        assert state.result.rows, "the route's rows were not remembered"
+        assert state.result.question == answered.question
+        assert len(state.result.rows) == 13
+
+    def test_its_columns_say_which_is_the_measure(self):
+        _, state = advanced("Which region has the highest ECL coverage?")
+        by_name = {c["name"]: c for c in state.result.columns}
+        assert by_name["label"]["rank"] == 0
+        assert by_name["value"]["semantic"] == "percent"
+        assert by_name["rows"]["rank"] == 40
+
+
+class TestASeriesIsPlannedAsASeries:
+    """"by month" asks for every date, not for a ranking at one."""
+
+    def test_the_shape_is_a_movement(self):
+        answered = answer("Show me ECL by month for the last 12 months.")
+        assert answered.build.shape == ap.MOVEMENT
+        assert len(answered.runtime.rows) == 12
+        assert "reporting_month" in answered.runtime.rows[0]
+
+    def test_a_period_phrase_is_not_a_superlative(self):
+        from backend.orchestration import fidelity as fd
+
+        assert fd.objective_of("ECL for the last 12 months") != fd.RANKING
+        assert fd.objective_of("the last 5 customers") == fd.RANKING
+
+    def test_the_measure_column_is_not_labelled_with_one_date(self):
+        from backend.orchestration import presentation as pr
+
+        answered = answer("Show me ECL by month for the last 12 months.")
+        labels = {c["name"]: c["label"] for c in pr.schema(answered.runtime,
+                                                           answered.build)}
+        assert labels["ecl_final_sar"] == "Expected credit loss", labels
+
+
+class TestAnAssessmentSpeaksOfWhatItHolds:
+    """The assessment used to correlate a measure with its own denominator."""
+
+    def test_a_row_count_is_not_a_measure(self):
+        from backend.orchestration import association
+
+        columns = [{"name": "label", "rank": 0, "semantic": "text"},
+                   {"name": "value", "rank": 10, "semantic": "percent"},
+                   {"name": "rows", "rank": 40, "semantic": "count"}]
+        rows = [{"label": f"g{i}", "value": 10 - i, "rows": i}
+                for i in range(8)]
+        found = association.analyse(columns, rows)
+        assert not found.pairs, "a context column was correlated as a measure"
+
+    def test_a_share_is_not_correlated_with_its_own_measure(self):
+        from backend.orchestration import association
+
+        columns = [{"name": "region", "rank": 0, "semantic": "text"},
+                   {"name": "ecl", "rank": 10, "semantic": "money"},
+                   {"name": "ecl_share_pct", "rank": 30, "semantic": "percent"}]
+        rows = [{"region": f"r{i}", "ecl": 100 - i, "ecl_share_pct": 10 - i / 10}
+                for i in range(8)]
+        found = association.analyse(columns, rows)
+        assert not found.pairs, (
+            "a measure was correlated with its own share of the total")
+
+    def test_a_nominal_ranking_is_not_reported_as_a_trend(self):
+        from backend.orchestration import association
+
+        columns = [{"name": "region", "rank": 0, "semantic": "text"},
+                   {"name": "ecl", "rank": 10, "semantic": "money"}]
+        rows = [{"region": f"r{i}", "ecl": 100 - i} for i in range(8)]
+        found = association.analyse(columns, rows)
+        assert not found.trends, (
+            "the sort order of a ranking was reported as a trend")
+        assert "no order of their own" in found.unavailable
+
+    def test_a_series_is_assessed_along_its_dates(self):
+        from backend.orchestration import association
+
+        columns = [{"name": "reporting_month", "rank": 5, "semantic": "period"},
+                   {"name": "ecl", "rank": 10, "semantic": "money"}]
+        rows = [{"reporting_month": f"2026-{m:02d}", "ecl": v}
+                for m, v in enumerate([10, 9, 8, 7, 8, 9, 10, 11], start=1)]
+        found = association.analyse(columns, rows)
+        assert found.over_time
+        assert found.trends
+        assert found.trends[0].low_label == "2026-04"
+
+    def test_a_breakdown_at_two_dates_is_one_row_per_group(self):
+        from backend.orchestration import association
+
+        columns = [{"name": "region", "rank": 0, "semantic": "text"},
+                   {"name": "reporting_month", "rank": 5, "semantic": "period"},
+                   {"name": "ecl", "rank": 10, "semantic": "money"}]
+        rows = [{"region": f"r{i}", "reporting_month": m, "ecl": 100 - i + k}
+                for i in range(8)
+                for k, m in enumerate(("2025-09", "2026-08"))]
+        found = association.analyse(columns, rows)
+        assert found.groups == 8, "two rows per group were counted as two groups"
+        assert found.pairs, "the two dates were not compared"
+
+
+class TestAMessageSurvivesAValueJsonCannotHold:
+    """A pandas Timestamp in a preview used to 500 the whole turn."""
+
+    def test_the_payload_is_coerced(self):
+        from backend.services import threads
+
+        stamp = pd.Timestamp("2026-08-31")
+        out = threads._stored_payload(
+            {"steps": [{"result": {"rows": [{"snapshot_date": stamp}]}}]})
+        import json
+
+        json.dumps(out)  # must not raise
+        assert out["steps"][0]["result"]["rows"][0]["snapshot_date"].startswith(
+            "2026-08-31")
+
+
+class TestAReaderSAssessmentVocabulary:
+    """"Does that look consistent?" ran a second analysis of the same book."""
+
+    @pytest.mark.parametrize("said", [
+        "Does that look consistent?",
+        "Does this look right?",
+        "How does that look?",
+        "Does that add up?",
+        "Can I trust these?",
+        "Anything odd about that?",
+    ])
+    def test_it_asks_about_the_result(self, said):
+        from backend.orchestration import reuse as ru
+
+        assert ru.wants(said), said
+
+    def test_a_breakdown_request_still_composes(self):
+        from backend.orchestration import reuse as ru
+
+        assert not ru.wants("Break that down by region.")
+
+
+class TestABreakdownHeadlineNamesTheBreakdown:
+    def test_the_leading_group_is_named(self):
+        _, state = advanced("Show me ECL by month for the last 12 months.")
+        answered = answer("Break the whole book down by region.", state=state)
+        said = headline(answered)
+        assert "region" in said.lower() or any(
+            r in said for r in ("Riyadh", "Makkah", "Eastern Province")), said
+
+
+class TestAWhichQuestionIsComputedNotInvestigated:
+    """"Which subsegment has deteriorated most on X?" names what to rank."""
+
+    def test_it_is_not_read_as_a_request_to_look(self):
+        from backend.orchestration import investigation as iv
+
+        assert not iv.wants_investigation(
+            "Which product subsegment has deteriorated most on 90+ "
+            "delinquency since the start of the year?")
+        # A sentence that names no measure IS a request to look.
+        assert iv.wants_investigation("What has deteriorated this year?")
+        assert iv.wants_investigation("Which region has deteriorated most?")
+
+    def test_a_named_measure_beats_the_composite(self):
+        answered = answer("Which product subsegment has deteriorated most on "
+                          "90+ delinquency since the start of the year?")
+        assert answered.build.dimension == "product_subsegment"
+        assert "dpd" in {m.field for m in answered.build.matches}
+
+    def test_the_band_is_a_level_not_a_movement(self, book):
+        answered = answer("Which product subsegment has deteriorated most on "
+                          "90+ delinquency since the start of the year?")
+        described = [c.describe() for c in answered.build.conditions]
+        assert any("rose" in d for d in described), described
+        assert any("90" in d for d in described), (
+            "the band the question named was dropped")
+
+    def test_the_rows_reconcile(self):
+        import pandas as pd
+
+        answered = answer("Which product subsegment has deteriorated most on "
+                          "90+ delinquency since the start of the year?")
+        opening = _month(answered.build.opening)[["facility_id", "dpd"]]
+        closing = _month(answered.build.closing)[
+            ["facility_id", "dpd", "product_subsegment"]]
+        both = closing.merge(opening, on="facility_id", suffixes=("_c", "_o"))
+        kept = both[(both.dpd_c >= 90) & (both.dpd_c > both.dpd_o)].copy()
+        kept["chg"] = kept.dpd_c - kept.dpd_o
+        truth = kept.groupby("product_subsegment").chg.sum().sort_values(
+            ascending=False)
+        rows = answered.runtime.rows
+        assert len(rows) == len(truth), (len(rows), len(truth))
+        assert rows[0]["product_subsegment"] == truth.index[0]
+        assert float(rows[0]["dpd_change"]) == pytest.approx(
+            float(truth.iloc[0]), abs=0.5)
+
+    def test_a_grouped_cohort_answers_a_which_question(self):
+        from backend.orchestration import fidelity as fd
+
+        answered = answer("Which product subsegment has deteriorated most on "
+                          "90+ delinquency since the start of the year?")
+        assert fd.executed_objective(answered.build) == fd.RANKING
+        assert not [w for w in answered.build.warnings
+                    if "one question with another" in w], answered.build.warnings
+
+
+class TestTheYearSoFarIsTheYearSoFar:
+    """"Since the start of the year" was answered with 25 months."""
+
+    MONTHS = [f"{y}-{m:02d}" for y in (2024, 2025, 2026) for m in range(1, 13)]
+
+    @pytest.mark.parametrize("said", [
+        "since the start of the year",
+        "since the beginning of the year",
+        "year to date",
+        "ytd",
+        "so far this year",
+    ])
+    def test_it_opens_in_january(self, said):
+        from backend.orchestration import periods as prd
+
+        months = [m for m in self.MONTHS if "2024-08" <= m <= "2026-08"]
+        found = prd.read_period_intent(said, months)
+        assert (found.from_period, found.to_period) == ("2026-01", "2026-08"), (
+            said, found)
+
+    def test_the_whole_history_still_reads_as_the_whole_history(self):
+        from backend.orchestration import periods as prd
+
+        months = [m for m in self.MONTHS if "2024-08" <= m <= "2026-08"]
+        found = prd.read_period_intent("since the start", months)
+        assert (found.from_period, found.to_period) == ("2024-08", "2026-08")
+
+
+class TestANarrowingInheritsTheSettledShape:
+    """The retail book is keyed per facility, so every sentence "asked" for one."""
+
+    def test_the_grain_guard_reads_the_sentence(self):
+        assert not ap._asks_for_an_entity_grain("Show me personal finance.")
+        assert ap._asks_for_an_entity_grain("Which customers drove that?")
+        assert ap._asks_for_an_entity_grain("Show me the facilities.")

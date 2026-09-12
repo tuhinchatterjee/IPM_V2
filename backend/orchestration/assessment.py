@@ -135,10 +135,14 @@ def assess(cached: reuse.Cached, question: str = "") -> Assessment:
 
     found = association.analyse(cached.columns, cached.rows)
     if not found.usable:
+        # The offer has to fit the reason. Every association failure used to
+        # be offered "ask an analytical question first" — advice to a reader
+        # who had just asked one and was looking at its answer.
         return Assessment(
             unavailable=(found.unavailable
                          or "no pattern could be described from this result"),
-            offer=reuse.sufficient(None).offer,
+            offer=("Add a second measure to the result, or ask for the same "
+                   "figure over time, and I will assess how they move."),
             association=found.to_dict())
 
     ran: list[dict[str, Any]] = []
@@ -166,6 +170,8 @@ def assess(cached: reuse.Cached, question: str = "") -> Assessment:
         values[f"monotonicity:{trend.measure}"] = outcome.value
 
     assessment = Assessment(
+        caveat=(association.CAVEAT_OVER_TIME if found.over_time
+                else association.CAVEAT),
         conclusion=_conclusion(found, pairs),
         evidence=_evidence(found, pairs, ran),
         credit_interpretation=_credit(found, pairs),
@@ -216,6 +222,53 @@ def _said(label: str) -> str:
     return text[:1].lower() + text[1:]
 
 
+def _shape_of_the_series(trend: association.Trend, points: int) -> str:
+    """What a series that turns actually does, in one sentence.
+
+    Named by its low or its high rather than by the steps that go against the
+    majority: expected credit loss falling for six months and rising for five
+    was described as turning at three separate dates, which is arithmetically
+    true of the steps and wrong about the series.
+    """
+    from backend.orchestration import figures
+
+    spec = (figures.Spec.from_column(trend.column) if trend.column
+            else figures.Spec(decimals=2))
+
+    def said(value: float | None) -> str:
+        if value is None:
+            return "—"
+        return figures.text(value, spec)
+
+    first, last = trend.first, trend.last
+    turns_up = (trend.low is not None and first is not None
+                and last is not None
+                and trend.low < min(first, last)
+                and trend.low_label not in (trend.first_label,
+                                            trend.last_label))
+    turns_down = (trend.high is not None and first is not None
+                  and last is not None
+                  and trend.high > max(first, last)
+                  and trend.high_label not in (trend.first_label,
+                                               trend.last_label))
+    steps = trend.rising_steps + trend.falling_steps
+    counted = (f" {trend.falling_steps} of the {steps} month-on-month steps "
+               f"fall and {trend.rising_steps} rise." if steps else "")
+    if turns_up:
+        return (f"{trend.label} falls from {said(first)} at "
+                f"{trend.first_label} to a low of {said(trend.low)} at "
+                f"{trend.low_label}, then rises to {said(last)} at "
+                f"{trend.last_label}.{counted}")
+    if turns_down:
+        return (f"{trend.label} rises from {said(first)} at "
+                f"{trend.first_label} to a high of {said(trend.high)} at "
+                f"{trend.high_label}, then falls to {said(last)} at "
+                f"{trend.last_label}.{counted}")
+    return (f"{trend.label} moves from {said(first)} at {trend.first_label} "
+            f"to {said(last)} at {trend.last_label} across {points} reporting "
+            f"dates, but not in one direction.{counted}")
+
+
 def _conclusion(found: association.Analysis,
                 pairs: list[association.Pair]) -> str:
     """The finding, with its qualification inside the same sentence.
@@ -227,13 +280,20 @@ def _conclusion(found: association.Analysis,
     """
     if not pairs:
         trend = next((t for t in found.trends if t.monotonic), None)
+        # Twelve months are twelve reporting dates, not twelve "groups", and
+        # "moves falling" is not a sentence anybody writes.
+        unit = ("reporting dates" if found.over_time
+                else f"{_said(found.subject_label)} groups")
         if trend is None:
-            return (f"Across {found.groups} "
-                    f"{_said(found.subject_label)} groups the measures do not "
-                    "move in a single direction, so the result does not "
-                    "support a trend either way.")
-        return (f"{trend.label} moves {trend.direction} consistently across "
-                f"all {found.groups} {_said(found.subject_label)} groups.")
+            if found.over_time and found.trends:
+                return _shape_of_the_series(found.trends[0], found.groups)
+            return (f"Across the {found.groups} {unit} the figures do not "
+                    "move in one direction, so the result does not support a "
+                    "trend either way.")
+        moves = {"rising": "rises", "falling": "falls"}.get(
+            trend.direction, f"moves {trend.direction}")
+        return (f"{trend.label} {moves} consistently across all "
+                f"{found.groups} {unit}.")
 
     ordered = sorted(pairs, key=lambda p: abs(p.spearman or 0.0), reverse=True)
     lead = ordered[0]
@@ -473,7 +533,12 @@ def _limitations(cached: reuse.Cached,
             f"{found.groups} groups is a small number of observations. One "
             "group moving would change the coefficient materially.")
 
-    if cached.dimension or found.subject:
+    if found.over_time:
+        out.append(
+            "Each point is the whole book at that reporting date, so a move "
+            "in the line can come from the population changing as easily as "
+            "from the measure changing within it.")
+    elif cached.dimension or found.subject:
         subject = _said(found.subject_label or cached.dimension_label)
         out.append(
             f"These are {subject} averages. A group whose members are widely "
@@ -481,7 +546,9 @@ def _limitations(cached: reuse.Cached,
             "produce the same figure, so the aggregate can hide the "
             "distribution that matters.")
 
-    if len(cached.periods) <= 1:
+    # Only where there are two measures to be read at the same date. Said of a
+    # single series it named measures the result does not hold.
+    if len(cached.periods) <= 1 and len(found.trends) + len(found.pairs) > 1:
         out.append(
             "Both measures are read at the same date, so this is an "
             "association within one period and not evidence that either "

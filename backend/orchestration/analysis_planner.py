@@ -162,7 +162,13 @@ _ASKED_ROLLUP: tuple[tuple[str, str], ...] = (
 
 #: Aggregations DuckDB has and the validator accepts. A median is written
 #: differently in SQL and is not offered until it is implemented end to end.
-_SUPPORTED_ROLLUPS = frozenset({"sum", "avg", "max", "min", "count_distinct"})
+#: `median` is in this set because the governed runtime computes it. It was
+#: not, so "what is the median ECL?" fell back to the unit's rollup and
+#: answered 15,952,109 — the TOTAL — with nothing saying the word had been
+#: ignored. An aggregation a reader names and does not get is a different
+#: question answered confidently.
+_SUPPORTED_ROLLUPS = frozenset({"sum", "avg", "max", "min", "count_distinct",
+                                "median"})
 
 
 def _asked_rollup(text: str) -> str:
@@ -677,7 +683,14 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # starts choosing between measures, because by then the question has
     # already been reduced to one.
     composite = cmp.find(text, catalogue)
-    if composite is None and settled_text:
+    if (composite is None and settled_text and state is not None
+            and state.composite):
+        # The settled text is re-read for a composite only where the previous
+        # answer WAS one. "Which subsegment has deteriorated most on 90+
+        # delinquency?" is a cohort; the word "deteriorated" stayed in the
+        # settled text, and the next sentence — "How much of that is
+        # secured?" — was answered with a deterioration-signal ranking of 25
+        # customers, a composite the conversation had never been about.
         composite = cmp.find(settled_text, catalogue)
     # The previous question is only the previous QUESTION. Two follow-ups into
     # a concern conversation, it is itself a sentence that named nothing —
@@ -687,6 +700,17 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # as the reader cares to ask.
     if composite is None and inheriting and state is not None and state.composite:
         composite = cmp.find(state.composite, catalogue)
+    if composite is not None and matches and _names_its_own_measure(text):
+        # The sentence says what to measure. "Which product subsegment has
+        # deteriorated most on 90+ DELINQUENCY since the start of the year?"
+        # matched the deterioration composite on the verb and was answered by
+        # the composite's five signals at one date — neither the measure the
+        # question named nor the window it asked for. A composite stands in
+        # for a judgement nobody has a column for; where there IS a column and
+        # the reader named it, the column wins.
+        logger.info("A governed measure is named, so %s is not the reading "
+                    "of %r.", composite.composite.key, text[:70])
+        composite = None
     if composite is not None and _TRANSITION.search(text):
         # A sentence that names BOTH endpoints of a state transition is a
         # migration, and this book answers it exactly. The deterioration
@@ -970,12 +994,16 @@ def _plan(reading: Reading, context: GovernedContext, *,
             # figures under a question about customers is the repeat this
             # session found nine of.
             and not grouping.entity
-            and gr.requested(text).grain not in (gr.CUSTOMER, gr.FACILITY)):
+            # The grain the SENTENCE asks for, not the grain the dataset is
+            # keyed on. A retail book is one row per facility, so reading the
+            # default made this guard true of every narrowing on the book and
+            # the settled movement was never inherited at all.
+            and not _asks_for_an_entity_grain(text)):
         shape = MOVEMENT
     elif (shape in (AGGREGATE, RANKING) and state
           and state.shape == MOVEMENT and continuation is not None
           and (carrying or inheriting)
-          and gr.requested(text).grain in (gr.CUSTOMER, gr.FACILITY)
+          and _asks_for_an_entity_grain(text)
           and _DROVE_IT.search(text)):
         # "Which customers drove that?" is the settled movement broken open at
         # the customer grain — a two-period cohort ranked by the change, which
@@ -1772,6 +1800,15 @@ def _shape(reading: Reading, conditions: list[Condition],
     """
     if conditions and asserts_movement(conditions):
         return COHORT
+    # "Show me ECL by month for the last 12 months." A SERIES is a movement
+    # read at every date in the window, and it is asked for by naming the
+    # period grain — "by month", "monthly", "the trend" — not by naming a
+    # change. Without this the sentence named a measure and no dimension, fell
+    # to the record grain, and came back as "the 10 largest facilities by
+    # final ECL at 2026-08": a ranking at one date, for a question about
+    # twelve.
+    if not conditions and not dimension and _asks_for_a_series(text):
+        return MOVEMENT
     if reading.period_requirement == "two_period":
         # The sentence named two dates or a change. A level test inside such a
         # question still belongs to the cohort — "which names were watchlisted
@@ -2175,6 +2212,20 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
         condition = sm.condition_for(match, movement)
         if condition is not None:
             out.append(condition)
+            # A movement does not consume a LEVEL the sentence also states.
+            # "Which subsegment has deteriorated most on 90+ delinquency?"
+            # compiled "dpd rose" and dropped the 90 — the answer covered
+            # every facility whose days past due moved at all, and nothing on
+            # screen said the band the question named had been ignored.
+            banded = sm.threshold_near(text, match.phrase)
+            if banded is not None and not _owns_the_bound(
+                    text, match, banded, matches):
+                banded = None
+            also = sm.threshold_condition(match, banded)
+            if also is not None and not any(
+                    c.field == also.field and c.kind == also.kind
+                    for c in out):
+                out.append(also)
             continue
         # No movement on this concept. A level test attached to it still is a
         # condition, and one the user can check by eye.
@@ -3766,6 +3817,37 @@ def found_label(found: Any) -> str:
     """The composite's own words, for a sentence that has to name it."""
     label = str(getattr(getattr(found, "composite", None), "label", "") or "")
     return label.capitalize() if label else "This ranking"
+
+
+#: A measure the sentence states outright, rather than one the planner had to
+#: infer. "deteriorated most" says which direction; "on 90+ delinquency" says
+#: in what. Only the second makes a composite the wrong reading.
+_NAMES_ITS_OWN_MEASURE = _re.compile(
+    r"\b(?:on|in|by|for|of)\s+(?:its\s+|their\s+|the\s+)?"
+    r"(?:\d+\s*\+?\s*)?(?:day[s]?\s+past\s+due|dpd|delinquen\w+|"
+    r"arrears|expected\s+credit\s+loss|ecl|coverage|gross\s+carrying\s+"
+    r"amount|exposure(?:\s+at\s+default)?|ead|utilisation|utilization|"
+    r"behavioural\s+score|behavioral\s+score|stage\s*2|stage\s*3|"
+    r"provision\w*|write[- ]?off\w*|limit)\b",
+    _re.IGNORECASE)
+
+
+def _asks_for_an_entity_grain(text: str) -> bool:
+    """Whether the SENTENCE asks for one row per customer or per facility.
+
+    Read off the words, never off the dataset. `grain.requested` falls back to
+    the source grain when the sentence says nothing, and the retail book is
+    keyed one row per facility — so every sentence on this book "asked for" a
+    facility grain, and a narrowing that should have kept the settled movement
+    was answered as a ranking of ten facilities at one date.
+    """
+    found = gr.requested(str(text or ""))
+    return bool(found.explicit and found.grain in (gr.CUSTOMER, gr.FACILITY))
+
+
+def _names_its_own_measure(text: str) -> bool:
+    """Whether the sentence states the figure it wants ranked."""
+    return bool(_NAMES_ITS_OWN_MEASURE.search(str(text or "")))
 
 
 def _composite_ranking(found: cmp.Resolved, reading: Reading,

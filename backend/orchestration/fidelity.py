@@ -113,9 +113,19 @@ _WANTS_POPULATION = re.compile(
     r"|\bwho\s+(?:has|have|are|is|were|was)\b",
     re.IGNORECASE)
 
+#: A time word after "first" or "last" makes a PERIOD, not a ranking. "Show
+#: me ECL by month for the last 12 months" was read as a request for the
+#: largest or worst by a named measure, and a correct twelve-month series
+#: carried a caveat saying CreditProbe had answered a different question.
+_A_PERIOD_WORD = (r"(?!(?:\d+\s+)?(?:month|months|year|years|quarter|"
+                  r"quarters|week|weeks|day|days|period|periods|"
+                  r"reporting\s+month|reporting\s+months)\b)")
+
 _WANTS_RANKING = re.compile(
-    r"\b(?:top|bottom|largest|biggest|smallest|highest|lowest|worst|best|"
-    r"first|last)\s+\d*\s*\w*\b|\brank(?:ed|ing)?\b|\bmost\s+\w+\b",
+    r"\b(?:top|bottom|largest|biggest|smallest|highest|lowest|worst|best)"
+    r"\s+\d*\s*\w*\b"
+    r"|\b(?:first|last)\s+" + _A_PERIOD_WORD + r"\d*\s*\w*\b"
+    r"|\brank(?:ed|ing)?\b|\bmost\s+\w+\b",
     re.IGNORECASE)
 
 _WANTS_AGGREGATE = re.compile(
@@ -252,6 +262,13 @@ def executed_objective(build: Any) -> str:
     """What KIND of answer the finished plan actually produces."""
     shape = str(getattr(build, "shape", "") or "").lower()
     objective = _SHAPE_OBJECTIVE.get(shape, UNKNOWN)
+    if objective == POPULATION and str(getattr(build, "dimension", "") or ""):
+        # A cohort GROUPED BY a dimension returns one row per group, ordered
+        # by the measure — a ranking of the groups, whatever the builder calls
+        # the shape. "Which product subsegment has deteriorated most on 90+
+        # delinquency?" was answered with exactly that and then carried a
+        # caveat saying CreditProbe had answered a different question.
+        return RANKING
     if objective == MOVEMENT and list(getattr(build, "conditions", None) or []):
         # A movement plan that FILTERS on its conditions returns the borrowers
         # meeting them, which is a population however the builder names it.

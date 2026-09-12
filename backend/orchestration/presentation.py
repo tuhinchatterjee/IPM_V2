@@ -207,7 +207,15 @@ def _columns(runtime: Any, build: Any) -> list[Column]:
     opening = str(getattr(build, "opening", "") or "")
     closing = str(getattr(build, "closing", "") or "")
     by_field = _concepts(build)
-    two_period = bool(opening and closing)
+    # A bare measure is the OPENING value only where the result holds two
+    # dates side by side. A SERIES holds one row per reporting month and a
+    # period column that says which — so labelling its measure "at 2025-09"
+    # put the first month of the window on the header of all twelve.
+    names = [str(entry.get("name") if isinstance(entry, dict)
+                 else getattr(entry, "name", entry))
+             for entry in (getattr(runtime, "columns", []) or [])]
+    a_series = any(_is_period_column(n) for n in names)
+    two_period = bool(opening and closing) and not a_series
 
     _PREFIXES[:] = sorted(
         (f"{str(d).lower()}_" for d in (getattr(build, "datasets", None) or [])),
@@ -351,6 +359,25 @@ def _group_by_measure(columns: list[Column], measures: list[str]) -> None:
         column.rank = RANK_PRIMARY + min(family, 4) * 4 + _SLOT[slot]
 
 
+#: The spellings a book records its reporting date under. `period` and
+#: `*_period` were the only ones recognised, so a monthly book that calls it
+#: `reporting_month` had its period column typed as TEXT — and the
+#: visualisation gate, which draws a LINE over an ordered period axis, never
+#: saw one. A 25-month ECL series was drawn as a horizontal bar ranking, with
+#: the months in order of size.
+_PERIOD_COLUMNS = ("period", "_asof_period", "reporting_month",
+                   "snapshot_date", "as_of_date", "reporting_date",
+                   "reporting_period", "month", "asof_month")
+
+
+def _is_period_column(name: str) -> bool:
+    """Whether this column holds the row's reporting date."""
+    lowered = str(name or "").lower()
+    return (lowered in _PERIOD_COLUMNS
+            or lowered.endswith("_period")
+            or lowered.endswith("_reporting_month"))
+
+
 def _column(name: str, origin: str, by_field: dict[str, Any],
             opening: str, closing: str, two_period: bool) -> Column:
     lowered = name.lower()
@@ -367,11 +394,7 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
     # never saw one. A 25-month ECL series was drawn as a horizontal bar
     # ranking, "a ranking of named rows reads horizontally", with the months
     # in order of size.
-    if (lowered in ("period", "_asof_period", "reporting_month",
-                    "snapshot_date", "as_of_date", "reporting_date",
-                    "reporting_period", "month", "asof_month")
-            or lowered.endswith("_period")
-            or lowered.endswith("_reporting_month")):
+    if _is_period_column(lowered):
         return Column(name=name, label=_KNOWN_LABELS.get(lowered, _humanise(name)),
                       semantic=PERIOD, origin=origin, decimals=0,
                       rank=RANK_LINEAGE if lowered.startswith("_") else RANK_PERIOD,

@@ -190,6 +190,17 @@ _RELATIVE_SPANS: list[tuple[str, str]] = [
     (r"\b(?:2|two)[- ]year\b", "2 years"),
     (r"\b(?:8|eight)\s+quarters\b", "2 years"),
 
+    # ---- the year so far
+    #
+    # "Since the start of the year" matched "since the start" and was resolved
+    # as the WHOLE HISTORY — twenty-five months answering a year-to-date
+    # question, under a sentence that said "the question asked about the whole
+    # history". Placed above every span rule: "so far this year" and
+    # "since the start of the year" both match narrower rules below.
+    (r"\bsince the (?:start|beginning) of (?:the|this) year\b", "year to date"),
+    (r"\byear[ -]to[ -]date\b|\bytd\b", "year to date"),
+    (r"\bso far this year\b", "year to date"),
+
     # ---- a year
     (rf"\b(?:over|in|across|for|during|since)?\s*(?:the\s+)?{_RECENT}\s+year\b",
      "12 months"),
@@ -512,6 +523,13 @@ def read_period_intent(question: str, periods: list[str]) -> PeriodIntent:
         if span == "previous":
             return PeriodIntent(True, periods[-2], periods[-1],
                                 "the question asked about the current period")
+        if span == "year to date":
+            latest = periods[-1]
+            january = f"{latest[:4]}-01"
+            opening = january if january in periods else periods[0]
+            return PeriodIntent(True, opening, latest,
+                                f"the question asked for the year to date, "
+                                f"so {opening} to {latest}")
         if span == "full history":
             return PeriodIntent(True, periods[0], periods[-1],
                                 "the question asked about the whole history")

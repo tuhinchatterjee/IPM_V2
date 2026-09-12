@@ -265,6 +265,15 @@ def find_movement(text: str) -> Movement | None:
         # category label is a TYPE, not a quantity, and the two must not share
         # a parser.
         magnitude = None
+    if magnitude and _is_a_bucket(tail, magnitude):
+        # "90+ delinquency", "30+ DPD", "90 plus arrears" — a DELINQUENCY
+        # BUCKET, and every retail book writes it that way. Read as the size
+        # of a movement it produced "which subsegments' days past due rose by
+        # more than 90", ranked by the summed day-change of the facilities
+        # that qualified: a real number, in days, answering nothing anybody
+        # asked. The bound belongs to the LEVEL, and the caller's threshold
+        # reader picks it up there.
+        magnitude = None
     if not magnitude:
         return Movement(direction=direction, phrase=text.strip())
 
@@ -309,6 +318,16 @@ _LABEL_NOUN = re.compile(
 def _is_a_label(tail: str, magnitude: Any) -> bool:
     """Whether the number after a movement word names a category."""
     return bool(_LABEL_NOUN.search(tail[:magnitude.start()]))
+
+
+#: "90+", "30 plus" — a number written with a trailing plus is the NAME of a
+#: delinquency band, not a quantity a measure moved by.
+_A_BUCKET = re.compile(r"\s*(?:\+|plus\b)", re.IGNORECASE)
+
+
+def _is_a_bucket(tail: str, magnitude: Any) -> bool:
+    """Whether the number after a movement word names a delinquency band."""
+    return bool(_A_BUCKET.match(tail[magnitude.end():]))
 
 
 def _is_a_period(tail: str, magnitude: Any) -> bool:
@@ -408,7 +427,13 @@ def condition_for(match: Any, movement: Movement | None) -> Condition | None:
 # happens in condition_for() above, against the governed concept.
 
 _SPLIT = re.compile(
-    r"\s*(?:,\s*(?:and|or|but)?\s*|\band\b|\bor\b|\bbut\b|\bwhile\b|"
+    # A comma INSIDE a number is a thousands separator, not a clause boundary.
+    # "a credit limit of 100,000 or more" was cut into "a credit limit of 100"
+    # and "000 or more": the bound was left in a clause with no measure, the
+    # condition was dropped, and the answer was a population nobody asked for.
+    r"\s*(?:(?<!\d),(?!\d{3}\b)\s*(?:and|or|but)?\s*"
+    r"|,(?=\s)\s*(?:and|or|but)?\s*"
+    r"|\band\b|\bor\b|\bbut\b|\bwhile\b|"
     r"\balong ?with\b|\btogether with\b|\bas well as\b|\bplus\b|;)\s*",
     re.IGNORECASE)
 
@@ -535,7 +560,12 @@ _THRESHOLD_OPS: tuple[tuple[str, str], ...] = (
 
 _THRESHOLD = re.compile(
     r"\b(?P<word>" + "|".join(p for p, _ in _THRESHOLD_OPS) + r")\s+"
-    r"(?P<value>-?\d+(?:\.\d+)?|zero|nil|nought)\s*"
+    # A thousands separator is part of the number. "a credit limit of 100,000
+    # or more" stated no bound the reader could see: the comma ended the
+    # match, the condition was dropped, and the answer was every facility on
+    # the book — 19,745 where 28 qualify.
+    r"(?P<value>-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?"
+    r"|zero|nil|nought)\s*"
     r"(?P<unit>%|percent|percentage points?|"
     r"pp|x|times|notch(?:es)?|days?|bps)?", re.I)
 
@@ -546,7 +576,7 @@ _WRITTEN = {"zero": 0.0, "nil": 0.0, "nought": 0.0}
 
 
 def _bound_value(said: str) -> float:
-    text = (said or "").strip().lower()
+    text = (said or "").strip().lower().replace(",", "")
     return _WRITTEN[text] if text in _WRITTEN else float(text)
 
 
@@ -613,7 +643,7 @@ _SUFFIX_TO_PREFIX: tuple[tuple[str, str], ...] = (
 )
 
 _SUFFIX_BOUND = re.compile(
-    r"(?P<value>-?\d+(?:\.\d+)?)\s*"
+    r"(?P<value>-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?)\s*"
     r"(?P<unit>%|percent|per cent|percentage points?|pp|x|times|"
     r"notch(?:es)?|days?|bps)?\s*"
     r"(?P<word>" + "|".join(p for p, _ in _SUFFIX_TO_PREFIX) + r")\b",

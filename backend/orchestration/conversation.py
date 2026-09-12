@@ -461,6 +461,12 @@ ASK_ABOUT_RESULT = "ASK_ABOUT_RESULT"
 ASSESS_PREVIOUS_RESULT = "ASSESS_PREVIOUS_RESULT"
 METADATA_FOLLOWUP = "METADATA_FOLLOWUP"
 NAVIGATE = "NAVIGATE"
+#: "Back." — return to the answer already given, unchanged and unrecomputed.
+#:
+#: Separate from NAVIGATE, which OPENS what the conversation is about: read as
+#: navigation, one word typed to step back opened the dataset and returned
+#: fifty raw rows of the book in place of the answer the reader had left.
+STEP_BACK = "STEP_BACK"
 CORRECT_INCOMPLETE_RESPONSE = "CORRECT_INCOMPLETE_RESPONSE"
 
 #: Deliberate changes of analytical scope.
@@ -485,7 +491,7 @@ ACTIONS: tuple[str, ...] = (
     MODIFY_PREVIOUS, MODIFY_CALCULATION, MODIFY_FILTER, MODIFY_POPULATION,
     MODIFY_PERIOD, MODIFY_PRESENTATION,
     ENRICH_PREVIOUS, ASK_ABOUT_RESULT, ASSESS_PREVIOUS_RESULT,
-    METADATA_FOLLOWUP, NAVIGATE,
+    METADATA_FOLLOWUP, NAVIGATE, STEP_BACK,
     CORRECT_INCOMPLETE_RESPONSE, RESET_SCOPE, WIDEN_SCOPE, NARROW_SCOPE,
     CLARIFY,
 )
@@ -501,13 +507,14 @@ MODIFICATIONS = frozenset({
 #: said about it.
 NON_ANALYTICAL = frozenset({
     MODIFY_PRESENTATION, ASK_ABOUT_RESULT, ASSESS_PREVIOUS_RESULT,
-    METADATA_FOLLOWUP, NAVIGATE,
+    METADATA_FOLLOWUP, NAVIGATE, STEP_BACK,
 })
 
 #: The actions whose answer is computed from the PREVIOUS RESULT rather than
 #: from governed data. Everything in here must leave the data access layer,
 #: DuckDB and the Parquet lake untouched, and must say so on the Trace.
-REUSES_RESULT = frozenset({MODIFY_PRESENTATION, ASSESS_PREVIOUS_RESULT})
+REUSES_RESULT = frozenset({MODIFY_PRESENTATION, ASSESS_PREVIOUS_RESULT,
+                           STEP_BACK})
 
 #: The actions that carry the previous turn's settled context forward. CLARIFY
 #: carries it too — a clarification is answered inside the same subject.
@@ -515,7 +522,7 @@ REUSES_RESULT = frozenset({MODIFY_PRESENTATION, ASSESS_PREVIOUS_RESULT})
 #: it can say what is being widened from.
 CONTINUING = frozenset(
     {CONTINUE, ENRICH_PREVIOUS, CLARIFY, ASK_ABOUT_RESULT,
-     ASSESS_PREVIOUS_RESULT, METADATA_FOLLOWUP, NAVIGATE,
+     ASSESS_PREVIOUS_RESULT, METADATA_FOLLOWUP, NAVIGATE, STEP_BACK,
      CORRECT_INCOMPLETE_RESPONSE, WIDEN_SCOPE, NARROW_SCOPE}
     | MODIFICATIONS)
 
@@ -614,6 +621,15 @@ _ASKS = re.compile(
 MAX_REPLY_WORDS = 10
 
 
+#: One word that moves the reader through the conversation rather than
+#: answering anything asked of them.
+_NAVIGATES = re.compile(
+    r"^\s*(?:go\s+)?back\s*[.!]?\s*$"
+    r"|^\s*previous(?:\s+(?:answer|result|one))?\s*[.!?]?\s*$"
+    r"|^\s*(?:never mind|forget it|cancel|stop)\s*[.!]?\s*$",
+    re.IGNORECASE)
+
+
 def answers_a_clarification(reply: str) -> bool:
     """Whether this sentence answers the question CreditProbe just asked.
 
@@ -632,6 +648,12 @@ def answers_a_clarification(reply: str) -> bool:
     from backend.orchestration import nth
 
     if nth.points_without_saying_which(text):
+        return False
+    # Navigation is not an answer either. "Back." is short and not
+    # interrogative, so a clarification one turn earlier swallowed it — the
+    # reader was answered with "What can I not conclude from this? Back."
+    # and stepped nowhere.
+    if _NAVIGATES.match(text):
         return False
     return not _ASKS.match(text)
 
@@ -659,7 +681,7 @@ __all__ = [
     "ENRICH_PREVIOUS",
     "MAX_ENTITY_IDS", "MAX_REUSE_ROWS", "MAX_SNAPSHOT_ROWS", "MAX_TURNS",
     "MAX_REPLY_WORDS", "MODIFY_PREVIOUS", "NARROW_SCOPE", "NEW_REQUEST",
-    "REUSES_RESULT", "STATE_KEY", "answers_a_clarification",
+    "REUSES_RESULT", "STEP_BACK", "STATE_KEY", "answers_a_clarification",
     "ConversationState", "Continuation", "ResultShape", "Turn",
     "load", "save",
 ]

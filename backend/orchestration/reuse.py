@@ -128,6 +128,19 @@ _ABOUT_THE_RESULT: tuple[str, ...] = (
     r"(?:reading|conclusion|finding|result)\b",
     r"\bhow much can (?:i|we) rely on (?:this|that|these|it)\b",
     r"\bwhat (?:are|is) (?:this|that|it) not evidence (?:of|for)\b",
+    # How a reader actually says it. "Does that look consistent?" ran a
+    # SECOND analysis of the same book and answered with its figures — the
+    # question was about the table already on the screen.
+    r"\bdoes (?:that|this|it) (?:look|seem|feel|read)\b",
+    r"\bdo (?:these|those) (?:look|seem|read)\b",
+    r"\bhow does (?:that|this|it) look\b",
+    r"\bdoes (?:that|this|it) (?:hold up|stack up|add up|hang together)\b",
+    r"\b(?:is|does) (?:that|this|it) (?:look )?right\b",
+    r"\bcan (?:i|we) (?:trust|believe) (?:that|this|these|it)\b",
+    r"\bwhat (?:is|'s) (?:wrong|odd|strange|unusual) (?:with|about) "
+    r"(?:that|this|these|it)\b",
+    r"\banything (?:odd|strange|unusual|surprising) (?:in|about) "
+    r"(?:that|this|these|it)\b",
 )
 
 _PATTERN = re.compile("|".join(_ABOUT_THE_RESULT), re.I)
@@ -207,8 +220,13 @@ class Cached:
         """What this result covered, in one line, for the reused answer."""
         parts: list[str] = []
         if self.dimension:
-            parts.append(f"{self.row_count} "
-                         f"{self.dimension_label.lower()} groups")
+            # The DISTINCT groups, not the rows. A breakdown read at two dates
+            # holds two rows per group, and the scope line said "26 region
+            # label groups" of a book that has thirteen.
+            seen = {str(r.get(self.dimension))
+                    for r in self.rows if r.get(self.dimension) is not None}
+            groups = len(seen) or self.row_count
+            parts.append(f"{groups} {self.dimension_label.lower()} groups")
         elif self.row_count:
             parts.append(f"{self.row_count} rows")
         if self.periods:

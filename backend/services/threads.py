@@ -282,6 +282,34 @@ def create(*, question: str, title: str = "", project_id: int | None = None,
         return _thread_view(session, row)
 
 
+def _storable(value: Any, *, path: str = "", found: list[str] | None = None
+              ) -> Any:
+    """`value` with anything the JSON column cannot hold written as text.
+
+    A stored answer is a record of what the reader was shown, and one value the
+    encoder does not know — a pandas Timestamp read back out of a result — used
+    to fail the INSERT, which failed the request, which returned a 500 to a
+    reader who had typed one word. The turn is worth more than the type.
+
+    The paths coerced are logged: a value arriving here in the wrong type is
+    still a defect upstream, and silence would hide it.
+    """
+    if isinstance(value, dict):
+        return {str(k): _storable(v, path=f"{path}.{k}", found=found)
+                for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_storable(v, path=f"{path}[{i}]", found=found)
+                for i, v in enumerate(value)]
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    if found is not None:
+        found.append(f"{path}:{type(value).__name__}")
+    try:
+        return value.isoformat()
+    except Exception:  # noqa: BLE001
+        return str(value)
+
+
 def append(thread_id: int, *, role: str, content: str,
            payload: dict[str, Any] | None = None,
            analysis_run_id: int | None = None,
@@ -313,7 +341,7 @@ def append(thread_id: int, *, role: str, content: str,
             sequence=0 if highest is None else int(highest) + 1,
             role=role,
             content=content,
-            payload=dict(payload or {}),
+            payload=_stored_payload(payload),
             analysis_run_id=analysis_run_id,
             created_by=user_id,
         )
@@ -323,6 +351,16 @@ def append(thread_id: int, *, role: str, content: str,
         row.last_message_at = func.now()
         session.commit()
         return _message_view(message)
+
+
+def _stored_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """The payload as the JSON column can hold it."""
+    found: list[str] = []
+    out = _storable(dict(payload or {}), found=found)
+    if found:
+        logger.warning("Coerced %d value(s) to text before storing a message: "
+                       "%s", len(found), ", ".join(found[:8]))
+    return out
 
 
 def record_answer(thread_id: int, run: Any, *,
