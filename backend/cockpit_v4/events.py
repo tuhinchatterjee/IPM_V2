@@ -42,6 +42,11 @@ TOOL_FAILED = "tool.failed"
 RETRY_REQUESTED = "retry.requested"
 ANSWER_VALIDATED = "answer.validated"
 ANSWER_READY = "answer.ready"
+#: The analysis completed and its result was kept, but the written answer
+#: could not be published. Emitted so a reader is not left to conclude that
+#: the query failed: in the live case that prompted it, the SQL had already
+#: returned twelve correct rows.
+ANALYSIS_PRESERVED = "analysis.preserved"
 RUN_FAILED = "run.failed"
 RUN_CANCELLED = "run.cancelled"
 RUN_EXPIRED = "run.expired"
@@ -54,7 +59,8 @@ EVENT_TYPES: tuple[str, ...] = (
     RUN_ACCEPTED, RUN_STARTED, CONTEXT_READY, MODEL_REQUESTED,
     MODEL_RESPONSE_RECEIVED, MODEL_PARSED, INTENT_VALIDATED, TOOL_REQUESTED,
     TOOL_VALIDATED, TOOL_STARTED, TOOL_COMPLETED, TOOL_FAILED,
-    RETRY_REQUESTED, ANSWER_VALIDATED, ANSWER_READY, RUN_FAILED,
+    RETRY_REQUESTED, ANSWER_VALIDATED, ANSWER_READY, ANALYSIS_PRESERVED,
+    RUN_FAILED,
     RUN_CANCELLED, RUN_EXPIRED, RUN_INTERRUPTED, MEMORY_STARTED,
     MEMORY_COMPLETED, MEMORY_FAILED)
 
@@ -192,7 +198,8 @@ STAGE_ORDER: tuple[str, ...] = (
     "validating", "executing", "reviewing", "publishing")
 
 
-__all__ = ["ANSWER_READY", "ANSWER_VALIDATED", "CONTEXT_READY", "Emitter",
+__all__ = ["ANALYSIS_PRESERVED", "ANSWER_READY", "ANSWER_VALIDATED",
+           "CONTEXT_READY", "Emitter",
            "EVENT_TYPES", "Event", "INTENT_VALIDATED", "MEMORY_COMPLETED",
            "MEMORY_EVENTS", "MEMORY_FAILED", "MEMORY_STARTED",
            "MODEL_PARSED", "MODEL_REQUESTED", "MODEL_RESPONSE_RECEIVED",

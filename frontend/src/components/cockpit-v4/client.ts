@@ -68,6 +68,15 @@ export type FinalResponse = {
     decimal_value: string;
     unit: string;
     display_precision: number;
+    /** Present on a DIRECT claim: the one result cell it was read from. */
+    evidence?: { artifact_id: string; row_key: string; column_id: string };
+    /** Present on a DERIVED claim -- a total, a share, a movement. The
+     *  server recomputed this value from the cells named here before the
+     *  answer was allowed to publish. */
+    derivation?: {
+      operation: string;
+      operands: { artifact_id: string; column_id: string; row_ids: string[] }[];
+    };
   }[];
   tables: { title: string; artifact_id: string; columns: string[] }[];
   charts: unknown[];
@@ -113,6 +122,10 @@ export const EVENT_TYPES = [
   "retry.requested",
   "answer.validated",
   "answer.ready",
+  // The analysis finished and its result was kept, but the written answer
+  // could not be published. Distinct from run.failed so the panel does not
+  // report a successful query as a failed one.
+  "analysis.preserved",
   "run.failed",
   "run.cancelled",
   "run.expired",

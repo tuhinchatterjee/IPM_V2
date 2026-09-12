@@ -815,15 +815,54 @@ class Orchestrator:
             except BudgetExceeded:
                 # A second invalid answer is an explicit failure, not another
                 # loop and never a fabricated narrative.
+                #
+                # But the ANALYSIS is not thrown away with the answer. The
+                # query ran, it was validated and bound, its result is
+                # stored, and an operator reading "this run failed" should
+                # not conclude the SQL failed -- in the live case it had
+                # already succeeded and returned twelve correct rows. The
+                # event says which half stopped, and names the artifact that
+                # survived so the work can be inspected.
+                if self.executed and self.finalizer.run_artifacts:
+                    self.emitter.append(
+                        ev.ANALYSIS_PRESERVED, stage="publishing",
+                        operation="preserve_result", status=ev.STATUS_OK,
+                        public_message=(
+                            "The analysis completed and its result was kept. "
+                            "Publication of the written answer is what "
+                            "stopped."),
+                        detail_ref=self._detail({
+                            "artifact_ids": sorted(
+                                self.finalizer.run_artifacts),
+                            "analysis_status": "completed",
+                            "publication_status": "failed",
+                            "problems": report.problems}))
                 return Outcome(
                     st.FAILED, error_code=st.ANSWER_VALIDATION,
-                    message=("The response could not be validated against "
-                             "the executed evidence and the one correction "
-                             "for this run was already used."))
+                    message=(
+                        ("The analysis completed and its result is stored, "
+                         "but the written answer could not be validated "
+                         "against that evidence and the one correction for "
+                         "this run was already used.")
+                        if self.executed else
+                        ("The response could not be validated against the "
+                         "executed evidence and the one correction for this "
+                         "run was already used.")))
             self.answer_only = True
-            from backend.cockpit_v4.finalization import rejection
-            self._tool_error(call, st.ANSWER_VALIDATION,
-                             rejection(report).message)
+            from backend.cockpit_v4.finalization import (correction_packet,
+                                                         rejection)
+            # The analysis SUCCEEDED. What failed is the binding between the
+            # answer's numbers and the evidence, so the repair is a rewrite
+            # of the answer and nothing else: no new SQL, no catalogue read,
+            # no question back to the user. The packet carries the artifact,
+            # its columns and its real row ids, because the live failure was
+            # an analyst guessing row names it had never been shown.
+            self._tool_error(
+                call, st.ANSWER_VALIDATION, rejection(report).message,
+                detail=correction_packet(
+                    final, report, store=self.store,
+                    tenant_id=self.run.tenant_id,
+                    run_artifacts=self.finalizer.run_artifacts))
             return None
 
         charts = self.finalizer.surviving_charts(final)

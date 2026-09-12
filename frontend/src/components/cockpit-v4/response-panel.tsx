@@ -39,6 +39,16 @@ function ArtifactLinks({
     const id = (claim as { evidence?: { artifact_id?: string } }).evidence
       ?.artifact_id;
     if (id) ids.add(id);
+    // A DERIVED claim -- a total, a share, a movement -- carries no single
+    // cell reference; its evidence is the rows its derivation consumed.
+    // Collecting only `evidence` would leave the reader of a calculated
+    // figure with nothing to open.
+    const derivation = (
+      claim as { derivation?: { operands?: { artifact_id?: string }[] } }
+    ).derivation;
+    for (const operand of derivation?.operands ?? []) {
+      if (operand.artifact_id) ids.add(operand.artifact_id);
+    }
   }
   if (ids.size === 0) return null;
 

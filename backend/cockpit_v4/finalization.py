@@ -49,6 +49,12 @@ _BARE_NUMBER = re.compile(r"(?<![\w.{])(\d[\d,]*\.?\d*)(?![\w}])")
 _ALLOWED_BARE = {"9", "12", "20", "19", "1", "2", "3", "4", "5", "10", "15",
                  "0", "40", "2021", "2022", "2023", "2024", "2025", "2026"}
 
+#: Language that asserts an order. Matched against the narrative to decide
+#: whether a published chart is making a ranking claim.
+_SUPERLATIVE = re.compile(
+    r"\b(top|largest|biggest|highest|greatest|smallest|lowest|"
+    r"rank(?:ed|ing)?|leading|worst|best|most)\b")
+
 
 @dataclass
 class ValidationReport:
@@ -152,11 +158,9 @@ class Finalizer:
                 f"{self.limits.charts}; the extra charts were dropped.")
 
         for i, table in enumerate(final.tables):
-            artifact_id = str(table.get("artifact_id") or "")
-            if artifact_id and artifact_id not in self.run_artifacts:
-                problems.append(
-                    f"tables[{i}] references artifact {artifact_id!r}, which "
-                    f"this run did not produce.")
+            problems.extend(self._check_table(table, i))
+
+        problems.extend(self._check_ordering(final))
 
         rendered = final.narrative
         if not problems:
@@ -263,6 +267,86 @@ class Finalizer:
                     f"and set display_precision for how it should read.")
         return ""
 
+    def _check_table(self, table: dict[str, Any], index: int) -> list[str]:
+        """A published table must project columns the artifact really has.
+
+        A table carries no values of its own: it names an artifact and the
+        columns to show, and the reader is served the stored rows. That is
+        why a table cannot misreport a number -- but it CAN name a column
+        that does not exist, which renders as an empty column and reads as
+        missing data rather than as a mistake in the answer.
+        """
+        problems: list[str] = []
+        artifact_id = str(table.get("artifact_id") or "")
+        if not artifact_id:
+            return problems
+        if artifact_id not in self.run_artifacts:
+            return [f"tables[{index}] references artifact {artifact_id!r}, "
+                    f"which this run did not produce."]
+        record = self.store.get_artifact(artifact_id,
+                                         tenant_id=self.tenant_id)
+        if record is None:
+            return [f"tables[{index}] references artifact {artifact_id!r}, "
+                    f"which is not available to you."]
+        available = set(record["columns"])
+        missing = [c for c in (table.get("columns") or [])
+                   if str(c) not in available]
+        if missing:
+            problems.append(
+                f"tables[{index}] names columns {missing}, which are not in "
+                f"artifact {artifact_id!r}. Its columns are "
+                f"{record['columns']}.")
+        return problems
+
+    def _check_ordering(self, final: FinalResponse) -> list[str]:
+        """A ranking claimed in words must be a ranking in the evidence.
+
+        Checked only where the answer both CLAIMS an order ("the largest",
+        "top five") and publishes a chart, because a chart of ranked bars is
+        the reader's ranking. The test is monotonicity on the charted
+        measure, in either direction -- an ascending chart under "the
+        smallest" is as correct as a descending one under "the largest". It
+        catches the specific error of a query that forgot its ORDER BY under
+        an answer that says "the biggest", which no other check would see.
+        """
+        if not final.charts:
+            return []
+        words = final.narrative.lower()
+        if not _SUPERLATIVE.search(words):
+            return []
+        problems: list[str] = []
+        for index, chart in enumerate(final.charts):
+            artifact_id = str(chart.get("artifact_id") or "")
+            if artifact_id not in self.run_artifacts:
+                continue
+            record = self.store.get_artifact(artifact_id,
+                                             tenant_id=self.tenant_id)
+            if record is None:
+                continue
+            for column in (chart.get("y_columns") or [])[:1]:
+                values = []
+                for row in record["rows"]:
+                    cell = row.get(column)
+                    if cell is None:
+                        values = []
+                        break
+                    try:
+                        values.append(Decimal(str(cell)))
+                    except InvalidOperation:
+                        values = []
+                        break
+                if len(values) < 3:
+                    continue
+                descending = all(a >= b for a, b in zip(values, values[1:]))
+                ascending = all(a <= b for a, b in zip(values, values[1:]))
+                if not (descending or ascending):
+                    problems.append(
+                        f"the answer claims a ranking and charts "
+                        f"{column!r}, but artifact {artifact_id!r} is not "
+                        f"ordered by it. Order the query by the measure you "
+                        f"are ranking, or drop the ranking language.")
+        return problems
+
     def _check_chart(self, chart: dict[str, Any], index: int) -> str:
         artifact_id = str(chart.get("artifact_id") or "")
         if artifact_id not in self.run_artifacts:
@@ -353,6 +437,59 @@ def _locate(rows: list[dict[str, Any]], row_key: str, column: str) -> Any:
     return rows[index].get(column, _MISSING)
 
 
+def correction_packet(final: FinalResponse, report: ValidationReport, *,
+                      store: Any, tenant_id: str,
+                      run_artifacts: set[str]) -> dict[str, Any]:
+    """Everything needed to fix the BINDING, and nothing that reruns anything.
+
+    The live EAD run failed validation twice over row names, and each
+    rejection sent back prose. Prose is enough to know something is wrong and
+    not enough to fix it: the analyst was never told what the row ids
+    actually were. This packet answers that directly -- here is the artifact
+    you may cite, here are its columns, here are its row ids, here is how a
+    calculated number must be expressed -- so the repair is a rewrite of the
+    evidence binding rather than another guess.
+    """
+    artifacts = []
+    for artifact_id in sorted(run_artifacts):
+        record = store.get_artifact(artifact_id, tenant_id=tenant_id)
+        if record is None:
+            continue
+        rows = record["rows"]
+        artifacts.append({
+            "artifact_id": artifact_id,
+            "columns": record["columns"],
+            "row_count": len(rows),
+            "row_ids": [deriv.row_id_for(i) for i in range(len(rows))],
+            "rows": [{"row_id": deriv.row_id_for(i), **row}
+                     for i, row in enumerate(rows)],
+        })
+    return {
+        "what_to_do": (
+            "Send finalize_response again with the SAME analysis and "
+            "corrected evidence. The query already ran and its result is "
+            "below; do not run it again, do not read the catalogue again, "
+            "and do not ask the user anything."),
+        "problems": list(report.problems),
+        "rejected_claims": [
+            {"claim_id": c.claim_id, "claimed_value": c.decimal_value,
+             "unit": c.unit,
+             "kind": "derived" if c.is_derived else "direct"}
+            for c in final.numeric_claims],
+        "authorized_artifacts": artifacts,
+        "direct_value": (
+            "A number that appears in one result cell: send 'evidence' with "
+            "artifact_id, row_id and column_id."),
+        "calculated_value": (
+            "A number calculated from the result -- a total, a share, a "
+            "difference, a growth rate: send 'derivation' instead of "
+            "'evidence'. Do NOT invent a row such as 'all sectors' or 'top "
+            "4 sectors'; name the real row ids and let the operation add "
+            "them up."),
+        "operations": deriv.describe(),
+    }
+
+
 def rejection(report: ValidationReport) -> Rejection:
     return Rejection(
         ANSWER_VALIDATION,
@@ -363,4 +500,5 @@ def rejection(report: ValidationReport) -> Rejection:
         detail={"problems": report.problems})
 
 
-__all__ = ["Finalizer", "PLACEHOLDER", "ValidationReport", "rejection"]
+__all__ = ["Finalizer", "PLACEHOLDER", "ValidationReport",
+           "correction_packet", "rejection"]
