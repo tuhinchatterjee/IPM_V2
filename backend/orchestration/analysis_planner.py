@@ -1010,7 +1010,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
                     f"{pair[0]} → {pair[-1]}")
 
     if carrying and not reading.periods and not period and state.opening_period \
-            and state.closing_period and shape in (COHORT, MOVEMENT):
+            and state.closing_period and shape in (COHORT, MOVEMENT) \
+            and not _states_its_own_window(text, context):
         period = (state.opening_period, state.closing_period)
         if continuation is not None:
             continuation.inherited["comparison"] = (
@@ -4740,6 +4741,24 @@ def _two_periods(reading: Reading, context: GovernedContext, text: str, *,
         return "", "", default.source, False
     return default.from_period, default.to_period, "", True
 
+
+
+def _states_its_own_window(text: str, context: Any) -> bool:
+    """Whether the sentence names a window, so it inherits none.
+
+    "Show the 25-month ECL trend" settles 2024-08 to 2026-08, and the next
+    question — "how did ECL change THIS MONTH?" — inherited all twenty-five of
+    them and answered about two years. A relative window is as explicit as a
+    named month; it just does not look like one to a check for named periods.
+    """
+    from backend.orchestration import periods as pdx
+
+    try:
+        intent = pdx.read_period_intent(str(text or ""),
+                                        list(context.periods or []))
+    except Exception:  # noqa: BLE001 - an unreadable window inherits
+        return False
+    return bool(getattr(intent, "specified", False))
 
 def _plural_grain(grain: str) -> str:
     """A grain word in the plural, spelled the way English spells it."""

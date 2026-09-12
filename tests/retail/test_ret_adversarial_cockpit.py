@@ -749,3 +749,98 @@ class TestTheProductsOwnWordsAreNotObligors:
                                      None)
         if said:
             assert "borrower" not in said, said
+
+
+class TestASeriesIsDescribedAsASeries:
+    """Twenty-five points introduced by their two ends is a series unread."""
+
+    @pytest.fixture(scope="class")
+    def trend(self):
+        return answer("Show the 25-month ECL trend")
+
+    def test_every_month_is_returned(self, trend):
+        months = {str(r.get("reporting_month")) for r in trend.runtime.rows}
+        assert len(months) == 25, sorted(months)
+
+    def test_the_sentence_says_it_is_a_series(self, trend):
+        said = headline(trend)
+        assert "25-month series" in said, said
+
+    def test_the_peak_and_the_trough_are_the_books(self, trend):
+        import glob as _glob
+        said = headline(trend)
+        totals = {}
+        for path in _glob.glob("data/retail/analytics/retail_facility_month/"
+                               "reporting_month=*/*.parquet"):
+            at = path.split("reporting_month=")[1].split("/")[0]
+            totals[at] = float(pd.read_parquet(
+                path, columns=["ecl_final_sar"]).ecl_final_sar.sum())
+        peak = max(totals, key=lambda k: totals[k])
+        trough = min(totals, key=lambda k: totals[k])
+        assert peak in said, said
+        assert trough in said, said
+
+    def test_the_recent_leg_is_stated(self, trend):
+        said = headline(trend)
+        assert "Over the last 12 months it rose" in said, (
+            "a reader told the book is falling, on a book whose last year "
+            f"rose: {said}")
+
+    def test_a_two_point_movement_is_not_padded(self):
+        said = headline(answer("How did ECL change this month?"))
+        assert "series" not in said, said
+
+
+class TestAStatedWindowBeatsTheThreads:
+    def test_the_next_question_is_not_answered_over_two_years(self):
+        first = answer("Show the 25-month ECL trend")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = answer("How did ECL change this month?", state=state)
+        assert (answered.build.opening, answered.build.closing) != (
+            first.build.opening, first.build.closing)
+
+    def test_the_thread_route_reads_the_window_too(self):
+        """A relative window is as explicit as a named month."""
+        from backend.services import threads as th
+        assert th._states_its_own_window("How did ECL change this month?")
+        assert th._states_its_own_window("Compare ECL with a year ago.")
+        # A sentence that states only a scope inherits the thread's window,
+        # which is what makes "show me personal finance" a narrowing.
+        assert not th._states_its_own_window("Show me personal finance.")
+
+    def test_a_narrowing_still_inherits_the_window(self):
+        first = answer("Show the 25-month ECL trend")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = answer("Show me personal finance.", state=state)
+        assert (answered.build.opening, answered.build.closing) == (
+            first.build.opening, first.build.closing)
+
+
+class TestNothingSaysBorrower:
+    """A retail-only product, answering in the retail book's words."""
+
+    CORPORATE = ("borrower", "obligor", "counterparty", "rating band",
+                 "internal rating", "notch", "sector", "covenant",
+                 "wholesale", "corporate")
+
+    QUESTIONS = (
+        "Which ten customers contributed most?",
+        "Which of those customers are in Stage 3?",
+        "What is the CEO's tenure?",
+        "Which customers deserve an Early Warning investigation?",
+        "Show me the customers.",
+        "the fortieth one",
+        "What's the Gini?",
+        "What is Northwind Trading's exposure?",
+    )
+
+    @pytest.mark.parametrize("question", QUESTIONS)
+    def test_no_answer_speaks_the_corporate_book(self, question):
+        answered = orchestrator.answer(question)
+        said = " ".join(str(part) for part in (
+            answered.clarification or "",
+            getattr(answered, "unsupported", "") or "",
+            getattr(getattr(answered, "result", None), "answer", "") or "",
+        )).lower()
+        found = [w for w in self.CORPORATE if w in said]
+        assert not found, f"{question!r} answered with {found}: {said[:220]}"

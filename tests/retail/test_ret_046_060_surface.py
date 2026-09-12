@@ -483,6 +483,9 @@ class TestRET048LayoutPreserved:
             # answered with the average origination score because the Cockpit
             # could not reach the validation runner it ships with.
             "backend/orchestration/scorecard_route.py",
+            # "That one." "No, the other one." A pointer with no position was
+            # answered by re-running the analysis already on the table.
+            "backend/orchestration/nth.py",
             "backend/orchestration/conversation.py",
             "backend/orchestration/followups.py",
             "backend/orchestration/reuse.py",

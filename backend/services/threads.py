@@ -185,6 +185,22 @@ def _thread_view(session: Any, row: Any, *, with_messages: bool = True) -> Threa
 # ------------------------------------------------------------------- context
 
 
+
+def _states_its_own_window(question: str) -> bool:
+    """Whether the sentence names its own period, so the thread's is not used."""
+    try:
+        from backend.data_access import get_data_source
+        from backend.orchestration import periods as pdx
+        from backend.orchestration import vocabulary
+
+        dataset = vocabulary.facility_dataset()
+        available = list(get_data_source().periods(dataset))
+        intent = pdx.read_period_intent(str(question or ""), available)
+        return bool(getattr(intent, "specified", False))
+    except Exception as e:  # noqa: BLE001 - unreadable, so the thread's stands
+        logger.info("Could not read a period out of %r: %s", question, e)
+        return False
+
 def settled_period(context: dict[str, Any]) -> tuple[str, str] | None:
     """The comparison this thread has already agreed on, if it has agreed one.
 
@@ -386,7 +402,16 @@ def ask(thread_id: int, question: str, *, user_id: int | None = None,
 
     append(thread_id, role=ROLE_USER, content=question, user_id=user_id)
 
-    window = period or settled_period(context)
+    # The thread's settled window, UNLESS this sentence names one of its own.
+    #
+    # "Show the 25-month ECL trend" settles 2024-08 to 2026-08, and the next
+    # question — "how did ECL change THIS MONTH?" — was handed all twenty-five
+    # of them and answered about two years, under a scope line that said so
+    # and a sentence nobody would read twice. A window the reader states is
+    # the window, and a thread that overrides it is not remembering, it is
+    # ignoring.
+    window = period or (None if _states_its_own_window(question)
+                        else settled_period(context))
 
     # §9: the reply to a clarification is merged with the question that
     # provoked it. "How has it moved?" → "Which figure?" → "Expected credit

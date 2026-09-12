@@ -292,9 +292,12 @@ def clarification(bound: Bound) -> str:
     Written as a colleague would ask it. The reader knows what they meant; what
     they need is to be told which part CreditProbe could not follow.
     """
+    from backend.retail import profile
+
+    who = "customer" if profile.is_retail() else "borrower"
     return (f"Which row do you mean by {bound.phrase or 'that'}? "
             f"{bound.because[0].upper() + bound.because[1:]}. Ask the question "
-            "that produces the list, or name the borrower, and I will take it "
+            f"that produces the list, or name the {who}, and I will take it "
             "from there.")
 
 

@@ -1005,6 +1005,18 @@ def unresolved(question: str, state: cv.ConversationState) -> str:
     # rather than the thing the reader has to decide, and it read as a bug
     # report in front of a client. What is actually needed is one short
     # question: which borrowers do you mean?
+    # In this installation's words. On a retail book it asked for "a sector"
+    # and "a rating band", neither of which this product holds, in the one
+    # sentence whose whole job is to tell the reader what they may say next.
+    from backend.retail import profile
+
+    if profile.is_retail():
+        return (
+            f"Which customers do you mean by {read_back.population!r}? "
+            "Nothing earlier in this conversation names a set I can carry "
+            "forward, so tell me the population — a product, an IFRS 9 stage, "
+            "a delinquency bucket, a region, or a question that produces the "
+            "list — and I will take it from there.")
     return (
         f"Which borrowers do you mean by {read_back.population!r}? Nothing "
         "earlier in this investigation names a set I can carry forward, so "

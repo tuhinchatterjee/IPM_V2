@@ -852,6 +852,51 @@ def _largest_group(build: Any, rows: list[dict[str, Any]], column: str
         return None
     return (min if smallest else max)(scored, key=lambda pair: pair[1])
 
+
+def _period_series(build: Any, rows: list[dict[str, Any]], column: str
+                   ) -> list[tuple[str, float]]:
+    """(month, value) for every reporting date in the result, in date order."""
+    if not column or not rows:
+        return []
+    period_column = _period_column(build)
+    if not period_column:
+        return []
+    points: dict[str, float] = {}
+    for row in rows:
+        at = str(row.get(period_column) or "")
+        value = row.get(column)
+        if at and isinstance(value, (int, float)):
+            points[at] = float(value)
+    return sorted(points.items())
+
+
+def _reads_as(series: list[tuple[str, float]], label: str, unit: str) -> str:
+    """What the series does between its ends, in one sentence.
+
+    Computed from the points themselves — the peak, the trough, and the last
+    leg — so every figure in it is in the result the reader can see.
+    """
+    from backend.orchestration import figures
+
+    months = len(series)
+    peak_at, peak = max(series, key=lambda pair: pair[1])
+    low_at, low = min(series, key=lambda pair: pair[1])
+    said = (f"That is the movement between the two ends of a {months}-month "
+            f"series: it peaks at {_fmt(peak)} {unit} in {peak_at} and "
+            f"troughs at {_fmt(low)} {unit} in {low_at}.")
+    # The most recent leg, which is what a reader acts on. Twelve months where
+    # the series is long enough, and the whole of it where it is not.
+    back = 12 if months > 13 else max(months - 1, 1)
+    was_at, was = series[-1 - back]
+    now_at, now = series[-1]
+    if was:
+        moved = "rose" if now > was else "fell" if now < was else "was unchanged"
+        said += (f" Over the last {back} months it {moved} from "
+                 f"{_fmt(was)} to {_fmt(now)} {unit} "
+                 f"({figures.percent(abs((now - was) / was * 100.0))}), "
+                 f"{was_at} to {now_at}.")
+    return said
+
 def _population_average(column: str, rows: list[dict[str, Any]]) -> float | None:
     """The average the runtime computed over the whole population, if present.
 
@@ -1293,6 +1338,17 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                   f"{_fmt(closing_total)} {unit} between {build.opening} and "
                   f"{build.closing} — a change of {_fmt(abs(change))} {unit}"
                   f"{pct}.")
+        # A SERIES described by its two ends is a series nobody has read.
+        #
+        # "Show the 25-month ECL trend" returns twenty-five points and was
+        # introduced as "Final ECL fell from 17,241,387 to 15,952,109" — true
+        # of the two ends, and the opposite of what the series says: it fell
+        # for a year and then rose 17.5% over the last twelve months. A reader
+        # told the book is falling, on a book that is rising, has been
+        # misinformed by an accurate sentence.
+        series = _period_series(build, rows, column)
+        if len(series) > 2:
+            direct += " " + _reads_as(series, label, unit)
         metrics.append(Metric(
             label=f"{_opening(label)} at {build.closing}",
             value=round(closing_total, 2), unit=unit,

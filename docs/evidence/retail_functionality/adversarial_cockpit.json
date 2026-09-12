@@ -1,0 +1,344 @@
+{
+  "suite": "adversarial_cockpit",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 155.0,
+  "counts": {
+    "PASS": 23,
+    "FAIL": 1,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/adversarial_cockpit-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-01",
+      "module": "cockpit",
+      "title": "The opening question is answered, led by the movement that matters",
+      "status": "PASS",
+      "detail": "ECL 14,069,608 to 15,952,109, +13.38%",
+      "expected": "the ECL movement leads, not the 2% exposure movement",
+      "actual": "care about?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-07 TO 2026-08 \u00b7 GROSS CARRYING AMOUNT, EXPECTED CREDIT LOSS\n\nFinal ECL rose from 14,069,608 to 15,952,109 SAR between 2026-07 and 2026-08 \u2014 a change of 1,882,500 SAR (13.38%).\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a mo",
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/adv-01-what-changed.png"
+      },
+      "seconds": 4.7,
+      "defect": ""
+    },
+    {
+      "id": "ADV-02",
+      "module": "cockpit",
+      "title": "A concern ranking answers, naming its basis",
+      "status": "PASS",
+      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 2 answered; 1 partly answered\n1 analysis performed\nWhich product worries you mostAnswered\nwhyFolded into the combined analysis\nanswered inside the combined a",
+      "expected": null,
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 2 answered; 1 partly answered\n1 analysis performed\nWhich product worries you mostAnswered\nwhyFolded into the combined analysis\nanswered inside the combined analysis rather than as its own step, so it was not separately verified\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 BY PRODUCT LABEL\n\nHome Finance carries the most governed credit concern evidence of the 4 produc",
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-03",
+      "module": "cockpit",
+      "title": "An evidence follow-up after a composite is answered, not queried",
+      "status": "PASS",
+      "detail": "answered from the carried composite",
+      "expected": null,
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08\n\n25 customers, ranked by how many of 8 governed credit concern signals each one shows at 2026-08. RC-0027347 shows the most, at 7 of 8.\n\nMOST MATERIAL EXCEPTION\n\nRC-0027347: In arrears, Ninety days past due or more, Drawn to 90% or more of the limit, Debt burden above 55% ",
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/adv-03-numbers-behind.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-04",
+      "module": "cockpit",
+      "title": "A window a composite cannot draw is declined in words",
+      "status": "PASS",
+      "detail": " or a trend?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n25 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08\n\n25 customers, ranked by how many of 8 governed credit concern signals each one shows at 2026-08. RC-0027347 shows ",
+      "expected": null,
+      "actual": " or a trend?\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n25 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08\n\n25 customers, ranked by how many of 8 governed credit concern signals each one shows at 2026-08. RC-0027347 shows the most, at 7 of 8.\n\nMOST MATERIAL EXCEPTION\n\nRC-0027347: In arrears, Ninety days past due or more, Drawn to 90% or more of the limit, Debt burden ab",
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-05",
+      "module": "cockpit",
+      "title": "A customer ranking sums every facility, not the largest one",
+      "status": "PASS",
+      "detail": "RC-0015749 leads, +119,967",
+      "expected": "RC-0015749 first by summed ECL increase",
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\n7,031 customers where ecl final sar rose, between 2026-07 and 2026-08. The 10 shown are ordered worst first.\n\nMOST MATERIAL EXCEPTION\n\nRC-0015749 is the worst by the measures named.\n\nCREDITPROBE INTERPRETATION\n\nThese are the customers where ecl final sar rose between ",
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/adv-05-top-customers.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-06",
+      "module": "cockpit",
+      "title": "A drill-down returns facilities, not the same customers",
+      "status": "PASS",
+      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n10 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nThe 16 largest facilities by final ECL at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nTogether these 16 hold 100.00%",
+      "expected": null,
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n10 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nThe 16 largest facilities by final ECL at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nTogether these 16 hold 100.00% of the whole book final ECL.\n\nshare of the whole book\n100.00%\n\nCREDITPROBE INTERPRETATION\n\nThis covers the 10 carried forward from the previous answe",
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/adv-06-facilities.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-07",
+      "module": "cockpit",
+      "title": "Back returns the previous answer unrecomputed",
+      "status": "PASS",
+      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cSHOW THEIR FACILITIES.\u201d \u2014 16 ROWS \u00b7 2026-08\n\nThe previous answer, unchanged: Show their facilities.. Nothing was recomputed, so these are the same rows.\n\nThe previous r",
+      "expected": null,
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cSHOW THEIR FACILITIES.\u201d \u2014 16 ROWS \u00b7 2026-08\n\nThe previous answer, unchanged: Show their facilities.. Nothing was recomputed, so these are the same rows.\n\nThe previous result, redrawn\nUnvalidated\nMethod\nTrace\n\n16 groups: the labels need a row each.\n\nAsk about this\nChart\nTable\nExpected credit loss\nsar\n\t\nExpected credit",
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-08",
+      "module": "cockpit",
+      "title": "A stage RATE is the published metric, not a summed stage",
+      "status": "PASS",
+      "detail": "CARD at 12.70%",
+      "expected": "CARD, 12.70%",
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nCARD has the highest Stage 2 Share of Exposure at 2026-08, at 12.70%. SECOND_PROPERTY is the lowest, at 3.65%. Each group is SUM(gca WHERE stage = 2) / SUM(gca) \u00d7 100.\n\nStage 2 Share of Exposure by subsegment\nGoverned metadata\nTrace\n\nLOWEST\n\nSECOND_PROPERTY\n\nPERIOD\n\n2026-08\n\nHIGHEST\n\nCARD\n\nDIMENSION\n\nproduct_subsegment\n\nMETRIC ID\n\n",
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/adv-08-stage2-rate.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-09",
+      "module": "cockpit",
+      "title": "An amount question names a different subsegment",
+      "status": "PASS",
+      "detail": "FIRST_HOME",
+      "expected": "FIRST_HOME, 39,971,366 SAR",
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nSTAGE 2 \u00b7 2026-08 \u00b7 GROSS CARRYING AMOUNT \u00b7 BY PRODUCT SUBSEGMENT\n\nFIRST_HOME has the largest gross carrying amount in Stage 2 at 2026-08, at 39,971,366 SAR of 112,931,305 across 9 subsegments.\n\nLARGEST CONTRIBUTOR\n\nFIRST_HOME is the largest at 39,971,366 SAR, 35.39% of the total.\n\nFIRST_HOME\n39,971,366.47\n\nCREDITPROBE INTERPRETATI",
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "ADV-10",
+      "module": "cockpit",
+      "title": "A pointer with no position is asked about",
+      "status": "PASS",
+      "detail": "\u201d points at a row of the previous answer and does not say which. It returned FIRST_HOME, NEW_FINANCE, REFINANCE, CARD, TOP_UP, NEW and 3 more. Name it, or say \u201cthe second one\u201d.\n\nName the figure you want and CreditProbe will build the analysis for it.",
+      "expected": null,
+      "actual": "\u201d points at a row of the previous answer and does not say which. It returned FIRST_HOME, NEW_FINANCE, REFINANCE, CARD, TOP_UP, NEW and 3 more. Name it, or say \u201cthe second one\u201d.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated ",
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/adv-10-which-one.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-A1",
+      "module": "cockpit",
+      "title": "No chart for: Are there any Stage 3 home-finance facilities?",
+      "status": "PASS",
+      "detail": "0 charts drawn",
+      "expected": 0,
+      "actual": 0,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-a1.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-A2",
+      "module": "cockpit",
+      "title": "No chart for: What does Gini measure?",
+      "status": "PASS",
+      "detail": "0 charts drawn",
+      "expected": 0,
+      "actual": 0,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-a2.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-A3",
+      "module": "cockpit",
+      "title": "No chart for: What can I not conclude from that?",
+      "status": "PASS",
+      "detail": "0 charts drawn",
+      "expected": 0,
+      "actual": 0,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-a3.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-B1",
+      "module": "cockpit",
+      "title": "A chart is available for: Show the 25-month ECL trend",
+      "status": "PASS",
+      "detail": "1 chart frames, 1 drawn",
+      "expected": "at least one chart frame",
+      "actual": 1,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-b1.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-B3",
+      "module": "cockpit",
+      "title": "The 25-month trend is a series, not two endpoints",
+      "status": "FAIL",
+      "detail": "1 month labels on the axis, 2 month rows in the table",
+      "expected": ">= 12 months",
+      "actual": {
+        "axis": [
+          "2024-08"
+        ],
+        "rows": 2
+      },
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-b3.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "CHT-B2",
+      "module": "cockpit",
+      "title": "A chart is available for: Compare ECL by product",
+      "status": "PASS",
+      "detail": "1 chart frames, 0 drawn",
+      "expected": "at least one chart frame",
+      "actual": 1,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/cht-b2.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "THR-01",
+      "module": "cockpit",
+      "title": "A conversation starts and is answered",
+      "status": "PASS",
+      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nL",
+      "expected": null,
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n15,952,109 SAR of final ECL across 4 products at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR, 56.38% of the total.\n\nPersonal",
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "THR-02",
+      "module": "cockpit",
+      "title": "Leaving for What-If and returning keeps the conversation",
+      "status": "PASS",
+      "detail": "left=True; the question is still listed=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/thr-02-returned.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "THR-03",
+      "module": "cockpit",
+      "title": "A follow-up after the return still carries context",
+      "status": "PASS",
+      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY REGION LABEL\n\n15,952,109 SAR of final ECL acr",
+      "expected": null,
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY REGION LABEL\n\n15,952,109 SAR of final ECL across 13 regions at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nRiyadh is the largest at 4,878,620 SAR, 30.58% of t",
+      "evidence": {},
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "THR-04",
+      "module": "cockpit",
+      "title": "A refresh keeps both turns of the thread",
+      "status": "PASS",
+      "detail": "opening kept=True; the breakdown kept=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/thr-04-refreshed.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "THR-05",
+      "module": "cockpit",
+      "title": "Evidence opens from the answer",
+      "status": "PASS",
+      "detail": "the Trace opened=True; at http://localhost:5328/trace",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/thr-05-trace.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "THR-06",
+      "module": "cockpit",
+      "title": "Back from the evidence returns to THAT conversation",
+      "status": "PASS",
+      "detail": "the question is still listed=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/thr-06-back.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "THR-07",
+      "module": "cockpit",
+      "title": "Nothing from that thread leaks into a new one",
+      "status": "PASS",
+      "detail": "a new Cockpit carries no figure from the saved thread",
+      "expected": null,
+      "actual": "CreditProbeAI GOVERNED LOCAL READER 1 Executive Ivory ADMINISTRATOR Sign out All systems operational v0.3.0 HOME Cockpit My workspace Messages WORK Projects Project Planner Investigations Analyses Doc",
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/thr-07-fresh.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}
