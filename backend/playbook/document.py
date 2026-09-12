@@ -28,6 +28,7 @@ grounding pass will want to know where a *figure* came from.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
@@ -55,13 +56,18 @@ class Block:
     sources: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
-        return {"kind": self.kind, "text": self.text, "data": dict(self.data),
+        # Deep-copied, both ways. `data` holds a table's rows — a list of
+        # lists — and a shallow dict() leaves those rows shared, so a document
+        # "copied" through as_dict/from_dict was still the same table and
+        # grounding one of them silently rewrote the other.
+        return {"kind": self.kind, "text": self.text,
+                "data": copy.deepcopy(self.data),
                 "sources": list(self.sources)}
 
     @classmethod
     def from_dict(cls, d: dict) -> Block:
         return cls(kind=d.get("kind", PARAGRAPH), text=d.get("text", ""),
-                   data=dict(d.get("data") or {}),
+                   data=copy.deepcopy(d.get("data") or {}),
                    sources=list(d.get("sources") or []))
 
 

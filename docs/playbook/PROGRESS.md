@@ -424,6 +424,68 @@ points`, `10 accounts` and `10.0` are all still rejected when the document does
 not state them, and each has a test saying so beside the test that accepts the
 same digits as a marker.
 
+## The third targeted live re-run
+
+Against `ca1d24a`. PB-017 passed for real — one section revised, 39 figures
+traced, v1 intact, the model's unrelated rewrites discarded by the scoped
+merge, 136.6s. PB-015 failed with a message that said everything about why the
+diagnostics needed work and nothing about the defect: `grounding FAILED`.
+
+**The check was asserting the state of the first draft, not of the saved
+report.** `grounding.check` removes what the evidence does not support and
+records what it removed, so `ok` is false whenever the model reached for a
+figure it did not have — even when the document that came out the other side
+was clean and the removal had already happened before anything was written.
+The product contract is about the artifact CreditProbe saves. Authoring now
+runs a two-stage gate: pass one repairs and records the attempt, pass two
+re-checks the document that repair produced, and nothing is persisted or
+rendered unless that second pass is clean. `Outcome.grounding` is what the
+model attempted; `Outcome.grounding_final` is what was saved; the version row
+keeps both. A run whose repair does not converge is refused with category
+`grounding`, and one where removal would leave a section with nothing to say —
+a bullet list whose every item went, a table whose every cell reads "not
+available" — is refused with `grounding_incoherent`. An honest "a figure
+stated here could not be traced" sentence is content and ships, because saying
+so plainly is the whole reason removal beats a warning.
+
+**And every digit was being treated as a reported result.** Measured on
+committee prose: `CET1` yielded `1`, `COVID-19` yielded `-19`, `LGD-2026-v3`
+yielded `-2026` and `3`, `see section 10.2` yielded `10.2`, `Table 3` yielded
+`3`, `30 June 2026` yielded `30`, `Q2 2026` yielded `2`, `v2.1` yielded `2.1`.
+None of those is a claim, and the noise was hiding the findings that matter.
+Worse, the same extractor builds the supported set from the evidence, so a
+spurious token from a source could EXCUSE a real claim somewhere else — a
+ledger mentioning CET1 made a bare `1` quotable anywhere in the report.
+
+`validate.classify` now names each number from where it sits, never from its
+value: financial claim, percentage, basis points, count and scenario/stage
+label are evidence-bearing and reconcile exactly as before; year/date, section
+ordinal, list ordinal, model/version identifier and structural metadata are
+not claims. COUNT is the default, so a plain integer in prose is never exempt.
+A leading minus belongs to the number, so `-2.5` and `2.5` stay different
+claims. Classification runs a line at a time, because documents arrive as
+`plain_text()` and a heading ending in "June" must not make the next block's
+figure a date. One rule, applied to the document and to the ledger.
+
+Every finding now carries the token, its class, the block kind it was in and
+the sentence around it, and `GroundingResult.report()` prints one readable
+line each. A live failure can never again say only "grounding FAILED".
+
+Simulated end to end against the real fixture evidence: a drafted "coverage
+stood at 41.9 per cent" and "the spread widened by 77 basis points" are
+caught, classified as percentage and basis points, and removed; IFRS 9,
+30 June 2026, section 3.1, CET1, LGD-2026-v3 and Stage 2 are left alone; SAR
+22.77 million is retained; all six sections survive; the saved report is
+grounded.
+
+Two smaller defects were found on the way and fixed with it. `Block.as_dict`
+and `from_dict` shallow-copied `data`, so a table's rows stayed shared between
+a document and its "copy" — grounding one silently rewrote the other. And the
+invented-test detector was a substring match, so the honest disclosure "no
+backtest was performed" read as a claim that one had been; it is now
+negation-aware, because PB-015 asks the report both to name missing evidence
+honestly and never to claim a test it did not run.
+
 ## What is genuinely not done
 
 Stated here rather than left to be discovered.

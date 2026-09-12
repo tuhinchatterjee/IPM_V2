@@ -29,6 +29,7 @@ thing here as a "completed" version whose files do not open.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import logging
 import time
@@ -59,7 +60,15 @@ class Outcome:
     document: D.Document | None = None
     files: dict[str, bytes] = field(default_factory=dict)
     validations: dict[str, validate.Validation] = field(default_factory=dict)
+    #: What the model ATTEMPTED: the first pass, whose findings name every
+    #: unsupported figure it wrote and what was done about it. `ok` is False
+    #: when the draft reached for something the evidence did not support,
+    #: which is a fact about the draft and is kept in the audit record.
     grounding: grounding.GroundingResult | None = None
+    #: What was actually SAVED: the same check re-run over the document that
+    #: removal produced. This is the product contract — it is clean or the
+    #: run fails — and it is the one a caller should assert on.
+    grounding_final: grounding.GroundingResult | None = None
     renderer: str = ""
     #: For a scoped edit: the heading that was actually revised, and any
     #: sections the model changed without being asked. The merge discards
@@ -422,10 +431,41 @@ def author_document(session, scope: repo.Scope, workspace_id: int, *,
     # approved version that was itself grounded when it was written, and
     # re-checking it against a DIFFERENT ledger is not a stricter test but a
     # false one — it deletes figures from sections nobody touched.
+    #
+    # Two stages, because the product contract is about the ARTIFACT, not
+    # about the model's first draft. Stage one removes what the evidence does
+    # not support and records the attempt. Stage two re-checks the document
+    # that removal actually produced, and nothing is persisted or rendered
+    # unless that second pass is clean. A model is allowed to reach for a
+    # figure it should not have; a saved report is not allowed to contain one.
+    before = copy.deepcopy(doc)
     ground = grounding.check(doc, ledger, scope=drafted_only)
     outcome.grounding = ground
     if ground.note():
         outcome.notes.append(ground.note())
+
+    verified = grounding.check(doc, ledger, remove=False, scope=drafted_only)
+    outcome.grounding_final = verified
+    if not verified.ok:
+        # Removal did not converge. Refuse rather than persist a document
+        # whose own check does not pass — the one outcome worse than failing
+        # is a stored report that looks grounded and is not.
+        raise provider.AuthoringError(
+            "The report still stated figures that are in no evidence after "
+            "the unsupported ones were removed, so nothing was saved. "
+            + verified.report(),
+            category="grounding",
+        )
+
+    hollow = grounding.emptied_sections(before, doc, scope=drafted_only)
+    if hollow:
+        raise provider.AuthoringError(
+            "Removing the unsupported figures would have left "
+            + ", ".join(hollow)
+            + " with nothing to say, so nothing was saved. The evidence does "
+              "not support the report that was asked for.",
+            category="grounding_incoherent",
+        )
 
     skill_files = {f.format: f.content for f in result.files}
     if not ground.ok:
@@ -483,7 +523,19 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
         change_summary=change_summary,
         base_version_id=base_version_id,
         created_by=scope.user_id,
-        validation={f: v.as_dict() for f, v in outcome.validations.items()},
+        validation={
+            **{f: v.as_dict() for f, v in outcome.validations.items()},
+            # Both passes, on the row itself: what the draft attempted, and
+            # the verification of what was actually saved. An audit that keeps
+            # only the clean result cannot show that the model reached for a
+            # figure it did not have.
+            "grounding": {
+                "attempted": (outcome.grounding.as_dict()
+                              if outcome.grounding else {}),
+                "saved": (outcome.grounding_final.as_dict()
+                          if outcome.grounding_final else {}),
+            },
+        },
     )
 
     for fmt, content in outcome.files.items():
@@ -758,6 +810,8 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
             "version": outcome.version,
             "notes": list(outcome.notes),
             "grounding": outcome.grounding.as_dict() if outcome.grounding else {},
+            "grounding_final": (outcome.grounding_final.as_dict()
+                                if outcome.grounding_final else {}),
             "evidence_complete": ledger.complete,
             "evidence_gaps": list(ledger.omissions),
         },

@@ -42,7 +42,7 @@ from dataclasses import dataclass, field
 
 from backend.playbook import document as D
 from backend.playbook.evidence import Ledger
-from backend.playbook.validate import figures
+from backend.playbook.validate import classify, figures
 
 #: A sentence, roughly. Removal works at sentence granularity because deleting
 #: a bare number leaves prose that reads as though it were complete and is not.
@@ -55,6 +55,22 @@ class Finding:
     figures: list[str]
     section: str
     action: str  # "removed" | "flagged"
+    #: paragraph / callout / bullets / numbers / table — because "a figure in
+    #: a table cell" and "a figure in a sentence" are removed differently and
+    #: a reader of the failure needs to know which happened.
+    block_kind: str = ""
+    #: Each unsupported token with what kind of number it was and the text
+    #: around it. A finding that says only "10" cannot be acted on.
+    classes: list[dict] = field(default_factory=list)
+
+    def line(self) -> str:
+        """One readable line: what, where, what kind, and in what sentence."""
+        kinds = ", ".join(
+            f"{c['token']} ({c['kind']})" for c in self.classes) \
+            or ", ".join(self.figures)
+        return (f"{self.section or 'untitled'} [{self.block_kind or 'text'}] "
+                f"{self.action}: {kinds}"
+                f"\n          in: {self.locator_free_text[:160]}")
 
 
 @dataclass
@@ -82,7 +98,30 @@ class GroundingResult:
             ],
             "unused_figures": list(self.unused_figures),
             "attested": list(self.attested),
+            # The classification, kept in the stored record. "grounding
+            # FAILED" with no token, no class and no sentence is not a
+            # diagnosis, and a live failure that says only that costs a
+            # whole paid run to learn nothing.
+            "classified": [
+                {"section": f.section, "block": f.block_kind,
+                 "figures": f.classes, "text": f.locator_free_text}
+                for f in self.findings
+            ],
         }
+
+    def report(self) -> str:
+        """Every finding, one per line, with token, class and context."""
+        if not self.findings:
+            return "no unsupported figure"
+        return "\n        ".join(f.line() for f in self.findings)
+
+    def by_kind(self) -> dict[str, list[str]]:
+        """Unsupported tokens grouped by what kind of number they were."""
+        out: dict[str, list[str]] = {}
+        for finding in self.findings:
+            for entry in finding.classes:
+                out.setdefault(entry["kind"], []).append(entry["token"])
+        return {k: sorted(set(v)) for k, v in sorted(out.items())}
 
     def note(self) -> str:
         """What the thread says about what was removed. Plain, and never buried."""
@@ -145,12 +184,22 @@ def check(doc: D.Document, ledger: Ledger, *, remove: bool = True,
 
 
 def _record(result: GroundingResult, text: str, unsupported: set[str],
-            section: str, removed: bool) -> None:
+            section: str, removed: bool, block_kind: str = "") -> None:
+    classes = [f.as_dict() for f in classify(text)
+               if f.evidence_bearing and f.token in unsupported]
+    seen: set[str] = set()
+    unique = []
+    for entry in classes:
+        if entry["token"] not in seen:
+            seen.add(entry["token"])
+            unique.append(entry)
     result.findings.append(Finding(
         locator_free_text=text.strip()[:240],
         figures=sorted(unsupported),
         section=section,
         action="removed" if removed else "flagged",
+        block_kind=block_kind,
+        classes=unique,
     ))
 
 
@@ -162,7 +211,8 @@ def _check_text(block: D.Block, supported: set[str], used: set[str],
         unsupported = found - supported
         used |= found & supported
         if unsupported:
-            _record(result, sentence, unsupported, section, remove)
+            _record(result, sentence, unsupported, section, remove,
+                    block.kind)
             if remove:
                 kept.append(REPLACEMENT)
                 continue
@@ -179,7 +229,8 @@ def _check_items(block: D.Block, supported: set[str], used: set[str],
         unsupported = found - supported
         used |= found & supported
         if unsupported:
-            _record(result, item, unsupported, section, remove)
+            _record(result, item, unsupported, section, remove,
+                    block.kind)
             if remove:
                 continue
         kept.append(item)
@@ -203,7 +254,52 @@ def _check_table(block: D.Block, supported: set[str], used: set[str],
             used |= found & supported
             if unsupported:
                 _record(result, f"{section} table cell: {value}", unsupported,
-                        section, remove)
+                        section, remove, block.kind)
                 if remove:
                     rows[r][c] = "not available"
     block.data["rows"] = rows
+
+
+def emptied_sections(before: D.Document, after: D.Document,
+                     scope: set[str] | None = None) -> list[str]:
+    """Sections that removal left with nothing a reader could use.
+
+    The one way safe removal can still produce a bad report: a section that
+    said something now says only that a figure was unavailable, or says
+    nothing at all. That is worse than a rejected run, because it looks
+    finished. Reported so the caller can refuse rather than persist it.
+    """
+    after_by = {s.heading: s for s in after.sections}
+    hollow: list[str] = []
+    for section in before.sections:
+        if scope is not None and section.heading not in scope:
+            continue
+        other = after_by.get(section.heading)
+        if other is None or not _substance(section):
+            continue
+        if not _substance(other):
+            hollow.append(section.heading)
+    return hollow
+
+
+def _substance(section: D.Section) -> bool:
+    """Whether a section still says anything a reader can act on.
+
+    REPLACEMENT counts. "A figure stated here could not be traced to the
+    attached evidence and has been removed" is a true sentence that tells the
+    reader exactly where they stand, and shipping it is the whole point of
+    removing rather than warning. What does not count is a section left with
+    no prose at all — a bullet list whose every item went, or a table whose
+    every cell reads "not available". Those look like content and are not.
+    """
+    for block in section.blocks:
+        if block.kind == D.TABLE:
+            if any(str(cell).strip() not in {"", "not available"}
+                   for row in block.data.get("rows") or [] for cell in row):
+                return True
+        elif block.kind in (D.BULLETS, D.NUMBERS):
+            if [i for i in block.data.get("items", []) if i.strip()]:
+                return True
+        elif (block.text or "").strip():
+            return True
+    return False

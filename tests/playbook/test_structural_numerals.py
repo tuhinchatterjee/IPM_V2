@@ -98,9 +98,19 @@ class TestWhatCountsAsStructural:
         assert claims_in("Page 13", doc) == set()
         assert claims_in("Page 13 of 20", doc) == set()
 
-    def test_page_furniture_is_a_whole_line_or_it_is_prose(self):
+    def test_the_whole_line_furniture_rule_is_separate_from_prose(self):
+        """"Page 10" on its own is furniture the renderer drew. In a sentence
+        it is a cross-reference, which the figure classifier exempts for its
+        own structural reason — a different mechanism, pinned here so the two
+        are not confused."""
         doc = parsed("## Summary\n\nNothing numeric here.\n")
-        assert claims_in("Page 10 of the annex was reviewed.", doc) == {"10"}
+        assert claims_in("Page 10 of the annex was reviewed.", doc) == set()
+        kinds = {f.kind for f in validate.classify("Page 10 of the annex.")}
+        assert kinds == {validate.SECTION_REFERENCE}
+
+    def test_prose_on_a_line_that_opens_with_furniture_words_is_still_checked(self):
+        doc = parsed("## Summary\n\nNothing numeric here.\n")
+        assert claims_in("The annex covers 10 accounts.", doc) == {"10"}
 
     def test_a_long_list_item_wrapped_across_lines_keeps_its_marker_exempt(self):
         doc = parsed("## Recommendations\n\n"

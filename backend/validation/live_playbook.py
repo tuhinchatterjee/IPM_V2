@@ -296,7 +296,7 @@ def a_report_is_written_without_a_template() -> Outcome:
     files are produced deterministically afterwards.
     """
     from backend.db.engine import get_session
-    from backend.playbook import provider, service
+    from backend.playbook import provider, service, validate
 
     began = time.monotonic()
     try:
@@ -318,21 +318,44 @@ def a_report_is_written_without_a_template() -> Outcome:
     except Exception as exc:  # noqa: BLE001
         return _fail("no_template_report", exc, calls=2)
 
-    invented = [phrase for phrase in
-                ("backtest was performed", "we backtested",
-                 "the backtest shows")
-                if phrase in text.lower()]
+    invented = _tests_claimed_but_not_run(text)
+
+    # What the model ATTEMPTED, and what was SAVED. The pass turns on the
+    # second: the persisted report must be grounded. The first is reported
+    # either way, because "the model reached for four figures it did not have
+    # and they were removed" is worth knowing on a run that passed.
+    attempted = outcome.grounding
+    saved = outcome.grounding_final
+    saved_figures = validate.figures(text)
+    required = sorted(f for f in ("22.77",) if f in saved_figures)
+
     result = Outcome(
         check="no_template_report",
         passed=(len(headings) >= 4
-                and outcome.grounding is not None and outcome.grounding.ok
+                and saved is not None and saved.ok
                 and set(outcome.files) == {"docx", "pdf"}
-                and not invented),
+                and not invented
+                and required == ["22.77"]),
         calls=2,
         detail=(
             f"{len(headings)} sections; "
-            f"grounding {'held' if outcome.grounding and outcome.grounding.ok else 'FAILED'}"
+            f"SAVED REPORT grounded: "
+            f"{'yes' if saved and saved.ok else 'NO'}"
             + (f"; INVENTED {invented}" if invented else "")
+            + f"\n      unsupported financial figures in the saved report: "
+            f"{0 if saved and saved.ok else len(saved.findings) if saved else '?'}"
+            f"; unsupported tests: {len(invented)}"
+            + f"\n      required supported figures retained: "
+            f"{required or 'NONE — 22.77 is missing'}"
+            + f"\n      sections retained: {headings[:8]}"
+            + ("\n      the draft attempted "
+               f"{len(attempted.findings)} unsupported figure(s), repaired "
+               f"before saving, by kind {attempted.by_kind()}"
+               f"\n        {attempted.report()}"
+               if attempted and not attempted.ok
+               else "\n      the draft needed no repair")
+            + ("\n      STILL UNSUPPORTED AFTER REPAIR:\n        "
+               + saved.report() if saved and not saved.ok else "")
             + f"\n      evidence: {evidence_items} items, {evidence_chars} chars"
             f" (~{evidence_chars // 4} tokens)"
             + f"\n      provider: {outcome.turns} turn(s), "
@@ -342,6 +365,33 @@ def a_report_is_written_without_a_template() -> Outcome:
             f"rendering {outcome.render_ms / 1000:.1f}s "
             f"({outcome.renderer})"))
     return _record(result, outcome, began)
+
+
+#: A report that says a test was run, when the evidence contains no such test.
+#: The claim only counts when it is asserted — "no backtest was performed" is
+#: the honest disclosure this check exists to encourage, and reading it as an
+#: invention would punish the report for telling the truth.
+_CLAIMED_TESTS = ("backtest was performed", "backtest was carried out",
+                  "we backtested", "the backtest shows",
+                  "backtesting was performed")
+
+_NEGATIONS = ("no ", "not ", "never ", "without ", "neither ", "nor ",
+              "absent ", "lack of ", "unable to ")
+
+
+def _tests_claimed_but_not_run(text: str) -> list[str]:
+    """Phrases asserting a test was run. Negated statements are not claims."""
+    lowered = (text or "").lower()
+    found = []
+    for phrase in _CLAIMED_TESTS:
+        start = lowered.find(phrase)
+        while start != -1:
+            window = lowered[max(0, start - 60):start]
+            if not any(n in window for n in _NEGATIONS):
+                found.append(phrase)
+                break
+            start = lowered.find(phrase, start + 1)
+    return found
 
 
 def a_methodology_is_checked_without_editing_anything() -> Outcome:
