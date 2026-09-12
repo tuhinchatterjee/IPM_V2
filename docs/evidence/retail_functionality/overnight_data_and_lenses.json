@@ -2,7 +2,7 @@
   "suite": "overnight_data_and_lenses",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 101.5,
+  "elapsed_seconds": 102.0,
   "counts": {
     "PASS": 22,
     "FAIL": 0,

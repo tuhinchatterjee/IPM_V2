@@ -108,7 +108,7 @@ and the browser journey re-run afterwards, in
 |---|---|
 | Questions executed in the browser | 24 (§5 set plus the rate/share regressions) |
 | Result | **18 of 18 cases pass** |
-| Defects found and fixed here | ON-40…ON-46, ON-51…ON-57, ON-61…ON-64, ON-70, ON-71 |
+| Defects found and fixed here | ON-40…ON-46, ON-51…ON-57, ON-61…ON-64, ON-70, ON-71, ON-72…ON-74 |
 
 Representative five-turn thread (§23 journey A, re-run end to end):
 
@@ -135,7 +135,13 @@ dataset, the columns and the statement that ran.
 
 **Chart appropriateness** — no chart for a yes/no question, a conceptual
 explanation or a single fact; a chart for a 25-month trend and a product
-ranking. The stage composition draws three bars now (ON-64).
+ranking. The stage composition draws three bars now (ON-64). All seven chart
+cases pass on the final build. Three defects behind them were found in the
+last hour: a 25-month trend answered with two points (ON-72), a monthly
+series drawn as a horizontal bar ranking with the months in order of size
+(ON-73), and — under both — the fact that no composed answer had EVER opened
+as a chart, because the gate decided correctly and the decision never reached
+the screen (ON-74).
 
 ### Scorecard Validation
 
@@ -219,7 +225,15 @@ coefficients.
 ## G. Manual browser evidence
 
 Everything below was driven in Chromium against the launcher-served
-application, with a screenshot captured for every case.
+application, with a screenshot captured for every case. Every one of these
+fourteen suites was re-run against the FINAL build, after the last fix, not
+only when its own defect was closed.
+
+The evidence is `docs/evidence/retail_functionality/*.json`, one file per
+suite, with the screenshots in `screens/`. The `probes/` directory beside them
+holds throwaway diagnostic runs used to locate defects — two of them record a
+FAIL, both of them a selector question the probe was written to answer, and
+neither is a product defect or part of the count below. Its README says so.
 
 | Suite | Result |
 |---|---|
@@ -229,13 +243,19 @@ application, with a screenshot captured for every case.
 | §8–§11 threads, Playbook, messaging | 20 / 20 |
 | §13 Early Warning | 12 / 12 |
 | §14 Customer 360 | 11 / 11 |
-| §15 + §16 Data Builder, Metrics, Lenses | 22 / 22 |
+| §15 + §16 Data Builder, dictionary, lens authoring | 22 / 22 |
+| §12 Metrics, Lenses and Playbook, read on screen | 11 / 11 |
 | §17 navigation and Back paths | 10 pass, 1 n/a |
 | §18 + §19 + §20 persistence, security, failure injection | 19 / 19 |
-| §21 + §22 + §25 visual, chart discipline, timings | see below |
+| §21 + §22 + §25 visual, chart discipline, timings | 19 / 19 |
 | §23 cross-module journeys | 23 / 23 |
 | §26 corporate zero-tolerance sweep | 29 / 29 |
 | §24 language and context | 13 / 13 |
+| **Total across the fourteen suites** | **236 pass, 0 fail, 1 n/a** |
+
+The one NOT APPLICABLE is NAV-07, an unsaved-scenario-name warning, recorded
+with its reason: the What-If composer holds no document-style edit, so there
+is no unsaved state to warn about. It is not a failure wearing another label.
 
 **Viewports** — every route was opened at **1440×900** and **1512×982** and
 MEASURED rather than eyeballed: `scrollWidth` against `clientWidth` on the
@@ -266,6 +286,9 @@ Automated, and AFTER the manual result rather than in place of it.
 | `tests/orchestration` | unchanged against its pre-session baseline, checked by diffing the failure lists |
 | `tests/api` | unchanged against its pre-session baseline, same method |
 | `tests/metrics` | unchanged against its pre-session baseline, same method |
+| frontend `npm test` | **577 passed, 0 failed**, 48 suites |
+| frontend `npm run typecheck` | clean |
+| frontend `npm run lint` | 6 errors, all `react-hooks/set-state-in-effect` and all present at this session's base; tonight's work added two and removed them again (ON-75) |
 
 New regression suites written tonight, all reconciling against the Parquet
 rather than against the code that produced the answer:
@@ -289,11 +312,33 @@ Written earlier on this branch and re-run tonight:
 
 ## I. Honest blockers
 
-### Internal — none outstanding that this UAT found
+### Internal — none broken, two things named rather than buried
 
 Every defect found tonight was fixed, regression-tested and re-run in the
 browser. Nothing is recorded as N/A, BLOCKED or "demo limitation" to avoid
-fixing it.
+fixing it. Two facts belong here anyway, because neither is a pass:
+
+* **One screen behind tonight's last fix was not driven in the browser.**
+  ON-75 changed two forms. `/engine-builder/new` was opened in Chromium and
+  its Required dataset reads `retail_facility_month`. The twin control is the
+  Add Dataset wizard's **step 6**, and reaching step 6 means creating a
+  dataset, uploading a file and saving a dictionary — and this installation
+  has no route that deletes a dataset, only archive. Driving it would have
+  left a scratch dataset on the Data Builder screen for the demonstration, so
+  it was not driven. The change is the same three lines as the screen that
+  was driven, and it is covered by
+  `frontend/src/lib/__tests__/builder-defaults.test.ts`. That is weaker
+  evidence than the rest of this handover and is recorded as weaker.
+* **Six `react-hooks/set-state-in-effect` errors remain in the frontend
+  linter**, in Customer 360, Early Warning Signals and the retail What-If
+  composer. They are unchanged from this session's base — tonight took the
+  count from eight back to six rather than leaving my two behind. All three
+  screens pass their browser suites in full (Customer 360 11/11, Early
+  Warning 12/12, What-If 15/15), so this is a latent pattern rather than an
+  observed failure. It was not refactored at the end of a long night: these
+  are the asynchronous screens, and an unforced rewrite of state handling on
+  three proven journeys is the wrong trade at this hour. It is the first
+  thing to take on next.
 
 ### Not run, and why
 
@@ -396,7 +441,10 @@ The three shortest routes to the stronger label, in order of what they buy:
 
 1. A second adversarial session on the Cockpit specifically, asking questions
    nobody has asked yet — the twenty P1s tonight came almost entirely from
-   that surface, and it is the surface a demonstration lives on.
+   that surface, and it is the surface a demonstration lives on. The six
+   remaining linter errors in section I are the same session's work: they sit
+   on three screens the browser suites pass, so they are a rewrite to do with
+   a clear head and the suites to check it against, not at the end of a night.
 2. A provider credential, so section C can be written about the product as it
    ships rather than about its fallback.
 3. A Mac run of the launcher. The launcher scripts changed tonight (ON-68)
