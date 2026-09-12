@@ -557,6 +557,13 @@ class TestRET048LayoutPreserved:
             # `ne` reads back as "is not", so a flow out of a state is said
             # in English rather than as an operator.
             "backend/orchestration/dynamic.py",
+            # ---------------------------------------------------------------
+            # The presentation fixes. An existence question answered by adding
+            # up a stage number, an exclusion tested per facility on a question
+            # about people, a clarification the reply could not settle, and a
+            # review that left the next question with nothing to inherit.
+            "backend/semantics/ontology.py",
+            "backend/orchestration/deterioration.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail
