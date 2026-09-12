@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-12T07:01:52Z",
+  "generated_at": "2026-09-12T07:05:18Z",
   "release_id": "v4-saudi-20q-v1",
   "periods": {
     "latest": "2026Q2",
@@ -23,7 +23,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "a ranked sector comparison reads faster as bars",
-      "wall_ms": 49
+      "wall_ms": 39
     },
     {
       "question_id": "M02",
@@ -37,7 +37,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "five ranked sectors on one measure",
-      "wall_ms": 48
+      "wall_ms": 42
     },
     {
       "question_id": "M03",
@@ -51,7 +51,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "shares of one total compare as bars",
-      "wall_ms": 40
+      "wall_ms": 41
     },
     {
       "question_id": "M04",
@@ -65,7 +65,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "ten named contributors rank usefully",
-      "wall_ms": 48
+      "wall_ms": 42
     },
     {
       "question_id": "M05",
@@ -79,7 +79,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "the answer is one share; a chart of one number is decoration",
-      "wall_ms": 37
+      "wall_ms": 35
     },
     {
       "question_id": "M06",
@@ -93,7 +93,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "a ranked movement compares as bars",
-      "wall_ms": 44
+      "wall_ms": 43
     },
     {
       "question_id": "M07",
@@ -107,7 +107,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "two growth rates per sector; the gap is the finding and it belongs in a table",
-      "wall_ms": 42
+      "wall_ms": 41
     },
     {
       "question_id": "M08",
@@ -121,7 +121,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "the parts sum exactly to the whole movement",
-      "wall_ms": 41
+      "wall_ms": 45
     },
     {
       "question_id": "M09",
@@ -135,7 +135,7 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "named movers rank usefully",
-      "wall_ms": 42
+      "wall_ms": 48
     },
     {
       "question_id": "M10",
@@ -149,7 +149,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "an intersection of two conditions is a short list, possibly empty",
-      "wall_ms": 51
+      "wall_ms": 54
     },
     {
       "question_id": "M11",
@@ -163,7 +163,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "four KPIs with movements is a KPI table; a chart of four scalars is decoration",
-      "wall_ms": 38
+      "wall_ms": 43
     },
     {
       "question_id": "M12",
@@ -177,7 +177,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "three numbers and their movements",
-      "wall_ms": 40
+      "wall_ms": 46
     },
     {
       "question_id": "M13",
@@ -205,7 +205,7 @@
       "chart_policy": "none",
       "chart_published": null,
       "chart_reason": "the answer is one percentage",
-      "wall_ms": 36
+      "wall_ms": 38
     },
     {
       "question_id": "M15",
@@ -219,14 +219,14 @@
       "chart_policy": "horizontal_bar",
       "chart_published": "bar",
       "chart_reason": "a ranked concentration per sector",
-      "wall_ms": 44
+      "wall_ms": 48
     }
   ],
   "catalogue_calls_per_question": 0,
   "generations_per_question": 2,
   "performance_ms": {
-    "m01_end_to_end_ms": 38.9,
-    "derivation_250_cells_ms": 0.189
+    "m01_end_to_end_ms": 37.8,
+    "derivation_250_cells_ms": 0.18
   },
   "release_fingerprint": {
     "fingerprint": "bdb0be4662d63207",

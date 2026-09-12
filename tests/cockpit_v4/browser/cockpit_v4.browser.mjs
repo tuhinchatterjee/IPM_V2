@@ -1215,6 +1215,99 @@ await test("the landing page mounts the V4 Cockpit and nothing legacy",
 );
 
 
+/* ---- the demonstration is Saudi ------------------------------------- */
+/*
+ * A Saudi credit-risk demonstration that says "INR crore" anywhere a reader
+ * can see is not a localization bug, it is the wrong product. Checked
+ * against the rendered page rather than against the source, because the
+ * source was clean while the runtime still fell back to INR.
+ */
+
+const INDIA_WORDS = ["INR", "crore", "lakh", "\u20b9", "rupee"];
+
+async function visibleText(page) {
+  return page.evaluate(() => document.body.innerText);
+}
+
+await test("no page in the Cockpit shows an India-specific money label",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await page.waitForSelector('[data-testid="attention-card"]',
+        { timeout: 60_000 });
+      const text = await visibleText(page);
+      for (const word of INDIA_WORDS) {
+        assert.ok(
+          !new RegExp(word, "i").test(text),
+          `the landing page shows ${word}`,
+        );
+      }
+      assert.ok(/SAR/.test(text),
+        "a Saudi demonstration should show SAR somewhere on the landing page");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("attention cards and ECL highlights are denominated in SAR",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await page.waitForSelector('[data-testid="attention-card"]',
+        { timeout: 60_000 });
+      const money = await page.evaluate(() => {
+        const cards = [...document.querySelectorAll(
+          '[data-testid="attention-card"]')];
+        return cards.map((c) => c.innerText).join(" \n ");
+      });
+      assert.ok(money.length > 0, "there are attention cards to read");
+      for (const word of INDIA_WORDS) {
+        assert.ok(!new RegExp(word, "i").test(money),
+          `an attention card shows ${word}`);
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("borrower names in the drawer are GCC names, not Indian ones",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await openDrawer(page);
+      const text = await page.textContent('[data-testid="attention-drawer"]');
+      for (const gone of ["Bhavani", "Yamuna", "Aravali", "Deccan",
+                          "Narmada", "Sahyadri", "Wardha"]) {
+        assert.ok(!(text ?? "").includes(gone),
+          `the drawer shows the India-specific name ${gone}`);
+      }
+      for (const word of INDIA_WORDS) {
+        assert.ok(!new RegExp(word, "i").test(text ?? ""),
+          `the drawer shows ${word}`);
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("an answer, its table and its chart all read in SAR", async () => {
+  const { context, page, problems } = await openCockpit(browser);
+  try {
+    await ask(page, "What is total exposure at default by sector?");
+    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+    const text = await page.textContent('[data-testid="v4-response"]');
+    for (const word of INDIA_WORDS) {
+      assert.ok(!new RegExp(word, "i").test(text ?? ""),
+        `the published answer shows ${word}`);
+    }
+  } finally {
+    await context.close();
+  }
+});
+
 /* ---- responsive: five real viewports -------------------------------- */
 /*
  * The complaint these exist for: a 1728px Mac rendered a 1128px ribbon with

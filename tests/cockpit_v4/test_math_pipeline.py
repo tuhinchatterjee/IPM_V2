@@ -666,6 +666,127 @@ def test_the_harness_emits_rounded_business_values_not_machine_precision(
     assert "SAR" in outcome.response["narrative"]
 
 
+# ---- the live question, against the Saudi book -------------------------
+
+def test_the_live_ead_question_publishes_in_sar(drive, store_db, release_id):
+    """The exact question the live Mac run was refused on.
+
+    It asked for exposure at default by sector, the analysis was correct,
+    twelve rows came back, and publication failed on a rounded total. Here
+    the same question runs against the Saudi book -- which returns the same
+    twelve sectors and the same total the live run computed -- and publishes.
+    """
+    period = bank.periods(release_id)
+    outcome, provider, _ = drive(
+        "What is total exposure at default by sector in the latest quarter?",
+        [ScriptedResult(tool_calls=[_execute_call("M01", period)]),
+         _finalizer("M01", period)])
+    assert outcome.state == st.COMPLETED, outcome.message
+    body = outcome.response
+    expected = bank.oracle("M01", release_id)
+
+    # Twelve sectors, as the live run returned.
+    stored = store_db.get_artifact(body["tables"][0]["artifact_id"],
+                                   tenant_id="demo-tenant")
+    assert stored["row_count"] == 12 == expected["row_count"]
+
+    # Everything the question asked for.
+    assert period["latest"] in body["narrative"]
+    assert body["tables"], "a table is mandatory"
+    assert body["charts"][0]["kind"] == "bar", "a ranked comparison"
+    assert len(provider.sent) == 2, "no answer-repair round was needed"
+
+    # The total, rounded the way a credit officer writes it.
+    total = next(c for c in body["numeric_claims"]
+                 if c["claim_id"] == "total_ead")
+    assert total["unit"] == "SAR million"
+    assert Decimal(total["decimal_value"]) == prec.quantize(
+        Decimal(str(expected["total_ead"])), 2)
+    assert total["derivation"]["operation"] == "sum"
+    assert len(total["derivation"]["operands"][0]["row_ids"]) == 12, (
+        "the total is a sum over the twelve real rows, not a pointer to an "
+        "invented 'all sectors' row")
+
+    # And not a trace of the old book anywhere a reader looks.
+    published = json.dumps(body)
+    for word in ("INR", "crore", "₹"):
+        assert word not in published, f"the answer mentions {word}"
+    assert "SAR" in body["narrative"]
+
+
+@pytest.mark.parametrize("claim_id,wrong,why", [
+    ("total_ead", "40599.18", "rounded the wrong way"),
+    ("total_ead", "40599.1699", "merely rounds to the right figure"),
+    ("total_ead", "40.60", "restated in billions without dividing"),
+    ("top_share", "0.8361", "a percentage sent as a proportion of one"),
+])
+def test_a_wrong_figure_is_still_refused_after_the_rounding_fix(
+        drive, release_id, claim_id, wrong, why):
+    """Business presentation was bought without giving up arithmetic."""
+    period = bank.periods(release_id)
+    base = _finalizer("M01", period)
+
+    def corrupted(messages):
+        result = base(messages)
+        call = result.tool_calls[0]
+        for claim in call["input"]["numeric_claims"]:
+            if claim["claim_id"] == claim_id:
+                claim["decimal_value"] = wrong
+        return result
+
+    def stand_down(messages):
+        return ScriptedResult(tool_calls=[tool_call(
+            "finalize_response",
+            final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
+                  disposition="partial_answer",
+                  narrative="The figure could not be tied to the evidence.",
+                  limitations=["a published number did not reconcile"]))])
+
+    outcome, provider, _ = drive(
+        bank.BY_ID["M01"]["text"],
+        [ScriptedResult(tool_calls=[_execute_call("M01", period)]),
+         corrupted, stand_down])
+    assert len(provider.sent) == 3, (
+        f"{claim_id}={wrong} ({why}) was published instead of being sent "
+        f"back for correction")
+    assert outcome.state == st.PARTIAL
+
+
+def test_the_correction_packet_names_the_expected_display_value(
+        drive, release_id):
+    """Part 17: the repair tells the analyst exactly what to send."""
+    period = bank.periods(release_id)
+    base = _finalizer("M01", period)
+    seen: dict = {}
+
+    def corrupted(messages):
+        result = base(messages)
+        for claim in result.tool_calls[0]["input"]["numeric_claims"]:
+            if claim["claim_id"] == "total_ead":
+                claim["decimal_value"] = "40599.18"
+        return result
+
+    def capture(messages):
+        seen["body"] = messages[-1]["content"][0]["content"]
+        return ScriptedResult(tool_calls=[tool_call(
+            "finalize_response",
+            final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
+                  disposition="partial_answer",
+                  narrative="Standing down.",
+                  limitations=["a figure did not reconcile"]))])
+
+    drive(bank.BY_ID["M01"]["text"],
+          [ScriptedResult(tool_calls=[_execute_call("M01", period)]),
+           corrupted, capture])
+
+    body = seen["body"]
+    assert "40599.18" in body, "the packet names the value that was refused"
+    assert "displays at 2dp as" in body, (
+        "the packet must name the expected display value, not just say no")
+    # And it must not invite another analysis.
+    assert "do not run it again" in body.lower()
+
+
 def test_zz_write_the_math_evidence(release_id):
     if len([k for k in RESULTS if not k.startswith("_")]) < len(bank.ALL):
         pytest.skip("the artifact is written by a full run of this module")
