@@ -626,9 +626,23 @@ root-cause fix and a regression test.
 
 ## Run 2 — regression
 
-- `tests/early_warning` and `tests/api`: clean, and 118 new assertions across
-  `test_layers.py`, `test_band_transitions.py`, `test_scope_is_not_dropped.py`
-  and `test_escalation_routing.py`.
+```
+backend   22 failed, 10,589 passed, 27 skipped, 0 errors
+          (run-1 baseline 22 failed / 10,368 passed)
+frontend  429 of 429
+typecheck clean · lint clean · production build clean
+```
+
+The 22 failing identifiers were diffed against the recorded baseline list and
+are **identical, line for line**. None is in `tests/early_warning/` or
+`tests/api/`. They sit in `tests/docs`, `tests/evals`,
+`tests/orchestration`, `tests/presentation` and `tests/proof`, and every one
+of them predates `d683881`. The 221 additional passes are this run's new
+tests.
+
+- `tests/early_warning` and `tests/api`: clean, and 163 new assertions across
+  `test_layers.py` (57), `test_band_transitions.py` (42),
+  `test_scope_is_not_dropped.py` (52) and `test_escalation_routing.py` (12).
 - Frontend: 429 tests, 429 pass. Typecheck clean. Lint clean. Production build
   clean.
 - Two existing tests were amended rather than deleted, both because the

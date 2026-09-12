@@ -4027,7 +4027,51 @@
     "tests_amended_not_deleted": [
       "tests/early_warning/test_data_domain.py \u2014 asserted dominant_driver was missing for most obligors, which stopped being true once signals are carried forward",
       "tests/early_warning/test_conversation_thread.py \u2014 pinned the movement sentence's opening words before it said which way"
-    ]
+    ],
+    "full_backend_suite": {
+      "failed": 22,
+      "passed": 10589,
+      "skipped": 27,
+      "errors": 0,
+      "baseline_failed": 22,
+      "baseline_passed": 10368,
+      "identical_to_baseline": true,
+      "failing_identifiers": [
+        "tests/docs/test_feature_matrix.py::test_every_page_that_exists_carries_an_expected_behaviour",
+        "tests/docs/test_feature_matrix.py::test_the_committed_matrix_matches_the_current_build",
+        "tests/evals/test_remediation_threads.py::test_thread_d_investigates_a_sector_rather_than_looking_up_a_name",
+        "tests/orchestration/test_compound_and_investigation.py::test_a_deterioration_question_investigates_the_whole_book",
+        "tests/orchestration/test_compound_and_investigation.py::test_a_successful_investigation_leaves_no_stale_reason",
+        "tests/orchestration/test_compound_and_investigation.py::test_an_investigation_whose_probes_all_fail_says_so",
+        "tests/orchestration/test_compound_and_investigation.py::test_investigate_those_uses_the_population_already_on_screen",
+        "tests/orchestration/test_portfolio_and_length.py::test_the_investigation_proposes_more_than_it_runs",
+        "tests/orchestration/test_portfolio_and_length.py::test_the_investigation_selects_through_the_governed_planner",
+        "tests/presentation/test_decimal_contract.py::test_no_display_path_bypasses_the_contract",
+        "tests/proof/test_agentic_proof.py::test_a_broad_investigation_actually_orchestrates",
+        "tests/proof/test_agentic_proof.py::test_a_project_turn_is_classified_as_a_project_flow",
+        "tests/proof/test_agentic_proof.py::test_a_segment_investigation_also_orchestrates",
+        "tests/proof/test_agentic_proof.py::test_the_coordinated_run_reports_what_its_specialists_touched",
+        "tests/proof/test_defect_closure.py::test_d19_every_sub_analysis_went_through_the_governed_path",
+        "tests/proof/test_defect_closure.py::test_d19_the_review_reports_what_its_sub_analyses_read",
+        "tests/proof/test_defect_closure.py::test_d20_the_review_registers_evidence_facts",
+        "tests/proof/test_defect_closure.py::test_d4_a_broad_investigation_executes_governed_analyses",
+        "tests/proof/test_defect_closure.py::test_d6_a_coordinated_review_is_still_a_chief_orchestrator",
+        "tests/proof/test_defect_closure.py::test_d6_a_segment_investigation_is_still_a_portfolio_risk_lead",
+        "tests/proof/test_fresh_clone_acceptance.py::TestTheBusinessDomains::test_a_business_domain_does_not_merge_two_books",
+        "tests/proof/test_zero_tolerance.py::TestEngineGuarantees::test_float_debris"
+      ],
+      "none_in": [
+        "tests/early_warning/",
+        "tests/api/"
+      ],
+      "note": "every failing identifier predates d683881 and was diffed line for line against the recorded baseline"
+    },
+    "new_assertions": {
+      "tests/early_warning/test_layers.py": 57,
+      "tests/early_warning/test_band_transitions.py": 42,
+      "tests/early_warning/test_scope_is_not_dropped.py": 52,
+      "tests/early_warning/test_escalation_routing.py": 12
+    }
   },
   "run_2": {
     "commit_at_start": "d683881",

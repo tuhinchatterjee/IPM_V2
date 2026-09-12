@@ -39,7 +39,7 @@ run) · `n/a`.
 | 24 | `scripts/certify_early_warning_live.py` | done |
 | 25 | Live summary truncation assertion in the cert script | done |
 | 26 | Update report + results JSON (update, never replace) | done |
-| 27 | Full final regression, then classify A / B / C | wip |
+| 27 | Full final regression, then classify A / B / C | done |
 
 
 ## Run 2 outcome
@@ -51,6 +51,11 @@ carried from run 1, plus sixteen new). Zero P0 and zero P1 remain under this
 environment's control. Two P2s documented rather than fixed, both with a
 reason: the MEDIUM band stays thin because the matrix makes it so, and there
 is no escalate button on the Early Warning screen.
+
+Full final regression run on the finished tree: backend 22 failed / 10,589
+passed / 27 skipped, the 22 identical line for line to the recorded baseline
+and none of them in `tests/early_warning/` or `tests/api/`; frontend 429 of
+429; typecheck, lint and production build clean.
 
 The only thing outstanding is `scripts/certify_early_warning_live.py`, run on
 a machine that has the Anthropic key.
