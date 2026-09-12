@@ -282,13 +282,21 @@ Automated, and AFTER the manual result rather than in place of it.
 
 | Suite | Result |
 |---|---|
-| `tests/retail` | see the run recorded below |
+| `tests/retail` | **1008 passed, 0 failed** (673s), on the final commit with a clean tree |
 | `tests/orchestration` | unchanged against its pre-session baseline, checked by diffing the failure lists |
 | `tests/api` | unchanged against its pre-session baseline, same method |
 | `tests/metrics` | unchanged against its pre-session baseline, same method |
 | frontend `npm test` | **577 passed, 0 failed**, 48 suites |
 | frontend `npm run typecheck` | clean |
 | frontend `npm run lint` | 6 errors, all `react-hooks/set-state-in-effect` and all present at this session's base; tonight's work added two and removed them again (ON-75) |
+
+The backend suites above are reported as *unchanged against baseline* rather
+than as a pass because they are the CORPORATE book's suites and they fail on
+a retail installation for that reason — see section I. The method was the same
+every time: stash the change, run the suite, capture the sorted list of
+`FAILED`/`ERROR` lines, restore, run again, diff the two lists. An identical
+list means the change introduced nothing. A count alone would not have shown
+that, because one new failure and one fixed one net to zero.
 
 New regression suites written tonight, all reconciling against the Parquet
 rather than against the code that produced the answer:
