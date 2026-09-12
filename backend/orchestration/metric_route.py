@@ -201,10 +201,21 @@ class Routed:
     def said(self) -> str:
         """How the population reads in a sentence, or empty for the book.
 
-        On the screen, always. A restricted figure that does not say what it
-        is restricted to is the same defect wearing a correct number.
+        Only what actually restricted the calculation. A field the metric's
+        own formula already decides is not named: "what proportion of the
+        book is in Stage 2?" is answered by Stage 2 Share of Exposure over
+        the whole book, correctly, and naming the question's Stage 2 beside
+        it produced "Stage 2 Share of Exposure is 5.42% IN 2" — a population
+        phrase made out of a raw column value, describing a restriction that
+        was not applied.
+
+        On the screen whenever there IS one, though. A restricted figure that
+        does not say what it is restricted to is the same defect wearing a
+        correct number.
         """
-        values = [str(v) for _, v in self.population if str(v)]
+        spoken_for = self._spoken_for()
+        values = [str(v) for field, v in self.population
+                  if str(v) and field not in spoken_for]
         return ", ".join(dict.fromkeys(values))
 
 

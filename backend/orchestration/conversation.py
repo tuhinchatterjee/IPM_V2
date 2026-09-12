@@ -249,6 +249,15 @@ class ConversationState:
     governed_metric: str = ""
     #: The breakdown that metric was reported by.
     governed_dimension: str = ""
+    #: The population the LAST turn's governed metric actually restricted to.
+    #:
+    #: Written only by a metric turn and cleared by every other answered turn,
+    #: so the carry is strictly to the NEXT question. "Show the 30+ DPD rate
+    #: for credit cards by behaviour segment" then "now by utilisation band"
+    #: must stay inside the card book; eleven turns later, "what is the 30+
+    #: DPD rate?" must not — it came back 3.70% under a question about the
+    #: book, which is 1.79%.
+    governed_population: list[list[str]] = field(default_factory=list)
     turns: list[Turn] = field(default_factory=list)
     #: The question CreditProbe could not plan and asked about, held so the
     #: reply can be merged with it instead of read as a fresh request. §9: a
@@ -326,6 +335,7 @@ class ConversationState:
             "scorecard_model": self.scorecard_model,
             "governed_metric": self.governed_metric,
             "governed_dimension": self.governed_dimension,
+            "governed_population": [list(p) for p in self.governed_population],
             "turns": [t.to_dict() for t in self.turns],
             "pending": self.pending,
         }
@@ -364,6 +374,10 @@ class ConversationState:
             scorecard_model=str(raw.get("scorecard_model") or ""),
             governed_metric=str(raw.get("governed_metric") or ""),
             governed_dimension=str(raw.get("governed_dimension") or ""),
+            governed_population=[
+                [str(x) for x in pair]
+                for pair in (raw.get("governed_population") or [])
+                if isinstance(pair, (list, tuple)) and len(pair) == 2],
             turns=[Turn.from_dict(t) for t in raw.get("turns") or []],
             pending=str(raw.get("pending") or ""),
         )

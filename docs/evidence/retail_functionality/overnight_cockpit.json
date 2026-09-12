@@ -2,7 +2,7 @@
   "suite": "overnight_cockpit",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 392.6,
+  "elapsed_seconds": 394.3,
   "counts": {
     "PASS": 18,
     "FAIL": 0,

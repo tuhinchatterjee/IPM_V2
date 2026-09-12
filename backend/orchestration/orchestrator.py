@@ -714,7 +714,8 @@ def answer(question: str, *, context: Any = None,
         if not governed_population and state is not None \
                 and continuation.carries_context:
             governed_population = tuple(
-                (field, value) for field, value in state.filter_pairs()
+                (str(field), str(value))
+                for field, value in (state.governed_population or [])
                 if field in (context.dimensions or {})
                 and value in (context.dimensions or {}).get(field, ()))
     except Exception:  # noqa: BLE001 - an unreadable population is no population
@@ -736,7 +737,16 @@ def answer(question: str, *, context: Any = None,
             answered.result = computed
             answered.governed_metric = governed_metric.metric_id
             answered.governed_dimension = governed_metric.dimension
-            answered.settled_population = tuple(governed_metric.population)
+            # What was APPLIED, not what the sentence mentioned. "What
+            # proportion of the book is in Stage 2?" names Stage 2 and the
+            # metric's own formula already carries it, so nothing was
+            # restricted — recording it made the NEXT question inherit a
+            # restriction that had never been applied, and "what is ECL
+            # coverage?" came back 4.02% "in 2" where the book is 0.77%.
+            spoken_for = governed_metric._spoken_for()
+            answered.settled_population = tuple(
+                (field, value) for field, value in governed_metric.population
+                if field not in spoken_for)
             answered.reading = replace(
                 reading,
                 objective=f"The governed metric {governed_metric.metric.name}")
@@ -3326,14 +3336,17 @@ def remember(state: cv.ConversationState, answered: Answered, *,
         # screen to the last COMPOSED analysis, and showed the workings of a
         # different question without saying so.
         _remember_a_route_result(state, answered, run_id=run_id)
-        if answered.settled_population and answered.answered:
-            state.filters = [{"kind": field, "value": value}
-                             for field, value in answered.settled_population]
-        elif answered.governed_metric and answered.answered:
-            # A metric turn over the WHOLE book settles the whole book. Left
-            # standing, the previous turn's restriction would be inherited by
-            # a question that had deliberately widened out of it.
-            state.filters = []
+        if answered.governed_metric:
+            # Only a metric turn writes it, and only with what it applied. A
+            # metric turn over the WHOLE book writes an empty list, so a
+            # question that deliberately widened is not held in.
+            state.governed_population = [
+                [field, value] for field, value in answered.settled_population]
+        elif answered.answered:
+            # Any other turn ends the carry. The population belongs to the
+            # question before this one, not to a scope somebody set eleven
+            # turns ago and has since moved on from.
+            state.governed_population = []
         if answered.settled_measure and answered.answered:
             state.concepts = [answered.settled_measure]
             state.metrics = list(state.concepts)
@@ -3360,6 +3373,11 @@ def remember(state: cv.ConversationState, answered: Answered, *,
 
     build = answered.build
     reading = answered.reading
+    # A planned analysis ends the metric carry too. It sets `state.filters`
+    # of its own below, which is what a planned follow-up inherits; leaving
+    # the metric route's population standing beside it would give the next
+    # bare metric question a scope two different layers had each settled.
+    state.governed_population = []
     state.subject = reading.objective or answered.question
     state.intent = reading.intent
     state.conversation_action = answered.continuation.action

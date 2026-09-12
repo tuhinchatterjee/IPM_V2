@@ -2,7 +2,7 @@
   "suite": "cockpit_journeys",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 357.2,
+  "elapsed_seconds": 387.2,
   "counts": {
     "PASS": 17,
     "FAIL": 0,
@@ -225,7 +225,7 @@
       "module": "cockpit",
       "title": "One continuous five-turn conversation: analysis, narrowing, comparison, explanation and evidence",
       "status": "PASS",
-      "detail": "Use Cockpit Data for August \u2026=ok; Now only personal finance\u2026=ok; Compare with July 2026\u2026=ok; Explain that change\u2026=ok; Show the evidence\u2026=ok (23s)",
+      "detail": "Use Cockpit Data for August \u2026=ok; Now only personal finance\u2026=ok; Compare with July 2026\u2026=ok; Explain that change\u2026=ok; Show the evidence\u2026=ok (24s)",
       "expected": null,
       "actual": null,
       "evidence": {

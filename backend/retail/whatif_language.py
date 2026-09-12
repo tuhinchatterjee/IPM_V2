@@ -546,6 +546,21 @@ def _shocks(said: str, ask: Ask) -> None:
             percent_scale=0.01, label="LGD")
     _simple(said, ask, r"\bcollateral\b", "collateral_value_pct",
             percent_scale=0.01, label="collateral values")
+    # A HAIRCUT is a collateral reduction, and it is the word a credit officer
+    # actually uses: "apply a 15% haircut on secured auto finance" parsed no
+    # shock at all, resolved the population correctly, and was then refused
+    # for naming no change. Always a reduction — there is no such thing as a
+    # negative haircut — so the sign is not read from the sentence.
+    if "collateral_value_pct" not in ask.shocks:
+        cut = re.search(rf"\bhair[- ]?cut\b[^.;]{{0,30}}?{_NUMBER}\s*"
+                        rf"(?:{_PERCENT})?"
+                        rf"|{_NUMBER}\s*(?:{_PERCENT})?[^.;]{{0,20}}?"
+                        rf"\bhair[- ]?cut\b", said)
+        if cut:
+            amount = float(next(g for g in cut.groups() if g))
+            ask.shocks["collateral_value_pct"] = -abs(amount) * 0.01
+            ask.read_as.append(
+                f"a {abs(amount):g}% haircut on collateral values")
     _simple(said, ask, r"\b(?:income|salar(?:y|ies))\b", "income_pct",
             percent_scale=0.01, label="verified income")
 

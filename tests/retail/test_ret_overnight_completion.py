@@ -391,3 +391,42 @@ class TestRequiresAttentionIsNotStructurallyEmpty:
                 source = str((case.evidence or {}).get("threshold_source", ""))
                 assert "Synthetic demo threshold" in source, case.title
                 assert "bank-configurable" in source, case.title
+
+
+class TestAHaircutIsACollateralReduction:
+    """"Apply a 15% haircut on secured auto finance" parsed no shock at all."""
+
+    def test_it_reads_as_a_collateral_cut(self):
+        from backend.retail import whatif_language as wl
+
+        ask = wl.read("Apply a 15% haircut on secured auto finance.",
+                      ["2026-07", "2026-08"], {})
+        assert ask.shocks == {"collateral_value_pct": -0.15}, ask.shocks
+        assert ask.filters.get("product_code") == "AUTO_LOAN"
+        assert ask.filters.get("secured_flag") is True
+
+    def test_a_haircut_is_never_an_increase(self):
+        from backend.retail import whatif_language as wl
+
+        ask = wl.read("Increase the haircut to 20%.", ["2026-08"], {})
+        assert ask.shocks["collateral_value_pct"] < 0, ask.shocks
+
+    def test_an_ordinary_collateral_move_still_reads_its_own_sign(self):
+        from backend.retail import whatif_language as wl
+
+        ask = wl.read("Reduce collateral values by 10%.", ["2026-08"], {})
+        assert ask.shocks == {"collateral_value_pct": -0.10}, ask.shocks
+
+
+class TestAMetricNamesOnlyThePopulationItApplied:
+    """"Stage 2 Share of Exposure is 5.42% IN 2" — a phrase made out of a raw
+    column value, describing a restriction that was not applied."""
+
+    def test_a_share_names_no_stray_population(self):
+        answered = answer("What proportion of the book is in Stage 2?")
+        assert " in 2 " not in said(answered), said(answered)
+        assert "5.4" in said(answered), said(answered)
+
+    def test_a_real_restriction_is_still_named(self):
+        answered = answer("What is the 30+ DPD rate for credit cards?")
+        assert "Credit Card" in said(answered), said(answered)
