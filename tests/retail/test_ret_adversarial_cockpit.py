@@ -67,6 +67,17 @@ def answer(question: str, *, state: cv.ConversationState | None = None):
     return answered
 
 
+def headline(answered) -> str:
+    """The sentence the API puts at the top of the answer."""
+    from backend.orchestration import assembly
+    if getattr(answered, "result", None) is not None:
+        return str(answered.result.answer)
+    built = assembly.from_analysis(
+        answered.question, answered.reading, answered.build, answered.runtime,
+        duration_ms=0, mode={})
+    return str(getattr(built.narrative, "direct_answer", "") or "")
+
+
 def values(answered) -> dict:
     from backend.orchestration import assembly
     runtime = getattr(answered, "runtime", None)
@@ -538,3 +549,203 @@ class TestAPeriodMeansWhatItSays:
     def test_an_instruction_is_still_an_instruction(self):
         from backend.orchestration import movement as mv
         assert not mv.asks_for_change("Move this to the Contracting sector")
+
+
+class TestAConstrainedFieldIsNotAMeasure:
+    """"Stage 2" is a population. Summing the stage number answers nothing."""
+
+    def test_stage_2_exposure_is_exposure(self, book):
+        got = values(answer(f"What is the Stage 2 exposure at {LATEST}?"))
+        truth = float(book[book.ifrs9_stage == 2].gross_carrying_amount_sar.sum())
+        assert got["total"] == pytest.approx(truth, abs=1.0)
+        assert got["total"] > 1_000_000, (
+            "the stage number was summed and reported as the exposure")
+
+    def test_a_count_still_counts_the_constrained_field(self, book):
+        got = answer(f"How many facilities are in Stage 2 at {LATEST}?")
+        rows = got.runtime.rows
+        assert int(rows[0]["facility_count"]) == int(
+            book[book.ifrs9_stage == 2].facility_id.nunique())
+
+    def test_a_movement_with_no_measure_names_what_it_measured(self, book):
+        answered = answer("Compare Stage 2 this month to three months ago.")
+        said = " ".join(answered.build.warnings)
+        assert "CONSTRAINS" in said, said
+        assert [m.field for m in answered.build.matches] != ["ifrs9_stage"]
+
+    def test_the_stage_rate_is_the_published_metric(self):
+        answered = answer("Which subsegment has the highest Stage 2 rate?")
+        said = headline(answered)
+        assert "CARD" in said, said
+        assert "12.70%" in said, said
+        assert "IFRS 9 stage in Stage 2" not in said
+
+    def test_the_largest_group_is_named(self, book):
+        answered = answer("Which subsegment has the largest Stage 2 exposure?")
+        said = headline(answered)
+        assert "FIRST_HOME" in said, said
+        truth = float(book[(book.ifrs9_stage == 2)
+                           & (book.product_subsegment == "FIRST_HOME")]
+                      .gross_carrying_amount_sar.sum())
+        assert f"{truth:,.0f}" in said.replace(" SAR", ""), said
+
+    def test_a_breakdown_that_was_not_asked_to_rank_still_totals(self):
+        said = headline(answer(f"What is ECL by product at {LATEST}?"))
+        assert "15,952,109" in said, said
+        assert "has the largest" not in said
+
+
+class TestANarrowingKeepsTheAnalysis:
+    def test_it_keeps_the_movement(self, book):
+        first = answer("Why did weighted ECL move this month?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = answer("Show me personal finance.", state=state)
+        assert answered.build.shape == ap.MOVEMENT, (
+            "a narrowing kept the measure and lost the shape")
+        got = values(answered)
+        truth = float(book[book.product_label == "Personal Finance"]
+                      .ecl_final_sar.sum())
+        assert got["closing_total"] == pytest.approx(truth, abs=1.0)
+
+    def test_show_me_a_product_is_a_narrowing(self):
+        from backend.orchestration import referents
+        first = answer("Why did weighted ECL move this month?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        read = referents.resolve("Show me personal finance.", state)
+        assert read.action in (cv.NARROW_SCOPE, cv.CONTINUE)
+        assert read.carries_context
+
+    def test_show_me_a_measure_is_not_a_narrowing(self):
+        from backend.orchestration import referents
+        first = answer("Why did weighted ECL move this month?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        assert referents.resolve("Show me ECL by product.",
+                                 state).action == cv.NEW_REQUEST
+
+
+class TestAMetricSurvivesItsOwnFollowUp:
+    def test_the_metric_is_remembered(self):
+        answered = answer("What's happening to 30+ DPD?")
+        assert answered.governed_metric == "retail.dpd30.rate" or \
+            "dpd" in answered.governed_metric
+
+    def test_which_product_is_driving_it_stays_on_the_metric(self):
+        first = answer("What's happening to 30+ DPD?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = answer("Which product is driving it?", state=state)
+        said = headline(answered)
+        assert "Credit Card" in said, said
+        assert "3.70%" in said, said
+        assert "days of days past due" not in said, (
+            "the planner summed the days-past-due column")
+
+    def test_by_rate_not_volume_keeps_the_breakdown(self):
+        first = answer("What's happening to 30+ DPD?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        second = answer("Which product is driving it?", state=state)
+        state = orchestrator.remember(state, second)
+        answered = answer("By rate, not volume.", state=state)
+        assert "Credit Card" in headline(answered)
+
+
+class TestAPointerIsAskedAbout:
+    def test_that_one_asks_which(self):
+        first = answer(f"What is ECL by product at {LATEST}?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = orchestrator.answer("that one", state=state)
+        assert answered.clarification, "a bare pointer was answered by guessing"
+        said = str(answered.clarification)
+        assert "Which one?" in said
+        assert "Personal Finance" in said and "Credit Card" in said
+
+    def test_no_the_other_one_asks_which(self):
+        first = answer(f"What is ECL by product at {LATEST}?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = orchestrator.answer("no the other one", state=state)
+        assert answered.clarification
+
+    def test_an_ordinal_still_resolves(self, book):
+        first = answer(f"What is ECL by product at {LATEST}?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = answer("the second one", state=state)
+        assert not answered.clarification
+        assert "Credit Card" in headline(answered)
+
+    def test_a_pointer_is_not_a_clarification_reply(self):
+        assert not cv.answers_a_clarification("no the other one")
+        assert not cv.answers_a_clarification("that one")
+        assert cv.answers_a_clarification("expected credit loss")
+
+
+class TestTwoMonthsCompared:
+    """"August vs July" is two months of this year, not eleven of two."""
+
+    @pytest.fixture(scope="class")
+    def months(self) -> list[str]:
+        import glob as _glob
+        found = sorted(p.rsplit("=", 1)[1] for p in _glob.glob(
+            "data/retail/analytics/retail_facility_month/reporting_month=*"))
+        if not found:
+            pytest.skip("the shipped retail lake has not been built")
+        return found
+
+    def test_a_comparison_resolves_each_month_independently(self, months):
+        answered = answer("ECL for august vs july")
+        assert (answered.build.opening, answered.build.closing) == (
+            months[-2], months[-1])
+
+    def test_a_span_still_runs_forwards(self, months):
+        answered = answer("Give me the July to August ECL movement")
+        assert (answered.build.opening, answered.build.closing) == (
+            months[-2], months[-1])
+
+    def test_the_months_may_be_far_apart_in_the_sentence(self, months):
+        answered = answer("aug personal finance sal transfer stage2 ecl vs "
+                          "jul what moved")
+        assert (answered.build.opening, answered.build.closing) == (
+            months[-2], months[-1])
+
+    def test_the_shorthand_restriction_is_applied(self, book):
+        answered = answer("aug personal finance sal transfer stage2 ecl vs "
+                          "jul what moved")
+        got = values(answered)
+        truth = float(book[(book.product_label == "Personal Finance")
+                           & (book.salary_transfer_flag)
+                           & (book.ifrs9_stage == 2)].ecl_final_sar.sum())
+        assert got["closing_total"] == pytest.approx(truth, abs=1.0), (
+            "a restriction the reader stated was dropped in silence")
+
+    def test_the_restriction_is_named_on_the_answer(self):
+        answered = answer("aug personal finance sal transfer stage2 ecl vs "
+                          "jul what moved")
+        fields = {f for f, _ in answered.build.filters}
+        assert "salary_transfer_flag" in fields
+        assert "product_label" in fields
+
+
+class TestTheProductsOwnWordsAreNotObligors:
+    @pytest.mark.parametrize("phrase", [
+        "Which customers deserve an Early Warning investigation?",
+        "What is the Gini on the personal finance application scorecard?",
+    ])
+    def test_no_data_steward_refusal(self, phrase):
+        answered = orchestrator.answer(phrase)
+        said = str(answered.clarification or "") + str(
+            getattr(answered, "unsupported", "") or "")
+        assert "Data Steward" not in said, said
+        assert "has never been given" not in said, said
+
+    def test_the_investigation_question_is_answered_with_evidence(self):
+        answered = answer("Which customers deserve an Early Warning "
+                          "investigation?")
+        assert answered.answered
+        said = " ".join(answered.build.warnings)
+        assert "signals it does carry" in said, (
+            "an evidence ranking must say it is evidence, not a rule")
+
+    def test_the_refusal_speaks_this_installations_book(self):
+        from backend.orchestration import orchestrator as orc
+        said = orc._unknown_borrower("What is Northwind Trading's exposure?",
+                                     None)
+        if said:
+            assert "borrower" not in said, said

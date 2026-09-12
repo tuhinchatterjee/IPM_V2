@@ -34,6 +34,7 @@ to remove, and there is no code path back to it.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -56,6 +57,7 @@ from backend.orchestration import (
     interpretation,
     investigation,
     metric_route,
+    nth,
     scorecard_route,
     referents,
     router,
@@ -463,6 +465,23 @@ def answer(question: str, *, context: Any = None,
     # that says "this" is wrong even when the figures agree.
     if ru.wants(question) and not ru.asks_to_expand(question):
         return finish(_assess_previous(answered, question, state))
+
+    # "That one." "No, the other one." A pointer with no position.
+    #
+    # Both were answered by re-running the analysis already on the table and
+    # presenting its figures again under a different question — nine turns of
+    # one session came back with the same sentence. Which row the reader means
+    # is a question only they can answer, and asking it is the answer.
+    pointing = nth.points_without_saying_which(question)
+    if pointing:
+        rows = ru.cached_result(state)
+        listed = _rows_to_choose_from(rows)
+        if listed:
+            answered.clarification = (
+                f"Which one? \u201c{pointing}\u201d points at a row of the "
+                f"previous answer and does not say which. It returned "
+                f"{listed}. Name it, or say \u201cthe second one\u201d.")
+            return finish(answered)
 
     # "Show it as a graph." The same rows, drawn differently.
     #
@@ -1665,6 +1684,25 @@ def _analyse(answered: Answered, question: str, reading: cap.Reading,
 
     answered.build = build
 
+    # The SAME analysis, planned a second time from a sentence that changed
+    # nothing.
+    #
+    # One misread opening question in a messy-language session was followed by
+    # nine turns — a trend, a three-way comparison, two ambiguity repairs —
+    # and every one of them returned the first answer's sentence verbatim,
+    # because each resolved to a plan byte-identical to the one already on the
+    # table. A reader who asks nine different questions and is given one
+    # answer nine times has been told nothing, and has no way to know it.
+    #
+    # Compared on the PLAN rather than on the result, so this costs no
+    # execution, and only where the turn pointed back: a reader who genuinely
+    # re-asks the same question from a standing start is entitled to the same
+    # answer.
+    repeated = _repeats_the_previous_plan(build, state, continuation, question)
+    if repeated:
+        answered.clarification = repeated
+        return answered
+
     try:
         answered.runtime = execute(
             build.plan, question=question, intent=build.summary,
@@ -2222,6 +2260,76 @@ def _worst_band(body: dict[str, Any], question: str, model_id: str
         "the runner's own sufficiency judgement, and a band marked "
         "INSUFFICIENT EVIDENCE is not evidence of miscalibration.")
     return rows, list(_BAND_COLUMNS), headline, caveats
+
+
+#: A sentence that deliberately asks for the same thing again.
+_ASKS_AGAIN = re.compile(
+    r"\b(?:again|re-?run|refresh|re-?calculate|recompute|repeat|"
+    r"same\s+(?:thing|question|analysis)|once\s+more)\b", re.IGNORECASE)
+
+
+def _repeats_the_previous_plan(build: Any, state: cv.ConversationState,
+                               continuation: cv.Continuation,
+                               question: str) -> str:
+    """Whether this turn composed the analysis already on the table.
+
+    Returns the sentence to ask instead, or "" to run it. Nothing here reads
+    governed data: it compares two plans.
+    """
+    if state is None or not state.ir or not build or not build.plan:
+        return ""
+    if not getattr(continuation, "carries_context", False):
+        return ""
+    if _ASKS_AGAIN.search(str(question or "")):
+        return ""
+    # A plan with something new to SAY is not a repeat, whatever its
+    # operations are. A composite asked for a six-month window runs at one
+    # date and says so — the figures repeat, the answer does not.
+    if getattr(build, "warnings", None):
+        return ""
+    # The OPERATIONS, not the whole document: `meta` carries the explanation
+    # and the grain contract, which differ between two runs of the same
+    # analysis without the analysis differing at all.
+    def _executed(plan: dict[str, Any]) -> Any:
+        return (plan.get("dataset"), plan.get("period"),
+                json.dumps(plan.get("operations") or [], sort_keys=True,
+                           default=str))
+
+    if _executed(dict(build.plan)) != _executed(dict(state.ir)):
+        return ""
+    settled = state.plan_summary or "the previous analysis"
+    return (
+        "CreditProbe read that as the same analysis it has just run — "
+        f"{settled} — so it has not run it a second time and given you the "
+        "same figures under a different question. Say what should change: a "
+        "different figure, a different population, a different period, or a "
+        "breakdown.")
+
+
+def _rows_to_choose_from(cached: Any, limit: int = 6) -> str:
+    """The previous answer's rows, named, for a clarification that points back."""
+    if cached is None or not getattr(cached, "usable", False):
+        return ""
+    rows = list(getattr(cached, "rows", None) or [])
+    columns = list(getattr(cached, "columns", None) or [])
+    if len(rows) < 2:
+        return ""
+    key = ""
+    for column in columns:
+        name = str(column.get("name") or "")
+        if column.get("is_identity") or name.endswith(("_id", "_label")) \
+                or str(column.get("semantic") or "") == "text":
+            key = name
+            break
+    if not key:
+        key = str((columns[0] or {}).get("name") or "") if columns else ""
+    if not key:
+        return ""
+    names = [str(r.get(key)) for r in rows[:limit] if r.get(key) is not None]
+    if not names:
+        return ""
+    more = f" and {len(rows) - len(names)} more" if len(rows) > len(names) else ""
+    return ", ".join(names) + more
 
 def _redraw_previous(answered: Answered, question: str,
                      state: cv.ConversationState,

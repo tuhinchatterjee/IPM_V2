@@ -625,6 +625,14 @@ def answers_a_clarification(reply: str) -> bool:
     text = " ".join(str(reply or "").split())
     if not text or len(text.split()) > MAX_REPLY_WORDS:
         return False
+    # A pointer is not an answer to anything. "No, the other one" is short and
+    # not interrogative, so it was merged into the question CreditProbe had
+    # just asked and planned as though the reader had named a figure — and the
+    # answer came back as the previous one, again.
+    from backend.orchestration import nth
+
+    if nth.points_without_saying_which(text):
+        return False
     return not _ASKS.match(text)
 
 

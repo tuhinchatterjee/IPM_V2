@@ -352,6 +352,18 @@ def _canonical_periods(lowered: str, periods: list[str]) -> str:
     return _bare_months(written, periods, index)
 
 
+#: Two bare month names joined by a comparison rather than by a span.
+_COMPARED_MONTHS = re.compile(
+    r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*\b"
+    # The words between them are the question: "aug pf sal transfer stage2 ecl
+    # vs jul" is one sentence a Head of Retail Risk types, and requiring the
+    # two months to be adjacent left it comparing August 2025 with July 2026.
+    r"[^.?!]{0,60}?\s(?:vs\.?|versus|against|compared\s+(?:with|to))\s"
+    r"[^.?!]{0,30}?"
+    r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\w*\b",
+    re.IGNORECASE)
+
+
 def _bare_months(lowered: str, periods: list[str],
                  index: dict[tuple[str, int], str]) -> str:
     """Months written without a year — "the July to August decomposition".
@@ -376,6 +388,15 @@ def _bare_months(lowered: str, periods: list[str],
     if not matches:
         return lowered
 
+    # Right-to-left is right for a SPAN — "July to August" runs forwards — and
+    # wrong for a COMPARISON, which is written the other way round. "ECL for
+    # august vs july" resolved July first, put the ceiling below it, and then
+    # had to reach back a year for an August: the answer compared August 2025
+    # with July 2026 and called it "august vs july". Where the months are
+    # joined by a comparison word, each one resolves to its own most recent
+    # publication and the pair is ordered afterwards.
+    comparing = bool(_COMPARED_MONTHS.search(lowered))
+
     ceiling = len(periods) - 1
     replacements: list[tuple[int, int, str]] = []
     for match in reversed(matches):
@@ -390,7 +411,8 @@ def _bare_months(lowered: str, periods: list[str],
         if not candidates:
             continue
         chosen = max(candidates, key=lambda label: ordered.get(label, -1))
-        ceiling = max(ordered.get(chosen, 0) - 1, 0)
+        if not comparing:
+            ceiling = max(ordered.get(chosen, 0) - 1, 0)
         replacements.append((match.start(), match.end(),
                              f" {_normalise(chosen)} "))
 

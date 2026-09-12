@@ -151,6 +151,28 @@ class Bound:
         return bool(self.entity_key and self.entity_id)
 
 
+#: A pointer at ONE row that does not say which.
+#:
+#: "That one." "No, the other one." A reader repairing a misunderstanding
+#: writes exactly this, and the product answered both by re-running the
+#: analysis already on the table and presenting its figures a second time
+#: under a different question. A pointer with no position is a question, and
+#: the honest response to it is a question back.
+_UNPLACED = re.compile(
+    r"^\s*(?:no[,.]?\s+|not\s+that[,.]?\s+|sorry[,.]?\s+)?"
+    r"(?:i\s+meant\s+)?"
+    r"(?:that|this|the)\s+(?:other\s+)?one\s*[?.!]*\s*$"
+    r"|^\s*(?:no[,.]?\s+)?the\s+other\s*(?:one)?\s*[?.!]*\s*$",
+    re.IGNORECASE)
+
+
+def points_without_saying_which(question: str) -> str:
+    """The pointing phrase, where the sentence points at a row and names none."""
+    said = " ".join(str(question or "").split())
+    match = _UNPLACED.match(said)
+    return match.group(0).strip() if match else ""
+
+
 def read(question: str) -> Nth | None:
     """The ordinal reference this sentence makes, or None for none.
 

@@ -149,6 +149,15 @@ class Vocabulary:
         ("salary transfer", "salary_transfer_flag", "True"),
         ("salary transferred", "salary_transfer_flag", "True"),
         ("salary assignment", "salary_transfer_flag", "True"),
+        # How it is actually typed in a hurry. "aug pf sal transfer stage2 ecl
+        # vs jul what moved" dropped the restriction in SILENCE — the answer
+        # was the whole Stage 2 book, 4,536,513 where the salary-transfer
+        # personal-finance figure is 1,700,845, and nothing on screen said a
+        # condition had been ignored.
+        ("sal transfer", "salary_transfer_flag", "True"),
+        ("sal tfr", "salary_transfer_flag", "True"),
+        ("salary tfr", "salary_transfer_flag", "True"),
+        ("sal-transfer", "salary_transfer_flag", "True"),
         ("unsecured", "secured_flag", "False"),
         ("secured", "secured_flag", "True"),
         ("collateralised", "secured_flag", "True"),
