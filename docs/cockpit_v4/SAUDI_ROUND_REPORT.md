@@ -240,9 +240,27 @@ the math pipeline (59) and derived claims (24).
 
 V3 and unrelated modules were not modified. The shared generator, catalog and
 store are untouched; every Saudi change is a V4 module operating after a
-release is built. The wider backend suite was re-run to confirm no change
-against the pre-round baseline — see §19 for the caveat if that run is not yet
-recorded here.
+release is built — which is the property that lets this round relabel a V4
+release without touching a V3 one.
+
+Measured rather than argued. The wider backend suite (excluding
+`cockpit_v4`, and the `brain`/`legacy` collection errors that predate this
+work) was run before and after, and the failing test IDs compared:
+
+| | Tests | Passed | Failed | Errors | Skipped |
+| --- | --- | --- | --- | --- | --- |
+| Branch baseline, before this round | 9,668 | 6,764 | 412 | 176 | 2,316 |
+| Branch now | 9,668 | 6,764 | 412 | 176 | 2,316 |
+
+**Zero new failures, and zero tests newly passing.** Comparing IDs rather
+than counts, the two sets are identical — 588 failing before, the same 588
+after, with no additions and no removals.
+
+Those 588 are the repository's existing condition, not this round's: `main`
+itself runs 409 failures and 176 errors over the same scope, and the three
+extra on this branch were traced last round to source-scanning guards tripped
+by earlier Cockpit V2 and V4 commits. They remain open and are not this
+round's to close.
 
 ## 19. Verdict
 
