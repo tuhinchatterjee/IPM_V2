@@ -126,6 +126,18 @@ def _lives_in_several_dimensions(value: str) -> bool:
         return False
     return False
 
+def _plural(word: str) -> str:
+    """One word in the plural, spelled the way English spells it."""
+    said = str(word or "row").strip()
+    if said.endswith(("ies", "s")):
+        return said
+    if said.endswith("y") and not said.endswith(("ay", "ey", "oy", "uy")):
+        return said[:-1] + "ies"
+    if said.endswith(("x", "z", "ch", "sh")):
+        return said + "es"
+    return said + "s"
+
+
 def say(field_name: str, value: Any, widened_op: str = "") -> str:
     """One filter, as a credit officer would say it.
 
@@ -252,9 +264,11 @@ class ScopeFrame:
         # the previous answer · 2026-07 to 2026-08 · expected credit loss",
         # with nothing on the line saying which book the figures were of.
         if self.entity_ids:
+            # Spelled the way English spells it. "25 citys carried from the
+            # previous answer" sat above a table a credit officer was reading.
             parts.append(f"{len(self.entity_ids)} "
-                         f"{(self.entity_key or 'row').replace('_id', '')}s "
-                         "carried from the previous answer")
+                         f"{_plural((self.entity_key or 'row').replace('_id', ''))}"
+                         " carried from the previous answer")
         if self.filters:
             # Through the shared reader, not by joining the raw values: the
             # line above the table has to name the same population the answer

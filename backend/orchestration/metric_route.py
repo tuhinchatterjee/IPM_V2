@@ -110,6 +110,13 @@ _RANKED = re.compile(
 #: and declining it sent "show the ECL coverage trend" to a composer that can
 #: only average the ratio COLUMN — 2.17% where the book's coverage is 0.77%,
 #: over two points where twelve were asked for. See `_TREND` below.
+#: "how many", "how many customers", "the number of" — a request for a count
+#: of rows, which no published rate answers.
+_COUNTS = re.compile(
+    r"\bhow many\b|\bthe number of\b|\bcount of\b|\bhow many of\b",
+    re.IGNORECASE,
+)
+
 _COMPARISON = re.compile(
     r"\b(?:vs\.?|versus|compared?\s+(?:to|with)|against|since|between|"
     r"year\s+on\s+year|month\s+on\s+month|yoy|mom|"
@@ -283,6 +290,12 @@ def read(question: str, *, carried_metric: str = "",
         # a refusal to assert it without having watched it.
         return None
     if _COMPARISON.search(text) or _POPULATION.search(text):
+        return None
+    # A COUNT is not a rate. "how many custmers are 60+ dpd" was answered
+    # "60+ DPD Rate is 1.06%" — a percentage of exposure, under a question
+    # asking for a number of customers. The planner counts; this route
+    # publishes rates, and the two are not interchangeable.
+    if _COUNTS.search(text):
         return None
 
     found = None

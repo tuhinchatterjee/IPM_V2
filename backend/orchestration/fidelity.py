@@ -420,7 +420,13 @@ def compare(contract: Contract, build: Any, *,
         # POPULATION answered as RANKING is acceptable: a ranked list of the
         # borrowers meeting the conditions is still those borrowers, and the
         # ordering is a presentation choice. Everything else is a substitution.
-        if not (wanted == POPULATION and ran == RANKING):
+        # A grouped AGGREGATE whose answer names its leader IS the ranking
+        # the question asked for: "show me the top 5 only" returned five
+        # cities largest first and carried a caveat saying CreditProbe had
+        # answered a different question.
+        grouped = bool(str(getattr(build, "dimension", "") or ""))
+        if not ((wanted == POPULATION and ran == RANKING)
+                or (wanted == RANKING and ran == AGGREGATE and grouped)):
             found.append(Divergence(
                 kind=OBJECTIVE_CHANGED,
                 detail=(f"The question asks for {means(wanted)}, and "

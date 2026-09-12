@@ -1342,3 +1342,440 @@ class TestANarrowingInheritsTheSettledShape:
         assert not ap._asks_for_an_entity_grain("Show me personal finance.")
         assert ap._asks_for_an_entity_grain("Which customers drove that?")
         assert ap._asks_for_an_entity_grain("Show me the facilities.")
+
+
+# ---------------------------------------------------------------------------
+# The third battery: a ratio, a forecast, an appetite and a repeat
+# ---------------------------------------------------------------------------
+
+
+class TestARatioIsAQuotientOfSums:
+    """Stage 3 coverage answered 0.64 where the book is 35.82%."""
+
+    def test_the_plan_sums_both_halves(self):
+        answered = answer("What is the stage 3 coverage ratio now versus a "
+                          "year ago?")
+        groups = [o for o in (answered.build.plan or {}).get("operations") or []
+                  if str(o.get("op")).upper() == "GROUP"]
+        functions = {str(a.get("function")) for o in groups
+                     for a in (o.get("params") or {}).get("aggregates") or []}
+        assert functions == {"sum"}, functions
+
+    def test_it_reconciles_with_the_book(self, book):
+        answered = answer("What is the stage 3 coverage ratio now versus a "
+                          "year ago?")
+        latest = [r for r in answered.runtime.rows
+                  if str(r.get("reporting_month")) == LATEST][0]
+        stage3 = book[book.ifrs9_stage == 3]
+        truth = float(stage3.ecl_final_sar.sum()
+                      / stage3.gross_carrying_amount_sar.sum())
+        assert float(latest["ecl_coverage_ratio"]) == pytest.approx(truth,
+                                                                   rel=1e-9)
+        assert 0.3 < truth < 0.4, "the oracle itself must be the weighted ratio"
+
+    def test_the_two_halves_are_lineage(self):
+        from backend.orchestration import presentation as pr
+
+        answered = answer("What is the stage 3 coverage ratio now versus a "
+                          "year ago?")
+        by_name = {c["name"]: c for c in pr.schema(answered.runtime,
+                                                   answered.build)}
+        assert by_name["ecl_coverage_ratio__numerator"]["hidden"] is True
+        assert by_name["ecl_coverage_ratio"]["hidden"] is False
+
+    def test_an_average_of_a_ratio_column_is_still_an_average(self, book):
+        answered = answer(f"What is the average debt burden ratio at {LATEST}?")
+        got = float(answered.runtime.rows[0]["debt_burden_ratio"])
+        assert got == pytest.approx(float(book.debt_burden_ratio.mean()),
+                                    rel=1e-9)
+
+
+class TestTheRetailUnitsAreTyped:
+    """Fifty-four ratio columns were typed TEXT, so no chart could use them."""
+
+    @pytest.mark.parametrize("unit,semantic", [
+        ("ratio", "ratio"), ("probability", "ratio"), ("count", "count"),
+        ("months", "count"), ("points", "count"),
+        ("percentage points", "percent"),
+    ])
+    def test_a_governed_unit_reaches_the_presentation_layer(self, unit,
+                                                            semantic):
+        from backend.orchestration import presentation as pr
+
+        class _Concept:
+            id = ""
+            unit = ""
+            is_ordinal = False
+
+        concept = _Concept()
+        concept.unit = unit
+        got = pr._numeric("x", {"x": concept})
+        assert got["semantic"] == semantic, (unit, got)
+
+    def test_a_ratio_result_can_be_drawn(self):
+        from backend.orchestration import visualize
+
+        answered = answer("What is the stage 3 coverage ratio now versus a "
+                          "year ago?")
+        from backend.orchestration import presentation as pr
+
+        columns = pr.schema(answered.runtime, answered.build)
+        visual = visualize.choose(columns, answered.runtime.rows,
+                                  requested="chart",
+                                  question="Draw that as a chart.")
+        assert visual.chart != "table", visual.to_dict()
+
+
+class TestWhatCreditProbeWillNotDo:
+    """A forecast and an appetite judgement are said, not attempted."""
+
+    @pytest.mark.parametrize("said", [
+        "If ECL keeps moving like this, where does it land in six months?",
+        "Forecast ECL for next year.",
+        "What will ECL be at year end?",
+    ])
+    def test_a_projection_is_declined(self, said):
+        answered = orchestrator.answer(said)
+        assert answered.clarification, said
+        assert "does not project" in str(answered.clarification), answered
+
+    def test_an_ordinary_question_is_not(self):
+        assert not orchestrator._asks_for_a_projection(
+            f"What is total ECL at {LATEST}?")
+        assert not orchestrator._asks_for_a_projection(
+            "Show the monthly ECL series.")
+
+    @pytest.mark.parametrize("said", [
+        "Is that within appetite?",
+        "Are we within the limit?",
+        "Is that above tolerance?",
+    ])
+    def test_an_appetite_question_is_declined(self, said):
+        assert "no risk appetite limits" in orchestrator._asks_about_appetite(
+            said), said
+
+    def test_an_ordinary_comparison_is_not(self):
+        assert not orchestrator._asks_about_appetite(
+            "Is ECL higher than last month?")
+
+
+class TestTheRepeatGuardReadsWhatIsNew:
+    """Three consecutive questions came back as the same customers."""
+
+    def test_the_same_warnings_are_not_novelty(self):
+        continuation = cv.Continuation(action=cv.CONTINUE)
+        state = cv.ConversationState(
+            ir={"dataset": "d", "period": "p", "operations": [{"op": "SCAN"}]},
+            plan_summary="the previous analysis",
+            plan_warnings=["the same caveat"])
+        build = type("B", (), {
+            "plan": {"dataset": "d", "period": "p",
+                     "operations": [{"op": "SCAN"}]},
+            "warnings": ["the same caveat"]})()
+        assert orchestrator._repeats_the_previous_plan(
+            build, state, continuation, "Something else entirely?")
+
+    def test_a_new_warning_is(self):
+        continuation = cv.Continuation(action=cv.CONTINUE)
+        state = cv.ConversationState(
+            ir={"dataset": "d", "period": "p", "operations": [{"op": "SCAN"}]},
+            plan_summary="the previous analysis",
+            plan_warnings=["the same caveat"])
+        build = type("B", (), {
+            "plan": {"dataset": "d", "period": "p",
+                     "operations": [{"op": "SCAN"}]},
+            "warnings": ["something new to say"]})()
+        assert orchestrator._repeats_the_previous_plan(
+            build, state, continuation, "Something else entirely?") == ""
+
+
+class TestAHandlerSettlesItsMeasure:
+    """The ECL walkthrough left nothing for the next question to inherit."""
+
+    def test_the_measure_is_remembered(self):
+        _, state = advanced("Walk me through the ECL movement this month.")
+        assert state.concepts == ["expected credit loss"], state.concepts
+        assert state.periods == ["2026-07", LATEST], state.periods
+
+    def test_the_follow_up_is_answered(self, book):
+        _, state = advanced("Walk me through the ECL movement this month.")
+        answered = answer("Which stage moved most?", state=state)
+        assert answered.build.dimension == "ifrs9_stage"
+        said = headline(answered)
+        assert "Stage 2" in said, said
+
+    def test_which_group_moved_most_continues(self):
+        from backend.orchestration import referents
+
+        _, state = advanced("Walk me through the ECL movement this month.")
+        read = referents.resolve("Which stage moved most?", state)
+        assert read.action == cv.CONTINUE
+
+
+class TestAShareOfAState:
+    """"What proportion of the book is restructured?" measured the amount."""
+
+    def test_the_portfolio_share_reconciles(self, book):
+        answered = answer("What proportion of the book is restructured?")
+        assert answered.build.shape == ap.SHARE
+        row = answered.runtime.rows[0]
+        truth = (book[book.restructured_flag].gross_carrying_amount_sar.sum()
+                 / book.gross_carrying_amount_sar.sum() * 100)
+        assert float(row["share_pct"]) == pytest.approx(float(truth), rel=1e-9)
+
+    def test_the_breakdown_reconciles(self, book):
+        answered = answer("What proportion of the book is restructured, "
+                          "by product?")
+        got = {str(r["product_label"]): float(r["share_pct"])
+               for r in answered.runtime.rows}
+        for product, share in got.items():
+            rows = book[book.product_label == product]
+            truth = (rows[rows.restructured_flag].gross_carrying_amount_sar.sum()
+                     / rows.gross_carrying_amount_sar.sum() * 100)
+            assert share == pytest.approx(float(truth), rel=1e-9), product
+
+    def test_the_denominator_is_not_the_numerator(self):
+        answered = answer("What proportion of the book is restructured?")
+        row = answered.runtime.rows[0]
+        assert float(row["population"]) > float(row["qualified"])
+
+    def test_a_non_additive_measure_is_not_shared(self):
+        # Days past due rolls up as a maximum; a share of it means nothing.
+        from backend.orchestration import analysis_planner as planner
+
+        answered = answer("What proportion of the book is restructured?")
+        assert answered.build.matches[0].concept.unit == "SAR"
+        assert planner._adds_up(answered.build.matches[0])
+
+
+class TestANonAdditiveTotalIsNotStated:
+    """Four group maxima were added into "868 days of days past due"."""
+
+    def test_a_max_grouped_result_leads_with_the_highest(self, book):
+        said = headline(answer(f"What is days past due by region at {LATEST}?"))
+        assert "highest" in said, said
+        truth = float(book.groupby("region_label").dpd.max().max())
+        assert f"{truth:,.0f}" in said.replace(" days", ""), said
+
+    def test_a_summed_result_still_states_its_total(self):
+        said = headline(answer(f"What is ECL by region at {LATEST}?"))
+        assert "15,952,109" in said, said
+
+
+class TestAConcentrationQuestionNamesItsDimension:
+    def test_it_is_read_as_a_breakdown(self):
+        from backend.orchestration import dimensions as dm
+
+        assert dm.read("Is ECL concentrated in one region?").dimension == \
+            "region_label"
+        assert dm.read("Is it concentrated in a few products?").dimension == \
+            "product_label"
+        assert dm.read("Is exposure concentrated?").dimension == ""
+
+
+# ---------------------------------------------------------------------------
+# The fourth battery: a Head of Retail Risk typing quickly
+# ---------------------------------------------------------------------------
+
+
+class TestACountIsNotARate:
+    """"how many custmers are 60+ dpd" answered "60+ DPD Rate is 1.06%"."""
+
+    def test_the_route_declines_a_count(self):
+        from backend.orchestration import metric_route
+
+        assert metric_route.read("how many custmers are 60+ dpd") is None
+        assert metric_route.read("what is the 60+ DPD rate?") is not None
+
+    def test_the_count_reconciles(self, book):
+        answered = answer("how many custmers are 60+ dpd")
+        got = int(next(v for v in answered.runtime.rows[0].values()
+                       if isinstance(v, (int, float))))
+        assert got == int(book[book.dpd >= 60].customer_id.nunique())
+
+
+class TestAPossessiveKeepsThePopulation:
+    """"and what's their total exposure" answered for the whole book."""
+
+    def test_the_referent_is_read(self):
+        from backend.orchestration import referents
+
+        assert referents.points_at_the_previous_population(
+            "and what's their total exposure")
+        assert referents.points_at_the_previous_population(
+            "break it down by city pls")
+        assert not referents.points_at_the_previous_population(
+            "What is total exposure?")
+
+    def test_the_condition_survives_a_named_measure(self, book):
+        _, state = advanced("how many custmers are 60+ dpd")
+        answered = answer("and what's their total exposure", state=state)
+        described = [c.describe() for c in answered.build.conditions]
+        assert any("60" in d for d in described), described
+        truth = float(book[book.dpd >= 60].gross_carrying_amount_sar.sum())
+        assert float(values(answered)["total"]) == pytest.approx(truth, abs=1.0)
+
+    def test_a_breakdown_keeps_it_too(self, book):
+        _, state = advanced("how many custmers are 60+ dpd")
+        _, state = advanced("and what's their total exposure", state)
+        answered = answer("break it down by city pls", state=state)
+        rows = {str(r["city"]): float(r["gross_carrying_amount_sar"])
+                for r in answered.runtime.rows}
+        truth = (book[book.dpd >= 60].groupby("city")
+                 .gross_carrying_amount_sar.sum())
+        assert len(rows) == len(truth), (len(rows), len(truth))
+        for city, amount in rows.items():
+            assert amount == pytest.approx(float(truth[city]), abs=1.0), city
+
+    def test_a_superlative_without_a_figure_keeps_it(self, book):
+        _, state = advanced("how many custmers are 60+ dpd")
+        _, state = advanced("and what's their total exposure", state)
+        _, state = advanced("break it down by city pls", state)
+        answered = answer("which city is worst", state=state)
+        truth = (book[book.dpd >= 60].groupby("city")
+                 .gross_carrying_amount_sar.sum().idxmax())
+        assert truth in headline(answered), headline(answered)
+
+
+class TestEnglishSpelling:
+    def test_a_dimension_plural(self):
+        from backend.orchestration import assembly as asm
+        from backend.orchestration import scope as sc
+
+        assert asm._pluralise("city") == "cities"
+        assert asm._pluralise("region") == "regions"
+        assert asm._pluralise("cities") == "cities"
+        assert sc._plural("city") == "cities"
+        assert sc._plural("customer") == "customers"
+
+    def test_punctuation_is_not_a_misspelling(self):
+        from backend.orchestration import spelling
+
+        fixed = spelling.normalise("and what's their total exposure")
+        assert not [c for c in fixed.changes if "what" in str(c).lower()], \
+            fixed.changes
+        assert spelling.normalise("how many custmers are 60+ dpd").changes
+
+
+class TestACarriedPopulationIsScopeNotACondition:
+    def test_it_is_not_named_as_a_condition(self):
+        _, state = advanced("how many custmers are 60+ dpd")
+        _, state = advanced("break it down by city pls", state)
+        answered = answer("ok now compare that to 3 months ago", state=state)
+        said = headline(answered)
+        assert "restricted to the previous answer" not in said.lower(), said
+
+    def test_a_grouped_aggregate_answers_a_which_question(self):
+        from backend.orchestration import fidelity as fd
+
+        _, state = advanced("how many custmers are 60+ dpd")
+        _, state = advanced("break it down by city pls", state)
+        answered = answer("show me the top 5 only", state=state)
+        assert not [w for w in answered.build.warnings
+                    if "one question with another" in w], answered.build.warnings
+        del fd
+
+
+# ---------------------------------------------------------------------------
+# The fifth and sixth batteries: a scorecard, a stage and a flow
+# ---------------------------------------------------------------------------
+
+
+class TestAValidationQuestionIsNotOutOfScope:
+    """"What's the Gini?" was refused as data the book does not hold."""
+
+    def test_the_coverage_check_exempts_it(self):
+        from backend.orchestration import scorecard_route as sr
+
+        assert sr.is_a_validation_question("What's the Gini?")
+        assert sr.is_a_validation_question(
+            "Is it still fit for purpose?",
+            carried_model="retail_app_personal_loan")
+        assert not sr.is_a_validation_question("Is it still fit for purpose?")
+
+    def test_the_gini_is_answered_in_the_thread(self):
+        _, state = advanced("How is our personal finance application "
+                            "scorecard performing?")
+        answered = answer("What's the Gini?", state=state)
+        assert answered.result.rows[0]["test_id"] == "DISC-GINI"
+        assert "0.31" in str(answered.result.answer), answered.result.answer
+
+    def test_a_judgement_about_the_model_reaches_the_findings(self):
+        _, state = advanced("How is our personal finance application "
+                            "scorecard performing?")
+        for said in ("Is it still fit for purpose?",
+                     "Should we redevelop it?",
+                     "What would you tell the model risk committee?"):
+            answered = answer(said, state=state)
+            assert "findings" in str(answered.result.answer), (said,
+                                                               answered.result)
+
+
+class TestAConstrainedFieldIsNotTheMeasureAtOneDate:
+    """"Show me the Stage 2 book" ranked facilities by the stage number."""
+
+    def test_the_measure_is_the_exposure(self):
+        answered = answer("Show me the Stage 2 book.")
+        assert [m.field for m in answered.build.matches] != ["ifrs9_stage"]
+        assert "ifrs9_stage" in {f for f, _ in answered.build.filters}
+
+    def test_a_count_still_anchors_on_it(self, book):
+        answered = answer("How many facilities are in Stage 2?")
+        got = int(answered.runtime.rows[0]["facility_count"])
+        assert got == int((book.ifrs9_stage == 2).sum())
+
+
+class TestAFlowIsNotAStock:
+    """"How many facilities moved into Stage 2?" answered 1,392 of 315."""
+
+    def test_the_inflow_reconciles(self, book):
+        answered = answer("How many facilities moved into Stage 2 this month?")
+        got = int(answered.runtime.rows[0]["facility_count"])
+        truth = int(((book.ifrs9_stage == 2)
+                     & (book.previous_month_stage != 2)).sum())
+        assert got == truth, (got, truth)
+        assert got != int((book.ifrs9_stage == 2).sum())
+
+    def test_the_outflow_reconciles(self, book):
+        answered = answer("How many facilities moved out of Stage 2 "
+                          "this month?")
+        truth = int(((book.ifrs9_stage != 2)
+                     & (book.previous_month_stage == 2)).sum())
+        assert len(answered.runtime.rows) == truth or \
+            int(values(answered).get("matching") or 0) == truth, (
+                len(answered.runtime.rows), truth)
+
+    def test_the_sentence_says_it_moved(self):
+        for said, phrase in (
+                ("How many facilities moved into Stage 2 this month?",
+                 "moved into Stage 2"),
+                ("How many facilities moved out of Stage 2 this month?",
+                 "moved out of Stage 2")):
+            assert phrase in headline(answer(said)), said
+
+    def test_a_stock_question_is_untouched(self):
+        answered = answer("How many facilities are in Stage 2?")
+        assert not answered.build.flow
+        assert "moved" not in headline(answered)
+
+
+class TestAPointerWithANounStillPointsBack:
+    def test_on_that_population_is_read(self):
+        from backend.orchestration import referents
+
+        assert referents.points_at_the_previous_population(
+            "What is the ECL coverage on that population?")
+        assert not referents.points_at_the_previous_population(
+            "What is the ECL coverage?")
+
+
+class TestABroadLookNamesNoFigure:
+    """"What's happening to 30+ DPD?" ran six probes over the whole book."""
+
+    def test_a_named_figure_is_computed(self):
+        from backend.orchestration import investigation as iv
+
+        assert not iv.wants_investigation("What's happening to 30+ DPD?")
+        assert not iv.wants_investigation("What's happening to ECL?")
+        assert iv.wants_investigation("What's happening?")
+        assert iv.wants_investigation("What's going on with the book?")

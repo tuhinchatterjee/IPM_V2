@@ -183,6 +183,15 @@ def composites(Composite: Any, Signal: Any, ABOVE: str, BELOW: str,
             r"(?:investigation|review|look|escalation|case|follow[- ]up)\b"
             r"|\bwho\s+(?:should|do|would)\s+(?:we|i)\s+(?:look\s+at|"
             r"investigate|review|call|escalate|chase)\b"
+            # The same request with the noun in front of the verb. "Which
+            # customers should I call first?" was refused with "Which
+            # customers? Name a product, a stage, a bucket…" — a menu, asked
+            # of a reader whose question was precisely which ones to pick.
+            r"|\b(?:which|what)\s+(?:\w+\s+){0,2}?"
+            r"(?:customers?|borrowers?|names?|accounts?|facilit(?:y|ies))\s+"
+            r"(?:should|do|would|ought)\s+(?:i|we)\s+"
+            r"(?:call|contact|chase|look\s+at|review|investigate|escalate|"
+            r"prioritise|prioritize|worry\s+about|start\s+with)\b"
             r"|\bworst\s+(?:names?|customers?|borrowers?|credits?|accounts?|"
             r"exposures?|offenders?|facilit(?:y|ies))\b"
             r"|\bmost\s+(?:at\s+risk|worrying|concerning|troubl\w+)\b"

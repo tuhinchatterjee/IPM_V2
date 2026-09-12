@@ -109,10 +109,29 @@ def _kind_in(text: str) -> str:
     return ""
 
 
-def is_a_validation_question(text: str) -> bool:
-    """Whether this sentence belongs to the validation runner."""
+def is_a_validation_question(text: str, *, carried_model: str = "") -> bool:
+    """Whether this sentence belongs to the validation runner.
+
+    `carried_model` is the scorecard the conversation is already about. With
+    one on the table, "is it still fit for purpose?" and "should we redevelop
+    it?" are plainly about that scorecard — and read without it they named no
+    validation concept at all and were refused as questions the governed data
+    holds nothing about.
+    """
     said = str(text or "")
-    return bool(_VALIDATION.search(said) or _ABOUT_A_SCORECARD.search(said))
+    if _VALIDATION.search(said) or _ABOUT_A_SCORECARD.search(said):
+        return True
+    return bool(carried_model and (_OVERALL.search(said)
+                                   or _ABOUT_THE_MODEL.search(said)))
+
+
+#: A judgement about the model on the table, asked without naming it.
+_ABOUT_THE_MODEL = re.compile(
+    r"\bredevelop\w*\b|\brebuild\w*\b|\brecalibrat\w*\b|\bretrain\w*\b"
+    r"|\bmodel risk\b|\bvalidation committee\b|\bmodel (?:risk )?committee\b"
+    r"|\bstill (?:use|rely on|trust) (?:it|this|the model)\b"
+    r"|\bwhat would you tell\b|\bwhat should we do (?:about )?(?:it|with it)\b",
+    re.IGNORECASE)
 
 
 def read(question: str, *, carried_model: str = "") -> Routed | None:
@@ -122,7 +141,8 @@ def read(question: str, *, carried_model: str = "") -> Routed | None:
     is the common case and leaves the planner exactly as it was.
     """
     said = " ".join(str(question or "").split())
-    if not said or not is_a_validation_question(said):
+    if not said or not is_a_validation_question(said,
+                                                carried_model=carried_model):
         return None
     try:
         catalogue = _models()
@@ -181,7 +201,13 @@ _OVERALL = re.compile(
     r"\bperform\w*\b|\bholding up\b|\bhow is (?:it|the|our)\b|\bhow are\b"
     r"|\bstill (?:fit|valid|usable|reliable)\b|\bfit for (?:use|purpose)\b"
     r"|\bchalleng\w*\b|\bcontinued use\b|\bany (?:issues|problems|concerns)\b"
-    r"|\bwhat(?:'s| is) wrong\b|\bhow (?:good|bad|healthy)\b",
+    r"|\bwhat(?:'s| is) wrong\b|\bhow (?:good|bad|healthy)\b"
+    # A judgement about the model is a judgement about all of its tests at
+    # once, which is what the findings engine reports.
+    r"|\bredevelop\w*\b|\brebuild\w*\b|\brecalibrat\w*\b|\bretrain\w*\b"
+    r"|\bmodel (?:risk )?committee\b|\bvalidation committee\b"
+    r"|\bwhat would you tell\b"
+    r"|\bshould we (?:keep|still) (?:use|using)\b",
     re.IGNORECASE)
 
 

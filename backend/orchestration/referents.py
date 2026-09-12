@@ -514,8 +514,35 @@ def _read(question: str) -> Reference:
         action = cv.CONTINUE
         because = "the question reuses the previous period"
 
+    # A sentence that asks WHICH group moved most, and names no figure to
+    # measure it by, is asking about the measure already on the table.
+    # "Walk me through the ECL movement this month." then "Which stage moved
+    # most?" was read as a new request and answered with a menu of governed
+    # concepts — the product asking the reader to name the figure it had just
+    # spent a turn explaining.
+    if action == cv.NEW_REQUEST and _NAMES_NO_FIGURE.search(text):
+        action = cv.CONTINUE
+        because = ("the question asks which group moved and names no figure, "
+                   "so it is about the measure already on the table")
+
     return Reference(population=population, same_period=same_period,
                      action=action, changes=changes, because=because)
+
+
+#: "Which stage moved most?", "which product grew fastest?" — a superlative
+#: over a grouping, with the figure left to the conversation.
+_NAMES_NO_FIGURE = re.compile(
+    r"^\s*(?:and\s+)?(?:which|what)\s+\w[\w ]{0,24}?\s+"
+    r"(?:moved|grew|rose|fell|changed|increased|decreased|deteriorated|"
+    r"improved|drove|contributed)\s+"
+    r"(?:the\s+)?(?:most|least|fastest|furthest|hardest|worst|best)\b"
+    # "which city is worst" — the same question with an adjective in place of
+    # the verb, and the figure left to the conversation exactly as before.
+    r"|^\s*(?:and\s+)?(?:which|what)\s+\w[\w ]{0,24}?\s+"
+    r"(?:is|are|was|were|looks?|seems?)\s+"
+    r"(?:the\s+)?(?:worst|best|highest|lowest|largest|smallest|biggest|"
+    r"most (?:exposed|affected|concerning))\b",
+    re.IGNORECASE)
 
 
 #: A sentence that states its OWN population. Any of these means the reader
@@ -655,12 +682,28 @@ def refine(reference: Reference, memory: Any) -> Reference:
 #: "it", "those", "them", "these" — used as the SUBJECT of the sentence rather
 #: than as part of a named thing.
 _POINTS_AT_THE_POPULATION = re.compile(
-    r"\b(?:of|in|within|for|across|about|from)\s+(?:that|this|those|these|"
-    r"them|it)\b"
+    r"\b(?:of|in|within|for|across|about|from|on|among|amongst|inside)\s+"
+    r"(?:that|this|those|these|them|it|the same)\b"
+    # "on that population", "for those customers" — the noun after the
+    # pointer does not make it a new population. "What is the ECL coverage on
+    # THAT POPULATION?" was answered with the whole book's 0.77%.
+    r"|\b(?:of|in|within|for|across|on|among|amongst)\s+"
+    r"(?:that|this|those|these|the same)\s+"
+    r"(?:population|group|set|cohort|list|rows?|names?|customers?|"
+    r"facilit(?:y|ies)|book|segment)\b"
     r"|\bcompare\s+(?:it|that|this|those|them)\b"
     r"|\b(?:is|are|was|were)\s+(?:that|this|those|these|it|they)\b"
     r"|^\s*(?:and\s+)?(?:how much|how many|what share|what proportion)\s+"
-    r"of\s+(?:that|this|those|these|it|them)\b",
+    r"of\s+(?:that|this|those|these|it|them)\b"
+    # The POSSESSIVE form. "how many customers are 60+ dpd" then "and what's
+    # their total exposure" was answered with the whole book's exposure —
+    # 2,082,852,856 SAR under a question about a hundred and eighty names.
+    r"|\btheir\b|\bits\b(?!\s+own\b)"
+    # "break it down by city" narrows the SAME population; read without the
+    # referent it broke the whole book down and reported 181,427,515 SAR for
+    # a city, under a question about a hundred and eighty delinquent names.
+    r"|\b(?:break|split|divide|slice)\s+(?:it|that|this|those|them|these)\b"
+    r"|\bof (?:the|those|these) (?:same|above)\b",
     re.IGNORECASE)
 
 

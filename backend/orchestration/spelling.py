@@ -244,6 +244,11 @@ vulnerable exposed stretched strained squeeze squeezed crunch
 """.split())
 
 
+def _letters(word: str) -> str:
+    """A word reduced to its letters and digits, for comparing two spellings."""
+    return "".join(c for c in str(word or "").lower() if c.isalnum())
+
+
 def _correct(token: str, lexicon: _Lexicon) -> str:
     """The single governed word this is one keystroke from, or "" for none."""
     lowered = token.lower()
@@ -291,6 +296,11 @@ def _normalise(original: str, lexicon: _Lexicon | None) -> Correction:
     for word in words:
         fixed = _correct(word, book)
         if not fixed or fixed == word.lower():
+            continue
+        # Punctuation is not a spelling. "CreditProbe read 'what's' as
+        # 'whats'" told a reader their apostrophe had been misunderstood,
+        # under an answer that was correct.
+        if _letters(fixed) == _letters(word):
             continue
         changes.append((word, fixed))
         if len(changes) > MAX_CORRECTIONS:

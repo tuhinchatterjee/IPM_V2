@@ -206,7 +206,10 @@ def population_sentence(enforcement: Enforcement, *, grain: str,
     if len(enforcement.executed) > 1:
         intersection = (" Every condition was applied to the same joined rows, "
                         "so this is the intersection rather than the union.")
-    return (f"These are the {grain}s where {enforcement.logic}"
+    # The HEADLINE: the conditions the question stated, without the carried
+    # population, which the scope line above the table already names.
+    said = enforcement.headline or enforcement.logic
+    return (f"These are the {grain}s where {said}"
             f"{window}.{intersection}")
 
 
@@ -319,7 +322,7 @@ def dropped_structure(text: str, enforcement: Any, tree: pr.Node | None,
         # something CreditProbe has no word for, and the answer must say which
         # words those were rather than quietly leaving them out.
         trimmed = _subject(clause)
-        if trimmed:
+        if trimmed and not _NOT_A_CONDITION.match(trimmed):
             found.append(trimmed)
 
     if (_EXPLICIT_NOT.search(lowered) and not _has(tree, pr.NOT)
@@ -352,8 +355,21 @@ def dropped_structure(text: str, enforcement: Any, tree: pr.Node | None,
 _LEADING = re.compile(
     r"^\s*(?:which|what|who|whose|show|list|give|find|and|or|but|that|the|"
     r"a|an|are|is|was|were|have|has|had|do|does|did|also|with|of|in|on|"
+    # The reader's own framing. "Are WE SEEING a genuine credit
+    # deterioration or just seasonality?" produced the caveat "CreditProbe
+    # could not apply we seeing a genuine credit deterioration to the
+    # governed data" — a fragment of the question presented as a dropped
+    # condition, under an answer that was correct.
+    r"we|i|you|they|it|us|our|my|your|their|seeing|seen|getting|having|"
+    r"genuine|real|actual|just|only|merely|any|some|"
     r"borrowers?|customers?|clients?|names?|counterpart(?:y|ies))\b\s*",
     re.IGNORECASE)
+
+#: What a dropped condition has to look like before it is worth naming: a
+#: noun phrase, not a verb the question happened to use.
+_NOT_A_CONDITION = re.compile(
+    r"^(?:seeing|looking|going|happening|running|coming|moving)\b"
+    r"|^\w+ing$", re.IGNORECASE)
 
 
 def _subject(clause: str) -> str:

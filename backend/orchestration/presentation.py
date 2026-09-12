@@ -394,6 +394,17 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
     # never saw one. A 25-month ECL series was drawn as a horizontal bar
     # ranking, "a ranking of named rows reads horizontally", with the months
     # in order of size.
+    # The two halves of a ratio computed as a quotient of sums. Plumbing: the
+    # reader asked for the coverage ratio, and the sums it was built from
+    # belong on the Trace rather than in the table beside it.
+    if lowered.endswith(("__numerator", "__denominator")):
+        base = lowered.rsplit("__", 1)[0]
+        half = "numerator" if lowered.endswith("__numerator") else "denominator"
+        return Column(name=name, label=f"{_label_of(base, by_field)} {half}",
+                      **_numeric(lowered.rsplit("__", 1)[0], by_field),
+                      role=f"the {half} the ratio was computed from",
+                      origin=origin, rank=RANK_LINEAGE, hidden=True)
+
     if _is_period_column(lowered):
         return Column(name=name, label=_KNOWN_LABELS.get(lowered, _humanise(name)),
                       semantic=PERIOD, origin=origin, decimals=0,
@@ -544,6 +555,30 @@ def _numeric(base: str, by_field: dict[str, Any]) -> dict[str, Any]:
                 "align": "right"}
     if unit == "x":
         return {"semantic": RATIO, "unit": "x", "decimals": 2, "align": "right"}
+    # The retail catalogue's own units. Fifty-four ratio columns, fifty-six
+    # score columns and twenty-six tenors were typed TEXT — left-aligned,
+    # never charted, and invisible to every layer that looks for a measure.
+    # "Draw that as a chart" came back "this result has no axis a chart could
+    # use" over a coverage ratio at two dates.
+    if unit in ("ratio", "probability"):
+        return {"semantic": RATIO, "unit": "", "decimals": None,
+                "align": "right"}
+    if unit in ("percent", "percentage", "%"):
+        return {"semantic": PERCENT, "unit": "%", "decimals": 2,
+                "align": "right"}
+    if unit == "percentage points":
+        return {"semantic": PERCENT, "unit": "pp", "decimals": 2,
+                "align": "right"}
+    if unit in ("count", "customers", "facilities", "accounts"):
+        return {"semantic": COUNT, "unit": "", "decimals": 0,
+                "align": "right"}
+    if unit in ("months", "years", "weeks"):
+        return {"semantic": COUNT, "unit": unit, "decimals": 0,
+                "align": "right"}
+    if unit in ("points", "score", "WoE"):
+        return {"semantic": RATIO if unit == "WoE" else COUNT,
+                "unit": "", "decimals": 3 if unit == "WoE" else 0,
+                "align": "right"}
     if "mn" in unit or "USD" in unit or "SAR" in unit:
         currency = "USD" if "USD" in unit else ("SAR" if "SAR" in unit else "")
         # One decimal is the hint, not the rule: money precision depends on

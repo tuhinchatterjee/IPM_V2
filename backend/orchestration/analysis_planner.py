@@ -33,6 +33,7 @@ from typing import Any
 
 from backend.orchestration import collapse, fidelity, gate, multi, ordinal
 from backend.orchestration import composites as cmp
+from backend.orchestration import referents as rf
 from backend.orchestration import concepts as cx
 from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
@@ -58,6 +59,12 @@ MOVEMENT = "movement"
 #: SHARE, and a narrative built for a movement reports the measure's own total
 #: and says nothing about the ratio the question asked for.
 SHARE_MOVEMENT = "share_movement"
+
+#: A conditional share of a population at ONE date. "How much of that is
+#: secured?" is a numerator, a denominator and a percentage; answered as an
+#: ordinary aggregate it reported the measure for the secured part and never
+#: the part it was of.
+SHARE = "share"
 
 #: How many rows a ranking returns when the question did not say. Ten is what
 #: "the largest" means in a credit review; more is a report, not an answer.
@@ -209,6 +216,11 @@ class AnalysisBuild:
     joins: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     summary: str = ""
+    #: "into Stage 2" or "out of Stage 2", where the question asked for the
+    #: FLOW rather than the stock. Said in the answer, because "315 facilities
+    #: in Stage 2" is the same sentence the stock question gets and the two
+    #: numbers are 315 and 1,392.
+    flow: str = ""
     #: Populated for the two-period shapes, which delegate to multi.build_plan.
     request: Any = None
     #: How this plan relates to the previous turn's, where it does.
@@ -398,9 +410,22 @@ def plan(reading: Reading, context: GovernedContext, *,
     # predicate that ran. Reading the question separately in each consumer is
     # how the invariant came to demand `= 2` of rows the plan had correctly
     # selected at `>= 2`, and withheld a right answer for it.
+    # The FLOW the question asked for, recorded on whichever shape the plan
+    # came back as: "315 facilities in Stage 2" is the sentence the STOCK
+    # question gets, and the two numbers are 315 and 1,392.
+    if not build.flow and any(
+            str(getattr(c, "op", "")) == "ne" for c in build.conditions):
+        build.flow = _flow_phrase(text, build.filters)
     build.widened = [q for q in (ordinal.read(text, name, value)
                                  for name, value in build.filters)
                      if q is not None]
+
+    # A RATIO is a quotient of sums, never the mean of per-row quotients.
+    # "What is the stage 3 coverage ratio now versus a year ago?" averaged
+    # `ecl_coverage_ratio` across 164 facilities and answered 0.64, where the
+    # governed figure is 35.82% — and the mean rose over the year while the
+    # ratio fell. Applied on the one path every shape returns through.
+    _ratios_as_quotients(build)
     dropped = gate.dropped_structure(
         text, getattr(build, "enforcement", None),
         multi.predicate_tree_of(build.plan),
@@ -568,6 +593,7 @@ def _plan(reading: Reading, context: GovernedContext, *,
     reading_order = _preferred_datasets(state, carrying, thread_datasets)
     resolved = cx.read_concepts(text, known=known, catalogue=catalogue,
                                 preferred_datasets=reading_order)
+    named_its_own_measure = bool(resolved.matches)
     if not resolved.matches and settled_text:
         # The narrowing sentence named no concept, so the measure is the one
         # the settled question named. Re-read rather than recalled: what
@@ -700,6 +726,15 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # as the reader cares to ask.
     if composite is None and inheriting and state is not None and state.composite:
         composite = cmp.find(state.composite, catalogue)
+    if composite is not None and _asks_whether_it_is_seasonal(text):
+        # "Are we seeing a genuine credit deterioration or just seasonality?"
+        # is a question about the BOOK over time — whether this month's move
+        # is in the pattern of the last two years. It matched the
+        # deterioration composite on one word and came back as twenty-five
+        # customers at one date, which cannot answer it either way.
+        logger.info("Seasonality is asked about, so %s is not the reading "
+                    "of %r.", composite.composite.key, text[:70])
+        composite = None
     if composite is not None and matches and _names_its_own_measure(text):
         # The sentence says what to measure. "Which product subsegment has
         # deteriorated most on 90+ DELINQUENCY since the start of the year?"
@@ -773,7 +808,6 @@ def _plan(reading: Reading, context: GovernedContext, *,
                 "and ask for its trend.")
         return build
 
-    distribution_default = ""
     if (not matches and not count_grain and grouping.found
             and grouping.rule in ("named", "breakdown")):
         # §D2, the distribution contract. "Show sector distribution" names a
@@ -860,6 +894,7 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # excluding it from the MEASURE role, which is a change to how `matches`
     # carries roles rather than to this condition. Left as it is rather than
     # traded for a worse defect. See docs/ANSWER_GRAIN.md.
+    distribution_default = ""
     constrained = {field_name for field_name, _ in filters}
     survivors = [m for m in matches
                  if m.field not in constrained
@@ -902,6 +937,25 @@ def _plan(reading: Reading, context: GovernedContext, *,
                 f"restriction carries the same value — so CreditProbe measured "
                 f"the movement in {movement_default}.")
             logger.info("Dropped %s as a measure and defaulted the movement.",
+                        ", ".join(m.label for m in dropped))
+    elif matches and not survivors and constrained and not count_grain:
+        # The same gap at ONE date. "Show me the Stage 2 book" names one
+        # governed field, constrains it to 2, and asks for the book — so the
+        # answer was "the 10 facilities with the largest IFRS 9 STAGE for
+        # Stage 2", a ranking of a column where every row reads 2. What the
+        # reader means by the book is what it is owed.
+        dropped = list(matches)
+        more = cx.read_concepts(DISTRIBUTION_MEASURE, known=known,
+                                catalogue=catalogue)
+        if more.matches:
+            matches = [more.matches[0]]
+            distribution_default = DISTRIBUTION_MEASURE
+            planning_notes.append(
+                f"{_list_of(m.label for m in dropped)} is what the question "
+                "CONSTRAINS, not what it measures — every row inside that "
+                "restriction carries the same value — so CreditProbe measured "
+                f"{DISTRIBUTION_MEASURE}.")
+            logger.info("Dropped %s as a measure and defaulted the level.",
                         ", ".join(m.label for m in dropped))
 
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
@@ -951,12 +1005,55 @@ def _plan(reading: Reading, context: GovernedContext, *,
         conditions = [c for c in conditions
                       if str(getattr(c, "field", "")).removesuffix("_change")
                       not in _mirrored]
-    if carrying and not resolved.matches and state.conditions:
+    # A follow-up that points BACK at the population keeps its conditions,
+    # whether or not it names a measure of its own. "How many customers are
+    # 60+ DPD?" then "and what's their total exposure" resolved a measure, so
+    # the condition was dropped and the whole book's exposure was reported
+    # under a question about a hundred and eighty names.
+    # `named_its_own_measure` rather than `resolved.matches`: by this point a
+    # sentence that named none has had the settled question's measure read
+    # back into it, and reading the filled-in list made "which city is worst"
+    # look like a fresh request — so the 60+ DPD condition was dropped and the
+    # whole book's largest city was reported.
+    # ...but never where the continuation carries an explicit POPULATION.
+    # "Show their facilities", asked of ten customers, is every facility those
+    # ten hold; re-testing "ECL rose" at the facility grain drops the ones
+    # that did not rise and answers a narrower question than was asked.
+    # An ENTITY list pins the population exactly — those ten customers, and
+    # nobody else — so re-testing the conditions that selected them, at a
+    # finer grain, drops rows the reader asked for: "Show their facilities"
+    # returned only the facilities whose own ECL had risen. A list of
+    # DIMENSION values does not pin it: twenty-five cities are still every
+    # delinquent facility in them, and the condition is the population.
+    pinned = bool(continuation is not None and continuation.has_population
+                  and str(continuation.entity_key or "") in _ENTITY_KEYS)
+    points_back = bool(text and rf.points_at_the_previous_population(text)
+                       and not pinned)
+    if carrying and state.conditions and (
+            (not resolved.matches)
+            or points_back
+            or (not named_its_own_measure and not pinned)):
         # The question named no measure of its own — "only show Contracting" —
         # so it is narrowing the analysis that just ran rather than starting a
         # different one. Dropping the conditions here would quietly turn "the
         # Contracting names that were downgraded" into "every Contracting name".
         conditions = _restore_conditions(state.conditions, matches)
+    # A FLOW into or out of a governed state, with only the state named.
+    # "How many facilities moved into Stage 2 this month?" answered 1,392 —
+    # the count of facilities IN Stage 2 however long they have been there —
+    # where 315 arrived. The book carries the previous month's value on the
+    # row, so the flow is one more condition on the same scan.
+    flowed = _stage_flow(text, filters, conditions)
+    flow_said = ""
+    if flowed is not None:
+        conditions = list(conditions) + [flowed]
+        flow_said = _flow_phrase(text, filters)
+        planning_notes.append(
+            f"The question asks about a movement into or out of a state, so "
+            f"CreditProbe tested {flowed.describe()} as well as the state "
+            "itself — a count of the population would have answered how many "
+            "are in it rather than how many arrived.")
+
     dimension = grouping.dimension
     if distribution_default:
         planning_notes.append(
@@ -1154,6 +1251,26 @@ def _plan(reading: Reading, context: GovernedContext, *,
             return build
         except CannotPlan as e:
             logger.info("A conditional share could not be composed (%s); "
+                        "falling back to the ordinary shapes.", e)
+
+    # A share of the population at ONE date. "How much of that is secured?"
+    # was answered with the measure the thread carried, restricted to secured
+    # lending — the figure FOR the secured part, never the part it is of. The
+    # question is a share, and a share has a denominator.
+    if asks_for_a_share_of_a_state(text):
+        try:
+            build = _share_of_a_state(reading, context, text, matches, filters,
+                                      dimension, catalogue, period=period,
+                                      state=state, continuation=continuation,
+                                      defaulted=bool(distribution_default
+                                                     or movement_default))
+            if build is not None:
+                if continuation is not None:
+                    build.continuation = continuation
+                build.warnings.extend(planning_notes)
+                return build
+        except CannotPlan as e:
+            logger.info("A share of a state could not be composed (%s); "
                         "falling back to the ordinary shapes.", e)
 
     if shape == MOVEMENT and not conditions:
@@ -1807,7 +1924,12 @@ def _shape(reading: Reading, conditions: list[Condition],
     # to the record grain, and came back as "the 10 largest facilities by
     # final ECL at 2026-08": a ranking at one date, for a question about
     # twelve.
-    if not conditions and not dimension and _asks_for_a_series(text):
+    if not conditions and not dimension and (
+            _asks_outright_for_a_series(text)
+            or _asks_whether_it_is_seasonal(text)):
+        # A seasonality question is answered by the SERIES. Two points cannot
+        # tell a reader whether a move is in the pattern of the last two
+        # years; twenty-five can.
         return MOVEMENT
     if reading.period_requirement == "two_period":
         # The sentence named two dates or a change. A level test inside such a
@@ -2249,6 +2371,66 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
         if state is not None:
             out.append(state)
     return out
+
+
+#: "moved into Stage 2", "inflow to Stage 3", "migrated in" — arriving.
+_FLOWED_IN = _re.compile(
+    r"\b(?:mov\w*|migrat\w*|transition\w*|shift\w*|slipp\w*|went|arriv\w*|"
+    r"came|entered|flow\w*)\s+(?:in\s*to|into|in)\b"
+    r"|\binflows?\b|\bnew (?:to|into)\b|\bnewly\b",
+    _re.IGNORECASE)
+
+#: "moved out of Stage 2", "outflow from Stage 3", "cured out" — leaving.
+_FLOWED_OUT = _re.compile(
+    r"\b(?:mov\w*|migrat\w*|transition\w*|shift\w*|went|left|exit\w*|"
+    r"cured?|flow\w*)\s+(?:out\s+of|out|from)\b"
+    r"|\boutflows?\b|\bleft\b",
+    _re.IGNORECASE)
+
+
+def _flow_phrase(text: str, filters: list[tuple[str, Any]]) -> str:
+    """"into Stage 2" or "out of Stage 2", for the answer's first sentence."""
+    from backend.orchestration import scope as sc
+
+    arriving = bool(_FLOWED_IN.search(str(text or "")))
+    prior = dm.prior()
+    for field_name, value in (filters or []):
+        if field_name not in prior:
+            continue
+        said = sc.say(field_name, value)
+        return f"into {said}" if arriving else f"out of {said}"
+    return ""
+
+
+def _stage_flow(text: str, filters: list[tuple[str, Any]],
+                conditions: list[Condition]) -> Condition | None:
+    """The condition that turns a state into the flow into or out of it.
+
+    Returns None where the sentence is not a flow, where it names two states
+    (the transition machinery plans that exactly), or where the book does not
+    carry the previous value on the row.
+    """
+    said = " ".join(str(text or "").split())
+    arriving = bool(_FLOWED_IN.search(said))
+    leaving = bool(_FLOWED_OUT.search(said))
+    if arriving == leaving:
+        return None
+    prior = dm.prior()
+    for field_name, value in (filters or []):
+        column = prior.get(field_name, "")
+        if not column:
+            continue
+        # A transition the question stated in full is already planned exactly.
+        if any(str(getattr(c, "field", "")) == column for c in conditions):
+            return None
+        if arriving:
+            return Condition(field=column, kind="level", op="ne", value=value,
+                             phrase=f"was not {field_name} {value} last month",
+                             higher_is_worse=True)
+        return Condition(field=field_name, kind="level", op="ne", value=value,
+                         phrase=f"is no longer {field_name} {value}",
+                         higher_is_worse=True)
+    return None
 
 
 def _dimension(reading: Reading, context: GovernedContext,
@@ -3012,7 +3194,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
             "params": {"where": [{"column": population.entity_key, "op": "in",
                                   "values": list(population.entity_ids)}]},
             "label": (f"Restrict to the {len(population.entity_ids)} "
-                      f"{population.entity_key} the previous answer returned"),
+                      f"{_plural_grain(str(population.entity_key).replace('_id', ''))}"
+                      " the previous answer returned"),
         })
         current = "population"
 
@@ -3420,8 +3603,8 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                        output_grain=got)
     if scoped and population is not None:
         summary += (f", restricted to the {len(population.entity_ids)} "
-                    f"{population.entity_key} carried forward from the "
-                    "previous answer")
+                    f"{_plural_grain(str(population.entity_key).replace('_id', ''))}"
+                    " carried forward from the previous answer")
     datasets = [base, *enrichment.reachable]
     plan_doc = {
         "id": f"dynamic_{shape}",
@@ -3774,11 +3957,130 @@ def _rolled_up_before_join(operations: list[dict[str, Any]]) -> list[str]:
     return out
 
 
+#: A field whose definition IS a division of two other governed fields.
+#: The catalogue states it in words — "ecl_final_sar / gross_carrying_amount_sar"
+#: — and that sentence is the arithmetic.
+_A_QUOTIENT = _re.compile(
+    r"^\s*([a-z][a-z0-9_]*)\s*/\s*([a-z][a-z0-9_]*)\s*(?:[.;].*)?$",
+    _re.IGNORECASE)
+
+
+def _quotient_of(dataset: str, field: str) -> tuple[str, str] | None:
+    """The numerator and denominator a ratio field is defined as, or None."""
+    try:
+        from backend.data_access import get_catalog
+
+        found = get_catalog().dataset(dataset)
+    except Exception:  # noqa: BLE001 - without the catalogue, no rewrite
+        return None
+    if found is None:
+        return None
+    definition = ""
+    try:
+        definition = str(getattr(found.field(field), "definition", "") or "")
+    except Exception:  # noqa: BLE001
+        return None
+    match = _A_QUOTIENT.match(definition.strip())
+    if match is None:
+        return None
+    numerator, denominator = match.group(1), match.group(2)
+    fields = set(found.fields)
+    if numerator not in fields or denominator not in fields:
+        return None
+    if numerator == field or denominator == field:
+        return None
+    return numerator, denominator
+
+
+def _ratios_as_quotients(build: AnalysisBuild) -> None:
+    """Rewrite an averaged ratio column as SUM(numerator) / SUM(denominator).
+
+    In place, on the finished plan, because every shape that groups builds its
+    aggregates its own way and a mean of ratios is wrong on all of them. A
+    plan that does not group, or a ratio the catalogue does not define as a
+    division, is left exactly as it was.
+    """
+    plan = build.plan or {}
+    operations = list(plan.get("operations") or [])
+    if not operations:
+        return
+    scanned: set[str] = set()
+    for operation in operations:
+        if str(operation.get("op") or "").upper() == "SCAN":
+            scanned |= {str(f) for f in
+                        (operation.get("params") or {}).get("fields") or []}
+
+    rewritten = False
+    out: list[dict[str, Any]] = []
+    for operation in operations:
+        out.append(operation)
+        if str(operation.get("op") or "").upper() != "GROUP":
+            continue
+        params = operation.get("params") or {}
+        aggregates = list(params.get("aggregates") or [])
+        derived: list[dict[str, Any]] = []
+        replaced: list[dict[str, Any]] = []
+        for aggregate in aggregates:
+            column = str(aggregate.get("column") or "")
+            named = str(aggregate.get("as") or column)
+            function = str(aggregate.get("function") or "").lower()
+            parts = _quotient_of(build.dataset, column) if function == "avg" \
+                else None
+            if parts is None or aggregate.get("where"):
+                replaced.append(aggregate)
+                continue
+            numerator, denominator = parts
+            replaced.append({"function": "sum", "column": numerator,
+                             "as": f"{named}__numerator"})
+            replaced.append({"function": "sum", "column": denominator,
+                             "as": f"{named}__denominator"})
+            derived.append({
+                "as": named,
+                "expression": {"type": "function", "function": "divide",
+                               "args": [f"{named}__numerator",
+                                        {"type": "function",
+                                         "function": "nullif",
+                                         "args": [f"{named}__denominator",
+                                                  {"type": "literal",
+                                                   "value": 0}]}]}})
+            scanned |= {numerator, denominator}
+            rewritten = True
+        if not derived:
+            continue
+        params["aggregates"] = replaced
+        identifier = f"{operation.get('id')}_ratio"
+        out.append({"id": identifier, "op": "DERIVE",
+                    "inputs": [operation.get("id")],
+                    "params": {"columns": derived},
+                    "label": "Each ratio as the quotient of its totals"})
+        for later in operations[operations.index(operation) + 1:]:
+            inputs = list(later.get("inputs") or [])
+            if operation.get("id") in inputs:
+                later["inputs"] = [identifier if i == operation.get("id")
+                                   else i for i in inputs]
+
+    if not rewritten:
+        return
+    for operation in out:
+        if str(operation.get("op") or "").upper() == "SCAN":
+            params = operation.get("params") or {}
+            params["fields"] = sorted(
+                set(params.get("fields") or []) | scanned)
+    plan["operations"] = out
+    build.plan = plan
+
+
 def _summary(shape: str, measures: list[cx.ConceptMatch],
              filters: list[tuple[str, str]], dimension: str, period: str,
              grain: str, top_n: int, *, output_grain: str = "") -> str:
+    from backend.orchestration import scope as sc
+
     names = ", ".join(m.label for m in measures)
-    where = " for " + ", ".join(v for _, v in filters) if filters else ""
+    # The filters as a credit officer says them, not as the plan stores them.
+    # `secured_flag = True` reached the Trace as "days past due by product
+    # subsegment FOR TRUE at 2026-08" — the one line whose job is to say what
+    # population ran.
+    where = f" for {sc.phrase(filters)}" if filters else ""
     if output_grain == gr.PORTFOLIO:
         # Said explicitly, because "ECL at Q4 2025" reads as a figure about
         # something and the reader supplies the something themselves.
@@ -3843,6 +4145,22 @@ def _asks_for_an_entity_grain(text: str) -> bool:
     """
     found = gr.requested(str(text or ""))
     return bool(found.explicit and found.grain in (gr.CUSTOMER, gr.FACILITY))
+
+
+#: "…or just seasonality?", "is this seasonal?", "is that a real trend or
+#: noise?" — a question about the shape of the series, never about who is in
+#: it.
+_SEASONALITY = _re.compile(
+    r"\bseasonal(?:ity|ly)?\b|\bseasonal pattern\b"
+    r"|\b(?:real|genuine|actual)\b.{0,40}\bor (?:just|only|merely)\b"
+    r"|\bor (?:just|only|merely) (?:noise|nois[ey]|a blip|a spike|random)\b"
+    r"|\bone[- ]off\b.{0,20}\bor\b|\bblip or\b",
+    _re.IGNORECASE)
+
+
+def _asks_whether_it_is_seasonal(text: str) -> bool:
+    """Whether the sentence asks if a move is a trend or a seasonal pattern."""
+    return bool(_SEASONALITY.search(str(text or "")))
 
 
 def _names_its_own_measure(text: str) -> bool:
@@ -4306,6 +4624,21 @@ _SERIES = _re.compile(
     r"\b\d+[- ]month\b|\bmonthly\b",
     _re.IGNORECASE)
 
+#: The same request, without the one pattern that also appears inside a
+#: MEASURE's name. "What is the average 12-MONTH PD at 2026-08?" names a
+#: twelve-month probability of default at one date, and reading it as a
+#: request for twelve months of history answered a different question.
+_SAYS_SERIES_OUTRIGHT = _re.compile(
+    r"\btrend\b|\bover time\b|\bmonth by month\b|\bby month\b|"
+    r"\bby reporting month\b|\beach month\b|\bevery month\b|"
+    r"\btime series\b|\bhistory\b|\bseries\b|\bmonthly\b",
+    _re.IGNORECASE)
+
+
+def _asks_outright_for_a_series(text: str) -> bool:
+    """Whether the sentence asks for the whole series in so many words."""
+    return bool(_SAYS_SERIES_OUTRIGHT.search(str(text or "")))
+
 
 def _asks_for_a_series(text: str) -> bool:
     """Whether the question asks for the whole series rather than two dates."""
@@ -4413,7 +4746,9 @@ def _movement(reading: Reading, context: GovernedContext, text: str,
     # plan with every published period in the filter. The narration still
     # reads the two ends and says what happened between them, which is true
     # of a series as well as of a pair.
-    series = _asks_for_a_series(text)
+    # A seasonality question needs the series for the same reason a trend
+    # question does: two points cannot show a pattern that repeats.
+    series = _asks_for_a_series(text) or _asks_whether_it_is_seasonal(text)
     months = [opening, closing]
     if series and published:
         # A named LENGTH opens the window. "the 25-month trend" asked for
@@ -4510,6 +4845,234 @@ _SHARE_OF_TOTAL = _re.compile(
 
 def wants_conditional_share(text: str) -> bool:
     return bool(_SHARE_OF_TOTAL.search(text or ""))
+
+
+#: "How much of that is secured?", "What proportion of the book is
+#: restructured?", "What share of this is forborne?" — a share of a population
+#: at ONE date, where the numerator is a governed STATE rather than a number.
+_SHARE_OF_A_STATE = _re.compile(
+    r"\b(?:how much|how many|what (?:share|proportion|percentage|percent|%)"
+    r"|what(?:'s| is) the (?:share|proportion|percentage))\s+of\b",
+    _re.IGNORECASE)
+
+
+def asks_for_a_share_of_a_state(text: str) -> bool:
+    """Whether the sentence asks what fraction of a population is in a state."""
+    return bool(_SHARE_OF_A_STATE.search(str(text or "")))
+
+
+#: A governed yes/no column. The numerator of a share of a state is one of
+#: these set true, and the denominator is the population without it.
+def _state_filter(filters: list[tuple[str, Any]], text: str
+                  ) -> tuple[str, Any] | None:
+    """The flag the SENTENCE names, among the filters the planner compiled.
+
+    Only a flag the reader wrote: a filter carried from the previous turn is
+    the population, not the thing being asked about, and taking it for the
+    numerator would answer "what share of the secured book is secured?".
+    """
+    lowered = " ".join(str(text or "").lower().split())
+    for field, value in (filters or []):
+        name = str(field)
+        if not name.endswith(("_flag", "_indicator")):
+            continue
+        stem = name.rsplit("_", 1)[0].replace("_", " ")
+        if stem and stem in lowered:
+            return name, value
+    return None
+
+
+def _share_of_a_state(reading: Reading, context: GovernedContext, text: str,
+                      matches: list[cx.ConceptMatch],
+                      filters: list[tuple[str, Any]], dimension: str,
+                      catalogue: Any, *,
+                      period: tuple[str, str] | None,
+                      state: Any = None,
+                      continuation: Any = None,
+                      defaulted: bool = False) -> AnalysisBuild | None:
+    """What fraction of the population is in a governed state, at one date.
+
+    Returns None where the sentence is not that question after all — no flag
+    the reader named, or no measure to take a share OF — and the ordinary
+    shapes then read it, which for "how much exposure is there?" is right.
+    """
+    named = _state_filter(filters, text)
+    if named is None:
+        return None
+    field, value = named
+
+    # A share needs a measure that ADDS. Days past due rolls up as a maximum,
+    # and "days past due with secured as a share of days past due" is a
+    # sentence with no meaning behind it — one subsegment came back at exactly
+    # 100.00%. Where the measure the thread carries does not add, the share is
+    # of what the book is owed.
+    # A measure the PLANNER supplied is not one the reader named. "What
+    # proportion of the book is restructured?" names no figure; the planner
+    # filled in exposure at default, and the share came out of 2,096,259,474
+    # where the book is owed 2,082,852,856. A share of the book is a share of
+    # what it is owed.
+    measure = None if defaulted else next(
+        (m for m in matches if not m.concept.is_ordinal
+         and not m.concept.is_categorical
+         and m.field != field
+         and _adds_up(m)), None)
+    if measure is None:
+        # No measure in the sentence and none carried: a share of a population
+        # is a share of what it is OWED, which is the book's own default.
+        measure = _default_share_measure(context, catalogue)
+        if measure is None:
+            return None
+
+    dataset = measure.dataset
+    fields_of = {d.name: set(d.fields) for d in catalogue.all()}
+    available = fields_of.get(dataset, set())
+    if field not in available or measure.field not in available:
+        return None
+    if dimension and dimension not in available:
+        dimension = ""
+
+    at = (period[1] if period else "") or _one_period(reading, context, dataset)
+    if not at:
+        return None
+
+    # The population, WITHOUT the state being asked about: that is the
+    # denominator. Every other filter narrows both halves.
+    population = [(f, v) for f, v in (filters or []) if f != field
+                  and f in available]
+    period_field = _period_field(catalogue, dataset)
+    entity_key = ""
+    if continuation is not None and continuation.has_population:
+        entity_key = str(continuation.entity_key or "")
+    read_fields = sorted({period_field, field, measure.field,
+                          *[f for f, _ in population],
+                          *([entity_key] if entity_key else []),
+                          *([dimension] if dimension else [])} & available)
+
+    operations: list[dict[str, Any]] = [{
+        "id": "source", "op": "SCAN",
+        "params": {"dataset": dataset, "fields": read_fields,
+                   "period": at, "alias": f"{dataset}@{at}"},
+        "label": f"Read {dataset} at {at}",
+    }]
+    source = "source"
+    # The population the CONVERSATION settled, before the filters the sentence
+    # states. Without it the share was taken over the whole book while the
+    # scope line above it said "8 product_subsegments carried from the
+    # previous answer".
+    carried = continuation if (continuation is not None
+                               and continuation.has_population) else None
+    if carried is not None and carried.entity_key in available:
+        operations.append({
+            "id": "population", "op": "FILTER", "inputs": [source],
+            "params": {"where": [{"column": carried.entity_key, "op": "in",
+                                  "values": list(carried.entity_ids)}]},
+            "label": (f"Restrict to the {len(carried.entity_ids)} "
+                      f"{_plural_grain(str(carried.entity_key).replace('_id', ''))}"
+                      " the previous answer returned"),
+        })
+        source = "population"
+    elif carried is not None:
+        carried = None
+
+    where = [{"column": f, "op": "=", "value": v} for f, v in population]
+    if where:
+        operations.append({
+            "id": "scoped", "op": "FILTER", "inputs": [source],
+            "params": {"where": where},
+            "label": "Keep the population the question named",
+        })
+        source = "scoped"
+
+    def conditional(name: str, qualified: bool) -> dict[str, Any]:
+        if not qualified:
+            return {"function": "sum", "column": measure.field, "as": name}
+        return {"function": "sum_where", "column": measure.field, "as": name,
+                "where": [{"column": field, "op": "=", "value": value}]}
+
+    operations.append({
+        "id": "shares", "op": "GROUP", "inputs": [source],
+        "params": {"by": ([dimension] if dimension else []),
+                   "aggregates": [conditional("qualified", True),
+                                  conditional("population", False)]},
+        "label": (f"{measure.label} in the state, and in total"
+                  + (f", by {dimension}" if dimension else "")),
+    })
+    operations.append({
+        "id": "derived", "op": "DERIVE", "inputs": ["shares"],
+        "params": {"columns": [{
+            "as": "share_pct",
+            "expression": {"type": "function", "function": "multiply", "args": [
+                {"type": "function", "function": "divide", "args": [
+                    "qualified",
+                    {"type": "function", "function": "nullif",
+                     "args": ["population", {"type": "literal", "value": 0}]},
+                ]},
+                {"type": "literal", "value": 100},
+            ]}}]},
+        "label": "The share, as a percentage",
+    })
+    operations.append({
+        "id": "result", "op": "SORT", "inputs": ["derived"],
+        "params": {"by": [{"column": "share_pct", "direction": "desc"}]},
+        "label": "Largest share first",
+    })
+
+    from backend.orchestration import scope as sc
+
+    said = sc.say(field, value)
+    summary = (f"{measure.label} {said} as a percentage of {measure.label} "
+               + (f"by {dimension}, " if dimension else "")
+               + f"at {at}.")
+    plan_doc = {
+        "id": "dynamic_share_of_a_state",
+        "operations": operations,
+        "meta": {
+            "kind": "dynamic_share_of_a_state",
+            "grain": dimension or "portfolio",
+            "period": at, "dataset": dataset, "datasets": [dataset],
+            "dimension": dimension,
+            "concepts": [measure.to_dict()],
+            "numerator": {"field": field, "value": value, "label": said},
+            "filters": [{"field": f, "value": v} for f, v in population],
+            "conditions": [], "explanation": summary,
+        },
+    }
+    return AnalysisBuild(
+        plan=plan_doc, shape=SHARE, reading=reading, matches=[measure],
+        conditions=[], filters=population, dataset=dataset,
+        grain=dimension or "portfolio", period=at, dimension=dimension,
+        summary=summary,
+    )
+
+
+def _adds_up(match: cx.ConceptMatch) -> bool:
+    """Whether this measure's group values can be added into a total."""
+    unit = str(getattr(match.concept, "unit", "") or "")
+    return _ROLLUP.get(unit, _DEFAULT_ROLLUP) == "sum"
+
+
+def _default_share_measure(context: GovernedContext, catalogue: Any
+                           ) -> cx.ConceptMatch | None:
+    """What a share of a population is a share OF, where none was named.
+
+    The book's own exposure measure: "what proportion of the book is secured?"
+    means of what it is owed, and every retail book answers it that way.
+    """
+    known = {d.name: set(d.fields) for d in catalogue.all()}
+    for wanted in ("gross carrying amount", "exposure at default"):
+        found = cx.read_concepts(wanted, known=known, catalogue=catalogue)
+        if found.matches:
+            return found.matches[0]
+    return None
+
+
+def _one_period(reading: Reading, context: GovernedContext,
+                dataset: str) -> str:
+    """The single reporting date this question is asked at."""
+    try:
+        return _period_for(reading, context, dataset)
+    except Exception:  # noqa: BLE001 - the caller falls back to the shapes
+        return ""
 
 
 def _qualifier(text: str, matches: list[cx.ConceptMatch],
@@ -4840,7 +5403,8 @@ def _two_period(reading: Reading, context: GovernedContext, text: str,
     if scoped and population is not None:
         warnings.append(
             f"Restricted to the {len(population.entity_ids)} "
-            f"{population.entity_key} the previous answer returned.")
+            f"{_plural_grain(str(population.entity_key).replace('_id', ''))} "
+            "the previous answer returned.")
     return AnalysisBuild(
         plan=built.plan, shape=shape, reading=reading, matches=list(matches),
         conditions=conditions, filters=filters, grain=grain,
@@ -5027,6 +5591,7 @@ __all__ = [
     "COHORT",
     "DEFAULT_TOP_N",
     "MOVEMENT",
+    "SHARE",
     "RANKING",
     "AnalysisBuild",
     "CannotPlan",

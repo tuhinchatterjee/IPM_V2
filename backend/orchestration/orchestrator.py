@@ -261,6 +261,11 @@ class Answered:
     assessment: Any = None
     #: Where those rows came from, and the fact that nothing was rescanned.
     provenance: Any = None
+    #: What a HANDLER settled, where it composes no plan. A route or a
+    #: handler answers without a build, and a follow-up that names no measure
+    #: has nothing to inherit unless the turn says what it was about.
+    settled_measure: str = ""
+    settled_window: tuple[str, str] = ("", "")
     #: The reused result itself, for the answer and the Trace.
     cached: Any = None
     #: What this answer covers, and what this turn did to it.
@@ -552,7 +557,15 @@ def answer(question: str, *, context: Any = None,
     # recognise it, and replied that CreditProbe holds no data about it — a
     # refusal to answer one of the most ordinary questions an analyst is asked,
     # about figures that were already on the screen.
-    if not continuation.carries_context and not association.wants(question):
+    # A VALIDATION question is exempt for the same reason. The Gini, the PSI
+    # and the characteristics belong to the validation runner's vocabulary,
+    # not to the governed catalogue of the book — so "What's the Gini?",
+    # asked one turn after a scorecard answer, was refused as a question the
+    # published data holds nothing about.
+    validation_words = scorecard_route.is_a_validation_question(
+        question, carried_model=(state.scorecard_model if state else ""))
+    if (not continuation.carries_context and not association.wants(question)
+            and not validation_words):
         held = cov.check(question, reading)
         if held.out_of_scope:
             answered.unsupported = held.sentence()
@@ -683,6 +696,25 @@ def answer(question: str, *, context: Any = None,
         if unknown:
             answered.clarification = unknown
             return finish(answered)
+
+    # A FORECAST. "If ECL keeps moving like this, where does it land in six
+    # months?" was answered "15,952,109 SAR of final ECL at 2026-08" — the
+    # current level, with nothing saying that no projection had been made.
+    # A reader who takes that for the answer has a forecast that is really a
+    # reading of today.
+    projected = _asks_for_a_projection(question)
+    if projected:
+        answered.clarification = projected
+        return finish(answered)
+
+    # "Is that within appetite?" A risk appetite is a board-approved limit,
+    # and this installation governs none — so the question has no answer
+    # here, and the repeat guard told the reader it was the same analysis
+    # asked twice instead.
+    appetite = _asks_about_appetite(question)
+    if appetite:
+        answered.clarification = appetite
+        return finish(answered)
 
     missing = _unavailable_period(question)
     if missing:
@@ -1810,6 +1842,15 @@ def _decompose_ecl(answered: Answered, question: str, reading: cap.Reading,
             question, reading,
             context=_decomposition_scope(reading, context, question),
             period=period, user_id=getattr(context, "user_id", None))
+        # The measure and the window this walkthrough settled. A handler
+        # composes no plan, so "walk me through the ECL movement this month"
+        # left nothing on the state at all and the next sentence — "which
+        # stage moved most?" — was answered with a menu of governed concepts.
+        answered.settled_measure = "expected credit loss"
+        detail = dict(getattr(answered.result, "detail", None) or {})
+        found = dict(detail.get("decomposition") or {})
+        answered.settled_window = (str(found.get("opening_period") or ""),
+                                   str(found.get("closing_period") or ""))
     except Exception as e:  # noqa: BLE001 - a method must not become a 500
         logger.exception("The ECL decomposition failed: %s", e)
         answered.failure = (
@@ -2076,6 +2117,15 @@ def _validation_answer(answered: Answered, routed: Any,
     refusal = body.get("refusal") or {}
     clarify = body.get("clarify") or {}
     if refusal:
+        # "Is it still fit for purpose?" and "Should we redevelop it?" are
+        # questions about the WHOLE scorecard, and the conversational reader
+        # has no single tool for either — so it refused with a sentence about
+        # what it does not cover, under a question about the model the reader
+        # was looking at. The findings engine answers exactly that.
+        if scorecard_route.asks_about_the_whole_scorecard(question):
+            assessed = _validation_findings(answered, routed, question)
+            if assessed is not None:
+                return assessed
         answered.unsupported = str(refusal.get("why") or refusal.get("what") or "")
         return answered if answered.unsupported else None
     if clarify:
@@ -2394,10 +2444,17 @@ def _repeats_the_previous_plan(build: Any, state: cv.ConversationState,
             cv.ASK_ABOUT_RESULT, cv.ASSESS_PREVIOUS_RESULT, cv.NAVIGATE,
             cv.STEP_BACK):
         return ""
-    # A plan with something new to SAY is not a repeat, whatever its
+    # A plan with something NEW to say is not a repeat, whatever its
     # operations are. A composite asked for a six-month window runs at one
     # date and says so — the figures repeat, the answer does not.
-    if getattr(build, "warnings", None):
+    #
+    # New, not merely present: a composite carries the same caveat on every
+    # turn, and reading any warning as novelty let three consecutive
+    # questions — "are we seeing deterioration or seasonality?", "what would
+    # you escalate to the board?", "give me the three numbers that matter" —
+    # come back as the same twenty-five customers.
+    warnings = [str(w) for w in (getattr(build, "warnings", None) or [])]
+    if warnings and sorted(warnings) != sorted(state.plan_warnings or []):
         return ""
     # The OPERATIONS, not the whole document: `meta` carries the explanation
     # and the grain contract, which differ between two runs of the same
@@ -2730,6 +2787,61 @@ def _describe_association(build: Any, runtime: Any) -> dict[str, Any]:
             "caveat": association.CAVEAT}
 
 
+#: A question about what a measure WILL do. CreditProbe reports the governed
+#: book; it does not project one.
+_A_PROJECTION = re.compile(
+    r"\bforecast\w*\b|\bproject(?:ion|ed|s)?\b|\bextrapolat\w+\b"
+    r"|\bwhere (?:does|will) (?:it|that|this|ecl|the \w+) (?:land|end up|"
+    r"be|get to)\b"
+    r"|\bwhat will (?:it|that|this|ecl|the \w+) (?:be|look like|reach)\b"
+    r"|\bif (?:it|that|this|ecl|the \w+) (?:keeps|continues|carries on)\b"
+    r"|\bby (?:the end of|year[- ]end)\b.{0,30}\bwhat\b"
+    r"|\bexpect(?:ed)? to (?:be|reach|hit)\b",
+    re.IGNORECASE)
+
+
+#: A question measured against a limit nobody has given CreditProbe.
+_APPETITE = re.compile(
+    r"\b(?:risk )?appetite\b|\bwithin (?:the )?(?:limit|tolerance|threshold)s?\b"
+    r"|\b(?:above|below|breach\w*) (?:the )?(?:limit|tolerance|appetite|"
+    r"threshold)s?\b|\bare we (?:in|out of) (?:limit|appetite|tolerance)\b"
+    r"|\bis (?:that|this|it) (?:acceptable|tolerable|within policy)\b",
+    re.IGNORECASE)
+
+
+def _asks_about_appetite(question: str) -> str:
+    """The sentence CreditProbe says instead of judging against a limit."""
+    text = " ".join(str(question or "").split())
+    if not _APPETITE.search(text):
+        return ""
+    return (
+        "CreditProbe holds no risk appetite limits for this book, so it "
+        "cannot say whether a figure is inside one. The governed catalogue "
+        "carries measures and their definitions, not the board's thresholds. "
+        "Give the limit and CreditProbe will measure the book against it, or "
+        "ask for the figure's history and the trend is there to judge.")
+
+
+def _asks_for_a_projection(question: str) -> str:
+    """The sentence CreditProbe says instead of projecting, or "".
+
+    Said rather than attempted. The governed book is a record of what has
+    happened; a projection needs assumptions nobody has approved, and offering
+    one under the same certainty as a reported figure is the failure this
+    whole layer exists to prevent.
+    """
+    text = " ".join(str(question or "").split())
+    if not _A_PROJECTION.search(text):
+        return ""
+    return (
+        "CreditProbe reports the governed book; it does not project it. A "
+        "forecast needs assumptions about new lending, run-off and staging "
+        "that nobody has approved here, and a projected figure shown beside "
+        "reported ones would read as though it had the same standing. Ask "
+        "for the trend instead — \u201cshow the monthly series\u201d — and "
+        "the shape of the move is there to read.")
+
+
 def _unavailable_period(question: str) -> str:
     """Ask rather than answer when the question names a period nobody holds.
 
@@ -2997,6 +3109,15 @@ def remember(state: cv.ConversationState, answered: Answered, *,
         # screen to the last COMPOSED analysis, and showed the workings of a
         # different question without saying so.
         _remember_a_route_result(state, answered, run_id=run_id)
+        if answered.settled_measure and answered.answered:
+            state.concepts = [answered.settled_measure]
+            state.metrics = list(state.concepts)
+            state.composite = ""
+            opening, closing = answered.settled_window
+            if opening and closing:
+                state.opening_period, state.closing_period = opening, closing
+                state.periods = [opening, closing]
+                state.shape = ap.MOVEMENT
         _keep_the_population_the_question_named(state, answered)
         return state
 
@@ -3074,6 +3195,7 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     state.result = fresh
     state.plan_fingerprint = str(
         getattr(answered.runtime, "fingerprint", "") or "")
+    state.plan_warnings = [str(w) for w in (build.warnings or [])]
     return state
 
 

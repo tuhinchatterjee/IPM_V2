@@ -532,6 +532,22 @@ class TestRET048LayoutPreserved:
             # a chart because the gate's decision never reached the screen.
             "backend/orchestration/presentation.py",
             "frontend/src/components/analytics/result-view.tsx",
+            # ---------------------------------------------------------------
+            # The second adversarial Cockpit session. A ratio averaged across
+            # facilities where it is a quotient of sums — Stage 3 coverage
+            # answered 0.64 where the book is 35.82% — fifty-four governed
+            # ratio columns typed as TEXT so no chart could use them, an
+            # assessment correlating a measure with its own share, a "which"
+            # question answered by looking rather than computing, a forecast
+            # answered with today's level, and a stored message failing to
+            # persist on a value JSON could not hold.
+            "backend/orchestration/association.py",
+            "backend/orchestration/assessment.py",
+            "backend/orchestration/fidelity.py",
+            "backend/orchestration/figures.py",
+            "backend/orchestration/gate.py",
+            "backend/orchestration/investigation.py",
+            "backend/services/threads.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

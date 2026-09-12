@@ -180,7 +180,11 @@ def _decimals(number: float, spec: Spec) -> int:
     if spec.semantic in (PERCENT, POINTS):
         return 2
     if spec.semantic == RATIO:
-        return 2
+        # A coverage ratio lives between 0 and 1, and two decimals round
+        # 0.3615 and 0.3582 to the same "0.36" — the answer to "now versus a
+        # year ago" written as no change at all. A ratio below one is given
+        # the precision that keeps it a figure.
+        return 4 if magnitude < 1 else 2
 
     # A plain number with no semantics behind it. Scale by magnitude, which is
     # the rule a person applies without thinking about it.
@@ -239,7 +243,13 @@ def _with_unit(body: str, spec: Spec) -> str:
     if spec.semantic == POINTS:
         return f"{body} pp"
     if spec.semantic == RATIO:
-        return f"{body}x"
+        # "x" means a MULTIPLE — 3.2x leverage. A coverage ratio is a
+        # fraction of one, and "0.3615x" invites the reader to multiply.
+        try:
+            return body if abs(float(body.replace(",", ""))) < 1 \
+                else f"{body}x"
+        except ValueError:
+            return f"{body}x"
     if spec.semantic == DAYS:
         return f"{body} days"
     if spec.semantic == MONEY:

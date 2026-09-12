@@ -61,6 +61,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.orchestration import conversation as cv
+from backend.orchestration import scope as sc
 from backend.orchestration import kernels
 
 logger = logging.getLogger(__name__)
@@ -233,9 +234,15 @@ class Cached:
             parts.append(" to ".join(self.periods) if len(self.periods) > 1
                          else self.periods[0])
         for f in self.filters[:2]:
-            value = str(f.get("value") or "").strip()
-            if value:
-                parts.append(value)
+            # Said as a credit officer says it. The raw value put "True" on
+            # the scope line of an answer restricted to secured lending.
+            # The state stores a filter as {"kind": field, "value": value};
+            # reading it as "field" gave `say` an empty name and put a bare
+            # "with" on the scope line.
+            field = str(f.get("field") or f.get("kind") or "")
+            said = sc.say(field, f.get("value")).strip()
+            if said:
+                parts.append(said)
         return " · ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:

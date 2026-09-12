@@ -691,7 +691,7 @@ def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
         dimension=build.dimension or None,
         output={"aggregate": "distribution", "ranking": "ranking",
                 "cohort": "ranking", "movement": "movement",
-            "share_movement": "ranking"}[build.shape],
+            "share_movement": "ranking", "share": "distribution"}[build.shape],
         period_requirement=("two_period" if build.shape in
                             (ap.COHORT, ap.MOVEMENT) else "point_in_time"),
         period_specified=bool(reading.periods),
@@ -746,6 +746,7 @@ def _title(build: ap.AnalysisBuild) -> str:
         ap.COHORT: "Composed across several governed sources",
         ap.MOVEMENT: "Measured between two reporting periods",
         ap.SHARE_MOVEMENT: "A share of a total, at two reporting periods",
+        ap.SHARE: "A share of the population, at one reporting date",
     }[build.shape]
 
 
@@ -922,6 +923,80 @@ def _change_column(build: Any, rows: list[dict[str, Any]]) -> str:
             return candidate
     return ""
 
+#: Aggregations whose group results can be added into a population total.
+_ADDS_UP = frozenset({"sum", "count", "count_distinct"})
+
+
+def _groups_were_added(build: Any) -> bool:
+    """Whether summing the group values gives a figure about the population.
+
+    Read off the plan's own GROUP operation, not guessed from the unit: the
+    planner has already decided how each measure rolls up, and a maximum or an
+    average summed across groups is arithmetic nobody asked for.
+    """
+    for operation in ((build.plan or {}).get("operations") or []):
+        if str(operation.get("op") or "").upper() != "GROUP":
+            continue
+        aggregates = (operation.get("params") or {}).get("aggregates") or []
+        functions = {str(a.get("function") or "").lower() for a in aggregates
+                     if str(a.get("column") or "") != ""}
+        measured = {str(a.get("function") or "").lower() for a in aggregates
+                    if any(str(a.get("column") or "") == m.field
+                           for m in (build.matches or []))}
+        chosen = measured or functions
+        if chosen:
+            return all(f in _ADDS_UP for f in chosen)
+    return True
+
+
+def _leading_row(build: Any, rows: list[dict[str, Any]], column: str
+                 ) -> tuple[str, float] | None:
+    """The largest row by the measure, whether or not the question asked."""
+    if not column or not rows or not build.dimension:
+        return None
+    ranked = [r for r in rows if isinstance(r.get(column), (int, float))]
+    if not ranked:
+        return None
+    top = max(ranked, key=lambda r: float(r.get(column) or 0.0))
+    name = str(top.get(build.dimension) or "")
+    return (name, float(top.get(column) or 0.0)) if name else None
+
+
+#: Catalogue "units" that are a shape rather than a unit of measurement.
+_NOT_A_UNIT_WORD = frozenset({"ratio", "probability", "number", "index",
+                              "score", "factor", "multiple"})
+
+
+def _group_said(build: Any, name: Any) -> str:
+    """A group's value as a reader says it — "Stage 2", not "2".
+
+    A bare governed code in the first sentence of an answer is a code the
+    reader has to decode: "2 moved most, from 3,691,232 to 4,536,513 SAR".
+    """
+    from backend.orchestration import scope as sc
+
+    said = str(name if name is not None else "").strip()
+    if not said:
+        return said
+    dimension = str(getattr(build, "dimension", "") or "")
+    if not dimension:
+        return said
+    try:
+        return sc.say(dimension, said) or said
+    except Exception:  # noqa: BLE001 - a label must not lose an answer
+        return said
+
+
+def _state_word(said: str) -> str:
+    """"with secured" as it reads after "is" — "secured", "not restructured"."""
+    text = str(said or "").strip()
+    if text.startswith("without "):
+        return "not " + text[len("without "):]
+    if text.startswith("with "):
+        return text[len("with "):]
+    return text
+
+
 def _largest_group(build: Any, rows: list[dict[str, Any]], column: str
                    ) -> tuple[str, float] | None:
     """The leading group, where the question asked which one leads."""
@@ -1040,6 +1115,20 @@ def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
         values[f"_{name}"] = coefficient
     for name, figure in _observed_values(build).items():
         values.setdefault(f"_{name}", figure)
+    # The MOVEMENT of the leading group, which the headline quotes and no row
+    # carries: it is the difference between two rows. Recorded here like every
+    # other derived figure, so the grounding check sees it instead of flagging
+    # the sentence's own arithmetic for review.
+    if build.dimension and runtime.rows:
+        column = _primary_column(build, runtime)
+        for found in (_grew_most(build, runtime.rows, column),
+                      _led_the_change(build, runtime.rows, column)):
+            if found is not None:
+                _name, was, now = found
+                values.setdefault("_leader_change", round(now - was, 4))
+                values.setdefault("_leader_opening", was)
+                values.setdefault("_leader_closing", now)
+                break
     if build.period:
         values["period"] = build.period
     if build.opening:
@@ -1213,6 +1302,11 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             measure = led
     label = measure.label if measure else "the measure"
     unit = (measure.concept.unit or "") if measure else ""
+    # A unit word only where it is one. "ECL coverage fell from 0.3615 to
+    # 0.3582 RATIO" names the shape of the number rather than what it is
+    # measured in, and no credit paper writes it.
+    if unit.strip().lower() in _NOT_A_UNIT_WORD:
+        unit = ""
 
     metrics: list[Metric] = []
     findings: list[Finding] = []
@@ -1238,7 +1332,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         spec = {c["name"]: c for c in _presented(runtime, build)}
         shown = (presentation.render(mean, spec[column]) if column in spec
                  else figures.text(mean))
-        where = (" in " + _scope_phrase(build.filters, build.widened)) if build.filters else ""
+        where = _where(build.filters, build.widened)
         direct = (f"{_opening(label)} averages {shown} across the {count} "
                   f"{_dimension_word(build)}"
                   f"{'s' if count != 1 else ''}{where} at {build.period}.")
@@ -1253,8 +1347,27 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         # "across 5 groups" is what a program says when it has forgotten what it
         # grouped by. Name the dimension, or the grain when a carried population
         # is what is on screen.
-        where = (" in " + _scope_phrase(build.filters, build.widened)) if build.filters else ""
-        if build.dimension:
+        where = _where(build.filters, build.widened)
+        # A TOTAL is a total only where the groups were added. Days past due
+        # rolls up per group as a maximum, and adding four maxima produced
+        # "868 days of days past due across 4 subsegments" — a number that
+        # describes nothing in the book.
+        adds_up = _groups_were_added(build)
+        if build.dimension and not adds_up:
+            top = _largest_group(build, rows, column) or _leading_row(
+                build, rows, column)
+            direct = (f"{_lower(label)}{where} across {count} "
+                      f"{_dimension_plural(build, count)} at "
+                      f"{build.period}.").capitalize()
+            if top is not None:
+                name, value = top
+                shown = presentation.render(
+                    value, {c["name"]: c for c in _presented(runtime, build)}
+                    .get(column, {})) if column else _fmt(value)
+                direct = (f"{name} has the highest {_lower(label)}{where} at "
+                          f"{build.period}, at {shown}, across {count} "
+                          f"{_dimension_plural(build, count)}.")
+        elif build.dimension:
             direct = (f"{_fmt(total)} {subject}{where} across {count} "
                       f"{_dimension_plural(build, count)} at "
                       f"{build.period}.")
@@ -1264,7 +1377,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             # caveat under an answer that was given anyway. The rows hold the
             # answer, so the sentence says it.
             leader = _largest_group(build, rows, column)
-            if leader is not None:
+            if leader is not None and adds_up:
                 name, value = leader
                 shown = presentation.render(
                     value, {c["name"]: c for c in _presented(runtime, build)}
@@ -1273,12 +1386,20 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                           f"{build.period}, at {shown} of {_fmt(total)} "
                           f"across {count} "
                           f"{_dimension_plural(build, count)}.")
+        elif getattr(build, "flow", ""):
+            # The FLOW, said as a flow. "315 facilities in Stage 2 at
+            # 2026-08" is the sentence the STOCK question gets, and the two
+            # numbers are 315 and 1,392.
+            direct = (f"{_fmt(total)} {_plural(build.grain, int(total))} "
+                      f"moved {build.flow} at {build.period}.")
         else:
             # One number for the whole population. "across 1 customer" is what
             # a program says when it has counted its own output rows.
             direct = f"{_fmt(total)} {subject}{where} at {build.period}."
-        metrics.append(Metric(label=f"Total {label}", value=round(total, 2),
-                              unit=unit, direction="neutral"))
+        if adds_up:
+            metrics.append(Metric(label=f"Total {label}",
+                                  value=round(total, 2),
+                                  unit=unit, direction="neutral"))
         # A distinct count summed across groups is a total only when nothing is
         # in two groups at once. A retail customer holds a card AND a personal
         # finance, so "customers by product" adds to more than the book has,
@@ -1343,6 +1464,15 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             # is that every number in it can be checked.
             direct = (f"{population:,} {_subject(build, population)} with "
                       f"{said} at {build.period}.")
+            if getattr(build, "flow", ""):
+                # The FLOW, not the stock. "187 facilities in IFRS 9 stage 2
+                # where IFRS 9 stage is not 2" is a sentence that contradicts
+                # itself, over a count that is right.
+                direct = (f"{population:,} {_subject(build, population)} "
+                          f"moved {build.flow}"
+                          + (f" between {build.opening} and {build.closing}."
+                             if build.opening and build.closing
+                             else f" at {build.period}."))
         elif getattr(build, "entity_list", False) and count and whole > count:
             # The test as well as the subject. "1,647 customers in IFRS 9
             # stage 2 or worse" is the right count for "…and on the
@@ -1382,6 +1512,64 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                     evidence=[_evidence("share of " + scope,
                                         round(covered, 2), "%",
                                         period=build.period or "")]))
+    elif build.shape == ap.SHARE:
+        numerator = dict((build.plan.get("meta") or {}).get("numerator") or {})
+        said = str(numerator.get("label") or "the state")
+        where = _where(build.filters, build.widened)
+        if build.dimension and rows:
+            ranked = [r for r in rows
+                      if isinstance(r.get("share_pct"), (int, float))]
+            top = max(ranked, key=lambda r: float(r["share_pct"])) if ranked \
+                else {}
+            # The population's OWN share first: "how much of that is
+            # secured?" is a question about the population, and a breakdown
+            # that opens on its largest group answers a different one. Four
+            # subsegments tied at 100.00% and the sentence named one of them.
+            qualified = sum(float(r.get("qualified") or 0.0) for r in rows)
+            whole = sum(float(r.get("population") or 0.0) for r in rows)
+            overall = (qualified / whole * 100) if whole else None
+            lead = (f"{figures.percent(overall)} of {_lower(label)}{where} is "
+                    f"{_state_word(said)} at {build.period} — "
+                    f"{_fmt(qualified)} of {_fmt(whole)} {unit}".rstrip() + "."
+                    if overall is not None else
+                    f"{_opening(label)} {said} at {build.period}.")
+            tied = [r for r in ranked
+                    if top and float(r["share_pct"]) ==
+                    float(top["share_pct"])]
+            if top and len(tied) == 1:
+                lead += (f" {top.get(build.dimension)} is the highest of the "
+                         f"{len(rows)} "
+                         f"{_dimension_plural(build, len(rows))}, at "
+                         f"{figures.percent(float(top['share_pct']))}.")
+            elif top:
+                lead += (f" {len(tied)} of the {len(rows)} "
+                         f"{_dimension_plural(build, len(rows))} are at "
+                         f"{figures.percent(float(top['share_pct']))}: "
+                         + ", ".join(str(r.get(build.dimension))
+                                     for r in tied[:4]) + ".")
+            direct = lead
+            if top:
+                metrics.append(Metric(
+                    label=f"Highest share — {top.get(build.dimension)}",
+                    value=round(float(top["share_pct"]), 4), unit="%",
+                    direction="neutral"))
+        else:
+            row = rows[0] if rows else {}
+            share = row.get("share_pct")
+            qualified = row.get("qualified")
+            population = row.get("population")
+            direct = (
+                f"{figures.percent(float(share))} of {_lower(label)}{where} is "
+                f"{_state_word(said)} at "
+                f"{build.period} — {_fmt(float(qualified or 0.0))} of "
+                f"{_fmt(float(population or 0.0))} {unit}".rstrip() + "."
+                if isinstance(share, (int, float)) else
+                f"{_opening(label)} {said} could not be measured at "
+                f"{build.period}.")
+            if isinstance(share, (int, float)):
+                metrics.append(Metric(
+                    label=f"{label} {said}", value=round(float(share), 4),
+                    unit="%", direction="neutral"))
     elif build.shape == ap.SHARE_MOVEMENT:
         numerator = dict((build.plan.get("meta") or {}).get("numerator") or {})
         moved = [r for r in rows if r.get("change_pp") is not None]
@@ -1421,10 +1609,15 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         moved = "rose" if change > 0 else "fell" if change < 0 else "was unchanged"
         pct = (f" ({figures.percent(abs(float(change_pct)))})"
                if isinstance(change_pct, (int, float)) and change else "")
-        direct = (f"{_opening(label)} {moved} from {_fmt(opening_total)} to "
-                  f"{_fmt(closing_total)} {unit} between {build.opening} and "
-                  f"{build.closing} — a change of {_fmt(abs(change))} {unit}"
-                  f"{pct}.")
+        # Written to the MEASURE's precision. A coverage ratio rounded to two
+        # decimals put "fell from 0.36 to 0.36 — a change of 0.00 (0.91%)" on
+        # the screen: the answer to "now versus a year ago", rounded away.
+        tail = f" {unit}" if unit else ""
+        direct = (f"{_opening(label)} {moved} from "
+                  f"{_measured(opening_total, measure)} to "
+                  f"{_measured(closing_total, measure)}{tail} between "
+                  f"{build.opening} and {build.closing} — a change of "
+                  f"{_measured(abs(change), measure)}{tail}{pct}.")
         # A SERIES described by its two ends is a series nobody has read.
         #
         # "Show the 25-month ECL trend" returns twenty-five points and was
@@ -1451,6 +1644,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 grew = _led_the_change(build, rows, column)
                 if grew is not None:
                     name, was, now = grew
+                    name = _group_said(build, name)
                     direct += (
                         f" {name} contributed most of the move, from "
                         f"{_fmt(was)} to {_fmt(now)} {unit}".rstrip()
@@ -1458,6 +1652,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                         + f" of the {_fmt(abs(change))} {unit}".rstrip() + ".")
             else:
                 name, was, now = grew
+                name = _group_said(build, name)
                 direct += (f" {name} moved most, from {_fmt(was)} to "
                            f"{_fmt(now)} {unit}".rstrip()
                            + f" — {_fmt(abs(now - was))} {unit}".rstrip() + ".")
@@ -1499,6 +1694,17 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                   f"{build.opening} and {build.closing}."
                   + (f" The {count} shown are ordered worst first."
                      if whole > count else ""))
+        if getattr(build, "flow", ""):
+            # The FLOW, said as a flow. "187 facilities in IFRS 9 stage 2
+            # where IFRS 9 stage is not 2" contradicts itself over a count
+            # that is right. The bare GRAIN word, because the state is in the
+            # flow phrase already: "187 facilities in IFRS 9 stage 2 moved out
+            # of Stage 2" says it twice.
+            direct = (f"{whole:,} {_plural(build.grain, whole)} moved "
+                      f"{build.flow} between {build.opening} and "
+                      f"{build.closing}."
+                      + (f" The {count} shown are ordered worst first."
+                         if whole > count else ""))
         # "Which product had the largest ECL increase since June?" was
         # answered "4 product labels where ecl final sar rose" — the cohort,
         # described, with the answer sitting in the first row and nothing
@@ -1703,8 +1909,7 @@ def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
     # A ranking narrowed to Shipping that opens exactly like the portfolio-wide
     # one gives the reader no way to tell that "Why Shipping?" was heard, and
     # the whole value of carrying scope forward is that the answer shows it.
-    scope_said = _scope_phrase(build.filters or [], build.widened)
-    where = f" in {scope_said}" if scope_said else ""
+    where = _where(build.filters or [], build.widened)
     # The referent as the reader wrote it, without the preposition it may
     # already carry. "Which of those also…" resolves to the referent "of
     # those", and the sentence adds its own "of": "25 customers of of those,
@@ -1726,7 +1931,7 @@ def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
             f"{build.period}.")
     else:
         if carried:
-            where = (f" of {carried}" if not scope_said
+            where = (f" of {carried}" if not where
                      else f"{where}, of {carried}")
         direct = (
             f"{count} {_who()}{'s' if count != 1 else ''}{where}, ranked by "
@@ -1828,6 +2033,27 @@ _NEEDS_ITS_NAME = sc.NEEDS_ITS_NAME
 #: worse" are different populations, and an answer that says the first while
 #: showing the second has misdescribed its own rows.
 _WIDENED_SAYS = sc.WIDENED_SAYS
+
+
+def _where(filters: list[tuple[str, str]],
+           widened: list[Any] | None = None) -> str:
+    """The scope as a phrase that can follow a noun.
+
+    A yes/no flag is said as the state it selects — "with secured" — and the
+    caller's own "in " then produced "868 days of days past due IN WITH
+    SECURED". A phrase that already carries its preposition keeps it.
+    """
+    said = _scope_phrase(filters, widened)
+    if not said:
+        return ""
+    first = said.split(" ", 1)[0].lower()
+    return f" {said}" if first in _PREPOSITIONS else f" in {said}"
+
+
+#: Words a scope phrase may already begin with, where prefixing "in" would
+#: put two prepositions in a row.
+_PREPOSITIONS = frozenset({"with", "without", "in", "on", "at", "for", "under",
+                           "over", "above", "below", "from"})
 
 
 def _scope_phrase(filters: list[tuple[str, str]],
@@ -2063,6 +2289,12 @@ def _interpretation(build: ap.AnalysisBuild, runtime: Any, count: int) -> str:
                     "would return a population.")
         return "Nothing in the governed data matched."
 
+    if build.shape == ap.SHARE:
+        return ("The numerator and the denominator are taken over the same "
+                "rows in one pass, so the share cannot be built from two "
+                "differently filtered populations. Everything the question "
+                "restricted narrows both halves; the state it asks about "
+                "narrows only the numerator.")
     if build.shape == ap.SHARE_MOVEMENT:
         return ("The numerator and the denominator are taken over the same rows "
                 "in one pass, so the share cannot be built from two "
@@ -2156,6 +2388,19 @@ def _dimension_plural(build: Any, count: int) -> str:
         return word
     if word.endswith("ies") or word.endswith("s"):
         return word
+    # The LAST word carries the plural. "city label" is spelled "city labels";
+    # a bare "city" is spelled "cities", and the rule below only saw the whole
+    # string — so "26 citys" reached the first line of an answer.
+    head, _, tail = word.rpartition(" ")
+    if head:
+        return f"{head} {_pluralise(tail)}"
+    return _pluralise(word)
+
+
+def _pluralise(word: str) -> str:
+    """One word in the plural, spelled the way English spells it."""
+    if word.endswith("ies") or word.endswith("s"):
+        return word
     if word.endswith("y") and not word.endswith(("ay", "ey", "oy", "uy")):
         return word[:-1] + "ies"
     if word.endswith(("x", "z", "ch", "sh")):
@@ -2186,6 +2431,25 @@ def _dimension_word(build: ap.AnalysisBuild) -> str:
     from backend.orchestration.dimensions import readable
 
     return readable(raw)
+
+
+def _measured(value: Any, measure: Any) -> str:
+    """A figure written to the precision its own measure needs.
+
+    `_fmt` has no semantics to read, so a ratio between zero and one came out
+    at two decimals and two different figures were written the same way.
+    """
+    from backend.orchestration import figures
+
+    unit = str(getattr(getattr(measure, "concept", None), "unit", "") or "")
+    semantic = {"ratio": figures.RATIO, "probability": figures.RATIO,
+                "%": figures.PERCENT, "percent": figures.PERCENT,
+                "percentage points": figures.POINTS,
+                "days": figures.DAYS, "count": figures.COUNT}.get(
+                    unit.strip().lower())
+    if semantic is None:
+        return _fmt(value)
+    return figures.text(value, figures.Spec(semantic=semantic))
 
 
 def _fmt(value: Any) -> str:

@@ -220,6 +220,10 @@ class ConversationState:
     #: described against it and so the Trace can show the plan it came from.
     ir: dict[str, Any] = field(default_factory=dict)
     plan_fingerprint: str = ""
+    #: What the previous plan WARNED about. A turn whose warnings differ has
+    #: something new to say even where its operations repeat; a turn whose
+    #: warnings are the same as well is the same answer twice.
+    plan_warnings: list[str] = field(default_factory=list)
     result: ResultShape = field(default_factory=ResultShape)
     visualization: str = ""
     certified_methods: list[str] = field(default_factory=list)
@@ -260,8 +264,15 @@ class ConversationState:
 
     @property
     def has_analysis(self) -> bool:
-        """Whether an analysis has run — the precondition for a modification."""
-        return bool(self.ir)
+        """Whether an analysis has run — the precondition for a modification.
+
+        A HANDLER answers without composing a plan, so the ECL movement
+        walkthrough left `ir` empty and the next sentence had nothing to
+        inherit: "which stage moved most?" came back as a menu of governed
+        concepts. A settled measure is an analysis for this purpose — the
+        reader has been shown a figure and is asking about it.
+        """
+        return bool(self.ir or self.metrics or self.concepts)
 
     def filter_pairs(self) -> list[tuple[str, str]]:
         return [(str(f.get("kind") or f.get("field") or ""),
@@ -305,6 +316,7 @@ class ConversationState:
             "plan_summary": self.plan_summary,
             "ir": dict(self.ir),
             "plan_fingerprint": self.plan_fingerprint,
+            "plan_warnings": list(self.plan_warnings),
             "result": self.result.to_dict(),
             "visualization": self.visualization,
             "certified_methods": list(self.certified_methods),
@@ -342,6 +354,7 @@ class ConversationState:
             plan_summary=str(raw.get("plan_summary") or ""),
             ir=dict(raw.get("ir") or {}),
             plan_fingerprint=str(raw.get("plan_fingerprint") or ""),
+            plan_warnings=[str(w) for w in raw.get("plan_warnings") or []],
             result=ResultShape.from_dict(raw.get("result") or {}),
             visualization=str(raw.get("visualization") or ""),
             certified_methods=[str(v) for v in raw.get("certified_methods") or []],
@@ -621,6 +634,14 @@ _ASKS = re.compile(
 MAX_REPLY_WORDS = 10
 
 
+#: A request to show the result already on the table differently.
+_REDRAWS = re.compile(
+    r"^\s*(?:now\s+)?(?:draw|plot|chart|graph|show|display|render)\b"
+    r".{0,40}\b(?:chart|graph|plot|table|line|bar|visual\w*)\b"
+    r"|^\s*(?:as|in) a (?:chart|graph|table|line|bar)\b",
+    re.IGNORECASE)
+
+
 #: One word that moves the reader through the conversation rather than
 #: answering anything asked of them.
 _NAVIGATES = re.compile(
@@ -654,6 +675,11 @@ def answers_a_clarification(reply: str) -> bool:
     # reader was answered with "What can I not conclude from this? Back."
     # and stepped nowhere.
     if _NAVIGATES.match(text):
+        return False
+    # A request to REDRAW is not an answer either. "Draw that as a chart."
+    # is short and not interrogative, so a clarification one turn earlier
+    # swallowed it and the reader was answered with a table.
+    if _REDRAWS.search(text):
         return False
     return not _ASKS.match(text)
 

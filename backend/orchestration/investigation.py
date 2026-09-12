@@ -132,6 +132,11 @@ def wants_investigation(question: str) -> bool:
     # whole book — no subsegments, no delinquency, no window.
     if _names_the_group_and_the_measure(text):
         return False
+    # "What's happening to 30+ DPD?" names the figure it is about. A broad
+    # look at the whole book answers "what's happening?", and this sentence
+    # asks something narrower that the governed metric answers exactly.
+    if _names_what_it_is_about(text):
+        return False
     return (any(re.search(pattern, text) for pattern in _INVESTIGATE)
             or dr.wants_complete_review(question))
 
@@ -142,6 +147,38 @@ _A_SUPERLATIVE_OVER_A_GROUP = re.compile(
     r"^\s*(?:and\s+)?which\b.{0,60}?"
     r"\b(?:most|highest|largest|biggest|worst|fastest|greatest|"
     r"lowest|smallest|least)\b", re.I)
+
+
+#: "what's happening TO 30+ dpd", "what's going on WITH stage 2 exposure" —
+#: the broad look, pointed at one named thing.
+_POINTED_AT = re.compile(
+    r"\bwhat(?:'s| is|s)?\s+(?:going on|happening|the matter)\s+"
+    r"(?:to|with|in|for)\s+(?P<what>.{2,60})$",
+    re.I)
+
+
+def _names_what_it_is_about(text: str) -> bool:
+    """Whether the broad-look sentence names the one thing it is about."""
+    found = _POINTED_AT.search(text.strip().rstrip("?."))
+    if found is None:
+        return False
+    said = found.group("what").strip(" ?.")
+    if not said:
+        return False
+    try:
+        from backend.orchestration import metric_route
+
+        if metric_route.read(said) is not None:
+            return True
+    except Exception:  # noqa: BLE001 - without the route, fall through
+        pass
+    from backend.orchestration import coverage as cov
+
+    # A governed measure, named as the object of the sentence. "the book",
+    # "the portfolio" and "us" are not measures, so those stay a broad look.
+    return bool(cov.names_a_measure(said)
+                and not re.search(r"\b(?:book|portfolio|bank|us|things|"
+                                  r"the business|everything)\b", said, re.I))
 
 
 def _names_the_group_and_the_measure(text: str) -> bool:

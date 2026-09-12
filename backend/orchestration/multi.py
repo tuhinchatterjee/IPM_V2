@@ -168,7 +168,10 @@ _HORIZONS = [
     (r"two years|24 months", 8),
 ]
 
-_OPS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "="}
+#: `ne` is here because a FLOW is a state the row is in and was not: "how
+#: many facilities moved into Stage 2" is `ifrs9_stage = 2 AND
+#: previous_month_stage <> 2`, and without it the plan failed to compile.
+_OPS = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<=", "eq": "=", "ne": "!="}
 
 # ---- the shape of the answer ------------------------------------------------
 #
@@ -1085,9 +1088,14 @@ def _predicate_tree(request: MultiRequest, standing: list[dict[str, Any]],
         if binding is None:
             # A carried-forward population restriction. It has no phrase in
             # this sentence, so it is conjoined rather than placed.
+            # MEMBERSHIP, not LEVEL: it is the population the conversation
+            # carried, and it is said on the scope line. Typed as a level it
+            # joined the sentence as a condition — "41 facilities where
+            # RESTRICTED TO THE PREVIOUS ANSWER'S ROWS and dpd at or above
+            # 60".
             tests.append(pr.Test(
                 field=column, op=str(predicate.get("op") or "="), value=value,
-                kind=pr.LEVEL, phrase="",
+                kind=pr.MEMBERSHIP, phrase="",
                 label="restricted to the previous answer's rows"))
             continue
         tests.append(pr.Test(

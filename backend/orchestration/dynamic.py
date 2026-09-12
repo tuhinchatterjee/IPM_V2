@@ -122,13 +122,15 @@ class Condition:
         if isinstance(self.value, bool):
             return self.label if self.value else f"not {self.label}"
         if not isinstance(self.value, (int, float)):
+            if self.op == "ne":
+                return f"{self.label} is not {self.value}"
             return f"{self.label} is {self.value}"
         if self.kind == "order":
             return f"ranked by {self.label}"
         if self.kind in ("level", "level_open", "level_close"):
             word = {"gt": "above", "gte": "at or above",
                     "lt": "below", "lte": "at or below",
-                    "eq": "exactly"}.get(self.op, self.op)
+                    "eq": "exactly", "ne": "not"}.get(self.op, self.op)
             said = f"{self.label} {word} {self.value:g}{unit}"
             # A crossing reads back as the transition it is. Saying only the
             # closing half would be indistinguishable from a level test, which

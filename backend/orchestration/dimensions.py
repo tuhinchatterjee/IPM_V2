@@ -193,8 +193,14 @@ _BREAKDOWN = re.compile(
     # "how many facilities are in each IFRS 9 stage". Without them the
     # breakdown was not read at all, so the count grouped by the facility key
     # and came back one row per facility under a question about three stages.
+    # "Is that concentrated in one region?" is a breakdown by region asked as
+    # a yes-or-no question. Read with no dimension at all it came back as the
+    # portfolio total again, under a question about where the exposure sits.
     r"\b(?:for each|for every|in each|in every|grouped by|group by|"
-    r"broken down by|split by|by|per|across)\s+(?P<phrase>[a-z0-9][a-z0-9 ]{1,30}?)"
+    r"broken down by|split by|by|per|across|"
+    r"concentrated in (?:one|a few|a|any|which|the)|"
+    r"spread (?:across|over) (?:the )?|sit(?:s|ting)? in (?:one|a|which))"
+    r"\s+(?P<phrase>[a-z0-9][a-z0-9 ]{1,30}?)"
     r"\s*(?:,|\.|;|\?|$|\band\b|\bshow\b|\bwith\b|\bin the\b|\bfor the\b|"
     r"\bat\b|\bover the\b|\bduring\b|\bthis\b|\blast\b)")
 
