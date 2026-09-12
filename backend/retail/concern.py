@@ -170,6 +170,19 @@ def composites(Composite: Any, Signal: Any, ABOVE: str, BELOW: str,
             r"immediate\s+|closer\s+|closest\s+|your\s+){0,2}attention\b"
             r"|\bwhat\s+(?:should\s+)?(?:i|we)\s+(?:be\s+)?(?:look|worry|"
             r"focus)\w*\s+(?:at|on|about)\b"
+            # "Which customers deserve an Early Warning investigation?" — the
+            # same request in the words of the module the reader has open. It
+            # was refused as something the governed data holds nothing about,
+            # and the refusal told them to ask a Data Steward to onboard
+            # "Early Warning". The answer is the evidence ranking, under the
+            # caveat it already carries: breadth of governed evidence, never
+            # an investigation rule, because this book has no such rule.
+            r"|\b(?:requires?|requiring|needs?|needing|deserves?|deserving|"
+            r"warrants?|warranted|merits?|justif\w+)\s+(?:an?\s+|the\s+)?"
+            r"(?:early[- ]warning\s+|ew\s+|closer\s+|urgent\s+)?"
+            r"(?:investigation|review|look|escalation|case|follow[- ]up)\b"
+            r"|\bwho\s+(?:should|do|would)\s+(?:we|i)\s+(?:look\s+at|"
+            r"investigate|review|call|escalate|chase)\b"
             r"|\bworst\s+(?:names?|customers?|borrowers?|credits?|accounts?|"
             r"exposures?|offenders?|facilit(?:y|ies))\b"
             r"|\bmost\s+(?:at\s+risk|worrying|concerning|troubl\w+)\b"

@@ -470,6 +470,20 @@ _NOT_A_NAME = frozenset({
     "quantitative", "qualitative", "forward", "looking", "borrower",
     "borrowers", "customer", "customers", "counterparty", "counterparties",
     "portfolio", "sector", "sectors", "exposure", "facility", "facilities",
+    # -- the product's OWN vocabulary. "Which deserve an Early Warning
+    # investigation?" came back "CreditProbe could not find Early Warning in
+    # the published data ... a borrower it has never been given cannot be
+    # looked up", about a module in its own navigation. "What's the Gini?"
+    # was refused the same way. A capitalised noun that names a screen or a
+    # statistic is not an obligor, and telling a reader to ask a Data Steward
+    # to onboard "Early Warning" is the product failing to recognise itself.
+    "early", "warning", "warnings", "signal", "signals", "cockpit",
+    "playbook", "lens", "lenses", "investigation", "investigations", "trace",
+    "scorecard", "scorecards", "validation", "gini", "auc", "roc", "ks",
+    "psi", "brier", "calibration", "discrimination", "stability", "drift",
+    "characteristic", "characteristics", "woe", "credit", "probe",
+    "creditprobe", "workspace", "studio", "metric", "metrics", "dashboard",
+    "report", "reports", "analysis", "analyses", "what", "if",
 })
 
 

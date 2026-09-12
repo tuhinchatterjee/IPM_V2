@@ -183,6 +183,13 @@ class Answered:
     #: The scorecard a validation turn was about. Carried so "what's the
     #: Gini?" two turns later does not have to name the model again.
     scorecard_model: str = ""
+    #: The governed metric a metric-route turn reported. Carried so "which
+    #: product is driving it?" stays on the metric instead of reaching the
+    #: planner, which summed the days-past-due column and answered "1,260 days
+    #: of days past due across 4 products".
+    governed_metric: str = ""
+    #: The breakdown that metric was reported by, where there was one.
+    governed_dimension: str = ""
     build: ap.AnalysisBuild | None = None
     runtime: Any = None
     written: interpretation.Interpretation | None = None
@@ -601,7 +608,11 @@ def answer(question: str, *, context: Any = None,
         validated = _validation_answer(answered, validation, question)
         if validated is not None:
             return finish(validated)
-    governed_metric = None if modifying else metric_route.read(question)
+    governed_metric = None if modifying else metric_route.read(
+        question, carried_metric=(state.governed_metric if state else ""),
+        carried_dimension=((state.governed_dimension if state else "")
+                           or (state.dimensions[0] if state and state.dimensions
+                               else "")))
     if governed_metric is not None:
         try:
             computed = metric_route.answer(governed_metric, question)
@@ -610,6 +621,8 @@ def answer(question: str, *, context: Any = None,
             computed = None
         if computed is not None:
             answered.result = computed
+            answered.governed_metric = governed_metric.metric_id
+            answered.governed_dimension = governed_metric.dimension
             answered.reading = replace(
                 reading,
                 objective=f"The governed metric {governed_metric.metric.name}")
@@ -1036,9 +1049,12 @@ def _unknown_borrower(question: str, context: Any) -> str:
     """
     for name in referents_unresolved(question, context):
         if entities.known_borrower(name) is None:
+            from backend.retail import profile
+
+            who = "customer" if profile.is_retail() else "borrower"
             return (f"CreditProbe could not find {name} in the published data. "
                     "It only reads datasets that have been published and marked "
-                    "authoritative, so a borrower it has never been given "
+                    f"authoritative, so a {who} it has never been given "
                     "cannot be looked up. Check the name, or ask a Data Steward "
                     "whether that book has been onboarded.")
     return ""
@@ -2741,6 +2757,10 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     # validation conversation does not end the validation conversation.
     if answered.scorecard_model:
         state.scorecard_model = answered.scorecard_model
+    if answered.governed_metric:
+        state.governed_metric = answered.governed_metric
+        if answered.governed_dimension:
+            state.governed_dimension = answered.governed_dimension
 
     if answered.runtime is None or answered.build is None:
         _keep_the_population_the_question_named(state, answered)

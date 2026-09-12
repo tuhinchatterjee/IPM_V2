@@ -275,7 +275,17 @@ for _stage, _words in _STAGE_WORDS.items():
                [_t("all", "All exposure", BOOK, "sum",
                    "gross_carrying_amount_sar")]),
         unit="percent", domain=D_IMPAIRMENT,
-        aliases=tuple(f"{w} share" for w in _words[1:]),
+        # "Share", "rate", "proportion", "percentage", "mix" — one figure,
+        # five words, and only the first was spelled. "Which subsegment has
+        # the highest Stage 2 RATE?" missed the metric and was composed out of
+        # columns instead: the planner summed the stage number itself and
+        # answered "18.00 IFRS 9 stage in Stage 2 across 9 subsegments". The
+        # right answer, which the same engine gives for the word "share", is
+        # CARD at 12.70%.
+        aliases=tuple(f"{w} {s}" for w in _words[1:]
+                      for s in ("share", "rate", "proportion", "percentage",
+                                "percent", "mix", "share of exposure",
+                                "share of the book")),
         formula_text=(f"SUM(gca WHERE stage = {_stage}) / SUM(gca) × 100"),
         decimals=2, higher_is_better=(_stage == 1), visuals=("kpi", "bar")))
     _STAGE_METRICS.append(_m(

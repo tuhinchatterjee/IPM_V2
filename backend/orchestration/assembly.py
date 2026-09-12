@@ -16,6 +16,8 @@ the other's shape to look more impressive.
 
 from __future__ import annotations
 
+import re as _re
+
 import logging
 import re
 from typing import Any
@@ -823,6 +825,33 @@ def _led_by_the_largest_move(build: Any, rows: list[dict[str, Any]]) -> Any:
             best, best_pct = match, moved[2]
     return best
 
+
+_ASKS_WHICH_IS_LARGEST = _re.compile(
+    r"\bwhich\b[^?]{0,60}\b(?:largest|biggest|highest|most|worst|greatest|"
+    r"smallest|lowest|least|best)\b"
+    r"|\b(?:largest|biggest|highest|worst|smallest|lowest)\b[^?]{0,20}"
+    r"\b(?:subsegment|segment|product|region|city|band|bucket|stage)s?\b",
+    _re.IGNORECASE)
+
+
+def _largest_group(build: Any, rows: list[dict[str, Any]], column: str
+                   ) -> tuple[str, float] | None:
+    """The leading group, where the question asked which one leads."""
+    if not column or not rows or not build.dimension:
+        return None
+    asked = str(getattr(build.reading, "objective", "") or "")
+    if not _ASKS_WHICH_IS_LARGEST.search(asked):
+        return None
+    smallest = bool(_re.search(r"\b(?:smallest|lowest|least)\b", asked,
+                               _re.IGNORECASE))
+    scored = [(str(r.get(build.dimension) or ""), float(r[column]))
+              for r in rows
+              if isinstance(r.get(column), (int, float))
+              and r.get(build.dimension) is not None]
+    if not scored:
+        return None
+    return (min if smallest else max)(scored, key=lambda pair: pair[1])
+
 def _population_average(column: str, rows: list[dict[str, Any]]) -> float | None:
     """The average the runtime computed over the whole population, if present.
 
@@ -1096,6 +1125,22 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             direct = (f"{_fmt(total)} {subject}{where} across {count} "
                       f"{_dimension_word(build)}{'s' if count != 1 else ''} at "
                       f"{build.period}.")
+            # "Which subsegment has the largest Stage 2 exposure?" was
+            # answered with the TOTAL across nine of them — a true number, and
+            # not the one asked for; the fidelity check noticed and wrote a
+            # caveat under an answer that was given anyway. The rows hold the
+            # answer, so the sentence says it.
+            leader = _largest_group(build, rows, column)
+            if leader is not None:
+                name, value = leader
+                shown = presentation.render(
+                    value, {c["name"]: c for c in _presented(runtime, build)}
+                    .get(column, {})) if column else _fmt(value)
+                direct = (f"{name} has the largest {_lower(label)}{where} at "
+                          f"{build.period}, at {shown} of {_fmt(total)} "
+                          f"across {count} "
+                          f"{_dimension_word(build)}"
+                          f"{'s' if count != 1 else ''}.")
         else:
             # One number for the whole population. "across 1 customer" is what
             # a program says when it has counted its own output rows.
@@ -1469,7 +1514,14 @@ def _composite_narrative(build: ap.AnalysisBuild, runtime: Any,
     # the whole value of carrying scope forward is that the answer shows it.
     scope_said = _scope_phrase(build.filters or [], build.widened)
     where = f" in {scope_said}" if scope_said else ""
-    carried = getattr(build.continuation, "referent", "") or ""
+    # The referent as the reader wrote it, without the preposition it may
+    # already carry. "Which of those also…" resolves to the referent "of
+    # those", and the sentence adds its own "of": "25 customers of of those,
+    # ranked by…". A duplicated word in the first line of an answer is the
+    # kind of thing a reader stops reading at.
+    carried = _re.sub(r"^(?:of|from|in|among|amongst)\s+", "",
+                      str(getattr(build.continuation, "referent", "") or "")
+                      ).strip()
     ordinal = dict(getattr(build.continuation, "ordinal", {}) or {})
     if count == 1 and ordinal.get("resolved"):
         # One borrower, named by pointing at a row of the previous answer.

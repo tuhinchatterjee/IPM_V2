@@ -164,6 +164,20 @@ _RECENT = r"(?:last|latest|past|previous|prior|current|trailing|most recent|this
 #: Ordered longest-match-first within each span so "the last three years" is not
 #: consumed by the plain "last year" rule.
 _RELATIVE_SPANS: list[tuple[str, str]] = [
+    # ---- a window stated by its far end: "…to three months ago"
+    #
+    # First, because the generic rules below would take it apart: "compare
+    # Stage 2 this month to three months ago" matched "this month" as "the
+    # previous period" and compared August with July, three sentences after
+    # the reader named the window they wanted.
+    (r"\b(?:3|three)\s+months?\s+ago\b", "3 months"),
+    (r"\b(?:6|six)\s+months?\s+ago\b", "6 months"),
+    (r"\b(?:12|twelve)\s+months?\s+ago\b|\ba\s+year\s+ago\b"
+     r"|\bone\s+year\s+ago\b", "12 months"),
+    (r"\b(?:2|two)\s+years?\s+ago\b", "2 years"),
+    (r"\b(?:3|three)\s+years?\s+ago\b", "3 years"),
+    (r"\ba\s+(?:quarter|3\s+months)\s+ago\b", "3 months"),
+
     # ---- three years
     (rf"\b(?:over|in|across|for)?\s*(?:the\s+)?{_RECENT}\s+(?:3|three)\s+years?\b",
      "3 years"),
@@ -211,6 +225,9 @@ _RELATIVE_SPANS: list[tuple[str, str]] = [
     (rf"\bagainst\s+(?:the\s+)?{_RECENT}\s+(?:period|month)\b",
      "previous"),
     (rf"\b{_RECENT}\s+(?:3|three)\s+months\b", "3 months"),
+    # "…to three months ago." A window stated by its far end rather than by
+    # its length, and the plainest way a person says it. Without it "compare
+    # Stage 2 this month to three months ago" compared August with July.
     (r"\bsequential(?:ly)?\b", "previous"),
 
     # ---- everything

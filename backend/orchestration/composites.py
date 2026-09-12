@@ -331,6 +331,18 @@ CREDIT_CONCERN = Composite(
         r"|\b(?:require|requiring|need|needing|deserve|deserving|warrant\w*)"
         r"\s+(?:the\s+most\s+|urgent\s+|immediate\s+|closer\s+|closest\s+)?"
         r"attention\b"
+        # "Which deserve an Early Warning investigation?" — the same request
+        # in the words of the module a reader has open. It was refused as
+        # something the governed data holds nothing about, and the message
+        # told them to ask a Data Steward to onboard "Early Warning". The
+        # answer is the evidence ranking, with the caveat it already carries:
+        # this is breadth of governed evidence, not an investigation rule.
+        r"|\b(?:require|requiring|need|needing|deserve|deserving|warrant\w*|"
+        r"merit\w*|justif\w*)\s+(?:an?\s+|the\s+)?"
+        r"(?:early[- ]warning\s+|ew\s+)?"
+        r"(?:investigation|review|look|escalation|case|follow[- ]up)\b"
+        r"|\bwho\s+(?:should|do)\s+(?:we|i)\s+(?:look\s+at|investigate|"
+        r"review|call|escalate)\b"
         r"|\bworst\s+(?:names?|borrowers?|customers?|credits?|accounts?|"
         r"exposures?|offenders?)\b"
         r"|\bmost\s+(?:at\s+risk|worrying|concerning|troubl\w+)\b"

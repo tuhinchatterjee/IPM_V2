@@ -814,11 +814,45 @@ def _plan(reading: Reading, context: GovernedContext, *,
     survivors = [m for m in matches
                  if m.field not in constrained
                  and m.concept.id != COUNT_CONCEPT]
-    if grouping.found and constrained and survivors and len(survivors) < len(matches):
+    # The gap the note above describes, closed for everything that is not a
+    # COUNT. "What is the Stage 2 exposure?" came back "2.00 IFRS 9 stage in
+    # Stage 2" — the constant, quoted as the finding, on one of the most
+    # ordinary questions there is. The two cases the note warns about are both
+    # counts: "how many borrowers are in Stage 2?" has the constrained field
+    # as its subject and needs it to anchor on, and that is `count_grain`.
+    if (constrained and survivors and len(survivors) < len(matches)
+            and (grouping.found or not count_grain)):
         dropped = [m for m in matches if m.field in constrained]
         matches = [m for m in matches if m.field not in constrained]
         logger.info("Dropped %s as a measure: the question constrains it.",
                     ", ".join(m.label for m in dropped))
+    elif (matches and not survivors and constrained and not count_grain
+          and mv.asks_for_change(text)):
+        # The gap above, for the one case where closing it cannot lose an
+        # anchor. "Compare Stage 2 this month to three months ago" names ONE
+        # governed field, constrains it to 2, and asks how it moved — so the
+        # answer was "IFRS 9 stage was unchanged from 2.00 to 2.00, a change
+        # of 0.00", which is true of a constant and answers nothing. Every row
+        # inside the filter carries the same value; there is nothing there to
+        # measure. Dropping it leaves no measure, which is exactly the state
+        # the movement default below reads, and that refills it from the same
+        # book — so the plan still has something to anchor on.
+        dropped = list(matches)
+        wanted: list[cx.ConceptMatch] = []
+        for name in movement_defaults():
+            more = cx.read_concepts(name, known=known, catalogue=catalogue)
+            if more.matches:
+                wanted.append(more.matches[0])
+        if wanted:
+            matches = wanted
+            movement_default = _list_of(m.label for m in wanted)
+            planning_notes.append(
+                f"{_list_of(m.label for m in dropped)} is what the question "
+                f"CONSTRAINS, not what it measures — every row inside that "
+                f"restriction carries the same value — so CreditProbe measured "
+                f"the movement in {movement_default}.")
+            logger.info("Dropped %s as a measure and defaulted the movement.",
+                        ", ".join(m.label for m in dropped))
 
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
                        else 0)
@@ -871,6 +905,23 @@ def _plan(reading: Reading, context: GovernedContext, *,
         if first in context.dimensions:
             dimension = first
     shape = _shape(reading, conditions, dimension, text)
+
+    # A NARROWING keeps the analysis and changes the scope. It was keeping the
+    # measure and losing the shape: "why did weighted ECL move this month?"
+    # followed by "show me personal finance" came back as the ten largest
+    # personal-finance facilities at one date, and "now home finance" as a
+    # single total — correct figures, and neither of them the question the
+    # reader had been asking for two turns. A sentence that states only a
+    # scope states no shape either, so the settled one stands.
+    if (shape in (AGGREGATE, RANKING) and carrying and state
+        and state.shape == MOVEMENT and continuation is not None
+        and continuation.action in (cv.NARROW_SCOPE, cv.CONTINUE)
+            and not mv.asks_for_change(text)
+            and not _explicit_top_n(text)):
+        shape = MOVEMENT
+        if continuation is not None:
+            continuation.inherited["shape"] = (
+                "the movement the conversation is about, narrowed")
 
     # The governed profile of the entities this question selects.
     #

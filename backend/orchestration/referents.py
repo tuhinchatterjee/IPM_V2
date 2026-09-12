@@ -536,7 +536,13 @@ _ONLY_A_SCOPE = re.compile(
     # Longest first: "why is it" must not be consumed by the bare "why",
     # which would leave "is it Shipping" as the value and match nothing.
     r"(?:why\s+(?:is|are|was|were|does|do|did)(?:\s+it)?|"
-    r"and\s+what\s+about|what\s+about|how\s+about|what\s+of|why)?\s*"
+    r"and\s+what\s+about|what\s+about|how\s+about|what\s+of|why|"
+    # "Show me personal finance." — the plainest narrowing there is, and it
+    # was read as a fresh request with no measure in it, so the product asked
+    # which figure to measure one turn after computing one. The value still
+    # has to be a governed one, so "show me the largest customers" is
+    # unaffected: "largest customers" is not a value in the vocabulary.
+    r"show\s+me|show|give\s+me|let\s+me\s+see|look\s+at|just)?\s*"
     r"(?:the\s+)?(?P<value>[a-z0-9&'\u2019 .\-]+?)"
     r"(?:\s+(?:specifically|in\s+particular|then|though|instead))?"
     r"\s*[?.!]*\s*$", re.IGNORECASE)

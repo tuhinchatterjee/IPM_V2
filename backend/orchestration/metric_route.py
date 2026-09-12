@@ -220,15 +220,55 @@ def _compiled() -> tuple[tuple[re.Pattern[str], str, Any], ...]:
                  for phrase, metric in _phrases())
 
 
-def read(question: str) -> Routed | None:
+#: A follow-up that stays on the metric already answered without naming it.
+#:
+#: "What's happening to 30+ DPD?" is answered by this engine, and then "which
+#: product is driving it?" was not: the metric left nothing on the
+#: conversation, the planner read the sentence from a standing start, and the
+#: only delinquency column it could find was `dpd` — so it SUMMED it and
+#: answered "1,260 days of days past due across 4 products". "By rate, not
+#: volume" fared worse and asked which figure to measure.
+_STAYS_ON_THE_METRIC = re.compile(
+    r"^\s*(?:and\s+|now\s+|ok(?:ay)?[,.]?\s+|so\s+)?"
+    r"(?:which|what)\s+\w+\s+(?:is\s+)?(?:driv\w+|caus\w+|behind|"
+    r"account\w*\s+for|contribut\w+)\b"
+    r"|^\s*(?:and\s+|now\s+)?by\s+[\w\s]{2,30}(?:,\s*not\s+[\w\s]{2,20})?\s*[?.!]*$"
+    r"|^\s*(?:and\s+|now\s+)?break\s+(?:that|it|this)\s+down\b"
+    r"|^\s*(?:and\s+|now\s+)?(?:show|split|group)\s+(?:that|it|this)\s+by\b",
+    re.IGNORECASE)
+
+#: The words that say "as a proportion" rather than "as a count of days".
+_BY_RATE = re.compile(r"\brate\b|\bproportion\b|\bshare\b|\bpercent\w*\b"
+                      r"|\brelative\b|\bper\s+cent\b", re.IGNORECASE)
+
+
+def stays_on_the_metric(question: str) -> bool:
+    """Whether this follow-up continues the metric already on the table."""
+    return bool(_STAYS_ON_THE_METRIC.search(
+        " ".join(str(question or "").split())))
+
+
+def read(question: str, *, carried_metric: str = "",
+         carried_dimension: str = "") -> Routed | None:
     """The governed metric this question asks for, or `None` to fall through.
 
     `None` is the ordinary outcome and costs nothing: every question that is
     not a plain request for a named rate goes to the planner as it always did.
+
+    `carried_metric` is the metric the conversation already settled. It is
+    used only where the sentence names none of its own AND plainly continues
+    it — a breakdown, a driver question, or "by rate, not volume".
     """
     text = str(question or "")
     if not text.strip():
         return None
+    if carried_metric and stays_on_the_metric(text) and not _names_a_metric(text):
+        held = _by_id(carried_metric)
+        if held is not None:
+            routed = _routed_for(held, text, carried=True,
+                                 carried_dimension=carried_dimension)
+            if routed is not None:
+                return routed
     from backend.retail import profile
 
     if not profile.is_retail():
@@ -288,6 +328,65 @@ def read(question: str) -> Routed | None:
                   ranked=bool(_RANKED.search(text)),
                   period=_period(text, metric))
 
+
+
+def _by_id(metric_id: str) -> Any:
+    """One metric out of the library, by its id."""
+    from backend.metrics import library
+
+    for metric in library.ALL:
+        if str(metric.metric_id) == str(metric_id):
+            return metric
+    return None
+
+
+def _names_a_metric(text: str) -> bool:
+    """Whether the sentence names a governed metric of its own."""
+    for pattern, phrase, _ in _compiled():
+        hit = pattern.search(text)
+        if hit and not _qualified_away(text, hit, phrase):
+            return True
+    return _share_of_a_state(text) is not None
+
+
+def _rate_sibling(metric: Any) -> Any:
+    """The proportional form of a metric, where the library publishes one.
+
+    "By rate, not volume" after a count is a request for a different metric,
+    not a different presentation, and answering it with the count again would
+    be answering the half of the sentence that says "by".
+    """
+    return metric
+
+
+def _routed_for(metric: Any, text: str, *, carried: bool = False,
+                carried_dimension: str = "") -> Any:
+    """Route a CARRIED metric through this question's breakdown and ordering."""
+    phrase = str(metric.name).lower()
+    if _TREND.search(text):
+        period_field = _period_field(metric)
+        if period_field:
+            return Routed(metric=metric, phrase=phrase,
+                          dimension=period_field, dimension_phrase="month",
+                          ranked=False, period="", trend=True)
+    dimension, dimension_phrase = _breakdown(text, phrase)
+    if not dimension and carried:
+        # "Which product is driving it?" names the dimension as its subject
+        # rather than after "by", which is what `_breakdown` reads.
+        dimension, dimension_phrase = _breakdown(f"by {text}", phrase)
+    if not dimension and carried and carried_dimension and _BY_RATE.search(text):
+        # "By rate, not volume." The metric IS a rate and the breakdown is the
+        # one already on screen, so this is the same answer said again — which
+        # is the honest response to a reader asking for something they already
+        # have, and better than asking them which figure to measure.
+        dimension, dimension_phrase = carried_dimension, carried_dimension.replace(
+            "_", " ")
+    if not dimension:
+        return None
+    return Routed(metric=metric, phrase=phrase, dimension=dimension,
+                  dimension_phrase=dimension_phrase,
+                  ranked=bool(_RANKED.search(text)) or carried,
+                  period=_period(text, metric))
 
 #: A request for the metric AS A SERIES rather than as a figure.
 _TREND = re.compile(

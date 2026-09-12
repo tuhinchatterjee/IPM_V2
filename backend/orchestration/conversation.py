@@ -241,6 +241,10 @@ class ConversationState:
     #: The scorecard a validation turn was about, so "what's the Gini?" and
     #: "is that good?" do not each have to name the model again.
     scorecard_model: str = ""
+    #: The governed metric the last metric-route turn reported.
+    governed_metric: str = ""
+    #: The breakdown that metric was reported by.
+    governed_dimension: str = ""
     turns: list[Turn] = field(default_factory=list)
     #: The question CreditProbe could not plan and asked about, held so the
     #: reply can be merged with it instead of read as a fresh request. §9: a
@@ -308,6 +312,8 @@ class ConversationState:
             "certified_params": dict(self.certified_params),
             "composite": self.composite,
             "scorecard_model": self.scorecard_model,
+            "governed_metric": self.governed_metric,
+            "governed_dimension": self.governed_dimension,
             "turns": [t.to_dict() for t in self.turns],
             "pending": self.pending,
         }
@@ -343,6 +349,8 @@ class ConversationState:
             certified_params=dict(raw.get("certified_params") or {}),
             composite=str(raw.get("composite") or ""),
             scorecard_model=str(raw.get("scorecard_model") or ""),
+            governed_metric=str(raw.get("governed_metric") or ""),
+            governed_dimension=str(raw.get("governed_dimension") or ""),
             turns=[Turn.from_dict(t) for t in raw.get("turns") or []],
             pending=str(raw.get("pending") or ""),
         )
