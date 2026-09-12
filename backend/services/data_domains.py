@@ -88,6 +88,39 @@ DOMAINS: tuple[BusinessDomain, ...] = (
         catalogue_domains=("Cockpit Data",),
     ),
     BusinessDomain(
+        name="Early Warning Data",
+        description=(
+            "Where the retail book is going wrong before it is written off: "
+            "current delinquency and stage beside the behavioural signals "
+            "that move first, the exposure at stake, and the layer inputs the "
+            "Forward Risk Signal is scored from."),
+        owner="Retail Early Warning",
+        catalogue_domains=("Early Warning Data",),
+        datasets=("retail_early_warning",),
+    ),
+    BusinessDomain(
+        name="Credit Scorecard Data",
+        description=(
+            "Both retail scorecards as they were actually applied: the model "
+            "and version that scored each facility, every configured input "
+            "raw, transformed and in points, the total score, the band, the "
+            "mapped PD, and the outcome where the window has closed."),
+        owner="Retail Model Validation",
+        catalogue_domains=("Credit Scorecard Data",),
+        datasets=("retail_credit_scorecard",),
+    ),
+    BusinessDomain(
+        name="What-If Analysis Data",
+        description=(
+            "Everything a scenario moves and everything it lands on: the "
+            "IFRS 9 risk parameters under each scenario, the staging inputs, "
+            "the collateral and recovery assumptions, the score variables a "
+            "stress can be applied to, and the weighted ECL the book carries."),
+        owner="Retail IFRS 9",
+        catalogue_domains=("What-If Analysis Data",),
+        datasets=("retail_whatif",),
+    ),
+    BusinessDomain(
         name="Core Portfolio / Facility",
         description=(
             "Facilities, limits, exposure and utilisation, and the collateral, "
@@ -275,9 +308,15 @@ def business_domain(*, dataset: str = "", catalogue_domain: str = "") -> str:
     return _BY_CATALOGUE.get((catalogue_domain or "").strip().lower(), UNPLACED)
 
 
-#: Which headings the RETAIL product offers. One, because the retail
-#: installation has one analytical domain.
-RETAIL_DOMAIN_NAMES: tuple[str, ...] = ("Cockpit Data",)
+#: Which headings the RETAIL product offers. Four governed VIEWS of one
+#: canonical book — see `backend.retail.domains`, which builds them and proves
+#: each one still reconciles to the book it came from. They are separate
+#: headings because the five hundred and forty-six columns of the canonical
+#: book serve four different readers, and one list of them serves none.
+RETAIL_DOMAIN_NAMES: tuple[str, ...] = (
+    "Cockpit Data", "Early Warning Data", "Credit Scorecard Data",
+    "What-If Analysis Data",
+)
 
 
 def active_domains() -> tuple[BusinessDomain, ...]:

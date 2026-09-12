@@ -142,10 +142,70 @@ class Routed:
     trend: bool = False
     #: The sentence, so the answer can lead with the end it asked for.
     question: str = ""
+    #: The governed population the QUESTION named, as (field, value) pairs.
+    #:
+    #: The defect this closes. "What is the 30+ DPD rate for credit cards?"
+    #: answered **1.79%** — the whole book. The card book is at 3.70%. The
+    #: metric library computes over the book or over one dimension of it and
+    #: holds no filters of its own, so every population a question named was
+    #: dropped on the way in and the reader was shown a true figure about a
+    #: population they had not asked about, with nothing on the screen to say
+    #: so. The same drop made "show the 30+ DPD rate for credit cards by card
+    #: behaviour segment" return the whole book grouped by a card-only
+    #: dimension, with 13,213 non-card facilities under "(not set)".
+    population: tuple[tuple[str, str], ...] = ()
 
     @property
     def metric_id(self) -> str:
         return str(self.metric.metric_id)
+
+    def scope(self) -> tuple[Any, ...]:
+        """The metric's own scope, plus the population the question named.
+
+        A field the metric already scopes is not added again: "Stage 2
+        exposure for Stage 2" is one restriction, and emitting it twice would
+        put a redundant line in the working for no gain.
+        """
+        from backend.metrics.formula import Condition
+
+        extra = tuple(
+            Condition(field=field, op="=", value=value)
+            for field, value in self.population
+            if field and field not in self._spoken_for())
+        return tuple(self.metric.scope or ()) + extra
+
+    def _spoken_for(self) -> set[str]:
+        """Fields the metric's own definition already decides.
+
+        Not just its `scope`. "What proportion of the book is in Stage 2?"
+        names Stage 2, and Stage 2 Share of Exposure already carries
+        `ifrs9_stage = 2` inside its NUMERATOR — its denominator is the whole
+        book on purpose, because that is what a share is. Adding the
+        question's Stage 2 as a population put the condition on the
+        denominator too and the answer became "100.00%". The same mistake
+        turned the secured share into 100%: every secured facility is secured.
+        A field the formula already conditions on anywhere is the metric's
+        business, not a population to restrict it to.
+        """
+        held = {str(getattr(c, "field", "")) for c in (self.metric.scope or ())}
+        formula = getattr(self.metric, "formula", None)
+        for side in (getattr(formula, "numerator", None),
+                     getattr(formula, "denominator", None)):
+            for term in (getattr(side, "terms", None) or ()):
+                for condition in (getattr(term, "where", None) or ()):
+                    field = str(getattr(condition, "field", ""))
+                    if field:
+                        held.add(field)
+        return held
+
+    def said(self) -> str:
+        """How the population reads in a sentence, or empty for the book.
+
+        On the screen, always. A restricted figure that does not say what it
+        is restricted to is the same defect wearing a correct number.
+        """
+        values = [str(v) for _, v in self.population if str(v)]
+        return ", ".join(dict.fromkeys(values))
 
 
 @lru_cache(maxsize=1)
@@ -262,7 +322,8 @@ def stays_on_the_metric(question: str) -> bool:
 
 
 def read(question: str, *, carried_metric: str = "",
-         carried_dimension: str = "") -> Routed | None:
+         carried_dimension: str = "",
+         population: tuple[tuple[str, str], ...] = ()) -> Routed | None:
     """The governed metric this question asks for, or `None` to fall through.
 
     `None` is the ordinary outcome and costs nothing: every question that is
@@ -279,7 +340,8 @@ def read(question: str, *, carried_metric: str = "",
         held = _by_id(carried_metric)
         if held is not None:
             routed = _routed_for(held, text, carried=True,
-                                 carried_dimension=carried_dimension)
+                                 carried_dimension=carried_dimension,
+                                 population=population)
             if routed is not None:
                 return routed
     from backend.retail import profile
@@ -336,6 +398,7 @@ def read(question: str, *, carried_metric: str = "",
         if period_field:
             return Routed(metric=metric, phrase=phrase,
                           dimension=period_field, dimension_phrase="month",
+                          population=population,
                           ranked=False, period="", trend=True, question=text)
 
     if semantics.find_movement(masked) is not None:
@@ -345,7 +408,7 @@ def read(question: str, *, carried_metric: str = "",
 
     dimension, dimension_phrase = _breakdown(text, phrase)
     return Routed(metric=metric, phrase=phrase, dimension=dimension,
-                  dimension_phrase=dimension_phrase,
+                  dimension_phrase=dimension_phrase, population=population,
                   ranked=bool(_RANKED.search(text)),
                   period=_period(text, metric), question=text)
 
@@ -381,7 +444,8 @@ def _rate_sibling(metric: Any) -> Any:
 
 
 def _routed_for(metric: Any, text: str, *, carried: bool = False,
-                carried_dimension: str = "") -> Any:
+                carried_dimension: str = "",
+                population: tuple[tuple[str, str], ...] = ()) -> Any:
     """Route a CARRIED metric through this question's breakdown and ordering."""
     phrase = str(metric.name).lower()
     if _TREND.search(text):
@@ -389,6 +453,7 @@ def _routed_for(metric: Any, text: str, *, carried: bool = False,
         if period_field:
             return Routed(metric=metric, phrase=phrase,
                           dimension=period_field, dimension_phrase="month",
+                          population=population,
                           ranked=False, period="", trend=True, question=text)
     dimension, dimension_phrase = _breakdown(text, phrase)
     if not dimension and carried:
@@ -405,7 +470,7 @@ def _routed_for(metric: Any, text: str, *, carried: bool = False,
     if not dimension:
         return None
     return Routed(metric=metric, phrase=phrase, dimension=dimension,
-                  dimension_phrase=dimension_phrase,
+                  dimension_phrase=dimension_phrase, population=population,
                   ranked=bool(_RANKED.search(text)) or carried,
                   period=_period(text, metric), question=text)
 
@@ -679,7 +744,7 @@ def _value_answer(routed: Routed, question: str, result_type: Any) -> Any:
 
     metric = routed.metric
     computed = service.value(metric.metric_id, period=routed.period,
-                             question=question)
+                             question=question, scope=routed.scope())
     value = computed.get("value")
     period = str(computed.get("period") or routed.period or "")
     shown = _format(value, str(metric.unit), int(metric.decimals))
@@ -688,7 +753,9 @@ def _value_answer(routed: Routed, question: str, result_type: Any) -> Any:
         sentence = (f"{metric.name} could not be computed{where}: "
                     f"{computed.get('unavailable') or 'no rows qualified'}.")
     else:
-        sentence = f"{metric.name} is {shown}{where}."
+        said = routed.said()
+        sentence = (f"{metric.name} is {shown}"
+                    + (f" in {said}" if said else "") + f"{where}.")
         if metric.formula_text:
             sentence += f" It is {metric.formula_text}."
     return result_type(
@@ -735,10 +802,16 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
     try:
         drawn = execution.breakdown(
             metric.formula, dimension=routed.dimension,
+            # The population the question named, as a filter on the rows the
+            # breakdown groups. Without it "by card behaviour segment" for
+            # credit cards grouped the whole book and reported thirteen
+            # thousand non-card facilities as "(not set)".
+            where=tuple(c for c in routed.scope()
+                        if c not in tuple(metric.scope or ())),
             # A series spans every published month, so it names no ONE of
             # them; a cut is taken at a single reporting date.
             period="" if routed.trend else period,
-            scope=metric.scope,
+            scope=tuple(metric.scope or ()),
             sort="label" if routed.trend else "value",
             # Ordered the way the question asked. A breakdown cut at the top
             # cannot answer a question about the bottom.

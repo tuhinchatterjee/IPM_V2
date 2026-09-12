@@ -121,12 +121,24 @@ def retail_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_the_shipped_catalogue_names_the_domain_the_product_puts_on_screen() -> None:
-    """The vocabulary is only as good as the file it reads."""
+    """The vocabulary is only as good as the file it reads.
+
+    Four domains rather than one. The retail installation holds ONE
+    analytical book and offers four governed VIEWS of it — Cockpit, Early
+    Warning, Credit Scorecard and What-If — because five hundred and
+    forty-six columns serve four different readers and one list of them
+    serves none. What this gate is about is unchanged: every domain named in
+    the shipped catalogue is a domain the product puts on screen, and no
+    other. A corporate heading appearing here would still fail it.
+    """
     import json
+
+    from backend.services import data_domains
 
     document = json.loads((ROOT / "metadata/retail/catalog.json").read_text())
     domains = {dataset.get("domain") for dataset in document["datasets"]}
-    assert domains == {"Cockpit Data"}, sorted(str(d) for d in domains)
+    assert domains == set(data_domains.active_domain_names()), \
+        sorted(str(d) for d in domains)
 
 
 @pytest.mark.parametrize("phrase", [

@@ -192,6 +192,138 @@ RETAIL_RISK = LensSpec(
 )
 
 
+# ============================================================ Retail IFRS 9
+
+
+RETAIL_IFRS9 = LensSpec(
+    slug="retail-ifrs9-ecl",
+    name="Retail IFRS 9 and ECL",
+    audience="Retail IFRS 9 Committee and Head of Impairment",
+    description=(
+        "What the retail book is provisioned at, how the three scenarios "
+        "differ, where the exposure sits across the stages, and how much of "
+        "the allowance is judgement rather than model."),
+    sections=(
+        Section(
+            title="The allowance",
+            subtitle=("The reported figure, what it covers, and the two "
+                      "pieces it is made of. A coverage ratio with no "
+                      "exposure beside it is a number nobody can challenge."),
+            tiles=(
+                Tile("retail.ecl", "kpi"),
+                Tile("retail.gross_carrying_amount", "kpi"),
+                Tile("retail.ecl_coverage", "kpi"),
+                Tile("retail.ecl_weighted_before_overlay", "kpi"),
+                Tile("retail.overlay", "kpi"),
+                Tile("retail.ecl", "line"),
+            )),
+        Section(
+            title="The three scenarios",
+            subtitle=("Each scenario's ECL on its own, before weighting. The "
+                      "reported allowance is the weighted result plus the "
+                      "overlay and is deliberately shown beside them rather "
+                      "than among them: it is not a fourth scenario."),
+            tiles=(
+                Tile("retail.ecl_upturn", "kpi"),
+                Tile("retail.ecl_base", "kpi"),
+                Tile("retail.ecl_downturn", "kpi"),
+                Tile("retail.ecl_downturn", "line"),
+            )),
+        Section(
+            title="Staging",
+            subtitle=("Where the exposure is, and what each stage is "
+                      "provisioned at. Stage 3 is a small share of the book "
+                      "and a large share of the allowance; both shares are "
+                      "here so that is visible rather than inferred."),
+            tiles=(
+                Tile("retail.stage1.exposure", "kpi"),
+                Tile("retail.stage2.exposure", "kpi"),
+                Tile("retail.stage3.exposure", "kpi"),
+                Tile("retail.stage1.share", "bar"),
+                Tile("retail.stage2.share", "bar"),
+                Tile("retail.stage3.share", "bar"),
+                Tile("retail.stage1.coverage", "kpi"),
+                Tile("retail.stage2.coverage", "kpi"),
+                Tile("retail.stage3.coverage", "kpi"),
+            )),
+        Section(
+            title="What moves the staging",
+            subtitle=("The triggers, over time. A stage split at one date "
+                      "says where the book is; these say where it is going."),
+            tiles=(
+                Tile("retail.sicr_rate", "line"),
+                Tile("retail.forbearance_rate", "line"),
+                Tile("retail.stage3.ecl", "kpi"),
+                Tile("retail.stage2.ecl", "kpi"),
+            )),
+    ),
+)
+
+
+# ======================================================= Retail Early Warning
+
+
+RETAIL_EARLY_WARNING = LensSpec(
+    slug="retail-early-warning",
+    name="Retail Early Warning",
+    audience="Early Warning Review and Head of Retail Collections",
+    description=(
+        "What is going wrong now and what is about to: arrears at each "
+        "threshold by exposure and by account, the exposure already in "
+        "default, and the behavioural signals that move before any of it "
+        "shows up in the arrears."),
+    sections=(
+        Section(
+            title="Already behind",
+            subtitle=("Each threshold twice, by EXPOSURE and by ACCOUNT. A "
+                      "single line labelled '30+ DPD' is read two ways by two "
+                      "people in the same meeting."),
+            tiles=(
+                Tile("retail.dpd30_rate", "line"),
+                Tile("retail.dpd30_count_rate", "line"),
+                Tile("retail.dpd60_rate", "line"),
+                Tile("retail.dpd90_rate", "line"),
+                Tile("retail.overdue_amount", "kpi"),
+                Tile("retail.default_rate_current", "kpi"),
+            )),
+        Section(
+            title="What it is worth",
+            subtitle=("The exposure at stake, and the allowance already held "
+                      "against it."),
+            tiles=(
+                Tile("retail.stage3.exposure", "kpi"),
+                Tile("retail.stage3.coverage", "kpi"),
+                Tile("retail.stage2.exposure", "kpi"),
+                Tile("retail.writeoff_month", "line"),
+            )),
+        Section(
+            title="Signals that move first",
+            subtitle=("Behaviour and affordability, before any of it reaches "
+                      "the arrears bands above. These are inputs to a view "
+                      "about the future; the bands above are the outcome."),
+            tiles=(
+                Tile("retail.average_behavioural_score", "line"),
+                Tile("retail.average_bureau_score", "line"),
+                Tile("retail.average_debt_burden", "line"),
+                Tile("retail.card_utilisation", "line"),
+                Tile("retail.average_pd_current", "line"),
+            )),
+        Section(
+            title="Who is exposed to it",
+            subtitle=("The structural features that decide how hard a "
+                      "deterioration lands: whether salary comes through the "
+                      "bank, and whether there is security behind the "
+                      "facility."),
+            tiles=(
+                Tile("retail.salary_transfer_rate", "kpi"),
+                Tile("retail.secured_share", "kpi"),
+                Tile("retail.forbearance_rate", "line"),
+                Tile("retail.sicr_rate", "line"),
+            )),
+    ),
+)
+
+
 # =========================================================== Retail Analytics
 
 
@@ -314,7 +446,8 @@ CORPORATE_IFRS9 = LensSpec(
 )
 
 
-ALL: tuple[LensSpec, ...] = (RETAIL_RISK, RETAIL_ANALYTICS, CORPORATE_IFRS9)
+ALL: tuple[LensSpec, ...] = (RETAIL_RISK, RETAIL_IFRS9, RETAIL_EARLY_WARNING,
+                             RETAIL_ANALYTICS, CORPORATE_IFRS9)
 
 #: Shipped lenses that read the corporate book. Retained in `ALL` — a corporate
 #: profile installs all three — and withheld from what a RETAIL installation

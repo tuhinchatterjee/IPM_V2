@@ -221,6 +221,42 @@ IMPAIRMENT: tuple[MetricDefinition, ...] = (
        formula_text="SUM(management_overlay_sar)", decimals=0,
        visuals=("kpi", "bar")),
 
+    # The three scenarios the weighted figure is made of. Named separately
+    # because "what would the downturn cost us?" is the question an IFRS 9
+    # committee asks every month, and answering it from the weighted number
+    # requires the reader to do the un-weighting in their head.
+    _m("retail.ecl_base", "Base-Scenario ECL",
+       "Expected credit loss under the BASE macroeconomic scenario alone, "
+       "before the three scenarios are probability-weighted. One of the "
+       "three inside the reported allowance, never the allowance itself.",
+       _total(_t("b", "Base ECL", BOOK, "sum", "ecl_base_sar")),
+       unit="currency", domain=D_IMPAIRMENT,
+       aliases=("base ecl", "base scenario ecl", "base case ecl"),
+       formula_text="SUM(ecl_base_sar)", decimals=0,
+       higher_is_better=False, visuals=("kpi", "line", "bar"),
+       not_this="Not the reported loss allowance, which is the weighted "
+                "result across all three scenarios plus the overlay."),
+
+    _m("retail.ecl_upturn", "Upturn-Scenario ECL",
+       "Expected credit loss under the UPTURN macroeconomic scenario alone, "
+       "before weighting.",
+       _total(_t("u", "Upturn ECL", BOOK, "sum", "ecl_upturn_sar")),
+       unit="currency", domain=D_IMPAIRMENT,
+       aliases=("upturn ecl", "upturn scenario ecl", "optimistic ecl"),
+       formula_text="SUM(ecl_upturn_sar)", decimals=0,
+       higher_is_better=False, visuals=("kpi", "line", "bar")),
+
+    _m("retail.ecl_downturn", "Downturn-Scenario ECL",
+       "Expected credit loss under the DOWNTURN macroeconomic scenario "
+       "alone, before weighting. What the book would carry if the downturn "
+       "were certain rather than weighted at its scenario probability.",
+       _total(_t("d", "Downturn ECL", BOOK, "sum", "ecl_downturn_sar")),
+       unit="currency", domain=D_IMPAIRMENT,
+       aliases=("downturn ecl", "downturn scenario ecl", "severe ecl",
+                "stress ecl"),
+       formula_text="SUM(ecl_downturn_sar)", decimals=0,
+       higher_is_better=False, visuals=("kpi", "line", "bar")),
+
     _m("retail.ecl_coverage", "ECL Coverage",
        "The loss allowance as a proportion of the gross carrying amount. "
        "Computed as a ratio of the two totals, not as an average of each "

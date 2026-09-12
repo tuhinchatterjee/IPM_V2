@@ -39,13 +39,43 @@ class TestRET034AlertsFromCanonicalData:
         snapshot = retail_book.latest()["snapshot_date"].iloc[0]
         assert (alerts["snapshot_date"] == snapshot).all()
 
-    def test_no_separate_ews_seed_exists(self):
+    def test_no_separate_ews_seed_exists(self, retail_book):
+        """Early warning reads the canonical book, not a seed of its own.
+
+        The lake now holds four directories rather than one, and that is not
+        the thing this gate was written to prevent. Three of them are
+        DERIVED VIEWS: `backend.retail.domains` builds them by selecting
+        columns out of the canonical parquet and nothing else, so every row,
+        every customer and every exposure total in them is the canonical
+        book's. A separately GENERATED early-warning universe — its own
+        customers, its own numbers, quietly disagreeing with the book the
+        Cockpit answers from — is what must not exist, and this now checks
+        that directly rather than by counting directories.
+        """
+        import pandas as pd
+
+        from backend.retail import domains
         from tests.retail.conftest import SHIPPED_ANALYTICS
-        datasets = [p.name for p in SHIPPED_ANALYTICS.iterdir()
-                    if p.is_dir() and not p.name.startswith(".")]
-        assert datasets == ["retail_facility_month"], (
-            f"EWS must read the canonical book, not its own seed; found {datasets}"
-        )
+
+        found = {p.name for p in SHIPPED_ANALYTICS.iterdir()
+                 if p.is_dir() and not p.name.startswith(".")}
+        allowed = {domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+        assert found <= allowed, (
+            f"EWS must read the canonical book, not its own seed; found "
+            f"{sorted(found - allowed)}")
+
+        latest = retail_book.latest()
+        view = SHIPPED_ANALYTICS / domains.EARLY_WARNING.dataset
+        if not view.exists():
+            pytest.skip("the early-warning view has not been built")
+        month = str(latest["reporting_month"].iloc[0])
+        parts = sorted((view / f"reporting_month={month}").glob("*.parquet"))
+        assert parts, f"the early-warning view has no {month}"
+        derived = pd.read_parquet(parts[0])
+        assert len(derived) == len(latest)
+        assert set(derived["customer_id"]) == set(latest["customer_id"])
+        assert float(derived["gross_carrying_amount_sar"].sum()) == pytest.approx(
+            float(latest["gross_carrying_amount_sar"].sum()), rel=1e-9)
 
     def test_thresholds_are_labelled_synthetic_and_configurable(self, alerts):
         assert alerts["threshold_source"].str.contains("Synthetic demo threshold").all()

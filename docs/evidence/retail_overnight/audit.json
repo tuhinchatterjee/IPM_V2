@@ -1,0 +1,237 @@
+[
+ {
+  "name": "Cockpit",
+  "route": "/",
+  "chars": 1773,
+  "empty_markers": [
+   "nothing here"
+  ],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Workspace",
+  "route": "/workspace",
+  "chars": 1065,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Messages",
+  "route": "/messages",
+  "chars": 845,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Projects",
+  "route": "/projects",
+  "chars": 690,
+  "empty_markers": [
+   "No projects"
+  ],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Project Planner",
+  "route": "/project-planner",
+  "chars": 580,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Investigations",
+  "route": "/investigations",
+  "chars": 18693,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Analyses",
+  "route": "/analyses",
+  "chars": 1288,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Documents",
+  "route": "/documents",
+  "chars": 1157,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Lenses",
+  "route": "/lenses",
+  "chars": 1109,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Metric Catalogue",
+  "route": "/metrics",
+  "chars": 693,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Early Warning",
+  "route": "/early-warning",
+  "chars": 9018,
+  "empty_markers": [],
+  "corporate": [
+   "sector"
+  ],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Early Warning Signals",
+  "route": "/early-warning/signals",
+  "chars": 9499,
+  "empty_markers": [
+   "nothing here"
+  ],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "What-If",
+  "route": "/what-if",
+  "chars": 4915,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Customer 360",
+  "route": "/borrower-360",
+  "chars": 864,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Scorecard Validation",
+  "route": "/scorecard-validation",
+  "chars": 3861,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Analysis Studio",
+  "route": "/analysis-studio",
+  "chars": 580,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Data Builder",
+  "route": "/data-builder",
+  "chars": 1675,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Trace & Lineage",
+  "route": "/trace",
+  "chars": 2789,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Playbook",
+  "route": "/playbook",
+  "chars": 1511,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "My reviews",
+  "route": "/my-reviews",
+  "chars": 580,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Workflow",
+  "route": "/workflow",
+  "chars": 10496,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Agent Operations",
+  "route": "/agent-operations",
+  "chars": 3203,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "AI Intelligence Studio",
+  "route": "/ai-studio",
+  "chars": 4083,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Users & Teams",
+  "route": "/users",
+  "chars": 17211,
+  "empty_markers": [],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ },
+ {
+  "name": "Settings",
+  "route": "/settings",
+  "chars": 4462,
+  "empty_markers": [
+   "Not configured"
+  ],
+  "corporate": [],
+  "page_errors": [],
+  "head": "WORK |  | Projects | Project Planner | Investigations | Analyses | Documents |  | INTELLIGENCE |  | Lenses | Metric Catalogue | Early Warning | Early Warning Signals | What-If Analysis | Customer 360 | Scorecard Validation |  | BUILD |  | Analysis Studio | Data Builder |  | GOVERN | "
+ }
+]

@@ -1148,7 +1148,24 @@ def _plan(reading: Reading, context: GovernedContext, *,
             f"CreditProbe measured the movement in {movement_default} — what "
             "the book is owed and what it expects to lose on it. Name any "
             "governed measure to see its movement instead.")
-    if not dimension and carrying and state.dimensions:
+    # A question that asks for its own ENTITY GRAIN does not inherit the
+    # previous turn's breakdown. "Break the credit card book down by
+    # subsegment" then "give me the worst 20 customers by expected credit
+    # loss" returned the right twenty customers under the headline "545,568
+    # SAR of final ECL in Credit Card across 20 SUBSEGMENTS" — the rows were
+    # customers, the carried dimension was product_subsegment, and the
+    # sentence counted the one and named the other. The reader is being told
+    # the book has twenty subsegments; it has nine.
+    # ...and only where the entity is what the question asks to SEE. "Only
+    # salary transfer customers." names an entity noun and is a narrowing of
+    # the breakdown on screen, not a request for one row per customer; the
+    # first draft of this guard read the noun alone and silently dropped the
+    # stage breakdown the reader was looking at. What distinguishes the two is
+    # that a request for a list says how many it wants, or asks for the worst
+    # of them.
+    if not dimension and carrying and state.dimensions \
+            and not (_asks_for_an_entity_grain(text)
+                     and (_explicit_top_n(text) or _RANKS_ENTITIES.search(text))):
         first = state.dimensions[0]
         if first in context.dimensions:
             dimension = first
@@ -2101,6 +2118,19 @@ def _without_measure_names(text: str, matches: list[cx.ConceptMatch]) -> str:
         said = pattern.sub(lambda m: " " * len(m.group(0)), said)
     return said
 
+
+
+#: A request for a LIST of entities, rather than a narrowing that happens to
+#: name one. "the worst 20 customers", "which customers are", "show me the
+#: customers with" — each asks to see them one per row.
+_RANKS_ENTITIES = _re.compile(
+    r"\b(?:worst|best|largest|smallest|highest|lowest|top|bottom|riskiest)\b"
+    r"[^.?!]{0,40}?\b(?:customers?|borrowers?|facilit(?:y|ies)|accounts?|"
+    r"obligors?|clients?)\b"
+    r"|\bwhich\s+(?:customers?|borrowers?|facilit(?:y|ies)|accounts?)\b"
+    r"|\b(?:list|show me|give me)\s+(?:the\s+)?"
+    r"(?:customers?|borrowers?|facilit(?:y|ies)|accounts?)\b",
+    _re.IGNORECASE)
 
 
 def _states_a_fresh_breakdown(text: str, matches: list[cx.ConceptMatch],

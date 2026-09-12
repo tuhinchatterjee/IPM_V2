@@ -182,6 +182,13 @@ RETAIL_DIMENSIONS: tuple[str, ...] = (
     "dpd_bucket",
     "collections_stage",
     "utilisation_band",
+    # How a card is actually used, which is the dimension a card portfolio
+    # review opens with. Without it "show the 30+ DPD rate for credit cards by
+    # card behaviour segment" resolved no grouping, fell through to the
+    # ungrouped metric, LOST the credit-card restriction with it, and answered
+    # 1.79% — the whole book — under a question about cards, whose rate is
+    # 3.70%. Three values on the shipped book: TRANSACTOR, REVOLVER, INACTIVE.
+    "card_behaviour_segment",
     "ltv_band",
     "application_score_band",
     "behavioural_score_band",
@@ -265,6 +272,10 @@ RETAIL_DIMENSION_ALIASES: dict[str, tuple[str, ...]] = {
                           "collections stages"),
     "utilisation_band": ("utilisation", "utilization", "utilisation bands",
                          "card utilisation band"),
+    "card_behaviour_segment": ("card behaviour", "card behavior",
+                               "card behaviour segments",
+                               "card behavioural segment", "behaviour segment",
+                               "card usage", "transactor revolver"),
     "ltv_band": ("ltv", "ltv bands", "loan to value band"),
     "application_score_band": ("application score bands", "application band",
                                "application bands"),

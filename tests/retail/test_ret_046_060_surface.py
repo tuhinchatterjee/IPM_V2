@@ -60,8 +60,22 @@ class TestRET046RetailOnlySurface:
         for token in CORPORATE_VOCABULARY:
             assert token not in blob, f"the active catalogue mentions '{token}'"
 
-    def test_the_active_catalogue_has_one_domain(self, shipped_catalog):
-        assert {d["domain"] for d in shipped_catalog["datasets"]} == {"Cockpit Data"}
+    def test_the_active_catalogue_has_only_retail_domains(self, shipped_catalog):
+        """Four governed views of one book, and no corporate heading.
+
+        This gate asserted ONE domain, which was right while the retail
+        installation offered one. It now offers four — Cockpit, Early
+        Warning, Credit Scorecard and What-If — as column views of the same
+        canonical rows, built and reconciled by `backend.retail.domains`. The
+        thing it exists to catch is unchanged: a corporate domain reaching
+        the retail catalogue.
+        """
+        from backend.services import data_domains
+
+        found = {d["domain"] for d in shipped_catalog["datasets"]}
+        assert found == set(data_domains.active_domain_names()), sorted(found)
+        for name in found:
+            assert "corporate" not in str(name).lower(), name
 
     def test_the_governed_purposes_offered_are_retail(self):
         purposes = active_governed_purposes()
@@ -169,8 +183,19 @@ class TestRET047NoLegacyFallback:
             catalog.dataset("something_that_never_existed")
 
     def test_the_retired_identifier_is_not_resurrected(self):
+        """The retired corporate book stays retired.
+
+        Named datasets rather than a count: the catalogue holds the canonical
+        retail book and its three governed views, and what must never appear
+        is the retired identifier or anything corporate.
+        """
+        from backend.retail import domains
+
         catalog = Catalog.load(ROOT / "metadata" / "retail" / "catalog.json")
-        assert catalog.names() == ["retail_facility_month"]
+        allowed = {domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+        assert set(catalog.names()) <= allowed, sorted(
+            set(catalog.names()) - allowed)
+        assert domains.CANONICAL in catalog.names()
 
     def test_a_missing_retail_seed_is_an_actionable_error_not_a_fallback(self):
         error = profile.missing_seed_error()
@@ -673,10 +698,15 @@ class TestRET053And054PublicationAndMigration:
         assert len(partitions) == 25, "a rebuild must not accumulate stale partitions"
 
     def test_retired_seeds_do_not_reappear(self, retail_book):
+        """Nothing in the lake but the book and the views derived from it."""
+        from backend.retail import domains
         from tests.retail.conftest import SHIPPED_ANALYTICS
+
         present = {p.name for p in SHIPPED_ANALYTICS.iterdir()
                    if p.is_dir() and not p.name.startswith(".")}
-        assert present == {"retail_facility_month"}
+        allowed = {domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+        assert present <= allowed, sorted(present - allowed)
+        assert domains.CANONICAL in present
 
     def test_the_migration_graph_is_untouched(self):
         """This conversion adds no migration, so the heads must be unchanged."""

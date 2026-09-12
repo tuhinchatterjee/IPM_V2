@@ -372,14 +372,23 @@ def default_period(metric: MetricDefinition) -> str:
 
 def value(metric_id: str, *, period: str = "", user_id: int | None = None,
           readable: Iterable[str] | None = None,
-          question: str = "") -> dict[str, Any]:
+          question: str = "",
+          scope: tuple[Any, ...] | None = None) -> dict[str, Any]:
     """Calculate one metric now, and show the working.
 
     The result carries the definition beside the number, because a figure
     somebody cannot trace back to its definition is a figure they will
     recalculate by hand.
+
+    `scope` replaces the metric's own scope for this one calculation. It is
+    how a caller that knows the population the QUESTION named — "the 30+ DPD
+    rate FOR CREDIT CARDS" — gets the figure for that population rather than
+    for the whole book. It is a replacement rather than an addition because
+    the caller composes it from the metric's scope, so the metric's own
+    restrictions cannot be lost by passing one.
     """
     metric = resolve(metric_id, user_id=user_id, readable=readable)
+    applied = tuple(metric.scope or ()) if scope is None else tuple(scope)
     try:
         # Inside the guard, not before it: resolving which period a metric
         # means is itself a read of the lake, and it fails the same way the
@@ -387,7 +396,7 @@ def value(metric_id: str, *, period: str = "", user_id: int | None = None,
         # as a raw 500 on a page that had been working.
         period = period or default_period(metric)
         calculation = execution.run(
-            metric.formula, period=period, scope=metric.scope,
+            metric.formula, period=period, scope=applied,
             question=question
             or f"{metric.name} for {period or 'the latest period'}")
     except DataAccessError as e:

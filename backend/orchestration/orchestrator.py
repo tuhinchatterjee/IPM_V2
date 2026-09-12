@@ -266,6 +266,11 @@ class Answered:
     #: has nothing to inherit unless the turn says what it was about.
     settled_measure: str = ""
     settled_window: tuple[str, str] = ("", "")
+    #: The population a METRIC-ROUTE turn restricted to. A route composes no
+    #: plan, so without this the restriction it applied was invisible to the
+    #: next turn: "the 30+ DPD rate for credit cards by behaviour segment"
+    #: then "now by utilisation band" widened silently back to the whole book.
+    settled_population: tuple[tuple[str, str], ...] = ()
     #: The reused result itself, for the answer and the Trace.
     cached: Any = None
     #: What this answer covers, and what this turn did to it.
@@ -689,11 +694,38 @@ def answer(question: str, *, context: Any = None,
         and state is not None
         and (state.filters or state.result.has_population
              or state.conditions))
+    # The population the QUESTION named, read the same way the planner reads
+    # it so the two layers cannot disagree about what "for credit cards"
+    # restricts to. The metric library holds no filters of its own, so
+    # without this every restriction a question named was dropped and the
+    # answer was a true figure about the whole book under a question about
+    # one product.
+    governed_population: tuple[tuple[str, str], ...] = ()
+    try:
+        from backend.orchestration import analysis_planner as _ap
+
+        governed_population = tuple(
+            _ap._filters(reading, context, question))
+        # A bare follow-up names no population and means the one on the
+        # table. "Show the 30+ DPD rate for credit cards by card behaviour
+        # segment" then "now by utilisation band" widened silently back to the
+        # whole book, and the reader was shown ">100% at 100.00%" — one
+        # facility, somewhere in retail, under a question about cards.
+        if not governed_population and state is not None \
+                and continuation.carries_context:
+            governed_population = tuple(
+                (field, value) for field, value in state.filter_pairs()
+                if field in (context.dimensions or {})
+                and value in (context.dimensions or {}).get(field, ()))
+    except Exception:  # noqa: BLE001 - an unreadable population is no population
+        logger.exception("Could not read the population for %r", question)
+
     governed_metric = None if (modifying or points_back) else metric_route.read(
         question, carried_metric=(state.governed_metric if state else ""),
         carried_dimension=((state.governed_dimension if state else "")
                            or (state.dimensions[0] if state and state.dimensions
-                               else "")))
+                               else "")),
+        population=governed_population)
     if governed_metric is not None:
         try:
             computed = metric_route.answer(governed_metric, question)
@@ -704,6 +736,7 @@ def answer(question: str, *, context: Any = None,
             answered.result = computed
             answered.governed_metric = governed_metric.metric_id
             answered.governed_dimension = governed_metric.dimension
+            answered.settled_population = tuple(governed_metric.population)
             answered.reading = replace(
                 reading,
                 objective=f"The governed metric {governed_metric.metric.name}")
@@ -3293,6 +3326,14 @@ def remember(state: cv.ConversationState, answered: Answered, *,
         # screen to the last COMPOSED analysis, and showed the workings of a
         # different question without saying so.
         _remember_a_route_result(state, answered, run_id=run_id)
+        if answered.settled_population and answered.answered:
+            state.filters = [{"kind": field, "value": value}
+                             for field, value in answered.settled_population]
+        elif answered.governed_metric and answered.answered:
+            # A metric turn over the WHOLE book settles the whole book. Left
+            # standing, the previous turn's restriction would be inherited by
+            # a question that had deliberately widened out of it.
+            state.filters = []
         if answered.settled_measure and answered.answered:
             state.concepts = [answered.settled_measure]
             state.metrics = list(state.concepts)
