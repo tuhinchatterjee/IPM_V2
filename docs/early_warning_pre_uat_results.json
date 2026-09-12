@@ -5457,7 +5457,9 @@
       "frontend": "429 / 429 pass",
       "typecheck": "clean",
       "lint": "clean",
-      "environment_note": "PostgreSQL had stopped mid-session on a stale pid file; the regression above was run with it back up. A subset run taken while it was down showed 79 failures both with and without this run's changes, which is how the artefact was told apart from a regression."
-    }
+      "environment_note": "PostgreSQL had stopped mid-session on a stale pid file; the regression above was run with it back up. A subset run taken while it was down showed 79 failures both with and without this run's changes, which is how the artefact was told apart from a regression.",
+      "production_build": "clean"
+    },
+    "commit": "7bc3c0f"
   }
 }

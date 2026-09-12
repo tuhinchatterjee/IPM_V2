@@ -79,3 +79,7 @@ every one needed a model to actually answer.
 | 35 | Certification diagnostics, without weakening acceptance | done |
 | 36 | Focused tests, full regression, baseline comparison | done |
 | 37 | Second Mac certification run | blocked-external |
+
+Run 3 commit `7bc3c0f`. Backend 22 failed / 10,754 passed / 27 skipped, the
+22 identical to the recorded baseline. Frontend 429 of 429; typecheck, lint
+and production build clean.
