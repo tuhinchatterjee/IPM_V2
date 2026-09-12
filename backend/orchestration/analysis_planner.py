@@ -28,7 +28,7 @@ import functools
 import logging
 import re
 import re as _re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from backend.orchestration import collapse, fidelity, gate, multi, ordinal
@@ -38,6 +38,7 @@ from backend.orchestration import context as governed_context
 from backend.orchestration import conversation as cv
 from backend.orchestration import dimensions as dm
 from backend.orchestration import grain as gr
+from backend.orchestration import movement as mv
 from backend.orchestration import ordering as od
 from backend.orchestration import predicates as pr
 from backend.orchestration import semantics as sm
@@ -83,6 +84,26 @@ COUNT_CONCEPT = "population_count"
 #: ambiguous between three governed amounts and a default must not resolve an
 #: ambiguity the product otherwise asks about.
 DISTRIBUTION_MEASURE = "exposure at default"
+
+#: What a question about the BOOK's movement measures when it names no figure.
+#:
+#: "What changed in my retail portfolio this month that I should actually care
+#: about?" — the first question a Head of Retail Risk asks, and it was refused
+#: outright: "the governed data holds nothing about what was asked", on a book
+#: that holds precisely this. The sentence names no measure because the
+#: measures are obvious; asking which figure to compare is asking the reader
+#: to write the answer's column headings for it.
+#:
+#: Two measures, not ten. A movement across every published metric is the
+#: "dump every metric" answer the question is a complaint about, and these two
+#: are what the book IS: what is owed, and what is expected to be lost on it.
+#: Stated in the caveats, never silent, exactly as the distribution default is.
+def movement_defaults() -> tuple[str, ...]:
+    from backend.retail import profile
+
+    if profile.is_retail():
+        return ("gross carrying amount", "expected credit loss")
+    return ("exposure at default", "expected credit loss")
 
 #: Aggregations by what the measure IS. Summing a percentage is meaningless and
 #: averaging an exposure hides the book, so neither is left to a default.
@@ -478,15 +499,6 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # `settled_text` is the previous question, used ONLY where this sentence
     # resolves nothing. A narrowing that named its own measure keeps it.
     #
-    # A plain CONTINUE reads the same way and was excluded, which is how a
-    # whole conversation died two turns after a composite. "Which product
-    # worries you most?" is a credit-concern ranking: it matches no concept,
-    # so the state it leaves names no measure. "Show me the numbers behind
-    # that" then resolved nothing from its own words, had nothing to inherit,
-    # and came back "Which figure should CreditProbe measure?" — and so did
-    # every turn after it. CONTINUE is the action for a sentence that points
-    # back and names nothing; if any turn should be allowed to read the
-    # settled analysis, it is that one.
     inheriting = bool(continuation is not None and state is not None
                       and continuation.action in (cv.NARROW_SCOPE, cv.CONTINUE))
     settled_text = ""
@@ -494,6 +506,18 @@ def _plan(reading: Reading, context: GovernedContext, *,
         settled_text = (state.result.question
                         or (state.turns[-1].question if state.turns else ""))
 
+    # A plain CONTINUE inherits the COMPOSITE and nothing else.
+    #
+    # "Which product worries you most?" is a credit-concern ranking: it
+    # matches no concept, so the state it leaves names no measure, and "show
+    # me the numbers behind that" had nothing to inherit and came back "Which
+    # figure should CreditProbe measure?" — as did every turn after it.
+    #
+    # Deliberately narrower than re-reading the previous sentence. Doing that
+    # on a CONTINUE also re-read its BREAKDOWN: "ECL by IFRS 9 stage for
+    # personal finance" followed by "how did that move since July?" acquired
+    # IFRS 9 stage as a second MEASURE, and a column of stage numbers was
+    # summed. The composite is one thing, recorded as one thing.
     # Carrying a POPULATION is not the same as carrying a PLAN, and the two
     # were gated on one flag. `has_analysis` asks whether an analysis has run,
     # which is the right precondition for a modification — "show only the five
@@ -537,6 +561,16 @@ def _plan(reading: Reading, context: GovernedContext, *,
         resolved = cx.read_concepts(settled_text, known=known,
                                     catalogue=catalogue,
                                     preferred_datasets=reading_order)
+        # The MEASURES of the settled question, not its BREAKDOWN. "ECL by
+        # IFRS 9 stage for personal finance" followed by "how did that move
+        # since July?" re-read the whole sentence, so the stage became a
+        # second measure and a column of stage numbers was summed. The
+        # dimension is carried separately, on the state, where it belongs.
+        carried_dimensions = set(state.dimensions or []) if state else set()
+        kept = [m for m in resolved.matches
+                if str(getattr(m, "field", "")) not in carried_dimensions]
+        if kept and len(kept) != len(resolved.matches):
+            resolved = replace(resolved, matches=kept)
     matches = list(resolved.matches)
     carried_concepts: list[str] = []
     if carrying and inherited_metrics:
@@ -707,6 +741,18 @@ def _plan(reading: Reading, context: GovernedContext, *,
             matches = list(more.matches)
             distribution_default = DISTRIBUTION_MEASURE
 
+    movement_default = ""
+    if (not matches and not count_grain and not grouping.found
+            and mv.asks_for_change(text)):
+        wanted: list[cx.ConceptMatch] = []
+        for name in movement_defaults():
+            more = cx.read_concepts(name, known=known, catalogue=catalogue)
+            if more.matches:
+                wanted.append(more.matches[0])
+        if wanted:
+            matches = wanted
+            movement_default = _list_of(m.label for m in wanted)
+
     # An entity question is not refused here. "Which borrowers are in
     # Shipping?" names no figure and does not need one: the head noun says
     # what the answer has one row of, and a list of borrowers IS an analytical
@@ -814,6 +860,12 @@ def _plan(reading: Reading, context: GovernedContext, *,
         planning_notes.append(
             f"The question named no figure, so this distribution is measured "
             f"by {DISTRIBUTION_MEASURE}.")
+    if movement_default:
+        planning_notes.append(
+            f"The question asked what changed and named no figure, so "
+            f"CreditProbe measured the movement in {movement_default} — what "
+            "the book is owed and what it expects to lose on it. Name any "
+            "governed measure to see its movement instead.")
     if not dimension and carrying and state.dimensions:
         first = state.dimensions[0]
         if first in context.dimensions:

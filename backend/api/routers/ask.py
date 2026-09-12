@@ -132,6 +132,40 @@ def recent(limit: int = 8) -> dict:
     return {"investigations": store.recent_investigations(max(1, min(50, limit)))}
 
 
+
+def _can_read(dataset: str) -> bool:
+    """Whether the governed layer publishes this dataset here."""
+    try:
+        from backend.data_access import get_catalog
+
+        return any(spec.name == dataset for spec in get_catalog().all())
+    except Exception:  # noqa: BLE001
+        return False
+
+def _published_period() -> str | None:
+    """The latest month the ACTIVE governed dataset publishes.
+
+    Read off the catalogue and the source, so it is right on any installation
+    and needs no analysis to have run.
+    """
+    try:
+        from backend.data_access import get_catalog, get_data_source
+
+        source = get_data_source()
+        latest: str | None = None
+        for spec in get_catalog().all():
+            try:
+                available = source.periods(spec.name)
+            except Exception:  # noqa: BLE001 - a dataset with no lake yet
+                continue
+            if available and (latest is None or available[-1] > latest):
+                latest = available[-1]
+        return latest
+    except Exception as e:  # noqa: BLE001 - no calendar is not a failure
+        logger.warning("Could not read the governed calendar: %s", e)
+        return None
+
+
 @router.get("/briefing", summary="The Cockpit portfolio briefing")
 def briefing() -> dict:
     """Headline position and the deterioration signals worth opening with.
@@ -143,11 +177,30 @@ def briefing() -> dict:
     out: dict[str, Any] = {"period": None, "summary": None, "attention": None,
                            "trend": None, "errors": []}
 
+    # The reporting period comes from the governed calendar, which every
+    # installation has, rather than out of one corporate analysis. All three
+    # analyses below read `portfolio_facility`, which a retail installation
+    # does not publish, so every Cockpit load returned three errors, no
+    # period, and a "Requires attention" heading with no reporting month on
+    # it — while the Early Warning strip beneath it was handed an empty month.
+    out["period"] = _published_period()
+
+    # Three analyses that read one dataset. Where the installation does not
+    # publish it, saying so ONCE is the honest answer; running all three to
+    # collect the same error three times is noise in the log on every load.
+    if not _can_read("portfolio_facility"):
+        out["errors"].append(
+            "The Cockpit briefing panels read portfolio_facility, which this "
+            "installation does not publish. The reporting period above comes "
+            "from the governed calendar.")
+        return out
+
     try:
         summary = run_analysis("portfolio_summary",
                                params={"period": "latest", "compare_period": "previous"})
         out["summary"] = summary.to_dict()
-        out["period"] = (summary.result.values.get("period") if summary.result else None)
+        out["period"] = ((summary.result.values.get("period") if summary.result
+                          else None) or out["period"])
     except Exception as e:
         logger.warning("Briefing summary failed: %s", e)
         out["errors"].append(f"Portfolio summary: {e}")

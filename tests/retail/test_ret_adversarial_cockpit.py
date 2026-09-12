@@ -360,3 +360,181 @@ class TestAClarificationSpeaksThisBook:
         for corporate in ("borrower", "sector", "rating"):
             assert corporate not in said, (
                 f"the retail clarification offers {corporate!r}")
+
+
+class TestTheBookSOwnOpeningQuestion:
+    """"What changed this month?" — refused, on a book that holds exactly it."""
+
+    def test_it_is_answered_rather_than_refused(self):
+        answered = answer("What changed in my retail portfolio this month "
+                          "that I should actually care about?")
+        assert answered.answered
+        assert not getattr(answered, "unsupported", "")
+
+    def test_the_figures_are_the_books(self, book):
+        answered = answer("What changed in my retail portfolio this month "
+                          "that I should actually care about?")
+        got = values(answered)
+        truth = float(book.ecl_final_sar.sum())
+        assert got["closing_total"] == pytest.approx(truth, abs=1.0)
+
+    def test_it_leads_with_the_movement_that_matters(self):
+        """Gross carrying amount moved 2%; ECL moved 13%. Lead with the 13%."""
+        answered = answer("What changed in my retail portfolio this month "
+                          "that I should actually care about?")
+        assert abs(float(values(answered)["change_pct"])) > 10.0, (
+            "the answer opened on the smaller movement and left the larger "
+            "one in the table")
+
+    def test_the_default_is_stated_not_silent(self):
+        answered = answer("What changed in my retail portfolio this month "
+                          "that I should actually care about?")
+        said = " ".join(answered.build.warnings)
+        assert "named no figure" in said, said
+        assert "Name any governed measure" in said
+
+    def test_a_named_measure_is_not_overridden(self, book):
+        """The default fires only where the sentence named no figure."""
+        answered = answer("How did ECL move this month?")
+        assert [m.label.lower() for m in answered.build.matches] == ["final ecl"]
+        assert values(answered)["closing_total"] == pytest.approx(
+            float(book.ecl_final_sar.sum()), abs=1.0)
+
+
+class TestAScorecardQuestionReachesTheValidationRunner:
+    """Eleven consecutive turns answered with the average origination score."""
+
+    def test_a_performance_question_is_routed(self):
+        from backend.orchestration import scorecard_route as sr
+        routed = sr.read("How is our personal-finance application scorecard "
+                         "performing?")
+        assert routed is not None
+        assert routed.model_id == "retail_app_personal_loan"
+
+    def test_it_returns_findings_rather_than_an_average_score(self):
+        answered = answer("How is our personal-finance application scorecard "
+                          "performing?")
+        assert answered.scorecard_model == "retail_app_personal_loan"
+        said = str(answered.result.answer)
+        assert "findings" in said.lower(), said
+        assert "points of application score" not in said.lower(), (
+            "the average origination score of the book is not how a scorecard "
+            "is performing")
+
+    def test_the_gini_is_the_runners_gini(self):
+        answered = answer("What is the Gini on the personal finance "
+                          "application scorecard?")
+        row = answered.result.rows[0]
+        assert row["test_id"] == "DISC-GINI"
+        assert 0.0 < float(row["value"]) < 1.0
+        assert "observations" in str(row["detail"])
+
+    def test_the_answer_names_the_model_version_and_cohort(self):
+        answered = answer("What is the Gini on the personal finance "
+                          "application scorecard?")
+        said = str(answered.result.answer)
+        assert "Personal Finance Application Scorecard" in said
+        assert "v1.0.0" in said
+        assert "observations" in said
+
+    def test_a_band_question_names_a_band(self):
+        first = answer("What is the Gini on the personal finance application "
+                       "scorecard?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        answered = answer("Which risk band is most miscalibrated?", state=state)
+        said = str(answered.result.answer)
+        assert "band " in said.lower(), said
+        assert "observations carrying" in said, (
+            "a band named without its sample is the number an auditor asks "
+            "the second question about")
+        assert any("evidence" in str(r.get("evidence", "")).lower()
+                   for r in answered.result.rows)
+
+    def test_the_conversation_carries_the_scorecard(self):
+        first = answer("How is our personal-finance application scorecard "
+                       "performing?")
+        state = orchestrator.remember(cv.ConversationState(), first)
+        assert state.scorecard_model == "retail_app_personal_loan"
+        answered = answer("What's the Gini?", state=state)
+        assert answered.result.rows[0]["test_id"] == "DISC-GINI"
+
+    def test_an_unnamed_scorecard_is_asked_about_not_guessed(self):
+        from backend.orchestration import scorecard_route as sr
+        routed = sr.read("What's the Gini?")
+        assert routed is not None and not routed.model_id
+        assert "Which scorecard?" in routed.ask
+        assert "Personal Finance Application Scorecard" in routed.ask
+
+    @pytest.mark.parametrize("question", [
+        "What is total ECL by product?",
+        "What is the average application score by product?",
+        "Which customers are 30+ DPD?",
+    ])
+    def test_an_ordinary_question_is_not_routed(self, question):
+        from backend.orchestration import scorecard_route as sr
+        assert sr.read(question) is None
+
+    def test_the_route_computes_nothing_of_its_own(self):
+        """Every figure comes from the validation runner, stated as such."""
+        answered = answer("What is the Gini on the personal finance "
+                          "application scorecard?")
+        said = " ".join(answered.result.warnings)
+        assert "computed by the validation runner" in said, said
+
+
+class TestAPeriodMeansWhatItSays:
+    """A month is a month, a quarter is three of them, a year is twelve."""
+
+    @pytest.fixture(scope="class")
+    def months(self) -> list[str]:
+        import glob as _glob
+        found = sorted(p.rsplit("=", 1)[1] for p in _glob.glob(
+            "data/retail/analytics/retail_facility_month/reporting_month=*"))
+        if not found:
+            pytest.skip("the shipped retail lake has not been built")
+        return found
+
+    def window(self, question: str) -> tuple[str, str]:
+        answered = answer(question)
+        return answered.build.opening, answered.build.closing
+
+    def test_move_this_month_is_a_movement_not_a_level(self):
+        answered = answer("How did ECL move this month?")
+        assert answered.build.shape == ap.MOVEMENT, (
+            "the verb 'move' with a period after it read as an instruction, "
+            "and the level was returned under a caveat saying so")
+
+    def test_this_month_is_one_step(self, months):
+        assert self.window("How did ECL move this month?") == (
+            months[-2], months[-1])
+
+    def test_a_quarter_is_three_months(self, months):
+        assert self.window("How did ECL move over the last quarter?") == (
+            months[-4], months[-1])
+
+    def test_quarter_on_quarter_is_three_months(self, months):
+        assert self.window("How did ECL change quarter on quarter?") == (
+            months[-4], months[-1])
+
+    def test_a_year_is_twelve_months(self, months):
+        assert self.window("How did ECL change over the last year?") == (
+            months[-13], months[-1])
+
+    def test_last_month_is_still_one_step(self, months):
+        assert self.window("How did ECL change since last month?") == (
+            months[-2], months[-1])
+
+    def test_the_quarter_reconciles(self, months):
+        import glob as _glob
+        answered = answer("How did ECL move over the last quarter?")
+        got = values(answered)
+        opening = pd.read_parquet(_glob.glob(
+            "data/retail/analytics/retail_facility_month/"
+            f"reporting_month={months[-4]}/*.parquet")[0],
+            columns=["ecl_final_sar"])
+        assert got["opening_total"] == pytest.approx(
+            float(opening.ecl_final_sar.sum()), abs=1.0)
+
+    def test_an_instruction_is_still_an_instruction(self):
+        from backend.orchestration import movement as mv
+        assert not mv.asks_for_change("Move this to the Contracting sector")

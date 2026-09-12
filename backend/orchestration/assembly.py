@@ -788,6 +788,41 @@ def _period_column(build: ap.AnalysisBuild) -> str:
 
 
 
+
+def _relative_move(rows: list[dict[str, Any]], column: str,
+                   opening: str, closing: str, period_column: str
+                   ) -> tuple[float, float, float] | None:
+    """(opening, closing, |percent change|) for one column across two rows."""
+    by_period: dict[str, dict[str, Any]] = {}
+    for row in rows or []:
+        key = str(row.get(period_column) or "")
+        if key:
+            by_period[key] = row
+    first, last = by_period.get(opening), by_period.get(closing)
+    if first is None or last is None:
+        return None
+    was, now = first.get(column), last.get(column)
+    if not isinstance(was, (int, float)) or not isinstance(now, (int, float)):
+        return None
+    if not float(was):
+        return float(was), float(now), 0.0
+    return float(was), float(now), abs((float(now) - float(was))
+                                       / float(was) * 100.0)
+
+
+def _led_by_the_largest_move(build: Any, rows: list[dict[str, Any]]) -> Any:
+    """The measure that moved most in relative terms, or None to keep the order."""
+    period_column = _period_column(build)
+    best, best_pct = None, -1.0
+    for match in build.matches:
+        moved = _relative_move(rows, match.field, build.opening,
+                               build.closing, period_column)
+        if moved is None:
+            return None
+        if moved[2] > best_pct:
+            best, best_pct = match, moved[2]
+    return best
+
 def _population_average(column: str, rows: list[dict[str, Any]]) -> float | None:
     """The average the runtime computed over the whole population, if present.
 
@@ -882,7 +917,11 @@ def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
     # A movement's totals are the answer, so they are result values rather than
     # something the prose works out for itself.
     if build.shape == ap.MOVEMENT and not build.conditions and build.matches:
-        column = build.matches[0].field
+        # The same measure the sentence leads with, or the totals below it
+        # would belong to a different column from the one it names.
+        led = (_led_by_the_largest_move(build, runtime.rows)
+               if not build.dimension and len(build.matches) > 1 else None)
+        column = (led or build.matches[0]).field
         # The column the ROWS record their reporting date in. Read off the
         # plan, not assumed to be called "period": a monthly book calls it
         # `reporting_month`, and looking up a key that is not there made both
@@ -999,6 +1038,17 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
     rows = runtime.rows
     count = runtime.row_count
     measure = build.matches[0] if build.matches else None
+    # A movement over SEVERAL measures led with whichever the planner listed
+    # first and said nothing about the rest. Asked what changed this month,
+    # the answer opened on gross carrying amount at +2.04% and left expected
+    # credit loss — up 13.38%, the reason to read the answer at all — in the
+    # table. The measure that moved MOST leads, which is the only ordering a
+    # question asking what to care about can have.
+    if (build.shape == ap.MOVEMENT and not build.conditions
+            and not build.dimension and len(build.matches) > 1):
+        led = _led_by_the_largest_move(build, rows)
+        if led is not None:
+            measure = led
     label = measure.label if measure else "the measure"
     unit = (measure.concept.unit or "") if measure else ""
 

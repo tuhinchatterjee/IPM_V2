@@ -191,13 +191,25 @@ _RELATIVE_SPANS: list[tuple[str, str]] = [
     (r"\b(?:2|two)\s+quarters\b", "6 months"),
 
     # ---- a quarter
-    (rf"\b{_RECENT}\s+(?:period|quarter|month)\b", "previous"),
-    (rf"\bsince\s+{_RECENT}\s+(?:period|quarter|month)\b", "previous"),
-    (rf"\bvs\.?\s+(?:the\s+)?{_RECENT}\s+(?:period|quarter|month)\b",
+    #
+    # A QUARTER is three months, and this list said it was one period —
+    # correct on a quarterly book and wrong on this one, where "how did ECL
+    # move over the last quarter?" compared August with July and called it a
+    # quarter. Written as a span rather than as a step, so the frequency table
+    # below turns it into one step on a quarterly book and three on a monthly
+    # one, and the same sentence is right on both.
+    (rf"\b(?:over|in|across|for|since)?\s*(?:the\s+)?{_RECENT}\s+quarter\b",
+     "3 months"),
+    (rf"\bvs\.?\s+(?:the\s+)?{_RECENT}\s+quarter\b", "3 months"),
+    (rf"\bagainst\s+(?:the\s+)?{_RECENT}\s+quarter\b", "3 months"),
+    (r"\bquarter[- ]on[- ]quarter\b|\bqoq\b", "3 months"),
+    (r"\b(?:over|in|across|during)\s+the\s+quarter\b", "3 months"),
+    (rf"\b{_RECENT}\s+(?:period|month)\b", "previous"),
+    (rf"\bsince\s+{_RECENT}\s+(?:period|month)\b", "previous"),
+    (rf"\bvs\.?\s+(?:the\s+)?{_RECENT}\s+(?:period|month)\b",
      "previous"),
-    (rf"\bagainst\s+(?:the\s+)?{_RECENT}\s+(?:period|quarter|month)\b",
+    (rf"\bagainst\s+(?:the\s+)?{_RECENT}\s+(?:period|month)\b",
      "previous"),
-    (r"\bquarter[- ]on[- ]quarter\b|\bqoq\b", "previous"),
     (rf"\b{_RECENT}\s+(?:3|three)\s+months\b", "3 months"),
     (r"\bsequential(?:ly)?\b", "previous"),
 

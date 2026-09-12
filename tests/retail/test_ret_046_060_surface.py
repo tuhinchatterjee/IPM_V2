@@ -476,6 +476,18 @@ class TestRET048LayoutPreserved:
             "frontend/src/lib/__tests__/builder-defaults.test.ts",
             "frontend/src/lib/__tests__/scorecard-validation.test.ts",
             # ---------------------------------------------------------------
+            # The adversarial Cockpit session. An average computed over the
+            # returned page rather than the population, a conversation that
+            # died two turns after a composite, a drill-down that returned the
+            # customers it was drilling into, and eleven scorecard questions
+            # answered with the average origination score because the Cockpit
+            # could not reach the validation runner it ships with.
+            "backend/orchestration/scorecard_route.py",
+            "backend/orchestration/conversation.py",
+            "backend/orchestration/followups.py",
+            "backend/orchestration/reuse.py",
+            "backend/api/routers/ask.py",
+            # ---------------------------------------------------------------
             # §4 and §5, found by asking a Head of Retail Risk's own
             # questions: an answer that named its population "True", a
             # breakdown pinned by a field that refines the one it broke down

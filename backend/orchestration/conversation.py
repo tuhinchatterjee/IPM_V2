@@ -238,6 +238,9 @@ class ConversationState:
     #: by an analytical turn that settles an ordinary measure, so a composite
     #: cannot reach past the answer on screen.
     composite: str = ""
+    #: The scorecard a validation turn was about, so "what's the Gini?" and
+    #: "is that good?" do not each have to name the model again.
+    scorecard_model: str = ""
     turns: list[Turn] = field(default_factory=list)
     #: The question CreditProbe could not plan and asked about, held so the
     #: reply can be merged with it instead of read as a fresh request. §9: a
@@ -304,6 +307,7 @@ class ConversationState:
             "certified_analysis": self.certified_analysis,
             "certified_params": dict(self.certified_params),
             "composite": self.composite,
+            "scorecard_model": self.scorecard_model,
             "turns": [t.to_dict() for t in self.turns],
             "pending": self.pending,
         }
@@ -338,6 +342,7 @@ class ConversationState:
             certified_analysis=str(raw.get("certified_analysis") or ""),
             certified_params=dict(raw.get("certified_params") or {}),
             composite=str(raw.get("composite") or ""),
+            scorecard_model=str(raw.get("scorecard_model") or ""),
             turns=[Turn.from_dict(t) for t in raw.get("turns") or []],
             pending=str(raw.get("pending") or ""),
         )

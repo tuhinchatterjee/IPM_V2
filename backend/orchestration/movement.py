@@ -84,6 +84,14 @@ CHANGE = (
     r"|move(?=\s+(?:from|between|over)\b)"
     r"|move(?=\s+since\s+(?:the\s+)?(?:\d|q[1-4]\b|jan|feb|mar|apr|may|jun"
     r"|jul|aug|sep|oct|nov|dec|last\b|previous\b|start\b))"
+    # "How did ECL move THIS MONTH?" — a period, and no object. The same
+    # question with "change" in place of "move" was read as a movement and
+    # answered 14,069,608 to 15,952,109; this one returned the level, and the
+    # invariant caught it and said so in a caveat under an answer that was
+    # given anyway. A named period after the verb is not an object either.
+    r"|move(?=\s+(?:this|last|the|over\s+the|in|during)\s+"
+    r"(?:month|quarter|year|period|week)\b)"
+    r"|move(?=\s+(?:mom|qoq|yoy|month[- ]on[- ]month|year[- ]on[- ]year)\b)"
     r"|increas\w*|decreas\w*|ris(?:e|es|en|ing)|rose|risen"
     r"|fell|fall(?:s|en|ing)|dropped|grew|grow(?:th|n)"
     r"|declin\w*|worsen\w*|improv\w*|deteriorat\w*"

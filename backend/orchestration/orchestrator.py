@@ -56,6 +56,7 @@ from backend.orchestration import (
     interpretation,
     investigation,
     metric_route,
+    scorecard_route,
     referents,
     router,
     spelling,
@@ -179,6 +180,9 @@ class Answered:
     #: composer runs — a route, not a rescue. See backend/orchestration/certified.
     certified: cert.Match | None = None
     certified_params: dict[str, Any] = field(default_factory=dict)
+    #: The scorecard a validation turn was about. Carried so "what's the
+    #: Gini?" two turns later does not have to name the model again.
+    scorecard_model: str = ""
     build: ap.AnalysisBuild | None = None
     runtime: Any = None
     written: interpretation.Interpretation | None = None
@@ -578,6 +582,25 @@ def answer(question: str, *, context: Any = None,
         cv.MODIFICATIONS | {cv.ENRICH_PREVIOUS, cv.ASK_ABOUT_RESULT,
                             cv.ASSESS_PREVIOUS_RESULT, cv.NARROW_SCOPE,
                             cv.WIDEN_SCOPE})
+
+    # A SCORECARD VALIDATION question, asked where the reader is standing.
+    #
+    # A Head of Retail Risk does not change modules to ask whether a scorecard
+    # is holding up, and the Cockpit answered "how is our personal-finance
+    # application scorecard performing?" with the average origination score of
+    # the book. Then "what's the Gini?" was refused as an unknown borrower,
+    # and the eleven turns after it fell into the credit-concern ranking and
+    # returned the same twenty-five customers each time.
+    #
+    # The validation runner already computes all of it. This route only
+    # decides that the sentence belongs to it, and which of the eight
+    # scorecards it is about. See backend/orchestration/scorecard_route.py.
+    validation = scorecard_route.read(
+        question, carried_model=(state.scorecard_model if state else ""))
+    if validation is not None:
+        validated = _validation_answer(answered, validation, question)
+        if validated is not None:
+            return finish(validated)
     governed_metric = None if modifying else metric_route.read(question)
     if governed_metric is not None:
         try:
@@ -1870,6 +1893,320 @@ def _show_previous_again(answered: Answered, question: str,
     )
     return answered
 
+
+def _validation_answer(answered: Answered, routed: Any,
+                       question: str) -> Answered | None:
+    """The validation runner's answer, rendered as a Cockpit answer.
+
+    Computes nothing. Every figure here was produced by the same runner the
+    Scorecard Validation module runs, over the same governed population, with
+    the same limits and the same evidence rules — so the two surfaces cannot
+    disagree, because there is only one of them.
+
+    Returns None where the runner could not answer, and the ordinary path then
+    reads the sentence. A route that substituted its own answer for a runner
+    that declined would be the substitution this whole module exists to stop.
+    """
+    from backend.orchestration import handlers
+
+    if routed.ask:
+        answered.clarification = routed.ask
+        answered.reading = replace(
+            answered.reading,
+            objective="Which scorecard the validation question is about")
+        return answered
+
+    try:
+        body = scorecard_route.ask(question, routed.model_id)
+    except Exception:  # noqa: BLE001 - fall through, never substitute
+        logger.exception("The validation runner failed for %r", question)
+        return None
+
+    refusal = body.get("refusal") or {}
+    clarify = body.get("clarify") or {}
+    if refusal:
+        answered.unsupported = str(refusal.get("why") or refusal.get("what") or "")
+        return answered if answered.unsupported else None
+    if clarify:
+        asked = clarify.get("question") if isinstance(clarify, dict) else clarify
+        if asked:
+            answered.clarification = str(asked)
+            return answered
+        return None
+    if not body.get("answered"):
+        # The reader has no single tool for "how is it performing?" — that is
+        # not one statistic, it is all of them, assessed. The findings engine
+        # answers exactly that and was unreachable from the Cockpit, so the
+        # question fell through to the planner and came back with the average
+        # origination score of the book.
+        if scorecard_route.asks_about_the_whole_scorecard(question):
+            assessed = _validation_findings(answered, routed, question)
+            if assessed is not None:
+                return assessed
+        return None
+
+    # "Which risk band is most miscalibrated?" asks for a BAND. The category
+    # run carries every band in its calibration chart, and answering with the
+    # five category tests leaves the reader to find the band themselves in a
+    # table that does not have one.
+    banded = _worst_band(body, question, routed.model_id)
+    if banded is not None:
+        rows, columns, headline, caveats = banded
+    else:
+        rows, columns, headline, caveats = _validation_rows(body, routed.model_id)
+    if not headline:
+        return None
+    answered.result = handlers.HandlerResult(
+        answer=headline,
+        rows=rows, columns=columns, values={},
+        detail={"scorecard": {"model_id": routed.model_id,
+                              "because": routed.because,
+                              "reading": body.get("reading") or {}},
+                "figures": body.get("figures") or ""},
+        follow_ups=[], warnings=caveats,
+    )
+    answered.from_memory = False
+    answered.decision = rt.decide(question, deterministic=True)
+    answered.reading = replace(
+        answered.reading,
+        objective=f"Scorecard validation — {routed.model_id}")
+    answered.scorecard_model = routed.model_id
+    return answered
+
+
+#: What one row of a validation answer carries. Named once so the table and
+#: the sentence above it cannot drift apart.
+_VALIDATION_COLUMNS = [
+    {"name": "test_id", "label": "Test", "semantic": "text", "align": "left"},
+    {"name": "state", "label": "Outcome", "semantic": "text", "align": "left"},
+    {"name": "value", "label": "Measured", "semantic": "number",
+     "decimals": 4, "align": "right"},
+    {"name": "limit", "label": "Limit", "semantic": "number",
+     "decimals": 4, "align": "right"},
+    {"name": "detail", "label": "What it says", "semantic": "text",
+     "align": "left"},
+]
+
+
+def _validation_rows(body: dict[str, Any], model_id: str
+                     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
+                                str, list[str]]:
+    """Rows, columns, the sentence, and what the runner said to be careful of."""
+    result = body.get("result") or {}
+    caveats: list[str] = []
+    figures = str(body.get("figures") or "")
+    if figures:
+        caveats.append(figures)
+
+    # Three shapes, one renderer. A single test comes back as
+    # {"test": …, "result": {…}}; a category as {"results": [ … ]}; and a few
+    # tools return the Result at the top level. Reading only the last of the
+    # three is why "what's the Gini?" produced nothing to render and fell
+    # through to the planner, which asked which figure to measure.
+    nested = result.get("result") if isinstance(result.get("result"), dict) else None
+    if nested and nested.get("test_id"):
+        singles = [nested]
+    elif result.get("test_id"):
+        singles = [result]
+    else:
+        singles = [r for r in (result.get("results") or []) if isinstance(r, dict)]
+    rows = [{"test_id": str(r.get("test_id") or ""),
+             "state": str(r.get("state_label") or r.get("state") or ""),
+             "value": r.get("value"),
+             "limit": r.get("limit"),
+             "detail": str(r.get("detail") or "")}
+            for r in singles if isinstance(r, dict)]
+    if not rows:
+        return [], [], "", caveats
+
+    first = singles[0]
+    period = str(first.get("period") or "")
+    version = str(first.get("model_version") or "")
+    observations = first.get("observations")
+    events = first.get("events")
+    # The cohort, the sample and the version, in the sentence rather than only
+    # in the table: a discrimination figure with no population behind it is
+    # the number an auditor asks the second question about.
+    where = []
+    if period:
+        where.append(f"over {period}")
+    if isinstance(observations, (int, float)) and observations:
+        carried = (f" carrying {int(events):,} defaults"
+                   if isinstance(events, (int, float)) and events else "")
+        where.append(f"on {int(observations):,} observations{carried}")
+    said = ", ".join(where)
+    lead = str(first.get("detail") or "").strip()
+    name = _scorecard_name(model_id)
+    headline = (f"{name}"
+                + (f" v{version}" if version else "")
+                + (f" — {lead}" if lead else "")
+                + (f" Measured {said}." if said and said not in lead else ""))
+    if len(rows) > 1:
+        headline = (f"{name}" + (f" v{version}" if version else "")
+                    + f" — {len(rows)} "
+                    + str(result.get("category") or "validation")
+                    + " tests. " + lead)
+    return rows, list(_VALIDATION_COLUMNS), headline, caveats
+
+
+def _scorecard_name(model_id: str) -> str:
+    try:
+        from backend.scorecard.validation import models as registry
+
+        for model in registry.all_models():
+            if model.model_id == model_id:
+                return str(model.name)
+    except Exception:  # noqa: BLE001
+        pass
+    return model_id
+
+
+#: One row per finding, in the severity order the engine returns them in.
+_FINDING_COLUMNS = [
+    {"name": "severity", "label": "Severity", "semantic": "text", "align": "left"},
+    {"name": "title", "label": "Finding", "semantic": "text", "align": "left"},
+    {"name": "category", "label": "Category", "semantic": "text", "align": "left"},
+    {"name": "what", "label": "What the test found", "semantic": "text",
+     "align": "left"},
+]
+
+
+def _validation_findings(answered: Answered, routed: Any,
+                         question: str) -> Answered | None:
+    """Every applicable test on one scorecard, assessed.
+
+    Computes nothing of its own: this is the findings engine's output, which
+    is what the Scorecard Validation module shows on the same scorecard.
+    """
+    from backend.orchestration import handlers
+
+    try:
+        body = scorecard_route.findings(routed.model_id)
+    except Exception:  # noqa: BLE001 - fall through, never substitute
+        logger.exception("The findings engine failed for %r", routed.model_id)
+        return None
+    found = list(body.get("findings") or [])
+    if not found:
+        return None
+    summary = body.get("summary") or {}
+    counts = dict(summary.get("by_severity") or {})
+    rows = [{"severity": str(f.get("severity") or ""),
+             "title": str(f.get("title") or ""),
+             "category": str(f.get("category") or ""),
+             "what": str(f.get("what") or "")}
+            for f in found if isinstance(f, dict)]
+    said = ", ".join(f"{n} {level.lower()}" for level, n in counts.items() if n)
+    name = _scorecard_name(routed.model_id)
+    worst = rows[0]["title"] if rows else ""
+    headline = (f"{name} — {int(summary.get('total') or len(rows))} findings"
+                + (f" ({said})" if said else "") + "."
+                + (f" The one to read first is: {worst}." if worst else ""))
+    answered.result = handlers.HandlerResult(
+        answer=headline, rows=rows, columns=list(_FINDING_COLUMNS), values={},
+        detail={"scorecard": {"model_id": routed.model_id,
+                              "because": routed.because},
+                "summary": summary},
+        follow_ups=[], warnings=[
+            "Every figure here was computed by the validation runner over the "
+            "governed population. A finding is evidence for a judgement, not "
+            "the judgement: CreditProbe does not approve or withdraw a model."],
+    )
+    answered.decision = rt.decide(question, deterministic=True)
+    answered.reading = replace(
+        answered.reading,
+        objective=f"Scorecard validation findings — {routed.model_id}")
+    answered.scorecard_model = routed.model_id
+    return answered
+
+
+_ASKS_WHICH_BAND = re.compile(
+    r"\bwhich\b[^?]{0,40}\b(?:risk\s+)?(?:band|bucket|grade|decile)s?\b"
+    r"|\b(?:band|bucket|grade|decile)s?\b[^?]{0,30}\b(?:most|worst|least)\b",
+    re.IGNORECASE)
+
+_BAND_COLUMNS = [
+    {"name": "band", "label": "Band", "semantic": "text", "align": "left"},
+    {"name": "score_from", "label": "Score from", "semantic": "number",
+     "decimals": 1, "align": "right"},
+    {"name": "score_to", "label": "Score to", "semantic": "number",
+     "decimals": 1, "align": "right"},
+    {"name": "observations", "label": "Observations", "semantic": "count",
+     "decimals": 0, "align": "right"},
+    {"name": "events", "label": "Defaults", "semantic": "count",
+     "decimals": 0, "align": "right"},
+    {"name": "average_predicted_pd", "label": "Predicted PD",
+     "semantic": "percent", "decimals": 4, "align": "right"},
+    {"name": "observed_default_rate", "label": "Observed rate",
+     "semantic": "percent", "decimals": 4, "align": "right"},
+    {"name": "gap", "label": "Observed − predicted", "semantic": "percent",
+     "decimals": 4, "align": "right"},
+    {"name": "evidence", "label": "Evidence", "semantic": "text",
+     "align": "left"},
+]
+
+
+def _worst_band(body: dict[str, Any], question: str, model_id: str
+                ) -> tuple[list[dict[str, Any]], list[dict[str, Any]],
+                           str, list[str]] | None:
+    """The calibration bands, and which of them is furthest out.
+
+    Ranked by the gap between observed and predicted, and the evidence label
+    the runner attached travels with it: a band of a thousand observations
+    carrying seven defaults is not evidence of miscalibration however large
+    its gap looks.
+    """
+    if not _ASKS_WHICH_BAND.search(str(question or "")):
+        return None
+    result = body.get("result") or {}
+    candidates = []
+    if isinstance(result.get("result"), dict):
+        candidates.append(result["result"])
+    candidates.extend(r for r in (result.get("results") or [])
+                      if isinstance(r, dict))
+    buckets: list[dict[str, Any]] = []
+    for found in candidates:
+        chart = found.get("chart") or {}
+        if str(chart.get("kind") or "") == "calibration" and chart.get("buckets"):
+            buckets = [b for b in chart["buckets"] if isinstance(b, dict)]
+            break
+    if not buckets:
+        return None
+
+    rows = []
+    for bucket in buckets:
+        observed = bucket.get("observed_default_rate")
+        predicted = bucket.get("average_predicted_pd")
+        gap = (float(observed) - float(predicted)
+               if isinstance(observed, (int, float))
+               and isinstance(predicted, (int, float)) else None)
+        rows.append({**{k: bucket.get(k) for k in
+                        ("band", "score_from", "score_to", "observations",
+                         "events", "average_predicted_pd",
+                         "observed_default_rate", "evidence")},
+                     "gap": gap})
+    scored = [r for r in rows if isinstance(r.get("gap"), (int, float))]
+    if not scored:
+        return None
+    worst = max(scored, key=lambda r: abs(float(r["gap"])))
+    direction = "under" if float(worst["gap"]) > 0 else "over"
+    name = _scorecard_name(model_id)
+    headline = (
+        f"{name} — band {worst['band']} is the furthest out: observed "
+        f"{float(worst['observed_default_rate']) * 100:.2f}% against a "
+        f"predicted {float(worst['average_predicted_pd']) * 100:.2f}%, so it "
+        f"is {direction}-predicted by "
+        f"{abs(float(worst['gap'])) * 100:.2f} percentage points on "
+        f"{int(worst['observations']):,} observations carrying "
+        f"{int(worst['events']):,} defaults"
+        + (f" — {str(worst.get('evidence') or '').lower()}."
+           if worst.get("evidence") else "."))
+    caveats = [str(body.get("figures") or "")] if body.get("figures") else []
+    caveats.append(
+        "A band's gap is only as good as its sample. The evidence column is "
+        "the runner's own sufficiency judgement, and a band marked "
+        "INSUFFICIENT EVIDENCE is not evidence of miscalibration.")
+    return rows, list(_BAND_COLUMNS), headline, caveats
+
 def _redraw_previous(answered: Answered, question: str,
                      state: cv.ConversationState,
                      continuation: cv.Continuation) -> Answered | None:
@@ -2396,6 +2733,14 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     elif answered.answered:
         state.certified_analysis = ""
         state.certified_params = {}
+
+    # The scorecard a validation turn settled. Held like the certified
+    # analysis is: a follow-up that names no model is about the one on screen,
+    # and an analytical turn about the BOOK leaves it alone rather than
+    # clearing it, because "what is ECL by product?" in the middle of a
+    # validation conversation does not end the validation conversation.
+    if answered.scorecard_model:
+        state.scorecard_model = answered.scorecard_model
 
     if answered.runtime is None or answered.build is None:
         _keep_the_population_the_question_named(state, answered)
