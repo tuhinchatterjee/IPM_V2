@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from backend.cockpit_v4 import derivation as derivation_mod
 from backend.cockpit_v4 import TOOL_CONTRACT_VERSION
 
 CONTRACTS_DIR = Path(__file__).resolve().parent / "contracts"
@@ -711,18 +712,44 @@ class EvidenceRef:
 
 @dataclass(frozen=True)
 class NumericClaim:
+    """A number in the answer, and where it comes from.
+
+    Two kinds, and exactly one of them applies to any claim.
+
+    A DIRECT claim is a value that appears in one executed result cell, and
+    it carries `evidence` naming that cell.
+
+    A DERIVED claim is calculated from cells that exist -- a total across
+    rows, a share of a total, a movement, a growth rate -- and it carries a
+    `derivation` instead. It is not weaker evidence: the server recomputes it
+    from the stored artifact and refuses the answer if the arithmetic does
+    not hold. It exists because a total across twelve sectors is a real
+    number with no row of its own, and the alternative was inventing one.
+    """
+
     claim_id: str
     #: A lossless decimal STRING. Never a float: a float display is an
     #: approximation and this value is quoted to a credit officer.
     decimal_value: str
     unit: str
+    #: The cell this value was read from. Empty for a derived claim.
     evidence: EvidenceRef
     display_precision: int = 2
+    #: The arithmetic that produced this value, over cells that exist.
+    #: Empty for a direct claim.
+    derivation: dict[str, Any] | None = None
+
+    @property
+    def is_derived(self) -> bool:
+        return bool(self.derivation)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"claim_id": self.claim_id, "decimal_value": self.decimal_value,
+        body = {"claim_id": self.claim_id, "decimal_value": self.decimal_value,
                 "unit": self.unit, "evidence": self.evidence.to_dict(),
                 "display_precision": self.display_precision}
+        if self.derivation:
+            body["derivation"] = self.derivation
+        return body
 
 
 @dataclass(frozen=True)
@@ -843,11 +870,43 @@ def parse_final(payload: Any) -> FinalResponse:
             raise Rejection("ANSWER_VALIDATION",
                             f"{path}.display_precision must be 0-12.",
                             field_path=f"{path}.display_precision")
+        # Exactly one of the two forms. The provider's tool dialect has no
+        # way to say "one of these two" in a schema -- oneOf and anyOf are
+        # rejected outright -- so the rule is stated in the field
+        # descriptions and enforced here, where it can also say which claim
+        # broke it.
+        derivation = raw.get("derivation")
+        has_derivation = isinstance(derivation, dict) and bool(derivation)
+        evidence_raw = raw.get("evidence")
+        has_evidence = (isinstance(evidence_raw, dict)
+                        and bool(str(evidence_raw.get("artifact_id") or "")))
+        if has_derivation and has_evidence:
+            raise Rejection(
+                "ANSWER_VALIDATION",
+                f"{path} carries both 'evidence' and 'derivation'. A value "
+                f"either appears in one result cell or is calculated from "
+                f"cells; send whichever it is, not both.",
+                field_path=f"{path}.derivation")
+        if not has_derivation and not has_evidence:
+            raise Rejection(
+                "ANSWER_VALIDATION",
+                f"{path} carries neither 'evidence' nor 'derivation'. Name "
+                f"the result cell this value was read from, or the "
+                f"arithmetic that produced it.",
+                field_path=f"{path}.evidence")
+        if has_derivation:
+            try:
+                derivation_mod.parse(derivation)
+            except derivation_mod.DerivationError as exc:
+                raise Rejection("ANSWER_VALIDATION", f"{path}: {exc}",
+                                field_path=f"{path}.derivation") from exc
         claims.append(NumericClaim(
             claim_id=claim_id, decimal_value=decimal_value,
             unit=_require_text(raw, "unit", path),
-            evidence=_parse_evidence(raw.get("evidence"), f"{path}.evidence"),
-            display_precision=int(precision)))
+            evidence=(_parse_evidence(evidence_raw, f"{path}.evidence")
+                      if has_evidence else EvidenceRef("", "", "")),
+            display_precision=int(precision),
+            derivation=dict(derivation) if has_derivation else None))
 
     refs_raw = _optional_list(payload, "evidence_refs", "finalize_response")
     tables_raw = _optional_list(payload, "tables", "finalize_response")

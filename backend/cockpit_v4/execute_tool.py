@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.cockpit_agentic import sql as v3_sql
+from backend.cockpit_v4 import derivation as deriv
 from backend.cockpit_v4.contracts import ExecutionSubmission, Rejection, Step
 from backend.cockpit_v4.provider import code_digest
 from backend.cockpit_v4.sqlbind import (BindFailure, parameter_argument,
@@ -45,6 +46,56 @@ CHECK_RUNTIME = "runtime"
 CHECK_SANDBOX = "sandbox"
 
 
+def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
+                row_count: int) -> dict[str, Any]:
+    """The evidence contract, sent with every successful result.
+
+    This is a CONTRACT, not reasoning assistance. It exists because the
+    alternative is discovery by trial and error, and a live run spent two
+    rejected answers on that: told only that its claims must reference
+    evidence, it referenced rows named "all sectors" and "top 4 sectors",
+    which no result contains. The rules below are exactly what the validator
+    enforces, stated once, before the answer is written.
+    """
+    last = row_ids[-1] if row_ids else "r0"
+    return {
+        "artifact_id": artifact_id,
+        "columns": list(columns),
+        "row_ids": list(row_ids),
+        "row_count": row_count,
+        "direct_value": (
+            "A number that appears in one result cell: send 'evidence' with "
+            "this artifact_id, the row_id and the column_id. Send the EXACT "
+            "stored value and use display_precision for how it should read."),
+        "calculated_value": (
+            "A number you worked out from the result -- a total across rows, "
+            "a share of a total, a difference, a growth rate: send "
+            "'derivation' instead of 'evidence', naming the operation and "
+            "the real rows it consumes. CreditProbe recomputes it and "
+            "refuses the answer if the arithmetic does not hold."),
+        "never": (
+            "Do NOT invent a row to point at. There is no 'total', 'all "
+            "sectors' or 'top 5' row unless one is listed in row_ids above. "
+            "A total is a derivation over the real rows."),
+        "operations": deriv.describe(),
+        "example_total": {
+            "claim_id": "total_x", "unit": "INR crore",
+            "derivation": {"operation": "sum", "operands": [
+                {"artifact_id": artifact_id,
+                 "column_id": (columns[-1] if columns else "value"),
+                 "row_ids": list(row_ids)}]}},
+        "example_share": {
+            "claim_id": "top_share", "unit": "percent",
+            "derivation": {"operation": "percentage", "operands": [
+                {"artifact_id": artifact_id,
+                 "column_id": (columns[-1] if columns else "value"),
+                 "row_ids": row_ids[:1] or ["r0"]},
+                {"artifact_id": artifact_id,
+                 "column_id": (columns[-1] if columns else "value"),
+                 "row_ids": list(row_ids) or [last]}]}},
+    }
+
+
 @dataclass
 class StepResult:
     step_id: str
@@ -55,6 +106,11 @@ class StepResult:
     columns: list[str] = field(default_factory=list)
     row_count: int = 0
     preview: list[dict[str, Any]] = field(default_factory=list)
+    #: The published id of each preview row, aligned with `preview`. These
+    #: are what a numeric claim references. They are published rather than
+    #: left to be guessed because a live run, given no ids, invented row
+    #: labels ("all sectors", "top 4 sectors") and had its answer refused.
+    row_ids: list[str] = field(default_factory=list)
     truncated: bool = False
     artifact_id: str = ""
     warnings: list[str] = field(default_factory=list)
@@ -74,8 +130,12 @@ class StepResult:
                "elapsed_ms": self.elapsed_ms}
         if self.status == "ok":
             out.update({"columns": self.columns, "row_count": self.row_count,
-                        "preview": self.preview, "preview_truncated":
-                        self.truncated, "artifact_id": self.artifact_id})
+                        "preview": self.preview, "row_ids": self.row_ids,
+                        "preview_truncated": self.truncated,
+                        "artifact_id": self.artifact_id,
+                        "how_to_cite_these_numbers": claim_guide(
+                            self.artifact_id, self.columns, self.row_ids,
+                            self.row_count)})
         else:
             out.update({"error_code": self.error_code,
                         "failed_check": self.failed_check,
@@ -402,10 +462,11 @@ class ExecutionService:
                 f"preview.")
         preview = [{k: row.get(k) for k in preview_columns}
                    for row in result.rows[:self.limits.preview_rows]]
+        row_ids = [deriv.row_id_for(i) for i in range(len(preview))]
         return StepResult(
             step_id=step.step_id, status="ok", language="sql",
             code_digest=digest, purpose=step.purpose, columns=columns,
-            row_count=result.row_count, preview=preview,
+            row_count=result.row_count, preview=preview, row_ids=row_ids,
             truncated=bool(result.truncated) or len(
                 columns) > self.limits.preview_columns,
             artifact_id=artifact_id,
@@ -508,6 +569,8 @@ class ExecutionService:
             step_id=step.step_id, status="ok", language="python",
             code_digest=digest, purpose=step.purpose, columns=columns,
             row_count=len(rows), preview=rows[:self.limits.preview_rows],
+            row_ids=[deriv.row_id_for(i) for i in
+                     range(min(len(rows), self.limits.preview_rows))],
             artifact_id=artifact_id,
             warnings=list(outcome.get("warnings") or []))
 

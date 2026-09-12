@@ -23,7 +23,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 7353
+          "schema_bytes": 10006
         }
       ],
       "unsupported_schema_keywords": []
@@ -54,7 +54,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 7353
+          "schema_bytes": 10006
         }
       ],
       "unsupported_schema_keywords": []
@@ -81,7 +81,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 7353
+          "schema_bytes": 10006
         }
       ],
       "unsupported_schema_keywords": []

@@ -62,7 +62,7 @@
     {
       "case": "model output fails the contract",
       "terminal_state": "FAILED",
-      "error_code": "CALL_LIMIT",
+      "error_code": "COST_LIMIT",
       "expected_error_code": "INVALID_MODEL_OUTPUT",
       "published_an_answer": false,
       "operator_reference": false,

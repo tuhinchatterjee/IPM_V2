@@ -3,9 +3,20 @@ Answer validation: check the evidence, render the numbers, rewrite nothing.
 
 What "validated" means here, precisely
 --------------------------------------
-Every `numeric_claim` names an artifact, a row and a column that this run
-actually produced, and the value matches what is stored there. That is
-checkable and it is checked. The narrative's PROSE is not claimed to be
+Every `numeric_claim` is checked against the evidence this run produced, in
+one of two ways.
+
+A DIRECT claim names an artifact, a row and a column, and its value must
+match what is stored there.
+
+A DERIVED claim names an operation and the cells it consumes, and the value
+is RECOMPUTED here from the stored artifact. This is the stricter of the two:
+a direct claim is compared against a cell, a derived claim has its whole
+arithmetic redone. It exists because a total across twelve sectors, or the
+share carried by the largest four, is a real number with no row of its own --
+and a validator that only accepted pointers to physical cells left the
+analyst no move except inventing a row called "all sectors", which is exactly
+what a live run did before being refused twice. The narrative's PROSE is not claimed to be
 semantically verified -- no validator reads English and certifies that a
 sentence is true. What is enforced is narrower and honest: a portfolio number
 in the narrative must arrive through a `{{claim.id}}` placeholder bound to
@@ -24,6 +35,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from backend.cockpit_v4 import derivation as deriv
 from backend.cockpit_v4.contracts import (DATA_ANALYSIS, FinalResponse,
                                           NumericClaim, Rejection)
 from backend.cockpit_v4.states import ANSWER_VALIDATION
@@ -155,7 +167,61 @@ class Finalizer:
             ok=not problems, rendered_narrative=rendered, problems=problems,
             warnings=warnings, claim_values=values)
 
+    def _artifacts(self, ids) -> dict[str, Any]:
+        """The stored artifacts for a derivation, tenant-checked."""
+        out: dict[str, Any] = {}
+        for artifact_id in ids:
+            if artifact_id not in self.run_artifacts:
+                continue
+            record = self.store.get_artifact(artifact_id,
+                                             tenant_id=self.tenant_id)
+            if record is not None:
+                out[artifact_id] = record
+        return out
+
+    def _check_derived(self, claim: NumericClaim) -> str:
+        """Recompute the claim. Its arithmetic is redone, not taken on trust."""
+        label = f"claim {claim.claim_id!r}"
+        try:
+            derivation = deriv.parse(claim.derivation)
+        except deriv.DerivationError as exc:
+            return f"{label}: {exc}"
+
+        for artifact_id in derivation.artifact_ids:
+            if artifact_id not in self.run_artifacts:
+                return (f"{label} references artifact {artifact_id!r}, which "
+                        f"this run did not produce.")
+            if self.store.get_artifact(artifact_id,
+                                       tenant_id=self.tenant_id) is None:
+                return (f"{label} references artifact {artifact_id!r}, which "
+                        f"is not available to you.")
+
+        unit_wrong = deriv.unit_problem(derivation, claim.unit)
+        if unit_wrong:
+            return f"{label}: {unit_wrong}"
+
+        try:
+            computed = deriv.compute(derivation,
+                                     self._artifacts(derivation.artifact_ids),
+                                     label=label)
+        except deriv.DerivationError as exc:
+            return f"{exc}"
+
+        try:
+            asserted = Decimal(claim.decimal_value)
+        except InvalidOperation:
+            return (f"{label} asserts {claim.decimal_value!r}, which is not a "
+                    f"decimal.")
+        if not _close(asserted, computed):
+            return (f"{label} asserts {asserted} and its own derivation "
+                    f"({derivation.operation}) computes {computed}. The "
+                    f"evidence does not support the figure; send the "
+                    f"computed value, or correct the derivation.")
+        return ""
+
     def _check_claim(self, claim: NumericClaim) -> str:
+        if claim.is_derived:
+            return self._check_derived(claim)
         ref = claim.evidence
         if ref.artifact_id not in self.run_artifacts:
             return (f"claim {claim.claim_id!r} references artifact "
@@ -252,30 +318,39 @@ class Finalizer:
         return kept
 
 
+def _close(asserted: Decimal, computed: Decimal) -> bool:
+    """Exact, or within the last place of a rounded display value.
+
+    Not a licence to be approximately right. A derived figure is compared at
+    a relative 1e-9, which absorbs a decimal string the analyst rounded and
+    nothing wider -- a dropped row moves these by whole crores.
+    """
+    if asserted == computed:
+        return True
+    if computed == 0:
+        return abs(asserted) <= deriv.DEFAULT_TOLERANCE
+    return abs(asserted - computed) / abs(computed) <= deriv.DEFAULT_TOLERANCE
+
+
 _MISSING = object()
 
 
 def _locate(rows: list[dict[str, Any]], row_key: str, column: str) -> Any:
-    """Find the referenced cell. `row_key` may be an index or a key=value."""
+    """Find the referenced cell.
+
+    `row_key` may be a published row id ("r0"), a bare index, a
+    `column=value` key, or a value that appears in exactly that row. The
+    vocabulary is deliberately the SAME one the derivation resolver accepts:
+    the result packet publishes "r0", and a direct claim citing "r0" being
+    refused while a derivation citing "r0" was accepted would be a trap of
+    our own making.
+    """
     if not rows:
         return _MISSING
-    key = str(row_key or "").strip()
-    if key.isdigit():
-        index = int(key)
-        if 0 <= index < len(rows):
-            return rows[index].get(column, _MISSING)
+    index = deriv._index_of(row_key, rows)
+    if index < 0:
         return _MISSING
-    if "=" in key:
-        name, _, wanted = key.partition("=")
-        name, wanted = name.strip(), wanted.strip()
-        for row in rows:
-            if str(row.get(name, "")) == wanted:
-                return row.get(column, _MISSING)
-        return _MISSING
-    for row in rows:
-        if any(str(v) == key for v in row.values()):
-            return row.get(column, _MISSING)
-    return _MISSING
+    return rows[index].get(column, _MISSING)
 
 
 def rejection(report: ValidationReport) -> Rejection:

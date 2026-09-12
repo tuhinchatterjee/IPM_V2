@@ -140,8 +140,16 @@ def test_05_a_response_that_fails_the_contract_is_not_published(drive,
     # scripted provider running dry, which would test the fixture.
     outcome, provider, record = drive("Who are you?", [malformed] * 40)
     assert outcome.state in (st.FAILED, st.PARTIAL)
+    # Which bound runs out first depends on the size of the tool schema, and
+    # that is allowed to change: what this case pins is that a model that
+    # will not produce a valid response stops on one of its OWN bounds
+    # rather than on a provider fault, and publishes nothing either way.
     assert outcome.error_code in (st.INVALID_MODEL_OUTPUT, st.CALL_LIMIT,
-                                  st.ANSWER_VALIDATION), outcome.error_code
+                                  st.COST_LIMIT, st.ANSWER_VALIDATION), \
+        outcome.error_code
+    assert outcome.error_code not in (st.PROVIDER_UNAVAILABLE,
+                                      st.PROVIDER_AUTH), (
+        "a malformed model response is not a provider fault")
     _no_answer(outcome, "invalid model output")
     _record("model output fails the contract", outcome, store_db, record,
             expect_code=st.INVALID_MODEL_OUTPUT)

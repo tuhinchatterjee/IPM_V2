@@ -169,21 +169,26 @@
           "type": "string"
         },
         "evidence": {
-          "$ref": "#/$defs/EvidenceRef"
+          "$ref": "#/$defs/EvidenceRef",
+          "description": "For a DIRECT value only: the one result cell it was read from. Omit it when sending a derivation."
         },
         "display_precision": {
           "type": "integer",
           "minimum": 0,
           "maximum": 12
+        },
+        "derivation": {
+          "$ref": "#/$defs/Derivation",
+          "description": "For a CALCULATED value only -- a total across rows, a share of a total, a difference, a growth rate. Omit it when sending evidence."
         }
       },
       "required": [
         "claim_id",
         "decimal_value",
-        "unit",
-        "evidence"
+        "unit"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "One number in the answer. Send EXACTLY ONE of 'evidence' (the value appears in one result cell) or 'derivation' (the value is calculated from cells that do). Sending both, or neither, is refused."
     },
     "Table": {
       "type": "object",
@@ -390,6 +395,73 @@
         "purpose",
         "input_artifact_ids",
         "depends_on_step_ids"
+      ],
+      "additionalProperties": false
+    },
+    "CellSet": {
+      "type": "object",
+      "description": "Cells in one column of one executed result artifact, named by the row ids the result packet published.",
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "description": "The artifact these rows are in."
+        },
+        "column_id": {
+          "type": "string",
+          "description": "One output column of that artifact."
+        },
+        "row_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "type": "string"
+          },
+          "description": "Row ids exactly as the result packet published them (\"r0\", \"r1\", ...). A row id that is not in the artifact is refused; do not invent labels such as \"all sectors\" or \"total\" -- name the real rows and let the derivation add them up."
+        }
+      },
+      "required": [
+        "artifact_id",
+        "column_id",
+        "row_ids"
+      ],
+      "additionalProperties": false
+    },
+    "Derivation": {
+      "type": "object",
+      "description": "How a calculated value was produced, over cells that exist. The server recomputes it and refuses the answer if the arithmetic does not hold, so this is evidence, not commentary. count: how many referenced cells hold a value; difference: sum(first) - sum(second); identity: the single referenced cell, unchanged; max: the largest of the referenced cells; min: the smallest of the referenced cells; percentage: 100 * sum(first) / sum(second); percentage_change: 100 * (sum(first) - sum(second)) / sum(second), where the first operand is the later period; rank: the 1-based position of the first operand's single cell within the second operand's cells, largest first; ratio: sum(first) / sum(second); share_of_total: sum(first) / sum(second), where the first operand's rows must be a subset of the second's; sum: the sum of the referenced cells; weighted_average: sum(value * weight) / sum(weight), over the same rows in the same order.",
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "count",
+            "difference",
+            "identity",
+            "max",
+            "min",
+            "percentage",
+            "percentage_change",
+            "rank",
+            "ratio",
+            "share_of_total",
+            "sum",
+            "weighted_average"
+          ],
+          "description": "One operation from this closed set."
+        },
+        "operands": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/CellSet"
+          },
+          "description": "One operand for identity, sum, min, max and count; two for difference, ratio, percentage, percentage_change, share_of_total, weighted_average and rank. For percentage_change the first operand is the later period. For share_of_total the first operand's rows must be inside the second's."
+        }
+      },
+      "required": [
+        "operation",
+        "operands"
       ],
       "additionalProperties": false
     }
