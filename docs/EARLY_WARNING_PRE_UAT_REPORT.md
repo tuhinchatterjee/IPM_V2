@@ -727,3 +727,183 @@ open http://localhost:3000/early-warning
 
 The dedicated proof is kept and unchanged. Neither of these is required: the
 certification script is the gate.
+
+---
+
+# Run 3 — live provider certification, and the five cases it failed
+
+The Mac run of `scripts/certify_early_warning_live.py` returned **3/8
+certified, `VERDICT: NOT_CERTIFIED`**, median 52.2s, slowest 134.6s. LIVE-1
+(easy retrieval), LIVE-4 (follow-up) and LIVE-6 (the cross-product What-If
+route) passed. The other five failed on three defects.
+
+Every one of the three is invisible without a provider. Each needed a model to
+actually write something — a paragraph with a figure in it, a pass-two reply
+with a layer in it, an ownership verdict — and with no key configured every
+stage falls to its deterministic floor and every contract holds vacuously.
+That is how a build with 78 green scenarios failed five of eight real cases,
+and it is the reason this run adds a stub that produces the exact shapes the
+live run produced rather than the shapes that were convenient to test.
+
+## Defect 1 — the grounding guard rejected figures the packet was holding
+
+Four cases died here: LIVE-2 on `11.31` and `3.67`, LIVE-3 on `11.31`, `15.46`
+and `3.67`, LIVE-7 on `6.34`, LIVE-8 on `-5`.
+
+**Provenance, traced one at a time.** The packets were rebuilt for each failing
+question and every rejected figure looked up in them:
+
+| Figure | Where it lives in the packet | Class |
+|---|---|---|
+| `11.31` | `figures.movement.layers[0].score_change` = **−11.31** | **A — direct** |
+| `3.67` | `figures.movement.ews_change` = **−3.67** | **A — direct** |
+| `15.46` | `figures.movement.layers[3].score_change` = **−15.46** | **A — direct** |
+| `6.34` | `figures.movement.layers[0].score_change` = **−6.34** | **A — direct** |
+| `-5` | nowhere — and `5` alone was always allowed | **not a figure** |
+
+None was invented. Four are stored **signed** and were written **in words**:
+the packet holds `ews_change: -3.67` and the model wrote "the score fell 3.67
+points", which is how every credit paragraph anybody writes says it. The
+allowed set was built from `f"{value:.2f}"` and friends, so it contained
+`-3.67` and never `3.67`. A guard holding the number rejected the sentence
+about it.
+
+`-5` is a different thing entirely. `5` is in `_ALWAYS_ALLOWED`, so a bare five
+would have passed — the only way the run could report minus five is a minus
+sign the prose did not write. The numeral scanner's lookbehind was
+`(?<![\d.,\-])`, which refuses a digit before the match and permits a letter,
+so **a hyphen between two word characters was read as a minus sign**: `top-5`
+became −5 and `tier-3` became −3. This stage's own system prompt asks the model
+to say "rests on one tier-3 source".
+
+**The fix, in three parts.**
+
+*Direct.* A packet value permits both its signed spelling and its size. This is
+a figure guard and 3.67 is the packet's figure. It does mean the guard alone
+cannot catch a reading that inverts a direction; that is the composer's
+"It improved / It deteriorated" verdict and the deterministic reading shown
+alongside, and it is stated in the code rather than left implied.
+
+*Derived.* `backend/early_warning/conversation/derivation.py` — the governed
+derived-claim contract. The model does not compute; it **declares**:
+
+```json
+{"value": 15.66, "op": "sum", "refs": ["rows[0].exposure", "rows[1].exposure"]}
+```
+
+The server resolves each ref in the packet's own fact index, applies the named
+operation itself, and compares. Prose may use the value only where the server's
+recomputation agrees; a claim whose refs do not resolve, whose operation is not
+in the closed set, or whose value the server does not reproduce permits
+nothing, and the figure falls through to the direct check. Twelve operations:
+sum, difference, delta, product, ratio, share, percent, mean, magnitude,
+minimum, maximum, count. Each is a Python function of a list of floats. **No
+`eval`, no expression parser, no model-supplied formula** — asserted by a test
+that reads the module's own source.
+
+*Neither.* The scanner's lookbehind is now `(?<![\w.,\-])`. A hyphen inside a
+word is a hyphen, and `L1`, `L3` and `L1.2` stop being figures — naming the
+node is exactly what the prompt asks a good reading to do.
+
+**Invented figures are still discarded.** `test_an_invented_figure_is_still_
+rejected` and the stub's `ungrounded` behaviour both still hold, and a month
+nobody published is still refused.
+
+## Defect 2 — pass two lost a whole reading over the case of one letter
+
+LIVE-3's `sonnet_pass_2` reply did not conform: `requested_layer` carried a
+value outside the closed enum. The enum is `L1 | L2 | L3 | L4 | ""` and the
+post-validation code already handled anything unexpected — but validation runs
+first, so `"l3"`, `"Layer 3"`, `"L3 external intelligence"`, `["L3"]` and an
+explicit `null` each threw the entire pass away and the reading of the request
+fell back to the patterns.
+
+The stage had **no `tidy`**. The planner has had one since its own schema
+defect; pass two never got the same treatment.
+
+`_pass_2_tidy` now maps each closed field into the vocabulary the schema
+already contains, with the planner's discipline: **map, never invent, and drop
+what will not map.** The layer aliases are not a table kept in this module —
+`layers.resolve` is the product's one governed reader of layer language, so
+"external intelligence" resolves to L3 here for the same reason and by the same
+code that makes it resolve to L3 anywhere else. `L9` is dropped rather than
+guessed at, the field is optional, and the deterministic reading stands. The
+enum is unchanged and `requested_layer` is not free text.
+
+The same treatment for `requested_analyses`, `requested_scope` and
+`requested_actions`, whose enums are equally closed and equally exposed.
+
+## Defect 3 — an incorrect premise was routed to What-If
+
+LIVE-5 asked "Given every Contracting obligor improved last month, which one
+improved most?". The premise is false — Contracting deteriorated — and saying
+so is the answer. The model read "given" as a supposition and routed the
+request to What-If; the gate accepted it, because routing OUT was treated as
+always safe. Executions 0, no plan, no sufficiency review, no interpretation,
+no answer.
+
+"Routing out is safe because nothing runs" is true of the controls and false
+of the reader. So the gate has a second governed test in the outward direction:
+**an observed-state question with no stipulated change stays here.**
+
+The test is not the word "if". Both of these contain one:
+
+    If Contracting deteriorated, what drove it?        observed
+    Recalculate ECL if the rating falls two notches.   hypothetical
+
+`functionality.stipulates_a_hypothetical` looks for a value being **replaced** —
+a shock or scenario verb, a driver moved by a stated amount, or a recomputation
+requested under a supposition. `asks_about_observed_state` looks for an outcome
+verb this product owns over a window that has closed, in a sentence asking the
+product to explain, test or rank it. `belongs_to_early_warning` is the
+conjunction, and `select._reconcile` refuses a route-out where it holds.
+
+The original asymmetry is untouched: a model still may not open the gate. A
+genuine scenario the patterns missed still leaves — `test_a_scenario_the_
+patterns_missed_can_still_be_routed_out` pins that. LIVE-6 is pinned exactly:
+owner `what_if`, EWS executions 0.
+
+## What now proves it
+
+| Suite | Tests | What it pins |
+|---|---|---|
+| `test_grounding_derivations.py` | 34 | the five rejected figures, the hyphen, the closed operator set, no `eval` |
+| `test_live_model_conformance.py` | 60 | every `requested_layer` shape a live model sent, and the other closed enums |
+| `test_ownership_premise.py` | 38 | 11 observed questions, 8 hypotheticals, and the gate in both directions |
+| `test_live_certification_cases.py` | 33 | all eight live cases end to end, through a model that answers |
+| `test_grounding.py` (existing) | 32 | unchanged, and still passing |
+
+The stub gained the live shapes rather than convenient ones: a reading that
+states the size of a signed move, one that declares arithmetic, one that
+declares it wrongly, one that does the arithmetic without declaring it, and the
+eight `requested_layer` spellings. Its pass one now spells the question the way
+the product's own patterns do — pass one is the only stage whose prompt does
+not carry the deterministic floor, so a stub echoing its input was measuring
+itself.
+
+## Performance
+
+Not refactored, per instruction. The 134.6-second case is LIVE-3, the
+multi-part analytical question, and its `sonnet_pass_2` failed schema
+validation — a failed structured call is retried at the provider boundary
+before the stage gives up and falls back, so the slowest case is also the one
+carrying a defect this run removes. Whether that accounts for the whole gap is
+a question the next certification answers rather than one to argue here; the
+report records the per-stage timings for both runs so the comparison is
+mechanical.
+
+## Certification script
+
+Diagnostics only, and **no acceptance criterion was changed or removed**. The
+next run still requires all eight cases. Each case now also records the
+`derived_claims` the reading declared and what the server made of each, and —
+where a reading was discarded — the prose it actually wrote, scrubbed like
+everything else. Working out where `11.31` and `-5` came from meant rebuilding
+the packets by hand from five bare numbers; the report now names the figure,
+the sentence it sat in and the arithmetic claimed for it.
+
+A refused declaration is recorded but does not by itself fail a case: the
+grounding check already enforces the consequence, because a claim the server
+did not reproduce permits nothing and any figure resting on it is rejected
+there. Making it a second failure would risk failing a case whose answer was
+correct.

@@ -279,6 +279,147 @@ AMBIGUITY_MARGIN = 0.75
 MINIMUM_SIGNAL = 1.0
 
 
+# ------------------------------------------------------------------------
+# Observed state, or a stipulated change?
+#
+# The live certification routed "Given every Contracting obligor improved
+# last month, which one improved most?" to What-If, ran nothing, and returned
+# no analysis. The premise is false — Contracting deteriorated — and saying
+# so is the answer. It is not a scenario.
+#
+# The distinction is not the word "if". Both of these contain it:
+#
+#     If Contracting deteriorated, what drove it?          observed
+#     Recalculate ECL if the rating falls two notches.     hypothetical
+#
+# What separates them is whether the sentence STIPULATES A CHANGE to an input
+# the book does not currently carry, and then asks for the consequence to be
+# recomputed. The first asserts something about what already happened and
+# asks the product to explain or test it; the product's answer, where the
+# assertion is wrong, is to say so. The second replaces a value and asks what
+# would follow.
+# ------------------------------------------------------------------------
+
+#: A driver somebody would shock: a price, a rate, a macro variable, a rating,
+#: a limit. Not an Early Warning output — nobody stress-tests an EWS band,
+#: they observe it.
+_SHOCKABLE = (r"oil|brent|crude|\bgdp\b|inflation|\bfx\b|exchange rate|"
+              r"interest rate|\bsibor\b|\blibor\b|\bsaibor\b|policy rate|"
+              r"commodity|price[sd]?\b|spread\w*|\bpd\b|\blgd\b|\bead\b|"
+              r"\becl\b|provision\w*|impairment|rating|grade|limit|"
+              r"collateral value|property value|revenue|turnover|"
+              r"capital|liquidity|haircut|discount rate")
+
+#: A verb that replaces a value rather than reporting one.
+_STIPULATION = re.compile(
+    r"\bshock(?:s|ed|ing)?\b|\bstress(?:ed|ing)?\b|\bsimulat\w+|"
+    r"\bscenario\b|\bsensitivit\w+|\bwhat.if\b|\bceteris paribus\b|"
+    r"\bhypothetical\w*\b|\bcounterfactual\w*\b", re.I)
+
+#: "recalculate ECL if ...", "reprice under ...", "re-run assuming ..." — a
+#: recomputation requested under a supposition.
+_RECOMPUTE_UNDER = re.compile(
+    r"\b(?:re.?calculat\w+|re.?comput\w+|re.?pric\w+|re.?run|re.?score|"
+    r"re.?rate|project\w*|forecast\w*)\b[^.?!]{0,80}?"
+    r"\b(?:if|under|assuming|given|when|with)\b", re.I)
+
+#: A driver moved by a stated amount: "oil falls 30%", "PD by 20%", "the
+#: rating falls two notches", "rates rise 100bp", "oil drops to $50".
+_MOVES_A_DRIVER = re.compile(
+    r"\b(?:" + _SHOCKABLE + r")\b[^.?!]{0,40}?"
+    r"\b(?:fall\w*|drop\w*|declin\w*|ris\w*|increas\w*|jump\w*|"
+    r"halv\w*|doubl\w*|weaken\w*|widen\w*|tighten\w*|move\w*|"
+    r"down|up|by|to)\b[^.?!]{0,20}?"
+    r"(?:\d|one|two|three|four|five|ten|half|zero)", re.I)
+
+#: The same thing said the other way round: "shock PD by 20%", "cut the
+#: limit to zero", "assume oil drops".
+_MOVES_A_DRIVER_FIRST = re.compile(
+    r"\b(?:shock|stress|cut|raise|lower|lift|drop|move|set|reduce|widen)\b"
+    r"[^.?!]{0,30}?\b(?:" + _SHOCKABLE + r")\b", re.I)
+
+#: "Assume/suppose/imagine ..." followed by anything that is not a claim about
+#: what the book already did.
+_SUPPOSES = re.compile(r"\b(?:assum\w+|suppos\w+|imagin\w+|say)\b", re.I)
+
+#: What Early Warning observes: a condition that already moved, in the book,
+#: over a period that has closed. The verbs are the product's own subject.
+_OBSERVED_OUTCOME = re.compile(
+    r"\b(?:deteriorat\w+|worsen\w+|improv\w+|weaken\w+|"
+    r"recover\w+|stabilis\w+|stabiliz\w+|"
+    r"(?:score|band|rating|risk|position|exposure)s?\s+"
+    r"(?:ros[e]?|rise[nd]?|fell|fallen|dropped|increased|declined|moved)|"
+    r"(?:ros[e]|fell|fallen|dropped|increased|declined|moved)\s+"
+    r"(?:most|least|fastest|furthest|up|down|into|out of))\b", re.I)
+
+#: A window that has already happened. "last month", "over six months",
+#: "since December", "this quarter", "YTD".
+_CLOSED_WINDOW = re.compile(
+    r"\b(?:last|past|previous|prior|recent|this)\s+"
+    r"(?:month|quarter|year|week|\d+\s*(?:months?|quarters?|years?))\b|"
+    r"\bover\s+(?:the\s+)?(?:last|past)?\s*\w*\s*"
+    r"(?:months?|quarters?|years?)\b|"
+    r"\bsince\b|\byear.to.date\b|\bytd\b|\bso far\b|"
+    r"\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])\b", re.I)
+
+#: Asking the product to explain, test or rank something it observes.
+_ASKS_ABOUT_THE_BOOK = re.compile(
+    r"\bwhy\b|\bwhat drove\b|\bwhat is driving\b|\bwhich\b|\bwho\b|"
+    r"\bdid\b|\bhas\b|\bhave\b|\bis\b|\bare\b|\bshow\b|\blist\b|"
+    r"\bhow many\b|\bwhat drives\b", re.I)
+
+
+def stipulates_a_hypothetical(text: str) -> bool:
+    """Whether the request replaces a value and asks what would follow.
+
+    True for a shock, a scenario, a stipulated move in a driver, or a
+    recomputation requested under a supposition. False for a sentence that
+    merely contains "if" — a conditional about what the book already did is a
+    claim to be tested, not a value to be replaced.
+    """
+    said = str(text or "")
+    if _STIPULATION.search(said):
+        return True
+    if _RECOMPUTE_UNDER.search(said):
+        return True
+    if _MOVES_A_DRIVER.search(said) or _MOVES_A_DRIVER_FIRST.search(said):
+        return True
+    if _SUPPOSES.search(said) and re.search(
+            r"\b(?:" + _SHOCKABLE + r")\b", said, re.I) \
+            and not _OBSERVED_OUTCOME.search(said):
+        return True
+    return False
+
+
+def asks_about_observed_state(text: str) -> bool:
+    """Whether the request is about a condition the book already carries.
+
+    An outcome verb this product owns — deteriorated, improved, moved into a
+    band — over a window that has closed, in a sentence that asks the product
+    to explain, test or rank it. A false premise is still an observed-state
+    question: "given every obligor improved, which improved most?" asks about
+    last month, and the answer is that the premise is wrong.
+    """
+    said = str(text or "")
+    if not _OBSERVED_OUTCOME.search(said):
+        return False
+    if not _ASKS_ABOUT_THE_BOOK.search(said):
+        return False
+    return bool(_CLOSED_WINDOW.search(said)) or not stipulates_a_hypothetical(said)
+
+
+def belongs_to_early_warning(text: str) -> bool:
+    """The governed test a model's routing may not override.
+
+    An observed-state question with no stipulated change is Early Warning's,
+    whatever else the sentence sounds like. This is the ONE direction the
+    ownership gate did not previously defend: routing out was treated as
+    always safe because nothing analytical runs, and a question this product
+    owns then got no analysis at all.
+    """
+    return asks_about_observed_state(text) and not stipulates_a_hypothetical(text)
+
+
 def _score(text: str, functionality: Functionality) -> tuple[float, list[str]]:
     total = 0.0
     matched: list[str] = []

@@ -59,3 +59,23 @@ and none of them in `tests/early_warning/` or `tests/api/`; frontend 429 of
 
 The only thing outstanding is `scripts/certify_early_warning_live.py`, run on
 a machine that has the Anthropic key.
+
+
+## Run 3 — live provider certification remediation
+
+The Mac run returned **3/8 certified, VERDICT: NOT_CERTIFIED**. Five cases
+failed on three defects, none of which any deterministic test could reach:
+every one needed a model to actually answer.
+
+| # | Item | State |
+|---|---|---|
+| 28 | Trace the provenance of every rejected figure, A / B / C | done |
+| 29 | Grounding: a figure the packet holds, however English writes it | done |
+| 30 | Grounding: the governed derived-claim contract | done |
+| 31 | Grounding: the numeral scanner reads a hyphen as a hyphen | done |
+| 32 | `sonnet_pass_2` real-model vocabulary conformance | done |
+| 33 | Ownership: an observed-state question is not a scenario | done |
+| 34 | Preserve LIVE-1, LIVE-4 and LIVE-6 as non-regression cases | done |
+| 35 | Certification diagnostics, without weakening acceptance | done |
+| 36 | Focused tests, full regression, baseline comparison | done |
+| 37 | Second Mac certification run | blocked-external |

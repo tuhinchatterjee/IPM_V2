@@ -808,7 +808,7 @@ def read(cleaned: Cleaned, *, ui_state: dict[str, Any] | None = None,
         seam_mod.PASS_2, system=_PASS_2_SYSTEM,
         prompt=_pass_2_prompt(cleaned, floor, ui_state, rolling_summary,
                               recent),
-        schema=_PASS_2_SCHEMA, ledger=ledger)
+        schema=_PASS_2_SCHEMA, ledger=ledger, tidy=_pass_2_tidy)
     if not outcome.used_model:
         floor.model_call = outcome.to_dict()
         return floor
@@ -1135,6 +1135,162 @@ _PASS_2_SCHEMA: dict[str, Any] = {
 }
 
 _OFFSET = re.compile(r"^-\d{1,2}m$")
+
+
+def _pass_2_tidy(data: dict[str, Any]) -> dict[str, Any]:
+    """A real model's reading, mapped into the vocabulary the schema declares.
+
+    The stage's closed enums are the control: a label the planner has no step
+    for would be reported forever afterwards as an uncovered part of the
+    request. But a live Sonnet does not fail those enums by proposing a new
+    kind of analysis. It fails them by writing `"l3"` where the schema spells
+    `"L3"`, `"Layer 3"` where it spells the code, `["L3"]` where it declares a
+    string, or `""` for something it had nothing to say about — and losing an
+    otherwise correct reading of the request over the case of one letter is a
+    papercut that costs the whole stage. It cost a live certification case.
+
+    So each closed field is normalised here, and the discipline is the
+    planner's: **map into the vocabulary the schema already contains, never
+    invent one**. A value that does not resolve to a member of the enum is
+    DROPPED rather than guessed at, and every one of these fields is optional
+    precisely so that dropping it is the schema's own answer — the
+    deterministic reading of the sentence then stands, which is the floor this
+    stage is merged onto anyway.
+
+    The layer aliases in particular are not a table kept here. `layers.resolve`
+    is the product's one governed reader of layer language, so "external
+    intelligence" resolves to L3 for the same reason and by the same code that
+    makes it resolve to L3 anywhere else.
+    """
+    out = dict(data)
+
+    #: Returned where the model sent the key but nothing usable under it —
+    #: a null, an empty list, or several values where one was asked for.
+    #: Distinct from `None`, which means it did not send the key at all.
+    unusable = object()
+
+    def one_string(key: str) -> Any:
+        """A field the schema declares as a string, as the model sent it."""
+        if key not in out:
+            return None
+        value = out[key]
+        if isinstance(value, (list, tuple)):
+            # One value where a string was asked for. The model answered; it
+            # just put brackets round it. Several values, or none, is not an
+            # answer to a question that asked for one thing.
+            if len(value) != 1:
+                return unusable
+            value = value[0]
+        if value is None:
+            return unusable
+        return str(value).strip()
+
+    layer = one_string("requested_layer")
+    if layer is unusable:
+        out.pop("requested_layer", None)
+    elif layer is not None:
+        resolved = layer.upper() if layers_mod.is_code(layer.upper()) else ""
+        if not resolved and layer:
+            # "Layer 3", "external intelligence", "L3 external intelligence" —
+            # read by the registry rather than by a second list of synonyms.
+            resolved = layers_mod.resolve(layer)
+        if resolved:
+            out["requested_layer"] = resolved
+        else:
+            # Blank, or a layer this product does not have. Either way the
+            # field is optional and the patterns already read the sentence.
+            out.pop("requested_layer", None)
+
+    scope = one_string("requested_scope")
+    if scope is unusable:
+        out["requested_scope"] = ""
+    elif scope is not None:
+        lowered = scope.lower().replace("-", " ").strip()
+        mapped = _SCOPE_ALIASES.get(lowered, lowered)
+        out["requested_scope"] = mapped if mapped in _SCOPE_LABELS else ""
+
+    grouping = one_string("requested_grouping")
+    if grouping is unusable:
+        out["requested_grouping"] = ""
+    elif grouping is not None:
+        out["requested_grouping"] = grouping
+
+    for key, vocabulary, aliases in (
+            ("requested_analyses", _ANALYSIS_LABELS, _ANALYSIS_ALIASES),
+            ("requested_actions", _ACTION_LABELS, _ACTION_ALIASES)):
+        value = out.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, (list, tuple)):
+            value = [value]
+        kept: list[str] = []
+        for item in value:
+            label = str(item).strip().lower().replace(" ", "_").replace("-", "_")
+            label = aliases.get(label, label)
+            if label in vocabulary and label not in kept:
+                kept.append(label)
+        out[key] = kept
+
+    for key in ("requested_period", "comparison_period"):
+        value = one_string(key)
+        if value is unusable:
+            out[key] = ""
+        elif value is not None:
+            out[key] = value
+
+    return out
+
+
+#: What a model calls a scope when it does not call it what the schema does.
+#: Mapped, never widened: a word that is not here and not in the enum leaves
+#: the scope empty and the patterns' reading stands.
+_SCOPE_ALIASES: dict[str, str] = {
+    "industry": "sector", "sub sector": "sector", "subsector": "sector",
+    "segment group": "segment", "business segment": "segment",
+    "obligor": "borrower", "customer": "borrower", "counterparty": "borrower",
+    "name": "borrower", "entity": "borrower",
+    "grade": "rating", "rating band": "rating", "risk rating": "rating",
+    "book": "portfolio", "whole book": "portfolio", "total portfolio":
+        "portfolio", "bank": "portfolio", "all": "portfolio",
+    "peer group": "group", "cohort": "group",
+}
+
+#: The same for an analysis. A kind of analysis this product genuinely does
+#: not have is NOT here — it is dropped, and the sufficiency review is what
+#: tells the reader a part went unanswered.
+_ANALYSIS_ALIASES: dict[str, str] = {
+    "root_cause": "diagnosis", "root_cause_analysis": "diagnosis",
+    "driver_analysis": "diagnosis", "drivers": "diagnosis",
+    "cause": "diagnosis", "why": "diagnosis", "explanation": "diagnosis",
+    "trend": "movement", "change": "movement", "delta": "movement",
+    "deterioration": "movement", "improvement": "movement",
+    "migration": "transition", "band_migration": "transition",
+    "band_transition": "transition", "transitions": "transition",
+    "comparison_analysis": "comparison", "compare": "comparison",
+    "versus": "comparison", "benchmark": "comparison",
+    "concentration_analysis": "concentration", "breadth": "concentration",
+    "distribution": "grouping", "breakdown": "grouping",
+    "segmentation": "grouping", "group_by": "grouping",
+    "top_n": "ranking", "list": "ranking", "rank": "ranking",
+    "worst": "ranking", "leaderboard": "ranking",
+    "method": "methodology", "methodology_explanation": "methodology",
+    "how_it_works": "methodology",
+    "evidence_request": "evidence", "lineage": "evidence",
+    "provenance": "evidence", "signals": "evidence",
+}
+
+#: And for an action. `notify` and `alert` are `inform`; `escalation` is the
+#: noun the verb `escalate` names.
+_ACTION_ALIASES: dict[str, str] = {
+    "escalation": "escalate", "raise": "escalate", "refer": "escalate",
+    "notify": "inform", "alert": "inform", "message": "inform",
+    "email": "inform", "tell": "inform",
+    "investigate": "save_investigation", "save": "save_investigation",
+    "investigation": "save_investigation",
+    "reporting": "report", "export": "report", "download": "report",
+    "remediation": "remediate", "action": "remediate",
+    "recommend": "remediate", "recommendation": "remediate",
+}
 
 
 def _published_periods() -> list[str]:

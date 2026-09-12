@@ -112,18 +112,48 @@ class StubProvider:
 
 
 def _clean(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
+    """Clean English, to the standard the product's own patterns reach.
+
+    Pass one is the only stage whose prompt does NOT carry the deterministic
+    floor — it is given the raw question and nothing else — so a stub that
+    echoes its input is not "as good as the floor", it is worse than it, and
+    a test built on it measures the stub. `wich contrcting names deterioted`
+    would come back unspelled, the sector filter would never be read, and the
+    turn would answer about the whole book.
+
+    So the stub spells it the way the patterns do. It still invents nothing:
+    this is the product's own corrector, run where a real Sonnet would run.
+    """
     del behaviour
-    return {"cleaned_english": str(packet.get("question") or "")
+    from backend.early_warning.conversation import normalise as nm
+
+    floor = nm._clean_deterministic(str(packet.get("question") or ""))
+    return {"cleaned_english": floor.cleaned_english
             or "The question, in clean English.",
-            "translation_applied": False,
-            "detected_entities": [], "uncertainties": [],
-            "transcription_uncertainties": []}
+            "translation_applied": floor.translation_applied,
+            "detected_entities": list(floor.detected_entities),
+            "uncertainties": list(floor.uncertainties),
+            "transcription_uncertainties": list(
+                floor.transcription_uncertainties)}
+
+
+#: The `requested_layer` values a live Sonnet actually produced, none of which
+#: the closed enum accepts as sent.
+LAYER_SHAPES: dict[str, Any] = {
+    "lowercase_layer": "l3",
+    "spelled_layer": "Layer 3",
+    "described_layer": "external intelligence",
+    "verbose_layer": "L3 external intelligence",
+    "listed_layer": ["L3"],
+    "blank_layer": "",
+    "null_layer": None,
+    "unknown_layer": "L9",
+}
 
 
 def _read(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
-    del behaviour
     floor = packet.get("first_reading") or {}
-    return {
+    out: dict[str, Any] = {
         "normalized_business_request": str(
             floor.get("normalized_business_request") or ""),
         "subquestions": list(floor.get("subquestions") or []),
@@ -137,6 +167,9 @@ def _read(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
         "ambiguities": list(floor.get("ambiguities") or []),
         "clarification_needed": bool(floor.get("clarification_needed")),
     }
+    if behaviour in LAYER_SHAPES:
+        out["requested_layer"] = LAYER_SHAPES[behaviour]
+    return out
 
 
 def _select(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
@@ -184,16 +217,85 @@ def _review(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
             "presentation": str(floor.get("presentation") or "narrative")}
 
 
+def _signed_figure(packet: dict[str, Any]) -> tuple[str, float] | None:
+    """The first negative figure the packet carries, and where it lives.
+
+    Movements are stored signed. Finding one lets the stub write the sentence
+    a real Opus writes about it — "fell 11.31 points" — which is the exact
+    shape that discarded four live certification readings.
+    """
+    def walk(value: Any, path: str):
+        if isinstance(value, bool):
+            return None
+        if isinstance(value, (int, float)) and value < 0:
+            return (path, float(value))
+        if isinstance(value, dict):
+            for key, item in value.items():
+                got = walk(item, f"{path}.{key}" if path else str(key))
+                if got:
+                    return got
+        elif isinstance(value, (list, tuple)):
+            for i, item in enumerate(value):
+                got = walk(item, f"{path}[{i}]")
+                if got:
+                    return got
+        return None
+
+    return walk(packet.get("figures") or {}, "")
+
+
+def _row_exposures(packet: dict[str, Any]) -> list[tuple[str, float]]:
+    out: list[tuple[str, float]] = []
+    for i, row in enumerate(packet.get("rows") or []):
+        value = (row or {}).get("exposure")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            out.append((f"rows[{i}].exposure", float(value)))
+    return out
+
+
 def _interpret(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
     floor = packet.get("deterministic_reading") or {}
     direct = str(floor.get("direct") or "The position, stated directly.")
     reading = str(floor.get("interpretation") or "What the position means.")
+    declared: list[dict[str, Any]] = []
+
     if behaviour == "ungrounded":
         reading += " Total exposure across the segment is SAR 88,412.7m."
-    return {"direct": direct, "interpretation": reading,
-            "points": [], "drivers": list(floor.get("drivers") or []),
-            "follow_ups": list(floor.get("follow_ups") or []),
-            "caveats": []}
+
+    if behaviour == "writes_a_magnitude":
+        # What every failing live reading did: state the SIZE of a movement
+        # the packet stores signed, in the words a credit paragraph uses.
+        signed = _signed_figure(packet)
+        if signed:
+            reading += f" It fell {abs(signed[1]):.2f} points over the window."
+        # And the two phrases this stage's own system prompt asks for, both
+        # of which the numeral scanner used to read as negative numbers.
+        reading += (" The evidence rests on a single tier-3 source, and the "
+                    "top-5 names carry most of it.")
+
+    if behaviour in ("declares_arithmetic", "undeclared_arithmetic",
+                     "bad_declaration"):
+        pairs = _row_exposures(packet)[:2]
+        if len(pairs) == 2:
+            # The MEAN rather than the sum. A sum of the two largest rows is
+            # very often a total the packet already carries, which would make
+            # the undeclared case pass for the wrong reason — the figure would
+            # be grounded directly and the declaration would prove nothing.
+            average = round((pairs[0][1] + pairs[1][1]) / 2, 2)
+            stated = average if behaviour != "bad_declaration" else average + 25.0
+            reading += f" The two average SAR {stated:.2f}m each."
+            if behaviour != "undeclared_arithmetic":
+                declared.append({
+                    "value": stated, "op": "mean",
+                    "refs": [pairs[0][0], pairs[1][0]]})
+
+    out = {"direct": direct, "interpretation": reading,
+           "points": [], "drivers": list(floor.get("drivers") or []),
+           "follow_ups": list(floor.get("follow_ups") or []),
+           "caveats": []}
+    if declared:
+        out["derived_claims"] = declared
+    return out
 
 
 def _summarise(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:

@@ -192,11 +192,42 @@ def _stage_rows(turn) -> list[dict]:
     return rows
 
 
-def _ungrounded(turn) -> list[str]:
+def _final_detail(turn) -> dict:
     for event in turn.events:
         if event.stage == pipe.FINAL_ANSWER:
-            return list(event.detail.get("ungrounded_figures") or [])
-    return []
+            return dict(event.detail or {})
+    return {}
+
+
+def _ungrounded(turn) -> list[str]:
+    return list(_final_detail(turn).get("ungrounded_figures") or [])
+
+
+def _reading_diagnostics(turn) -> dict:
+    """What the reading declared, and what it wrote if it was thrown away.
+
+    Diagnostics only — nothing here decides a PASS. It exists because the last
+    live run reported five bare numbers and nothing else, and working out
+    where `11.31` and `-5` came from meant rebuilding the packets by hand. A
+    report that names the figure, the sentence it sat in, and the arithmetic
+    the model claimed for it can be read directly.
+    """
+    detail = _final_detail(turn)
+    claims = list(detail.get("derived_claims") or [])
+    out = {
+        "engine": detail.get("engine", ""),
+        "ungrounded_figures": list(detail.get("ungrounded_figures") or []),
+        "derived_claims": claims,
+        "derived_claims_refused": [c for c in claims if not c.get("accepted")],
+    }
+    call = detail.get("model_call") or {}
+    if detail.get("ungrounded_figures"):
+        # The prose the runtime discarded. Scrubbed like everything else, and
+        # trimmed: this is for diagnosis, not for reading the answer twice.
+        out["discarded_prose"] = _safe(
+            str(call.get("discarded_prose") or "")[:600])
+        out["fallback_reason"] = _safe(str(call.get("fallback_reason") or ""))
+    return out
 
 
 def _check(case: dict, turn) -> tuple[list[dict], list[dict]]:
@@ -341,6 +372,7 @@ def _run_case(case: dict, threads: dict, mode: str) -> dict:
         "answer_scope": (turn.answer or {}).get("scope", ""),
         "grounding": ("kept" if not _ungrounded(turn)
                       else "discarded: " + ", ".join(_ungrounded(turn))),
+        "reading": _reading_diagnostics(turn),
         "direct": _safe((turn.answer or {}).get("direct", ""))[:400],
         "checks": checks,
     }

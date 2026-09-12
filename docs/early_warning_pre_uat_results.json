@@ -1,8 +1,9 @@
 {
-  "verdict": "READY_EXCEPT_FOR_LOCAL_PROVIDER_CERTIFICATION",
+  "verdict": "NOT_CERTIFIED_REMEDIATED_AWAITING_SECOND_LIVE_RUN",
   "reasons": [
-    "Every defect under this environment's control is fixed: 0 P0, 0 P1.",
-    "The only remaining blocker is the real-provider certification, which cannot run here \u2014 this container has no Anthropic credential and by instruction must not be given one. scripts/certify_early_warning_live.py closes it in one Mac procedure."
+    "The local Mac real-provider certification returned 3/8 certified, VERDICT: NOT_CERTIFIED. Five cases failed on three defects, none of which any deterministic test could reach.",
+    "All three are fixed with reproduction, root cause and regression tests. 165 focused tests across four files, plus the existing grounding suite unchanged and still passing.",
+    "Early Warning is not certified until the Mac script returns 8/8 certified, VERDICT: CERTIFIED."
   ],
   "branch": "claude/early-warning-rebuild-v2-3lnttn",
   "commit_at_start": "d683881",
@@ -5257,5 +5258,206 @@
       "why": "escalation is reachable through the chat's action reading and through the API, and lands correctly in the workflow inbox. A button on the borrower drill-down would be a screen change beyond this exercise's scope.",
       "action": "decide whether the demo wants one"
     }
-  ]
+  ],
+  "run_3": {
+    "trigger": "local Mac real-provider certification",
+    "live_result": {
+      "certified": 3,
+      "of": 8,
+      "verdict": "NOT_CERTIFIED",
+      "median_s": 52.2,
+      "slowest_s": 134.6,
+      "passed": [
+        "LIVE-1 easy retrieval",
+        "LIVE-4 follow-up",
+        "LIVE-6 cross-product What-If route"
+      ],
+      "failed": [
+        "LIVE-2 diagnostic",
+        "LIVE-3 multi-part analytical",
+        "LIVE-5 incorrect premise",
+        "LIVE-7 noisy spelling",
+        "LIVE-8 mixed language"
+      ]
+    },
+    "why_no_deterministic_test_caught_them": "each needed a model to actually answer; with no provider configured every stage falls to its deterministic floor and every contract holds vacuously",
+    "rejected_figure_provenance": [
+      {
+        "figure": "11.31",
+        "cases": [
+          "LIVE-2",
+          "LIVE-3"
+        ],
+        "packet_field": "figures.movement.layers[0].score_change",
+        "packet_value": -11.31,
+        "class": "A_DIRECT",
+        "why_rejected": "stored signed, written in words; the allowed set carried -11.31 and never 11.31"
+      },
+      {
+        "figure": "3.67",
+        "cases": [
+          "LIVE-2",
+          "LIVE-3"
+        ],
+        "packet_field": "figures.movement.ews_change",
+        "packet_value": -3.67,
+        "class": "A_DIRECT",
+        "why_rejected": "same"
+      },
+      {
+        "figure": "15.46",
+        "cases": [
+          "LIVE-3"
+        ],
+        "packet_field": "figures.movement.layers[3].score_change",
+        "packet_value": -15.46,
+        "class": "A_DIRECT",
+        "why_rejected": "same"
+      },
+      {
+        "figure": "6.34",
+        "cases": [
+          "LIVE-7"
+        ],
+        "packet_field": "figures.movement.layers[0].score_change",
+        "packet_value": -6.34,
+        "class": "A_DIRECT",
+        "why_rejected": "same"
+      },
+      {
+        "figure": "-5",
+        "cases": [
+          "LIVE-8"
+        ],
+        "packet_field": null,
+        "packet_value": null,
+        "class": "NOT_A_FIGURE",
+        "why_rejected": "the numeral scanner read a hyphen between two word characters as a minus sign, so top-5 became -5 and tier-3 became -3. `5` alone was always allowed, which is the proof: a bare five would have passed"
+      }
+    ],
+    "defects_fixed": [
+      {
+        "id": "R3-1",
+        "title": "the grounding guard rejected figures the packet was holding",
+        "cases": [
+          "LIVE-2",
+          "LIVE-3",
+          "LIVE-7"
+        ],
+        "root_cause": "a signed packet value permitted only its signed spelling; English carries direction in the verb",
+        "fix": "a packet value permits its size as well as its sign, in reading._allowed_figures",
+        "residual_risk": "a figure guard cannot catch a direction inversion; that is the composer's improved/deteriorated verdict and the deterministic reading shown alongside, and it is documented in the code"
+      },
+      {
+        "id": "R3-2",
+        "title": "no route existed for arithmetic the result implies",
+        "cases": [
+          "LIVE-2",
+          "LIVE-3"
+        ],
+        "root_cause": "every figure had to be a literal packet cell, so a total, a share or a difference was unwritable",
+        "fix": "backend/early_warning/conversation/derivation.py \u2014 the model declares {value, op, refs}, the server resolves the refs in the packet's fact index, applies the operation itself and compares; disagreement permits nothing",
+        "operations": [
+          "sum",
+          "difference",
+          "delta",
+          "product",
+          "ratio",
+          "share",
+          "percent",
+          "mean",
+          "magnitude",
+          "minimum",
+          "maximum",
+          "count"
+        ],
+        "no_eval": true,
+        "no_expression_parser": true
+      },
+      {
+        "id": "R3-3",
+        "title": "the numeral scanner read a hyphen as a minus sign",
+        "cases": [
+          "LIVE-8"
+        ],
+        "root_cause": "the lookbehind was (?<![\\d.,\\-]) and permitted a letter before the hyphen",
+        "fix": "(?<![\\w.,\\-]); this also stops L1, L3 and L1.2 being read as figures, which the system prompt asks the model to write"
+      },
+      {
+        "id": "R3-4",
+        "title": "sonnet_pass_2 lost a whole reading over the case of a letter",
+        "cases": [
+          "LIVE-3"
+        ],
+        "root_cause": "the stage had no tidy, so a closed enum was validated against the raw reply; l3, Layer 3, 'L3 external intelligence', ['L3'] and an explicit null each threw the pass away",
+        "fix": "normalise._pass_2_tidy maps each closed field into the schema's own vocabulary and drops what will not map; layer aliases resolve through layers.resolve, not a second list",
+        "enum_unchanged": true,
+        "free_text": false
+      },
+      {
+        "id": "R3-5",
+        "title": "an incorrect premise was routed to What-If",
+        "cases": [
+          "LIVE-5"
+        ],
+        "root_cause": "the gate accepted any route OUT of Early Warning on the grounds that nothing analytical then runs; true of the controls, false of the reader",
+        "fix": "functionality.belongs_to_early_warning \u2014 an observed-state question with no stipulated change stays here; select._reconcile refuses the route-out. The word 'if' decides nothing on its own",
+        "preserved": [
+          "a model still may not open the gate",
+          "a genuine scenario the patterns missed still leaves",
+          "LIVE-6: owner what_if, EWS executions 0"
+        ]
+      }
+    ],
+    "new_tests": {
+      "tests/early_warning/test_grounding_derivations.py": 34,
+      "tests/early_warning/test_live_model_conformance.py": 60,
+      "tests/early_warning/test_ownership_premise.py": 38,
+      "tests/early_warning/test_live_certification_cases.py": 33
+    },
+    "stub_extended_with_live_shapes": [
+      "writes_a_magnitude",
+      "declares_arithmetic",
+      "undeclared_arithmetic",
+      "bad_declaration",
+      "lowercase_layer",
+      "spelled_layer",
+      "described_layer",
+      "verbose_layer",
+      "listed_layer",
+      "blank_layer",
+      "null_layer",
+      "unknown_layer",
+      "pass one now spells the question the way the product's patterns do"
+    ],
+    "certification_script": {
+      "acceptance_changed": false,
+      "still_requires": "all 8 cases",
+      "diagnostics_added": [
+        "the derived claims a reading declared and the server's verdict on each",
+        "the prose a discarded reading actually wrote, scrubbed"
+      ]
+    },
+    "performance": {
+      "note": "not refactored, per instruction",
+      "slowest_case": "LIVE-3, 134.6s, whose sonnet_pass_2 failed schema validation \u2014 a failed structured call is retried at the provider boundary before the stage falls back",
+      "to_confirm": "the next certification records the same per-stage timings, so the comparison is mechanical"
+    },
+    "regression": {
+      "backend": {
+        "failed": 22,
+        "passed": 10754,
+        "skipped": 27,
+        "errors": 0,
+        "identical_to_baseline": true,
+        "new_failures": [],
+        "resolved_failures": [],
+        "note": "165 additional passes over the run-2 total; the 22 failing identifiers are the recorded pre-exercise baseline, none in tests/early_warning/ or tests/api/"
+      },
+      "frontend": "429 / 429 pass",
+      "typecheck": "clean",
+      "lint": "clean",
+      "environment_note": "PostgreSQL had stopped mid-session on a stale pid file; the regression above was run with it back up. A subset run taken while it was down showed 79 failures both with and without this run's changes, which is how the artefact was told apart from a regression."
+    }
+  }
 }

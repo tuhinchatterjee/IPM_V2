@@ -17,9 +17,20 @@ prompt:
 * The model agrees with the deterministic verdict — the verdict stands, and the
   model's reasoning is what the reader is shown, because it is better written.
 * The model routes the request OUT of Early Warning where the deterministic
-  path kept it — accepted. Nothing analytical runs, which is the safe
-  direction, and a model that spots a scenario question the patterns missed is
-  the whole reason to ask one.
+  path kept it — accepted, with ONE exception below. Nothing analytical runs,
+  which is usually the safe direction, and a model that spots a scenario
+  question the patterns missed is the whole reason to ask one.
+* **Except where the request is plainly about the observed book.** "Routing
+  out is safe because nothing runs" is true of the controls and false of the
+  reader. A live certification asked "given every Contracting obligor improved
+  last month, which one improved most?"; the model read the false premise as a
+  supposition, routed it to What-If, and the product ran no analysis and gave
+  no answer to a question it owns — where the answer was that Contracting
+  deteriorated. An observed-state question with no stipulated change is Early
+  Warning's, and `functionality.belongs_to_early_warning` is the governed test
+  of that. It does not depend on the word "if": both "if Contracting
+  deteriorated, what drove it?" and "recalculate ECL if the rating falls two
+  notches" contain one, and only the second replaces a value.
 * The model routes the request INTO Early Warning where the deterministic path
   sent it elsewhere — refused. The deterministic verdict stands, the
   disagreement is recorded, and a confident disagreement becomes a
@@ -60,6 +71,20 @@ the product is FOR.
 
 You are given the catalogue: what each functionality owns and what it \
 explicitly does not. Choose exactly one key from it.
+
+OBSERVED STATE IS NOT A SCENARIO
+A question about what the book ALREADY DID belongs to Early Warning even when \
+its premise is wrong, and even when it is phrased as a condition. "Given every \
+Contracting obligor improved last month, which improved most?" asserts \
+something about last month; the answer is to test it and say Contracting \
+deteriorated. "If Contracting deteriorated, what drove it?" asks for an \
+explanation of an observed condition. Neither is a simulation.
+
+What-If owns a request that REPLACES A VALUE and asks what would follow: \
+"what happens to ECL if oil falls 30%", "shock PD by 20%", "assume oil drops \
+to $50", "recalculate ECL if the rating falls two notches". The test is a \
+stipulated change to an input plus a recomputed consequence — never the \
+presence of the word "if".
 
 If two functionalities own the request about equally, say so and give one \
 targeted question that would settle it. A tie is a question, not a coin toss.
@@ -125,11 +150,11 @@ def decide(request_text: str, *, active: str = fn.EARLY_WARNING,
     if not outcome.used_model:
         deterministic.model_call = outcome.to_dict()
         return deterministic
-    return _reconcile(deterministic, outcome, active)
+    return _reconcile(deterministic, outcome, active, request_text)
 
 
 def _reconcile(deterministic: fn.Selection, outcome: seam_mod.Outcome,
-               active: str) -> fn.Selection:
+               active: str, request_text: str = "") -> fn.Selection:
     data = outcome.data
     proposed = str(data.get("selected_functionality") or "")
     if proposed not in fn.BY_KEY:
@@ -144,6 +169,38 @@ def _reconcile(deterministic: fn.Selection, outcome: seam_mod.Outcome,
     rationale = str(data.get("ownership_rationale") or "").strip()
     ambiguous = bool(data.get("ambiguous"))
     clarification = str(data.get("clarification") or "").strip()
+
+    # Routing OUT of a question this product observes. Refused for the same
+    # reason opening the gate is: the verdict a control reaches must not be
+    # something a well-phrased sentence can talk it out of. Here the cost is
+    # not a question reaching data it should not — it is a question this
+    # product owns getting no analysis and no answer.
+    leaving_a_question_we_own = (
+        proposed != fn.EARLY_WARNING
+        and deterministic.selected == fn.EARLY_WARNING
+        and fn.belongs_to_early_warning(request_text))
+    if leaving_a_question_we_own:
+        held = fn.Selection(
+            selected=fn.EARLY_WARNING,
+            scores=dict(deterministic.scores),
+            confidence=deterministic.confidence,
+            rationale=(deterministic.rationale
+                       + " The model read it as a "
+                       + (fn.BY_KEY[proposed].name if proposed in fn.BY_KEY
+                          else proposed)
+                       + " question; it asks about a condition the book "
+                         "already carries and stipulates no change, so Early "
+                         "Warning answers it — testing the premise where the "
+                         "premise is wrong."),
+            active_product_is_best=True,
+            ambiguous=deterministic.ambiguous,
+            clarification=deterministic.clarification,
+            engine=seam_mod.MODEL)
+        held.model_call = dict(
+            outcome.to_dict(), proposed=proposed, accepted=False,
+            reason=("an observed-state question with no stipulated change "
+                    "stays with Early Warning"))
+        return held
 
     opening_the_gate = (proposed == fn.EARLY_WARNING
                         and deterministic.selected != fn.EARLY_WARNING)

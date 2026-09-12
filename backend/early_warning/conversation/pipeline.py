@@ -680,6 +680,11 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
          presentation=reviewed.presentation,
          engine=read.engine,
          ungrounded_figures=list(read.ungrounded),
+         # The arithmetic the reading declared and what the server made of
+         # it. On the trace because a claim the runtime refused is the most
+         # useful thing to see when a reading is discarded: it says which
+         # figure the model computed and what this product computes instead.
+         derived_claims=list(read.derived_claims),
          model_call=dict(read.model_call))
     return _finish(turn, request, prior, ledger, ui_state, emit)
 

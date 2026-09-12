@@ -38,6 +38,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.early_warning.conversation import derivation as dv
 from backend.early_warning.conversation import packet as packet_mod
 from backend.early_warning.conversation import seam as seam_mod
 
@@ -58,10 +59,23 @@ _ALWAYS_ALLOWED = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
 #: its own period correctly was discarded for citing a figure of minus six.
 _PERIOD_TOKEN = re.compile(r"\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])\b")
 
-#: A figure. The lookbehind stops a hyphen or a digit before it being read as
-#: part of the number, and the trailing lookbehind stops the match ending on a
-#: separator — `1,049` is one figure, `049,` is not a figure at all.
-_NUMERAL = re.compile(r"(?<![\d.,\-])-?\d[\d,]*(?:\.\d+)?(?<![.,])")
+#: A figure the prose STATES.
+#:
+#: The lookbehind refuses any word character, not merely a digit, and that is
+#: the whole of it. A hyphen between two word characters is a hyphen: `top-5`
+#: is five names and `tier-3` is a source tier, and a scanner that reads them
+#: as minus five and minus three reports true prose for quoting figures nobody
+#: computed — which is how a live reading was discarded for writing the phrase
+#: this module's own system prompt asks it to write.
+#:
+#: The same lookbehind keeps a node code out of the figure stream. `L1` is a
+#: layer and `L1.2` is a sub-category; read as 1 and 1.2 they are figures the
+#: packet has no reason to carry, and naming the node is exactly what a good
+#: reading does.
+#:
+#: The trailing lookbehind stops the match ending on a separator — `1,049` is
+#: one figure, `049,` is not a figure at all.
+_NUMERAL = re.compile(r"(?<![\w.,\-])-?\d[\d,]*(?:\.\d+)?(?<![.,])")
 
 SYSTEM = """You are the senior credit risk interpretation of CreditProbe's \
 Early Warning product. A governed runtime has ALREADY computed everything you \
@@ -84,9 +98,19 @@ tier-3 source.
 named exactly. Never "would you like to know more?".
 
 ABSOLUTE RULES
-1. Never write a number that is not in the result you were given. Do not add, \
-average, annualise or convert. Express a relationship the result does not \
-carry in words — "roughly a third", "the largest by some margin".
+1. Never write a number that is not in the result you were given, unless you \
+DECLARE it (rule 1a). Do not annualise, convert, or estimate.
+1a. ARITHMETIC MUST BE DECLARED. You may state a figure the result implies — a \
+total, a difference, a share, the size of a signed move — only by listing it in \
+`derived_claims`, naming the exact result fields it came from and which of \
+these operations produced it: sum, difference, delta, product, ratio, share, \
+percent, mean, magnitude, minimum, maximum, count. The runtime recomputes every \
+one of them from the result itself and DISCARDS your whole reading if its \
+answer differs from yours, so declare only arithmetic you are certain of, and \
+express anything else in words — "roughly a third", "the largest by some \
+margin". A movement stored as a negative number is the commonest case: to \
+write "fell 11.31 points" from `movement.ews_change: -11.31`, declare \
+{"value": 11.31, "op": "magnitude", "refs": ["movement.ews_change"]}.
 2. Never invent a recommended action. The governed action library is in the \
 packet, with owners, timeframes and what closes each one. Report from it.
 3. Never decide an escalation. The route is in the packet, produced by the \
@@ -147,6 +171,37 @@ SCHEMA: dict[str, Any] = {
                             "partial answer, an uncorroborated signal. Only "
                             "what the runtime did not already state."),
         },
+        "derived_claims": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "number",
+                        "description": "The figure exactly as your prose writes it.",
+                    },
+                    "op": {
+                        "type": "string",
+                        "enum": sorted(dv.OPERATIONS),
+                        "description": "The operation the runtime should apply.",
+                    },
+                    "refs": {
+                        "type": "array", "items": {"type": "string"},
+                        "maxItems": 8,
+                        "description": ("The result fields it is computed from, "
+                                        "in order — for example "
+                                        "\"movement.ews_change\" or "
+                                        "\"rows[0].exposure\"."),
+                    },
+                },
+                "required": ["value", "op", "refs"],
+            },
+            "description": ("Every figure in your prose that the result implies "
+                            "rather than states outright. The runtime "
+                            "recomputes each one and discards the reading if it "
+                            "disagrees."),
+        },
         "fact_refs": {
             "type": "array", "items": {"type": "string"},
             "maxItems": 8,
@@ -178,6 +233,10 @@ class Reading:
     #: reading whose every figure IS in the packet is a bookkeeping slip, not
     #: an invented number. It is on the trace so a pattern of them is visible.
     unresolved_refs: list[str] = field(default_factory=list)
+    #: Arithmetic the reading declared, each one recomputed by the server. An
+    #: accepted claim permits its figure; a refused one permits nothing and
+    #: the figure falls through to the direct check.
+    derived_claims: list[dict[str, Any]] = field(default_factory=list)
 
 
 #: The sections of the interpretation packet whose numerals the reading may
@@ -209,7 +268,8 @@ NON_NUMERIC_SECTIONS: tuple[str, ...] = ("scope", "sufficiency")
 
 def _allowed_figures(packet: packet_mod.ResultPacket,
                      deterministic: dict[str, Any],
-                     context: dict[str, Any] | None = None) -> set[str]:
+                     context: dict[str, Any] | None = None,
+                     claims: list[dv.Claim] | None = None) -> set[str]:
     """Every numeral the prose is allowed to contain.
 
     Built from the packet's own values, from the deterministic answer — which
@@ -226,15 +286,22 @@ def _allowed_figures(packet: packet_mod.ResultPacket,
     """
     allowed = set(_ALWAYS_ALLOWED)
     for value in packet.numbers():
-        allowed.add(f"{value:.0f}")
-        allowed.add(f"{value:.1f}")
-        allowed.add(f"{value:.2f}")
-        allowed.add(f"{value:,.0f}")
-        allowed.add(f"{value:,.1f}")
-        if abs(value) >= 1000:
-            allowed.add(f"{value / 1000:,.1f}")
-            allowed.add(f"{value / 1000:.1f}")
-            allowed.add(f"{value / 1000:.0f}")
+        allowed |= dv.spellings(value)
+        # And its size. A movement is stored signed and written in words: the
+        # packet holds `ews_change: -3.67` and every credit paragraph anybody
+        # writes says "the score fell 3.67 points". Refusing that discarded
+        # four true live readings for quoting figures the result was holding.
+        #
+        # This is a FIGURE guard and 3.67 is the packet's figure, so the size
+        # is permitted here rather than made to travel through a declaration.
+        # It does mean the guard alone cannot catch a reading that inverts a
+        # direction — that is the composer's "It improved / It deteriorated"
+        # verdict and the deterministic reading shown alongside, not this.
+        if value < 0:
+            allowed |= dv.spellings(-value)
+    for claim in claims or []:
+        if claim.accepted and claim.recomputed is not None:
+            allowed |= dv.spellings(claim.recomputed)
     for text in _prose(deterministic):
         allowed.update(_NUMERAL.findall(text))
     for section in CITABLE_SECTIONS:
@@ -333,6 +400,29 @@ def _checked_refs(named: Any,
     return resolved, unresolved
 
 
+def _facts_of(packet: packet_mod.ResultPacket) -> dict[str, Any]:
+    """The governed facts a declared derivation may be computed from.
+
+    The same evidence the direct check is built from, under the names the
+    reading is shown: `figures` at the top so `movement.ews_change` resolves,
+    the rows it can see, the governed actions and the escalation route. Not
+    the question, not the request text, not the deterministic prose — a
+    derivation is arithmetic over RESULTS, and a number that only exists in a
+    sentence is not a result.
+    """
+    return {
+        **{str(k): v for k, v in packet.figures.items()},
+        "figures": dict(packet.figures),
+        "rows": list(packet.rows)[:10],
+        "governed_actions": list(packet.governed_actions)[:3],
+        "escalation_route": dict(packet.escalation),
+        "steps": [{"analysis": s.get("analysis"),
+                   "figures": s.get("figures"),
+                   "row_count": s.get("row_count")}
+                  for s in packet.steps],
+    }
+
+
 def _context(question: str, packet: packet_mod.ResultPacket,
              deterministic: dict[str, Any],
              reviewed: Any) -> dict[str, Any]:
@@ -423,16 +513,36 @@ def write(question: str, packet: packet_mod.ResultPacket,
 
     refs, unresolved = _checked_refs(data.get("fact_refs"), packet)
     periods = _permitted_periods(packet)
+    # Arithmetic the reading declared, recomputed here from the packet's own
+    # facts. The model named the fields and the operation; the server did the
+    # sum. A claim it agrees with permits its figure, and one it does not
+    # permits nothing.
+    claims = dv.check(data.get("derived_claims"), dv.index(_facts_of(packet)))
     ungrounded = _ungrounded(
-        written, _allowed_figures(packet, deterministic, context), periods)
+        written, _allowed_figures(packet, deterministic, context, claims),
+        periods)
+    declared = [c.to_dict() for c in claims]
+    refused = [c for c in claims if not c.accepted]
+    if refused:
+        logger.warning(
+            "An Early Warning reading declared arithmetic the runtime did not "
+            "reproduce: %s", "; ".join(c.reason for c in refused[:3]))
     if ungrounded:
         logger.error("Discarding an Early Warning reading: figures %s are not "
                      "in the result packet.", ungrounded)
         return Reading(
             answer=deterministic, ungrounded=ungrounded, fact_refs=refs,
-            unresolved_refs=unresolved,
+            unresolved_refs=unresolved, derived_claims=declared,
             model_call=dict(outcome.to_dict(),
                             engine=seam_mod.DETERMINISTIC,
+                            derived_claims=declared,
+                            # What it actually wrote. Not shown to the reader
+                            # — that is the whole point of a discard — but on
+                            # the trace, because "figures 11.31 and 3.67 were
+                            # not in the packet" is a bare fact and the
+                            # sentence they sat in is a diagnosis.
+                            discarded_prose=" ".join(
+                                _prose(written))[:1200],
                             fallback_reason=(
                                 "the reading contained figures the result "
                                 "does not carry: "
@@ -460,9 +570,10 @@ def write(question: str, packet: packet_mod.ResultPacket,
             caveats.append(caveat)
     answer["caveats"] = caveats
     return Reading(answer=answer, engine=seam_mod.MODEL, fact_refs=refs,
-                   unresolved_refs=unresolved,
+                   unresolved_refs=unresolved, derived_claims=declared,
                    model_call=dict(outcome.to_dict(), fact_refs=refs,
-                                   unresolved_refs=unresolved))
+                                   unresolved_refs=unresolved,
+                                   derived_claims=declared))
 
 
 __all__ = ["Reading", "SCHEMA", "SYSTEM", "write"]
