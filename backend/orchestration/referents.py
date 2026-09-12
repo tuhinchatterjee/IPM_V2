@@ -112,6 +112,16 @@ _MODIFY: tuple[tuple[str, str, str], ...] = (
      cv.MODIFY_PERIOD, "compare the previous analysis with another period"),
     (r"\bexclude\b", cv.MODIFY_PREVIOUS, "exclude part of the previous result"),
     (r"\bdrop\b", cv.MODIFY_PREVIOUS, "drop part of the previous result"),
+    # "Actually forget behavioural score - just use DPD." A correction, and
+    # the most ordinary way in English to make one. Read as a fresh request it
+    # named BOTH measures, so the answer came back headed "behavioural score,
+    # days past due" and led with the behavioural average — the product adding
+    # the figure it had just been told to drop. `_RESET` already reads "forget
+    # those", which throws the POPULATION away; this is about a measure, and
+    # the sentence says which one replaces it.
+    (r"\b(?:forget|never\s*mind|ignore|leave\s+out)\b[^.?!]{0,60}?"
+     r"\b(?:just\s+)?(?:use|show|keep)\b",
+     cv.MODIFY_PREVIOUS, "replace a measure with the one named instead"),
 )
 
 #: An addition to what the previous turn produced.
@@ -147,6 +157,22 @@ _CONTINUE: tuple[str, ...] = (
     # `movement.SUBJECTLESS`: "what changed in Real Estate?" names a population
     # of its own and stays a fresh request.
     mv.SUBJECTLESS.pattern,
+    # "Show their facilities." The possessive IS the referent: there is no
+    # other reading of "their" in a conversation. Read as a fresh request this
+    # returned customers again — the drill-down that never drilled.
+    r"^\s*(?:now\s+|and\s+)?(?:show|list|give)\s+(?:me\s+)?"
+    r"(?:their|its|his|her|those)\b",
+    r"\bof (?:those|these|them)\b",
+    # "Which ten customers contributed most?" — contributed to WHAT is the
+    # movement the previous turn measured. With no object the sentence cannot
+    # be a fresh request: it was answered "Which customers? Name a product…",
+    # asking the reader to restate the analysis they were looking at.
+    r"\bcontributed?\s+(?:the\s+)?most\b",
+    r"\bcontributed?\s+to\s+(?:that|this|it)\b",
+    r"\bdr(?:o?ve|iving)\s+(?:that|this|it|the\s+(?:move|movement|change|"
+    r"increase|rise|fall))\b",
+    r"\bmade\s+up\s+(?:the\s+)?most\b",
+    r"\baccounts?\s+for\s+(?:the\s+)?most\b",
 )
 
 #: A change to how the previous result is *shown*, with no new arithmetic.
@@ -203,6 +229,13 @@ def wants(question: str) -> str:
 
 #: Opening something rather than asking about it.
 _NAVIGATE: tuple[str, ...] = (
+    # "Back." planned an analysis, ran it, and returned a DIFFERENT row count
+    # from the answer it was supposed to be returning to. A reader who types
+    # one word to go back and watches the numbers change has been given a
+    # reason not to trust either answer.
+    r"^\s*(?:go\s+)?back\b\s*[.!]?\s*$",
+    r"^\s*(?:take me\s+)?back to (?:that|the previous|the last)\b",
+    r"^\s*previous (?:answer|result|one)\b",
     r"^\s*open\b", r"^\s*take me to\b", r"^\s*go to\b",
     r"^\s*navigate to\b", r"^\s*let me see\b.*\bdataset\b",
     r"^\s*(?:show|bring up)\s+(?:me\s+)?the\s+\w+\s+(?:dataset|table)\b",

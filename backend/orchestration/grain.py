@@ -104,6 +104,24 @@ MEANS: dict[str, str] = {
 #: to tell it apart from.
 KEY_OF: dict[str, str] = {CUSTOMER: "customer_id", FACILITY: "account_id"}
 
+
+def key_of(grain: str) -> str:
+    """The column this installation keys that grain on.
+
+    The corporate book calls a facility an `account_id`; the retail book calls
+    it a `facility_id`, and this was a constant. So an explicit request for
+    facility level resolved to a column that does not exist here: "show their
+    facilities", asked of ten carried customers, could not find a key to group
+    on and was refused with "the governed data behind it can only be reported
+    as one row per customer" — about a book that is one row per facility per
+    month.
+    """
+    from backend.retail import profile
+
+    if grain == FACILITY and profile.is_retail():
+        return "facility_id"
+    return KEY_OF.get(grain, "")
+
 #: The inverse, including the aliases a carried population may be keyed on.
 GRAIN_OF_KEY: dict[str, str] = {
     "customer_id": CUSTOMER,
@@ -168,7 +186,7 @@ class Requested:
         """The columns that must be unique across the rows of the answer."""
         if self.grain == SEGMENT:
             return (self.dimension,) if self.dimension else ()
-        key = KEY_OF.get(self.grain, "")
+        key = key_of(self.grain)
         return (key,) if key else ()
 
     def to_dict(self) -> dict[str, Any]:
@@ -255,10 +273,27 @@ def requested(text: str, *, dimension: str = "", population_grain: str = "",
                      "itself rather than the population it counts"))
 
     if population_grain in LEVEL:
+        # Unless the sentence names a FINER grain than the population it is
+        # carrying. "Show their facilities", asked of ten carried customers,
+        # came back as the same ten customers — the drill-down that never
+        # drilled, and the bare word "facilities" behaved no differently. A
+        # carried population says what the answer is ABOUT; it does not say
+        # what one row is when the reader has just said so. The population
+        # survives as a restriction — those customers' facilities — which is
+        # the only reading of the sentence.
+        deeper = (population_grain == CUSTOMER
+                  and _FACILITY_WORDS.search(sentence)
+                  and not (bool(dimension) and not entity_is_head))
+        if not deeper:
+            return Requested(
+                grain=population_grain, explicit=True, source="population",
+                because=("the conversation is carrying a population at this "
+                         "grain, so the answer is one row per member of it"))
         return Requested(
-            grain=population_grain, explicit=True, source="population",
-            because=("the conversation is carrying a population at this grain, "
-                     "so the answer is one row per member of it"))
+            grain=FACILITY, explicit=True, source="facility",
+            because=("the question names facilities, so each row is one "
+                     "facility of the customers carried from the previous "
+                     "answer"))
 
     if dimension and dimension_is_head:
         return Requested(
@@ -405,7 +440,7 @@ def contract_of(build: Any) -> Contract | None:
 
 __all__ = [
     "CUSTOMER", "Contract", "FACILITY", "GRAINS", "GRAIN_OF_KEY",
-    "GRAIN_VERSION", "KEY_OF", "LADDER", "LEVEL", "MEANS", "PERIOD",
+    "GRAIN_VERSION", "KEY_OF", "key_of", "LADDER", "LEVEL", "MEANS", "PERIOD",
     "PORTFOLIO", "RECORD", "SEGMENT", "Requested", "contract_of", "declared",
     "needs_aggregation", "requested", "satisfies", "unreachable",
 ]

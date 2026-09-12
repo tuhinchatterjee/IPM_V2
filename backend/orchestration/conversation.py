@@ -229,6 +229,15 @@ class ConversationState:
     #: ranking that shares a subject with the answer above it and nothing else.
     certified_analysis: str = ""
     certified_params: dict[str, Any] = field(default_factory=dict)
+    #: The governed COMPOSITE the last analytical turn ranked by — "credit
+    #: concern", "deterioration" — as the words that named it. A composite
+    #: matches no concept, so a turn that runs one leaves `concepts` empty and
+    #: a follow-up naming no measure has nothing to inherit: "which product
+    #: worries you most?" then "show me the numbers behind that" asked the
+    #: reader which figure to measure, and so did every turn after it. Cleared
+    #: by an analytical turn that settles an ordinary measure, so a composite
+    #: cannot reach past the answer on screen.
+    composite: str = ""
     turns: list[Turn] = field(default_factory=list)
     #: The question CreditProbe could not plan and asked about, held so the
     #: reply can be merged with it instead of read as a fresh request. §9: a
@@ -294,6 +303,7 @@ class ConversationState:
             "certified_methods": list(self.certified_methods),
             "certified_analysis": self.certified_analysis,
             "certified_params": dict(self.certified_params),
+            "composite": self.composite,
             "turns": [t.to_dict() for t in self.turns],
             "pending": self.pending,
         }
@@ -327,6 +337,7 @@ class ConversationState:
             certified_methods=[str(v) for v in raw.get("certified_methods") or []],
             certified_analysis=str(raw.get("certified_analysis") or ""),
             certified_params=dict(raw.get("certified_params") or {}),
+            composite=str(raw.get("composite") or ""),
             turns=[Turn.from_dict(t) for t in raw.get("turns") or []],
             pending=str(raw.get("pending") or ""),
         )

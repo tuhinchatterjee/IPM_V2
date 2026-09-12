@@ -158,6 +158,11 @@ _CHANGE = re.compile(r"^(?P<base>.+?)_change(?P<pct>_pct)?$")
 _CLOSING = re.compile(r"^closing_(?P<base>.+)$")
 _SHARE = re.compile(r"^(?P<base>.+?)_share_pct$")
 _POPULATION = re.compile(r"^(?P<base>.+?)_population$")
+#: The population's average, written by the planner as a window over every
+#: group. Lineage like the population total beside it: the same number on
+#: every row, there so the headline average is the book's rather than the
+#: page's, and no more a column a reader wants than the denominator is.
+_POPULATION_AVG = re.compile(r"^(?P<base>.+?)_population_avg$")
 _COUNT = re.compile(r"^(?P<base>.+?)_count$")
 
 
@@ -404,6 +409,15 @@ def _column(name: str, origin: str, by_field: dict[str, Any],
                       semantic=PERCENT, unit="%", decimals=2, align="right",
                       role="this row as a percentage of the population",
                       origin=origin, rank=RANK_DERIVED)
+
+    population_avg = _POPULATION_AVG.match(lowered)
+    if population_avg:
+        base = population_avg.group("base")
+        return Column(name=name,
+                      label=f"{_label_of(base, by_field)} — population average",
+                      **_numeric(base, by_field),
+                      role="the average over every group, not over the rows shown",
+                      origin=origin, rank=RANK_LINEAGE, hidden=True)
 
     population = _POPULATION.match(lowered)
     if population:

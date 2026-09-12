@@ -787,6 +787,20 @@ def _period_column(build: ap.AnalysisBuild) -> str:
     return "period"
 
 
+
+def _population_average(column: str, rows: list[dict[str, Any]]) -> float | None:
+    """The average the runtime computed over the whole population, if present.
+
+    Written by the planner as a window over every group, before the ordering
+    and the limit, so it is the same number whatever fits on the page.
+    """
+    key = f"{column}_population_avg"
+    for row in rows or []:
+        value = row.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
 def _primary_column(build: ap.AnalysisBuild, runtime: Any) -> str:
     """The measure column as the result actually named it.
 
@@ -846,8 +860,21 @@ def _values(build: ap.AnalysisBuild, runtime: Any) -> dict[str, Any]:
             # ten per-grade AVERAGES produces a number that is not a coverage
             # ratio, is not a total, and reads as both.
             if _aggregation_of(build, column) == "avg":
-                values["average"] = round(sum(numbers) / len(numbers), 4)
-                values["groups"] = len(numbers)
+                # The population's average, computed by the runtime over every
+                # group before the sort and the cut. The mean of the returned
+                # rows is the mean of a PAGE, and the rows are ordered, so it
+                # is biased by exactly as much as the ordering: 694.33 was
+                # reported for a book whose average is 666.99. Falls back to
+                # the rows only where the plan carries no population average —
+                # an older saved plan — and then says how many rows it is of.
+                carried = _population_average(column, runtime.rows)
+                if carried is not None:
+                    values["average"] = round(carried, 4)
+                    values["groups"] = int(values.get("matching")
+                                           or len(numbers))
+                else:
+                    values["average"] = round(sum(numbers) / len(numbers), 4)
+                    values["groups"] = len(numbers)
             else:
                 values["total"] = round(sum(numbers), 4)
     # How much of the population the returned rows account for. A ranking that

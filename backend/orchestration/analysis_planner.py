@@ -477,10 +477,20 @@ def _plan(reading: Reading, context: GovernedContext, *,
     #
     # `settled_text` is the previous question, used ONLY where this sentence
     # resolves nothing. A narrowing that named its own measure keeps it.
-    narrowing = bool(continuation is not None and state is not None
-                     and continuation.action == cv.NARROW_SCOPE)
+    #
+    # A plain CONTINUE reads the same way and was excluded, which is how a
+    # whole conversation died two turns after a composite. "Which product
+    # worries you most?" is a credit-concern ranking: it matches no concept,
+    # so the state it leaves names no measure. "Show me the numbers behind
+    # that" then resolved nothing from its own words, had nothing to inherit,
+    # and came back "Which figure should CreditProbe measure?" — and so did
+    # every turn after it. CONTINUE is the action for a sentence that points
+    # back and names nothing; if any turn should be allowed to read the
+    # settled analysis, it is that one.
+    inheriting = bool(continuation is not None and state is not None
+                      and continuation.action in (cv.NARROW_SCOPE, cv.CONTINUE))
     settled_text = ""
-    if narrowing and state is not None:
+    if inheriting and state is not None:
         settled_text = (state.result.question
                         or (state.turns[-1].question if state.turns else ""))
 
@@ -609,6 +619,14 @@ def _plan(reading: Reading, context: GovernedContext, *,
     composite = cmp.find(text, catalogue)
     if composite is None and settled_text:
         composite = cmp.find(settled_text, catalogue)
+    # The previous question is only the previous QUESTION. Two follow-ups into
+    # a concern conversation, it is itself a sentence that named nothing —
+    # "show me the numbers behind that" — and the composite the thread has
+    # been about the whole time is unreachable from it. The state records the
+    # words that named the composite, which survive as many measure-less turns
+    # as the reader cares to ask.
+    if composite is None and inheriting and state is not None and state.composite:
+        composite = cmp.find(state.composite, catalogue)
     if composite is not None and _TRANSITION.search(text):
         # A sentence that names BOTH endpoints of a state transition is a
         # migration, and this book answers it exactly. The deterioration
@@ -655,6 +673,20 @@ def _plan(reading: Reading, context: GovernedContext, *,
             period=(period[1] if period else ""))
         if continuation is not None:
             build.continuation = continuation
+        # A composite is read at ONE reporting date. Asked "what happened over
+        # the previous six months — is this a spike or a trend?", it returned
+        # the same single-month ranking and said nothing, which is answering a
+        # question with a different one. It cannot produce the series, so it
+        # says which date it read and what to ask for the series instead.
+        if _asks_for_a_series(text) or _MONTHS_NAMED.search(text):
+            build.warnings.append(
+                f"{found_label(composite)} is read at one reporting date, and "
+                f"this answer is at {build.period}. CreditProbe cannot draw a "
+                "series of it: the signals are evaluated per customer per "
+                "month and the ranking is of customers, not of months. For a "
+                "movement over the window, name a governed measure — "
+                "expected credit loss, gross carrying amount, days past due — "
+                "and ask for its trend.")
         return build
 
     distribution_default = ""
@@ -809,8 +841,8 @@ def _plan(reading: Reading, context: GovernedContext, *,
         carries = {d.name: set(d.fields) for d in get_catalog().all()}
         profile, described_by = _entity_profile(
             matches, filters, conditions, carries,
-            gr.KEY_OF.get(gr.CUSTOMER if grouping.entity == "customer"
-                          else gr.FACILITY, "customer_id"))
+            gr.key_of(gr.CUSTOMER if grouping.entity == "customer"
+                      else gr.FACILITY) or "customer_id")
         if profile:
             matches = profile
             entity_list = True
@@ -821,12 +853,13 @@ def _plan(reading: Reading, context: GovernedContext, *,
                 f"for them in {described_by}: "
                 + _list_of(m.label for m in profile) + ".")
     if lists_entities and not matches and not count_grain:
+        # In this installation's words. The corporate sentence asked a retail
+        # user for "a sector" and "a rating" and promised them a rating back,
+        # in a product whose book holds neither — the same defect as a table
+        # headed Borrowers beside an answer that says customers.
         raise CannotPlan(
             "An entity list needs a population to list.",
-            clarification=(
-                "Which borrowers? Name a sector, a stage, a rating or another "
-                "governed restriction — CreditProbe will list them with their "
-                "exposure, stage, rating and impairment."))
+            clarification=_which_population_clarification())
 
     # What one row of the answer is, decided from the objective before the plan
     # is built rather than read off whatever the source happened to be keyed
@@ -1012,7 +1045,7 @@ def _roll_up_to_dimension(build: AnalysisBuild, dimension: str,
     if sort_at < 1:
         return build
 
-    key = gr.KEY_OF.get(build.grain, "customer_id")
+    key = gr.key_of(build.grain) or "customer_id"
     try:
         from backend.data_access import get_catalog
 
@@ -1226,7 +1259,12 @@ def _rejected_measures(text: str,
     """
     lowered = " " + " ".join(str(text or "").lower().split()) + " "
     markers = (r",\s*(?:and\s+)?not", r"instead\s+of", r"rather\s+than",
-               r"no\s+longer")
+               r"no\s+longer",
+               # "Actually forget behavioural score - just use DPD." Each of
+               # these directly governs the phrase that follows it, the way
+               # "instead of" does, so none needs the comma bare "not" needs.
+               r"forget", r"never\s*mind", r"ignore", r"leave\s+out",
+               r"drop", r"without")
     out: list[cx.ConceptMatch] = []
     for match in matches:
         phrase = " ".join(str(match.phrase or "").lower().split())
@@ -1244,8 +1282,11 @@ def _rejected_measures(text: str,
 def _replaces(text: str) -> bool:
     """Whether the sentence swaps one measure for another rather than adding."""
 
-    return re.search(r"\breplace\b|\binstead of\b|\brather than\b",
-                     (text or "").lower()) is not None
+    return re.search(
+        r"\breplace\b|\binstead of\b|\brather than\b"
+        r"|\b(?:forget|never\s*mind|ignore|leave\s+out)\b[^.?!]{0,60}?"
+        r"\b(?:just\s+)?(?:use|show|keep)\b",
+        (text or "").lower()) is not None
 
 
 def _restore_conditions(saved: list[dict[str, Any]],
@@ -1357,6 +1398,20 @@ _GROUPS_A_FIELD_BY = (
     r"\b{field}\s+(?:breakdown|split|mix|composition)\b",
 )
 
+
+
+def _which_population_clarification() -> str:
+    """Ask for a restriction using restrictions this book actually holds."""
+    from backend.retail import profile
+
+    if profile.is_retail():
+        return ("Which customers? Name a product, an IFRS 9 stage, a "
+                "delinquency bucket, a region or another governed restriction "
+                "— CreditProbe will list them with their exposure, stage, "
+                "days past due and expected credit loss.")
+    return ("Which borrowers? Name a sector, a stage, a rating or another "
+            "governed restriction — CreditProbe will list them with their "
+            "exposure, stage, rating and impairment.")
 
 def _subject_word() -> str:
     """What one row of a composite ranking IS, in this installation's words.
@@ -2635,6 +2690,13 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
                      # a facility count whose key was never scanned counts a
                      # column that is not there.
                      *[subject_key for _, subject_key in counts],
+                     # The key the REQUESTED grain will group on. Without it
+                     # the scan read customer_id and the measure, the grouping
+                     # asked for facility_id, and the runtime refused a plan
+                     # that had never read the column it was told to group by.
+                     *([gr.key_of(wants_grain.grain)]
+                       if wants_grain is not None and wants_grain.explicit
+                       else []),
                      *[m.field for m in base_measures]}
     if enrichment.active:
         # Two things a plain single-dataset plan does not need. The columns the
@@ -2735,16 +2797,34 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # explicit request for customer level has to group by customer_id even
     # when the turn also inherited a sector breakdown; grouping by the
     # breakdown alone answers the previous question again.
-    wanted_key = gr.KEY_OF.get(want.grain, "")
+    wanted_key = gr.key_of(want.grain)
     if wanted_key and wanted_key not in available:
         wanted_key = ""
 
-    if scoped and not dimension and key:
+    drills_in = bool(scoped and want.explicit and wanted_key
+                     and wanted_key != key
+                     and want.grain == gr.FACILITY
+                     and gr.GRAIN_OF_KEY.get(key, "") == gr.CUSTOMER)
+    if scoped and not dimension and key and not drills_in:
         # A follow-up about a named population is answered one row per member.
         # Rolling it into a single total answers "what do these five come to?"
         # when the question was "what are these five?".
         group_by = [key]
         label = f"One row per {grain} in the carried population"
+    elif drills_in:
+        # Except when the reader has asked to go a level DOWN. "Show their
+        # facilities" is one row per facility OF the carried customers: the
+        # population restricts, it does not decide what a row is. Grouping by
+        # the carried key returned the same customers a second time, which is
+        # a drill-down that never drilled.
+        label = (f"One row per facility of the {grain}s carried from the "
+                 "previous answer")
+        group_by = [wanted_key]
+        # And the build says so. The sentence that describes the answer reads
+        # the grain off the build, so sixteen facility rows were introduced as
+        # "the 16 largest customers" — a heading that contradicts its own
+        # table on the identifier in the first column.
+        grain = want.grain
     elif want.explicit and want.grain == gr.PORTFOLIO:
         # One row for the whole book. Not a cut-down ranking and not a
         # ranking at all: there is nothing to order one row against. §4.
@@ -2923,6 +3003,39 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
         })
         current = "shared"
 
+    # The same window, for an AVERAGE. Without it the average reported for the
+    # population was the average of the rows that fitted on the page: "the
+    # average behavioural score for personal finance customers" came back
+    # 694.33 "across the 6781 groups" when it is 666.99, because the rows are
+    # sorted and only the top 200 are returned. A truncated page has no
+    # business being described as the population, and the honest figure is the
+    # one the runtime computes over all of it — before the sort, before the
+    # cut, in the same statement as every other number in the answer.
+    # Read off the GROUP that will run, which is what the answer reads to
+    # decide whether it has an average or a total. `rollup` above is the
+    # UNIT's opinion and the two disagree the moment a question says the word:
+    # days past due is a summed unit, "the average days past due" is grouped
+    # with avg, and keying this on the unit left the very question that needs
+    # it — 61 days reported for a book at 2.24 — without a population average.
+    grouped_as = ""
+    for _agg in aggregates:
+        if str(_agg.get("as") or _agg.get("column")) == order_column:
+            grouped_as = str(_agg.get("function") or "")
+            break
+    if (wants_share or shape == AGGREGATE) and order_column \
+            and grouped_as == "avg" and not count_grain:
+        operations.append({
+            "id": "population_average", "op": "WINDOW", "inputs": [current],
+            "params": {"function": "avg", "column": order_column,
+                       "as": f"{order_column}_population_avg"},
+            "label": ((ordered_by.label if ordered_by else "The measure")
+                      + " averaged over "
+                      + (_filter_label(filters) if filters
+                         else "the whole population")
+                      + ", not over the rows shown"),
+        })
+        current = "population_average"
+
     if order_column:
         operations.append({
             "id": "ranked", "op": "SORT", "inputs": [current],
@@ -2951,7 +3064,17 @@ def _single_period(reading: Reading, context: GovernedContext, text: str,
     # returned ten rows and described them as "the 10 largest customers by
     # covenant headroom" — a true sentence about a question nobody asked, when
     # 1,209 customers qualified.
-    defines_population = bool(testable)
+    # A carried population IS a defined population: "their facilities" names
+    # exactly seventeen rows, and cutting them to a default ten answers "the
+    # ten largest of their facilities" instead.
+    defines_population = bool(testable) or drills_in
+    if drills_in:
+        # "Show their facilities" asks for THEIR facilities, all of them. The
+        # previous turn's cut was ten CUSTOMERS; applied again a level down it
+        # silently dropped seven of the seventeen facilities those ten
+        # customers hold, and the answer said 95% of the population as though
+        # that were the whole of it.
+        inherited_top_n = 0
     if shape == RANKING and not defines_population:
         top_n = stated or inherited_top_n or DEFAULT_TOP_N
     elif stated or inherited_top_n:
@@ -3331,7 +3454,7 @@ def _grain_keys(got: str, group_by: list[str],
     the check exists to find. The identity of a row at customer grain is the
     customer.
     """
-    key = gr.KEY_OF.get(got, "")
+    key = gr.key_of(got)
     if key and key in group_by:
         return (key,)
     if got == gr.SEGMENT:
@@ -3375,8 +3498,13 @@ def _summary(shape: str, measures: list[cx.ConceptMatch],
         cut = f"the {top_n} largest {readable}s" if top_n else readable
         return f"{names} by {cut}{where} at {period}."
     if shape == RANKING:
-        return (f"The {top_n} {grain}s with the largest {names}{where} "
-                f"at {period}.")
+        # "The 0 facilitys" — a count that is zero because the cut is zero
+        # when the population defines itself, and a plural nobody writes. The
+        # summary is the Trace's explanation of the plan, so both were on
+        # screen for anybody who opened it.
+        how_many = f"The {top_n} " if top_n else "The "
+        return (f"{how_many}{_plural_grain(grain)} with the largest "
+                f"{names}{where} at {period}.")
     return f"{names}{where} at {period}."
 
 
@@ -3393,6 +3521,12 @@ _EXCLUSION_SAYS: dict[str, str] = {
     "watchlist": "yet on the watchlist",
     "npl": "classified non-performing",
 }
+
+
+def found_label(found: Any) -> str:
+    """The composite's own words, for a sentence that has to name it."""
+    label = str(getattr(getattr(found, "composite", None), "label", "") or "")
+    return label.capitalize() if label else "This ranking"
 
 
 def _composite_ranking(found: cmp.Resolved, reading: Reading,
@@ -3425,7 +3559,7 @@ def _composite_ranking(found: cmp.Resolved, reading: Reading,
     fields_of = {d.name: set(d.fields) for d in catalogue.all()}
     available = fields_of.get(dataset, set())
 
-    key = gr.KEY_OF.get(gr.CUSTOMER, "customer_id")
+    key = gr.key_of(gr.CUSTOMER) or "customer_id"
     if key not in available:
         raise CannotPlan(
             f"{dataset} has no borrower key, so it cannot be ranked per "

@@ -461,6 +461,18 @@ def answer(question: str, *, context: Any = None,
     # cost of a question to change a chart type is not merely wasteful: two
     # executions are two results, and "show IT as a graph" promises the one
     # already on the screen.
+    # "Back." One word, and it planned an analysis, executed it, and returned
+    # a row count DIFFERENT from the answer it was supposed to be returning
+    # to — then, on a thread carrying ten customers, widened to the whole
+    # portfolio and reported a figure the reader had not asked for. A reader
+    # who types one word to step back and watches the numbers change has been
+    # given a reason to distrust both answers. Nothing is recomputed: the rows
+    # already on the screen are shown again.
+    if _steps_back(question):
+        stepped = _show_previous_again(answered, question, state)
+        if stepped is not None:
+            return finish(stepped)
+
     if continuation.action == cv.MODIFY_PRESENTATION:
         redrawn = _redraw_previous(answered, question, state, continuation)
         if redrawn is not None:
@@ -1814,6 +1826,50 @@ def _assess_previous(answered: Answered, question: str,
     return answered
 
 
+
+_STEPS_BACK = re.compile(
+    r"^\s*(?:go\s+)?back\s*[.!]?\s*$"
+    r"|^\s*(?:take me\s+)?back to (?:that|the previous|the last)\b"
+    r"|^\s*previous (?:answer|result|one)\s*[.!?]?\s*$",
+    re.IGNORECASE)
+
+
+def _steps_back(question: str) -> bool:
+    """Whether the sentence asks to return to the previous answer."""
+    return bool(_STEPS_BACK.match(" ".join(str(question or "").split())))
+
+
+def _show_previous_again(answered: Answered, question: str,
+                         state: cv.ConversationState) -> Answered | None:
+    """The previous result, unchanged and unrecomputed.
+
+    Returns None where there is nothing to go back to, and the ordinary path
+    then reads the sentence — which, from a standing start, is right.
+    """
+    from backend.orchestration import handlers
+
+    cached = ru.cached_result(state)
+    if cached is None or not cached.usable:
+        return None
+    provenance = ru.provenance_of(cached)
+    answered.cached = cached
+    answered.provenance = provenance
+    answered.from_memory = True
+    answered.decision = rt.decide(question, deterministic=True)
+    said = cached.question or "the previous question"
+    answered.result = handlers.HandlerResult(
+        answer=(f"The previous answer, unchanged: {said}. "
+                "Nothing was recomputed, so these are the same rows."),
+        rows=[dict(r) for r in cached.rows],
+        columns=[dict(c) for c in cached.columns],
+        values=dict(getattr(cached, "values", {}) or {}),
+        detail={"reuse": provenance.to_dict(), "previous": cached.to_dict(),
+                "of": said},
+        follow_ups=[],
+        warnings=[],
+    )
+    return answered
+
 def _redraw_previous(answered: Answered, question: str,
                      state: cv.ConversationState,
                      continuation: cv.Continuation) -> Answered | None:
@@ -2364,6 +2420,14 @@ def remember(state: cv.ConversationState, answered: Answered, *,
     state.conversation_action = answered.continuation.action
     state.concepts = [m.concept.label for m in build.matches]
     state.metrics = list(state.concepts)
+    # A composite matches no concept, so the two lines above leave a
+    # concern or deterioration ranking with no measure on the state at all.
+    # Recorded by the words that named it, which is what the planner needs to
+    # find it again, and cleared by any turn that settles an ordinary measure
+    # so a composite cannot reach past the answer on screen.
+    _meta = (build.plan or {}).get("meta") or {}
+    _composite = (_meta.get("composite") or {}) if isinstance(_meta, dict) else {}
+    state.composite = str(_composite.get("matched") or "") if not build.matches else ""
     state.dimensions = [build.dimension] if build.dimension else []
     state.filters = [{"kind": f, "value": v} for f, v in build.filters]
     state.grain = build.grain
