@@ -437,8 +437,33 @@ def seed(session: Any, *, owner_id: int | None = None) -> Seeded:
     # questions through the ordinary path, and a failure in the fourth must
     # not roll back the six projects that are already correct.
     session.commit()
+    _review(session, into)
     _cases(session, into, owner_id=owner_id)
     return into
+
+
+def _review(session: Any, into: Seeded) -> None:
+    """Run the retail portfolio review, so Requires Attention is not empty.
+
+    The Cockpit's opening panel reads the review state rather than the case
+    count, because "we looked and found nothing" and "nothing has looked" are
+    different sentences and only one of them may reassure anybody. On a fresh
+    retail installation nothing had looked.
+    """
+    from backend.retail import review
+
+    try:
+        outcome = review.run(session)
+        session.commit()
+    except Exception as e:  # noqa: BLE001 - one panel must not lose the rest
+        into.notes.append(f"the portfolio review did not run ({e}).")
+        return
+    if outcome.opened:
+        into.made("attention case", outcome.opened)
+    if outcome.refreshed:
+        into.held("attention case", outcome.refreshed)
+    for note in outcome.notes:
+        into.notes.append(note)
 
 
 def _presenter(session: Any) -> int | None:
@@ -493,6 +518,13 @@ def check(session: Any) -> list[str]:
          str((row.context or {}).get("seed_script") or ""))
         for row in session.execute(select(Investigation)).scalars().all()
     }
+    from backend.models.platform import RiskCase
+
+    raised = int(session.execute(
+        select(func.count()).select_from(RiskCase)).scalar() or 0)
+    if not raised:
+        missing.append("the portfolio review has raised no attention cases")
+
     absent_cases = [c.title for c in CASES
                     if (c.key, _fingerprint(c.questions)) not in built]
     if absent_cases:

@@ -293,3 +293,101 @@ class TestASettledPopulationSurvivesABareFollowUp:
                           state=state)
         value = float(answered.result.rows[0]["value"])
         assert value == pytest.approx(_rate(book), abs=0.01)
+
+
+class TestRequiresAttentionIsNotStructurallyEmpty:
+    """The Cockpit's opening panel could not populate at all.
+
+    It read "No portfolio review has been completed" with every count at zero
+    — because the review that fills it reads `corporate_borrower_360`, and a
+    retail installation holds no corporate book. The only instruction the
+    product could offer was to go and build a corporate universe.
+    """
+
+    def test_the_retail_review_reads_the_retail_book(self):
+        from backend.retail import review
+
+        assert review.BOOK == "retail_facility_month"
+
+    def test_it_raises_both_classes(self):
+        from sqlalchemy import select
+
+        from backend.db.engine import get_session
+        from backend.models.platform import RiskCase
+
+        with get_session() as session:
+            rules = {str((c.evidence or {}).get("rule") or "") for c in
+                     session.execute(select(RiskCase)).scalars().all()}
+        assert "retail.deterioration.dpd30_consecutive_rises" in rules, rules
+        assert "retail.impairment.ecl_month_on_month" in rules, rules
+
+    def test_every_case_names_a_retail_product(self, book):
+        from sqlalchemy import select
+
+        from backend.db.engine import get_session
+        from backend.models.platform import RiskCase
+
+        products = set(book.product_label.unique())
+        with get_session() as session:
+            for case in session.execute(select(RiskCase)).scalars().all():
+                assert str(case.entity) in products, case.entity
+
+    def test_the_ecl_figures_are_the_book_s(self, book):
+        """A case and an answer to the same question cannot disagree."""
+        import glob
+
+        import pandas as pd
+
+        from sqlalchemy import select
+
+        from backend.db.engine import get_session
+        from backend.models.platform import RiskCase
+
+        prior = pd.read_parquet(glob.glob(
+            "data/retail/analytics/retail_facility_month/"
+            "reporting_month=2026-07/*.parquet")[0])
+        with get_session() as session:
+            cases = [c for c in session.execute(select(RiskCase)).scalars().all()
+                     if str((c.evidence or {}).get("rule") or "")
+                     == "retail.impairment.ecl_month_on_month"]
+        assert cases, "no impairment case was raised"
+        for case in cases:
+            product = str(case.entity)
+            now = float(book[book.product_label == product].ecl_final_sar.sum())
+            before = float(
+                prior[prior.product_label == product].ecl_final_sar.sum())
+            figures = {str(m.get("label")): m.get("value")
+                       for m in (case.metrics or [])
+                       if m.get("unit") == "SAR"}
+            assert figures.get("Weighted ECL") == pytest.approx(now, abs=1.0)
+            assert figures.get("Weighted ECL, prior month") == pytest.approx(
+                before, abs=1.0)
+
+    def test_the_review_is_recorded_so_the_panel_knows_it_ran(self):
+        from backend.agentic import attention
+        from backend.db.engine import get_session
+
+        with get_session() as session:
+            found = attention.state(session, open_cases=1)
+        assert found.state != attention.NOT_RUN, found.to_dict()
+
+    def test_running_it_again_opens_nothing_new(self):
+        from backend.db.engine import get_session
+        from backend.retail import review
+
+        with get_session() as session:
+            again = review.run(session)
+            session.commit()
+        assert again.opened == 0, again.summary()
+
+    def test_a_threshold_is_labelled_synthetic_and_configurable(self):
+        from sqlalchemy import select
+
+        from backend.db.engine import get_session
+        from backend.models.platform import RiskCase
+
+        with get_session() as session:
+            for case in session.execute(select(RiskCase)).scalars().all():
+                source = str((case.evidence or {}).get("threshold_source", ""))
+                assert "Synthetic demo threshold" in source, case.title
+                assert "bank-configurable" in source, case.title

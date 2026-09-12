@@ -499,7 +499,13 @@ function Decomposition({
       </div>
 
       <div>
-        <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+      {/* A div, not a p. `InfoPopover` renders a positioned div, and
+          a div inside a p is invalid HTML: the browser closes the p
+          before it, the server and client trees disagree, and every
+          page carrying this line raised a hydration error — which is
+          what the red "2 Issues" overlay in the corner of the
+          presentation build was counting. Same classes, same look. */}
+        <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
           Factor by factor
           <InfoPopover title="Reading this">
             <p>
@@ -512,7 +518,7 @@ function Decomposition({
               approximation of the model&rsquo;s reasoning — it is the model.
             </p>
           </InfoPopover>
-        </p>
+        </div>
         <div className="space-y-1">
           {facility.contributions.map((contribution) => (
             <div

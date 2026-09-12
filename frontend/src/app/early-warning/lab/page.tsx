@@ -268,7 +268,13 @@ function Weights({ specification }: { specification: SignalSpecification }) {
 
   return (
     <div>
-      <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+      {/* A div, not a p. `InfoPopover` renders a positioned div, and
+          a div inside a p is invalid HTML: the browser closes the p
+          before it, the server and client trees disagree, and every
+          page carrying this line raised a hydration error — which is
+          what the red "2 Issues" overlay in the corner of the
+          presentation build was counting. Same classes, same look. */}
+      <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
         Weights
         <InfoPopover title="Reading the weights">
           <p>
@@ -281,7 +287,7 @@ function Weights({ specification }: { specification: SignalSpecification }) {
             routinely swap signs — but it is the thing to look at first.
           </p>
         </InfoPopover>
-      </p>
+      </div>
 
       {disagreeing.length > 0 && (
         <p className="mb-3 flex items-start gap-1.5 text-xs text-warning">

@@ -313,7 +313,13 @@ function Cockpit() {
         )}
       </section>
 
-      <p className="flex items-center gap-2 border-t border-border pt-4 text-xs text-text-muted">
+      {/* A div, not a p. `InfoPopover` renders a positioned div, and
+          a div inside a p is invalid HTML: the browser closes the p
+          before it, the server and client trees disagree, and every
+          page carrying this line raised a hydration error — which is
+          what the red "2 Issues" overlay in the corner of the
+          presentation build was counting. Same classes, same look. */}
+      <div className="flex items-center gap-2 border-t border-border pt-4 text-xs text-text-muted">
         <InfoPopover title="About these figures">
           <p>
             Every number on this page was produced by a registered CreditProbe
@@ -327,7 +333,7 @@ function Cockpit() {
           </p>
         </InfoPopover>
         Synthetic data. Every figure carries a Trace.
-      </p>
+      </div>
     </div>
   );
 }

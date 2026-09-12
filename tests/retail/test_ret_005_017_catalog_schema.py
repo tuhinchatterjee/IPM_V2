@@ -20,8 +20,21 @@ from backend.retail.schema import EVALUATION_LABEL, spec_for
 
 
 class TestRET005OneDomain:
-    def test_catalogue_has_exactly_one_analytical_dataset(self, shipped_catalog):
-        assert len(shipped_catalog["datasets"]) == 1
+    def test_the_catalogue_holds_the_book_and_its_views(self, shipped_catalog):
+        """One analytical BOOK, and the governed views derived from it.
+
+        This asserted exactly one dataset, which was right while the retail
+        installation offered one domain. It now offers four: the canonical
+        book and three column views of the same rows, built and reconciled by
+        `backend.retail.domains`. What must never appear is a dataset that is
+        not one of those — a second universe with its own numbers.
+        """
+        from backend.retail import domains
+
+        names = {d["name"] for d in shipped_catalog["datasets"]}
+        allowed = {domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+        assert names <= allowed, sorted(names - allowed)
+        assert domains.CANONICAL in names
 
     def test_the_domain_is_cockpit_data(self, shipped_catalog):
         assert shipped_catalog["datasets"][0]["domain"] == "Cockpit Data"
@@ -36,9 +49,14 @@ class TestRET005OneDomain:
         listed = [m["reporting_month"] for m in shipped_catalog["monthly_members"]]
         assert listed == retail_book.months()
 
-    def test_no_second_domain_hides_in_the_catalogue(self, shipped_catalog):
-        domains = {d["domain"] for d in shipped_catalog["datasets"]}
-        assert domains == {"Cockpit Data"}
+    def test_no_domain_hides_in_the_catalogue_that_is_not_on_screen(
+            self, shipped_catalog):
+        """Every domain in the file is one Data Builder actually offers."""
+        from backend.services import data_domains
+
+        found = {d["domain"] for d in shipped_catalog["datasets"]}
+        assert found <= set(data_domains.active_domain_names()), sorted(found)
+        assert "Cockpit Data" in found
 
 
 class TestRET006Chronology:

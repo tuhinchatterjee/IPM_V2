@@ -589,6 +589,22 @@ class TestRET048LayoutPreserved:
             # review that left the next question with nothing to inherit.
             "backend/semantics/ontology.py",
             "backend/orchestration/deterioration.py",
+            # ---------------------------------------------------------------
+            # The overnight product completion. A governed metric that
+            # answered about the whole book under a question about one
+            # product; a Requires Attention panel that could not populate
+            # because the review it reads wants a corporate book; four
+            # governed views of the one retail book; and three pages whose
+            # <p> wrapped a <div>, which is what the red "2 Issues" overlay
+            # in the corner of the presentation build was counting.
+            "backend/orchestration/metric_route.py",
+            "backend/metrics/service.py",
+            "backend/metrics/retail_library.py",
+            "backend/metrics/lenses.py",
+            "backend/services/data_domains.py",
+            "frontend/src/app/page.tsx",
+            "frontend/src/app/early-warning/page.tsx",
+            "frontend/src/app/early-warning/lab/page.tsx",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

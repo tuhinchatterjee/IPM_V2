@@ -265,10 +265,20 @@ class TestTheBootstrapCannotReinstallARetiredSurface:
         assert "retail-analytics" in served
 
     def test_the_corporate_lens_is_retained_as_code(self):
+        """Kept in ALL, and kept out of what a retail installation seeds.
+
+        The count is no longer three: the retail product now ships four
+        lenses — Retail Credit Risk, Retail IFRS 9 and ECL, Retail Early
+        Warning and Retail Analytics. What this gate is about is unchanged
+        and is now what it says: the corporate lens still exists as code so a
+        corporate profile can install it, and `served()` still withholds it.
+        """
         from backend.metrics import lenses
 
         assert lenses.CORPORATE_IFRS9 in lenses.ALL
-        assert len(lenses.ALL) == 3
+        assert lenses.CORPORATE_IFRS9 not in lenses.served()
+        assert len(lenses.served()) == len(lenses.ALL) - len(
+            lenses.CORPORATE_LENS_SLUGS)
 
     def test_no_seeded_lens_reads_a_corporate_metric(self):
         from backend.metrics import lenses
