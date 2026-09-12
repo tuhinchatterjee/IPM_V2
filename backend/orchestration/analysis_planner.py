@@ -938,7 +938,14 @@ def _plan(reading: Reading, context: GovernedContext, *,
                 f"the movement in {movement_default}.")
             logger.info("Dropped %s as a measure and defaulted the movement.",
                         ", ".join(m.label for m in dropped))
-    elif matches and not survivors and constrained and not count_grain:
+    elif (matches and not survivors and constrained and not count_grain
+          and not lists_entities and not _asks_whether_any_exist(text)):
+        # ...but never for an ENTITY LIST. "Show Stage 2 borrowers" names no
+        # figure either, and the answer is the borrowers with their governed
+        # profile — exposure, ECL and stage — which the profile path below
+        # fills in from an empty match list. Refilling it here left one
+        # measure and no profile at all.
+        #
         # The same gap at ONE date. "Show me the Stage 2 book" names one
         # governed field, constrains it to 2, and asks for the book — so the
         # answer was "the 10 facilities with the largest IFRS 9 STAGE for
@@ -1038,6 +1045,41 @@ def _plan(reading: Reading, context: GovernedContext, *,
         # different one. Dropping the conditions here would quietly turn "the
         # Contracting names that were downgraded" into "every Contracting name".
         conditions = _restore_conditions(state.conditions, matches)
+    # An EXCLUSION is not a restriction to the thing excluded. "Show ECL by
+    # product, excluding Stage 3" filtered TO Stage 3 — the exact population
+    # the reader asked to remove — and the answer was given under a caveat
+    # saying the exclusion could not be applied. An inverted population is
+    # the one substitution no caveat repairs.
+    removed = _excluded(text, filters)
+    if removed:
+        filters = [(f, v) for f, v in filters if (f, str(v)) not in removed]
+        for field_name, value in removed:
+            conditions = list(conditions) + [
+                Condition(field=field_name, kind="level", op="ne",
+                          value=_typed_value(value),
+                          phrase=f"not {field_name} {value}",
+                          higher_is_worse=True)]
+            planning_notes.append(
+                f"The question EXCLUDES {sc_say(field_name, value)}, so the "
+                "answer covers everything else rather than that population.")
+            # The grain the exclusion is TESTED at. On a book keyed per
+            # facility, "take out anyone already in Stage 3" removes the
+            # Stage 3 FACILITIES; a customer holding one of those and three
+            # others survives on the other three. That is a different
+            # population from the one the reader described, and the
+            # difference is the answer.
+            wants_customers = gr.requested(text)
+            settled_grain = str(getattr(state, "grain", "") or "") \
+                if (state is not None and carrying) else ""
+            if ((wants_customers.explicit
+                 and wants_customers.grain == gr.CUSTOMER)
+                    or settled_grain == gr.CUSTOMER):
+                planning_notes.append(
+                    f"The exclusion is tested on each facility, and this "
+                    f"answer has one row per customer. A customer with a "
+                    f"{sc_say(field_name, value)} facility and others outside "
+                    "it is still here, counted on the others.")
+
     # A FLOW into or out of a governed state, with only the state named.
     # "How many facilities moved into Stage 2 this month?" answered 1,392 —
     # the count of facilities IN Stage 2 however long they have been there —
@@ -1046,8 +1088,9 @@ def _plan(reading: Reading, context: GovernedContext, *,
     flowed = _stage_flow(text, filters, conditions)
     flow_said = ""
     if flowed is not None:
-        conditions = list(conditions) + [flowed]
         flow_said = _flow_phrase(text, filters)
+        filters = _flow_filters(text, filters)
+        conditions = list(conditions) + [flowed]
         planning_notes.append(
             f"The question asks about a movement into or out of a state, so "
             f"CreditProbe tested {flowed.describe()} as well as the state "
@@ -1071,6 +1114,17 @@ def _plan(reading: Reading, context: GovernedContext, *,
             dimension = first
     shape = _shape(reading, conditions, dimension, text)
 
+    # A FLOW is a ONE-DATE question on this book: the row carries last
+    # month's state, so "how much of it moved in this month?" is a single
+    # scan with two tests on it. Planned across two dates the prior-month
+    # column is never read, the test is dropped in silence, and the answer
+    # became "1,264 facilities moved into Stage 2" — the count that were in
+    # it at the opening date, under a sentence about arrivals.
+    if flow_said and shape in (COHORT, MOVEMENT):
+        shape = AGGREGATE if not grouping.found else AGGREGATE
+        reading = replace(reading, period_requirement="point_in_time")
+        period = None
+
     # A NARROWING keeps the analysis and changes the scope. It was keeping the
     # measure and losing the shape: "why did weighted ECL move this month?"
     # followed by "show me personal finance" came back as the ten largest
@@ -1078,6 +1132,19 @@ def _plan(reading: Reading, context: GovernedContext, *,
     # single total — correct figures, and neither of them the question the
     # reader had been asking for two turns. A sentence that states only a
     # scope states no shape either, so the settled one stands.
+    # A RANKING modified by a scope stays a ranking. "Give me the worst 20
+    # customers by ECL" then "Take out anyone already in Stage 3" came back
+    # as one number — the total over the nine survivors — where the reader
+    # was looking at a list and asked for it shorter.
+    if (shape == AGGREGATE and state and state.shape == RANKING
+            and continuation is not None
+            and continuation.action in (cv.MODIFY_PREVIOUS, cv.NARROW_SCOPE,
+                                        cv.CONTINUE)
+            and not grouping.found
+            and not _asked_rollup(text)
+            and not mv.asks_for_change(text)):
+        shape = RANKING
+
     if (shape in (AGGREGATE, RANKING) and state
         and state.shape == MOVEMENT and continuation is not None
         and (carrying or inheriting)
@@ -2373,6 +2440,81 @@ def _conditions(text: str, matches: list[cx.ConceptMatch]) -> list[Condition]:
     return out
 
 
+#: The ways a reader says "take this out". Each one applies to the value
+#: that follows it, up to the next clause boundary.
+_EXCLUDES = _re.compile(
+    r"\b(?:excluding|exclude|except(?:\s+for)?|other than|apart from|"
+    r"take\s+out|takes?\s+away|leave\s+out|leaving\s+out|strip\s+out|"
+    r"remove|removing|drop|dropping|omit|omitting|ignore|ignoring|"
+    r"without|not)\b",
+    _re.IGNORECASE)
+
+#: Where an excluded clause ends.
+_CLAUSE_END = _re.compile(r"[.,;?!]|\band\b|\bbut\b|\bthen\b", _re.IGNORECASE)
+
+
+def sc_say(field_name: str, value: Any) -> str:
+    """A governed value as a reader says it, for a planning note."""
+    from backend.orchestration import scope as sc
+
+    return sc.say(field_name, value)
+
+
+def _typed_value(value: Any) -> Any:
+    """A filter value as the runtime compares it."""
+    said = str(value)
+    try:
+        return int(said) if said.isdigit() else float(said) \
+            if said.replace(".", "", 1).isdigit() else said
+    except ValueError:  # pragma: no cover
+        return said
+
+
+def _excluded(text: str, filters: list[tuple[str, Any]]) -> set[tuple[str, str]]:
+    """The filters the sentence asks to REMOVE rather than to restrict to.
+
+    Read by position: an exclusion word applies to what follows it, up to the
+    next clause boundary. "…excluding Stage 3" removes Stage 3; "Stage 3
+    excluding cards" removes cards and keeps Stage 3.
+    """
+    said = " " + " ".join(str(text or "").split()) + " "
+    lowered = said.lower()
+    out: set[tuple[str, str]] = set()
+    for found in _EXCLUDES.finditer(lowered):
+        rest = lowered[found.end():]
+        # "not more than 15%" is a bound the threshold reader owns.
+        if _re.match(r"\s*(?:more than|less than|greater than|fewer than|"
+                     r"lower than|higher than|above|below|over|under|"
+                     r"exceeding|at least|at most)\b", rest):
+            continue
+        end = _CLAUSE_END.search(rest)
+        window = rest[:end.start()] if end else rest
+        for field_name, value in (filters or []):
+            token = str(value).lower()
+            if not token:
+                continue
+            if _re.search(r"(?<![\w.])" + _re.escape(token) + r"(?![\w.])",
+                          window):
+                out.add((str(field_name), str(value)))
+    return out
+
+
+#: "Are there any Stage 3 home-finance facilities?" — an EXISTENCE question.
+#: The answer is whether any qualify and how many, not a ranking of their
+#: exposure: refilling the measure turned a yes-or-no into eleven rows and
+#: two caveats about a figure nobody had asked for.
+_ANY_EXIST = _re.compile(
+    r"^\s*(?:and\s+)?(?:are|is)\s+there\s+(?:any|some|a|an)\b"
+    r"|\bdo\s+(?:we|you)\s+have\s+any\b"
+    r"|\bare\s+there\s+still\s+any\b",
+    _re.IGNORECASE)
+
+
+def _asks_whether_any_exist(text: str) -> bool:
+    """Whether the sentence asks IF any qualify rather than for a figure."""
+    return bool(_ANY_EXIST.search(str(text or "")))
+
+
 #: "moved into Stage 2", "inflow to Stage 3", "migrated in" — arriving.
 _FLOWED_IN = _re.compile(
     r"\b(?:mov\w*|migrat\w*|transition\w*|shift\w*|slipp\w*|went|arriv\w*|"
@@ -2394,10 +2536,16 @@ def _flow_phrase(text: str, filters: list[tuple[str, Any]]) -> str:
 
     arriving = bool(_FLOWED_IN.search(str(text or "")))
     prior = dm.prior()
+    # The prior column as well: an OUTflow is anchored on last month, so by
+    # the time the phrase is written the filter reads `previous_month_stage`.
+    mirrored = {column: dimension for dimension, column in prior.items()}
     for field_name, value in (filters or []):
-        if field_name not in prior:
+        if field_name in prior:
+            said = sc.say(field_name, value)
+        elif field_name in mirrored:
+            said = sc.say(mirrored[field_name], value)
+        else:
             continue
-        said = sc.say(field_name, value)
         return f"into {said}" if arriving else f"out of {said}"
     return ""
 
@@ -2411,6 +2559,12 @@ def _stage_flow(text: str, filters: list[tuple[str, Any]],
     carry the previous value on the row.
     """
     said = " ".join(str(text or "").split())
+    # A stated TRANSITION is planned exactly by `_filters`, which puts the
+    # origin on the prior column and the destination on the current one.
+    # "migrated FROM Stage 1 to Stage 2" matched the outflow pattern on its
+    # preposition, and 279 facilities became 18,233.
+    if _TRANSITION.search(said):
+        return None
     arriving = bool(_FLOWED_IN.search(said))
     leaving = bool(_FLOWED_OUT.search(said))
     if arriving == leaving:
@@ -2431,6 +2585,22 @@ def _stage_flow(text: str, filters: list[tuple[str, Any]],
                          phrase=f"is no longer {field_name} {value}",
                          higher_is_worse=True)
     return None
+
+
+def _flow_filters(text, filters):
+    """The filters a flow needs: an OUTflow is anchored on LAST month.
+
+    Keeping `ifrs9_stage = 2` beside the condition `ifrs9_stage <> 2` is a
+    contradiction, and the invariant check correctly refused the answer. What
+    left Stage 2 was in Stage 2 last month.
+    """
+    said = str(text or "")
+    if _TRANSITION.search(said):
+        return list(filters)
+    if not _FLOWED_OUT.search(said) or _FLOWED_IN.search(said):
+        return list(filters)
+    prior = dm.prior()
+    return [(prior.get(f, f), v) for f, v in (filters or [])]
 
 
 def _dimension(reading: Reading, context: GovernedContext,

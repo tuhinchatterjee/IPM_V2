@@ -1390,8 +1390,14 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
             # The FLOW, said as a flow. "315 facilities in Stage 2 at
             # 2026-08" is the sentence the STOCK question gets, and the two
             # numbers are 315 and 1,392.
-            direct = (f"{_fmt(total)} {_plural(build.grain, int(total))} "
-                      f"moved {build.flow} at {build.period}.")
+            # The SUBJECT, not the grain: "how much of it moved in" is
+            # measured in money, and "25,679,702 facilities" is the count
+            # word on an amount.
+            said = (_plural(build.grain, int(total))
+                    if str(getattr(measure.concept, "id", "")) ==
+                    ap.COUNT_CONCEPT else subject)
+            direct = (f"{_fmt(total)} {said} moved {build.flow} at "
+                      f"{build.period}.")
         else:
             # One number for the whole population. "across 1 customer" is what
             # a program says when it has counted its own output rows.

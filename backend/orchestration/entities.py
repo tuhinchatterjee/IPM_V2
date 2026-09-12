@@ -193,13 +193,34 @@ def match_all(question: str, dimensions: dict[str, list[str]]) -> list[EntityMat
             # MASS: three filters from one phrase, and a population of 9,091
             # customers where the reader asked about 5,155. A longer value has
             # consumed the words it matched.
-            if found and not _overlaps(found.span(), spans):
-                spans.append(found.span())
+            # The VALUE's own span, not the whole phrase the pattern needed
+            # to recognise it. "stages 2 and 3" is matched for 2 as
+            # "stages 2" and for 3 as "stages 2 and 3" — the shared noun and
+            # the coordination are part of both — so claiming the whole match
+            # made the second value overlap the first and "stages 2 and 3"
+            # resolved to Stage 2 alone.
+            taken = _value_span(found, token) if found else (0, 0)
+            if found and not _overlaps(taken, spans):
+                spans.append(taken)
                 claimed.add(found.group(0))
                 out.append(EntityMatch(kind=kind, value=token,
                                        phrase=found.group(0), confidence=1.0,
                                        exact=True))
     return out
+
+
+def _value_span(found: "re.Match[str]", token: str) -> tuple[int, int]:
+    """Where the VALUE itself sits inside the phrase that matched it.
+
+    A value pattern carries the dimension noun and any coordination in front
+    of the value, and those words belong to every value in the list.
+    """
+    said = found.group(0)
+    at = said.lower().rfind(token.lower())
+    if at < 0:
+        return found.span()
+    start = found.start() + at
+    return (start, start + len(token))
 
 
 def _overlaps(span: tuple[int, int], taken: list[tuple[int, int]]) -> bool:

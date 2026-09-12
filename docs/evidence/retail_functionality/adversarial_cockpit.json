@@ -2,10 +2,10 @@
   "suite": "adversarial_cockpit",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 155.0,
+  "elapsed_seconds": 155.1,
   "counts": {
-    "PASS": 23,
-    "FAIL": 1,
+    "PASS": 24,
+    "FAIL": 0,
     "BLOCKED": 0,
     "NOT RUN": 0,
     "NOT APPLICABLE": 0
@@ -36,7 +36,7 @@
       "evidence": {
         "screenshot": "docs/evidence/retail_functionality/screens/adv-01-what-changed.png"
       },
-      "seconds": 4.7,
+      "seconds": 4.9,
       "defect": ""
     },
     {
@@ -84,7 +84,7 @@
       "status": "PASS",
       "detail": "RC-0015749 leads, +119,967",
       "expected": "RC-0015749 first by summed ECL increase",
-      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\n7,031 customers where ecl final sar rose, between 2026-07 and 2026-08. The 10 shown are ordered worst first.\n\nMOST MATERIAL EXCEPTION\n\nRC-0015749 is the worst by the measures named.\n\nCREDITPROBE INTERPRETATION\n\nThese are the customers where ecl final sar rose between ",
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\n6,989 customers where ecl final sar rose, between 2026-07 and 2026-08. The 10 shown are ordered worst first. RC-0015749 leads, at 119,967 SAR.\n\nMOST MATERIAL EXCEPTION\n\nRC-0015749 is the worst by the measures named.\n\nCREDITPROBE INTERPRETATION\n\nThese are the customers",
       "evidence": {
         "screenshot": "docs/evidence/retail_functionality/screens/adv-05-top-customers.png"
       },
@@ -96,9 +96,9 @@
       "module": "cockpit",
       "title": "A drill-down returns facilities, not the same customers",
       "status": "PASS",
-      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n10 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nThe 16 largest facilities by final ECL at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nTogether these 16 hold 100.00%",
+      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n10 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nThe 17 largest facilities by final ECL at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nTogether these 17 hold 100.00%",
       "expected": null,
-      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n10 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nThe 16 largest facilities by final ECL at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nTogether these 16 hold 100.00% of the whole book final ECL.\n\nshare of the whole book\n100.00%\n\nCREDITPROBE INTERPRETATION\n\nThis covers the 10 carried forward from the previous answe",
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n10 CUSTOMERS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS\n\nThe 17 largest facilities by final ECL at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nTogether these 17 hold 100.00% of the whole book final ECL.\n\nshare of the whole book\n100.00%\n\nCREDITPROBE INTERPRETATION\n\nThis covers the 10 carried forward from the previous answe",
       "evidence": {
         "screenshot": "docs/evidence/retail_functionality/screens/adv-06-facilities.png"
       },
@@ -110,9 +110,9 @@
       "module": "cockpit",
       "title": "Back returns the previous answer unrecomputed",
       "status": "PASS",
-      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cSHOW THEIR FACILITIES.\u201d \u2014 16 ROWS \u00b7 2026-08\n\nThe previous answer, unchanged: Show their facilities.. Nothing was recomputed, so these are the same rows.\n\nThe previous r",
+      "detail": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cSHOW THEIR FACILITIES.\u201d \u2014 17 ROWS \u00b7 2026-08\n\nThe previous answer, unchanged: \u201cShow their facilities.\u201d. Nothing was recomputed, so these are the same rows.\n\nThe previous",
       "expected": null,
-      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cSHOW THEIR FACILITIES.\u201d \u2014 16 ROWS \u00b7 2026-08\n\nThe previous answer, unchanged: Show their facilities.. Nothing was recomputed, so these are the same rows.\n\nThe previous result, redrawn\nUnvalidated\nMethod\nTrace\n\n16 groups: the labels need a row each.\n\nAsk about this\nChart\nTable\nExpected credit loss\nsar\n\t\nExpected credit",
+      "actual": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cSHOW THEIR FACILITIES.\u201d \u2014 17 ROWS \u00b7 2026-08\n\nThe previous answer, unchanged: \u201cShow their facilities.\u201d. Nothing was recomputed, so these are the same rows.\n\nThe previous result, redrawn\nUnvalidated\nMethod\nTrace\n\n17 groups: the labels need a row each.\n\nAsk about this\nChart\nTable\nExpected credit loss\nsar\n\t\nExpected cred",
       "evidence": {},
       "seconds": 0.0,
       "defect": ""
@@ -217,14 +217,17 @@
       "id": "CHT-B3",
       "module": "cockpit",
       "title": "The 25-month trend is a series, not two endpoints",
-      "status": "FAIL",
-      "detail": "1 month labels on the axis, 2 month rows in the table",
+      "status": "PASS",
+      "detail": "13 month labels on the axis, 14 month rows in the table",
       "expected": ">= 12 months",
       "actual": {
         "axis": [
-          "2024-08"
+          "2024-08",
+          "2024-10",
+          "2024-12",
+          "2025-02"
         ],
-        "rows": 2
+        "rows": 14
       },
       "evidence": {
         "screenshot": "docs/evidence/retail_functionality/screens/cht-b3.png"

@@ -95,6 +95,16 @@ _MODIFY: tuple[tuple[str, str, str], ...] = (
      "narrow the previous result"),
     (r"\bfilter (?:it |this |that )?(?:down )?to\b", cv.MODIFY_PREVIOUS,
      "narrow the previous result"),
+    # An EXCLUSION narrows the analysis on the table. "Give me the worst 20
+    # customers by ECL" then "Take out anyone already in Stage 3" replaced
+    # the ranking with a portfolio total: read as a new request, the sentence
+    # names no measure and no population but the one it is removing.
+    (r"^\s*(?:now\s+)?(?:take|leave|strip)\s+out\b", cv.MODIFY_PREVIOUS,
+     "remove part of the previous population"),
+    (r"^\s*(?:now\s+)?(?:remove|drop|exclude|omit)\b", cv.MODIFY_PREVIOUS,
+     "remove part of the previous population"),
+    (r"\bexcluding\b|\bexcept (?:for )?\b|\bother than\b|\bapart from\b",
+     cv.MODIFY_PREVIOUS, "remove part of the previous population"),
     (r"^\s*(?:now\s+)?(?:re)?(?:sort|order|rank)\b", cv.MODIFY_PREVIOUS,
      "re-order the previous result"),
     (rf"^\s*(?:now\s+)?(?:show|give|list)\s+(?:me\s+)?(?:the\s+)?"
@@ -946,6 +956,17 @@ def _finish(question: str, read_back: Reference, action: str,
         action=action, referent=read_back.population,
         presentation=read_back.presentation,
         changes=list(read_back.changes), because=because)
+
+    # A CONTINUE that names no figure inherits the one the thread settled,
+    # whichever branch decided it was a continuation. "Which borrowers drove
+    # that?" is read as a continuation by the deterministic reader now, so
+    # the branches below it — which set this — were never reached, and the
+    # planner had nothing recorded to inherit.
+    if (action == cv.CONTINUE and not names_a_measure(question)
+            and (state.metrics or state.concepts or state.plan_summary)):
+        continuation.inherited.setdefault(
+            "measure",
+            ", ".join(state.metrics or state.concepts) or state.plan_summary)
 
     # "Forget those five and use the whole portfolio" means exactly that. A
     # reset that carried the population forward would answer a portfolio

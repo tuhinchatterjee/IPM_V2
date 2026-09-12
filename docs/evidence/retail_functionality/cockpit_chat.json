@@ -2,10 +2,10 @@
   "suite": "cockpit_chat",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 122.5,
+  "elapsed_seconds": 124.2,
   "counts": {
-    "PASS": 19,
-    "FAIL": 0,
+    "PASS": 18,
+    "FAIL": 1,
     "BLOCKED": 0,
     "NOT RUN": 0,
     "NOT APPLICABLE": 0
@@ -43,8 +43,8 @@
       "id": "CHAT-05",
       "module": "cockpit",
       "title": "Empty and whitespace-only input cannot be sent and makes no analysis call",
-      "status": "PASS",
-      "detail": "empty disabled=True blank disabled=True calls made=0",
+      "status": "FAIL",
+      "detail": "empty disabled=True blank disabled=True calls made=1",
       "expected": null,
       "actual": null,
       "evidence": {},
@@ -61,7 +61,7 @@
       "actual": null,
       "evidence": {
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-02.png",
-        "seconds": 3.0842208862304688
+        "seconds": 3.0996575355529785
       },
       "seconds": 0.0,
       "defect": ""
@@ -75,7 +75,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "seconds": 3.0842208862304688
+        "seconds": 3.0996575355529785
       },
       "seconds": 0.0,
       "defect": ""
@@ -99,7 +99,7 @@
       "module": "cockpit",
       "title": "A double click and an Enter on top of it submit the question once",
       "status": "PASS",
-      "detail": "submissions recorded: ['/investigations/168/messages']",
+      "detail": "submissions recorded: ['/investigations/794/messages']",
       "expected": null,
       "actual": null,
       "evidence": {},
@@ -127,7 +127,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "new_turn": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n8,994,012 SAR of final ECL in Personal Finance across 1 product at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nThe figures are sums across every facility in each product at 2026-08. This covers the 4 carried forward from the previous answer, not the whole book.\n\nTOTAL FINAL ECL\n\n8,994,011.87\nSAR\n\nAggregated across the governed book",
+        "new_turn": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n4 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 PERSONAL FINANCE \u00b7 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\n8,994,012 SAR of final ECL in Personal Finance across 1 product at 2026-08.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance is the largest at 8,994,012 SAR, 100.00% of the total.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nThe figures are sums across every facility in each product at 2026-08. This covers the 4 carried forward from the previous answer, not the whole book.\n\nTOTAL FINAL ECL\n\n8,994,011.87",
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-09.png"
       },
       "seconds": 0.0,
@@ -142,7 +142,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "new_turn": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n1 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\nFinal ECL rose from 8,012,419 to 8,994,012 SAR between 2026-07 and 2026-08 \u2014 a change of 981,593 SAR (12.25%).\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance carries the largest final ECL at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted.\n\nFINAL ECL",
+        "new_turn": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\n1 PRODUCT_LABELS CARRIED FROM THE PREVIOUS ANSWER \u00b7 PERSONAL FINANCE \u00b7 2026-07 TO 2026-08 \u00b7 EXPECTED CREDIT LOSS \u00b7 BY PRODUCT LABEL\n\nFinal ECL rose from 8,012,419 to 8,994,012 SAR between 2026-07 and 2026-08 \u2014 a change of 981,593 SAR (12.25%). Personal Finance contributed most of the move, from 8,012,419 to 8,994,012 SAR \u2014 981,593 SAR of the 981,593 SAR.\n\nLARGEST CONTRIBUTOR\n\nPersonal Finance carries the largest final ECL at 8,994,012 SAR.\n\nPersonal Finance\n8,994,011.87\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals acros",
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-10.png"
       },
       "seconds": 0.0,
@@ -157,8 +157,8 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "clarification": "\n\nNo analysis was composed and no figure was computed: the governed data holds nothing about what was asked.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n0 of 1 answered; 1 cannot be answered\n\nCreditProbe has no governed data about scorecard performance. It answers only from the datasets a steward has published and marked authoritative, so it cannot look this up, estimate it, or infer it from what it does",
-        "typed_answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE \u00b7 2026-08 \u00b7 APPLICATION SCORE\n\n726.5 points of application score in Personal Finance at 2026-08.\n\nTOTAL APPLICATION SCORE\n\n726.46\npoints\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n726.46\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nApplication score\npoints\n\t\nProduct label\n\n726.46\tPersona",
+        "clarification": "\n\nONE QUESTION BACK\n\nWhich scorecard? This deployment validates Credit Card Application Scorecard, Personal Finance Application Scorecard, Auto Finance Application Scorecard, Home Finance Application Scorecard, Credit Card Behavioural Scorecard, Personal Finance Behavioural Scorecard, Auto Finance Behavioural Scorecard and Home Finance Behavioural Scorecard.\n\nName the figure you want and CreditPro",
+        "typed_answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPERSONAL FINANCE \u00b7 2026-08 \u00b7 APPLICATION SCORE\n\n621.9 points of application score in Personal Finance at 2026-08.\n\nTOTAL APPLICATION SCORE\n\n621.94\npoints\n\nAggregated across the governed book\nDynamic analysis\nSave as a method\nTrace\n\nTOTAL\n\n621.94\n\nPERIOD\n\n2026-08\n\nMATCHING\n\n1\n\nApplication score\n\t\nProduct label\n\n622\tPersonal Finance\n",
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-chat-06.png"
       },
       "seconds": 0.0,
@@ -183,7 +183,7 @@
       "module": "cockpit",
       "title": "A new conversation starts clean and an existing one can be reopened with its transcript",
       "status": "PASS",
-      "detail": "new conversation at 169?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit; inherited the old scope=False; history listed 50 conversations; reopened one=True",
+      "detail": "new conversation at 796?returnTo=%2F&returnLabel=Cockpit&returnType=cockpit; inherited the old scope=False; history listed 50 conversations; reopened one=True",
       "expected": null,
       "actual": null,
       "evidence": {

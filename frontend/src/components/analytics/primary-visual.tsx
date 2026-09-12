@@ -129,9 +129,20 @@ export function PrimaryVisual({
   }, [periodKey, periods.length]);
 
   const playing = playback.isEligible(periods) && periodKey !== "";
+  // ...but never where the PERIOD IS THE AXIS. Playback shows one period at a
+  // time, which is right for "ECL by region at each month" — the regions move
+  // and the months are the frames. A TREND has the months on its x-axis, so
+  // cutting to one period draws one point: "Show the 25-month ECL trend"
+  // opened on frame 1 of 25, a single dot with a single axis label, and the
+  // trend the question asked for was invisible until somebody pressed play.
+  const axisIsThePeriod = React.useMemo(
+    () => seriesOf(chooseVisualization(spec, rows), spec).x === periodKey,
+    [spec, rows, periodKey],
+  );
+  const stepping = playing && !axisIsThePeriod;
   const shownRows = React.useMemo(
-    () => (playing ? playback.rowsFor(rows, periodKey, film) : rows),
-    [playing, rows, periodKey, film],
+    () => (stepping ? playback.rowsFor(rows, periodKey, film) : rows),
+    [stepping, rows, periodKey, film],
   );
 
   // ------------------------------------------- what the reader chose, kept
@@ -210,7 +221,7 @@ export function PrimaryVisual({
       table={table}
       onAsk={onAsk}
       toolbar={
-        playing ? <PeriodPlayback state={film} dispatch={step} /> : undefined
+        stepping ? <PeriodPlayback state={film} dispatch={step} /> : undefined
       }
       footer={
         drawable !== choice.kind ? (

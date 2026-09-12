@@ -313,11 +313,27 @@ def _population_in(question: str, *, reading: Any = None,
     """
     found: list[str] = []
     for entity in list(getattr(reading, "entities", None) or []):
-        value = str(getattr(entity, "value", entity) or "").strip()
+        # A reading's entities are DICTS. `getattr` fell through to the dict
+        # itself, and the caveat read "The question is about {'kind':
+        # 'ifrs9_stage', 'value': '3'}" — a Python repr, on the screen.
+        raw = (entity.get("value") if isinstance(entity, dict)
+               else getattr(entity, "value", entity))
+        value = str(raw or "").strip()
         if value:
             found.append(value)
 
     said = str(question or "")
+    # A value the question EXCLUDES is not the population it is about. "Show
+    # ECL by product, excluding Stage 3" was checked for a restriction TO
+    # Stage 3 and told the reader the analysis had lost their population.
+    try:
+        from backend.orchestration import analysis_planner as _ap
+
+        removed = {v.lower() for _, v in _ap._excluded(
+            said, [("", value) for value in list(found)])}
+        found = [v for v in found if v.lower() not in removed]
+    except Exception:  # noqa: BLE001 - a contract must not lose a check
+        pass
     try:
         for value in _governed_values():
             if len(value) < 3:
@@ -326,6 +342,11 @@ def _population_in(question: str, *, reading: Any = None,
             if re.search(rf"(?<!\w){re.escape(value)}(?!\w)", said, re.I) \
                     and value not in found:
                 found.append(value)
+        from backend.orchestration import analysis_planner as _ap
+
+        removed = {v.lower() for _, v in _ap._excluded(
+            said, [("", value) for value in list(found)])}
+        found = [v for v in found if v.lower() not in removed]
     except Exception:  # noqa: BLE001 - a missing catalogue is not an error here
         pass
 

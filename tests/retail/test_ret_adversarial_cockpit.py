@@ -1741,9 +1741,8 @@ class TestAFlowIsNotAStock:
                           "this month?")
         truth = int(((book.ifrs9_stage != 2)
                      & (book.previous_month_stage == 2)).sum())
-        assert len(answered.runtime.rows) == truth or \
-            int(values(answered).get("matching") or 0) == truth, (
-                len(answered.runtime.rows), truth)
+        got = int(answered.runtime.rows[0]["facility_count"])
+        assert got == truth, (got, truth)
 
     def test_the_sentence_says_it_moved(self):
         for said, phrase in (
@@ -1779,3 +1778,117 @@ class TestABroadLookNamesNoFigure:
         assert not iv.wants_investigation("What's happening to ECL?")
         assert iv.wants_investigation("What's happening?")
         assert iv.wants_investigation("What's going on with the book?")
+
+
+class TestAnExclusionRemovesRatherThanRestricts:
+    """"Show ECL by product, excluding Stage 3" filtered TO Stage 3."""
+
+    @pytest.mark.parametrize("said", [
+        "Show ECL by product, excluding Stage 3.",
+        "Show ECL by product, not Stage 3.",
+        "Show ECL by product, other than Stage 3.",
+    ])
+    def test_the_stage_is_removed(self, said):
+        answered = answer(said)
+        assert ("ifrs9_stage", "3") not in [
+            (f, str(v)) for f, v in answered.build.filters], said
+        assert any(c.field == "ifrs9_stage" and c.op == "ne"
+                   for c in answered.build.conditions), said
+
+    def test_a_restriction_is_still_a_restriction(self):
+        answered = answer("Show ECL by product for Stage 3.")
+        assert ("ifrs9_stage", "3") in [
+            (f, str(v)) for f, v in answered.build.filters]
+
+    def test_the_rows_reconcile(self, book):
+        answered = answer("Show ECL by product, excluding Stage 3.")
+        got = {str(r["product_label"]): float(r["ecl_final_sar"])
+               for r in answered.runtime.rows}
+        truth = (book[book.ifrs9_stage != 3].groupby("product_label")
+                 .ecl_final_sar.sum())
+        assert len(got) == len(truth)
+        for product, amount in got.items():
+            assert amount == pytest.approx(float(truth[product]), abs=1.0)
+
+    def test_a_bound_is_not_a_negation(self):
+        answered = answer("Which customers have ECL not more than 100,000?")
+        assert not [c for c in answered.build.conditions if c.op == "ne"]
+
+
+class TestAFlowIsReadAtOneDate:
+    """A flow planned across two dates never read the prior column."""
+
+    def test_the_inflow_amount_reconciles(self, book):
+        _, state = advanced("Show me the Stage 2 book.")
+        answered = answer("How much of it moved in this month?", state=state)
+        truth = float(book[(book.ifrs9_stage == 2)
+                           & (book.previous_month_stage != 2)]
+                      .ead_base_sar.sum())
+        assert float(values(answered)["total"]) == pytest.approx(truth, abs=1.0)
+        assert "moved into Stage 2" in headline(answered)
+
+    def test_the_outflow_amount_reconciles(self, book):
+        _, state = advanced("Show me the Stage 2 book.")
+        answered = answer("And how much moved out?", state=state)
+        truth = float(book[(book.ifrs9_stage != 2)
+                           & (book.previous_month_stage == 2)]
+                      .ead_base_sar.sum())
+        assert float(values(answered)["total"]) == pytest.approx(truth, abs=1.0)
+        assert "moved out of Stage 2" in headline(answered)
+
+    def test_the_two_flows_differ(self):
+        _, state = advanced("Show me the Stage 2 book.")
+        one = float(values(answer("How much of it moved in this month?",
+                                  state=state))["total"])
+        two = float(values(answer("And how much moved out?",
+                                  state=state))["total"])
+        assert one != two, "the same figure for opposite flows"
+
+    def test_an_outflow_is_anchored_on_last_month(self):
+        answered = answer("How many facilities moved out of Stage 2 "
+                          "this month?")
+        assert ("previous_month_stage", "2") in [
+            (f, str(v)) for f, v in answered.build.filters]
+        assert not [c for c in answered.build.conditions
+                    if c.field == "previous_month_stage"]
+
+
+class TestARankingSurvivesItsOwnNarrowing:
+    """"Take out anyone already in Stage 3" replaced a list with a total."""
+
+    def test_the_shape_is_kept(self):
+        _, state = advanced("Give me the worst 20 customers by expected "
+                            "credit loss.")
+        answered = answer("Take out anyone already in Stage 3.", state=state)
+        assert answered.build.shape == ap.RANKING, answered.build.shape
+        assert all("customer_id" in r for r in answered.runtime.rows)
+
+    def test_the_twenty_reconcile(self, book):
+        answered = answer("Give me the worst 20 customers by expected "
+                          "credit loss.")
+        got = [str(r["customer_id"]) for r in answered.runtime.rows]
+        truth = (book.groupby("customer_id").ecl_final_sar.sum()
+                 .sort_values(ascending=False).head(20).index)
+        assert set(got) == set(truth)
+
+    def test_the_grain_of_the_exclusion_is_stated(self):
+        _, state = advanced("Give me the worst 20 customers by expected "
+                            "credit loss.")
+        answered = answer("Take out anyone already in Stage 3.", state=state)
+        assert any("tested on each facility" in w
+                   for w in answered.build.warnings), answered.build.warnings
+
+    def test_a_breakdown_is_not_told_about_a_grain_it_does_not_have(self):
+        answered = answer("Show ECL by product, excluding Stage 3.")
+        assert not [w for w in answered.build.warnings
+                    if "one row per customer" in w]
+
+    def test_the_exclusion_is_not_reported_as_dropped(self):
+        answered = answer("Show ECL by product, excluding Stage 3.")
+        assert not [w for w in answered.build.warnings
+                    if "could not apply the exclusion" in w]
+
+    def test_no_python_repr_reaches_the_reader(self):
+        answered = answer("Show ECL by product, excluding Stage 3.")
+        for said in answered.build.warnings:
+            assert "{'" not in said and "'kind'" not in said, said

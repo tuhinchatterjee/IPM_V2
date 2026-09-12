@@ -548,6 +548,15 @@ class TestRET048LayoutPreserved:
             "backend/orchestration/gate.py",
             "backend/orchestration/investigation.py",
             "backend/services/threads.py",
+            # A 25-month trend opened on frame 1 of 25 — one dot, one axis
+            # label — because playback cuts the rows to one period and a
+            # TREND has the periods on its x-axis.
+            "frontend/src/components/analytics/primary-visual.tsx",
+            "backend/orchestration/spelling.py",
+            "backend/orchestration/predicates.py",
+            # `ne` reads back as "is not", so a flow out of a state is said
+            # in English rather than as an operator.
+            "backend/orchestration/dynamic.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

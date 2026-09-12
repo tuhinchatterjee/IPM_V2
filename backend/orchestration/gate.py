@@ -325,7 +325,12 @@ def dropped_structure(text: str, enforcement: Any, tree: pr.Node | None,
         if trimmed and not _NOT_A_CONDITION.match(trimmed):
             found.append(trimmed)
 
+    # A `ne` CONDITION is the exclusion, compiled. It is not a NOT node in
+    # the predicate tree, so the caveat said the exclusion had been dropped
+    # under an answer that had applied it.
+    excluded = any(str(getattr(c, "op", "")) == "ne" for c in conditions)
     if (_EXPLICIT_NOT.search(lowered) and not _has(tree, pr.NOT)
+            and not excluded
             and not any("not" in phrase or "exclu" in phrase
                         for phrase in accounted)):
         found.append("the exclusion the question stated")
