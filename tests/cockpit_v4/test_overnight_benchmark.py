@@ -39,6 +39,7 @@ import uat_sql as layer_b
 from conftest import ScriptedResult, final, intent, tool_call
 
 from backend.cockpit_v4 import events as ev
+from backend.cockpit_v4 import precision as prec
 from backend.cockpit_v4 import states as st
 
 EVIDENCE = (Path(__file__).resolve().parents[2] / "docs" / "cockpit_v4"
@@ -322,7 +323,11 @@ def _finalizer(question_id: str, period: dict):
                   numeric_claims=[{
                       "claim_id": "headline",
                       "decimal_value": repr(float(value)),
-                      "unit": unit, "display_precision": 2,
+                      "unit": unit,
+                      # Precision comes from the UNIT, never a blanket 2: a
+                      # count has no decimal places and the policy refuses
+                      # one that claims otherwise.
+                      "display_precision": prec.default_precision(unit),
                       "evidence": {"artifact_id": artifact,
                                    "row_key": row_key,
                                    "column_id": column}}],

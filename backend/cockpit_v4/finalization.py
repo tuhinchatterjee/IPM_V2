@@ -36,6 +36,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from backend.cockpit_v4 import derivation as deriv
+from backend.cockpit_v4 import precision as prec
 from backend.cockpit_v4.contracts import (DATA_ANALYSIS, FinalResponse,
                                           NumericClaim, Rejection)
 from backend.cockpit_v4.states import ANSWER_VALIDATION
@@ -90,6 +91,11 @@ class Finalizer:
     limits: Any
     #: Artifact ids this run created. Evidence outside them is not this run's.
     run_artifacts: set[str] = field(default_factory=set)
+    #: claim_id -> the canonical value and the display form it was checked
+    #: against. Rendering reads THIS, not the analyst's string, so the
+    #: published figure is CreditProbe's rounding of CreditProbe's
+    #: arithmetic rather than whatever the model happened to type.
+    canonical: dict[str, Any] = field(default_factory=dict)
 
     def validate(self, final: FinalResponse, *,
                  executed: bool) -> ValidationReport:
@@ -102,7 +108,7 @@ class Finalizer:
             if problem:
                 problems.append(problem)
             else:
-                values[claim.claim_id] = _format(claim)
+                values[claim.claim_id] = self._render(claim)
 
         referenced = set(PLACEHOLDER.findall(final.narrative))
         declared = {c.claim_id for c in final.numeric_claims}
@@ -171,6 +177,14 @@ class Finalizer:
             ok=not problems, rendered_narrative=rendered, problems=problems,
             warnings=warnings, claim_values=values)
 
+    def _render(self, claim: NumericClaim) -> str:
+        """The published text of a claim, from the canonical value."""
+        verdict = self.canonical.get(claim.claim_id)
+        if verdict is None:
+            return _format(claim)
+        return prec.format_value(verdict.canonical, claim.unit,
+                                 verdict.precision)
+
     def _artifacts(self, ids) -> dict[str, Any]:
         """The stored artifacts for a derivation, tenant-checked."""
         out: dict[str, Any] = {}
@@ -211,16 +225,13 @@ class Finalizer:
         except deriv.DerivationError as exc:
             return f"{exc}"
 
-        try:
-            asserted = Decimal(claim.decimal_value)
-        except InvalidOperation:
-            return (f"{label} asserts {claim.decimal_value!r}, which is not a "
-                    f"decimal.")
-        if not _close(asserted, computed):
-            return (f"{label} asserts {asserted} and its own derivation "
-                    f"({derivation.operation}) computes {computed}. The "
-                    f"evidence does not support the figure; send the "
-                    f"computed value, or correct the derivation.")
+        verdict = prec.check(claim.decimal_value, computed, unit=claim.unit,
+                             declared_precision=claim.display_precision,
+                             label=label)
+        if not verdict.ok:
+            return (f"{verdict.problem} (derivation: "
+                    f"{derivation.operation})")
+        self.canonical[claim.claim_id] = verdict
         return ""
 
     def _check_claim(self, claim: NumericClaim) -> str:
@@ -252,19 +263,20 @@ class Finalizer:
                     f"missing or name the reason.")
         try:
             stored = Decimal(str(found))
-            asserted = Decimal(claim.decimal_value)
         except (InvalidOperation, ValueError):
+            # A non-numeric cell -- a sector name, a rating grade. Compared
+            # as text, because rounding a category is meaningless.
             if str(found) != claim.decimal_value:
                 return (f"claim {claim.claim_id!r} asserts "
                         f"{claim.decimal_value!r} and the artifact holds "
                         f"{found!r}.")
             return ""
-        if stored != asserted:
-            # A rounding difference is still a difference: the claim must
-            # carry the exact stored value and declare its display precision.
-            return (f"claim {claim.claim_id!r} asserts {asserted} and the "
-                    f"artifact holds {stored}. Send the exact stored value "
-                    f"and set display_precision for how it should read.")
+        verdict = prec.check(claim.decimal_value, stored, unit=claim.unit,
+                             declared_precision=claim.display_precision,
+                             label=f"claim {claim.claim_id!r}")
+        if not verdict.ok:
+            return verdict.problem
+        self.canonical[claim.claim_id] = verdict
         return ""
 
     def _check_table(self, table: dict[str, Any], index: int) -> list[str]:

@@ -132,7 +132,7 @@ def test_a_top_n_share_is_recomputed_and_accepted(finalizer, artifact):
     # Rendered at the declared precision, from the value the server
     # recomputed -- not from anything the test asserted independently.
     shown = expected.quantize(Decimal("0.1"))
-    assert f"{shown} percent" in report.rendered_narrative
+    assert f"{shown}%" in report.rendered_narrative
 
 
 def test_a_deliberately_wrong_share_is_refused(finalizer, artifact):
@@ -149,7 +149,8 @@ def test_a_deliberately_wrong_share_is_refused(finalizer, artifact):
                              _cells(artifact, ALL_ROWS)]}}])
     report = finalizer.validate(parse_final(body), executed=True)
     assert not report.ok
-    assert any("computes" in p and "61.23" in p for p in report.problems)
+    assert any("61.23" in p and "evidence gives" in p
+               for p in report.problems), report.problems
 
 
 def test_a_wrong_total_is_refused_even_though_every_row_is_real(finalizer,
@@ -164,7 +165,8 @@ def test_a_wrong_total_is_refused_even_though_every_row_is_real(finalizer,
                            "operands": [_cells(artifact, ALL_ROWS)]}}])
     report = finalizer.validate(parse_final(body), executed=True)
     assert not report.ok
-    assert any("does not support the figure" in p for p in report.problems)
+    assert any("99999.99" in p and "evidence gives" in p
+               for p in report.problems), report.problems
 
 
 def test_a_direct_claim_still_works_unchanged(finalizer, artifact):
