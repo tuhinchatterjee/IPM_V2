@@ -6,7 +6,7 @@
   ],
   "branch": "claude/early-warning-rebuild-v2-3lnttn",
   "commit_at_start": "d683881",
-  "commit_at_report": "bf1931403407d4243759388777cad589913344e9",
+  "commit_at_report": "5ea9f1e",
   "provider": {
     "configured": false,
     "detail": "ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN unset; no ant profile; ant CLI absent. Deterministic governed reader served every stage."

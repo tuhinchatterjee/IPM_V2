@@ -5,7 +5,7 @@ reread `docs/EARLY_WARNING_PRE_UAT_REPORT.md`, reread
 `docs/early_warning_pre_uat_results.json`, reread this file, and continue from
 the first line that is not `done`.
 
-Branch `claude/early-warning-rebuild-v2-3lnttn`. Continuing from `d683881`.
+Branch `claude/early-warning-rebuild-v2-3lnttn`. From `d683881` to `5ea9f1e`.
 Nothing here is merged to main.
 
 Legend: `todo` · `wip` · `done` · `blocked-external` (needs the Mac provider
