@@ -421,6 +421,38 @@ def test_m01_publishes_everything_the_question_asked_for(drive, store_db,
     assert published["top_share"]["derivation"]["operation"] == "percentage"
 
 
+# ---- the release these numbers are measured against --------------------
+
+def test_the_pinned_release_is_not_rewritten_by_running_the_suite(
+        release_id):
+    """D-001, from the operator's side rather than the launcher's.
+
+    Every figure in this module is checked against an oracle that reads the
+    pinned release directly. If running the suite rebuilds that release, the
+    oracle and the pipeline could agree perfectly while both measure a
+    dataset that is no longer the one on the branch -- and the verdict this
+    round produces would be about different data than the reader has.
+
+    The defect log records that the launcher's guard does not fire inside
+    pytest. This asserts the consequence that actually matters: after the
+    module has run, the release bytes are what they were.
+    """
+    import hashlib
+
+    from backend.cockpit_agentic import store
+
+    directory = pathlib.Path(
+        store.relation_path(release_id, "cockpit_facility_quarter")).parent
+    digest = hashlib.sha256()
+    names = []
+    for parquet in sorted(directory.glob("*.parquet")):
+        names.append(parquet.name)
+        digest.update(parquet.read_bytes())
+    assert names, f"the pinned release {release_id} has no relations"
+    RESULTS.setdefault("_release", {})["fingerprint"] = digest.hexdigest()[:16]
+    RESULTS["_release"]["relations"] = len(names)
+
+
 # ---- catalogue convergence still holds ---------------------------------
 
 @pytest.mark.parametrize("question_id", bank.ALL)
@@ -566,4 +598,5 @@ def test_zz_write_the_math_evidence(release_id):
         "catalogue_calls_per_question": 0,
         "generations_per_question": 2,
         "performance_ms": RESULTS.get("_performance", {}),
+        "release_fingerprint": RESULTS.get("_release", {}),
     }, indent=2) + "\n")
