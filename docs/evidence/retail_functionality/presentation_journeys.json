@@ -1,0 +1,261 @@
+{
+  "suite": "presentation_journeys",
+  "frontend": "http://localhost:5328",
+  "backend": "http://localhost:8328",
+  "elapsed_seconds": 310.5,
+  "counts": {
+    "PASS": 16,
+    "FAIL": 0,
+    "BLOCKED": 0,
+    "NOT RUN": 0,
+    "NOT APPLICABLE": 0
+  },
+  "cases": [
+    {
+      "id": "SIGNIN",
+      "module": "shell",
+      "title": "Sign in with the demonstration account",
+      "status": "PASS",
+      "detail": "signed in as retail.demo",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/presentation_journeys-signed-in.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-A1",
+      "module": "presentation",
+      "title": "The month's attention question runs the governed review, at this month, and says what ordered it",
+      "status": "PASS",
+      "detail": "completed=True; reads as a governed review at 2026-08=True; states what the ordering is and is not=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What needs my attention in the retail portfolio this month?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n7 analyses performed\n\n6 governed checks over the whole book. 5 point the wrong way and 1 do not. The clearest is: Exposure at default rose from 2,055,108,093 to 2,096,259,474 SAR between 2026-07 and 2026-08 \u2014 a change of 41,151,381 SAR (2.00%). Ordered by the size of the governed move over the window checked, not by a judgement of importance \u2014 the book holds nothing that ranks one measure against another.\n\nWhat was checked, and what it found\nGoverned metadata\nTrace\n\nPROBES\n\n6\n\nSUBJECT\n\nthe whole book\n\nANALYSES RUN\n\n6\n\nDATASETS READ\n\n1\n\n6 groups, one measure.\n\nAsk about this\nChart\nTable\nWhat was checked\n\t\nWhat it found\n\t\nRows\n\t\nAsked as\n\t\nBecause\n\nExposure at default\tExposure at default rose from 2,055,108,093 to 2,096,259,474 SAR between 2026-07 and 2026-08 \u2014 a change of 41,151,381 SAR (2.00%).\t2\tHow has exposure at default moved this month?\tExposure at default: a rise is deterioration.\nExpected credit loss\tFinal ECL rose from 14,069,608 to 15,952,109 SAR between 2026-07 and 2026-08 \u2014 a change of 1,882,500 SAR (13.38%).\t2\tHow has expected credit loss moved this month?\tExpected credit loss: a rise is deterioration.\nIFRS 9 stage\t2,096,259,474 SAR of exposure at default across 3 stages at 2026-08.\t3\tWhat is total exposure at default by IFRS 9 stage?\tIFRS 9 stage: a rise is deterioration.\nDays past due\t734 facilities where dpd rose, between 2026-07 and 2026-08. The 500 shown are ordered worst first.\t500\tHow many customers had days past",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-a1.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-A2",
+      "module": "presentation",
+      "title": "The follow-up names a product from the governed book",
+      "status": "PASS",
+      "detail": "completed=True; a governed product label is named=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Which product is driving it?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE WHOLE PORTFOLIO \u00b7 2026-07 TO 2026-08 \u00b7 EXPOSURE AT DEFAULT \u00b7 BY PRODUCT LABEL\n\nExposure at default rose from 2,055,108,093 to 2,096,259,474 SAR between 2026-07 and 2026-08 \u2014 a change of 41,151,381 SAR (2.00%). Home Finance moved most, from 1,299,489,457 to 1,324,891,851 SAR \u2014 25,402,394 SAR.\n\nLARGEST CONTRIBUTOR\n\nHome Finance carries the largest exposure at default at 1,324,891,851 SAR.\n\nHome Finance\n1,324,891,851.07\n\nCREDITPROBE INTERPRETATION\n\nBoth figures are totals across the same population at the two dates, so the change is a movement in the book rather than a change in what was counted. Home Finance alone accounts for 31.91% of exposure at default across the 8 shown. Home Finance, Home Finance sit well outside the rest \u2014 the typical exposure at default here is 328,746,997 SAR, and Home Finance is at 1,324,891,851 SAR.\n\nEXPOSURE AT DEFAULT AT 2026-08\n\n2,096,259,474.36\nSAR\n\n41,151,381.03\nMeasured between two reporting periods\nDynamic analysis\nSave as a method\nTrace\n\nCHANGE\n\n41,151,381.03\n\nMATCHING\n\n8\n\nCHANGE PCT\n\n2.00\n\nCLOSING TOTAL\n\n2,096,259,474.36\n\nOPENING TOTAL\n\n2,055,108,093.33\n\nCLOSING PERIOD\n\n2026-08\n\n4 series over 8 periods.\n\nAsk about this\nChart\nTable\nProduct label\n\t\nReporting month\n\t\nExposure at default\n\nHome Finance\t2026-08\t1.32SAR bn\nHome Finance\t2026-07\t1.30SAR bn\nPersonal Finance\t2026-08\t444.6SAR mn\nPersonal Finance\t2026-07\t435.0SAR mn\nAuto Finance\t2026-08\t222.5SAR mn\nAuto Finance\t2026-0",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-a2.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-A3",
+      "module": "presentation",
+      "title": "Asking for the evidence shows where the figure came from",
+      "status": "PASS",
+      "detail": "completed=True; the answer points at the calculation or its source=True; whole-book ECL on screen=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show me the evidence.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cWHICH PRODUCT IS DRIVING IT?\u201d \u2014 4 PRODUCT LABEL GROUPS \u00b7 2026-07 TO 2026-08\n\nThe workings behind \u201cWhich product is driving it?\u201d. Exposure at default rose from 2,055,108,093 to 2,096,259,474 SAR between 2026-07 and 2026-08 \u2014 a change of 41,151,381 SAR (2.00%). Home Finance moved most, from 1,299,489,457 to 1,324,891,851 SAR \u2014 25,402,394 SAR. These are the 8 rows it was read from; nothing was recomputed.\n\nThe previous result, redrawn\nUnvalidated\nMethod\nTrace\n\n4 series over 8 periods.\n\nAsk about this\nChart\nTable\nProduct label\n\t\nReporting month\n\t\nExposure at default\n\nHome Finance\t2026-08\t1.32SAR bn\nHome Finance\t2026-07\t1.30SAR bn\nPersonal Finance\t2026-08\t444.6SAR mn\nPersonal Finance\t2026-07\t435.0SAR mn\nAuto Finance\t2026-08\t222.5SAR mn\nAuto Finance\t2026-07\t218.5SAR mn\nCredit Card\t2026-08\t104.2SAR mn\nCredit Card\t2026-07\t102.2SAR mn\nANALYSES USED (1)\n\u2014 what produced these figures\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\n\nCompleted by Credit Analyst \u2014 1 calculation \u00b7 not validated\nTrace\n\nLIMITED EVIDENCE\n3 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.\n45000000",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-a3.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-B1",
+      "module": "presentation",
+      "title": "The scorecard question is answered about a scorecard",
+      "status": "PASS",
+      "detail": "completed=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "How is the personal-finance application scorecard performing?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPersonal Finance Application Scorecard \u2014 6 findings (1 critical, 4 high, 1 low). The one to read first is: Characteristic stability index: Fail.\n\nAnalysis\nGoverned metadata\nTrace\nSeverity\n\t\nFinding\n\t\nCategory\n\t\nWhat the test found\n\nCRITICAL\tCharacteristic stability index: Fail\tstability\tapp_emp_tenure has moved most, at 0.4515 for 2026-08. 1 of 14 characteristics are outside the limit: app_emp_tenure.\nHIGH\tPortfolio calibration conceals a segment that is materially under-predicted\tcalibration\tObserved over expected is 1.081 across the portfolio, inside its limit, while AFFLUENT is outside it. The portfolio figure is an average of segments wrong in opposite directions, not evidence that the model is calibrated.\nHIGH\tArea under the ROC curve: Warning\tdiscrimination\tArea under the ROC curve is 0.6565 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\nHIGH\tDiscrimination by segment: Warning\tsegmentation\t2 of 4 segments are outside their limit, worst MASS.\nHIGH\tCoefficient and points sign: Fail\tvariables\t3 of 7 checkable fitted terms carry a sign the data does not support: app_income, app_disposable, app_emp_tenure. Each is scored against its own univariate relationship, which means the model is rewarding what predicts default. 7 of 14 could not be checked at all: their univariate separation is not distinguishable from none in this population, so there is no direction for a sign to agree or disagree with.",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-b1.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-B2",
+      "module": "presentation",
+      "title": "Discrimination is answered with a discrimination statistic",
+      "status": "PASS",
+      "detail": "completed=True; a discrimination statistic is named=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Show discrimination.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPersonal Finance Application Scorecard v1.0.0 \u2014 6 discrimination tests. Area under the ROC curve is 0.6565 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\n\nAnalysis\nGoverned metadata\nTrace\nTest\n\t\nOutcome\n\t\nMeasured\n\t\nLimit\n\t\nWhat it says\n\nDISC-AUC\tWarning\t0.66\t0.62\tArea under the ROC curve is 0.6565 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\nDISC-LIFT\tNo approved limit\t2.35\t\u2014\tThe worst decile carries 2.35x the portfolio default rate.\nDISC-TREND\tNo approved limit\t-0.01\t\u2014\tAUC moved from 0.6435 in 2024-08 to 0.6364 in 2025-08, a change of -0.0072 across 13 measurable cohorts.\nDISC-KS\tPass\t0.26\t0.18\tKolmogorov-Smirnov statistic is 0.2556 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\nDISC-GINI\tPass\t0.31\t0.24\tGini coefficient is 0.3130 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\nDISC-RANK\tPass\t0\t\u2014\tThe observed default rate falls monotonically across every score band.\n6 rows\nColumns\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\n\nCompleted by Credit Analyst \u2014 no ",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-b2.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-B3",
+      "module": "presentation",
+      "title": "Calibration is not answered with a discrimination statistic",
+      "status": "PASS",
+      "detail": "completed=True; calibration is addressed=True; answered with discrimination instead=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "What about calibration?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPersonal Finance Application Scorecard v1.0.0 \u2014 5 calibration tests. Band-level RMSE 0.00693 across 10 score bands. HIGH EVIDENCE.\n\nAnalysis\nGoverned metadata\nTrace\nTest\n\t\nOutcome\n\t\nMeasured\n\t\nLimit\n\t\nWhat it says\n\nCAL-BAND\tNo approved limit\t0.01\t\u2014\tBand-level RMSE 0.00693 across 10 score bands. HIGH EVIDENCE.\nCAL-BRIER\tNo approved limit\t0.03\t\u2014\tBrier score 0.02625. HIGH EVIDENCE.\nCAL-SLOPE\tNo approved limit\t1.28\t\u2014\tCalibration slope 1.2823, intercept +0.0797. A slope near 1 with a non-zero intercept is a recalibration; a slope far from 1 is not. HIGH EVIDENCE.\nCAL-DRIFT\tNo approved limit\t-0.82\t\u2014\tO/E moved from 1.593 in 2024-08 to 0.776 in 2025-08, a change of -0.817 across 13 measurable cohorts. A drifting O/E is a recalibration question; a stable one that is not 1.0 is a level question. They have different answers.\nCAL-OE\tPass\t1.08\t1.20\tObserved 2.724% against predicted 2.520%, an O/E of 1.081. HIGH EVIDENCE.\n5 rows\nColumns\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\n\nCompleted by Credit Analyst \u2014 no calculation nee",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-b3.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-B4",
+      "module": "presentation",
+      "title": "The drift question is answered about population stability",
+      "status": "PASS",
+      "detail": "completed=True; stability is addressed=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Has the population drifted?",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPersonal Finance Application Scorecard v1.0.0 \u2014 4 stability tests. app_emp_tenure has moved most, at 0.4515 for 2026-08. 1 of 14 characteristics are outside the limit: app_emp_tenure.\n\nAnalysis\nGoverned metadata\nTrace\nTest\n\t\nOutcome\n\t\nMeasured\n\t\nLimit\n\t\nWhat it says\n\nSTAB-CSI\tFail\t0.45\t0.25\tapp_emp_tenure has moved most, at 0.4515 for 2026-08. 1 of 14 characteristics are outside the limit: app_emp_tenure.\nSTAB-BAND\tNo approved limit\t0.01\t\u2014\tThe largest shift is in band (650.0, 700.0], from 16.4% to 17.8%, +1.4%. The lower half of the scale holds -0.7% of the book relative to development \u2014 a migration toward the stronger grades.\nSTAB-ROLLING\tNo approved limit\t-0.00\t\u2014\tRolling 3-cohort AUC runs from 0.6425 to 0.6317 across 11 windows, a least-squares slope of -0.00133 per window against a spread of 0.0314. The movement is larger than the trend, which reads as variation rather than deterioration.\nSTAB-PSI\tPass\t0.00\t0.25\tScore PSI 0.0019 for 2026-08 against the development population, across 25 periods (0.0002 at the start of the series). A population shift is not a performance deterioration: it says the book changed, not that the model failed.\n4 rows\nColumns\n\nEvery figure in this answer was computed by the validation runner over the governed population. No figure was produced, restated or rounded by a language model.\n\nEvery figure in this answer was computed by the validation runner over the governed population. No",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-b4.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-B5",
+      "module": "presentation",
+      "title": "The auditor draft is written from the result, is marked a draft, and claims no approval",
+      "status": "PASS",
+      "detail": "completed=True; marked as a draft=True; repeats the previous answer=False; 462 words; claims an approval=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Draft the response to an auditor.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nTHE RESULT OF \u201cHAS THE POPULATION DRIFTED?\u201d \u2014 4 ROWS\n\nDraft, for review. Assembled from the result of \u201cHas the population drifted?\u201d and from nothing else.\n\nSTAB-CSI \u2014 Fail: app_emp_tenure has moved most, at 0.4515 for 2026-08. 1 of 14 characteristics are outside the limit: app_emp_tenure. STAB-BAND \u2014 No approved limit: The largest shift is in band (650.0, 700.0], from 16.4% to 17.8%, +1.4%. The lower half of the scale holds -0.7% of the book relative to development \u2014 a migration toward the stronger grades. STAB-ROLLING \u2014 No approved limit: Rolling 3-cohort AUC runs from 0.6425 to 0.6317 across 11 windows, a least-squares slope of -0.00133 per window against a spread of 0.0314. The movement is larger than the trend, which reads as variation rather than deterioration. STAB-PSI \u2014 Pass: Score PSI 0.0019 for 2026-08 against the development population, across 25 periods (0.0002 at the start of the series). A population shift is not a performance deterioration: it says the book changed, not that the model failed.\n\nThis is a draft assembled from a governed result. Nothing in it has been reviewed or approved, no conclusion has been added to what the result says, and every figure should be checked against the Trace before it is sent.\n\nThe previous result, redrawn\nUnvalidated\nMethod\nTrace\nTest\n\t\nOutcome\n\t\nMeasured\n\t\nLimit\n\t\nWhat it says\n\nSTAB-CSI\tFail\t0.45\t0.25\tapp_emp_tenure has moved most, at 0.4515 for 2026-08. 1 of 14 characteristics are outside the limit: app_emp_tenure.\nSTAB-BAND\tNo approved limit\t0.01\t\u2014\tThe largest shift is in band (650.0, 700.0], from 16.4% to 17.8%, +1.4%. The lower half of the scale holds -0.7% of the book relative to development \u2014 a migration toward the stronger grades.\nSTAB-ROLLING\tNo a",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-b5.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-C1",
+      "module": "presentation",
+      "title": "The shock runs as a retail PD shock, with no corporate wording",
+      "status": "PASS",
+      "detail": "completed=True; corporate wording=False",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Increase personal-finance PD by 20% relative.",
+        "answer": "\n\nRead as: personal only; PD +20% relative.\n\nBASELINE ECL\nSAR 8,994,012\nWHAT-IF ECL\nSAR 10,161,669\nCHANGE\nSAR 1,167,657 (+12.98%)\nPOPULATION\n7,761 facilities \u00b7 6,781 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 8.99m\tSAR 10.16m\tSAR 1.17m\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 8,994,012 \u2192 What-If SAR 10,161,669 (+12.98%)\nSaved What-Ifs\nPRES-C 111805\n2026-08\nSAR 7,290,521 \u2192 SAR 8,200,787 (+12.49%)\nReopen\nCSV\nJSON\nCompare\nDelete\nPRES-C 111021\n2026-08\nSAR 7,290,521 \u2192 SAR 8,200,787 (+12.49%)\nReopen\nCSV\nJSON\nCompare\nDelete\nPRES-C 110109\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (12)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 230357\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,99",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-c1.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-C2",
+      "module": "presentation",
+      "title": "Narrowing to salary-transfer customers is applied and shown",
+      "status": "PASS",
+      "detail": "completed=True; the narrowing is on screen=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Only salary-transfer customers.",
+        "answer": "\n\nRead as: salary transfer flag = True; carrying forward pd_relative from the scenario on the table.\n\nBASELINE ECL\nSAR 7,290,521\nWHAT-IF ECL\nSAR 8,200,787\nCHANGE\nSAR 910,266 (+12.49%)\nPOPULATION\n5,879 facilities \u00b7 5,072 customers\nProduct\tBaseline\tWhat-If\tChange\nPERSONAL_LOAN\tSAR 7.29m\tSAR 8.20m\tSAR 910.3k\nAssumptions and evidence\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 8,200,787 (+12.49%)\nSaved What-Ifs\nPRES-C 111805\n2026-08\nSAR 7,290,521 \u2192 SAR 8,200,787 (+12.49%)\nReopen\nCSV\nJSON\nCompare\nDelete\nPRES-C 111021\n2026-08\nSAR 7,290,521 \u2192 SAR 8,200,787 (+12.49%)\nReopen\nCSV\nJSON\nCompare\nDelete\nPRES-C 110109\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (12)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 230357\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJS",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-c2.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-C3",
+      "module": "presentation",
+      "title": "The explanation is about this run's ECL impact",
+      "status": "PASS",
+      "detail": "completed=True; the ECL impact is explained=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "question": "Explain the ECL impact.",
+        "answer": "\n\nExpected credit loss rose from SAR 7,290,521 to SAR 8,200,787 \u2014 a change of SAR 910,266 (+12.49%).\n\nThe population is product_code=PERSONAL_LOAN; salary_transfer_flag=True, 5,879 facilities held by 5,072 customers at 2026-08.\n\nWhat moved it: pd_relative=0.2, with staging frozen_stage.\n\nLargest contributions: PERSONAL_LOAN SAR 910,266.\n\nThe assumptions this run carried\nSave What-If\nClear conversation\nBaseline SAR 7,290,521 \u2192 What-If SAR 8,200,787 (+12.49%)\nSaved What-Ifs\nPRES-C 111805\n2026-08\nSAR 7,290,521 \u2192 SAR 8,200,787 (+12.49%)\nReopen\nCSV\nJSON\nCompare\nDelete\nPRES-C 111021\n2026-08\nSAR 7,290,521 \u2192 SAR 8,200,787 (+12.49%)\nReopen\nCSV\nJSON\nCompare\nDelete\nPRES-C 110109\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (12)\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 230357\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204448\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 204113\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 203818\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nUAT journey 202634\n2026-08\nSAR 8,994,012 \u2192 SAR 10,161,669 (+12.98%)\nReopen\nCSV\nJSON\nCompare\nDelete\nNAV-03 test scenario (11)\n2026-08\nSAR 8,99",
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-c3.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-C4",
+      "module": "presentation",
+      "title": "The run is saved, survives leaving the screen, and reopens with its own shock",
+      "status": "PASS",
+      "detail": "saved=True; left the screen=True; listed on return=True; reopened with its shock=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-c4.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-D1",
+      "module": "presentation",
+      "title": "An alert opens the customer it is about",
+      "status": "PASS",
+      "detail": "alerts listed=True; Customer 360 opened=True; alert=open-customer-RC-0012754",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-d1.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-D2",
+      "module": "presentation",
+      "title": "The customer shows its facilities and its history, and a facility opens",
+      "status": "PASS",
+      "detail": "1 facilities; 12 history rows; a facility opened=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-d2.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    },
+    {
+      "id": "PRES-D3",
+      "module": "presentation",
+      "title": "Back returns to the same alert list, with the alert still on it",
+      "status": "PASS",
+      "detail": "returned to the list=True; the alert opened from is still listed=True",
+      "expected": null,
+      "actual": null,
+      "evidence": {
+        "screenshot": "docs/evidence/retail_functionality/screens/pres-d3.png"
+      },
+      "seconds": 0.0,
+      "defect": ""
+    }
+  ]
+}

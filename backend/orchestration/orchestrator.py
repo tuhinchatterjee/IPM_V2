@@ -458,6 +458,20 @@ def answer(question: str, *, context: Any = None,
         if stepped is not None:
             return finish(stepped)
 
+    # "Draft the response to an auditor." A drafting request is about the
+    # answer already on the screen; read as a fresh question it re-ran the
+    # last scorecard category and returned the previous answer again, word for
+    # word, under a question asking for a letter. Nothing is recomputed here —
+    # the draft is assembled from the held result and says so.
+    # Read from the ORIGINAL words. "Draft" sits one keystroke from the
+    # governed "drift", and after a drift question the speller turned "Draft
+    # the response to an auditor" into "Drift the response to an auditor" —
+    # which is why the drafting request came back as the drift answer again.
+    if _wants_a_draft(original):
+        drafted = _draft_from_the_result(answered, original, state)
+        if drafted is not None:
+            return finish(drafted)
+
     from_memory = followups.answer(asked, continuation.action, memory, context)
     if from_memory is not None:
         answered.result = from_memory
@@ -494,6 +508,15 @@ def answer(question: str, *, context: Any = None,
         workings = _show_the_workings(answered, question, state)
         if workings is not None:
             return finish(workings)
+
+    # "How many are left?" — the size of the population on the table. No
+    # measure is named because none is meant: the answer is how many rows the
+    # previous turn returned, and re-planning it asked which figure to
+    # measure instead.
+    if _counts_what_is_left(question):
+        counted = _count_what_is_left(answered, question, state)
+        if counted is not None:
+            return finish(counted)
 
     pointing = nth.points_without_saying_which(question)
     if pointing:
@@ -1091,6 +1114,17 @@ def _investigate(answered: Answered, question: str, context: Any,
     answered.investigation = request.to_dict()
     answered.portfolio = request.portfolio
     answered.composition = getattr(result, "composition", None)
+    # What this review settled. A review runs governed probes and composes no
+    # plan of its own, so the turn after it had no measure and no window on
+    # the state: "what needs my attention in the retail portfolio this month?"
+    # answered six checks, and "which product is driving it?" came back asking
+    # which figure to measure. It settles on the check the answer LED with, so
+    # the follow-up is about the thing the reader was just shown.
+    lead = dict((getattr(result, "detail", None) or {}).get("lead") or {})
+    if lead.get("measure"):
+        answered.settled_measure = str(lead["measure"])
+        answered.settled_window = (str(lead.get("opening") or ""),
+                                   str(lead.get("closing") or ""))
     return answered
 
 
@@ -2047,6 +2081,156 @@ def _show_the_workings(answered: Answered, question: str,
                 "of": said},
         follow_ups=[],
         warnings=[],
+    )
+    return answered
+
+
+_COUNTS_WHAT_IS_LEFT = re.compile(
+    r"^\s*(?:and\s+|so\s+)?how many (?:are|is|were|do we have)?\s*"
+    r"(?:left|remain(?:ing)?|still there|of (?:them|those|these))?\s*[.?!]?\s*$"
+    r"|^\s*how many (?:are|were) (?:left|remaining|there)\b"
+    r"|^\s*(?:and\s+)?how many\s*[.?!]?\s*$",
+    re.IGNORECASE)
+
+
+def _counts_what_is_left(question: str) -> bool:
+    """Whether the sentence asks for the size of the population on the table."""
+    return bool(_COUNTS_WHAT_IS_LEFT.match(
+        " ".join(str(question or "").split())))
+
+
+def _count_what_is_left(answered: Answered, question: str,
+                        state: cv.ConversationState) -> Answered | None:
+    """How many rows the previous answer returned, from the previous answer.
+
+    Nothing is recomputed and nothing is re-planned: "how many are left?"
+    after a narrowing is a question about the narrowing, and re-reading it as
+    a fresh request asked the reader which figure to measure.
+    """
+    from backend.orchestration import handlers
+
+    if state is None:
+        return None
+    cached = ru.cached_result(state)
+    if cached is None or not cached.usable:
+        return None
+    if cached.truncated:
+        # The held rows are the top of a longer result, so their number is not
+        # the population's. Left to the ordinary path, which says so.
+        return None
+    how_many = len(cached.rows)
+    grain = str(getattr(state, "grain", "") or "row")
+    said = cached.question or "the previous question"
+    answered.cached = cached
+    answered.provenance = ru.provenance_of(cached)
+    answered.from_memory = True
+    answered.decision = rt.decide(question, deterministic=True)
+    answered.result = handlers.HandlerResult(
+        answer=(f"{how_many:,} {grain}{'' if how_many == 1 else 's'} are "
+                f"left after \u201c{said}\u201d. That is the count of the "
+                "rows already on the table; nothing was recomputed."),
+        rows=[dict(r) for r in cached.rows],
+        columns=[dict(c) for c in cached.columns],
+        values={"matching": how_many},
+        detail={"reuse": answered.provenance.to_dict(),
+                "previous": cached.to_dict(), "of": said},
+        follow_ups=[], warnings=[],
+    )
+    return answered
+
+
+
+#: A request to WRITE something from the answer on the screen, rather than to
+#: compute another one. The noun matters as much as the verb: "draft a new
+#: scorecard" is not a drafting request, and "draft the response" is.
+_WANTS_A_DRAFT = re.compile(
+    r"^\s*(?:could you\s+|can you\s+|please\s+)*"
+    r"(?:draft|write|compose|prepare|put together)\b[^.?!]{0,90}?"
+    r"\b(?:response|reply|letter|note|memo|memorandum|statement|paragraph|"
+    r"summary|commentary|wording|write[- ]?up|answer to)\b", re.IGNORECASE)
+
+
+def _wants_a_draft(question: str) -> bool:
+    """Whether the sentence asks for something to be WRITTEN from the result."""
+    return bool(_WANTS_A_DRAFT.match(" ".join(str(question or "").split())))
+
+
+def _row_as_a_sentence(row: dict[str, Any],
+                       columns: list[dict[str, Any]] | None = None) -> str:
+    """One finding, said as a sentence rather than shown as a row.
+
+    The longest free-text value is the explanation the row exists to carry;
+    the short ones beside it — a test id, an outcome — are what qualifies it.
+    Read in the order the COLUMNS are in, so the sentence reads the way the
+    table does rather than the way the dictionary happens to be keyed.
+    Nothing is invented and nothing is rounded: every word comes from the
+    held result.
+    """
+    order = [str(c.get("name") or "") for c in (columns or [])]
+    keys = [k for k in order if k in row] + [k for k in row if k not in order]
+    texts = [str(row[k]).strip() for k in keys
+             if isinstance(row.get(k), str) and str(row[k]).strip()]
+    if not texts:
+        return ""
+    longest = max(texts, key=len)
+    lead = [t for t in texts if t is not longest and t != longest
+            and len(t) <= 60]
+    said = longest
+    prefix = " \u2014 ".join(dict.fromkeys(lead[:2]))
+    if prefix and prefix.lower() not in said.lower():
+        said = f"{prefix}: {said}"
+    return said if said.endswith((".", "!", "?")) else said + "."
+
+
+def _draft_from_the_result(answered: Answered, question: str,
+                           state: cv.ConversationState) -> Answered | None:
+    """Prose drawn from the answer on the screen, marked as a draft.
+
+    Returns None where there is nothing on the table to draft from, and the
+    ordinary path then reads the sentence — which, from a standing start, is
+    right: there is nothing to write a response about yet.
+    """
+    from backend.orchestration import handlers
+
+    if state is None:
+        return None
+    cached = ru.cached_result(state)
+    if cached is None or not cached.usable or not cached.rows:
+        return None
+    said = (cached.question or "the previous question").strip()
+    columns = [dict(c) for c in (cached.columns or [])]
+    lines = [line for line in
+             (_row_as_a_sentence(dict(r), columns)
+              for r in cached.rows[:6]) if line]
+    if not lines:
+        return None
+
+    body = " ".join(lines)
+    considered = len(cached.rows)
+    answered.cached = cached
+    answered.provenance = ru.provenance_of(cached)
+    answered.from_memory = True
+    answered.decision = rt.decide(question, deterministic=True)
+    answered.result = handlers.HandlerResult(
+        answer=(
+            "Draft, for review. Assembled from the result of "
+            f"\u201c{said}\u201d and from nothing else.\n\n"
+            f"{body}\n\n"
+            + (f"{considered:,} findings were on the table and the "
+               f"{len(lines)} above are the ones it led with. "
+               if considered > len(lines) else "")
+            + "This is a draft assembled from a governed result. Nothing in "
+              "it has been reviewed or approved, no conclusion has been "
+              "added to what the result says, and every figure should be "
+              "checked against the Trace before it is sent."),
+        rows=[dict(r) for r in cached.rows],
+        columns=[dict(c) for c in cached.columns],
+        values={"findings": considered, "drafted_from": said},
+        detail={"reuse": answered.provenance.to_dict(),
+                "previous": cached.to_dict(), "of": said,
+                "rule": ("A draft is assembled from the result on the screen. "
+                         "Nothing was recomputed and nothing was added.")},
+        follow_ups=[], warnings=[],
     )
     return answered
 

@@ -378,15 +378,23 @@ class Session:
         return self.page.query_selector(target) if target else None
 
 
+#: What the screen says while it is still working. Matched case-insensitively:
+#: the Cockpit's own progress line reads "Credit Analyst is working", with a
+#: lower-case w, and a capitalised "Working" never matched it. Three cases in a
+#: long thread — a multi-part question, a breakdown, and two conversations at
+#: two months — recorded the progress panel as the answer and were reported as
+#: product failures on answers the product went on to render correctly.
+_BUSY_WORDS = ("thinking", "is working", "composing",
+               "running the analysis", "defining the population",
+               # Scorecard Validation's own word. Without it a category run —
+               # eight tests, a bootstrap among them — was read mid-flight and
+               # three cases recorded the spinner as the answer.
+               "running the tests")
+
+
 def _busy(body: str) -> bool:
-    return any(w in body for w in ("Thinking", "Working", "Composing",
-                                   "Running the analysis",
-                                   # Scorecard Validation's own word. Without
-                                   # it a category run — eight tests, a
-                                   # bootstrap among them — was read
-                                   # mid-flight and three cases recorded the
-                                   # spinner as the answer.
-                                   "Running the tests"))
+    lowered = body.lower()
+    return any(w in lowered for w in _BUSY_WORDS)
 
 
 def answer_region(body: str) -> str:

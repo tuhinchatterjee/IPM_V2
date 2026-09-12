@@ -69,6 +69,21 @@ _INVESTIGATE = (
     r"\bwhat (?:has|have|is|are) (?:\w+ ){0,2}"
     r"(?:deteriorat|worsen|declin|weaken|slipp|got worse)",
     r"\bwhere (?:is|are) (?:the |we )?(?:risk|trouble|weakness|problems?)\b",
+    # The two open-judgement questions a Head of Retail Risk actually asks.
+    # "What would you escalate to the board?" was refused as data the book
+    # holds nothing about, and "what are the three numbers that matter most?"
+    # came back as a menu of governed concepts. Neither is a request for one
+    # figure: both ask what the governed checks say is moving, which is the
+    # bounded review this path already runs. The answer is a prioritisation
+    # BY THE SIZE OF THE GOVERNED MOVE, and it says so.
+    r"\bwhat (?:would|should|do) you (?:escalate|flag|raise|report)\b",
+    r"\bwhat (?:should|would|do) (?:i|we) (?:escalate|flag|raise|take)\b"
+    r"(?:\s+to\s+(?:the\s+)?(?:board|committee|exco|alco|management))?",
+    r"\b(?:the\s+)?(?:three|3|top|key|headline|main)\s+"
+    r"(?:numbers?|figures?|metrics?|measures?|things?|items?)\s+"
+    r"(?:that\s+)?(?:matter|count|to watch|i should|we should)\b",
+    r"\bwhat (?:needs|deserves|warrants|requires) (?:my|our|your) attention\b",
+    r"\bwhat (?:matters|is important|should i know) (?:most|this month)?\b",
 )
 
 
@@ -282,7 +297,16 @@ _PRIORITY = ("ead", "ecl", "stage", "rating", "dpd", "headroom", "utilisation",
              "leverage", "dscr")
 
 
-def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
+#: How each window reads inside a probe's question.
+_WINDOW_PHRASE: dict[str, str] = {
+    "MOM": "this month",
+    "QOQ": "over the latest quarter",
+    "YOY": "over the latest year",
+}
+
+
+def _probes(subject: str, kind: str, context: Any,
+            question: str = "") -> list[Probe]:
     """Every governed measure worth PROPOSING, in priority order.
 
     Read from the ontology and filtered by what the catalogue can actually
@@ -298,8 +322,14 @@ def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
     """
     from backend.semantics import ontology
 
+    from backend.orchestration import deterioration as dr
+
     portfolio = kind == "portfolio"
     shapes = _PORTFOLIO_SHAPE if portfolio else _SHAPE
+    # The window the SENTENCE asked for. The shapes are written for a year,
+    # and "what needs my attention in the retail portfolio THIS MONTH?" was
+    # answered with twelve months of movement in every one of them.
+    said = _WINDOW_PHRASE.get(dr.read_window(question), "over the latest year")
     available = _computable(context)
     out: list[Probe] = []
     for concept_id in _PRIORITY:
@@ -312,15 +342,16 @@ def _probes(subject: str, kind: str, context: Any) -> list[Probe]:
                      else "a fall is deterioration")
         shape = shapes.get(concept_id, "")
         if shape:
-            question = shape if portfolio else shape.format(subject=subject)
+            asked = shape if portfolio else shape.format(subject=subject)
+            asked = asked.replace("over the latest year", said)
         else:
-            question = (
+            asked = (
                 f"How has {contract.business_name.lower()} moved "
                 + ("" if portfolio else f"in {subject} ")
-                + "over the latest year?")
+                + f"{said}?")
         out.append(Probe(
             concept_id=concept_id, label=contract.business_name,
-            question=question,
+            question=asked,
             because=f"{contract.business_name}: {direction}."))
 
     if out:
@@ -355,7 +386,7 @@ def _plan_probes(question: str, subject: str, kind: str,
     """
     from backend.orchestration import portfolio as pf
 
-    proposed = _probes(subject, kind, context)
+    proposed = _probes(subject, kind, context, question)
     if not proposed:
         return [], None
 
@@ -658,6 +689,7 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
     from backend.orchestration.handlers import HandlerResult
 
     rows: list[dict[str, Any]] = []
+    windows: list[tuple[str, str]] = []
     notes: list[str] = []
     analyses: list[dict[str, Any]] = []
     composed = Composition()
@@ -682,6 +714,15 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
             "question": probe.question,
             "because": probe.because,
         })
+        # The window this probe measured over, kept beside the row so the
+        # conversation can settle on the check the answer leads with. A review
+        # composes no plan of its own, so without this the turn after it —
+        # "which product is driving it?" — had no measure and no window to
+        # inherit and came back as a menu of governed concepts.
+        windows.append((str(getattr(getattr(answered, "build", None),
+                                    "opening", "") or ""),
+                        str(getattr(getattr(answered, "build", None),
+                                    "closing", "") or "")))
         # The analysis itself, not only a sentence about it. A probe that
         # computed a stage distribution has a stage distribution; the reader
         # was being shown the sentence "4,917 SAR mn across 3 stages" and not
@@ -719,6 +760,7 @@ def run(request: Request, question: str, *, answer_one: Any) -> Any:
                 "datasets_read": len(composed.datasets)},
         detail={"investigation": request.to_dict(),
                 "composed": composed.to_dict(),
+                "lead": _lead(rows, windows),
                 "rule": ("Each line is a governed analysis over the named "
                          "population. Nothing here asserts a cause.")},
         warnings=notes,
@@ -772,12 +814,44 @@ def _synthesis(request: Any, rows: list[dict[str, Any]],
 
     if worse:
         lead += f" The clearest is: {worse[0]['finding']}"
+        # What "clearest" is allowed to mean. The checks are ordered by the
+        # size of the governed move over the window checked, because that is
+        # the only ordering the book supports: nothing in the retail data
+        # ranks one measure's materiality against another's, and a product
+        # that silently presented size as importance would be inventing a
+        # judgement it cannot evidence. Said out loud so the reader supplies
+        # the judgement rather than assuming CreditProbe already did.
+        lead += (" Ordered by the size of the governed move over the window "
+                 "checked, not by a judgement of importance — the book "
+                 "holds nothing that ranks one measure against another.")
     if notes:
         lead += (f" {len(notes)} further "
                  f"{'check' if len(notes) == 1 else 'checks'} could not be "
                  "completed and {0} not included."
                  .format("is" if len(notes) == 1 else "are"))
     return lead.strip()
+
+
+
+def _lead(rows: list[dict[str, Any]],
+          windows: list[tuple[str, str]]) -> dict[str, str]:
+    """The check the answer leads with, and the window it measured over.
+
+    The same choice `_synthesis` makes — the first check pointing the wrong
+    way, or the first check where none does — so what the conversation settles
+    on is what the reader was just shown. A review that settled nothing left
+    the next question with nothing to inherit.
+    """
+    if not rows:
+        return {}
+    at = 0
+    for index, row in enumerate(rows):
+        if _points_down(str(row.get("finding") or "")):
+            at = index
+            break
+    opening, closing = windows[at] if at < len(windows) else ("", "")
+    return {"measure": str(rows[at].get("measure") or ""),
+            "opening": opening, "closing": closing}
 
 
 def _points_down(finding: str) -> bool:

@@ -350,8 +350,41 @@ def _population_in(question: str, *, reading: Any = None,
     except Exception:  # noqa: BLE001 - a missing catalogue is not an error here
         pass
 
-    if state is not None:
-        for _, value in list(getattr(state, "filter_pairs", lambda: [])() or []):
+    # The conversation's settled scope is part of the contract only while the
+    # question has not restated one of its own. On the fourteenth turn of a
+    # thread that had been through personal finance, Stage 2 and salary
+    # transfer, "Are there any Stage 3 home-finance facilities in August
+    # 2026?" was answered correctly — 11 facilities in Home Finance, Stage 3 —
+    # and then carried three caveats reading "The question is about True, and
+    # the analysis did not restrict to it", "... about Personal Finance ...",
+    # "... about 2 ...". Every carried filter the thread had ever settled was
+    # being asserted as something THIS question had asked for, and the longer
+    # the conversation the more of them there were. A question that names its
+    # own population has replaced the conversation's, and the planner already
+    # treats it that way; the contract has to agree, or it reports the
+    # planner's correct behaviour as a divergence.
+    #
+    # A carried filter on a field the question BREAKS DOWN BY is not part of
+    # the contract either. "Break ECL down by product", asked after a
+    # credit-card question, is a request for every product; the planner drops
+    # the carried `product_label = Credit Card` for exactly that reason, and
+    # the contract was then reporting that correct behaviour as "The question
+    # is about Credit Card, and the analysis did not restrict to it".
+    if state is not None and not found:
+        for field_name, value in list(
+                getattr(state, "filter_pairs", lambda: [])() or []):
+            # A boolean is not a population anybody would recognise on a
+            # screen. "The question is about True" tells the reader nothing
+            # about what was or was not restricted.
+            if str(value).strip().lower() in ("true", "false", "none", ""):
+                continue
+            try:
+                from backend.orchestration import analysis_planner as _ap
+
+                if _ap._groups_by(said, field_name):
+                    continue
+            except Exception:  # noqa: BLE001 - a contract must not lose a check
+                pass
             if value and str(value) not in found:
                 found.append(str(value))
     return tuple(dict.fromkeys(found))

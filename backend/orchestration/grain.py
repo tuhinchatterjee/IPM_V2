@@ -207,7 +207,17 @@ _COUNTS = re.compile(
     r"|\bnumber of\s+(?:\w+\s+){0,2}?"
     r"(?:customers?|borrowers?|names?|obligors?|clients?|facilities|accounts?)\b"
     r"|\bcount of\s+(?:\w+\s+){0,2}?"
-    r"(?:customers?|borrowers?|names?|obligors?|clients?|facilities|accounts?)\b",
+    r"(?:customers?|borrowers?|names?|obligors?|clients?|facilities|accounts?)\b"
+    # An EXISTENCE question is a count too. "Are there any Stage 3
+    # home-finance facilities?" was read as one row per facility, so the
+    # count plan — which is one row for the book — was refused by the grain
+    # contract and the answer became the stage column added up.
+    r"|\b(?:are|is)\s+there\s+(?:any|some|a|an)\s+(?:\w+[- ]?){0,4}?"
+    r"(?:customers?|borrowers?|names?|obligors?|clients?|facilit(?:y|ies)|"
+    r"accounts?|loans?)\b"
+    r"|\bdo\s+(?:we|you)\s+have\s+any\s+(?:\w+[- ]?){0,4}?"
+    r"(?:customers?|borrowers?|names?|obligors?|clients?|facilit(?:y|ies)|"
+    r"accounts?|loans?)\b",
     re.I)
 
 

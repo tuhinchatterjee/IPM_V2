@@ -216,6 +216,8 @@ class AnalysisBuild:
     joins: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     summary: str = ""
+    #: The exclusions applied to the whole entity rather than to its rows.
+    entity_exclusion: list[dict[str, Any]] = field(default_factory=list)
     #: "into Stage 2" or "out of Stage 2", where the question asked for the
     #: FLOW rather than the stock. Said in the answer, because "315 facilities
     #: in Stage 2" is the same sentence the stock question gets and the two
@@ -426,6 +428,13 @@ def plan(reading: Reading, context: GovernedContext, *,
     # governed figure is 35.82% — and the mean rose over the year while the
     # ratio fell. Applied on the one path every shape returns through.
     _ratios_as_quotients(build)
+
+    # "Take out anyone already in Stage 3." A customer IS in Stage 3 when any
+    # one of their facilities is, so removing the Stage 3 ROWS leaves the
+    # customer standing on the others: nine of twenty survived where five
+    # should have. Where the wording names people and the answer has one row
+    # per customer, the exclusion is applied to the customer.
+    _exclude_the_whole_entity(build, text)
     dropped = gate.dropped_structure(
         text, getattr(build, "enforcement", None),
         multi.predicate_tree_of(build.plan),
@@ -952,18 +961,42 @@ def _plan(reading: Reading, context: GovernedContext, *,
         # Stage 2", a ranking of a column where every row reads 2. What the
         # reader means by the book is what it is owed.
         dropped = list(matches)
-        more = cx.read_concepts(DISTRIBUTION_MEASURE, known=known,
-                                catalogue=catalogue)
-        if more.matches:
-            matches = [more.matches[0]]
-            distribution_default = DISTRIBUTION_MEASURE
+        # The measure the CONVERSATION settled, before the book's default.
+        # "Give me the worst 20 customers by expected credit loss" then "Take
+        # out anyone already in Stage 3" measured EXPOSURE AT DEFAULT — the
+        # book's fallback — under a narrowing of a list the reader had asked
+        # for by ECL.
+        settled = ""
+        if carrying and state is not None:
+            settled = ", ".join(state.metrics or state.concepts)
+        kept: list[cx.ConceptMatch] = []
+        if settled:
+            more = cx.read_concepts(settled, known=known, catalogue=catalogue,
+                                    preferred_datasets=reading_order)
+            kept = [m for m in more.matches if m.field not in constrained]
+        if kept:
+            matches = kept
             planning_notes.append(
                 f"{_list_of(m.label for m in dropped)} is what the question "
                 "CONSTRAINS, not what it measures — every row inside that "
-                "restriction carries the same value — so CreditProbe measured "
-                f"{DISTRIBUTION_MEASURE}.")
-            logger.info("Dropped %s as a measure and defaulted the level.",
+                "restriction carries the same value — so CreditProbe kept "
+                f"{_list_of(m.label for m in kept)}, the figure this "
+                "conversation is about.")
+            logger.info("Dropped %s as a measure and kept the settled one.",
                         ", ".join(m.label for m in dropped))
+        else:
+            more = cx.read_concepts(DISTRIBUTION_MEASURE, known=known,
+                                    catalogue=catalogue)
+            if more.matches:
+                matches = [more.matches[0]]
+                distribution_default = DISTRIBUTION_MEASURE
+                planning_notes.append(
+                    f"{_list_of(m.label for m in dropped)} is what the "
+                    "question CONSTRAINS, not what it measures — every row "
+                    "inside that restriction carries the same value — so "
+                    f"CreditProbe measured {DISTRIBUTION_MEASURE}.")
+                logger.info("Dropped %s as a measure and defaulted the level.",
+                            ", ".join(m.label for m in dropped))
 
     inherited_top_n = (state.top_n if carrying and state and not _explicit_top_n(text)
                        else 0)
@@ -1074,11 +1107,18 @@ def _plan(reading: Reading, context: GovernedContext, *,
             if ((wants_customers.explicit
                  and wants_customers.grain == gr.CUSTOMER)
                     or settled_grain == gr.CUSTOMER):
-                planning_notes.append(
-                    f"The exclusion is tested on each facility, and this "
-                    f"answer has one row per customer. A customer with a "
-                    f"{sc_say(field_name, value)} facility and others outside "
-                    "it is still here, counted on the others.")
+                if _excludes_the_whole_entity(text):
+                    planning_notes.append(
+                        f"The exclusion is applied to the whole customer: "
+                        f"anybody holding even one "
+                        f"{sc_say(field_name, value)} facility is out, not "
+                        "just that facility.")
+                else:
+                    planning_notes.append(
+                        f"The exclusion is tested on each facility, and this "
+                        f"answer has one row per customer. A customer with a "
+                        f"{sc_say(field_name, value)} facility and others "
+                        "outside it is still here, counted on the others.")
 
     # A FLOW into or out of a governed state, with only the state named.
     # "How many facilities moved into Stage 2 this month?" answered 1,392 —
@@ -1162,7 +1202,11 @@ def _plan(reading: Reading, context: GovernedContext, *,
             # keyed on. A retail book is one row per facility, so reading the
             # default made this guard true of every narrowing on the book and
             # the settled movement was never inherited at all.
-            and not _asks_for_an_entity_grain(text)):
+            and not _asks_for_an_entity_grain(text)
+            # ...and unless the sentence asks for a breakdown in its own
+            # words, which is a request rather than a continuation.
+            and not _states_a_fresh_breakdown(text, matches, grouping,
+                                              continuation)):
         shape = MOVEMENT
     elif (shape in (AGGREGATE, RANKING) and state
           and state.shape == MOVEMENT and continuation is not None
@@ -1794,6 +1838,12 @@ def _wants_count(text: str, reading: Reading) -> bool:
     if re.search(r"\bhow many (?:customers?|borrowers?|names?|obligors?|"
                  r"clients?|facilities|accounts?)\b", lowered):
         return True
+    # An EXISTENCE question is a count. "Are there any Stage 3 home-finance
+    # facilities?" was answered "33 IFRS 9 stage in Home Finance, Stage 3" —
+    # eleven rows, each carrying the number 3, added up. What the reader asked
+    # is whether any qualify, and the honest answer is how many.
+    if _asks_whether_any_exist(lowered) and _count_subject(lowered):
+        return True
     return re.search(r"\bcount of\b", lowered) is not None or (
         reading.operation == "count"
         and re.search(r"\bcustomers?\b|\bborrowers?\b|\bfacilities\b",
@@ -2050,6 +2100,32 @@ def _without_measure_names(text: str, matches: list[cx.ConceptMatch]) -> str:
                               _re.IGNORECASE)
         said = pattern.sub(lambda m: " " * len(m.group(0)), said)
     return said
+
+
+
+def _states_a_fresh_breakdown(text: str, matches: list[cx.ConceptMatch],
+                              grouping: Any, continuation: Any) -> bool:
+    """Whether this turn asks for a breakdown in ITS OWN words.
+
+    "Break ECL down by product", asked after "show the 25-month weighted ECL
+    trend for credit cards", came back as *"Final ECL fell from 17,241,387 to
+    15,952,109 SAR between 2024-08 and 2026-08"* — the whole book, over two
+    years, as a fall. The reader asked for a breakdown and was shown a
+    movement they had not asked for, at a window they had not named, over a
+    population the previous question had not been about.
+
+    The settled movement is inherited because most follow-ups are a
+    continuation of it, and that is right: *"break that down by product"* is
+    the same movement opened up, and it stays one. This is the other case. A
+    sentence that names its own measure and refers back to nothing has
+    restated the request rather than continued it, and a breakdown is what it
+    asked for.
+    """
+    if not getattr(grouping, "found", False):
+        return False
+    if str(getattr(continuation, "referent", "") or "").strip():
+        return False
+    return _without_measure_names(text, matches) != str(text or "")
 
 
 def _destinations(question: str,
@@ -4160,6 +4236,118 @@ def _quotient_of(dataset: str, field: str) -> tuple[str, str] | None:
     if numerator == field or denominator == field:
         return None
     return numerator, denominator
+
+
+#: An exclusion worded about PEOPLE rather than about rows. "anyone",
+#: "anybody", "any customer", "whoever" — and the plural nouns a reader uses
+#: for the same thing.
+_ABOUT_PEOPLE = _re.compile(
+    r"\banyone\b|\banybody\b|\bwhoever\b|\bany(?:\s+\w+){0,2}\s+"
+    r"(?:customers?|borrowers?|names?|clients?|obligors?)\b"
+    r"|\bcustomers?\b|\bborrowers?\b|\bnames?\b|\bclients?\b|\bobligors?\b",
+    _re.IGNORECASE)
+
+
+def _excludes_the_whole_entity(text: str) -> bool:
+    """Whether an exclusion in this sentence is about people, not rows."""
+    return bool(_ABOUT_PEOPLE.search(str(text or "")))
+
+
+def _exclude_the_whole_entity(build: AnalysisBuild, text: str) -> None:
+    """Apply a `!=` exclusion to the GROUP rather than to the rows it holds.
+
+    A customer is in Stage 3 when ANY facility of theirs is, so the test has
+    to be made after the rows are gathered: `max(ifrs9_stage) <> 3` over the
+    customer's facilities, not `ifrs9_stage <> 3` over each one.
+
+    Does nothing where the answer is not one row per entity, where the
+    sentence is about rows rather than people, or where there is no `!=`
+    exclusion to move. The plan is left exactly as it was.
+    """
+    if str(getattr(build, "grain", "")) not in (gr.CUSTOMER, gr.FACILITY):
+        return
+    if not _excludes_the_whole_entity(text):
+        return
+    excluded = [c for c in (build.conditions or [])
+                if str(getattr(c, "op", "")) == "ne"
+                and str(getattr(c, "kind", "")) == "level"]
+    if not excluded:
+        return
+    plan = build.plan or {}
+    operations = list(plan.get("operations") or [])
+    group = next((o for o in operations
+                  if str(o.get("op") or "").upper() == "GROUP"), None)
+    if group is None:
+        return
+    by = list((group.get("params") or {}).get("by") or [])
+    key = _grain_key(build.grain, set(by)) if by else ""
+    if not by or key not in by:
+        return
+
+    fields = {str(c.field) for c in excluded}
+    moved: list[dict[str, Any]] = []
+    for operation in operations:
+        if str(operation.get("op") or "").upper() != "FILTER":
+            continue
+        params = operation.get("params") or {}
+        where = list(params.get("where") or [])
+        kept = [w for w in where
+                if not (str(w.get("column") or "") in fields
+                        and str(w.get("op") or "") in ("!=", "ne", "<>"))]
+        if len(kept) != len(where):
+            params["where"] = kept
+    aggregates = list((group.get("params") or {}).get("aggregates") or [])
+    after: list[dict[str, Any]] = []
+    for condition in excluded:
+        column = f"{condition.field}__worst"
+        if not any(str(a.get("as") or "") == column for a in aggregates):
+            aggregates.append({"function": "max", "column": condition.field,
+                               "as": column})
+        after.append({"column": column, "op": "!=", "value": condition.value})
+        moved.append({"field": condition.field, "value": condition.value})
+    if not after:
+        return
+    (group.get("params") or {})["aggregates"] = aggregates
+
+    # A FILTER with no predicates left is a FILTER the validator refuses — and
+    # dropping it leaves its consumers naming a step that is gone, which the
+    # validator reads as a cycle. Each one is spliced out: whoever read it now
+    # reads what it read.
+    empty = [o for o in operations
+             if str(o.get("op") or "").upper() == "FILTER"
+             and not ((o.get("params") or {}).get("where") or [])
+             and (o.get("params") or {}).get("expression") is None]
+    for gone in empty:
+        stood_on = list(gone.get("inputs") or [])
+        operations.remove(gone)
+        for operation in operations:
+            inputs = list(operation.get("inputs") or [])
+            if gone.get("id") in inputs:
+                operation["inputs"] = [i for i in inputs
+                                       if i != gone.get("id")] + stood_on
+    if group not in operations:
+        return
+    at = operations.index(group)
+    identifier = f"{group.get('id')}_entity_exclusion"
+    for later in operations[at + 1:]:
+        inputs = list(later.get("inputs") or [])
+        if group.get("id") in inputs:
+            later["inputs"] = [identifier if i == group.get("id") else i
+                               for i in inputs]
+    operations.insert(at + 1, {
+        "id": identifier, "op": "FILTER", "inputs": [group.get("id")],
+        "params": {"where": after},
+        "label": ("Remove the whole " + str(build.grain)
+                  + " where any row meets the exclusion"),
+    })
+    # Whatever the exclusion tests has to be scanned.
+    for operation in operations:
+        if str(operation.get("op") or "").upper() == "SCAN":
+            params = operation.get("params") or {}
+            params["fields"] = sorted(set(params.get("fields") or []) | fields)
+    plan["operations"] = operations
+    build.plan = plan
+    build.entity_exclusion = moved
 
 
 def _ratios_as_quotients(build: AnalysisBuild) -> None:

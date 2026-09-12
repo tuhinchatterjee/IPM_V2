@@ -2,10 +2,10 @@
   "suite": "cockpit_journeys",
   "frontend": "http://localhost:5328",
   "backend": "http://localhost:8328",
-  "elapsed_seconds": 288.8,
+  "elapsed_seconds": 357.2,
   "counts": {
-    "PASS": 16,
-    "FAIL": 1,
+    "PASS": 17,
+    "FAIL": 0,
     "BLOCKED": 0,
     "NOT RUN": 0,
     "NOT APPLICABLE": 0
@@ -111,7 +111,7 @@
       "actual": null,
       "evidence": {
         "clarification": "\n\nONE QUESTION BACK\n\nWhich scorecard? This deployment validates Credit Card Application Scorecard, Personal Finance Application Scorecard, Auto Finance Application Scorecard, Home Finance Application Scorecard, Credit Card Behavioural Scorecard, Personal Finance Behavioural Scorecard, Auto Finance Behavioural Scorecard and Home Finance Behavioural Scorecard.\n\nName the figure you want and CreditProbe will build the analysis for it. The catalogue carries measures such as exposure at default, expected credit loss.\n\nOr ask something else in the box below.\n\nNo clear signal; treated as an analysis, ",
-        "resolved": "\n\nCredit Analyst is working. Defining the population and period.\n\nCredit Analyst is working\n3s\n\nDefining the population and period.\n\nCompleted: Preparing, Understanding.\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "resolved": "\u201d.\nTrace\nProject\nSave analysis\nWas this answer accurate and useful?\nYes\nPartly\nNo\nNot sure\nSkip\nGood answer\nNot a good answer\nGo back to \u201cThe personal finance application scorecard\u201d and finish it.\n\nCompleted by Credit Analyst \u2014 no calculation needed \u00b7 not validated\nTrace\n\nLIMITED EVIDENCE\n3 of 3 checks passed\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-06.png"
       },
       "seconds": 0.0,
@@ -126,7 +126,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "CreditProbeAI\nGOVERNED LOCAL READER\n1\nExecutive Ivory\nADMINISTRATOR\nSign out\nAll systems operational\nv0.3.0\n\nHOME\n\nCockpit\nMy workspace\nMessages\n\nWORK\n\nProjects\nProject Planner\nInvestigations\nAnalyses\nDocuments\n\nINTELLIGENCE\n\nLenses\nMetric Catalogue\nEarly Warning\nEarly Warning Signals\nWhat-If Analysis\nCustomer 360\nScorecard Validation\n\nBUILD\n\nAnalysis Studio\nData Builder\n\nGOVERN\n\nTrace & Lineage\nPlaybook\nMy reviews\n\nADMIN\n\nWorkflow\nAgent Operations\nAI Intelligence Studio\nUsers & Teams\nSettings\nGood morning, Mr. Sajid\n\nWhat\u2019s on your mind?\n\nEnter to ask\nAsk\nWhat data do you have in Retail facility month-end position?\nEvery answer carries a Trace.\nGOVERNED LOCAL READER \u2014 questions are read by a deterministic semantic planner over the governed catalogue. It understands credit concepts, not arbitrary phrasing.\n\nCredit Analyst is working. Defining the population and period.\n\nCredit Analyst is",
+        "answer": " discrimination using the latest fully observed 12-month cohort.\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPersonal Finance Application Scorecard v1.0.0 \u2014 6 discrimination tests. Area under the ROC curve is 0.6565 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\n\nAnalysis\nGoverned metadata\nTrace\nTest\n\t\nOutcome\n\t\nMeasured\n\t\nLimit\n\t\nWhat it says\n\nDISC-AUC\tWarning\t0.66\t0.62\tArea under the ROC curve is 0.6565 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\nDISC-LIFT\tNo approved limit\t2.35\t\u2014\tThe worst decile carries 2.35x the portfolio default rate.\nDISC-TREND\tNo approved limit\t-0.01\t\u2014\tAUC moved from 0.6435 in 2024-08 to 0.6364 in 2025-08, a change of -0.0072 across 13 measurable cohorts.\nDISC-KS\tPass\t0.26\t0.18\tKolmogorov-Smirnov statistic is 0.2556 on 10,170 observations carrying 277 defaults. HIGH EVIDENCE.\nDISC-GINI\tPass\t0.31\t0.24\tGini coeff",
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-07.png"
       },
       "seconds": 0.0,
@@ -141,7 +141,7 @@
       "expected": null,
       "actual": null,
       "evidence": {
-        "answer": "\n\nCredit Analyst is working. Defining the population and period.\n\nCredit Analyst is working\n3s\n\nDefining the population and period.\n\nCompleted: Preparing, Understanding.\nHow CreditProbe performed\nEnter to ask\nAsk\nEvery answer carries a Trace.\nNo AI provider is configured. CreditProbe reads questions with its deterministic governed semantic reader and computes every figure in the governed runtime.",
+        "answer": "\n\nDOWNLOAD RESULTS\nQUESTIONS ANSWERED\n1 of 1\n1 analysis performed\n\nPersonal Finance Application Scorecard v1.0.0 \u2014 5 calibration tests. Band-level RMSE 0.00693 across 10 score bands. HIGH EVIDENCE.\n\nAnalysis\nGoverned metadata\nTrace\nTest\n\t\nOutcome\n\t\nMeasured\n\t\nLimit\n\t\nWhat it says\n\nCAL-BAND\tNo approved limit\t0.01\t\u2014\tBand-level RMSE 0.00693 across 10 score bands. HIGH EVIDENCE.\nCAL-BRIER\tNo approved limit\t0.03\t\u2014\tBrier score 0.02625. HIGH EVIDENCE.\nCAL-SLOPE\tNo approved limit\t1.28\t\u2014\tCalibration slope 1.2823, intercept +0.0797. A slope near 1 with a non-zero intercept is a recalibration; a slope far from 1 is not. HIGH EVIDENCE.\nCAL-DRIFT\tNo approved limit\t-0.82\t\u2014\tO/E moved from 1.593 in 2024-08 to 0.776 in 2025-08, a change of -0.817 across 13 measurable cohorts. A drifting O/E is a recalibrat",
         "screenshot": "docs/evidence/retail_functionality/screens/cockpit-cp-08.png"
       },
       "seconds": 0.0,
@@ -210,8 +210,8 @@
       "id": "CP-15",
       "module": "cockpit",
       "title": "Two conversations at two months do not contaminate each other",
-      "status": "FAIL",
-      "detail": "the July conversation is at 2026-07=False; the August one is at 2026-08=False",
+      "status": "PASS",
+      "detail": "the July conversation is at 2026-07=True; the August one is at 2026-08=True",
       "expected": null,
       "actual": null,
       "evidence": {
@@ -225,7 +225,7 @@
       "module": "cockpit",
       "title": "One continuous five-turn conversation: analysis, narrowing, comparison, explanation and evidence",
       "status": "PASS",
-      "detail": "Use Cockpit Data for August \u2026=ok; Now only personal finance\u2026=ok; Compare with July 2026\u2026=ok; Explain that change\u2026=ok; Show the evidence\u2026=ok (24s)",
+      "detail": "Use Cockpit Data for August \u2026=ok; Now only personal finance\u2026=ok; Compare with July 2026\u2026=ok; Explain that change\u2026=ok; Show the evidence\u2026=ok (23s)",
       "expected": null,
       "actual": null,
       "evidence": {

@@ -79,7 +79,12 @@ EXPLICIT = "EXPLICIT"
 _STEPS: dict[str, int] = {QOQ: 1, YOY: 4}
 
 _WINDOW_WORDS: tuple[tuple[str, str], ...] = (
-    (r"month[- ]on[- ]month|month[- ]over[- ]month|\bmom\b|since last month",
+    # "this month" is a month-on-month question. Read as nothing at all it
+    # fell to the default and answered "what has deteriorated in the retail
+    # book THIS MONTH?" with twelve months of movement.
+    (r"month[- ]on[- ]month|month[- ]over[- ]month|\bmom\b|since last month"
+     r"|\bthis month\b|\bin the month\b|\bover the month\b"
+     r"|\bthe latest month\b|\bmonthly\b",
      MOM),
     (r"year[- ]on[- ]year|year[- ]over[- ]year|\byoy\b|over the (?:latest |past )?year"
      r"|since last year|compared with last year", YOY),

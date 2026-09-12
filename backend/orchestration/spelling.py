@@ -241,6 +241,7 @@ under over above below behind ahead across around within without
 running runs ruined ready steady rising rose falling fallen
 strong stronger strongest weakest bigger smaller larger looks look
 vulnerable exposed stretched strained squeeze squeezed crunch
+draft drafts drafted drafting
 """.split())
 
 

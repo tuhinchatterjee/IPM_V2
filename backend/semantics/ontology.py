@@ -331,7 +331,17 @@ CONTRACTS: tuple[SemanticContract, ...] = (
                        "stage 1", "stage 2", "stage 3",
                        "expected credit loss", "ecl", "impairment",
                        "provision", "12-month pd", "lifetime pd",
-                       "loss given default"),
+                       "loss given default",
+                       # The RETAIL book's three governed exposure measures,
+                       # by the names the clarification itself offers. Without
+                       # them the reader answered "Gross carrying amount." and
+                       # was asked the same question again: the reply was
+                       # merged back into the ambiguous sentence and resolved
+                       # nothing, so the clarification repeated for every turn
+                       # that followed.
+                       "gross carrying amount", "carrying amount", "gca",
+                       "credit limit", "undrawn commitment", "undrawn",
+                       "exposure at default"),
         ),
         natural_grain="facility",
         unit="SAR mn",

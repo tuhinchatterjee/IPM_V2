@@ -155,15 +155,18 @@ def read(question: str, months: list[str] | None = None,
         ask.month = str(carried["month"])
 
     # ---- population ---------------------------------------------------
+    named_population = False
     for phrase, code in sorted(PRODUCTS.items(), key=lambda kv: -len(kv[0])):
         if re.search(rf"\b{re.escape(phrase)}\b", said):
             ask.filters["product_code"] = code
             ask.read_as.append(f"{phrase} only")
+            named_population = True
             break
     for pattern, column, value in POPULATIONS:
         if re.search(pattern, said):
             ask.filters[column] = value
             ask.read_as.append(f"{column.replace('_', ' ')} = {value}")
+            named_population = True
 
     # A narrowing turn keeps the population of the scenario it narrows, unless
     # this sentence states its own — or unless it WIDENS.
@@ -229,6 +232,21 @@ def read(question: str, months: list[str] | None = None,
     # already keeps its population. Only when the sentence refers back: a bare
     # new sentence starts a new scenario.
     if _BACKREF.search(said) and not ask.cutoff:
+        carry_shocks(ask, dict(carried.get("shocks") or {}))
+        if carried.get("scenario_weights") and ask.scenario_weights is None:
+            ask.scenario_weights = dict(carried["scenario_weights"])
+            ask.read_as.append("carrying forward the scenario weights")
+    elif (named_population and _NARROWS_ONLY.match(said) and ask.is_neutral
+          and not ask.cutoff and carried.get("shocks")):
+        # A sentence that names ONLY a population is narrowing the scenario on
+        # screen. "Only salary-transfer customers.", asked straight after
+        # "increase personal-finance PD by 20% relative", was refused with
+        # "CreditProbe could not read a change in that" — the back-reference
+        # test wanted "only FOR" or "narrow to", and the most ordinary way in
+        # English to say it names the population and nothing else. There is
+        # only one scenario it can be narrowing, it states no shock of its
+        # own, and refusing it sends the reader back to retype the shock they
+        # just ran.
         carry_shocks(ask, dict(carried.get("shocks") or {}))
         if carried.get("scenario_weights") and ask.scenario_weights is None:
             ask.scenario_weights = dict(carried["scenario_weights"])
@@ -319,6 +337,17 @@ def family(shock: str) -> str:
 #: A sentence that continues the scenario on the table rather than starting a
 #: new one. "Apply the same shock only to salary-transfer customers" narrows
 #: THAT scenario; "show me credit cards" does not.
+#: A sentence that OPENS by restricting, and then names only a population.
+#: "Only salary-transfer customers." is the scenario on the table, narrowed.
+#: Anchored at the start deliberately: "show me credit cards" also names a
+#: population and is a request to LOOK at credit cards, not to re-apply the
+#: last shock to them.
+_NARROWS_ONLY = re.compile(
+    r"^(?:and\s+|now\s+|then\s+|but\s+)*"
+    r"(?:only|just|restrict(?:ed)?\s+to|limit(?:ed)?\s+to|"
+    r"narrow(?:ed)?\s+to)\b", re.IGNORECASE)
+
+
 _BACKREF = re.compile(
     r"\bthe same\b|\bsame shock\b|\bthat shock\b|\bthis shock\b|"
     r"\bagain\b|\bas above\b|\bonly (?:to|for|on)\b|\brestrict\w*\b|"

@@ -1872,10 +1872,20 @@ class TestARankingSurvivesItsOwnNarrowing:
         assert set(got) == set(truth)
 
     def test_the_grain_of_the_exclusion_is_stated(self):
+        """"Anyone" means the customer, and the caveat says which grain ran.
+
+        This gate first asserted the caveat that said the test had run on each
+        FACILITY — which was the honest description of what the plan then did,
+        and the wrong answer to the question. "Take out anyone already in
+        Stage 3" is about people: a customer holding one Stage 3 facility is
+        out, and nine customers survived where five should have. The plan now
+        excludes the whole customer, so the sentence the reader is owed is the
+        one that says so.
+        """
         _, state = advanced("Give me the worst 20 customers by expected "
                             "credit loss.")
         answered = answer("Take out anyone already in Stage 3.", state=state)
-        assert any("tested on each facility" in w
+        assert any("applied to the whole customer" in w
                    for w in answered.build.warnings), answered.build.warnings
 
     def test_a_breakdown_is_not_told_about_a_grain_it_does_not_have(self):
@@ -1892,3 +1902,241 @@ class TestARankingSurvivesItsOwnNarrowing:
         answered = answer("Show ECL by product, excluding Stage 3.")
         for said in answered.build.warnings:
             assert "{'" not in said and "'kind'" not in said, said
+
+
+# ---------------------------------------------------------------------------
+# The presentation fixes. Six defects the last adversarial pass left open, each
+# reproduced in a thread before it was fixed and gated here so it cannot come
+# back on the morning it matters.
+# ---------------------------------------------------------------------------
+
+
+class TestAnExistenceQuestionIsACount:
+    """"Are there any Stage 3 home-finance facilities?" answered "33"."""
+
+    def test_the_facilities_are_counted_not_their_stage_added_up(self, book):
+        answered = answer("Are there any Stage 3 home-finance facilities "
+                          f"in August 2026?")
+        truth = int(len(book[(book.ifrs9_stage == 3)
+                             & (book.product_label == "Home Finance")]))
+        assert truth == 11, f"the shipped lake has moved: {truth}"
+        assert float(values(answered)["total"]) == pytest.approx(truth)
+        assert str(truth) in headline(answered), headline(answered)
+
+    def test_the_stage_is_not_the_measure(self):
+        answered = answer("Are there any Stage 3 home-finance facilities "
+                          "in August 2026?")
+        said = headline(answered).lower()
+        assert "ifrs 9 stage in" not in said, said
+
+    def test_it_is_planned_at_the_portfolio_grain(self):
+        answered = answer("Are there any Stage 3 home-finance facilities "
+                          "in August 2026?")
+        assert not answered.clarification
+
+
+class TestACarriedFilterIsNotSomethingTheQuestionAsked:
+    """A contract that absorbed the thread's scope accused the plan of losing
+    a population the question never named."""
+
+    def test_a_restated_population_replaces_the_threads(self):
+        from backend.orchestration import fidelity as fd
+
+        state = cv.ConversationState()
+        for said in ("Show me August 2026 retail exposure and weighted ECL "
+                     "by product.",
+                     "Now only personal finance.",
+                     "aug 2026 personal finance salary transfer stage2 ecl "
+                     "vs jul and tell me what moved most"):
+            _, state = advanced(said, state)
+        asked = "Are there any Stage 3 home-finance facilities in August 2026?"
+        # Read the way the planner reads it: the semantic reading is what
+        # tells the contract which population the SENTENCE named.
+        answered = answer(asked, state=state)
+        contract = fd.read(asked, reading=answered.reading, state=state)
+        assert "Personal Finance" not in contract.population, contract.population
+        assert "True" not in contract.population, contract.population
+
+    def test_no_boolean_is_offered_as_a_population(self):
+        from backend.orchestration import fidelity as fd
+
+        state = cv.ConversationState()
+        state.filters = [{"field": "salary_transfer", "value": "True"}]
+        contract = fd.read("What is ECL coverage?", state=state)
+        assert "True" not in contract.population, contract.population
+
+    def test_the_answer_carries_no_caveat_about_a_scope_it_replaced(self):
+        state = cv.ConversationState()
+        for said in ("Show me August 2026 retail exposure and weighted ECL "
+                     "by product.",
+                     "Now only personal finance.",
+                     "aug 2026 personal finance salary transfer stage2 ecl "
+                     "vs jul and tell me what moved most"):
+            _, state = advanced(said, state)
+        answered = answer("Are there any Stage 3 home-finance facilities "
+                          "in August 2026?", state=state)
+        for said in answered.build.warnings:
+            assert "did not restrict to it" not in said, said
+
+
+class TestABreakdownIsNotTheSettledMovement:
+    """"Break ECL down by product", asked after a 25-month trend, came back
+    as a two-year fall over the whole book."""
+
+    def test_it_is_a_breakdown_at_the_settled_month(self, book):
+        _, state = advanced("Show the 25-month weighted ECL trend for "
+                            "credit cards.")
+        answered = answer("Break ECL down by product", state=state)
+        assert answered.build.shape != ap.MOVEMENT, answered.build.shape
+        truth = float(book.ecl_final_sar.sum())
+        assert float(values(answered)["total"]) == pytest.approx(truth, rel=1e-6)
+
+    def test_it_does_not_read_as_a_fall(self):
+        _, state = advanced("Show the 25-month weighted ECL trend for "
+                            "credit cards.")
+        said = headline(answer("Break ECL down by product", state=state)).lower()
+        assert "fell" not in said, said
+
+    def test_the_carried_product_is_not_asserted_against_it(self):
+        _, state = advanced("Show the 25-month weighted ECL trend for "
+                            "credit cards.")
+        answered = answer("Break ECL down by product", state=state)
+        for said in answered.build.warnings:
+            assert "Credit Card" not in said or "restrict" not in said, said
+
+    def test_a_sentence_that_refers_back_still_opens_the_movement(self):
+        _, state = advanced("Compare weighted ECL for credit cards between "
+                            "July 2026 and August 2026.")
+        answered = answer("Break that down by product", state=state)
+        assert answered.build.shape == ap.MOVEMENT, answered.build.shape
+
+
+class TestAPrioritisationSaysWhatOrderedIt:
+    """"What are the three numbers that matter most?" was a menu of concepts,
+    and then a prioritisation with nothing said about what ordered it."""
+
+    def test_an_open_judgement_question_runs_the_governed_review(self):
+        said = headline(answer("What would you escalate to the board?"))
+        assert "governed checks" in said, said
+
+    def test_it_says_what_the_ordering_is_and_is_not(self):
+        said = headline(answer("What are the three numbers that matter "
+                               "most?"))
+        assert "not by a judgement of importance" in said, said
+
+    def test_the_attention_question_reads_its_own_window(self):
+        said = headline(answer("What needs my attention in the retail "
+                               "portfolio this month?"))
+        assert "2026-07" in said and "2026-08" in said, said
+
+
+class TestAReviewSettlesWhatItLedWith:
+    """The turn after a governed review had nothing to inherit."""
+
+    def test_the_follow_up_is_answered_rather_than_clarified(self):
+        _, state = advanced("What needs my attention in the retail portfolio "
+                            "this month?")
+        answered = orchestrator.answer("Which product is driving it?",
+                                       state=state)
+        assert not answered.clarification, answered.clarification
+
+    def test_it_inherits_the_measure_the_answer_led_with(self):
+        _, state = advanced("What needs my attention in the retail portfolio "
+                            "this month?")
+        assert state.metrics, "the review settled no measure"
+        answered = answer("Which product is driving it?", state=state)
+        assert answered.build.dimension == "product_label", \
+            answered.build.dimension
+        assert str(state.metrics[0]).lower() in headline(answered).lower(), \
+            (state.metrics, headline(answered))
+
+    def test_it_inherits_the_window_the_review_measured(self):
+        _, state = advanced("What needs my attention in the retail portfolio "
+                            "this month?")
+        assert (state.opening_period, state.closing_period) \
+            == ("2026-07", "2026-08"), (state.opening_period,
+                                        state.closing_period)
+
+
+class TestAWhatIfNarrowingIsNotANewScenario:
+    """"Only salary-transfer customers." was refused for naming no shock."""
+
+    def test_a_bare_population_narrows_the_scenario_on_the_table(self):
+        from backend.retail import whatif_language as wl
+
+        carried = {"shocks": {"pd_relative": 0.20},
+                   "filters": {"product_code": "PL"}, "month": "2026-08"}
+        ask = wl.read("Only salary-transfer customers.",
+                      months=["2026-07", "2026-08"], carried=carried)
+        assert ask.shocks == {"pd_relative": 0.20}, ask.shocks
+        assert ask.filters.get("salary_transfer_flag") is True, ask.filters
+        assert ask.filters.get("product_code") == "PL", ask.filters
+        assert not ask.is_neutral
+
+    def test_a_sentence_that_merely_names_a_product_starts_fresh(self):
+        """"Show me credit cards" is a request to LOOK, not to re-shock."""
+        from backend.retail import whatif_language as wl
+
+        carried = {"shocks": {"pd_relative": 0.20},
+                   "filters": {"product_code": "PERSONAL_LOAN"},
+                   "month": "2026-08"}
+        ask = wl.read("Show me credit cards", months=["2026-08"],
+                      carried=carried)
+        assert ask.shocks == {}, ask.shocks
+
+    def test_it_is_still_refused_when_there_is_nothing_to_narrow(self):
+        from backend.retail import whatif_language as wl
+
+        ask = wl.read("Only salary-transfer customers.", months=["2026-08"],
+                      carried={})
+        assert ask.is_neutral, "a scenario was invented out of a narrowing"
+
+    def test_a_sentence_that_states_its_own_shock_is_not_overwritten(self):
+        from backend.retail import whatif_language as wl
+
+        carried = {"shocks": {"lgd_relative": 0.10}, "month": "2026-08"}
+        ask = wl.read("Increase PD by 20% relative for stage 2.",
+                      months=["2026-08"], carried=carried)
+        assert ask.shocks.get("pd_relative") == pytest.approx(0.20), ask.shocks
+
+
+class TestADraftIsWrittenNotRepeated:
+    """"Draft the response to an auditor." returned the previous answer."""
+
+    def test_the_word_draft_survives_the_speller(self):
+        from backend.orchestration import spelling
+
+        fixed = spelling.normalise("Draft the response to an auditor.")
+        assert "draft" in fixed.text.lower(), fixed.text
+        assert "drift" not in fixed.text.lower(), fixed.text
+
+    def test_it_is_marked_as_a_draft_and_names_what_it_is_from(self):
+        _, state = advanced("Has the personal-finance application scorecard "
+                            "population drifted?")
+        answered = orchestrator.answer("Draft the response to an auditor.",
+                                       state=state)
+        said = str(getattr(answered.result, "answer", "") or "")
+        assert said.startswith("Draft, for review."), said[:200]
+        assert "population drifted" in said, said[:300]
+
+    def test_it_does_not_repeat_the_previous_headline(self):
+        previous, state = advanced("Has the personal-finance application "
+                                   "scorecard population drifted?")
+        before = str(getattr(previous.result, "answer", "") or "")
+        answered = orchestrator.answer("Draft the response to an auditor.",
+                                       state=state)
+        said = str(getattr(answered.result, "answer", "") or "")
+        assert said.strip() != before.strip(), said[:200]
+
+    def test_it_claims_no_approval(self):
+        _, state = advanced("Has the personal-finance application scorecard "
+                            "population drifted?")
+        answered = orchestrator.answer("Draft the response to an auditor.",
+                                       state=state)
+        said = str(getattr(answered.result, "answer", "") or "").lower()
+        assert "nothing in it has been reviewed or approved" in said, said[:400]
+
+    def test_nothing_is_drafted_from_a_standing_start(self):
+        answered = orchestrator.answer("Draft the response to an auditor.")
+        said = str(getattr(answered.result, "answer", "") or "")
+        assert not said.startswith("Draft, for review."), said[:200]
