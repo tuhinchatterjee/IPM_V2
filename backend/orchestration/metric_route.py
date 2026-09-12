@@ -133,6 +133,8 @@ class Routed:
     period: str = ""
     #: True where the breakdown IS the period — a series rather than a cut.
     trend: bool = False
+    #: The sentence, so the answer can lead with the end it asked for.
+    question: str = ""
 
     @property
     def metric_id(self) -> str:
@@ -238,6 +240,10 @@ _STAYS_ON_THE_METRIC = re.compile(
     re.IGNORECASE)
 
 #: The words that say "as a proportion" rather than "as a count of days".
+#: The words that ask for the BOTTOM of a ranking rather than the top.
+_ASKS_FOR_THE_LOWEST = re.compile(
+    r"\b(?:lowest|smallest|least|best|weakest|minimum|min)\b", re.IGNORECASE)
+
 _BY_RATE = re.compile(r"\brate\b|\bproportion\b|\bshare\b|\bpercent\w*\b"
                       r"|\brelative\b|\bper\s+cent\b", re.IGNORECASE)
 
@@ -288,6 +294,8 @@ def read(question: str, *, carried_metric: str = "",
     if found is None:
         found = _share_of_a_state(text)
     if found is None:
+        found = _share_of_a_named_state(text)
+    if found is None:
         return None
     phrase, metric = found
 
@@ -315,7 +323,7 @@ def read(question: str, *, carried_metric: str = "",
         if period_field:
             return Routed(metric=metric, phrase=phrase,
                           dimension=period_field, dimension_phrase="month",
-                          ranked=False, period="", trend=True)
+                          ranked=False, period="", trend=True, question=text)
 
     if semantics.find_movement(masked) is not None:
         return None
@@ -326,7 +334,7 @@ def read(question: str, *, carried_metric: str = "",
     return Routed(metric=metric, phrase=phrase, dimension=dimension,
                   dimension_phrase=dimension_phrase,
                   ranked=bool(_RANKED.search(text)),
-                  period=_period(text, metric))
+                  period=_period(text, metric), question=text)
 
 
 
@@ -368,7 +376,7 @@ def _routed_for(metric: Any, text: str, *, carried: bool = False,
         if period_field:
             return Routed(metric=metric, phrase=phrase,
                           dimension=period_field, dimension_phrase="month",
-                          ranked=False, period="", trend=True)
+                          ranked=False, period="", trend=True, question=text)
     dimension, dimension_phrase = _breakdown(text, phrase)
     if not dimension and carried:
         # "Which product is driving it?" names the dimension as its subject
@@ -386,7 +394,7 @@ def _routed_for(metric: Any, text: str, *, carried: bool = False,
     return Routed(metric=metric, phrase=phrase, dimension=dimension,
                   dimension_phrase=dimension_phrase,
                   ranked=bool(_RANKED.search(text)) or carried,
-                  period=_period(text, metric))
+                  period=_period(text, metric), question=text)
 
 #: A request for the metric AS A SERIES rather than as a figure.
 _TREND = re.compile(
@@ -469,6 +477,39 @@ def _share_of_a_state(question: str) -> tuple[str, Any] | None:
     for metric in library.ALL:
         if metric.metric_id == wanted:
             return (f"stage {stage} share", metric)
+    return None
+
+
+#: "What PROPORTION of the book is secured?" — the share asked for by naming
+#: the state and the word proportion, with the two at opposite ends of the
+#: sentence. The published metric is "Secured Share"; no alias can be spelled
+#: that matches this word order, and the question came back asking which
+#: figure to measure on a book whose answer is 74.97%.
+_SHARE_OF_A_STATE = re.compile(
+    r"\b(?:what\s+)?(?:proportion|share|percentage|percent|fraction|how\s+much)"
+    r"\b[^?.!]{0,40}?\b(?:is|are|sits?|carr(?:y|ies))\s+"
+    r"(?P<state>[a-z][a-z \-]{2,30}?)\s*[?.!]*$",
+    re.IGNORECASE)
+
+
+def _share_of_a_named_state(question: str) -> tuple[str, Any] | None:
+    """A published SHARE metric, asked for by naming the state it is of."""
+    found = _SHARE_OF_A_STATE.search(" ".join(str(question or "").split()))
+    if found is None:
+        return None
+    state = " ".join(found.group("state").lower().split())
+    if not state:
+        return None
+    from backend.metrics import library
+
+    for metric in library.ALL:
+        if str(getattr(metric.formula, "kind", "")) not in DERIVED_KINDS:
+            continue
+        spellings = {str(metric.name).lower(),
+                     *(str(a).lower() for a in metric.aliases)}
+        for wanted in (state, f"{state} share", f"{state} rate"):
+            if wanted in spellings:
+                return (state, metric)
     return None
 
 
@@ -693,11 +734,22 @@ def _breakdown_answer(routed: Routed, question: str) -> Any:
             f"{_format(last['value'], unit, places)} at {last['label']}, "
             f"across {len(points)} reporting months.")
     elif routed.ranked:
-        sentence = (
-            f"{top['label']} has the highest {metric.name}{where}, at "
-            f"{_format(top['value'], unit, places)}. "
-            f"{bottom['label']} is the lowest, at "
-            f"{_format(bottom['value'], unit, places)}.")
+        # Led by the end the question asked for. "Which subsegment has the
+        # LOWEST Stage 2 rate?" opened "CARD has the highest Stage 2 Share of
+        # Exposure" — the right table under the opposite sentence, and a
+        # reader who takes the first line at its word has the wrong answer.
+        if _ASKS_FOR_THE_LOWEST.search(routed.question or ""):
+            sentence = (
+                f"{bottom['label']} has the lowest {metric.name}{where}, at "
+                f"{_format(bottom['value'], unit, places)}. "
+                f"{top['label']} is the highest, at "
+                f"{_format(top['value'], unit, places)}.")
+        else:
+            sentence = (
+                f"{top['label']} has the highest {metric.name}{where}, at "
+                f"{_format(top['value'], unit, places)}. "
+                f"{bottom['label']} is the lowest, at "
+                f"{_format(bottom['value'], unit, places)}.")
     else:
         sentence = (
             f"{metric.name} across {len(ordered)} "

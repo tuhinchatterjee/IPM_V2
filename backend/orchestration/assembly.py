@@ -834,6 +834,25 @@ _ASKS_WHICH_IS_LARGEST = _re.compile(
     _re.IGNORECASE)
 
 
+
+
+def _identity_column(row: dict[str, Any]) -> str:
+    """The column that names the row — the customer, the facility, the group."""
+    for name in ("customer_id", "borrower_name", "facility_id", "account_id"):
+        if name in row:
+            return name
+    return ""
+
+def _change_column(build: Any, rows: list[dict[str, Any]]) -> str:
+    """The column a cohort is ordered by — the CHANGE, where it computed one."""
+    if not build.matches or not rows:
+        return ""
+    field = build.matches[0].field
+    for candidate in (f"{field}_change", field):
+        if any(candidate in row for row in rows):
+            return candidate
+    return ""
+
 def _largest_group(build: Any, rows: list[dict[str, Any]], column: str
                    ) -> tuple[str, float] | None:
     """The leading group, where the question asked which one leads."""
@@ -1168,7 +1187,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
         where = (" in " + _scope_phrase(build.filters, build.widened)) if build.filters else ""
         if build.dimension:
             direct = (f"{_fmt(total)} {subject}{where} across {count} "
-                      f"{_dimension_word(build)}{'s' if count != 1 else ''} at "
+                      f"{_dimension_plural(build, count)} at "
                       f"{build.period}.")
             # "Which subsegment has the largest Stage 2 exposure?" was
             # answered with the TOTAL across nine of them — a true number, and
@@ -1184,8 +1203,7 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                 direct = (f"{name} has the largest {_lower(label)}{where} at "
                           f"{build.period}, at {shown} of {_fmt(total)} "
                           f"across {count} "
-                          f"{_dimension_word(build)}"
-                          f"{'s' if count != 1 else ''}.")
+                          f"{_dimension_plural(build, count)}.")
         else:
             # One number for the whole population. "across 1 customer" is what
             # a program says when it has counted its own output rows.
@@ -1387,6 +1405,29 @@ def _narrative(question: str, build: ap.AnalysisBuild, runtime: Any,
                   f"{build.opening} and {build.closing}."
                   + (f" The {count} shown are ordered worst first."
                      if whole > count else ""))
+        # "Which product had the largest ECL increase since June?" was
+        # answered "4 product labels where ecl final sar rose" — the cohort,
+        # described, with the answer sitting in the first row and nothing
+        # pointing at it.
+        column = _change_column(build, rows)
+        leader = _largest_group(build, rows, column)
+        if leader is not None:
+            name, value = leader
+            direct += (f" {name} leads, at {_fmt(value)} {unit}".rstrip()
+                       + ".")
+        elif (rows and column and not build.dimension
+                and _ASKS_WHICH_IS_LARGEST.search(
+                    str(getattr(build.reading, "objective", "") or ""))):
+            # An ENTITY cohort asked for its biggest. "Which customers had the
+            # biggest fall in behavioural score this month?" returned five
+            # hundred rows ordered worst first and left the reader to find the
+            # first one. The rows are already in that order; the sentence says
+            # which.
+            key = _identity_column(rows[0])
+            top = rows[0]
+            if key and isinstance(top.get(column), (int, float)):
+                direct += (f" {top.get(key)} leads, at "
+                           f"{_fmt(top[column])} {unit}".rstrip() + ".")
         metrics.append(Metric(label=f"{build.grain.title()}s matching",
                               value=whole, unit="count",
                               direction="up-is-bad"))
@@ -2009,6 +2050,24 @@ def _ordering_note(build: ap.AnalysisBuild, runtime: Any) -> str:
     return ""
 
 
+
+def _dimension_plural(build: Any, count: int) -> str:
+    """The breakdown word, pluralised the way English spells it.
+
+    "across 26 citiess" — the word is already a plural where the label is, and
+    a bare "s" on the end of it is the kind of thing a reader stops at.
+    """
+    word = _dimension_word(build)
+    if count == 1:
+        return word
+    if word.endswith("ies") or word.endswith("s"):
+        return word
+    if word.endswith("y") and not word.endswith(("ay", "ey", "oy", "uy")):
+        return word[:-1] + "ies"
+    if word.endswith(("x", "z", "ch", "sh")):
+        return word + "es"
+    return word + "s"
+
 def _dimension_word(build: ap.AnalysisBuild) -> str:
     """The breakdown, in the words a person uses for it.
 
@@ -2042,9 +2101,16 @@ def _fmt(value: Any) -> str:
     by hand, the table used a display contract and the model was handed raw
     floats — three rules for one number, which is how a reader ends up seeing
     73,392 in a table above 73,391.774000000012 in the paragraph explaining it.
+
+    A WHOLE number is written whole. A count came back from the runtime as a
+    float and reached the sentence as "96.00 customers" and "158.0 customers":
+    there is no such thing as a fifth of a customer, and two decimal places on
+    a count reads as a figure somebody forgot to round.
     """
     from backend.orchestration import figures
 
+    if isinstance(value, float) and value.is_integer() and abs(value) < 1e15:
+        return figures.text(int(value))
     return figures.text(value)
 
 

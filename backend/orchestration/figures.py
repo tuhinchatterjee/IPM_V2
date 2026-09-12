@@ -184,6 +184,14 @@ def _decimals(number: float, spec: Spec) -> int:
 
     # A plain number with no semantics behind it. Scale by magnitude, which is
     # the rule a person applies without thinking about it.
+    #
+    # A WHOLE number first, because the magnitude rule wrote counts as
+    # "96.00 customers" and "158.0 customers" — two different wrong spellings
+    # of the same thing, on the answer to "how many". There is no fifth of a
+    # customer, and a decimal place on a whole number reads as a figure
+    # somebody forgot to round.
+    if float(number).is_integer() and magnitude < 1e15:
+        return 0
     if magnitude >= WHOLE_MONEY_ABOVE:
         return 0
     if magnitude >= 100:

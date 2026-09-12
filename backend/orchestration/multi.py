@@ -734,12 +734,36 @@ def _carry(column: str) -> str:
 
 
 def _rollup(match: cx.ConceptMatch) -> str:
+    """How a measure rolls up from facility to customer, on BOTH dates.
+
+    The unit decides, through the same table the single-dataset planner uses.
+    It did not: the rule below fell through to "max if higher is worse else
+    min" for every unit the CORPORATE catalogue does not spell, which is every
+    unit this book does spell.
+
+    What that cost. A customer's behavioural score became their WORST
+    facility's score — at each date independently — so "which customers had
+    the biggest fall in behavioural score this month?" led with a customer
+    whose score did not fall: RC-0025457's July worst was one facility at
+    626.48 and its August worst was a DIFFERENT facility, opened that month,
+    at 340.82. The reported fall of 285.65 points is the gap between two
+    different accounts.
+
+    An ordinal still takes the worse end — a customer in Stage 3 on one
+    facility is a Stage 3 customer — and a categorical still carries one
+    value, because neither has an average.
+    """
     if match.concept.is_categorical:
         return "any_value"
     if match.concept.is_ordinal:
         return "max" if match.concept.higher_is_worse else "min"
-    if match.concept.unit in ("SAR mn", ""):
-        return "sum" if match.concept.unit == "SAR mn" else "max"
+    if match.concept.unit == "SAR mn":
+        return "sum"
+    from backend.orchestration import analysis_planner as ap
+
+    by_unit = ap._ROLLUP.get(str(match.concept.unit or ""))
+    if by_unit:
+        return by_unit
     return "max" if match.concept.higher_is_worse else "min"
 
 

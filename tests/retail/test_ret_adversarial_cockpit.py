@@ -844,3 +844,174 @@ class TestNothingSaysBorrower:
         )).lower()
         found = [w for w in self.CORPORATE if w in said]
         assert not found, f"{question!r} answered with {found}: {said[:220]}"
+
+
+class TestABoundWrittenAfterItsNumber:
+    """"90 or more days past due" — read as an either/or, dropped, whole book."""
+
+    def test_ninety_or_more_is_a_bound(self, book):
+        got = answer("How many customers are 90 or more days past due?")
+        rows = got.runtime.rows
+        truth = int(book[book.dpd >= 90].customer_id.nunique())
+        assert int(rows[0]["customer_count"]) == truth
+        assert truth < 1000, "the guard is worthless if the truth is the book"
+
+    def test_a_percentage_or_less_is_a_bound(self, book):
+        got = answer("How many customers have a debt burden ratio of 50 "
+                     "percent or less?")
+        assert int(got.runtime.rows[0]["customer_count"]) == int(
+            book[book.debt_burden_ratio <= 0.5].customer_id.nunique())
+
+    def test_a_percentage_or_more_is_a_bound(self, book):
+        got = answer("How many facilities have utilisation of 90 percent "
+                     "or more?")
+        assert int(got.runtime.rows[0]["facility_count"]) == int(
+            book[book.utilisation_ratio >= 0.9].facility_id.nunique())
+
+    def test_a_real_either_or_is_still_an_either_or(self, book):
+        """The rewrite must not eat the conjunction it looks like."""
+        got = answer("Which customers are in Stage 2 or Stage 3?")
+        stages = {int(v) for f, v in got.build.filters if f == "ifrs9_stage"}
+        rows = got.runtime.rows
+        assert rows, "the either/or returned nothing"
+        seen = {int(r["ifrs9_stage"]) for r in rows if "ifrs9_stage" in r}
+        assert seen <= {2, 3} and seen, seen
+        assert stages <= {2, 3}
+
+    def test_the_rewrite_survives_the_clause_split(self):
+        from backend.orchestration import semantics as sm
+        assert sm.clauses("How many customers are 90 or more days past due?") \
+            == ["How many customers are at least 90 days past due"]
+
+
+class TestAWholeNumberIsWrittenWhole:
+    def test_a_count_carries_no_decimals(self):
+        said = headline(answer("How many customers are 90 or more days past due?"))
+        assert ".00" not in said and ".0 " not in said, said
+
+    def test_a_ratio_keeps_its_decimals(self):
+        from backend.orchestration import figures
+        assert figures.text(0.6402) == "0.64"
+        assert figures.text(96.0) == "96"
+        assert figures.text(158.0) == "158"
+
+
+class TestACustomerLevelRollupUsesTheUnit:
+    """A score reconciled with `min` compares two different facilities."""
+
+    def test_the_biggest_faller_is_the_books(self, book):
+        import glob as _glob
+        answered = answer("Which customers had the biggest fall in "
+                          "behavioural score this month?")
+        top = answered.runtime.rows[0]
+        prior = pd.read_parquet(_glob.glob(
+            "data/retail/analytics/retail_facility_month/"
+            "reporting_month=2026-07/*.parquet")[0],
+            columns=["customer_id", "behavioural_score"])
+        now = book.groupby("customer_id").behavioural_score.mean()
+        was = prior.groupby("customer_id").behavioural_score.mean()
+        fall = (now - was).dropna()
+        assert top["customer_id"] == fall.idxmin()
+        assert float(top["behavioural_score_change"]) == pytest.approx(
+            float(fall.min()), abs=0.05)
+
+    def test_the_customer_ecl_ranking_is_exact(self, book):
+        import glob as _glob
+        answered = answer("Which ten customers had the largest ECL increase "
+                          "this month?")
+        prior = pd.read_parquet(_glob.glob(
+            "data/retail/analytics/retail_facility_month/"
+            "reporting_month=2026-07/*.parquet")[0],
+            columns=["customer_id", "ecl_final_sar"])
+        delta = (book.groupby("customer_id").ecl_final_sar.sum()
+                 - prior.groupby("customer_id").ecl_final_sar.sum()).dropna()
+        wanted = list(delta.sort_values(ascending=False).head(10).index)
+        assert [r["customer_id"] for r in answered.runtime.rows] == wanted
+        for row in answered.runtime.rows:
+            assert float(row["ecl_final_sar_change"]) == pytest.approx(
+                float(delta[row["customer_id"]]), abs=0.01)
+
+    def test_a_money_measure_sums_and_a_score_averages(self):
+        from backend.orchestration import multi
+        from backend.orchestration import concepts as cx
+        from backend.orchestration import context as governed_context
+        from backend.data_access import get_catalog
+
+        known = {d.name: {f["name"] for f in d.fields}
+                 for d in governed_context.all_datasets()}
+        for text, wanted in (("expected credit loss", "sum"),
+                             ("behavioural score", "avg")):
+            match = cx.read_concepts(text, known=known,
+                                     catalogue=get_catalog()).matches[0]
+            assert multi._rollup(match) == wanted, (
+                f"{text} rolls up to the customer with {multi._rollup(match)}")
+
+    def test_a_stage_still_takes_the_worse_end(self):
+        from backend.orchestration import multi
+        from backend.orchestration import concepts as cx
+        from backend.orchestration import context as governed_context
+        from backend.data_access import get_catalog
+
+        known = {d.name: {f["name"] for f in d.fields}
+                 for d in governed_context.all_datasets()}
+        match = cx.read_concepts("IFRS 9 stage", known=known,
+                                 catalogue=get_catalog()).matches[0]
+        assert multi._rollup(match) in ("max", "any_value")
+
+
+class TestAnAnswerLeadsWithWhatWasAsked:
+    def test_the_lowest_question_leads_with_the_lowest(self):
+        said = headline(answer("Which subsegment has the lowest Stage 2 rate?"))
+        assert said.startswith("SECOND_PROPERTY has the lowest"), said
+
+    def test_the_highest_question_still_leads_with_the_highest(self):
+        said = headline(answer("Which subsegment has the highest Stage 2 rate?"))
+        assert said.startswith("CARD has the highest"), said
+
+    def test_a_cohort_by_dimension_names_its_leader(self):
+        said = headline(answer("Which product had the largest ECL increase "
+                               "since June 2026?"))
+        assert "Personal Finance leads" in said, said
+
+    def test_an_entity_cohort_names_its_leader(self):
+        said = headline(answer("Which customers had the biggest fall in "
+                               "behavioural score this month?"))
+        assert "leads, at" in said, said
+
+    def test_the_plural_is_spelled(self):
+        said = headline(answer("Which city has the most Stage 3 exposure?"))
+        assert "citiess" not in said, said
+        assert "cities" in said, said
+
+
+class TestAShareAskedForByNamingTheState:
+    def test_the_secured_share_is_answered(self, book):
+        said = headline(answer("What proportion of the book is secured?"))
+        truth = (book[book.secured_flag].gross_carrying_amount_sar.sum()
+                 / book.gross_carrying_amount_sar.sum() * 100)
+        assert "Secured Share" in said, said
+        assert f"{truth:.0f}" in said, said
+
+    def test_a_plain_total_is_not_hijacked(self):
+        said = headline(answer("What is total ECL?"))
+        assert "Share" not in said, said
+
+
+class TestAnOrdinaryWordIsNotAGovernedValue:
+    def test_current_ltv_is_not_a_delinquency_bucket(self, book):
+        answered = answer("What is the average current LTV for home finance?")
+        fields = {f for f, _ in answered.build.filters}
+        assert "dpd_bucket" not in fields, (
+            "an adjective was read as a governed value and scoped the answer")
+        assert "product_label" in fields
+
+    def test_the_bucket_is_still_reachable_when_named(self, book):
+        answered = answer("How many facilities are in the CURRENT DPD bucket?")
+        assert int(answered.runtime.rows[0]["facility_count"]) == int(
+            book[book.dpd_bucket == "CURRENT"].facility_id.nunique())
+
+    def test_it_is_reachable_by_the_dimension_s_full_name(self, book):
+        answered = answer("How many facilities are in the current delinquency "
+                          "bucket?")
+        assert int(answered.runtime.rows[0]["facility_count"]) == int(
+            book[book.dpd_bucket == "CURRENT"].facility_id.nunique())

@@ -71,7 +71,19 @@ UNKNOWN = "unknown"
 OBJECTIVES: tuple[str, ...] = (POPULATION, RANKING, AGGREGATE, MOVEMENT,
                                ASSOCIATION, CATALOGUE, PRODUCT, UNKNOWN)
 
+def _subject_word() -> str:
+    """What one row is, in this installation's words."""
+    from backend.retail import profile
+
+    return "customers" if profile.is_retail() else "borrowers"
+
+
 #: How each objective reads in a sentence a person can check.
+#:
+#: POPULATION is filled in per installation: on a retail book the caveat read
+#: "which BORROWERS meet the stated conditions", which is the corporate word
+#: in the one sentence whose job is to tell the reader what they were given
+#: instead of what they asked for.
 OBJECTIVE_MEANS: dict[str, str] = {
     POPULATION: "which borrowers meet the stated conditions",
     RANKING: "the largest or worst by a named measure",
@@ -82,6 +94,13 @@ OBJECTIVE_MEANS: dict[str, str] = {
     PRODUCT: "what CreditProbe is or does",
     UNKNOWN: "not determined",
 }
+
+
+def means(objective: str) -> str:
+    """What an objective means, in the words this installation uses."""
+    if objective == POPULATION:
+        return f"which {_subject_word()} meet the stated conditions"
+    return OBJECTIVE_MEANS.get(objective, OBJECTIVE_MEANS[UNKNOWN])
 
 #: "Which borrowers …", "list the customers that …". A question naming
 #: entities and conditions wants the entities back.
@@ -146,7 +165,7 @@ class Contract:
             "ranking": self.ranking,
             "period": list(self.period),
             "objective": self.objective,
-            "objective_means": OBJECTIVE_MEANS.get(self.objective, ""),
+            "objective_means": means(self.objective),
             "context": list(self.context),
         }
 
@@ -387,8 +406,8 @@ def compare(contract: Contract, build: Any, *,
         if not (wanted == POPULATION and ran == RANKING):
             found.append(Divergence(
                 kind=OBJECTIVE_CHANGED,
-                detail=(f"The question asks for {OBJECTIVE_MEANS[wanted]}, and "
-                        f"the analysis produced {OBJECTIVE_MEANS[ran]}. "
+                detail=(f"The question asks for {means(wanted)}, and "
+                        f"the analysis produced {means(ran)}. "
                         "CreditProbe does not answer one question with "
                         "another.")))
 
@@ -446,6 +465,7 @@ __all__ = [
     "OBJECTIVES",
     "OBJECTIVE_CHANGED",
     "OBJECTIVE_MEANS",
+    "means",
     "PERIOD_MOVED",
     "POPULATION",
     "POPULATION_LOST",

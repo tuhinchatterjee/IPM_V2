@@ -95,6 +95,21 @@ def _value_pattern(kind: str, token: str) -> str:
         return _numeric_pattern(kind, token)
 
     literal = re.escape(token.lower()).replace(r"\ ", r"[\s\-_]+")
+    if token.lower() in _ORDINARY_ENGLISH:
+        # Long enough to look unmistakable, and an ordinary English word. "What
+        # is the average CURRENT LTV for home finance?" resolved the delinquency
+        # bucket CURRENT out of an adjective and scoped the answer to
+        # up-to-date accounts, under a note the reader skims past. These match
+        # only where the dimension is named, exactly as a short value does.
+        # The dimension named EITHER by its last word or in full, and on
+        # either side of the value with up to two words between: a reader
+        # writes "the CURRENT DPD bucket" as often as "DPD bucket current".
+        noun = re.escape(str(kind).rsplit("_", 1)[-1].lower())
+        full = r"[\s\-_]+".join(
+            re.escape(part) for part in str(kind).lower().split("_"))
+        named = rf"(?:{full}|{noun}s?)"
+        return (rf"\b{named}(?:\s+\w+){{0,2}}\s*(?:of\s+)?{literal}\b"
+                rf"|\b{literal}(?:\s+\w+){{0,2}}\s+{named}\b")
     if len(token) >= MIN_MATCHABLE_VALUE:
         return r"\b" + literal + r"\b"
 
@@ -104,6 +119,15 @@ def _value_pattern(kind: str, token: str) -> str:
     noun = re.escape(str(kind).rsplit("_", 1)[-1].lower())
     return rf"\b{noun}s?\s*(?:of\s+)?{literal}(?![\w+])"
 
+
+
+#: Governed values that are also ordinary English words, and so are written
+#: constantly without meaning the value. Each is matched only beside its own
+#: dimension's noun — "DPD bucket current", "current bucket" — never bare.
+_ORDINARY_ENGLISH = frozenset({
+    "current", "new", "active", "closed", "open", "other", "none", "unknown",
+    "high", "low", "medium", "none reported", "standard", "normal", "regular",
+})
 
 @functools.lru_cache(maxsize=1)
 def _flag_phrases() -> tuple[tuple[str, str, str], ...]:

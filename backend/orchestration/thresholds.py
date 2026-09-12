@@ -383,6 +383,44 @@ def read_crossings(text: str, *, resolver: Any = None, whole: str = ""
     return conditions, unread
 
 
+#: A bound written AFTER the number, which is how people say it out loud.
+#:
+#: "How many customers are 90 OR MORE days past due?" read "or" as an
+#: either/or, found no bound at all, dropped the condition and answered
+#: **14,251 customers** — the whole book — under a question whose true answer
+#: is 96. The caveat said a condition had been dropped, which makes it worse:
+#: the product knew it had not applied the test and gave the figure anyway.
+_SUFFIX_BOUNDS: tuple[tuple[str, str], ...] = (
+    (r"or\s+(?:more|greater|higher|above|over|worse|older|longer|later)",
+     "at least"),
+    (r"or\s+(?:less|fewer|lower|below|under|better|younger|shorter|earlier)",
+     "at most"),
+)
+
+_SUFFIX_BOUND = re.compile(
+    r"(?P<number>-?\d+(?:\.\d+)?)\s*(?P<unit>%|per ?cent|percent|x|times|"
+    r"days?|bps|basis points)?\s*"
+    r"(?P<bound>" + "|".join(p for p, _ in _SUFFIX_BOUNDS) + r")\b",
+    re.IGNORECASE)
+
+
+def _forward(text: str) -> str:
+    """"90 or more days" rewritten as "at least 90 days".
+
+    A rewrite rather than a second pattern, so the one bound vocabulary keeps
+    deciding what a bound means and there is no second opinion to drift.
+    """
+    def swap(match: re.Match[str]) -> str:
+        said = match.group("bound").lower()
+        for pattern, phrase in _SUFFIX_BOUNDS:
+            if re.fullmatch(pattern, said, re.IGNORECASE):
+                unit = match.group("unit") or ""
+                return f"{phrase} {match.group('number')}{' ' + unit if unit else ''}"
+        return match.group(0)
+
+    return _SUFFIX_BOUND.sub(swap, str(text or ""))
+
+
 def read(text: str, *, resolver: Any = None, whole: str = ""
          ) -> tuple[list[Condition], list[str]]:
     """Every threshold the sentence states, level and crossing together.
@@ -391,6 +429,8 @@ def read(text: str, *, resolver: Any = None, whole: str = ""
     declines any bound that a movement word introduced, so the two cannot both
     claim the same phrase.
     """
+    text = _forward(text)
+    whole = _forward(whole) if whole else whole
     crossings, unread = read_crossings(text, resolver=resolver,
                                        whole=whole or text)
     levels, level_unread = read_levels(text, resolver=resolver,

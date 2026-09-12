@@ -420,7 +420,11 @@ def clauses(question: str) -> list[str]:
     caller matching each concept's own phrase position, and a fragment that
     names none is skipped.
     """
-    text = " ".join(str(question or "").split())
+    # A suffix bound is rewritten BEFORE the split, because the split reads
+    # "or" as a conjunction: "90 or more days past due" became the two clauses
+    # "how many customers are 90" and "more days past due", neither of which
+    # states a bound. The condition was dropped and the whole book returned.
+    text = _forward_bounds(" ".join(str(question or "").split()))
     parts = [p.strip(" .?!") for p in _SPLIT.split(text)]
     return [p for p in parts if p]
 
@@ -591,13 +595,55 @@ _PLUS_BOUND = re.compile(
     r"(?P<unit>%|percent|days?|dpd|bps|notch(?:es)?)?", re.I)
 
 
+
+#: A bound written AFTER its number, which is how people say it out loud.
+#:
+#: `_THRESHOLD_OPS` already lists "or more" and "or less"; `_THRESHOLD`
+#: requires the bound word BEFORE the value, so neither could ever match. "How
+#: many customers are 90 OR MORE days past due?" therefore stated no bound at
+#: all, the condition was dropped, and the answer was **14,251 customers** —
+#: the whole book — where the true figure is 96. Worse than a silent drop: a
+#: caveat said a condition had not been applied, and the figure was given
+#: anyway.
+_SUFFIX_TO_PREFIX: tuple[tuple[str, str], ...] = (
+    (r"or\s+(?:more|greater|higher|above|over|worse|older|longer|later)",
+     "at least"),
+    (r"or\s+(?:less|fewer|lower|below|under|better|younger|shorter|earlier)",
+     "at most"),
+)
+
+_SUFFIX_BOUND = re.compile(
+    r"(?P<value>-?\d+(?:\.\d+)?)\s*"
+    r"(?P<unit>%|percent|per cent|percentage points?|pp|x|times|"
+    r"notch(?:es)?|days?|bps)?\s*"
+    r"(?P<word>" + "|".join(p for p, _ in _SUFFIX_TO_PREFIX) + r")\b",
+    re.IGNORECASE)
+
+
+def _forward_bounds(said: str) -> str:
+    """"90 or more days" rewritten as "at least 90 days".
+
+    A rewrite rather than a second pattern, so one bound vocabulary keeps
+    deciding what a bound means and there is no second opinion to drift.
+    """
+    def swap(match: re.Match[str]) -> str:
+        word = match.group("word").lower()
+        for pattern, phrase in _SUFFIX_TO_PREFIX:
+            if re.fullmatch(pattern, word, re.IGNORECASE):
+                unit = match.group("unit") or ""
+                return (f"{phrase} {match.group('value')}"
+                        + (f" {unit}" if unit else ""))
+        return match.group(0)
+
+    return _SUFFIX_BOUND.sub(swap, str(said or ""))
+
 def find_threshold(text: str) -> Threshold | None:
     """The level test in a fragment, if it states one.
 
     Time removed first, as in `find_movement`: "covenant headroom below 15% in
     Q1 2026" states one threshold, not two, and "ECL above 2026" states none.
     """
-    said = temporal.without_time(text or "")
+    said = _forward_bounds(temporal.without_time(text or ""))
     match = _THRESHOLD.search(said)
     if match is None:
         plus = _PLUS_BOUND.search(said)
