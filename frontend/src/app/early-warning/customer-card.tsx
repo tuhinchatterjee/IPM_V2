@@ -156,7 +156,7 @@ export function CustomerCard({
         <div className="grid grid-cols-3 gap-3 border-t border-border pt-3
                         lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0"
              data-testid={`ews-charts-${row.customer_id}`}>
-          <Spark label="EWS" testId={`ews-spark-score-${row.customer_id}`}
+          <Spark label="EWS score" testId={`ews-spark-score-${row.customer_id}`}
                  points={series.map((p) => ({ month: p.month,
                                               value: p.ews_score }))}
                  bands={[{ value: threshold, label: "warning" }]}
@@ -165,9 +165,7 @@ export function CustomerCard({
                  points={series.map((p) => ({ month: p.month, value: p.dpd }))}
                  bands={[{ value: 30, label: "30 days" }]}
                  tone="negative" empty="no DPD history" />
-          {/* "Behavioural" is one character too wide for this column at
-              this size and rendered as "BEHAVIO…" on every card. */}
-          <Spark label="Behaviour"
+          <Spark label="Behavioural"
                  testId={`ews-spark-behavioural-${row.customer_id}`}
                  points={series.map((p) => ({ month: p.month,
                                               value: p.behavioural_score }))}

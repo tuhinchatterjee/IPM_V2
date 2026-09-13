@@ -83,10 +83,14 @@ export function Spark({
 
   return (
     <div className="min-w-0" data-testid={testId}>
+      {/* The label sits on its own line rather than beside the figure. Three
+          of these across a customer card leaves about eight characters on the
+          same row as the number, and "Behavioural" was rendering as
+          "BEHAVIO…" on every card in the list. */}
+      <p className="truncate text-[9px] font-medium uppercase tracking-[0.06em] text-text-muted">
+        {label}
+      </p>
       <div className="flex items-baseline justify-between gap-1.5">
-        <span className="truncate text-[9px] font-medium uppercase tracking-[0.06em] text-text-muted">
-          {label}
-        </span>
         <span className="shrink-0 text-[11px] font-medium tabular-nums text-text-primary">
           {last === null ? "—" : `${last.toLocaleString(undefined, {
             maximumFractionDigits: unit === "%" ? 1 : 0 })}${unit}`}

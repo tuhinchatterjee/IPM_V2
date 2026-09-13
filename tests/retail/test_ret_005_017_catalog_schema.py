@@ -32,7 +32,11 @@ class TestRET005OneDomain:
         from backend.retail import domains
 
         names = {d["name"] for d in shipped_catalog["datasets"]}
-        allowed = {domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+        # The Early Warning Score domain is not a column view like the three
+        # DERIVED ones — it is the governed model evaluated over the book — so
+        # it is registered separately and belongs in this allowlist by name.
+        allowed = ({domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+                   | {domains.EWS_SCORE_DATASET})
         assert names <= allowed, sorted(names - allowed)
         assert domains.CANONICAL in names
 

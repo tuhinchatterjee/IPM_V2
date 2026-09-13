@@ -7,7 +7,7 @@
    "id": "EW-01",
    "title": "One Early Warning nav item, and it is the workspace",
    "status": "PASS",
-   "note": "9.3s",
+   "note": "8.4s",
    "checks": [
     {
      "check": "the workspace renders",
@@ -292,7 +292,7 @@
    "id": "EW-06",
    "title": "A six-month ODR / default-entry trend",
    "status": "PASS",
-   "note": "1.2s",
+   "note": "0.6s",
    "checks": [
     {
      "check": "CREDIT_CARD has a default-entry sparkline",
@@ -589,7 +589,7 @@
    "id": "EW-10",
    "title": "A product card opens the product level",
    "status": "PASS",
-   "note": "18.5s",
+   "note": "5.3s",
    "checks": [
     {
      "check": "the product view opened",
@@ -607,7 +607,7 @@
    "id": "EW-11",
    "title": "The Credit Card product page",
    "status": "PASS",
-   "note": "0.2s",
+   "note": "0.1s",
    "checks": [
     {
      "check": "the page is titled for the product",
@@ -640,7 +640,7 @@
    "id": "EW-12",
    "title": "Sub-product cards, with the governed taxonomy",
    "status": "PASS",
-   "note": "3.4s",
+   "note": "1.0s",
    "checks": [
     {
      "check": "the four Credit Card sub-products exist",
@@ -708,7 +708,7 @@
    "id": "EW-13",
    "title": "Sub-product trends",
    "status": "PASS",
-   "note": "0.1s",
+   "note": "0.0s",
    "checks": [
     {
      "check": "CC_SILVER has six months of trend",
@@ -860,7 +860,7 @@
    "id": "EW-17",
    "title": "The customer-list filters",
    "status": "PASS",
-   "note": "17.8s",
+   "note": "17.6s",
    "checks": [
     {
      "check": "ews-filter-layer is offered",
@@ -903,7 +903,7 @@
    "id": "EW-18",
    "title": "The chat applies filters",
    "status": "PASS",
-   "note": "5.4s",
+   "note": "5.2s",
    "checks": [
     {
      "check": "the answer stays in scope",
@@ -936,7 +936,7 @@
    "id": "EW-19",
    "title": "Back retains the level and its filters",
    "status": "PASS",
-   "note": "28.1s",
+   "note": "26.1s",
    "checks": [
     {
      "check": "a customer opened",
@@ -964,7 +964,7 @@
    "id": "EW-20",
    "title": "Customer name and id on every card",
    "status": "PASS",
-   "note": "10.1s",
+   "note": "10.0s",
    "checks": [
     {
      "check": "customers are served",
@@ -1007,7 +1007,7 @@
    "id": "EW-21",
    "title": "Every card shows the Early Warning Score",
    "status": "PASS",
-   "note": "0.5s",
+   "note": "0.4s",
    "checks": [
     {
      "check": "RC-0017858 shows its score",
@@ -1065,7 +1065,7 @@
    "id": "EW-22",
    "title": "Every card shows the severity",
    "status": "PASS",
-   "note": "0.5s",
+   "note": "0.8s",
    "checks": [
     {
      "check": "RC-0017858 shows CRITICAL",
@@ -1098,7 +1098,7 @@
    "id": "EW-23",
    "title": "The behavioural score is always accounted for",
    "status": "PASS",
-   "note": "10.9s",
+   "note": "10.7s",
    "checks": [
     {
      "check": "a customer without one carries the reason",
@@ -1141,7 +1141,7 @@
    "id": "EW-24",
    "title": "An EWS sparkline on every card",
    "status": "PASS",
-   "note": "0.5s",
+   "note": "0.4s",
    "checks": [
     {
      "check": "RC-0017858 has an EWS sparkline",
@@ -1237,7 +1237,7 @@
    "id": "EW-26",
    "title": "A behavioural-score sparkline on every card",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.5s",
    "checks": [
     {
      "check": "RC-0017858 has a behavioural sparkline",
@@ -1308,7 +1308,7 @@
    "id": "EW-28",
    "title": "The top deteriorating layer on every card",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.5s",
    "checks": [
     {
      "check": "RC-0017858 names its worst layer",
@@ -1371,7 +1371,7 @@
    "id": "EW-29",
    "title": "Reason codes on every card",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.5s",
    "checks": [
     {
      "check": "RC-0017858 carries up to three reason codes",
@@ -1479,7 +1479,7 @@
    "id": "EW-30",
    "title": "Exposure contribution on every card",
    "status": "PASS",
-   "note": "0.7s",
+   "note": "0.4s",
    "checks": [
     {
      "check": "% OF SUB-PRODUCT is on the card",
@@ -1535,7 +1535,7 @@
    "id": "EW-32",
    "title": "The forward-risk filter",
    "status": "PASS",
-   "note": "8.4s",
+   "note": "8.8s",
    "checks": [
     {
      "check": "every served row is forward risk",
@@ -2082,7 +2082,7 @@
    "id": "EW-41",
    "title": "View Model opens the model screen",
    "status": "PASS",
-   "note": "12.8s",
+   "note": "12.9s",
    "checks": [
     {
      "check": "a View Model control is on the workspace",
@@ -2241,7 +2241,7 @@
    "id": "EW-44",
    "title": "Classifier and trigger separated, per sublayer",
    "status": "PASS",
-   "note": "4.2s",
+   "note": "6.0s",
    "checks": [
     {
      "check": "delinquency is rendered",
@@ -2548,7 +2548,7 @@
    "id": "EW-48",
    "title": "The bureau treatment",
    "status": "PASS",
-   "note": "4.9s",
+   "note": "8.5s",
    "checks": [
     {
      "check": "a bureau block is on the page",
@@ -2757,7 +2757,7 @@
    "id": "EW-51",
    "title": "The Early Warning Score domain exists",
    "status": "PASS",
-   "note": "10.4s",
+   "note": "10.8s",
    "checks": [
     {
      "check": "the domain is served",
@@ -3298,7 +3298,7 @@
    "id": "EW-58",
    "title": "The chat reads only the EWS domain",
    "status": "PASS",
-   "note": "6.0s",
+   "note": "1.8s",
    "checks": [
     {
      "check": "'Which product has the highest Early Warn' is answered in scope",
@@ -3429,7 +3429,7 @@
    "id": "EW-60",
    "title": "Cross-domain questions are refused, not answered from the wrong book",
    "status": "PASS",
-   "note": "16.3s",
+   "note": "16.4s",
    "checks": [
     {
      "check": "'What is the ECL for the credit card bo' is refused",

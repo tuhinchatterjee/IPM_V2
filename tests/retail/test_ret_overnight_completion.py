@@ -179,13 +179,19 @@ class TestFourDomainsOneBook:
         assert {"retail_facility_month", "retail_early_warning",
                 "retail_credit_scorecard", "retail_whatif"} <= names, names
 
-    def test_data_builder_offers_all_four_and_nothing_corporate(self):
+    def test_data_builder_offers_the_retail_domains_and_nothing_corporate(self):
+        """The four book views, and the computed Early Warning Score domain.
+
+        The score domain is not a view over the book like the other four — it
+        is the governed model evaluated over it — so it is registered
+        separately and appears here as its own heading.
+        """
         from backend.services import data_domains as dd
 
         offered = set(dd.active_domain_names())
         assert offered == {"Cockpit Data", "Early Warning Data",
-                           "Credit Scorecard Data",
-                           "What-If Analysis Data"}, offered
+                           "Credit Scorecard Data", "What-If Analysis Data",
+                           "Early Warning Score"}, offered
 
     def test_a_view_carries_no_column_the_book_does_not_hold(self):
         import glob

@@ -646,6 +646,32 @@ class TestRET048LayoutPreserved:
             # The panel Early Warning reads is built here, so a fresh install
             # does not open on "the early-warning panel has not been built".
             "scripts/bootstrap_retail_installation.py",
+            # ---------------------------------------------------------------
+            # The Early Warning Score rebuild: four layers over the retail
+            # book, in ONE workspace under one navigation item. Everything
+            # here is the retail Early Warning screen and its parts — the
+            # chat at the top, the customer card, the customer's own page, the
+            # sub-layer sparkline, the model tree, the signals view — plus the
+            # corporate forward-risk screen, which was extracted out of
+            # page.tsx unchanged so the retail workspace could take its place
+            # under the profile.
+            "frontend/src/app/early-warning/chat.tsx",
+            "frontend/src/app/early-warning/customer-card.tsx",
+            "frontend/src/app/early-warning/customer-detail.tsx",
+            "frontend/src/app/early-warning/forward-risk.tsx",
+            "frontend/src/app/early-warning/model/page.tsx",
+            "frontend/src/app/early-warning/parts.tsx",
+            "frontend/src/app/early-warning/signals-view.tsx",
+            "frontend/src/app/early-warning/spark.tsx",
+            "frontend/src/app/early-warning/workspace.tsx",
+            # Customer 360 carries the same Early Warning section.
+            "frontend/src/app/borrower-360/retail-customer.tsx",
+            # The Model Lab imported a component that moved with it.
+            "frontend/src/app/early-warning/lab/page.tsx",
+            # The Early Warning Score domain is a Data Builder heading.
+            "backend/services/data_domains.py",
+            # The landing figures are warmed at startup.
+            "backend/api/main.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail

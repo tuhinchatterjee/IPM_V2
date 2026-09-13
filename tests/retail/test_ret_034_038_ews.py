@@ -68,9 +68,14 @@ class TestRET034AlertsFromCanonicalData:
         # the book is checked directly below, and its alert count is
         # reconciled against a fresh evaluation in
         # tests/retail/test_ret_ews_portfolio.py.
+        # The Early Warning SCORE domain is the fifth. It is not a seed
+        # either: it is the four-layer model evaluated over the same book,
+        # holding no customer, facility or exposure the book does not hold,
+        # which tests/retail/test_ret_ews_score.py reconciles directly.
         allowed = ({domains.CANONICAL}
                    | {v.dataset for v in domains.DERIVED}
-                   | {ews_portfolio.PANEL})
+                   | {ews_portfolio.PANEL}
+                   | {domains.EWS_SCORE_DATASET})
         assert found <= allowed, (
             f"EWS must read the canonical book, not its own seed; found "
             f"{sorted(found - allowed)}")
