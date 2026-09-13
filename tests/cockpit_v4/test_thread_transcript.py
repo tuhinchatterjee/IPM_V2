@@ -268,3 +268,25 @@ def test_a_rendered_table_travels_with_the_release_that_made_it(
     column = next(c for c in table["columns"] if c != "sector_name")
     assert str(row["display"][column]).startswith("SAR ")
     assert row["canonical"][column] != row["display"][column]
+
+
+def test_a_seeded_investigation_thread_is_named_after_its_case(client):
+    """A thread that is about something says so before anybody types.
+
+    `Investigate Further` opens a thread already carrying a case. Listing it
+    as "New conversation" beside four others named the same thing makes the
+    list useless, and the name is not a thing that needs inventing: the
+    attention item's headline is already written and already on the card the
+    reader just clicked.
+    """
+    feed = client.get(f"{P}/attention").json()
+    item = feed["segments_requiring_attention"][0]
+
+    opened = client.post(
+        f"{P}/attention/{item['item_id']}/investigate")
+    assert opened.status_code == 201, opened.text
+    thread_id = opened.json()["thread_id"]
+
+    body = client.get(f"{P}/threads/{thread_id}").json()
+    assert body["title"] == item["headline"][:120]
+    assert body["turns"] == []

@@ -458,6 +458,11 @@ async def investigate(item_id: str,
     }
     store.set_thread_context(thread_id, tenant_id=tenant,
                              kind="attention_item", body=seed)
+    # A seeded thread is ABOUT something before anybody types in it. Naming
+    # it after the case beats "New conversation" in a list of conversations,
+    # and it costs no model call: the headline is already written.
+    store.set_thread_title(thread_id, tenant_id=tenant,
+                           title=str(item["headline"])[:120])
     return {"thread_id": thread_id, "item_id": item["item_id"], "seed": seed,
             "suggested_questions": (item.get("drilldown", {})
                                     .get("suggested_questions", []))}
