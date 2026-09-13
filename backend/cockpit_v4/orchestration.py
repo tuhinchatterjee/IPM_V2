@@ -1049,7 +1049,13 @@ class Orchestrator:
 
         published = final.to_dict()
         published["narrative"] = report.rendered_narrative
-        published["charts"] = charts
+        # Every value in a published table or chart comes from the stored
+        # artifact, formatted by the one display policy. The analyst chose
+        # what to show; no number in either has passed through the model.
+        published["tables"] = self.finalizer.render_tables(final,
+                                                           self.catalog)
+        published["charts"] = self.finalizer.render_charts(charts,
+                                                           self.catalog)
         published["suggested_questions"] = suggestions
         published["validation"] = report.to_dict()
         published["evidence_bound"] = bool(final.numeric_claims)

@@ -71,6 +71,20 @@ class ValidationReport:
                 "claims_checked": len(self.claim_values)}
 
 
+def _cell(value: Any, unit: str, disp: Any) -> Any:
+    """One published cell: the reader's form, or the value unchanged.
+
+    A cell with no resolved unit, a null, or a non-numeric value is passed
+    through. Formatting is something a unit earns.
+    """
+    if value is None or not unit:
+        return value
+    try:
+        return disp.format_value(Decimal(str(value)), unit)
+    except (InvalidOperation, ValueError):
+        return value
+
+
 def _format(claim: NumericClaim) -> str:
     """Last resort: a claim that never reached the canonical registry.
 
@@ -107,12 +121,17 @@ class Finalizer:
     #: rating grade). Rounding a category is meaningless, so these never
     #: reach the precision policy and are published exactly as stored.
     text: dict[str, str] = field(default_factory=dict)
+    #: The claims this run validated. Read when rendering a table, so a
+    #: column's unit is one the answer has already been held to rather than
+    #: one the renderer chose for it.
+    _claims: tuple = ()
 
     def validate(self, final: FinalResponse, *,
                  executed: bool) -> ValidationReport:
         problems: list[str] = []
         warnings: list[str] = []
         values: dict[str, str] = {}
+        self._claims = tuple(final.numeric_claims)
 
         for claim in final.numeric_claims:
             problem = self._check_claim(claim)
@@ -310,6 +329,148 @@ class Finalizer:
             return ""
         return self._settle(claim, stored,
                             label=f"claim {claim.claim_id!r}")
+
+    # -- rendering ------------------------------------------------------
+
+    def _units_for(self, artifact_id: str, columns: list[str],
+                   catalog: Any) -> dict[str, str]:
+        """What unit each published column is in. Asked, never assumed.
+
+        Two sources, in order, and no third:
+
+          1. A NUMERIC CLAIM already bound to this artifact and column. The
+             analyst declared that unit, the validator checked it against
+             the arithmetic, and it is therefore a unit this answer has
+             already been held to.
+          2. The CATALOGUE, when the column name is a field it knows.
+
+        A column neither source can name is published as a plain number.
+        That is the honest outcome: a column called `total` could be an
+        amount, a count of them or a ratio, and printing a currency beside
+        it because the query produced floats is how a reader is shown a
+        denomination nobody computed.
+        """
+        out: dict[str, str] = {}
+        for claim in self._claims:
+            ref = claim.evidence
+            if ref.artifact_id == artifact_id and ref.column_id:
+                out.setdefault(str(ref.column_id), claim.unit)
+            for operand in ((claim.derivation or {}).get("operands") or []):
+                if not isinstance(operand, dict):
+                    continue
+                if str(operand.get("artifact_id") or "") != artifact_id:
+                    continue
+                column = str(operand.get("column_id") or "")
+                if column:
+                    out.setdefault(column, claim.unit)
+        if catalog is not None:
+            from backend.cockpit_v4 import display as disp
+
+            relations = []
+            record = self.store.get_artifact(artifact_id,
+                                             tenant_id=self.tenant_id)
+            if record is not None:
+                relations = list((record.get("scope") or {}).get(
+                    "relations", ()))
+            for column in columns:
+                if column in out:
+                    continue
+                for relation in relations:
+                    unit = disp.unit_for_field(catalog, relation, column)
+                    if unit:
+                        out[column] = unit
+                        break
+        return out
+
+    def render_tables(self, final: FinalResponse,
+                      catalog: Any = None) -> list[dict[str, Any]]:
+        """The rows a reader sees, built here from the stored artifact.
+
+        The analyst chose the table: which result, which columns, what to
+        call it. Every VALUE in it comes from the artifact CreditProbe
+        executed and stored, formatted by the one display policy. No number
+        in a published table has passed through the model.
+
+        Ordering is the artifact's own, which the query produced at full
+        precision. Sorting formatted strings would put SAR 9,000 million
+        above SAR 40,599 million.
+        """
+        from backend.cockpit_v4 import display as disp
+
+        out: list[dict[str, Any]] = []
+        for table in final.tables:
+            artifact_id = str(table.get("artifact_id") or "")
+            record = (self.store.get_artifact(artifact_id,
+                                              tenant_id=self.tenant_id)
+                      if artifact_id in self.run_artifacts else None)
+            body = dict(table)
+            if record is None:
+                out.append(body)
+                continue
+            columns = [str(c) for c in (table.get("columns")
+                                        or record["columns"])]
+            units = self._units_for(artifact_id, columns, catalog)
+            rows = []
+            for index, row in enumerate(record["rows"]):
+                rows.append({
+                    "row_id": deriv.row_id_for(index),
+                    "canonical": {c: row.get(c) for c in columns},
+                    "display": {c: _cell(row.get(c), units.get(c, ""), disp)
+                                for c in columns},
+                })
+            body.update({"columns": columns, "column_units": units,
+                         "rows": rows, "row_count": len(rows),
+                         "rendered_by": "creditprobe"})
+            out.append(body)
+        return out
+
+    def render_charts(self, charts: list[dict[str, Any]],
+                      catalog: Any = None) -> list[dict[str, Any]]:
+        """The same contract for a chart: the server supplies every point.
+
+        The analyst decided a chart is useful and which series to show. The
+        values are the artifact's, at full precision for ordering and scale,
+        with the reader's form carried beside each point for axis labels and
+        tooltips.
+        """
+        from backend.cockpit_v4 import display as disp
+
+        out: list[dict[str, Any]] = []
+        for chart in charts:
+            artifact_id = str(chart.get("artifact_id") or "")
+            record = (self.store.get_artifact(artifact_id,
+                                              tenant_id=self.tenant_id)
+                      if artifact_id in self.run_artifacts else None)
+            body = dict(chart)
+            if record is None:
+                out.append(body)
+                continue
+            label = str(chart.get("x_column") or "")
+            series = [str(c) for c in (chart.get("y_columns") or []) if c]
+            units = self._units_for(artifact_id,
+                                    [c for c in [label, *series] if c],
+                                    catalog)
+            # The unit the analyst DECLARED on the chart is authoritative for
+            # its own axis: a chart is allowed to plot a measure no claim
+            # happens to cite. The catalogue still fills in what it can.
+            declared = str(chart.get("unit") or "")
+            points = []
+            for index, row in enumerate(record["rows"]):
+                values = {c: row.get(c) for c in series}
+                points.append({
+                    "row_id": deriv.row_id_for(index),
+                    "label": row.get(label) if label else None,
+                    "values": values,
+                    "display": {
+                        c: _cell(values[c], units.get(c, declared), disp)
+                        for c in series},
+                })
+            body.update({"points": points,
+                         "series_units": {c: units.get(c, declared)
+                                          for c in series},
+                         "rendered_by": "creditprobe"})
+            out.append(body)
+        return out
 
     def _check_table(self, table: dict[str, Any], index: int) -> list[str]:
         """A published table must project columns the artifact really has.
