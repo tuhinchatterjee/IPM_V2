@@ -14,8 +14,14 @@ import {
 
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
+import {
+  EWS_DESCRIPTION,
+  EWS_PHASE,
+  FORWARD_SIGNAL_DESCRIPTION,
+} from "@/lib/ews";
 import { technical } from "@/lib/format";
 import { isRetail } from "@/lib/profile";
+import { RetailEarlyWarningPortfolio } from "./retail-portfolio";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
@@ -102,6 +108,51 @@ export default function EarlyWarningPage() {
  * find it again.
  */
 function EarlyWarning() {
+  // The retail product opens on the PORTFOLIO, not on the model scoring list.
+  // A Head of Retail Risk asks where the book is going wrong before they ask
+  // what one prototype model scored one facility at; the forward-risk signal
+  // is still a click away under Model Lab.
+  if (isRetail()) return <RetailEarlyWarning />;
+  return <ForwardRiskSignal />;
+}
+
+function RetailEarlyWarning() {
+  return (
+    <div className="space-y-7">
+      <PageHeader
+        title="Early Warning"
+        description={EWS_DESCRIPTION}
+        status="partial"
+        phase={EWS_PHASE}
+        actions={
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/early-warning/signals" data-testid="ews-open-signals">
+                <ListChecks aria-hidden />
+                Signals
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/early-warning/methodology" data-testid="ews-open-methodology">
+                <FlaskConical aria-hidden />
+                Methodology
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/early-warning/lab">
+                <FlaskConical aria-hidden />
+                Model Lab
+              </Link>
+            </Button>
+          </div>
+        }
+      />
+      <RetailEarlyWarningPortfolio />
+    </div>
+  );
+}
+
+function ForwardRiskSignal() {
   const overview = useAsync(() => api.earlyWarning(), []);
   const query = useSearchParams();
   const [targetId, setTargetId] = React.useState<string | null>(null);
@@ -114,7 +165,7 @@ function EarlyWarning() {
     <div className="space-y-7">
       <PageHeader
         title="Early Warning"
-        description="A forward-looking estimate of the chance that a facility moves to a worse IFRS 9 stage next quarter. Fitted separately for three transitions, because they have different drivers and different base rates."
+        description={FORWARD_SIGNAL_DESCRIPTION}
         status="partial"
         phase="Prototype signal on synthetic data"
         actions={

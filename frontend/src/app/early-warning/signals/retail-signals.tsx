@@ -30,6 +30,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { RetailAlert } from "@/lib/api";
 import { api } from "@/lib/api";
+import { EWS_PHASE, EWS_SIGNALS_DESCRIPTION } from "@/lib/ews";
 import { useAsync } from "@/lib/hooks";
 import { withReturnTo } from "@/lib/return-to";
 
@@ -43,6 +44,15 @@ const FALLBACK_SEVERITIES = ["ALL"] as const;
 type Severity = string;
 
 const PAGE = 25;
+
+//: How many alerts the server sends back at once.
+//:
+//: It is a PAGE SIZE, and the screen must say so. What it used to do was
+//: print the length of this page as the headline — "ALERTS 500" — above rule
+//: chips that added up to 5,952. A Head of Retail Risk reading that number
+//: concluded the book raised five hundred warnings in August. It raised
+//: 5,952.
+const PAGE_LIMIT = 500;
 
 //: The four products this book holds, and the ALL that is not a product.
 const PRODUCTS: { value: string; label: string }[] = [
@@ -100,26 +110,52 @@ export function RetailSignals() {
     () => query.get("customer") ?? "");
   const [typed, setTyped] = React.useState(() => query.get("customer") ?? "");
   const [sort, setSort] = React.useState(() => query.get("sort") || "severity");
+  // §13: a rule chip and a layer chip are filters, and they live in the
+  // address so the methodology page and the Cockpit can link straight to
+  // "the 348 alerts RET-EWS-001 raised".
+  const [rule, setRule] = React.useState(() => query.get("rule") || "");
+  const [layer, setLayer] = React.useState(() => query.get("layer") || "");
   const [shown, setShown] = React.useState(PAGE);
 
-  React.useEffect(() => {
-    if (!month && months.length) setMonth(months[months.length - 1]);
-  }, [months, month]);
+  // The month actually read. Derived rather than written back into state by
+  // an effect: until the manifest lands there is no month to default to, and
+  // a setState in an effect to supply one is a second render for a value the
+  // render already has.
+  const at = month || (months.length ? months[months.length - 1] : "");
 
   const found = useAsync(
     () => api.retailEarlyWarning(
-      month, severity === "ALL" ? "" : severity, 500,
-      { product: product === "ALL" ? "" : product, customer, sort }),
-    [month, severity, product, customer, sort],
-    { enabled: Boolean(month) },
+      at, severity === "ALL" ? "" : severity, PAGE_LIMIT,
+      { product: product === "ALL" ? "" : product, customer, sort,
+        rule, layer, family: family === "ALL" ? "" : family }),
+    [at, severity, product, customer, sort, rule, layer, family],
+    { enabled: Boolean(at) },
   );
 
-  const alerts: RetailAlert[] = React.useMemo(() => {
-    const rows = found.data?.alerts ?? [];
-    return family === "ALL"
-      ? rows
-      : rows.filter((a) => a.rule_family === family);
-  }, [found.data, family]);
+  const alerts: RetailAlert[] = found.data?.alerts ?? [];
+
+  // §14. `alerts.length` is the PAGE. `alert_count` is the finding.
+  const matched = found.data?.alert_count ?? 0;
+  const showing = React.useMemo(() => {
+    const data = found.data;
+    if (!data) return "";
+    const on = Math.min(shown, alerts.length).toLocaleString();
+    const total = (data.alert_count ?? 0).toLocaleString();
+    if (data.capped) {
+      return `Showing ${on} of ${total} alerts. The server sends the worst `
+        + `${(data.returned ?? 0).toLocaleString()} at a time; narrow by `
+        + "severity, layer, product or rule to see the rest.";
+    }
+    return `Showing ${on} of ${total} alerts matching these filters.`;
+  }, [found.data, alerts.length, shown]);
+
+  // Said once, under each deck: these counts are the month's, not the
+  // filter's, so clicking a chip narrows the list without emptying the deck a
+  // reader needs in order to click a different one.
+  const deckNote = found.data
+    ? `Counts across all ${(found.data.deck_total ?? 0).toLocaleString()} `
+      + `alerts raised at ${at}, before these filters.`
+    : "";
 
   //: Worst first, and only the classes some rule actually raises.
   const severities = React.useMemo(() => {
@@ -127,30 +163,30 @@ export function RetailSignals() {
     return served.length ? ["ALL", ...served] : [...FALLBACK_SEVERITIES];
   }, [found.data]);
 
-  const families = React.useMemo(() => {
-    const seen = new Set<string>();
-    for (const a of found.data?.alerts ?? []) seen.add(a.rule_family);
-    return ["ALL", ...[...seen].sort()];
-  }, [found.data]);
+  // Served, not scraped off the page: built from the alerts in the browser it
+  // offered five of the eleven families the month raises, because the browser
+  // only ever holds the capped page.
+  const families = React.useMemo(
+    () => ["ALL", ...(found.data?.by_family ?? []).map((f) => f.family)],
+    [found.data]);
 
   // Where a customer opened from here comes back to. The filters are in the
   // href, so Back lands on the list the reader was actually reading.
   const listHref =
-    `/early-warning/signals?month=${encodeURIComponent(month)}`
+    `/early-warning/signals?month=${encodeURIComponent(at)}`
     + `&severity=${severity}&family=${encodeURIComponent(family)}`
     + `&product=${encodeURIComponent(product)}`
-    + `&customer=${encodeURIComponent(customer)}&sort=${sort}`;
+    + `&customer=${encodeURIComponent(customer)}&sort=${sort}`
+    + `&rule=${encodeURIComponent(rule)}&layer=${encodeURIComponent(layer)}`;
 
   return (
     <div className="space-y-5" data-testid="retail-signals">
       <PageHeader
         eyebrow="Intelligence"
         title="Early Warning Signals"
-        description={
-          "Named retail conditions with thresholds somebody owns, evaluated "
-          + "against the published book. Every alert says what it measured, "
-          + "what it compared against and what to do about it."
-        }
+        description={EWS_SIGNALS_DESCRIPTION}
+        status="partial"
+        phase={EWS_PHASE}
       />
 
       <Card>
@@ -158,7 +194,7 @@ export function RetailSignals() {
           <label className="flex flex-col gap-1 text-[11px] text-text-muted">
             Month
             <select
-              value={month}
+              value={at}
               onChange={(e) => { setMonth(e.target.value); setShown(PAGE); }}
               aria-label="Reporting month"
               data-testid="signals-month"
@@ -240,6 +276,7 @@ export function RetailSignals() {
                   onClick={() => { setSeverity("ALL"); setFamily("ALL");
                                    setProduct("ALL"); setCustomer("");
                                    setTyped(""); setSort("severity");
+                                   setRule(""); setLayer("");
                                    setShown(PAGE); }}
                   data-testid="signals-clear">
             Clear filters
@@ -258,7 +295,8 @@ export function RetailSignals() {
         <>
           <Card>
             <CardContent className="grid gap-3 pt-4 sm:grid-cols-4">
-              <Figure label="Alerts" value={alerts.length.toLocaleString()} />
+              <Figure label="Alerts matching these filters"
+                      value={matched.toLocaleString()} />
               <Figure label="Customers"
                       value={found.data.distinct_customers.toLocaleString()} />
               <Figure label="Exposure affected"
@@ -268,18 +306,72 @@ export function RetailSignals() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-[14px]">By rule</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {found.data.by_rule.map((r) => (
-                <Badge key={r.rule_id} variant="outline">
-                  {r.rule_id} · {r.rule_name} · {r.alerts.toLocaleString()}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
+          {/* §14: what is on the screen, against what matched. */}
+          <p className="text-[12px] text-text-secondary" data-testid="signals-showing">
+            {showing}
+          </p>
+
+          <ChipDeck
+            title="By severity"
+            note={deckNote}
+            testId="signals-by-severity"
+            chips={(found.data.by_severity ?? []).map((r) => ({
+              key: r.severity,
+              label: `${r.severity} · ${r.alerts.toLocaleString()}`,
+              active: severity === r.severity,
+              testId: `signals-chip-severity-${r.severity}`,
+              onClick: () => { setSeverity(severity === r.severity ? "ALL" : r.severity);
+                               setShown(PAGE); },
+            }))}
+          />
+
+          <ChipDeck
+            title="By methodology layer"
+            note={"The six layers of the Early Warning methodology. Every rule "
+                  + "rolls up into one of them. " + deckNote}
+            testId="signals-by-layer"
+            chips={(found.data.by_layer ?? []).map((r) => ({
+              key: r.layer || "none",
+              label: `${r.layer_name} · ${r.alerts.toLocaleString()}`,
+              active: layer === r.layer && r.layer !== "",
+              disabled: r.layer === "",
+              testId: `signals-chip-layer-${r.layer || "none"}`,
+              onClick: () => { if (!r.layer) return;
+                               setLayer(layer === r.layer ? "" : r.layer);
+                               setShown(PAGE); },
+            }))}
+          />
+
+          <ChipDeck
+            title="By product"
+            note={deckNote}
+            testId="signals-by-product"
+            chips={(found.data.by_product ?? []).map((r) => ({
+              key: r.product_code || "customer-scope",
+              label: `${r.product_label} · ${r.alerts.toLocaleString()}`,
+              active: product === r.product_code && r.product_code !== "",
+              disabled: r.product_code === "",
+              testId: `signals-chip-product-${r.product_code || "customer-scope"}`,
+              onClick: () => { if (!r.product_code) return;
+                               setProduct(product === r.product_code
+                                          ? "ALL" : r.product_code);
+                               setShown(PAGE); },
+            }))}
+          />
+
+          <ChipDeck
+            title="By rule"
+            note={"Click a rule to see only the alerts it raised. " + deckNote}
+            testId="signals-by-rule"
+            chips={found.data.by_rule.map((r) => ({
+              key: r.rule_id,
+              label: `${r.rule_id} · ${r.rule_name} · ${r.alerts.toLocaleString()}`,
+              active: rule === r.rule_id,
+              testId: `signals-chip-rule-${r.rule_id}`,
+              onClick: () => { setRule(rule === r.rule_id ? "" : r.rule_id);
+                               setShown(PAGE); },
+            }))}
+          />
 
           {alerts.length === 0 ? (
             <EmptyState
@@ -319,7 +411,7 @@ export function RetailSignals() {
                         <Link
                           href={withReturnTo(
                             `/borrower-360?borrower=${encodeURIComponent(a.customer_id)}`
-                            + `&period=${encodeURIComponent(month)}`,
+                            + `&period=${encodeURIComponent(at)}`,
                             listHref,
                             "Early Warning Signals")}
                           data-testid={`open-customer-${a.customer_id}`}
@@ -369,5 +461,63 @@ function Figure({ label, value }: { label: string; value: string }) {
       </div>
       <div className="text-[15px] font-medium text-text-primary">{value}</div>
     </div>
+  );
+}
+
+/**
+ * A row of counts that are also filters.
+ *
+ * The screen carried four of these decks as `Badge`s — RET-EWS-001 · 348,
+ * CRITICAL · 232 — which read as controls and were not. §13 asks for every
+ * chip to be clickable, so each one narrows the list and narrows the count
+ * with it, and an active chip shows what the list is currently narrowed to.
+ *
+ * A chip can be `disabled`: the customer-scope product chip counts 1,934
+ * alerts that belong to no single product, and narrowing to "no product" is
+ * not a question anybody asks.
+ */
+function ChipDeck({
+  title, note, chips, testId,
+}: {
+  title: string;
+  note?: string;
+  testId: string;
+  chips: {
+    key: string; label: string; active: boolean; disabled?: boolean;
+    testId: string; onClick: () => void;
+  }[];
+}) {
+  if (!chips.length) return null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-[14px]">{title}</CardTitle>
+        {note ? (
+          <p className="text-[11px] text-text-muted">{note}</p>
+        ) : null}
+      </CardHeader>
+      <CardContent className="flex flex-wrap gap-2" data-testid={testId}>
+        {chips.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            disabled={chip.disabled}
+            aria-pressed={chip.active}
+            onClick={chip.onClick}
+            data-testid={chip.testId}
+            className={
+              "rounded-full border px-2.5 py-1 text-[11px] transition-colors "
+              + (chip.disabled
+                ? "cursor-default border-border bg-surface-muted/50 text-text-muted"
+                : chip.active
+                  ? "border-accent bg-accent-subtle text-accent"
+                  : "border-border text-text-secondary hover:bg-surface-muted")
+            }
+          >
+            {chip.label}
+          </button>
+        ))}
+      </CardContent>
+    </Card>
   );
 }

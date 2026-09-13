@@ -84,6 +84,20 @@ def main() -> int:
     for note in seeded.notes:
         log.warning("  %s", note)
 
+    # The early-warning panel. Evaluating twenty governed rules over
+    # twenty-five months takes about a minute and a half, which is fine once
+    # at bootstrap and far too slow inside a page load — so Early Warning
+    # reads a precomputed roll-up, and a fresh install that skips this step
+    # opens on "the early-warning panel has not been built". Idempotent: a
+    # month already written is left alone.
+    from backend.retail import ews_portfolio
+
+    built = ews_portfolio.build()
+    log.info("Early-warning panel: %d month(s) scored, %d already present, "
+             "%d rows written", built.months, built.skipped, built.rows)
+    for note in built.notes or []:
+        log.warning("  %s", note)
+
     if "retail_facility_month" not in published:
         log.warning(
             "retail_facility_month is not published in Data Builder. The Cockpit will "
@@ -125,6 +139,17 @@ def _check(log) -> int:
         problems.extend(workspace_seed.check(session))
     if "retail_facility_month" not in published:
         problems.append("Data Builder does not publish retail_facility_month")
+    from backend.retail import ews_portfolio
+    scored = ews_portfolio._panel_months()
+    if not scored:
+        problems.append("the early-warning panel has not been built, so "
+                        "Early Warning opens on an empty state")
+    else:
+        published_months = ews_portfolio._months()
+        if len(scored) < len(published_months):
+            problems.append(
+                f"the early-warning panel covers {len(scored)} of the "
+                f"{len(published_months)} published months")
 
     for item in problems:
         log.warning("Still missing: %s", item)

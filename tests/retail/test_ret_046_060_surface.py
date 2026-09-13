@@ -605,6 +605,34 @@ class TestRET048LayoutPreserved:
             "frontend/src/app/page.tsx",
             "frontend/src/app/early-warning/page.tsx",
             "frontend/src/app/early-warning/lab/page.tsx",
+            # ---------------------------------------------------------------
+            # Early Warning, rebuilt as a management portfolio.
+            #
+            # The shipped screen answered one question — which alerts fired? —
+            # under a headline that read ALERTS 500 while the rule chips under
+            # it added up to 5,952. There was no portfolio, no product, no
+            # subsegment, no customer list and no methodology, so a Head of
+            # Retail Risk could not ask where the book is going wrong, how
+            # badly, or who it is.
+            #
+            # The rulebook underneath is untouched: these read it, roll it up
+            # into the six layers of the methodology, and let a reader walk
+            # down from the portfolio to one customer's reason codes.
+            "backend/retail/ews_layers.py",
+            "backend/retail/ews_portfolio.py",
+            "backend/api/routers/retail.py",
+            "frontend/src/app/early-warning/retail-portfolio.tsx",
+            "frontend/src/app/early-warning/methodology/page.tsx",
+            "frontend/src/lib/ews.ts",
+            "frontend/src/lib/api.ts",
+            # §15: the sidebar described Early Warning as the Forward Risk
+            # Signal and the signals entry as "34 named tests across eight
+            # families", which is the corporate rulebook's shape. Both now
+            # read the one description in lib/ews.ts.
+            "frontend/src/lib/navigation.ts",
+            # The panel Early Warning reads is built here, so a fresh install
+            # does not open on "the early-warning panel has not been built".
+            "scripts/bootstrap_retail_installation.py",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail
@@ -714,13 +742,21 @@ class TestRET053And054PublicationAndMigration:
         assert len(partitions) == 25, "a rebuild must not accumulate stale partitions"
 
     def test_retired_seeds_do_not_reappear(self, retail_book):
-        """Nothing in the lake but the book and the views derived from it."""
-        from backend.retail import domains
+        """Nothing in the lake but the book, its views, and the EWS roll-up.
+
+        The early-warning panel is the one thing here that is computed rather
+        than selected, and it is still not a seed: every customer, facility
+        and exposure in it is the canonical book's, checked directly by
+        tests/retail/test_ret_034_038_ews.py.
+        """
+        from backend.retail import domains, ews_portfolio
         from tests.retail.conftest import SHIPPED_ANALYTICS
 
         present = {p.name for p in SHIPPED_ANALYTICS.iterdir()
                    if p.is_dir() and not p.name.startswith(".")}
-        allowed = {domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+        allowed = ({domains.CANONICAL}
+                   | {v.dataset for v in domains.DERIVED}
+                   | {ews_portfolio.PANEL})
         assert present <= allowed, sorted(present - allowed)
         assert domains.CANONICAL in present
 

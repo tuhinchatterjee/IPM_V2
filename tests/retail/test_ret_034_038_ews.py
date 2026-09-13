@@ -54,12 +54,23 @@ class TestRET034AlertsFromCanonicalData:
         """
         import pandas as pd
 
-        from backend.retail import domains
+        from backend.retail import domains, ews_portfolio
         from tests.retail.conftest import SHIPPED_ANALYTICS
 
         found = {p.name for p in SHIPPED_ANALYTICS.iterdir()
                  if p.is_dir() and not p.name.startswith(".")}
-        allowed = {domains.CANONICAL} | {v.dataset for v in domains.DERIVED}
+        # The early-warning PANEL is the fourth thing in the lake and it is
+        # not a seed either. It holds no customer, no facility and no exposure
+        # the canonical book does not hold: it is the governed rulebook
+        # evaluated over that book and rolled up, written once because
+        # evaluating twenty rules over twenty-five months takes a minute and a
+        # half and a page load cannot wait for it. That it does not drift from
+        # the book is checked directly below, and its alert count is
+        # reconciled against a fresh evaluation in
+        # tests/retail/test_ret_ews_portfolio.py.
+        allowed = ({domains.CANONICAL}
+                   | {v.dataset for v in domains.DERIVED}
+                   | {ews_portfolio.PANEL})
         assert found <= allowed, (
             f"EWS must read the canonical book, not its own seed; found "
             f"{sorted(found - allowed)}")
@@ -75,6 +86,21 @@ class TestRET034AlertsFromCanonicalData:
         assert len(derived) == len(latest)
         assert set(derived["customer_id"]) == set(latest["customer_id"])
         assert float(derived["gross_carrying_amount_sar"].sum()) == pytest.approx(
+            float(latest["gross_carrying_amount_sar"].sum()), rel=1e-9)
+
+    def test_the_early_warning_panel_holds_no_customer_the_book_does_not(
+            self, retail_book):
+        """The panel is a roll-up, so it cannot have a population of its own."""
+        from backend.retail import ews_portfolio
+        from tests.retail.conftest import SHIPPED_ANALYTICS
+
+        if not (SHIPPED_ANALYTICS / ews_portfolio.PANEL).exists():
+            pytest.skip("the early-warning panel has not been built")
+        latest = retail_book.latest()
+        month = str(latest["reporting_month"].iloc[0])
+        panel = ews_portfolio._panel(month)
+        assert set(panel["customer_id"]) == set(latest["customer_id"])
+        assert float(panel["exposure_sar"].sum()) == pytest.approx(
             float(latest["gross_carrying_amount_sar"].sum()), rel=1e-9)
 
     def test_thresholds_are_labelled_synthetic_and_configurable(self, alerts):

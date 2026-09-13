@@ -32,6 +32,7 @@ from backend.config import settings
 from backend.retail import DOMAIN_DISPLAY, DOMAIN_ID, SYNTHETIC_DISCLOSURE
 from backend.retail import ecl as ecl_mod
 from backend.retail import ews as ews_mod
+from backend.retail import ews_layers
 from backend.retail import monitoring as mon
 from backend.retail import whatif as wif
 from backend.retail.config import load_config
@@ -431,6 +432,13 @@ def early_warning(month: str | None = Query(None),
                   customer: str | None = Query(
                       None, description="A customer or facility id, whole or "
                                         "partial"),
+                  rule: str | None = Query(
+                      None, description="One rule id, e.g. RET-EWS-001"),
+                  family: str | None = Query(
+                      None, description="One rulebook family, e.g. REPAYMENT"),
+                  layer: str | None = Query(
+                      None, description="One methodology layer key, e.g. "
+                                        "repayment"),
                   sort: str = Query(
                       "severity",
                       description="severity | exposure | rule | customer"),
@@ -443,6 +451,14 @@ def early_warning(month: str | None = Query(None),
     at = months.index(m) if m in months else 0
     previous = _read(months[at - 1]) if at > 0 else None
     alerts = ews_mod.evaluate_snapshot(ews_mod.with_prior_month(frame, previous))
+    # The chip decks are counted HERE, before any chip is applied.
+    #
+    # Counting them after would empty the screen the moment a reader clicked
+    # one: pick CRITICAL and the severity deck would show CRITICAL alone, with
+    # no way back to HIGH except the Clear button. The decks say what the month
+    # raised; the headline says what the current filters match; the active chip
+    # says which of them is on.
+    universe = alerts
     if severity:
         alerts = alerts[alerts["severity"].str.upper() == severity.upper()]
     # A triage list nobody can narrow to a product is a triage list nobody
@@ -457,10 +473,56 @@ def early_warning(month: str | None = Query(None),
             keys = (alerts["customer_id"].fillna("").str.upper()
                     + "|" + alerts["facility_id"].fillna("").str.upper())
             alerts = alerts[keys.str.contains(wanted, regex=False)]
+    # §13: every chip on the screen is a filter. A rule chip that reads
+    # "RET-EWS-001 · 348" and does nothing when clicked is a label; clicking
+    # it has to narrow the list to those 348, and narrow the COUNT with it,
+    # which means narrowing here rather than in the browser over a capped page.
+    if rule:
+        alerts = alerts[alerts["rule_id"].str.upper() == str(rule).strip().upper()]
+    # Filtered here rather than in the browser for the same reason as the rule
+    # chip: the browser only ever holds the capped page, so a family list built
+    # from it offered five of the eleven families the month actually raised.
+    if family:
+        alerts = alerts[alerts["rule_family"].str.upper()
+                        == str(family).strip().upper()]
+    if layer:
+        key = str(layer).strip().lower()
+        wanted_families = {f for f in alerts["rule_family"].unique()
+                           if ews_layers.layer_of(f) == key}
+        alerts = alerts[alerts["rule_family"].isin(wanted_families)]
     alerts = _sorted_alerts(alerts, sort)
     exposure = ews_mod.affected_exposure(alerts)
-    by_rule = (alerts.groupby(["rule_id", "rule_name", "severity"], sort=True)
-               .size().reset_index(name="alerts").to_dict("records")) if len(alerts) else []
+    by_rule = _by_rule(universe)
+    by_severity = [
+        {"severity": name,
+         "alerts": int(sum(r["alerts"] for r in by_rule if r["severity"] == name))}
+        for name in reversed(ews_mod.SEVERITY_ORDER)
+        if any(r["severity"] == name for r in by_rule)]
+    by_family = [
+        {"family": name,
+         "alerts": int(sum(r["alerts"] for r in by_rule if r["rule_family"] == name))}
+        for name in sorted({r["rule_family"] for r in by_rule})]
+    by_layer = []
+    for one in ews_layers.LAYERS:
+        n = int(sum(r["alerts"] for r in by_rule if r["layer"] == one.key))
+        if n:
+            by_layer.append({"layer": one.key, "layer_name": one.name,
+                             "alerts": n})
+    unlayered = int(sum(r["alerts"] for r in by_rule if not r["layer"]))
+    if unlayered:
+        by_layer.append({"layer": "", "layer_name": "Data quality — not a risk layer",
+                         "alerts": unlayered})
+    by_product = []
+    if len(universe):
+        counted = (universe["product_code"].fillna("").replace("", "ALL PRODUCTS")
+                   .value_counts())
+        for code, n in counted.items():
+            by_product.append({
+                "product_code": "" if code == "ALL PRODUCTS" else str(code),
+                "product_label": ("Raised against the customer, not one product"
+                                  if code == "ALL PRODUCTS"
+                                  else dict(PRODUCT_LABELS).get(str(code), str(code))),
+                "alerts": int(n)})
     return json_safe({
         **_envelope(m),
         "rulebook_version": ews_mod.RULEBOOK_VERSION,
@@ -469,6 +531,18 @@ def early_warning(month: str | None = Query(None),
         "affected_exposure_sar": exposure,
         "portfolio_exposure_sar": round(float(frame["gross_carrying_amount_sar"].sum()), 2),
         "by_rule": by_rule,
+        # Every deck below counts the month, not the current filter. See the
+        # note where `universe` is taken.
+        "deck_total": int(len(universe)),
+        "by_severity": by_severity,
+        "by_family": by_family,
+        "by_layer": by_layer,
+        "by_product": by_product,
+        # What the reader is actually looking at, said out loud. The screen
+        # printed "ALERTS 500" while the rule chips under it added to 5,952:
+        # 500 was the page size, not a finding.
+        "returned": int(min(limit, len(alerts))),
+        "capped": bool(len(alerts) > limit),
         "alerts": alerts.head(limit).to_dict("records"),
         # The severities this RULEBOOK uses, worst first. The screen offered a
         # hard-coded ALL/HIGH/MEDIUM/LOW: CRITICAL — the 232 alerts a Head of
@@ -480,6 +554,9 @@ def early_warning(month: str | None = Query(None),
                     "product": (resolve_product(product) or "").upper()
                     if product else "",
                     "customer": (customer or "").strip(),
+                    "rule": (rule or "").strip().upper(),
+                    "family": (family or "").strip().upper(),
+                    "layer": (layer or "").strip().lower(),
                     "sort": _SORTS.get(sort, "severity")},
         "notes": [
             "Affected exposure counts each facility once, even where two rules "
@@ -488,6 +565,20 @@ def early_warning(month: str | None = Query(None),
             "contacts a customer.",
         ],
     })
+
+
+def _by_rule(alerts: Any) -> list[dict]:
+    """One row per rule, with the layer it rolls up into."""
+    if not len(alerts):
+        return []
+    rows = (alerts.groupby(["rule_id", "rule_name", "severity", "rule_family"],
+                           sort=True)
+            .size().reset_index(name="alerts").to_dict("records"))
+    for row in rows:
+        row["layer"] = ews_layers.layer_of(row["rule_family"])
+        found = ews_layers.get(row["layer"])
+        row["layer_name"] = found.name if found else "Not a risk layer"
+    return rows
 
 
 #: How a triage list may be ordered, and what each ordering is FOR.
@@ -528,6 +619,123 @@ def _sorted_alerts(alerts: Any, sort: str) -> Any:
 @router.get("/early-warning/rulebook", summary="The retail rule library")
 def rulebook() -> dict:
     return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **ews_mod.rulebook()})
+
+
+# --------------------------------------------------------------------------
+# Early warning, as a portfolio
+# --------------------------------------------------------------------------
+#
+# The screens above answer "which alerts fired?". These answer the question a
+# Head of Retail Risk actually opens Early Warning to ask — where is the book
+# going wrong, how badly, and who is it — down the hierarchy
+#
+#     portfolio -> product -> subsegment -> customer -> facility / signal
+#
+# Everything is served from the precomputed panel in
+# `backend.retail.ews_portfolio`, which is built once at bootstrap. The
+# rulebook is untouched and remains the signal layer underneath.
+
+@router.get("/early-warning/portfolio",
+            summary="The retail book through early warning, at one month")
+def ews_portfolio_view(month: str | None = Query(None),
+                       product: str | None = Query(
+                           None, description="One retail product, or empty "
+                                             "for the whole book"),
+                       trend_months: int = Query(25, ge=2, le=60)) -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    code = (resolve_product(product) or "") if product else ""
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      **ewp.portfolio(month or "", product=code,
+                                      trend_months=trend_months)})
+
+
+@router.get("/early-warning/portfolio/products",
+            summary="One card per retail product")
+def ews_products(month: str | None = Query(None),
+                 trend_months: int = Query(25, ge=2, le=60)) -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      "month": month or "",
+                      "products": ewp.products(month or "",
+                                               trend_months=trend_months)})
+
+
+@router.get("/early-warning/portfolio/subsegments",
+            summary="One product, broken into the pockets its data supports")
+def ews_subsegments(product: str = Query(...),
+                    month: str | None = Query(None),
+                    dimension: str = Query(""),
+                    trend_months: int = Query(25, ge=2, le=60)) -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        **ewp.subsegments(product, month or "", dimension=dimension,
+                          trend_months=trend_months)})
+
+
+@router.get("/early-warning/portfolio/customers",
+            summary="The early-warning customer list")
+def ews_customers(month: str | None = Query(None),
+                  product: str = Query(""),
+                  dimension: str = Query(""),
+                  value: str = Query(""),
+                  cohort: str = Query("all"),
+                  limit: int = Query(200, ge=1, le=2000),
+                  offset: int = Query(0, ge=0)) -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        **ewp.customers(month or "", product=product, dimension=dimension,
+                        value=value, cohort=cohort, limit=limit,
+                        offset=offset)})
+
+
+@router.get("/early-warning/portfolio/customers/{customer_id}",
+            summary="One customer, across every month scored")
+def ews_customer(customer_id: str, month: str | None = Query(None),
+                 trend_months: int = Query(25, ge=2, le=60)) -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    found = ewp.customer(customer_id, month or "", trend_months=trend_months)
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because")
+                            or f"{customer_id} is not in the panel.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
+@router.get("/early-warning/portfolio/story",
+            summary="The prebuilt product story: already bad, and next")
+def ews_story(month: str | None = Query(None),
+              product: str = Query("CREDIT_CARD")) -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      **ewp.story(month or "", product=product)})
+
+
+@router.get("/early-warning/methodology-detail",
+            summary="The current early-warning methodology, in full")
+def ews_methodology() -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **ewp.methodology()})
+
+
+@router.get("/early-warning/rules/{rule_id}",
+            summary="One rule, and what it did to the book this month")
+def ews_rule(rule_id: str, month: str | None = Query(None)) -> dict:
+    from backend.retail import ews_portfolio as ewp
+
+    found = ewp.rule_detail(rule_id, month or "")
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, found.get("because")
+                            or f"{rule_id} is not a governed rule.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
 
 
 # --------------------------------------------------------------------------

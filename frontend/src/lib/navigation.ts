@@ -1,4 +1,7 @@
 import type { LucideIcon } from "lucide-react";
+
+import { EWS_DESCRIPTION, EWS_SIGNALS_DESCRIPTION } from "@/lib/ews";
+import { isRetail } from "@/lib/profile";
 import {
   BarChart3,
   Bot,
@@ -470,6 +473,37 @@ export const NAV_ITEMS: NavItem[] = [
  * meaning is not listed, because a navigation entry is a promise and a screen a
  * user can reach and cannot use is worse than one that does not exist.
  */
+/**
+ * §15: the retail meaning of the two Early Warning entries.
+ *
+ * The default entries above describe the CORPORATE book — a Forward Risk
+ * Signal on the landing entry, and "34 named tests across eight families" on
+ * the signals entry, which is the corporate rulebook's shape. Neither is true
+ * here, and a navigation description is the first sentence most readers see
+ * about a capability. The retail text lives in `@/lib/ews` with every other
+ * copy of it, so there is one place to change it and no way for two screens
+ * to disagree.
+ */
+const RETAIL_DESCRIPTIONS: Record<string, { description: string; phase?: string }> = {
+  "/early-warning": {
+    description: EWS_DESCRIPTION,
+    phase: "Governed rulebook on synthetic demonstration data",
+  },
+  "/early-warning/signals": {
+    description: EWS_SIGNALS_DESCRIPTION,
+    phase: "Governed rulebook on synthetic demonstration data",
+  },
+};
+
+if (isRetail()) {
+  for (const item of NAV_ITEMS) {
+    const retail = RETAIL_DESCRIPTIONS[item.href];
+    if (!retail) continue;
+    item.description = retail.description;
+    if (retail.phase !== undefined) item.phase = retail.phase;
+  }
+}
+
 export const RETAIL_NAV_HREFS: ReadonlySet<string> = new Set([
   "/",
   "/workspace",

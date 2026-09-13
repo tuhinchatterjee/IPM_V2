@@ -5901,7 +5901,24 @@ export interface RetailEarlyWarning {
   affected_exposure_sar: number;
   portfolio_exposure_sar: number;
   by_rule: { rule_id: string; rule_name: string; severity: string;
+             rule_family: string; layer: string; layer_name: string;
              alerts: number }[];
+  /** The same total cut by severity, by methodology layer, and by product. */
+  by_severity?: { severity: string; alerts: number }[];
+  by_family?: { family: string; alerts: number }[];
+  /** What every deck above counts: the month, before any chip is applied. */
+  deck_total?: number;
+  by_layer?: { layer: string; layer_name: string; alerts: number }[];
+  by_product?: { product_code: string; product_label: string;
+                 alerts: number }[];
+  /**
+   * How many alerts came back, against how many matched.
+   *
+   * The screen printed "ALERTS 500" while the rule chips under it added up to
+   * 5,952. 500 was the page size; the finding was 5,952.
+   */
+  returned?: number;
+  capped?: boolean;
   alerts: RetailAlert[];
   /**
    * The severity classes this rulebook actually raises, worst first.
@@ -5912,7 +5929,7 @@ export interface RetailEarlyWarning {
    */
   severities?: string[];
   filters?: { severity: string; product: string; customer: string;
-              sort: string };
+              rule: string; layer: string; family: string; sort: string };
   notes?: string[];
 }
 
@@ -7013,7 +7030,8 @@ export const api = {
     month: string,
     severity = "",
     limit = 200,
-    extra: { product?: string; customer?: string; sort?: string } = {},
+    extra: { product?: string; customer?: string; sort?: string;
+             rule?: string; layer?: string; family?: string } = {},
   ) =>
     request<RetailEarlyWarning>(
       `/retail/early-warning${qs({
@@ -7021,9 +7039,50 @@ export const api = {
         severity,
         product: extra.product ?? "",
         customer: extra.customer ?? "",
+        rule: extra.rule ?? "",
+        layer: extra.layer ?? "",
+        family: extra.family ?? "",
         sort: extra.sort ?? "",
         limit: String(limit),
       })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  // Early warning, as a portfolio. See backend/retail/ews_portfolio.py: the
+  // rulebook is untouched and remains the signal layer underneath these.
+  ewsPortfolio: (month = "", product = "", trendMonths = 25) =>
+    request<EwsPortfolio>(
+      `/retail/early-warning/portfolio${qs({
+        month, product, trend_months: String(trendMonths) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsSubsegments: (product: string, month = "", dimension = "") =>
+    request<EwsSubsegments>(
+      `/retail/early-warning/portfolio/subsegments${qs({
+        product, month, dimension })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsCustomers: (opts: {
+    month?: string; product?: string; dimension?: string; value?: string;
+    cohort?: string; limit?: number;
+  } = {}) =>
+    request<EwsCustomers>(
+      `/retail/early-warning/portfolio/customers${qs({
+        month: opts.month ?? "", product: opts.product ?? "",
+        dimension: opts.dimension ?? "", value: opts.value ?? "",
+        cohort: opts.cohort ?? "all", limit: String(opts.limit ?? 200) })}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsCustomer: (customerId: string, month = "") =>
+    request<EwsCustomerDetail>(
+      `/retail/early-warning/portfolio/customers/${encodeURIComponent(customerId)}`
+      + qs({ month }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsMethodology: () =>
+    request<EwsMethodology>("/retail/early-warning/methodology-detail",
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsStory: (month = "", product = "CREDIT_CARD") =>
+    request<EwsStory>(
+      "/retail/early-warning/portfolio/story" + qs({ month, product }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsRule: (ruleId: string, month = "") =>
+    request<EwsRuleDetail>(
+      `/retail/early-warning/rules/${encodeURIComponent(ruleId)}` + qs({ month }),
       { timeoutMs: LAKE_TIMEOUT_MS }),
   retailManifest: () =>
     request<RetailManifest>("/retail/manifest", { timeoutMs: LAKE_TIMEOUT_MS }),
@@ -13202,3 +13261,316 @@ export type ScvAnswer = {
     [key: string]: unknown;
   };
 };
+
+// ---------------------------------------------------------------------------
+// Early warning as a portfolio
+// ---------------------------------------------------------------------------
+
+export interface EwsCounts {
+  customers: number;
+  customers_warned: number;
+  alerts: number;
+  severity: Record<string, number>;
+  current_bad: number;
+  forward_risk: number;
+  exposure_sar: number;
+  exposure_warned_sar: number;
+  exposure_warned_pct: number;
+  ews_score: number;
+  severity_band: string;
+}
+
+export interface EwsTrendPoint {
+  month: string;
+  ews_score: number;
+  severity: string;
+  customers_warned: number;
+  current_bad: number;
+  forward_risk: number;
+  exposure_warned_sar: number;
+  layers: Record<string, number>;
+}
+
+export interface EwsProduct extends EwsCounts {
+  product_code: string;
+  product_label: string;
+  month: string;
+  previous_month: string;
+  previous: EwsCounts | null;
+  movement: {
+    ews_score: number; customers_warned: number; current_bad: number;
+    forward_risk: number; severity_from: string; severity_to: string;
+  } | null;
+  layers: Record<string, number>;
+  layer_movement: Record<string, number>;
+  trend: EwsTrendPoint[];
+  commentary: string;
+  subsegment_dimensions: { column: string; label: string }[];
+}
+
+export interface EwsPortfolio {
+  available: boolean;
+  because?: string;
+  month: string;
+  /** Empty for the whole book; otherwise the product the headline counts. */
+  product_code: string;
+  product_label: string;
+  previous_month: string;
+  months: string[];
+  rulebook_version: string;
+  panel_version: string;
+  layers_version: string;
+  definitions: { current_bad: string; forward_risk: string };
+  headline: EwsCounts;
+  previous: EwsCounts | null;
+  movement: {
+    ews_score: number; customers_warned: number; current_bad: number;
+    forward_risk: number;
+  } | null;
+  layers: Record<string, number>;
+  trend: EwsTrendPoint[];
+  products: EwsProduct[];
+}
+
+export interface EwsSubsegment extends EwsCounts {
+  value: string;
+  previous: EwsCounts | null;
+  movement: { ews_score: number; current_bad: number; forward_risk: number } | null;
+  layers: Record<string, number>;
+  primary_layer: string;
+  primary_layer_name: string;
+  top_reasons: { rule_id: string; rule_name: string; customers: number }[];
+  trend: EwsTrendPoint[];
+}
+
+export interface EwsSubsegments {
+  available: boolean;
+  month: string;
+  previous_month: string;
+  product_code: string;
+  product_label: string;
+  dimension: string;
+  dimension_label: string;
+  dimensions: { column: string; label: string }[];
+  subsegments: EwsSubsegment[];
+  definitions: { current_bad: string; forward_risk: string };
+}
+
+export interface EwsCustomerRow {
+  customer_id: string;
+  product_code: string;
+  product_label: string;
+  facilities: number;
+  exposure_sar: number;
+  share_of_subsegment_pct: number;
+  share_of_product_pct: number;
+  share_of_portfolio_pct: number;
+  dpd: number | null;
+  ifrs9_stage: number | null;
+  current_bad: boolean;
+  forward_risk: boolean;
+  ews_score: number;
+  severity: string;
+  behavioural_score: number | null;
+  behavioural_score_previous: number | null;
+  behavioural_score_change: number | null;
+  behavioural_score_band: string;
+  /** Empty when there is one. Otherwise the reason there is not. */
+  behavioural_score_absent_because?: string;
+  application_score: number | null;
+  application_score_band: string;
+  primary_layer: string;
+  primary_layer_name: string;
+  top_rules: string[];
+  top_rule_names: string[];
+  layers: Record<string, number>;
+  alerts: number;
+}
+
+export interface EwsCustomers {
+  available: boolean;
+  month: string;
+  product_code: string;
+  dimension: string;
+  value: string;
+  cohort: string;
+  cohorts: { key: string; label: string; definition: string; customers: number }[];
+  /** Rows, at customer-product grain. `total_customers` is the people. */
+  total: number;
+  total_customers: number;
+  shown: number;
+  customers: EwsCustomerRow[];
+  definitions: { current_bad: string; forward_risk: string };
+}
+
+export interface EwsCustomerMonth {
+  month: string;
+  ews_score: number;
+  severity: string;
+  layers: Record<string, number>;
+  behavioural_score: number | null;
+  dpd: number | null;
+  ifrs9_stage: number | null;
+  exposure_sar: number;
+  current_bad: boolean;
+  forward_risk: boolean;
+  alerts: number;
+  top_rules: string[];
+}
+
+export interface EwsLayerDetail {
+  key: string;
+  name: string;
+  purpose: string;
+  source_class: string;
+  weight: number;
+  value: number;
+  previous: number | null;
+  movement: number | null;
+  trend: { month: string; value: number }[];
+  families: string[];
+}
+
+export interface EwsCustomerDetail {
+  available: boolean;
+  customer_id: string;
+  month: string;
+  products: string[];
+  exposure_sar: number;
+  facilities: number;
+  ews_score: number;
+  severity: string;
+  current_bad: boolean;
+  forward_risk: boolean;
+  behavioural_score: number | null;
+  behavioural_score_previous: number | null;
+  behavioural_score_absent_because?: string;
+  // Its own shape rather than an intersection with EwsTrendPoint: a trend
+  // point counts customers in each class, and one customer's history says
+  // whether THEY were in it, so `current_bad` is a number there and a boolean
+  // here. Intersecting the two collapses the type to `never`.
+  history: EwsCustomerMonth[];
+  layers: EwsLayerDetail[];
+  layers_without_rules: Record<string, unknown>[];
+  definitions: { current_bad: string; forward_risk: string };
+}
+
+/** §17: the prebuilt product story — five already bad, five who are next. */
+export interface EwsStoryHalf {
+  customers: (EwsCustomerRow & { because: string })[];
+  total: number;
+}
+
+export interface EwsStory {
+  available: boolean;
+  because?: string;
+  month: string;
+  product_code: string;
+  product_label: string;
+  title: string;
+  narrative: string;
+  current_bad: EwsStoryHalf;
+  forward_risk: EwsStoryHalf;
+  definitions: { current_bad: string; forward_risk: string };
+  note: string;
+}
+
+export interface EwsRuleView {
+  rule_id: string;
+  version: string;
+  name: string;
+  family: string;
+  layer: string;
+  layer_name: string;
+  scope: string;
+  products: string[];
+  variables: string[];
+  lookback_months: number;
+  unit: string;
+  threshold: number;
+  threshold_source: string;
+  expression: string;
+  severity: string;
+  source_class: string;
+  reason_code: string;
+  reason_template: string;
+  recommended_review: string;
+  is_risk_layer: boolean;
+}
+
+export interface EwsRuleDetail extends EwsRuleView {
+  available: boolean;
+  month: string;
+  hits: {
+    customers: number; alerts: number; exposure_sar: number;
+    current_bad: number; forward_risk: number;
+    by_product: { product_code: string; product_label: string;
+                  customers: number; exposure_sar: number }[];
+  };
+  trend: { month: string; customers: number }[];
+  note: string;
+}
+
+/** One input a rule reads, with everything §9 asks a methodology to state. */
+export interface EwsVariable {
+  name: string;
+  label: string;
+  meaning: string;
+  unit: string | null;
+  source_class: string;
+  raw_input: string;
+  transformation: string;
+  direction: string;
+  refresh: string;
+  products: string[];
+  layers: string[];
+  layer_names: string[];
+  layer_weight: number;
+  rules: string[];
+  rule_names: string[];
+  reason_codes: string[];
+}
+
+export interface EwsMethodologyLayer {
+  key: string; name: string; purpose: string; families: string[];
+  source_class: string; weight: number; weight_because: string;
+  refresh: string; has_rules: boolean; absent_because: string;
+  rules: EwsRuleView[]; rule_count: number; variables: string[];
+  variable_detail: EwsVariable[];
+  products: string[]; ceiling_by_product: Record<string, number>;
+}
+
+export interface EwsMethodology {
+  name: string;
+  rulebook_version: string;
+  layers_version: string;
+  panel_version: string;
+  purpose: string;
+  target: string;
+  horizon: string;
+  eligible_population: string;
+  latest_scoring_date: string;
+  months_scored: number;
+  scoring: {
+    layer_score: string; overall_score: string; population_score: string;
+    customer_bands: { from: number; band: string }[];
+    population_bands: { from: number; band: string }[];
+    severity_points: Record<string, number>;
+  };
+  definitions: { current_bad: string; forward_risk: string };
+  layers: EwsMethodologyLayer[];
+  variables: EwsVariable[];
+  variable_count: number;
+  not_a_risk_layer: { family: string; because: string; rules: EwsRuleView[] }[];
+  source_classes: Record<string, string>;
+  bureau_note: string;
+  glossary: { term: string; meaning: string; authority: string }[];
+  unsourced_shorthand: string;
+  by_product: {
+    product_code: string; product_label: string; rule_count: number;
+    rules: EwsRuleView[]; by_layer: Record<string, string[]>;
+    specific_to_this_product: string[];
+  }[];
+  synthetic: boolean;
+  disclaimer: string;
+}

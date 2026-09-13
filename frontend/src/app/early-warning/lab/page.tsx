@@ -27,6 +27,7 @@ import {
   type SignalSpecification,
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { isRetail } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 
 import { PrototypeNotice } from "../page";
@@ -109,6 +110,39 @@ export default function ModelLabPage() {
       </header>
 
       {overview.data && <PrototypeNotice notice={overview.data.notice} />}
+
+      {/*
+        §9. Two different things are called a model here, and a reader who
+        arrives on a page headed "Fit a model" reasonably concludes the Early
+        Warning score they just read on the portfolio has not been built yet.
+        It has: it is a governed rulebook, it is running, and it is written
+        down. This says which is which before anything else on the page.
+      */}
+      {isRetail() && (
+        <Card className="p-4" data-testid="lab-ews-methodology-link">
+          <p className="text-sm text-text-secondary">
+            The Early Warning score on the portfolio is{" "}
+            <span className="font-medium text-text-primary">
+              not fitted here
+            </span>
+            . It is the governed rulebook — twenty named rules rolled up into
+            six layers — and it is already running against every published
+            month. This Lab fits the separate Forward Risk Signal, a statistical
+            estimate of an IFRS 9 stage transition.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/early-warning/methodology"
+                    data-testid="lab-open-methodology">
+                Read the Early Warning methodology
+              </Link>
+            </Button>
+            <Button size="sm" variant="ghost" asChild>
+              <Link href="/early-warning">Back to the portfolio</Link>
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Tabs
         active={tab}

@@ -58,39 +58,53 @@ export function RetailEarlyWarningStrip({ month }: { month?: string }) {
     ? (100 * data.affected_exposure_sar) / data.portfolio_exposure_sar
     : null;
 
+  // §16: every cell opens Early Warning WITH THE FILTER THAT MADE IT.
+  //
+  // The strip used to carry one "Open" link to an unfiltered list, so a
+  // reader who had just read "232 on high or critical severity" arrived at
+  // 5,952 alerts and had to rebuild the filter by hand. Each href below lands
+  // on the screen that answers the cell: the portfolio for counts of
+  // customers and money, the signals list for counts of warnings.
+  const at = encodeURIComponent(data.snapshot_month);
   const cells = [
     {
       label: "Customers warned",
       value: data.distinct_customers.toLocaleString(),
       means: "Distinct customers with at least one warning. A customer with "
         + "four warnings is one customer.",
+      href: `/early-warning?month=${at}`,
     },
     {
       label: "Warnings raised",
       value: data.alert_count.toLocaleString(),
       means: "One per rule per customer or facility, so this is larger than "
         + "the number of customers and is not a queue length.",
+      href: `/early-warning/signals?month=${at}`,
     },
     {
       label: "On high or critical severity",
       value: severe.toLocaleString(),
       means: "Warnings from rules the rulebook marks HIGH or CRITICAL.",
+      href: `/early-warning/signals?month=${at}&severity=CRITICAL`,
     },
     {
       label: "Rules firing",
       value: String(byRule.filter((r) => (r.alerts || 0) > 0).length),
       means: `Of ${byRule.length} governed rules in rulebook `
         + `${data.rulebook_version}.`,
+      href: "/early-warning/methodology",
     },
     {
       label: "Exposure behind them",
       value: `SAR ${Math.round(data.affected_exposure_sar).toLocaleString()}`,
       means: "Each facility counted once, even where two rules cover it.",
+      href: `/early-warning?month=${at}&cohort=all`,
     },
     {
       label: "Share of the book",
       value: share === null ? "—" : `${share.toFixed(1)}%`,
       means: "Affected exposure over the whole retail gross carrying amount.",
+      href: `/early-warning?month=${at}`,
     },
   ];
 
@@ -102,11 +116,11 @@ export function RetailEarlyWarningStrip({ month }: { month?: string }) {
           {data.snapshot_month} under rulebook {data.rulebook_version}
         </p>
         <Link
-          href="/early-warning/signals"
+          href={`/early-warning?month=${at}`}
           className="text-[11px] text-text-muted underline-offset-4 hover:text-accent hover:underline"
           data-testid="retail-ews-strip-open"
         >
-          Open
+          Open Early Warning
         </Link>
       </div>
       <dl className="grid grid-cols-3 gap-x-4 gap-y-3 sm:grid-cols-6">
@@ -118,8 +132,15 @@ export function RetailEarlyWarningStrip({ month }: { month?: string }) {
                 <InfoPopover title={cell.label}>{cell.means}</InfoPopover>
               ) : null}
             </dt>
-            <dd className="mt-0.5 text-[15px] font-medium tabular-nums text-text-primary">
-              {cell.value}
+            <dd className="mt-0.5 text-[15px] font-medium tabular-nums">
+              <Link
+                href={cell.href}
+                className="text-text-primary underline-offset-4 hover:text-accent hover:underline"
+                data-testid={`retail-ews-strip-${cell.label.toLowerCase()
+                  .replace(/[^a-z0-9]+/g, "-")}`}
+              >
+                {cell.value}
+              </Link>
             </dd>
           </div>
         ))}

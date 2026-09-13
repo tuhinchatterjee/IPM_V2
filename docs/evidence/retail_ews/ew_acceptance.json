@@ -1,0 +1,1083 @@
+{
+ "suite": "Early Warning acceptance, EW-01 to EW-22",
+ "passed": 22,
+ "failed": 0,
+ "cases": [
+  {
+   "id": "EW-01",
+   "title": "Early Warning opens on the portfolio, with a month selector and a product selector",
+   "status": "PASS",
+   "note": "26.0s",
+   "checks": [
+    {
+     "check": "the portfolio view renders",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a month selector is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a product selector is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it defaults to the latest published month",
+     "passed": true,
+     "saw": "showing 2026-08, latest is 2026-08"
+    },
+    {
+     "check": "it defaults to all products",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-02",
+   "title": "Twelve headline figures, with customers counted apart from alerts",
+   "status": "PASS",
+   "note": "4.8s",
+   "checks": [
+    {
+     "check": "ews-kpi-customers reads the served customers",
+     "passed": true,
+     "saw": "screen 14251, api 14251"
+    },
+    {
+     "check": "ews-kpi-warned reads the served customers_warned",
+     "passed": true,
+     "saw": "screen 3896, api 3896"
+    },
+    {
+     "check": "ews-kpi-bad reads the served current_bad",
+     "passed": true,
+     "saw": "screen 391, api 391"
+    },
+    {
+     "check": "ews-kpi-forward reads the served forward_risk",
+     "passed": true,
+     "saw": "screen 28, api 28"
+    },
+    {
+     "check": "the CRITICAL count is the served one",
+     "passed": true,
+     "saw": "screen 2, api 2"
+    },
+    {
+     "check": "the HIGH count is the served one",
+     "passed": true,
+     "saw": "screen 69, api 69"
+    },
+    {
+     "check": "the MEDIUM count is the served one",
+     "passed": true,
+     "saw": "screen 670, api 670"
+    },
+    {
+     "check": "the LOW count is the served one",
+     "passed": true,
+     "saw": "screen 3155, api 3155"
+    },
+    {
+     "check": "exposure under warning is shown",
+     "passed": true,
+     "saw": "EXPOSURE UNDER WARNING\n\nSAR 422.9mn"
+    },
+    {
+     "check": "the share of retail exposure is shown",
+     "passed": true,
+     "saw": "% OF RETAIL EXPOSURE\n\n20.3%"
+    },
+    {
+     "check": "a portfolio EWS score is shown",
+     "passed": true,
+     "saw": "PORTFOLIO EWS SCORE\n\n14.0\n\n+0.4 on 2026-07"
+    },
+    {
+     "check": "a portfolio severity band is shown",
+     "passed": true,
+     "saw": "PORTFOLIO SEVERITY\n\nMEDIUM"
+    },
+    {
+     "check": "the alert count is not passed off as a customer count",
+     "passed": true,
+     "saw": "3896 customers carry 5952 alerts"
+    }
+   ]
+  },
+  {
+   "id": "EW-03",
+   "title": "The portfolio carries a 25-month EWS trend",
+   "status": "PASS",
+   "note": "4.4s",
+   "checks": [
+    {
+     "check": "the served trend is 25 months",
+     "passed": true,
+     "saw": "25"
+    },
+    {
+     "check": "a trend chart is drawn",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the first and last month are on the axis",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-04",
+   "title": "Every product has a dashboard card with a score, a severity, counts and a movement",
+   "status": "PASS",
+   "note": "4.4s",
+   "checks": [
+    {
+     "check": "PERSONAL_LOAN has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN shows its served score",
+     "passed": true,
+     "saw": "looking for 18.6"
+    },
+    {
+     "check": "PERSONAL_LOAN shows its severity band",
+     "passed": true,
+     "saw": "MEDIUM"
+    },
+    {
+     "check": "PERSONAL_LOAN shows its customer count",
+     "passed": true,
+     "saw": "6,781"
+    },
+    {
+     "check": "PERSONAL_LOAN shows a month-on-month movement",
+     "passed": true,
+     "saw": "2026-07"
+    },
+    {
+     "check": "PERSONAL_LOAN's alert count is its own, not the book's",
+     "passed": true,
+     "saw": "1674 of 5952"
+    },
+    {
+     "check": "PERSONAL_LOAN shows the exposure behind it",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN shows its served score",
+     "passed": true,
+     "saw": "looking for 16.1"
+    },
+    {
+     "check": "HOME_LOAN shows its severity band",
+     "passed": true,
+     "saw": "MEDIUM"
+    },
+    {
+     "check": "HOME_LOAN shows its customer count",
+     "passed": true,
+     "saw": "2,067"
+    },
+    {
+     "check": "HOME_LOAN shows a month-on-month movement",
+     "passed": true,
+     "saw": "2026-07"
+    },
+    {
+     "check": "HOME_LOAN's alert count is its own, not the book's",
+     "passed": true,
+     "saw": "476 of 5952"
+    },
+    {
+     "check": "HOME_LOAN shows the exposure behind it",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD shows its served score",
+     "passed": true,
+     "saw": "looking for 11.6"
+    },
+    {
+     "check": "CREDIT_CARD shows its severity band",
+     "passed": true,
+     "saw": "MEDIUM"
+    },
+    {
+     "check": "CREDIT_CARD shows its customer count",
+     "passed": true,
+     "saw": "5,853"
+    },
+    {
+     "check": "CREDIT_CARD shows a month-on-month movement",
+     "passed": true,
+     "saw": "2026-07"
+    },
+    {
+     "check": "CREDIT_CARD's alert count is its own, not the book's",
+     "passed": true,
+     "saw": "2515 of 5952"
+    },
+    {
+     "check": "CREDIT_CARD shows the exposure behind it",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN shows its served score",
+     "passed": true,
+     "saw": "looking for 8.8"
+    },
+    {
+     "check": "AUTO_LOAN shows its severity band",
+     "passed": true,
+     "saw": "LOW"
+    },
+    {
+     "check": "AUTO_LOAN shows its customer count",
+     "passed": true,
+     "saw": "3,117"
+    },
+    {
+     "check": "AUTO_LOAN shows a month-on-month movement",
+     "passed": true,
+     "saw": "2026-07"
+    },
+    {
+     "check": "AUTO_LOAN's alert count is its own, not the book's",
+     "passed": true,
+     "saw": "1914 of 5952"
+    },
+    {
+     "check": "AUTO_LOAN shows the exposure behind it",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-05",
+   "title": "Six layer trends on every product card, the empty sixth included",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a repayment trend is drawn",
+     "passed": true,
+     "saw": "4"
+    },
+    {
+     "check": "a affordability trend is drawn",
+     "passed": true,
+     "saw": "4"
+    },
+    {
+     "check": "a score trend is drawn",
+     "passed": true,
+     "saw": "4"
+    },
+    {
+     "check": "a structure trend is drawn",
+     "passed": true,
+     "saw": "4"
+    },
+    {
+     "check": "a bureau trend is drawn",
+     "passed": true,
+     "saw": "4"
+    },
+    {
+     "check": "the sixth layer is named rather than omitted",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "and says why it carries nothing",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-06",
+   "title": "Management commentary is generated from the product's own movements",
+   "status": "PASS",
+   "note": "4.2s",
+   "checks": [
+    {
+     "check": "every product has commentary",
+     "passed": true,
+     "saw": "{'PERSONAL_LOAN': 299, 'HOME_LOAN': 299, 'CREDIT_CARD': 219, 'AUTO_LOAN': 241}"
+    },
+    {
+     "check": "no two products share the same sentence",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN's commentary quotes its own computed score",
+     "passed": true,
+     "saw": "18.6 in Personal Finance rose from 17.6 to 18.6 (Medium), a move of +1.0. Driven by repayment behaviour (+3.9) and facility stru"
+    },
+    {
+     "check": "HOME_LOAN's commentary quotes its own computed score",
+     "passed": true,
+     "saw": "16.1 in Home Finance rose from 15.9 to 16.1 (Medium), a move of +0.2. Driven by repayment behaviour (+1.8) and bureau & external"
+    },
+    {
+     "check": "CREDIT_CARD's commentary quotes its own computed score",
+     "passed": true,
+     "saw": "11.6 in Credit Card fell from 11.9 to 11.6 (Medium), a move of -0.3. Driven by affordability & income (-1.5) and score dynamics "
+    },
+    {
+     "check": "AUTO_LOAN's commentary quotes its own computed score",
+     "passed": true,
+     "saw": "8.8 in Auto Finance rose from 8.1 to 8.8 (Low), a move of +0.7. Driven by affordability & income (+1.5) and repayment behaviour"
+    }
+   ]
+  },
+  {
+   "id": "EW-07",
+   "title": "A product opens subsegments cut on dimensions that belong to that product",
+   "status": "PASS",
+   "note": "26.0s",
+   "checks": [
+    {
+     "check": "the subsegment view opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the address names the product",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD"
+    },
+    {
+     "check": "more than one dimension is offered",
+     "passed": true,
+     "saw": "['card_behaviour_segment', 'utilisation_band', 'behavioural_score_band', 'salary_transfer_flag', 'new_to_bank_at_origination_flag', 'origination_channel']"
+    },
+    {
+     "check": "the card_behaviour_segment cut is offered on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the utilisation_band cut is offered on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the behavioural_score_band cut is offered on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the salary_transfer_flag cut is offered on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the new_to_bank_at_origination_flag cut is offered on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the origination_channel cut is offered on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a card-only dimension is among them",
+     "passed": true,
+     "saw": "['card_behaviour_segment', 'utilisation_band', 'behavioural_score_band', 'salary_transfer_flag', 'new_to_bank_at_origination_flag', 'origination_channel']"
+    },
+    {
+     "check": "each subsegment carries its own reason codes",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-08",
+   "title": "A subsegment opens the customers inside it",
+   "status": "PASS",
+   "note": "6.1s",
+   "checks": [
+    {
+     "check": "the customer list opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the address names the subsegment",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&dimension=card_behaviour_segment&value=TRANSACTOR"
+    },
+    {
+     "check": "customers are listed",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-09",
+   "title": "The customer list carries every required column, with the behavioural score always on it",
+   "status": "PASS",
+   "note": "0.1s",
+   "checks": [
+    {
+     "check": "a CUSTOMER column is present",
+     "passed": true,
+     "saw": "CUSTOMER"
+    },
+    {
+     "check": "a PRODUCT column is present",
+     "passed": true,
+     "saw": "PRODUCT"
+    },
+    {
+     "check": "a EXPOSURE column is present",
+     "passed": true,
+     "saw": "EXPOSURE"
+    },
+    {
+     "check": "a DPD column is present",
+     "passed": true,
+     "saw": "DPD"
+    },
+    {
+     "check": "a STAGE column is present",
+     "passed": true,
+     "saw": "STAGE"
+    },
+    {
+     "check": "a BAD NOW column is present",
+     "passed": true,
+     "saw": "BAD NOW"
+    },
+    {
+     "check": "a FORWARD column is present",
+     "passed": true,
+     "saw": "FORWARD"
+    },
+    {
+     "check": "a EWS column is present",
+     "passed": true,
+     "saw": "EWS"
+    },
+    {
+     "check": "a SEVERITY column is present",
+     "passed": true,
+     "saw": "SEVERITY"
+    },
+    {
+     "check": "a BEHAV column is present",
+     "passed": true,
+     "saw": "BEHAV"
+    },
+    {
+     "check": "a APP. column is present",
+     "passed": true,
+     "saw": "APP."
+    },
+    {
+     "check": "a WORST LAYER column is present",
+     "passed": true,
+     "saw": "WORST LAYER"
+    },
+    {
+     "check": "a TOP REASONS column is present",
+     "passed": true,
+     "saw": "TOP REASONS"
+    },
+    {
+     "check": "a behavioural score is rendered for every row",
+     "passed": true,
+     "saw": "200"
+    },
+    {
+     "check": "and it is a number rather than a dash",
+     "passed": true,
+     "saw": "['348E', '389E', '397E', '300E', '523E']"
+    }
+   ]
+  },
+  {
+   "id": "EW-10",
+   "title": "Already bad and forward risk are filters, and their counts agree with the portfolio",
+   "status": "PASS",
+   "note": "38.4s",
+   "checks": [
+    {
+     "check": "the already-bad card opens the list filtered",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?cohort=current_bad"
+    },
+    {
+     "check": "the cohort chip count matches the headline",
+     "passed": true,
+     "saw": "chip Currently bad / delinquent (391), headline 391"
+    },
+    {
+     "check": "the footer distinguishes rows from customers",
+     "passed": true,
+     "saw": "Showing 200 of 404 rows in this cohort, covering 391 customers. One row per customer per product, so a customer who holds two products appears against each."
+    },
+    {
+     "check": "every listed row is flagged bad now",
+     "passed": true,
+     "saw": "200"
+    },
+    {
+     "check": "the definition of already bad is on the screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the forward-risk chip count matches the headline",
+     "passed": true,
+     "saw": "chip Performing \u2014 high forward risk (28), headline 28"
+    },
+    {
+     "check": "every listed row is flagged forward risk",
+     "passed": true,
+     "saw": "28"
+    },
+    {
+     "check": "the definition of forward risk is on the screen",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-11",
+   "title": "A customer opens with a 25-month trend for every scored layer",
+   "status": "PASS",
+   "note": "16.0s",
+   "checks": [
+    {
+     "check": "the customer detail opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a repayment panel is on the detail",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a affordability panel is on the detail",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a score panel is on the detail",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a structure panel is on the detail",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a bureau panel is on the detail",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the address names the customer",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?customer=RC-0001867&cohort=forward_risk"
+    },
+    {
+     "check": "the history covers the customer's months on book, up to the panel's twenty-five",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "every layer trend runs the full history",
+     "passed": true,
+     "saw": "[5, 5, 5, 5, 5]"
+    },
+    {
+     "check": "the behavioural score is shown on the detail",
+     "passed": true,
+     "saw": "BEHAVIOURAL SCORE\n\n589\n\nwas 718"
+    },
+    {
+     "check": "a long-tenured customer carries all twenty-five months",
+     "passed": true,
+     "saw": "[25, 25, 25, 25, 2, 25, 5, 25]"
+    },
+    {
+     "check": "the list and the detail agree on a customer's score and band",
+     "passed": true,
+     "saw": "[]"
+    }
+   ]
+  },
+  {
+   "id": "EW-12",
+   "title": "The customer carries a reason-code timeline that opens the rule behind each code",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a reason-code timeline is on the detail",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it names governed rule ids",
+     "passed": true,
+     "saw": "REASON-CODE TIMELINE\n\n2026-08\nHIGH\nRET-EWS-003\nRET-EWS-009\nRET-EWS-013\n2026-04\nLOW\nRET-EWS-009"
+    },
+    {
+     "check": "each code links to the rule that raised it",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-13",
+   "title": "The methodology page describes the model that is already running",
+   "status": "PASS",
+   "note": "9.5s",
+   "checks": [
+    {
+     "check": "the page renders",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it states the rulebook_version",
+     "passed": true,
+     "saw": "retail-ews-rulebook-1.0.0"
+    },
+    {
+     "check": "it states the layers_version",
+     "passed": true,
+     "saw": "1.0.0"
+    },
+    {
+     "check": "it states the latest_scoring_date",
+     "passed": true,
+     "saw": "2026-08"
+    },
+    {
+     "check": "it states the purpose",
+     "passed": true,
+     "saw": "To identify retail customers whose position is deteriorating"
+    },
+    {
+     "check": "it states the target",
+     "passed": true,
+     "saw": "A governed signal firing against the customer at a month-end"
+    },
+    {
+     "check": "it states the horizon",
+     "passed": true,
+     "saw": "One reporting month. Every rule is evaluated at a month-end "
+    },
+    {
+     "check": "it states the eligible_population",
+     "passed": true,
+     "saw": "Every open retail facility in the published book at the scor"
+    },
+    {
+     "check": "it never asks the reader to fit a model",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "all six layers are listed",
+     "passed": true,
+     "saw": "['repayment', 'affordability', 'score', 'structure', 'bureau', 'cycle']"
+    },
+    {
+     "check": "the customer and population band tables are both shown",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-14",
+   "title": "Every input the rulebook reads is documented with meaning, source, transformation, direction, refresh, products, weight and reason code",
+   "status": "PASS",
+   "note": "0.1s",
+   "checks": [
+    {
+     "check": "the served dictionary covers every rule input",
+     "passed": true,
+     "saw": "27"
+    },
+    {
+     "check": "every input is rendered on the page",
+     "passed": true,
+     "saw": "[]"
+    },
+    {
+     "check": "RAW INPUT is stated",
+     "passed": true,
+     "saw": "RAW INPUT"
+    },
+    {
+     "check": "TRANSFORMATION is stated",
+     "passed": true,
+     "saw": "TRANSFORMATION"
+    },
+    {
+     "check": "DIRECTION OF RISK is stated",
+     "passed": true,
+     "saw": "DIRECTION OF RISK"
+    },
+    {
+     "check": "REFRESH FREQUENCY is stated",
+     "passed": true,
+     "saw": "REFRESH FREQUENCY"
+    },
+    {
+     "check": "APPLICABLE PRODUCTS is stated",
+     "passed": true,
+     "saw": "APPLICABLE PRODUCTS"
+    },
+    {
+     "check": "WEIGHT CARRIED is stated",
+     "passed": true,
+     "saw": "WEIGHT CARRIED"
+    },
+    {
+     "check": "REASON CODES GENERATED is stated",
+     "passed": true,
+     "saw": "REASON CODES GENERATED"
+    },
+    {
+     "check": "no input is left undocumented",
+     "passed": true,
+     "saw": "[]"
+    }
+   ]
+  },
+  {
+   "id": "EW-15",
+   "title": "Internal, external and derived are distinguished, and the bureau proxy is not called a live feed",
+   "status": "PASS",
+   "note": "0.1s",
+   "checks": [
+    {
+     "check": "Internal is defined on the page",
+     "passed": true,
+     "saw": "Internal"
+    },
+    {
+     "check": "External is defined on the page",
+     "passed": true,
+     "saw": "External"
+    },
+    {
+     "check": "Derived is defined on the page",
+     "passed": true,
+     "saw": "Derived"
+    },
+    {
+     "check": "the bureau note is shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it says the bureau inputs are synthetic",
+     "passed": true,
+     "saw": "THE BUREAU INPUTS IN THIS DEPLOYMENT ARE A SYNTHETIC PROXY GENERATED WITH THE REST OF THE DEMONSTRATION BOOK. THERE IS NO LIVE BUREAU CONNECTION AND NO BUREAU A"
+    },
+    {
+     "check": "it says there is no live bureau connection",
+     "passed": true,
+     "saw": "THE BUREAU INPUTS IN THIS DEPLOYMENT ARE A SYNTHETIC PROXY GENERATED WITH THE REST OF THE DEMONSTRATION BOOK. THERE IS NO LIVE BUREAU CONNECTION AND NO BUREAU A"
+    },
+    {
+     "check": "nothing on the page claims a live bureau feed",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-16",
+   "title": "T, A and C are stated to have no governed meaning rather than being invented one",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "the statement is on the methodology page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it names all three",
+     "passed": true,
+     "saw": "T, A and C are not governed abbreviations in this deployment's early warning implementation. They appear nowhere in the rulebook, the taxonomy, the retail schema or the forward-risk signal, so no mean"
+    },
+    {
+     "check": "no meaning is invented for them",
+     "passed": true,
+     "saw": "T, A and C are not governed abbreviations in this deployment's early warning implementation. They appear nowhere in the rulebook, the taxonomy, the retail schema or the forward-risk signal, so no mean"
+    },
+    {
+     "check": "a glossary defines the terms that DO have meanings",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-17",
+   "title": "The methodology says which rules apply to each product",
+   "status": "PASS",
+   "note": "0.1s",
+   "checks": [
+    {
+     "check": "CREDIT_CARD has a card",
+     "passed": true,
+     "saw": "CREDIT_CARD"
+    },
+    {
+     "check": "CREDIT_CARD states how many rules apply",
+     "passed": true,
+     "saw": "18 in Credit Card\n18 of 19 rules\n\nOnly this product: Over-limit activity, Persistent m"
+    },
+    {
+     "check": "PERSONAL_LOAN has a card",
+     "passed": true,
+     "saw": "PERSONAL_LOAN"
+    },
+    {
+     "check": "PERSONAL_LOAN states how many rules apply",
+     "passed": true,
+     "saw": "14 in Personal Finance\n14 of 19 rules\n\nNo rule in the rulebook is specific to this pro"
+    },
+    {
+     "check": "AUTO_LOAN has a card",
+     "passed": true,
+     "saw": "AUTO_LOAN"
+    },
+    {
+     "check": "AUTO_LOAN states how many rules apply",
+     "passed": true,
+     "saw": "16 in Auto Finance\n16 of 19 rules\n\nOnly this product: Balloon payment approaching, Col"
+    },
+    {
+     "check": "HOME_LOAN has a card",
+     "passed": true,
+     "saw": "HOME_LOAN"
+    },
+    {
+     "check": "HOME_LOAN states how many rules apply",
+     "passed": true,
+     "saw": "15 in Home Finance\n15 of 19 rules\n\nOnly this product: Collateral cover deterioration\n\n"
+    },
+    {
+     "check": "the products do not all carry the same rules",
+     "passed": true,
+     "saw": "{'CREDIT_CARD': 18, 'PERSONAL_LOAN': 14, 'AUTO_LOAN': 16, 'HOME_LOAN': 15}"
+    }
+   ]
+  },
+  {
+   "id": "EW-18",
+   "title": "The signals screen says how many alerts it is showing, out of how many there are",
+   "status": "PASS",
+   "note": "17.1s",
+   "checks": [
+    {
+     "check": "the line names the true total",
+     "passed": true,
+     "saw": "5,952 in Showing 25 of 5,952 alerts. The server sends the worst 500 at a time; narrow by severity, layer, product or rule to see the rest."
+    },
+    {
+     "check": "it does not present the page size as the finding",
+     "passed": true,
+     "saw": "Showing 25 of 5,952 alerts. The server sends the worst 500 at a time; narrow by severity, layer, product or rule to see the rest."
+    },
+    {
+     "check": "the headline figure is the true total",
+     "passed": true,
+     "saw": "Showing 25 of 5,952 alerts. The server sends the worst 500 at a time; narrow by severity, layer, product or rule to see the rest."
+    },
+    {
+     "check": "nothing on the page reads 'ALERTS 500'",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-19",
+   "title": "Rule, layer, severity and product chips all filter the list and the count",
+   "status": "PASS",
+   "note": "55.5s",
+   "checks": [
+    {
+     "check": "the rule chip narrows the count to the served one",
+     "passed": true,
+     "saw": "348 in Showing 25 of 348 alerts matching these filters."
+    },
+    {
+     "check": "the layer chip narrows the count to the served one",
+     "passed": true,
+     "saw": "118 in Showing 25 of 118 alerts matching these filters."
+    },
+    {
+     "check": "the severity chip narrows the count to the served one",
+     "passed": true,
+     "saw": "232 in Showing 25 of 232 alerts matching these filters."
+    },
+    {
+     "check": "the product chip narrows the count to the served one",
+     "passed": true,
+     "saw": "1,700 in Showing 25 of 1,700 alerts. The server sends the worst 500 at a time; narrow by severity, layer, product or rule to see the rest."
+    },
+    {
+     "check": "the decks survive a click so another can be chosen",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-20",
+   "title": "The Cockpit's Early Warning strip deep-links into Early Warning with the filter applied",
+   "status": "PASS",
+   "note": "34.5s",
+   "checks": [
+    {
+     "check": "the strip is on the Cockpit",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the severity figure is a link",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "and it carries the severity filter",
+     "passed": true,
+     "saw": "/early-warning/signals?month=2026-08&severity=CRITICAL"
+    },
+    {
+     "check": "it lands on the signals screen already filtered",
+     "passed": true,
+     "saw": "CRITICAL"
+    },
+    {
+     "check": "showing the filtered count, not the whole book",
+     "passed": true,
+     "saw": "Showing 25 of 232 alerts matching these filters."
+    }
+   ]
+  },
+  {
+   "id": "EW-21",
+   "title": "A prebuilt Credit Card story: five already bad, five still performing",
+   "status": "PASS",
+   "note": "32.4s",
+   "checks": [
+    {
+     "check": "the story is on the landing page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "five customers are already bad",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "five are still performing at high forward risk",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "every one of the ten is named on screen",
+     "passed": true,
+     "saw": "[]"
+    },
+    {
+     "check": "each carries a sentence built from its own numbers",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the two halves are separately labelled",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a named customer opens their own detail",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&customer=RC-0012851"
+    }
+   ]
+  },
+  {
+   "id": "EW-22",
+   "title": "The Model Lab points at the running Early Warning methodology instead of asking for a fit",
+   "status": "PASS",
+   "note": "10.4s",
+   "checks": [
+    {
+     "check": "it says the EWS score is not fitted here",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it links to the methodology",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "fitted model versions are listed rather than an empty state",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the page does not open on an empty fitting form",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  }
+ ]
+}
