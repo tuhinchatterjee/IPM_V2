@@ -272,10 +272,53 @@ def _require_str_list(payload: Any, key: str, path: str) -> tuple[str, ...]:
     return tuple(out)
 
 
-def parse_intent(payload: Any, *, path: str = "intent") -> Intent:
-    if not isinstance(payload, dict):
+#: What to send, when nothing has been declared yet and nothing can be
+#: carried. Naming the fields beats naming the type: "must be an object" told
+#: the analyst what was wrong and never what to do about it.
+_INTENT_HELP = (
+    "Declare it once with query_mode (one of "
+    + ", ".join(QUERY_MODES) + "), owner (one of " + ", ".join(OWNERS)
+    + "), understood_request, response_language and public_rationale. Later "
+      "calls in this run inherit it and may omit it.")
+
+
+def parse_intent(payload: Any, *, path: str = "intent",
+                 carried: "Intent | None" = None) -> Intent:
+    """The run's intent, authored once and carried thereafter.
+
+    `intent` used to be required on all five tools, so a nine-field object
+    was retyped on every catalogue read, every artifact read, every execution
+    and the answer. It does not change between them, and a field restated for
+    no reason is a field that will eventually come back wrong -- which is how
+    `intent must be an object` reached a user's screen.
+
+    So: absent or empty means "as already declared", and the server supplies
+    what it is already holding. A restatement is still honoured, because the
+    analyst may legitimately refine its reading of the question mid-run.
+
+    A JSON string of the object is read rather than refused. That is a real
+    provider behaviour and undoing it is mechanical; being strict about it
+    buys nothing and costs a round trip.
+    """
+    if isinstance(payload, str):
+        text = payload.strip()
+        if text.startswith("{"):
+            try:
+                payload = json.loads(text)
+            except ValueError:
+                pass
+    if payload is None or payload == {} or payload == "":
+        if carried is not None:
+            return carried
         raise Rejection("INVALID_MODEL_OUTPUT",
-                        f"{path} must be an object.", field_path=path)
+                        f"This run has no {path} yet. " + _INTENT_HELP,
+                        field_path=path)
+    if not isinstance(payload, dict):
+        raise Rejection(
+            "INVALID_MODEL_OUTPUT",
+            f"{path} must be an object, not a {type(payload).__name__}. "
+            + _INTENT_HELP,
+            field_path=path)
     mode = _require_text(payload, "query_mode", path)
     if mode not in QUERY_MODES:
         raise Rejection(
@@ -500,11 +543,12 @@ def units_display(units: dict[str, str]) -> str:
                      for column, unit in units.items())
 
 
-def parse_execution(payload: Any, *, max_steps: int) -> ExecutionSubmission:
+def parse_execution(payload: Any, *, max_steps: int,
+                    carried: "Intent | None" = None) -> ExecutionSubmission:
     if not isinstance(payload, dict):
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "execute_analysis arguments must be an object.")
-    intent = parse_intent(payload.get("intent"))
+    intent = parse_intent(payload.get("intent"), carried=carried)
     scope = _optional_object(payload, "scope", "execute_analysis")
     return ExecutionSubmission(
         intent=intent,
@@ -546,11 +590,12 @@ class CatalogRequest:
     cursor: str
 
 
-def parse_catalog(payload: Any) -> CatalogRequest:
+def parse_catalog(payload: Any, *,
+                  carried: "Intent | None" = None) -> CatalogRequest:
     if not isinstance(payload, dict):
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "inspect_catalog arguments must be an object.")
-    intent = parse_intent(payload.get("intent"))
+    intent = parse_intent(payload.get("intent"), carried=carried)
     detail = _optional_str_list(payload, "detail", "inspect_catalog")
     for d in detail:
         if d not in CATALOG_DETAILS:
@@ -608,7 +653,9 @@ class ProductKnowledgeRequest:
     detail: str
 
 
-def parse_product_knowledge(payload: Any) -> ProductKnowledgeRequest:
+def parse_product_knowledge(payload: Any, *,
+                            carried: "Intent | None" = None
+                            ) -> ProductKnowledgeRequest:
     """Parse a product-knowledge request.
 
     Reading product facts is not analysis, so this is available in every mode
@@ -621,7 +668,7 @@ def parse_product_knowledge(payload: Any) -> ProductKnowledgeRequest:
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "inspect_product_knowledge arguments must be an "
                         "object.")
-    intent = parse_intent(payload.get("intent"))
+    intent = parse_intent(payload.get("intent"), carried=carried)
     topics = _optional_str_list(payload, "topics",
                                "inspect_product_knowledge")
     for topic in topics:
@@ -655,11 +702,12 @@ class ArtifactRequest:
 ARTIFACT_KINDS: tuple[str, ...] = ("result", "thread_turn")
 
 
-def parse_artifact(payload: Any) -> ArtifactRequest:
+def parse_artifact(payload: Any, *,
+                   carried: "Intent | None" = None) -> ArtifactRequest:
     if not isinstance(payload, dict):
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "read_artifact arguments must be an object.")
-    intent = parse_intent(payload.get("intent"))
+    intent = parse_intent(payload.get("intent"), carried=carried)
     kind = _require_text(payload, "artifact_kind", "read_artifact")
     if kind not in ARTIFACT_KINDS:
         raise Rejection(
@@ -844,11 +892,12 @@ def _parse_evidence(raw: Any, path: str) -> EvidenceRef:
         scope_ref=str(raw.get("scope_ref") or ""))
 
 
-def parse_final(payload: Any) -> FinalResponse:
+def parse_final(payload: Any, *,
+                carried: "Intent | None" = None) -> FinalResponse:
     if not isinstance(payload, dict):
         raise Rejection("ANSWER_VALIDATION",
                         "finalize_response arguments must be an object.")
-    intent = parse_intent(payload.get("intent"))
+    intent = parse_intent(payload.get("intent"), carried=carried)
     disposition = _require_text(payload, "disposition", "finalize_response")
     if disposition not in DISPOSITIONS:
         raise Rejection(
@@ -1029,6 +1078,20 @@ def _inline(node: Any, defs: dict[str, Any]) -> Any:
     return node
 
 
+def _intent_optional(schema: dict[str, Any]) -> dict[str, Any]:
+    """`intent` is authored once per run, not retyped on every call.
+
+    It stays in `properties`, because the analyst declares it and may refine
+    it. It leaves `required`, because a nine-field object restated four times
+    a run is four chances to restate it wrong -- which is exactly how
+    `intent must be an object` reached a user's screen.
+    """
+    out = dict(schema)
+    out["required"] = [name for name in out.get("required", [])
+                       if name != "intent"]
+    return out
+
+
 _DESCRIPTIONS = {
     TOOL_INSPECT: ("Read exact catalog metadata for the authorized "
                    "corporate_cockpit release: relation names and grains, "
@@ -1081,8 +1144,9 @@ def provider_tools(*, withhold: tuple[str, ...] = ()) -> list[dict[str, Any]]:
     for name in TOOL_NAMES:
         if name in blocked:
             continue
+        schema = _intent_optional(_inline(_load(files[name]), defs))
         tools.append({"name": name, "description": _DESCRIPTIONS[name],
-                      "input_schema": _inline(_load(files[name]), defs)})
+                      "input_schema": schema})
     return tools
 
 

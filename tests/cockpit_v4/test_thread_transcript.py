@@ -290,3 +290,35 @@ def test_a_seeded_investigation_thread_is_named_after_its_case(client):
     body = client.get(f"{P}/threads/{thread_id}").json()
     assert body["title"] == item["headline"][:120]
     assert body["turns"] == []
+
+
+def test_a_thread_is_named_as_soon_as_it_has_a_question(client):
+    """§23. Not when the answer lands -- when the question is asked.
+
+    The title used to be written by `append_turn`, which runs when a turn
+    SETTLES. So a reader watched "New conversation" for the whole time the
+    analysis was working, and a thread whose run failed kept that name for
+    good. The title is the question; nothing has to finish for it to be true.
+    """
+    started = client.post(f"{P}/runs", json={
+        "question": "What is driving Stage 2 and ECL growth?",
+        "mode": "standard"})
+    assert started.status_code == 202, started.text
+    thread_id = started.json()["thread_id"]
+
+    body = client.get(f"{P}/threads/{thread_id}").json()
+    assert body["title"] == "What is driving Stage 2 and ECL growth?"
+    # And it is there before any turn has been recorded.
+    assert body["turns"] == []
+
+
+def test_a_second_question_does_not_rename_the_thread(client):
+    """The conversation is named after what opened it, not its latest turn."""
+    first = client.post(f"{P}/runs", json={
+        "question": "ECL decomposition", "mode": "standard"})
+    thread_id = first.json()["thread_id"]
+    client.post(f"{P}/runs", json={
+        "question": "and by sector?", "mode": "standard",
+        "thread_id": thread_id})
+    assert client.get(f"{P}/threads/{thread_id}").json()["title"] == (
+        "ECL decomposition")

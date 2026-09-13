@@ -170,6 +170,13 @@ async def start_run(body: StartRun, request: Request,
             tenant_id=str(who.get("tenant") or ""),
             principal_id=str(who.get("id") or ""))
 
+    # A conversation is named the moment it has a question in it, not when
+    # the answer lands. Naming it on `append_turn` meant a reader watched a
+    # thread called "New conversation" for the whole time it was working --
+    # and a thread whose run failed kept that name for ever. No model call:
+    # the title is the question.
+    store.title_thread_from_question(thread_id, body.question)
+
     limits = config_mod.limits_for(mode)
 
     # An idempotent retry is the SAME run. It is resolved before the

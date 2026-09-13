@@ -679,7 +679,7 @@ class Orchestrator:
     # -- inspect_catalog -------------------------------------------------
 
     def _do_catalog(self, call) -> None:
-        request = parse_catalog(call.arguments)
+        request = parse_catalog(call.arguments, carried=self.intent)
         self._record_intent(request.intent)
         self.ledger.spend_catalog_call()
         self._advance(st.TOOL_RUNNING, operation=TOOL_INSPECT)
@@ -750,7 +750,8 @@ class Orchestrator:
         """
         from backend.cockpit_v4 import product_knowledge as pk
 
-        request = parse_product_knowledge(call.arguments)
+        request = parse_product_knowledge(call.arguments,
+                                          carried=self.intent)
         self._record_intent(request.intent)
         self.ledger.check_deadline()
         self.product_calls += 1
@@ -782,7 +783,7 @@ class Orchestrator:
     # -- read_artifact ---------------------------------------------------
 
     def _do_artifact(self, call) -> None:
-        request = parse_artifact(call.arguments)
+        request = parse_artifact(call.arguments, carried=self.intent)
         self._record_intent(request.intent)
         self.ledger.spend_artifact_read()
         self._advance(st.TOOL_RUNNING, operation=TOOL_READ)
@@ -801,12 +802,26 @@ class Orchestrator:
     # -- execute_analysis ------------------------------------------------
 
     def _do_execute(self, call) -> None:
+        # The allowance widens HERE, before anything expensive and before any
+        # field of this request has been parsed.
+        #
+        # It used to widen inside `_record_intent`, which needs a well-formed
+        # `intent` to have been parsed first. So a run whose analyst declared
+        # DATA_ANALYSIS by submitting SQL still executed that SQL on the
+        # Product Help clock, and a malformed `intent` meant the clock never
+        # widened at all -- sixty seconds, spent on a query that needed more,
+        # and a public failure naming the parser.
+        #
+        # Asking to execute analysis IS the declaration. Nothing about the
+        # budget needs the model to also say it in a field.
+        self._adopt_analytical_limits_for_tool(TOOL_EXECUTE)
         # Counted BEFORE validation. A fully received execute_analysis
         # request cost a generation and a validation pass whether or not it
         # was well formed; free invalid submissions are an unbounded loop.
         ordinal = self.ledger.spend_submission()
         submission = parse_execution(
-            call.arguments, max_steps=self.ledger.limits.steps_per_batch)
+            call.arguments, max_steps=self.ledger.limits.steps_per_batch,
+            carried=self.intent)
         self._record_intent(submission.intent)
 
         try:
@@ -990,7 +1005,7 @@ class Orchestrator:
     # -- finalize_response -----------------------------------------------
 
     def _do_finalize(self, call) -> Outcome | None:
-        final = parse_final(call.arguments)
+        final = parse_final(call.arguments, carried=self.intent)
         self._record_intent(final.intent)
         self._advance(st.FINAL_VALIDATING, operation=TOOL_FINALIZE)
 
@@ -1102,15 +1117,31 @@ class Orchestrator:
                                   "summary": summary,
                                   "detail": dict(detail or {})}
 
+    #: Tools whose use IS a declaration of analysis. Reading the catalogue is
+    #: not one of them: a Product Help answer may legitimately look a field
+    #: up, and widening the clock for that would be widening it for
+    #: everything.
+    _ANALYTICAL_TOOLS = (TOOL_EXECUTE,)
+
+    def _adopt_analytical_limits_for_tool(self, tool: str) -> None:
+        """Asking to run an analysis is asking for the analysis allowance."""
+        if tool in self._ANALYTICAL_TOOLS:
+            self._widen_to_analytical()
+
     def _adopt_analytical_limits(self, intent) -> None:
         """A declared analysis gets the analytical time and cost allowance.
 
         The mode is not knowable at intake -- the question arrives as text --
-        so the run starts on the product-help allowance and widens here, once
-        and only upward, when the analyst says what this turn is. A Product
-        Help run therefore keeps the tight bound it should have.
+        so the run starts on the product-help allowance and widens here or at
+        the first analytical tool, once and only upward. A Product Help run
+        therefore keeps the tight bound it should have.
         """
-        if self._analytical or intent.query_mode != contracts_mod.DATA_ANALYSIS:
+        if intent.query_mode != contracts_mod.DATA_ANALYSIS:
+            return
+        self._widen_to_analytical()
+
+    def _widen_to_analytical(self) -> None:
+        if self._analytical:
             return
         self._analytical = True
         report = self.ledger.adopt(
