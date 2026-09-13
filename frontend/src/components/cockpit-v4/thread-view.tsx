@@ -668,14 +668,6 @@ function ThreadHeader({
         >
           Rename
         </button>
-        <button
-          type="button"
-          data-testid="v4-thread-home"
-          onClick={onHome}
-          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
-        >
-          Cockpit home
-        </button>
       </div>
       </div>
     </header>

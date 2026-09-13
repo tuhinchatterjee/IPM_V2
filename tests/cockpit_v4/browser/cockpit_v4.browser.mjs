@@ -1823,7 +1823,7 @@ await test("Continue where you left off uses real V4 threads", async () => {
     await waitForAnswer(page);
     // Asking now opens a thread at its own URL, so the landing page has to
     // be revisited -- reloading would only reload the conversation.
-    await page.click('[data-testid="v4-thread-home"]');
+    await page.click('[data-testid="v4-back-to-cockpit"]');
     await page.waitForSelector('[data-testid="continue-where-you-left-off"]',
       { timeout: 60_000 });
     await page.waitForSelector('[data-testid="continue-thread"]',

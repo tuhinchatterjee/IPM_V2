@@ -20,6 +20,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from backend.cockpit_v4 import routes
+from backend.cockpit_v4 import states as st
 
 P = "/api/v1/cockpit-v4"
 
@@ -322,3 +323,69 @@ def test_a_second_question_does_not_rename_the_thread(client):
         "thread_id": thread_id})
     assert client.get(f"{P}/threads/{thread_id}").json()["title"] == (
         "ECL decomposition")
+
+
+def test_the_turn_is_written_before_the_run_is_marked_terminal(
+        drive, store_db, release_id):
+    """§53. A terminal run whose thread is still empty is a race, not a flake.
+
+    The transcript row used to be written AFTER `update_state(terminal=True)`.
+    The ordering was observable: a reader who clicked back the instant the
+    answer appeared reached the landing page before the turn existed, and
+    "Continue where you left off" -- which lists threads that HAVE a turn --
+    did not list the conversation they had just held. It appeared a moment
+    later, which is worse than never, because nobody is looking by then.
+
+    This watches the ordering itself rather than timing it, so it cannot pass
+    by being lucky.
+    """
+    from conftest import ScriptedResult, final, intent, tool_call
+
+    seen: dict = {}
+    original = type(store_db).update_state
+
+    def watched(self, run_id, **kwargs):
+        if kwargs.get("terminal") and kwargs.get("final_response") is not None:
+            record = self.get_run(run_id)
+            seen[run_id] = [t["run_id"]
+                            for t in self.thread_turns(record.thread_id)]
+        return original(self, run_id, **kwargs)
+
+    type(store_db).update_state = watched
+    try:
+        outcome, _, record = drive("Who are you?", [
+            ScriptedResult(tool_calls=[tool_call(
+                "finalize_response",
+                final(intent=intent("PRODUCT_HELP", "COCKPIT"),
+                      narrative="CreditProbe Cockpit analyses a credit "
+                                "book."))])])
+    finally:
+        type(store_db).update_state = original
+
+    assert outcome.state == st.COMPLETED, outcome.message
+    assert record.run_id in seen, "the run never settled with a response"
+    assert record.run_id in seen[record.run_id], (
+        "the run was marked terminal while its thread was still empty")
+
+
+def test_one_run_is_one_turn_however_often_it_settles(drive, store_db,
+                                                      release_id):
+    """Writing the turn early is only safe if writing it twice cannot."""
+    from conftest import ScriptedResult, final, intent, tool_call
+
+    outcome, _, record = drive("Who are you?", [
+        ScriptedResult(tool_calls=[tool_call(
+            "finalize_response",
+            final(intent=intent("PRODUCT_HELP", "COCKPIT"),
+                  narrative="CreditProbe Cockpit analyses a credit book."))])])
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    settled = store_db.get_run(record.run_id)
+    first = store_db.append_turn(
+        thread_id=settled.thread_id, run_id=record.run_id,
+        question=settled.question, answer=settled.final_response or {})
+    second = store_db.append_turn(
+        thread_id=settled.thread_id, run_id=record.run_id,
+        question=settled.question, answer=settled.final_response or {})
+    assert first == second, "a second settle wrote a second copy of the turn"
+    assert len(store_db.thread_turns(settled.thread_id)) == 1

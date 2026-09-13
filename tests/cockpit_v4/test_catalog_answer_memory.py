@@ -278,10 +278,16 @@ def _finalizer(store_db, release_id, artifacts=()):
 def test_an_invalid_chart_is_dropped_without_another_analysis(store_db,
                                                               release_id):
     """V4-AT-095."""
+    # Four sectors, because the valid chart has to survive on its own merits:
+    # a one-row result is dropped by the SHAPE rule, and this test is about
+    # the column rule. Both drop charts; only one of them is under test here.
     artifact_id = store_db.put_artifact(
         run_id="r", tenant_id="t", kind="result", release_id=release_id,
-        scope={}, columns=["sector", "ead"], rows=[{"sector": "IT",
-                                                    "ead": 1.0}])
+        scope={}, columns=["sector", "ead"],
+        rows=[{"sector": "IT", "ead": 1.0},
+              {"sector": "Manufacturing", "ead": 2.0},
+              {"sector": "Real Estate", "ead": 3.0},
+              {"sector": "Retail Trade", "ead": 4.0}])
     finalizer = _finalizer(store_db, release_id, {artifact_id})
     body = final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
                  narrative="Exposure is {{claim.v}}.",

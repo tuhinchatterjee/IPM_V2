@@ -915,11 +915,23 @@ class RunStore:
 
     def append_turn(self, *, thread_id: str, run_id: str, question: str,
                     answer: dict[str, Any]) -> str:
+        """Record this run's exchange in its thread. Idempotent per run.
+
+        One run is one turn. Writing it twice would put the same exchange in
+        the transcript twice, so a run that already has a turn keeps the one
+        it has -- which is what makes it safe to write the turn BEFORE the
+        run is marked terminal, where it belongs.
+        """
         # The first question names the conversation. Free, and correct: a
         # thread is about what was asked in it.
         self.title_thread_from_question(thread_id, question)
-        turn_id = f"turn-{uuid.uuid4().hex[:12]}"
         with self._tx() as conn:
+            existing = conn.execute(
+                "SELECT turn_id FROM turns WHERE run_id=?",
+                (run_id,)).fetchone()
+            if existing is not None:
+                return str(existing["turn_id"])
+            turn_id = f"turn-{uuid.uuid4().hex[:12]}"
             row = conn.execute(
                 "SELECT COALESCE(MAX(ordinal),0) AS n FROM turns "
                 "WHERE thread_id=?", (thread_id,)).fetchone()

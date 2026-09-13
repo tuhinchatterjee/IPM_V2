@@ -193,6 +193,26 @@ class Worker:
         try:
             current = self.store.get_run(record.run_id)
             version = current.version if current else record.version
+            # The transcript row goes in BEFORE the run is marked terminal.
+            #
+            # It used to go in after, and the ordering was observable: a
+            # reader who clicked back the instant the answer appeared reached
+            # the landing page before the turn existed, and "Continue where
+            # you left off" -- which lists threads that HAVE a turn -- did
+            # not list the conversation they had just held. The run was
+            # terminal and its thread was still empty.
+            #
+            # `append_turn` is idempotent per run, so a settle that then
+            # loses its lease cannot produce a second copy of the exchange.
+            if outcome.response is not None:
+                try:
+                    self.store.append_turn(
+                        thread_id=record.thread_id, run_id=record.run_id,
+                        question=record.question, answer=outcome.response)
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "V4 could not append the thread turn for %s",
+                        record.run_id)
             self.store.update_state(
                 record.run_id, expect_version=version, state=outcome.state,
                 operation="", budget=ledger.snapshot(),
@@ -214,13 +234,6 @@ class Worker:
             return
 
         if outcome.response is not None:
-            try:
-                self.store.append_turn(
-                    thread_id=record.thread_id, run_id=record.run_id,
-                    question=record.question, answer=outcome.response)
-            except Exception:  # noqa: BLE001
-                logger.warning("V4 could not append the thread turn for %s",
-                               record.run_id)
             emitter.append(
                 ev.ANSWER_READY, stage="publishing", operation="publish",
                 status=ev.STATUS_OK,
