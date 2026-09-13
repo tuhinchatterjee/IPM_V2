@@ -130,6 +130,21 @@ INR crore | SAR million | USD million | EUR bn
 | Frontend | 476 passed | — |
 | Browser | 46/46 | currency checks pass |
 
+### V3 and unrelated modules
+
+Measured, not argued: the wider backend suite (excluding `cockpit_v4`, and
+the `brain`/`legacy` collection errors that predate this work) was run before
+and after, and the failing test IDs compared.
+
+| | Tests | Passed | Failed | Errors | Skipped |
+| --- | --- | --- | --- | --- | --- |
+| Branch baseline | 9,668 | 6,764 | 412 | 176 | 2,316 |
+| Branch now | 9,668 | 6,764 | 412 | 176 | 2,316 |
+
+**Zero new failures, zero newly passing** — the two sets of failing IDs are
+identical. Those 412 are the repository's existing condition (`main` itself
+runs 409 over the same scope) and are not this round's to close.
+
 **Known intermittent, unrelated to this work:** one browser test, *"the
 seeded context load appears in the process panel"*, fails in roughly one full
 run in three and passes in isolation and on re-run. It touches the process
