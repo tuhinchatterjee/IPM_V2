@@ -78,8 +78,17 @@ export type FinalResponse = {
       operands: { artifact_id: string; column_id: string; row_ids: string[] }[];
     };
   }[];
-  tables: { title: string; artifact_id: string; columns: string[] }[];
-  charts: unknown[];
+  /**
+   * Tables and charts as the SERVER rendered them.
+   *
+   * The analyst chose the table -- its title, which result, which columns.
+   * Every value in `rows`/`points` came out of the stored artifact and was
+   * formatted by the one display policy, with the canonical value carried
+   * beside the displayed one. Nothing here passed through the model, and
+   * the frontend does no arithmetic and no rounding of its own.
+   */
+  tables: RenderedTable[];
+  charts: RenderedChart[];
   limitations: string[];
   suggested_questions: { question: string; kind: string }[];
   clarification_question: string;
@@ -88,6 +97,45 @@ export type FinalResponse = {
   referral_reason: string;
   executed: boolean;
   validation?: { warnings: string[] };
+};
+
+/** One published row: what the arithmetic used, and what a reader sees. */
+export type RenderedRow = {
+  row_id: string;
+  canonical: Record<string, unknown>;
+  display: Record<string, unknown>;
+};
+
+export type RenderedTable = {
+  title: string;
+  artifact_id: string;
+  columns: string[];
+  /** Absent when the server could not resolve the artifact. */
+  rows?: RenderedRow[];
+  row_count?: number;
+  column_units?: Record<string, string>;
+  rendered_by?: string;
+  note?: string;
+};
+
+export type ChartPoint = {
+  row_id: string;
+  label: unknown;
+  values: Record<string, unknown>;
+  display: Record<string, unknown>;
+};
+
+export type RenderedChart = {
+  kind: "bar" | "line" | "waterfall" | "scatter" | string;
+  title: string;
+  artifact_id: string;
+  x_column: string;
+  y_columns: string[];
+  series_column?: string;
+  unit: string;
+  points?: ChartPoint[];
+  series_units?: Record<string, string>;
+  rendered_by?: string;
 };
 
 export const API_PREFIX = "/api/v1/cockpit-v4";
@@ -403,6 +451,8 @@ export async function acknowledge(runId: string): Promise<void> {
 
 export type RecentThread = {
   thread_id: string;
+  /** What was asked in it, or the name someone gave it. */
+  title: string;
   turns: number;
   last_activity_at: string;
   last_question: string;
@@ -431,20 +481,51 @@ export async function readSession(): Promise<SessionSummary> {
 
 export type ThreadTurn = {
   turn_id: string;
+  /** The run that produced this turn. Without it a past turn has no trace. */
+  run_id: string;
   ordinal: number;
   question: string;
-  answer: Record<string, unknown>;
+  answer: FinalResponse & Record<string, unknown>;
+  created_at: string;
 };
 
-export async function readThread(threadId: string): Promise<{
+export type ThreadTranscript = {
   thread_id: string;
+  title: string;
+  /** EVERY turn, oldest first. Not a window onto the last few. */
   turns: ThreadTurn[];
+  turn_count: number;
+  created_at: string;
   context: { kind?: string; body?: Record<string, unknown> };
-}> {
+  /** What the numbers in this conversation mean. */
+  release?: Record<string, unknown>;
+};
+
+export async function readThread(
+  threadId: string,
+): Promise<ThreadTranscript> {
   return json(
     await fetch(
       `${base()}${API_PREFIX}/threads/${encodeURIComponent(threadId)}`,
       { credentials: "include" },
+    ),
+  );
+}
+
+/** Rename a conversation. Tenant-checked server-side; a URL is not access. */
+export async function renameThread(
+  threadId: string,
+  title: string,
+): Promise<{ thread_id: string; title: string }> {
+  return json(
+    await fetch(
+      `${base()}${API_PREFIX}/threads/${encodeURIComponent(threadId)}/title`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      },
     ),
   );
 }

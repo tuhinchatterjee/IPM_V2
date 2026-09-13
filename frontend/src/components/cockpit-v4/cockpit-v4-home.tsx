@@ -22,22 +22,19 @@
  */
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useWideContent } from "@/components/layout/content-width";
 
 import { AttentionDrawer } from "./attention-drawer";
 import { AttentionPanel } from "./attention-panel";
 import {
-  forgetInvestigation,
-  readAttentionItem,
-  readThread,
   rememberInvestigation,
-  recallInvestigation,
   type AttentionItem,
   type RecentThread,
 } from "./client";
-import { CockpitV4, type ActiveInvestigation } from "./cockpit-v4";
+import { AskBox } from "./ask-box";
+import { createThread, type RunMode } from "./client";
 import {
   ContinueWhereYouLeftOff,
   useSession,
@@ -52,65 +49,60 @@ export function CockpitV4Home() {
   // show model ids and request sizes on a shared screen by default.
   const operatorView = searchParams.get("operator") === "1";
 
+  const router = useRouter();
   const { name, threads, ready, refresh } = useSession();
   const [open, setOpen] = React.useState<AttentionItem | null>(null);
-  const [investigation, setInvestigation] =
-    React.useState<ActiveInvestigation | null>(null);
-  // A ref, for the same reason the run replay uses one: flipping state inside
-  // the effect would re-run it, and StrictMode's double mount would then fetch
-  // the item twice.
-  const restored = React.useRef(false);
+  const [question, setQuestion] = React.useState(initialQuestion);
+  const [mode, setMode] = React.useState<RunMode>("standard");
+  const [opening, setOpening] = React.useState(false);
+  const [askError, setAskError] = React.useState("");
+  const [showPrompts, setShowPrompts] = React.useState(true);
 
-  // Come back to the same investigation after a reload. The thread and its
-  // seed are on the server; only the pointer was in this tab.
-  React.useEffect(() => {
-    if (restored.current) return;
-    restored.current = true;
-    const remembered = recallInvestigation();
-    if (!remembered) return;
-    void (async () => {
+  /**
+   * Asking from the home page opens a CONVERSATION.
+   *
+   * It does not answer here. A page that rendered the answer in place would
+   * make the second question feel like starting over, which is exactly what
+   * the old experience got right and this one had lost: the answer is never
+   * the end, the follow-up is.
+   *
+   * The question travels in the URL rather than in component state, so a
+   * refresh between opening the thread and the first answer does not lose
+   * it -- and the thread asks it exactly once.
+   */
+  const openThread = React.useCallback(
+    (threadId: string, ask = "") => {
+      const suffix = ask ? `?q=${encodeURIComponent(ask)}` : "";
+      router.push(`/cockpit/thread/${encodeURIComponent(threadId)}${suffix}`);
+    },
+    [router],
+  );
+
+  const askFromHome = React.useCallback(
+    async (text: string) => {
+      const asked = text.trim();
+      if (!asked || opening) return;
+      setOpening(true);
+      setAskError("");
       try {
-        const { item } = await readAttentionItem(remembered.itemId);
-        setInvestigation({
-          threadId: remembered.threadId,
-          item,
-          suggested: remembered.suggested,
-        });
-      } catch {
-        forgetInvestigation();
+        const { thread_id } = await createThread();
+        openThread(thread_id, asked);
+      } catch (cause) {
+        setOpening(false);
+        setAskError(
+          cause instanceof Error
+            ? cause.message
+            : "The conversation could not be opened.",
+        );
       }
-    })();
-  }, []);
-
-  /** Reopen a real persisted thread, with its seed when it had one. */
-  const reopen = React.useCallback(async (thread: RecentThread) => {
-    try {
-      const loaded = await readThread(thread.thread_id);
-      const body = loaded.context?.body as
-        | { item_id?: string }
-        | undefined;
-      if (loaded.context?.kind === "attention_item" && body?.item_id) {
-        const { item } = await readAttentionItem(body.item_id);
-        const resumed = {
-          threadId: thread.thread_id,
-          item,
-          suggested:
-            (item.drilldown?.suggested_questions as string[] | undefined) ?? [],
-        };
-        setInvestigation(resumed);
-        rememberInvestigation({
-          threadId: resumed.threadId,
-          itemId: item.item_id,
-          suggested: resumed.suggested,
-        });
-      }
-    } catch {
-      /* a thread that cannot be read is not reopened, and nothing is faked */
-    }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, []);
+    },
+    [opening, openThread],
+  );
+  /** Reopen a real persisted thread: its own page, with its own transcript. */
+  const reopen = React.useCallback(
+    (thread: RecentThread) => openThread(thread.thread_id),
+    [openThread],
+  );
 
   // Two dashboards, wide tables and a chat column: this page IS the
   // width. Every other page keeps the shell default.
@@ -149,16 +141,24 @@ export function CockpitV4Home() {
       </header>
 
       <div className="mt-6">
-        <CockpitV4
-          operatorView={operatorView}
-          initialQuestion={initialQuestion}
-          investigation={investigation}
-          onClearInvestigation={() => {
-            setInvestigation(null);
-            forgetInvestigation();
-          }}
-          onSettled={() => void refresh()}
+        <AskBox
+          question={question}
+          onQuestionChange={setQuestion}
+          mode={mode}
+          onModeChange={setMode}
+          onAsk={(text) => void askFromHome(text)}
+          busy={opening}
+          showPrompts={showPrompts}
+          onDismissPrompts={() => setShowPrompts(false)}
         />
+        {askError ? (
+          <p
+            data-testid="cockpit-v4-submit-error"
+            className="mt-2 text-sm text-rose-700"
+          >
+            {askError}
+          </p>
+        ) : null}
       </div>
 
       <div className="mt-12">
@@ -179,16 +179,16 @@ export function CockpitV4Home() {
         operatorView={operatorView}
         onClose={() => setOpen(null)}
         onInvestigate={(started) => {
-          setInvestigation(started);
+          // §9: an investigation OPENS. The seed is already on the thread
+          // server-side; what was missing was the reader ever arriving
+          // somewhere that looked like an investigation had begun.
           rememberInvestigation({
             threadId: started.threadId,
             itemId: started.item.item_id,
             suggested: started.suggested,
           });
           setOpen(null);
-          if (typeof window !== "undefined") {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }
+          openThread(started.threadId);
         }}
       />
 
