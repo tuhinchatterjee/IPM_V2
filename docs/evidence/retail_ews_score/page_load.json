@@ -1,0 +1,38 @@
+[
+ {
+  "screen": "Early Warning landing",
+  "min_s": 1.46,
+  "median_s": 1.51,
+  "max_s": 1.65
+ },
+ {
+  "screen": "Product (Credit Card)",
+  "min_s": 1.47,
+  "median_s": 1.5,
+  "max_s": 1.54
+ },
+ {
+  "screen": "Sub-product (Privilege Card)",
+  "min_s": 1.03,
+  "median_s": 1.06,
+  "max_s": 1.44
+ },
+ {
+  "screen": "Customer list",
+  "min_s": 4.06,
+  "median_s": 4.76,
+  "max_s": 4.95
+ },
+ {
+  "screen": "Customer detail",
+  "min_s": 3.55,
+  "median_s": 4.04,
+  "max_s": 4.54
+ },
+ {
+  "screen": "View Model",
+  "min_s": 4.07,
+  "median_s": 4.11,
+  "max_s": 4.58
+ }
+]

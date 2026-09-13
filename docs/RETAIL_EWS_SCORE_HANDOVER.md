@@ -188,7 +188,7 @@ named customer id, answered from that customer.
 | `scripts/retail_uat/ews_score_uat.py` — EW-01 … EW-60, real browser | **60 of 60 passed** (`docs/evidence/retail_ews_score/ew_score_uat.txt`, `ew_score_uat.json`) |
 | `tests/retail/test_ret_ews_score.py` — 61 model, arithmetic, domain, bureau, view and chat regressions | 61 passed |
 | `tests/retail/test_ret_ews_dynamic.py` — source-variable mutation proof | 2 passed |
-| `tests/retail` — the whole retail suite | PLACEHOLDER |
+| `tests/retail` — the whole retail suite | 1,392 collected, **1,387 passed, 5 failed**, 0 skipped. All five failures are in `test_ret_adversarial_cockpit.py` and pre-date this work (`docs/evidence/retail_ews_score/retail_suite.txt`) |
 | `npm test` — frontend units | 577 passed |
 | `npm run typecheck` | clean |
 | `npm run lint` | clean except two pre-existing errors in What-If, untouched by this pass |
@@ -203,6 +203,28 @@ facility in the book unmoved so the change is attributable. It writes
 `docs/evidence/retail_ews_score/mutation.json`, which the browser suite reads
 (EW-59) so that no run can claim the UI is dynamic without that having
 happened.
+
+## 7a. Page load, measured in the browser
+
+Time from navigation to the screen being readable, best of three, Chromium
+1194 at 1512×982 through `scripts/retail_uat/driver.py`
+(`docs/evidence/retail_ews_score/page_load.json`).
+
+| Screen | Before | After |
+|---|---|---|
+| Early Warning landing | `/retail/ews/portfolio` alone took **12.8 s**, and the browser never reached network idle inside 30 s | **1.46 s** |
+| Product (Credit Card) | `/retail/ews/product/CREDIT_CARD` alone took 10.0 s | **1.47 s** |
+| Sub-product (Privilege Card) | — | **1.03 s** |
+| Customer list | — | **4.06 s** |
+| Customer detail | — | **3.55 s** |
+| View Model | — | **4.07 s** |
+
+The API is no longer the cost anywhere: portfolio and product answer in 0.01 s,
+the customer list in 0.36 s, a customer in 0.27 s and the model in 0.36 s. What
+remains on the last three screens is client-side rendering under the Next
+**development** server — unminified, double-rendered under React strict mode,
+with hot-reload instrumentation attached. A production build is not part of
+this pass and these figures should not be read as production numbers.
 
 ## 8. Defects found and fixed in this pass
 

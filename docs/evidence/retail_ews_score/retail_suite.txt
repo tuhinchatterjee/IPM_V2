@@ -1,0 +1,133 @@
+........................................................................ [  5%]
+........................................................................ [ 10%]
+........................................................................ [ 15%]
+........................................................................ [ 20%]
+........................................................................ [ 25%]
+........................................................................ [ 31%]
+........................................................................ [ 36%]
+........................................................................ [ 41%]
+.......................FFF.FF........................................... [ 46%]
+........................................................................ [ 51%]
+........................................................................ [ 56%]
+........................................................................ [ 62%]
+........................................................................ [ 67%]
+........................................................................ [ 72%]
+........................................................................ [ 77%]
+........................................................................ [ 82%]
+........................................................................ [ 87%]
+........................................................................ [ 93%]
+........................................................................ [ 98%]
+........................                                                 [100%]
+=================================== FAILURES ===================================
+_ TestAPrioritisationSaysWhatOrderedIt.test_an_open_judgement_question_runs_the_governed_review _
+
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f8dc2a65c10>
+
+    def test_an_open_judgement_question_runs_the_governed_review(self):
+>       said = headline(answer("What would you escalate to the board?"))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/retail/test_ret_adversarial_cockpit.py:2019: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/retail/test_ret_adversarial_cockpit.py:84: in headline
+    built = assembly.from_analysis(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+question = 'What would you escalate to the board?'
+reading = Reading(intent='ANALYSIS', objective='What would you escalate to the board?', conversation_action='', concepts=(), met...alysis, which will ask if it cannot read the question.', clarification='', alternatives=(), source='offline', model='')
+build = None, runtime = None, duration_ms = 0, mode = {}
+
+    def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
+                      runtime: Any, *, duration_ms: int,
+                      mode: dict[str, Any]) -> Investigation:
+        """An Investigation for a question the runtime computed."""
+        scope = Scope(
+>           focus=build.summary or reading.objective,
+                  ^^^^^^^^^^^^^
+            dimension=build.dimension or None,
+            output={"aggregate": "distribution", "ranking": "ranking",
+                    "cohort": "ranking", "movement": "movement",
+                "share_movement": "ranking", "share": "distribution"}[build.shape],
+            period_requirement=("two_period" if build.shape in
+                                (ap.COHORT, ap.MOVEMENT) else "point_in_time"),
+            period_specified=bool(reading.periods),
+            from_period=build.opening or None,
+            to_period=build.closing or build.period or None,
+            period_source=("read from the question" if reading.periods
+                           else "the latest published period"),
+            filters={f: v for f, v in build.filters},
+        )
+E       AttributeError: 'NoneType' object has no attribute 'summary'
+
+backend/orchestration/assembly.py:690: AttributeError
+_ TestAPrioritisationSaysWhatOrderedIt.test_it_says_what_the_ordering_is_and_is_not _
+
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f8dc2a65f10>
+
+    def test_it_says_what_the_ordering_is_and_is_not(self):
+>       said = headline(answer("What are the three numbers that matter "
+                               "most?"))
+
+tests/retail/test_ret_adversarial_cockpit.py:2023: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+question = 'What are the three numbers that matter most?', state = None
+
+    def answer(question: str, *, state: cv.ConversationState | None = None):
+        answered = orchestrator.answer(question, state=state)
+>       assert not answered.clarification, (
+            f"{question!r} was refused: "
+            f"{getattr(answered.clarification, 'question', answered.clarification)}")
+E       AssertionError: 'What are the three numbers that matter most?' was refused: Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.
+E       assert not 'Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.'
+E        +  where 'Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.' = Answered(question='What are the three numbers that matter most?', reading=Reading(intent='ANALYSIS', objective='What a... settled_window=('', ''), settled_population=(), cached=None, scope=None, degraded_reason='', calls=0, duration_ms=317).clarification
+
+tests/retail/test_ret_adversarial_cockpit.py:73: AssertionError
+_ TestAPrioritisationSaysWhatOrderedIt.test_the_attention_question_reads_its_own_window _
+
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f8dc2a66210>
+
+    def test_the_attention_question_reads_its_own_window(self):
+        said = headline(answer("What needs my attention in the retail "
+                               "portfolio this month?"))
+>       assert "2026-07" in said and "2026-08" in said, said
+E       AssertionError: 25 customers, ranked by how many of 8 governed credit concern signals each one shows at 2026-08. RC-0027347 shows the most, at 7 of 8.
+E       assert ('2026-07' in '25 customers, ranked by how many of 8 governed credit concern signals each one shows at 2026-08. RC-0027347 shows the most, at 7 of 8.')
+
+tests/retail/test_ret_adversarial_cockpit.py:2030: AssertionError
+_ TestAReviewSettlesWhatItLedWith.test_it_inherits_the_measure_the_answer_led_with _
+
+self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7f8dc2a46270>
+
+    def test_it_inherits_the_measure_the_answer_led_with(self):
+        _, state = advanced("What needs my attention in the retail portfolio "
+                            "this month?")
+>       assert state.metrics, "the review settled no measure"
+E       AssertionError: the review settled no measure
+E       assert []
+E        +  where [] = ConversationState(subject='What needs my attention in the retail portfolio this month?', intent='ANALYSIS', conversati...tion in the retail portfolio this month?', answer='', intent='ANALYSIS', run_id=None, status='succeeded')], pending='').metrics
+
+tests/retail/test_ret_adversarial_cockpit.py:2046: AssertionError
+_ TestAReviewSettlesWhatItLedWith.test_it_inherits_the_window_the_review_measured _
+
+self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7f8dc2a45670>
+
+    def test_it_inherits_the_window_the_review_measured(self):
+        _, state = advanced("What needs my attention in the retail portfolio "
+                            "this month?")
+>       assert (state.opening_period, state.closing_period) \
+            == ("2026-07", "2026-08"), (state.opening_period,
+                                        state.closing_period)
+E       AssertionError: ('', '')
+E       assert ('', '') == ('2026-07', '2026-08')
+E         
+E         At index 0 diff: '' != '2026-07'
+E         Use -v to get more diff
+
+tests/retail/test_ret_adversarial_cockpit.py:2056: AssertionError
+=========================== short test summary info ============================
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAPrioritisationSaysWhatOrderedIt::test_an_open_judgement_question_runs_the_governed_review
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAPrioritisationSaysWhatOrderedIt::test_it_says_what_the_ordering_is_and_is_not
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAPrioritisationSaysWhatOrderedIt::test_the_attention_question_reads_its_own_window
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAReviewSettlesWhatItLedWith::test_it_inherits_the_measure_the_answer_led_with
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAReviewSettlesWhatItLedWith::test_it_inherits_the_window_the_review_measured
