@@ -203,6 +203,7 @@ function AssistantTurn({
         view={view}
         question={turn.question}
         onAsk={onAsk}
+        showSuggestions={false}
       />
       <Visuals tables={turn.answer.tables ?? []}
                charts={turn.answer.charts ?? []} />
@@ -261,16 +262,63 @@ function SeedCard({
   );
 }
 
+/**
+ * What to ask next, where the next question gets typed.
+ *
+ * §24: the chips belong between the answer and the composer, not buried in
+ * the answer panel above a chart and a table. A suggestion the reader has to
+ * scroll back up to find is a suggestion that does not get used.
+ *
+ * These come from the LATEST answer. An older turn's follow-ups are answered
+ * by the turns after it and offering them again is offering to go backwards.
+ */
+function FollowUps({
+  questions,
+  busy,
+  onAsk,
+}: {
+  questions: string[];
+  busy: boolean;
+  onAsk: (question: string) => void;
+}) {
+  if (!questions.length) return null;
+  return (
+    <div
+      data-testid="v4-followups"
+      className="flex flex-wrap items-center gap-2 pt-2"
+    >
+      <span className="text-xs uppercase tracking-wide text-slate-400">
+        Ask next
+      </span>
+      {questions.map((question) => (
+        <button
+          key={question}
+          type="button"
+          data-testid="v4-followup-chip"
+          disabled={busy}
+          dir="auto"
+          onClick={() => onAsk(question)}
+          className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {question}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Composer({
   onAsk,
   busy,
   mode,
   onMode,
+  followUps,
 }: {
   onAsk: (question: string) => void;
   busy: boolean;
   mode: RunMode;
   onMode: (mode: RunMode) => void;
+  followUps: string[];
 }) {
   const [text, setText] = React.useState("");
   const submit = () => {
@@ -285,6 +333,13 @@ function Composer({
       data-testid="v4-composer"
       className="sticky bottom-0 z-10 -mx-1 bg-gradient-to-t from-white via-white to-white/0 px-1 pb-4 pt-6"
     >
+      {/*
+        Inside the sticky block, so the suggestions travel with the box they
+        feed. A strip in normal flow above a sticky composer is a strip that
+        scrolls away from it -- which is the same problem as burying it in
+        the answer, arrived at differently.
+      */}
+      <FollowUps questions={followUps} busy={busy} onAsk={onAsk} />
       <div className="rounded-xl border border-slate-300 bg-white shadow-sm focus-within:border-slate-400">
         <textarea
           data-testid="v4-composer-input"
@@ -540,8 +595,25 @@ function ThreadHeader({
   return (
     <header
       data-testid="v4-thread-header"
-      className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4"
+      className="border-b border-slate-200 pb-4"
     >
+      {/*
+        §22: the way back is at the TOP LEFT, above the title, where every
+        reader of every application already looks for it. It used to be a
+        small button on the far right of the header row, level with Rename,
+        which is where a reader looks for actions ON this conversation and
+        not for the exit from it.
+      */}
+      <button
+        type="button"
+        data-testid="v4-back-to-cockpit"
+        onClick={onHome}
+        className="-ml-1 mb-2 inline-flex items-center gap-1.5 rounded px-1 py-0.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+      >
+        <span aria-hidden="true">←</span> Cockpit
+      </button>
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         {editing ? (
           <form
@@ -604,6 +676,7 @@ function ThreadHeader({
         >
           Cockpit home
         </button>
+      </div>
       </div>
     </header>
   );
@@ -773,6 +846,22 @@ export function CockpitV4Thread({
   // does not prevent -- the panel simply stays on screen.
   const busy = Boolean(live) && !view.terminal;
 
+  // The follow-ups belong to the NEWEST answer: the live one once it has
+  // settled, otherwise the last stored turn. While a run is working there
+  // are none, because the suggestions that were on screen belong to a
+  // question already being followed up.
+  const latest = live && view.terminal
+    ? view.response
+    : turns.length
+      ? turns[turns.length - 1].answer
+      : null;
+  const followUps = busy
+    ? []
+    : (latest?.suggested_questions ?? [])
+        .map((s) => s.question)
+        .filter(Boolean)
+        .slice(0, 4);
+
   if (loadError) {
     return (
       <div data-testid="v4-thread-error" className="mx-auto max-w-2xl py-16">
@@ -861,6 +950,7 @@ export function CockpitV4Thread({
                   question={live.question}
                   threadId={threadId}
                   onAsk={(q) => void ask(q)}
+                  showSuggestions={false}
                 />
                 {view.response ? (
                   <Visuals
@@ -886,6 +976,7 @@ export function CockpitV4Thread({
         busy={busy}
         mode={mode}
         onMode={setMode}
+        followUps={followUps}
       />
     </div>
   );

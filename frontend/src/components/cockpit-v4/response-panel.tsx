@@ -133,12 +133,15 @@ export function ResponsePanel({
   onAsk,
   question,
   threadId,
+  showSuggestions = true,
 }: {
   view: RunView;
   onAsk?: (question: string) => void;
   /** The question this answer belongs to, used to title a saved copy. */
   question?: string;
   threadId?: string;
+  /** False in a thread, which renders the follow-ups above its composer. */
+  showSuggestions?: boolean;
 }) {
   if (!view.terminal) return null;
 
@@ -259,7 +262,15 @@ export function ResponsePanel({
         </div>
       ) : null}
 
-      {response.suggested_questions.length && onAsk ? (
+      {/*
+        Follow-ups are NOT rendered here in a conversation. They belong
+        immediately above the box you would type the next question into --
+        that is where a reader's eye and cursor already are, and a chip four
+        screens up beside the answer is a chip nobody clicks. The thread
+        passes `showSuggestions={false}` and renders them itself; a panel
+        used outside a thread keeps them.
+      */}
+      {showSuggestions && response.suggested_questions.length && onAsk ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {response.suggested_questions.map((suggestion, i) => (
             <button

@@ -851,6 +851,139 @@ await test("the thread header names the conversation and renames it",
     }
   });
 
+await test("the way back to Cockpit is at the top left",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+      const thread = threadIdFrom(page);
+      assert.ok(thread, "no thread was opened");
+
+      // §22: top-left, above the title -- not level with Rename on the far
+      // right, which is where actions ON a conversation live.
+      const box = await page.evaluate(() => {
+        const back = document.querySelector(
+          '[data-testid="v4-back-to-cockpit"]');
+        const title = document.querySelector('[data-testid="v4-thread-title"]');
+        if (!back || !title) return null;
+        const b = back.getBoundingClientRect();
+        const t = title.getBoundingClientRect();
+        return { backLeft: b.left, backTop: b.top, titleLeft: t.left,
+                 titleTop: t.top, width: window.innerWidth };
+      });
+      assert.ok(box, "there is no back control on the thread");
+      assert.ok(box.backTop <= box.titleTop,
+        "the way back sits below the title");
+      assert.ok(box.backLeft < box.width / 2,
+        "the way back is not on the left of the page");
+
+      await page.click('[data-testid="v4-back-to-cockpit"]');
+      await page.waitForSelector('[data-testid="cockpit-v4-home"]',
+        { timeout: 30_000 });
+
+      // §49: the conversation is still there to come back to.
+      await page.waitForSelector('[data-testid="continue-thread"]',
+        { timeout: 60_000 });
+      await page.click('[data-testid="continue-thread"]');
+      await page.waitForSelector('[data-testid="v4-turn-assistant"]',
+        { timeout: 60_000 });
+      assert.equal(threadIdFrom(page), thread,
+        "reopening landed on a different conversation");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("browser back also returns to Cockpit", async () => {
+  const { context, page } = await openCockpit(browser);
+  try {
+    await ask(page, "Who are you?");
+    await waitForAnswer(page);
+    await page.goBack({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="cockpit-v4-home"]',
+      { timeout: 30_000 });
+  } finally {
+    await context.close();
+  }
+});
+
+await test("the conversation is named by the question, not 'New conversation'",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      // §23: named as soon as the question exists -- while the run is still
+      // working, not when the answer lands.
+      await ask(page, "reported EAD by sector this quarter");
+      const title = await page.textContent('[data-testid="v4-thread-title"]');
+      assert.match(title ?? "", /reported EAD by sector/i, title ?? "");
+      await waitForAnswer(page);
+      assert.match(
+        await page.textContent('[data-testid="v4-thread-title"]') ?? "",
+        /reported EAD by sector/i);
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("follow-up chips sit directly above the composer and stay in the thread",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "reported EAD by sector this quarter");
+      await waitForAnswer(page);
+      const thread = threadIdFrom(page);
+
+      await page.waitForSelector('[data-testid="v4-followups"]',
+        { timeout: 30_000 });
+      const chips = await page.$$('[data-testid="v4-followup-chip"]');
+      assert.ok(chips.length >= 2 && chips.length <= 4,
+        `${chips.length} follow-ups were offered; §24 wants 2-4`);
+
+      // §24: attached to the box you type the next question into, and out
+      // of the answer panel entirely. The composer is sticky, so "below the
+      // answer" is a question about the DOM and "above the input" is a
+      // question about the screen; both have to hold.
+      const layout = await page.evaluate(() => {
+        const strip = document.querySelector('[data-testid="v4-followups"]');
+        const input = document.querySelector(
+          '[data-testid="v4-composer-input"]');
+        if (!strip || !input) return null;
+        return {
+          strip: strip.getBoundingClientRect().top,
+          input: input.getBoundingClientRect().top,
+          insideComposer: Boolean(strip.closest('[data-testid="v4-composer"]')),
+          insideAnswer: Boolean(
+            strip.closest('[data-testid="v4-turn-assistant"]')),
+        };
+      });
+      assert.ok(layout, "the follow-up strip is not on the page");
+      assert.ok(layout.strip < layout.input,
+        "the follow-ups are below the box they feed");
+      assert.ok(layout.insideComposer,
+        "the follow-ups do not travel with the composer");
+      assert.ok(!layout.insideAnswer,
+        "the follow-ups are still buried inside the answer panel");
+
+      // §48: clicking one continues THIS conversation.
+      const label = (await chips[0].textContent())?.trim() ?? "";
+      await chips[0].click();
+      await page.waitForFunction(
+        () => document.querySelectorAll(
+          '[data-testid="v4-turn-user"]').length >= 2,
+        { timeout: 30_000 },
+      );
+      assert.equal(threadIdFrom(page), thread,
+        "a follow-up chip started a new conversation");
+      const asked = await page.$$eval('[data-testid="v4-turn-user"]',
+        (nodes) => nodes.map((n) => n.textContent?.trim() ?? ""));
+      assert.ok(asked.includes(label),
+        `the chip said "${label}" and the transcript does not show it`);
+    } finally {
+      await context.close();
+    }
+  });
+
 await test("a published figure is written once, the way a credit paper writes it",
   async () => {
     const { context, page } = await openCockpit(browser);

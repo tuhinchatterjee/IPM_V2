@@ -108,6 +108,13 @@ def _format(claim: NumericClaim) -> str:
     return prec.format_value(value, claim.unit, claim.precision())
 
 
+#: What a chart can say. Below the floor there is nothing to compare; above
+#: the ceiling there is nothing a reader can take in, and the honest form of
+#: a ninety-row result is a table.
+MIN_CHART_POINTS = 2
+MAX_CHART_POINTS = 25
+
+
 @dataclass
 class Finalizer:
     """Checks one final response against the evidence this run produced."""
@@ -611,6 +618,44 @@ class Finalizer:
         if missing:
             return (f"chart {index} names columns {missing} that are not in "
                     f"its artifact; the chart was dropped.")
+        return self._chart_shape_problem(chart, index, record)
+
+    def _chart_shape_problem(self, chart: dict[str, Any], index: int,
+                             record: dict[str, Any]) -> str:
+        """Is this result the shape a chart can actually say something about?
+
+        §26: the analyst decides whether a picture helps; CreditProbe checks
+        the decision against the result it would be drawn from. Two things
+        make a chart useless whatever was intended, and both are countable.
+
+        ONE POINT is not a comparison. A single scalar drawn as one bar tells
+        a reader nothing they did not read in the sentence above it.
+
+        TOO MANY POINTS is not a comparison either. Twelve sectors ranked by
+        exposure is a chart; ninety borrowers with their covenant status is a
+        list, and drawing it produces a wall of bars nobody reads and a
+        label column nobody can align. This is the live case in §29 -- a
+        "show me the customers behind this" answer arrived with a bar per
+        borrower, which is a worse way to read the same table.
+
+        Note what this does NOT do: infer intent from the question, or from
+        the column names, or from the grain. A top-ten borrower ranking is
+        ten points and passes, because ten points IS a readable comparison
+        whatever the rows are called.
+        """
+        label = str(chart.get("x_column") or "")
+        rows = record["rows"]
+        points = (len({str(row.get(label)) for row in rows}) if label
+                  else len(rows))
+        if points < MIN_CHART_POINTS:
+            return (f"chart {index} would have {points} point(s); a chart "
+                    f"needs at least {MIN_CHART_POINTS} to compare anything. "
+                    f"The table says it better and the chart was dropped.")
+        if points > MAX_CHART_POINTS:
+            return (f"chart {index} would have {points} points, past the "
+                    f"{MAX_CHART_POINTS} a reader can take in. A result this "
+                    f"long is a table -- rank it and show the top rows if a "
+                    f"picture is wanted. The chart was dropped.")
         return ""
 
     def surviving_charts(self, final: FinalResponse) -> list[dict[str, Any]]:
@@ -748,5 +793,6 @@ def rejection(report: ValidationReport) -> Rejection:
         detail={"problems": report.problems})
 
 
-__all__ = ["Finalizer", "PLACEHOLDER", "ValidationReport",
+__all__ = ["Finalizer", "MAX_CHART_POINTS", "MIN_CHART_POINTS",
+           "PLACEHOLDER", "ValidationReport",
            "correction_packet", "rejection"]
