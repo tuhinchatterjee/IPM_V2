@@ -110,6 +110,33 @@ class Walk:
         SHOTS.mkdir(parents=True, exist_ok=True)
         self.page.screenshot(path=str(SHOTS / f"{name}.png"), full_page=True)
 
+    def shot_of(self, testid: str, name: str) -> None:
+        """A screenshot of ONE element, scrolled into view.
+
+        A full-page shot always starts at the top of the page, so the expanded
+        Behavioural layer and the expanded Bureau layer came out as the same
+        picture of the page header. Evidence for "this layer, expanded" has to
+        be of the layer.
+        """
+        SHOTS.mkdir(parents=True, exist_ok=True)
+        found = self.page.locator(f'[data-testid="{testid}"]').first
+        found.scroll_into_view_if_needed()
+        self.page.wait_for_timeout(600)
+        # An element taller than the window comes out with its lower half
+        # blank: only the painted region is captured, and the application
+        # scrolls an inner container rather than the window, so neither
+        # `full_page` nor a page-coordinate clip reaches the rest of it. The
+        # window is grown to fit the element instead, and put back after.
+        box = found.bounding_box() or {"height": 982.0}
+        tall = max(min(int(box["height"]) + 160, 4000), 982)
+        self.page.set_viewport_size({"width": 1512, "height": tall})
+        self.page.wait_for_timeout(900)
+        found.scroll_into_view_if_needed()
+        self.page.wait_for_timeout(600)
+        found.screenshot(path=str(SHOTS / f"{name}.png"))
+        self.page.set_viewport_size({"width": 1512, "height": 982})
+        self.page.wait_for_timeout(400)
+
     def case(self, case_id: str, title: str) -> Case:
         one = Case(case_id, title)
         self.cases.append(one)
@@ -901,7 +928,8 @@ class Walk:
                  if "VARIABLES" in line.upper()][:3])
         c.check("classifiers are declared never to fire",
                 "THEY NEVER FIRE" in body)
-        self.shot("EW-44-behavioural-layer")
+        self.shot_of("ews-model-layer-behavioural",
+                     "EW-44-behavioural-layer")
 
     def ew_45(self) -> None:
         c = self.case("EW-45", "The six action dimensions are documented")
@@ -975,7 +1003,34 @@ class Walk:
                 "Synthetic bureau proxy" in self.at("ews-model-bureau-proxy"))
         c.check("and it says there is no bureau agreement",
                 "no bureau agreement" in self.at("ews-model-bureau-proxy"))
-        self.shot("EW-48-bureau")
+        self.shot_of("ews-model-bureau", "EW-48-bureau-treatment")
+
+        # The layer itself, expanded: §41 asks for the bureau layer showing how
+        # its classifiers and its recency are handled, which is a different
+        # thing from the treatment note above.
+        self.page.click('[data-testid="ews-model-layer-bureau"] button')
+        self.page.wait_for_timeout(3000)
+        layer = next(l for l in self.model["layers"] if l["key"] == "bureau")
+        c.check("the bureau layer is declared a classifier layer",
+                layer["kind"] == "classifier", layer["kind"])
+        for sub in layer["sublayers"]:
+            c.check(f"{sub['key']} is rendered",
+                    self.has(f"ews-model-sublayer-{sub['key']}") == 1)
+        gated = [t for sub in layer["sublayers"] for t in sub["triggers"]
+                 if t.get("needs_new_observation")]
+        c.check("its triggers are gated on a new observation", bool(gated),
+                [t["key"] for t in gated])
+        c.check("recency is a sub-layer of its own, on the page",
+                any(sub["key"] == "bureau_recency"
+                    for sub in layer["sublayers"])
+                and self.has("ews-model-sublayer-bureau_recency") == 1,
+                [sub["key"] for sub in layer["sublayers"]])
+        c.check("and it is carried by a classifier, not a monthly trend",
+                any(one["key"] == "last_pull" for sub in layer["sublayers"]
+                    for one in sub["classifiers"]),
+                [one["key"] for sub in layer["sublayers"]
+                 for one in sub["classifiers"]])
+        self.shot_of("ews-model-layer-bureau", "EW-48-bureau")
 
     def ew_49(self) -> None:
         c = self.case("EW-49", "The glossary")

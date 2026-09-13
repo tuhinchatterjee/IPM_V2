@@ -420,7 +420,12 @@ def commentary(label: str, now: dict[str, Any], was: dict[str, Any] | None,
 
     said = ". ".join(part[0].upper() + part[1:] for part in parts) + "."
     if counts:
-        said += " " + "; ".join(counts) + "."
+        # These clauses are written to be joined with semicolons, so the first
+        # of them starts a sentence and has to be capitalised: the screen was
+        # reading "... in one signal. customers still performing but at high
+        # forward risk went from 27 to 28".
+        tail = "; ".join(counts)
+        said += " " + tail[0].upper() + tail[1:] + "."
     return said
 
 
@@ -1339,8 +1344,9 @@ def model(month: str = "") -> dict[str, Any]:
          "detail": "The four layers combined on the product's own weights, "
                    f"on a {M.SCALE.minimum:g}-{M.SCALE.maximum:g} scale."},
         {"step": "Severity and alert",
-         "detail": f"Warned at {M.SCALE.warning_cutoff:g}; four severity "
-                   "bands above it; four hard triggers that floor the score."},
+         "detail": f"Warned at {M.SCALE.warning_cutoff:g}; "
+                   f"{len(M.SEVERITY_BANDS)} severity bands above it; "
+                   f"{len(M.HARD_TRIGGERS)} overrides that floor the score."},
         {"step": "Reason codes and drill-down",
          "detail": "The three worst triggers, named on every screen that "
                    "shows the score."},

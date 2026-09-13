@@ -1,0 +1,59 @@
+{
+ "customer_id": "RC-0016597",
+ "facility_id": "RF-00030946",
+ "month": "2026-08",
+ "variable": "salary_missed_cycle_count_3m",
+ "source": {
+  "before": 0.0,
+  "after": 3.0,
+  "changed": true
+ },
+ "trigger": {
+  "key": "salary_interruption",
+  "fired_before": false,
+  "fired_after": true,
+  "changed": true
+ },
+ "sublayer": {
+  "key": "salary_behaviour",
+  "before": 0.0,
+  "after": 97.95,
+  "changed": true
+ },
+ "layer": {
+  "key": "affordability",
+  "before": 0.0,
+  "after": 97.95,
+  "changed": true
+ },
+ "overall": {
+  "before": 14.656,
+  "after": 55.524,
+  "changed": true
+ },
+ "severity": {
+  "before": "LOW",
+  "after": "HIGH",
+  "changed": true
+ },
+ "reason": {
+  "before": [
+   "RET-EWS-004",
+   "",
+   ""
+  ],
+  "after": [
+   "RET-EWS-026",
+   "RET-EWS-008",
+   "RET-EWS-004"
+  ],
+  "changed": true
+ },
+ "aggregate": {
+  "product": "CREDIT_CARD",
+  "before": 16.94,
+  "after": 17.01,
+  "changed": true
+ },
+ "others_unchanged": 19743
+}

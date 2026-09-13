@@ -1,0 +1,3517 @@
+{
+ "suite": "Early Warning Score acceptance, EW-01 to EW-60",
+ "passed": 60,
+ "failed": 0,
+ "cases": [
+  {
+   "id": "EW-01",
+   "title": "One Early Warning nav item, and it is the workspace",
+   "status": "PASS",
+   "note": "9.3s",
+   "checks": [
+    {
+     "check": "the workspace renders",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "exactly one Early Warning entry in the navigation",
+     "passed": true,
+     "saw": "1"
+    },
+    {
+     "check": "no second 'Early Warning Signals' navigation entry",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it is called Early Warning Score",
+     "passed": true,
+     "saw": "['/early-warning/model', '/early-warning']"
+    }
+   ]
+  },
+  {
+   "id": "EW-02",
+   "title": "The chat box is at the top of the workspace",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "the chat is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it has an input",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it carries seeded prompts",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it states its scope",
+     "passed": true,
+     "saw": "This chat is scoped to the Early Warning Score domain. It can only read retail_ews_score and the Early Warning model con"
+    },
+    {
+     "check": "it sits ABOVE the headline figures",
+     "passed": true,
+     "saw": "chat y=159, kpis y=464"
+    }
+   ]
+  },
+  {
+   "id": "EW-03",
+   "title": "The total-retail headline KPIs",
+   "status": "PASS",
+   "note": "0.1s",
+   "checks": [
+    {
+     "check": "ews-kpi-customers reads the served customers",
+     "passed": true,
+     "saw": "screen 14251, api 14251"
+    },
+    {
+     "check": "ews-kpi-warned reads the served customers_warned",
+     "passed": true,
+     "saw": "screen 3377, api 3377"
+    },
+    {
+     "check": "ews-kpi-high-critical reads the served high_or_critical",
+     "passed": true,
+     "saw": "screen 1908, api 1908"
+    },
+    {
+     "check": "ews-kpi-bad reads the served current_bad",
+     "passed": true,
+     "saw": "screen 391, api 391"
+    },
+    {
+     "check": "ews-kpi-forward reads the served forward_risk",
+     "passed": true,
+     "saw": "screen 1517, api 1517"
+    },
+    {
+     "check": "exposure under warning is shown",
+     "passed": true,
+     "saw": "EXPOSURE UNDER WARNING\n\nSAR 506.1mn"
+    },
+    {
+     "check": "% retail exposure under warning is shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the portfolio score is shown",
+     "passed": true,
+     "saw": "PORTFOLIO EWS SCORE\n\n17.5\n\n-0.1 on 2026-07"
+    },
+    {
+     "check": "its change on the prior month is shown",
+     "passed": true,
+     "saw": "PORTFOLIO EWS SCORE\n\n17.5\n\n-0.1 on 2026-07"
+    },
+    {
+     "check": "the severity band is shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "alerts, customers and facilities are not confused",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-04",
+   "title": "Four large product cards",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "four products are served",
+     "passed": true,
+     "saw": "['CREDIT_CARD', 'PERSONAL_LOAN', 'AUTO_LOAN', 'HOME_LOAN']"
+    },
+    {
+     "check": "CREDIT_CARD has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD shows its score",
+     "passed": true,
+     "saw": "17.1"
+    },
+    {
+     "check": "CREDIT_CARD shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD shows warned, bad and forward-risk counts",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD shows the exposure under warning",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN shows its score",
+     "passed": true,
+     "saw": "16.1"
+    },
+    {
+     "check": "PERSONAL_LOAN shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN shows warned, bad and forward-risk counts",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN shows the exposure under warning",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN shows its score",
+     "passed": true,
+     "saw": "15.6"
+    },
+    {
+     "check": "AUTO_LOAN shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN shows warned, bad and forward-risk counts",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN shows the exposure under warning",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN shows its score",
+     "passed": true,
+     "saw": "14.0"
+    },
+    {
+     "check": "HOME_LOAN shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN shows warned, bad and forward-risk counts",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN shows the exposure under warning",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-05",
+   "title": "A six-month warning-customer trend on every product card",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "CREDIT_CARD has a warned-customer sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD's series is six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "PERSONAL_LOAN has a warned-customer sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN's series is six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "AUTO_LOAN has a warned-customer sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN's series is six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "HOME_LOAN has a warned-customer sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN's series is six months",
+     "passed": true,
+     "saw": "6"
+    }
+   ]
+  },
+  {
+   "id": "EW-06",
+   "title": "A six-month ODR / default-entry trend",
+   "status": "PASS",
+   "note": "1.2s",
+   "checks": [
+    {
+     "check": "CREDIT_CARD has a default-entry sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD's ODR has a real denominator",
+     "passed": true,
+     "saw": "15/6458 = 0.2323"
+    },
+    {
+     "check": "PERSONAL_LOAN has a default-entry sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN's ODR has a real denominator",
+     "passed": true,
+     "saw": "20/7707 = 0.2595"
+    },
+    {
+     "check": "AUTO_LOAN has a default-entry sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN's ODR has a real denominator",
+     "passed": true,
+     "saw": "9/3284 = 0.2741"
+    },
+    {
+     "check": "HOME_LOAN has a default-entry sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN's ODR has a real denominator",
+     "passed": true,
+     "saw": "3/2140 = 0.1402"
+    },
+    {
+     "check": "ODR is never a property of one customer",
+     "passed": true,
+     "saw": "[]"
+    }
+   ]
+  },
+  {
+   "id": "EW-07",
+   "title": "A six-month aggregate EWS score trend",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "CREDIT_CARD has a score sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN has a score sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN has a score sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN has a score sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the portfolio's own trend is six months",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-08",
+   "title": "Top five warning reasons on every product card",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "CREDIT_CARD serves up to five reasons",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "CREDIT_CARD shows RET-EWS-004 on screen",
+     "passed": true,
+     "saw": "RET-EWS-004"
+    },
+    {
+     "check": "CREDIT_CARD shows RET-EWS-010 on screen",
+     "passed": true,
+     "saw": "RET-EWS-010"
+    },
+    {
+     "check": "CREDIT_CARD shows RET-EWS-024 on screen",
+     "passed": true,
+     "saw": "RET-EWS-024"
+    },
+    {
+     "check": "CREDIT_CARD shows RET-EWS-008 on screen",
+     "passed": true,
+     "saw": "RET-EWS-008"
+    },
+    {
+     "check": "CREDIT_CARD shows RET-EWS-032 on screen",
+     "passed": true,
+     "saw": "RET-EWS-032"
+    },
+    {
+     "check": "CREDIT_CARD's reasons carry a change on the month",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN serves up to five reasons",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "PERSONAL_LOAN shows RET-EWS-010 on screen",
+     "passed": true,
+     "saw": "RET-EWS-010"
+    },
+    {
+     "check": "PERSONAL_LOAN shows RET-EWS-008 on screen",
+     "passed": true,
+     "saw": "RET-EWS-008"
+    },
+    {
+     "check": "PERSONAL_LOAN shows RET-EWS-024 on screen",
+     "passed": true,
+     "saw": "RET-EWS-024"
+    },
+    {
+     "check": "PERSONAL_LOAN shows RET-EWS-012 on screen",
+     "passed": true,
+     "saw": "RET-EWS-012"
+    },
+    {
+     "check": "PERSONAL_LOAN shows RET-EWS-011 on screen",
+     "passed": true,
+     "saw": "RET-EWS-011"
+    },
+    {
+     "check": "PERSONAL_LOAN's reasons carry a change on the month",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN serves up to five reasons",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "AUTO_LOAN shows RET-EWS-010 on screen",
+     "passed": true,
+     "saw": "RET-EWS-010"
+    },
+    {
+     "check": "AUTO_LOAN shows RET-EWS-020 on screen",
+     "passed": true,
+     "saw": "RET-EWS-020"
+    },
+    {
+     "check": "AUTO_LOAN shows RET-EWS-008 on screen",
+     "passed": true,
+     "saw": "RET-EWS-008"
+    },
+    {
+     "check": "AUTO_LOAN shows RET-EWS-032 on screen",
+     "passed": true,
+     "saw": "RET-EWS-032"
+    },
+    {
+     "check": "AUTO_LOAN shows RET-EWS-012 on screen",
+     "passed": true,
+     "saw": "RET-EWS-012"
+    },
+    {
+     "check": "AUTO_LOAN's reasons carry a change on the month",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN serves up to five reasons",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "HOME_LOAN shows RET-EWS-010 on screen",
+     "passed": true,
+     "saw": "RET-EWS-010"
+    },
+    {
+     "check": "HOME_LOAN shows RET-EWS-008 on screen",
+     "passed": true,
+     "saw": "RET-EWS-008"
+    },
+    {
+     "check": "HOME_LOAN shows RET-EWS-032 on screen",
+     "passed": true,
+     "saw": "RET-EWS-032"
+    },
+    {
+     "check": "HOME_LOAN shows RET-EWS-012 on screen",
+     "passed": true,
+     "saw": "RET-EWS-012"
+    },
+    {
+     "check": "HOME_LOAN shows RET-EWS-011 on screen",
+     "passed": true,
+     "saw": "RET-EWS-011"
+    },
+    {
+     "check": "HOME_LOAN's reasons carry a change on the month",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-09",
+   "title": "Data-derived commentary, not hard-coded prose",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "every product has commentary",
+     "passed": true,
+     "saw": "{'CREDIT_CARD': 577, 'PERSONAL_LOAN': 585, 'AUTO_LOAN': 617, 'HOME_LOAN': 587}"
+    },
+    {
+     "check": "no two products say the same thing",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CREDIT_CARD's commentary quotes its own score",
+     "passed": true,
+     "saw": "Credit Card fell from 17.3 to 17.1 (Medium), a move of -0.2. Driven by affordability & cash flow intelligence "
+    },
+    {
+     "check": "CREDIT_CARD's commentary names a layer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN's commentary quotes its own score",
+     "passed": true,
+     "saw": "Personal Finance rose from 15.7 to 16.1 (Medium), a move of +0.4. Driven by behavioural intelligence (+0.8) an"
+    },
+    {
+     "check": "PERSONAL_LOAN's commentary names a layer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN's commentary quotes its own score",
+     "passed": true,
+     "saw": "Auto Finance moved from Low to Medium, with the Early Warning Score at 15.6 against 14.9 last month. Driven by"
+    },
+    {
+     "check": "AUTO_LOAN's commentary names a layer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN's commentary quotes its own score",
+     "passed": true,
+     "saw": "Home Finance fell from 14.7 to 14.0 (Low), a move of -0.7. Driven by affordability & cash flow intelligence (-"
+    },
+    {
+     "check": "HOME_LOAN's commentary names a layer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "commentary is rendered on screen",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-10",
+   "title": "A product card opens the product level",
+   "status": "PASS",
+   "note": "18.5s",
+   "checks": [
+    {
+     "check": "the product view opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the address names the product",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD"
+    }
+   ]
+  },
+  {
+   "id": "EW-11",
+   "title": "The Credit Card product page",
+   "status": "PASS",
+   "note": "0.2s",
+   "checks": [
+    {
+     "check": "the page is titled for the product",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it shows the product's own customer count",
+     "passed": true,
+     "saw": "5853"
+    },
+    {
+     "check": "it shows the product's warned count",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it shows the product weight matrix row",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the chat is still at the top",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-12",
+   "title": "Sub-product cards, with the governed taxonomy",
+   "status": "PASS",
+   "note": "3.4s",
+   "checks": [
+    {
+     "check": "the four Credit Card sub-products exist",
+     "passed": true,
+     "saw": "['Platinum Card', 'Privilege Card', 'Silver Card', 'Ultra Card']"
+    },
+    {
+     "check": "the sub-product deck renders",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_SILVER has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_SILVER states how it is derived",
+     "passed": true,
+     "saw": "everything else on the card book"
+    },
+    {
+     "check": "CC_PRIVILEGE has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_PRIVILEGE states how it is derived",
+     "passed": true,
+     "saw": "customer_segment in (PRIVATE, AFFLUENT), or MASS_AFFLUENT on a limit >"
+    },
+    {
+     "check": "CC_PLATINUM has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_PLATINUM states how it is derived",
+     "passed": true,
+     "saw": "customer_segment == MASS_AFFLUENT, or MASS on a limit >= SAR 25,000"
+    },
+    {
+     "check": "CC_ULTRA has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_ULTRA states how it is derived",
+     "passed": true,
+     "saw": "customer_segment in (PRIVATE, AFFLUENT) and current credit limit >= SA"
+    },
+    {
+     "check": "the taxonomy is in the model configuration, not the frontend",
+     "passed": true,
+     "saw": "12"
+    },
+    {
+     "check": "and it is written into the domain",
+     "passed": true,
+     "saw": "AL_NEW"
+    }
+   ]
+  },
+  {
+   "id": "EW-13",
+   "title": "Sub-product trends",
+   "status": "PASS",
+   "note": "0.1s",
+   "checks": [
+    {
+     "check": "CC_SILVER has six months of trend",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "CC_SILVER has all three sparklines on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_PRIVILEGE has six months of trend",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "CC_PRIVILEGE has all three sparklines on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_PLATINUM has six months of trend",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "CC_PLATINUM has all three sparklines on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_ULTRA has six months of trend",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "CC_ULTRA has all three sparklines on screen",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-14",
+   "title": "Sub-product ODR",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "CC_SILVER's ODR reconciles",
+     "passed": true,
+     "saw": "6/3240"
+    },
+    {
+     "check": "CC_PRIVILEGE's ODR reconciles",
+     "passed": true,
+     "saw": "2/468"
+    },
+    {
+     "check": "CC_PLATINUM's ODR reconciles",
+     "passed": true,
+     "saw": "6/2536"
+    },
+    {
+     "check": "CC_ULTRA's ODR reconciles",
+     "passed": true,
+     "saw": "1/214"
+    },
+    {
+     "check": "the sub-products' default entries sum to the product's",
+     "passed": true,
+     "saw": "15 vs 15"
+    }
+   ]
+  },
+  {
+   "id": "EW-15",
+   "title": "Top five signals per sub-product",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "CC_SILVER serves up to five signals",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "CC_SILVER renders them",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_PRIVILEGE serves up to five signals",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "CC_PRIVILEGE renders them",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_PLATINUM serves up to five signals",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "CC_PLATINUM renders them",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_ULTRA serves up to five signals",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "CC_ULTRA renders them",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-16",
+   "title": "A sub-product card opens its own level",
+   "status": "PASS",
+   "note": "5.3s",
+   "checks": [
+    {
+     "check": "the sub-product view opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the address names it",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&sub=CC_PRIVILEGE"
+    },
+    {
+     "check": "it names the sub-portfolio",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-17",
+   "title": "The customer-list filters",
+   "status": "PASS",
+   "note": "17.8s",
+   "checks": [
+    {
+     "check": "ews-filter-layer is offered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "ews-filter-dpd is offered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "ews-filter-stage is offered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "ews-filter-score is offered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "ews-filter-search is offered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the cohort chips are offered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a filter changes the count",
+     "passed": true,
+     "saw": "109 -> 5"
+    }
+   ]
+  },
+  {
+   "id": "EW-18",
+   "title": "The chat applies filters",
+   "status": "PASS",
+   "note": "5.4s",
+   "checks": [
+    {
+     "check": "the answer stays in scope",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it resolves a cohort filter",
+     "passed": true,
+     "saw": "{'month': '2026-08', 'product': 'CREDIT_CARD', 'sub_product': 'CC_PRIVILEGE', 'cohort': 'current_bad'}"
+    },
+    {
+     "check": "and it names the sub-product it scoped to",
+     "passed": true,
+     "saw": "{'month': '2026-08', 'product': 'CREDIT_CARD', 'sub_product': 'CC_PRIVILEGE', 'cohort': 'current_bad'}"
+    },
+    {
+     "check": "the chat renders its answer",
+     "passed": true,
+     "saw": "You asked:Show currently bad customers.\n\nCurrently bad / delinquent in Privilege Card at 2026-08, worst first. Thirty or"
+    },
+    {
+     "check": "and the screen followed it",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?cohort=current_bad&product=CREDIT_CARD&sub=CC_PRIVILEGE"
+    }
+   ]
+  },
+  {
+   "id": "EW-19",
+   "title": "Back retains the level and its filters",
+   "status": "PASS",
+   "note": "28.1s",
+   "checks": [
+    {
+     "check": "a customer opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the address names them",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?cohort=forward_risk&customer=RC-0018318&product=CREDIT_CARD&sub=CC_PRIVILEGE"
+    },
+    {
+     "check": "Back returns to the SAME filtered list",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&sub=CC_PRIVILEGE&cohort=forward_risk"
+    },
+    {
+     "check": "Back again keeps the sub-product",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?cohort=current_bad&product=CREDIT_CARD&sub=CC_PRIVILEGE"
+    }
+   ]
+  },
+  {
+   "id": "EW-20",
+   "title": "Customer name and id on every card",
+   "status": "PASS",
+   "note": "10.1s",
+   "checks": [
+    {
+     "check": "customers are served",
+     "passed": true,
+     "saw": "10"
+    },
+    {
+     "check": "RC-0017858 is named on screen",
+     "passed": true,
+     "saw": "Anas Al-Dosari RC-0017858"
+    },
+    {
+     "check": "RC-0017563 is named on screen",
+     "passed": true,
+     "saw": "Waleed Al-Nasser RC-0017563"
+    },
+    {
+     "check": "RC-0023864 is named on screen",
+     "passed": true,
+     "saw": "Faisal Al-Anzi RC-0023864"
+    },
+    {
+     "check": "RC-0018318 is named on screen",
+     "passed": true,
+     "saw": "Latifa Al-Yami RC-0018318"
+    },
+    {
+     "check": "RC-0017988 is named on screen",
+     "passed": true,
+     "saw": "Noura Al-Nasser RC-0017988"
+    },
+    {
+     "check": "the synthetic-name note is shown",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-21",
+   "title": "Every card shows the Early Warning Score",
+   "status": "PASS",
+   "note": "0.5s",
+   "checks": [
+    {
+     "check": "RC-0017858 shows its score",
+     "passed": true,
+     "saw": "95.7"
+    },
+    {
+     "check": "RC-0017858 shows the warning cutoff",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017563 shows its score",
+     "passed": true,
+     "saw": "95.3"
+    },
+    {
+     "check": "RC-0017563 shows the warning cutoff",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0023864 shows its score",
+     "passed": true,
+     "saw": "95.1"
+    },
+    {
+     "check": "RC-0023864 shows the warning cutoff",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0018318 shows its score",
+     "passed": true,
+     "saw": "94.7"
+    },
+    {
+     "check": "RC-0018318 shows the warning cutoff",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017988 shows its score",
+     "passed": true,
+     "saw": "93.7"
+    },
+    {
+     "check": "RC-0017988 shows the warning cutoff",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-22",
+   "title": "Every card shows the severity",
+   "status": "PASS",
+   "note": "0.5s",
+   "checks": [
+    {
+     "check": "RC-0017858 shows CRITICAL",
+     "passed": true,
+     "saw": "ANAS AL-DOSARI\nRC-0017858\nCRITICAL\nEWS 95.7 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT C"
+    },
+    {
+     "check": "RC-0017563 shows CRITICAL",
+     "passed": true,
+     "saw": "WALEED AL-NASSER\nRC-0017563\nCRITICAL\nEWS 95.3 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT"
+    },
+    {
+     "check": "RC-0023864 shows CRITICAL",
+     "passed": true,
+     "saw": "FAISAL AL-ANZI\nRC-0023864\nCRITICAL\nEWS 95.1 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT C"
+    },
+    {
+     "check": "RC-0018318 shows CRITICAL",
+     "passed": true,
+     "saw": "LATIFA AL-YAMI\nRC-0018318\nCRITICAL\nEWS 94.7 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT C"
+    },
+    {
+     "check": "RC-0017988 shows CRITICAL",
+     "passed": true,
+     "saw": "NOURA AL-NASSER\nRC-0017988\nCRITICAL\nEWS 93.7 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT "
+    }
+   ]
+  },
+  {
+   "id": "EW-23",
+   "title": "The behavioural score is always accounted for",
+   "status": "PASS",
+   "note": "10.9s",
+   "checks": [
+    {
+     "check": "a customer without one carries the reason",
+     "passed": true,
+     "saw": "['RC-0010171', 'RC-0002605', 'RC-0001332']"
+    },
+    {
+     "check": "a customer with one carries no reason",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017858's behavioural cell is filled",
+     "passed": true,
+     "saw": "BEHAVIOURAL\n\n526 E\n\n-113 on the month"
+    },
+    {
+     "check": "RC-0017563's behavioural cell is filled",
+     "passed": true,
+     "saw": "BEHAVIOURAL\n\n519 E\n\n-53 on the month"
+    },
+    {
+     "check": "RC-0023864's behavioural cell is filled",
+     "passed": true,
+     "saw": "BEHAVIOURAL\n\n531 E\n\n-46 on the month"
+    },
+    {
+     "check": "RC-0018318's behavioural cell is filled",
+     "passed": true,
+     "saw": "BEHAVIOURAL\n\n495 E"
+    },
+    {
+     "check": "RC-0017988's behavioural cell is filled",
+     "passed": true,
+     "saw": "BEHAVIOURAL\n\n602 C\n\n-68 on the month"
+    }
+   ]
+  },
+  {
+   "id": "EW-24",
+   "title": "An EWS sparkline on every card",
+   "status": "PASS",
+   "note": "0.5s",
+   "checks": [
+    {
+     "check": "RC-0017858 has an EWS sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017858's series is up to six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "RC-0017563 has an EWS sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017563's series is up to six months",
+     "passed": true,
+     "saw": "4"
+    },
+    {
+     "check": "RC-0023864 has an EWS sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0023864's series is up to six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "RC-0018318 has an EWS sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0018318's series is up to six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "RC-0017988 has an EWS sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017988's series is up to six months",
+     "passed": true,
+     "saw": "5"
+    }
+   ]
+  },
+  {
+   "id": "EW-25",
+   "title": "A DPD sparkline on every card",
+   "status": "PASS",
+   "note": "0.4s",
+   "checks": [
+    {
+     "check": "RC-0017858 has a DPD sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017563 has a DPD sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0023864 has a DPD sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0018318 has a DPD sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017988 has a DPD sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the customer chart is not called ODR",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-26",
+   "title": "A behavioural-score sparkline on every card",
+   "status": "PASS",
+   "note": "0.4s",
+   "checks": [
+    {
+     "check": "RC-0017858 has a behavioural sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017563 has a behavioural sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0023864 has a behavioural sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0018318 has a behavioural sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017988 has a behavioural sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "there is NO bureau sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "and the card says why",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-27",
+   "title": "Bureau shown as last observed plus recency",
+   "status": "PASS",
+   "note": "0.4s",
+   "checks": [
+    {
+     "check": "every row carries an observation date",
+     "passed": true,
+     "saw": "['2026-08', '2026-05', '2026-07']"
+    },
+    {
+     "check": "and a recency in months",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "recency is not zero for everybody, so it is real",
+     "passed": true,
+     "saw": "[0.0, 1.0, 2.0, 3.0, 4.0]"
+    },
+    {
+     "check": "it is on the card",
+     "passed": true,
+     "saw": "BUREAU\n\n656 C\n\nseen 2026-08, 0mo old"
+    }
+   ]
+  },
+  {
+   "id": "EW-28",
+   "title": "The top deteriorating layer on every card",
+   "status": "PASS",
+   "note": "0.4s",
+   "checks": [
+    {
+     "check": "RC-0017858 names its worst layer",
+     "passed": true,
+     "saw": "Affordability & Cash Flow Intelligence"
+    },
+    {
+     "check": "RC-0017858 shows layer chips",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017563 names its worst layer",
+     "passed": true,
+     "saw": "Behavioural Intelligence"
+    },
+    {
+     "check": "RC-0017563 shows layer chips",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0023864 names its worst layer",
+     "passed": true,
+     "saw": "Behavioural Intelligence"
+    },
+    {
+     "check": "RC-0023864 shows layer chips",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0018318 names its worst layer",
+     "passed": true,
+     "saw": "Affordability & Cash Flow Intelligence"
+    },
+    {
+     "check": "RC-0018318 shows layer chips",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017988 names its worst layer",
+     "passed": true,
+     "saw": "Behavioural Intelligence"
+    },
+    {
+     "check": "RC-0017988 shows layer chips",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the worst layer is named in the card's footer",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-29",
+   "title": "Reason codes on every card",
+   "status": "PASS",
+   "note": "0.4s",
+   "checks": [
+    {
+     "check": "RC-0017858 carries up to three reason codes",
+     "passed": true,
+     "saw": "3"
+    },
+    {
+     "check": "RET-EWS-003 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-008 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-009 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017563 carries up to three reason codes",
+     "passed": true,
+     "saw": "3"
+    },
+    {
+     "check": "RET-EWS-003 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-008 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-005 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0023864 carries up to three reason codes",
+     "passed": true,
+     "saw": "3"
+    },
+    {
+     "check": "RET-EWS-003 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-005 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-013 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0018318 carries up to three reason codes",
+     "passed": true,
+     "saw": "3"
+    },
+    {
+     "check": "RET-EWS-003 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-008 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-009 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0017988 carries up to three reason codes",
+     "passed": true,
+     "saw": "3"
+    },
+    {
+     "check": "RET-EWS-003 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-012 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-013 is on screen",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-30",
+   "title": "Exposure contribution on every card",
+   "status": "PASS",
+   "note": "0.7s",
+   "checks": [
+    {
+     "check": "% OF SUB-PRODUCT is on the card",
+     "passed": true,
+     "saw": "% OF SUB-PRODUCT"
+    },
+    {
+     "check": "% OF PRODUCT is on the card",
+     "passed": true,
+     "saw": "% OF PRODUCT"
+    },
+    {
+     "check": "% OF RETAIL is on the card",
+     "passed": true,
+     "saw": "% OF RETAIL"
+    },
+    {
+     "check": "the shares are ordered sub-product >= product >= retail",
+     "passed": true,
+     "saw": "(0.0254, 0.0254, 0.0007)"
+    }
+   ]
+  },
+  {
+   "id": "EW-31",
+   "title": "The current-bad filter",
+   "status": "PASS",
+   "note": "7.9s",
+   "checks": [
+    {
+     "check": "the URL carries the cohort",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?cohort=current_bad&product=CREDIT_CARD"
+    },
+    {
+     "check": "every served row is flagged bad",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the count matches the chip",
+     "passed": true,
+     "saw": "Currently bad / delinquent (175) vs 175"
+    },
+    {
+     "check": "already-bad badges are rendered",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-32",
+   "title": "The forward-risk filter",
+   "status": "PASS",
+   "note": "8.4s",
+   "checks": [
+    {
+     "check": "every served row is forward risk",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a forward-risk customer may have zero DPD",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "forward-risk badges are rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the two cohorts do not overlap",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-33",
+   "title": "The rule filter, from the signals view",
+   "status": "PASS",
+   "note": "24.9s",
+   "checks": [
+    {
+     "check": "the signals view opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it says how many of how many are shown",
+     "passed": true,
+     "saw": "Showing 34 of 34 triggers, 16,443 facility hits at 2026-08"
+    },
+    {
+     "check": "a rule opens its own detail",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it opens the customers it caught",
+     "passed": true,
+     "saw": "http://localhost:5328/early-warning?cohort=all&reason=RET-EWS-010"
+    },
+    {
+     "check": "and the list is genuinely narrowed",
+     "passed": true,
+     "saw": "660 of 3377"
+    }
+   ]
+  },
+  {
+   "id": "EW-34",
+   "title": "The customer's overall Early Warning Score",
+   "status": "PASS",
+   "note": "32.7s",
+   "checks": [
+    {
+     "check": "the detail opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the score is shown",
+     "passed": true,
+     "saw": "EARLY WARNING SCORE\n\n95.7\n\n+84.1 on 2026-07"
+    },
+    {
+     "check": "the severity is shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the threshold is shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a six-month score trend is drawn",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "current bad versus forward risk is stated",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the month-on-month change is shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "Customer 360 carries an Early Warning Score section",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "and it is the complete section, not a summary",
+     "passed": true,
+     "saw": "EARLY WARNING SCORE\n\n95.7\n\n+84.1 on 2026-07"
+    },
+    {
+     "check": "Customer 360 shows the behavioural layer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "Customer 360 shows the affordability layer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "Customer 360 shows the bureau layer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "Customer 360 shows the facility layer",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-35",
+   "title": "The four layer scores",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "four layers are served",
+     "passed": true,
+     "saw": "['behavioural', 'affordability', 'bureau', 'facility']"
+    },
+    {
+     "check": "behavioural is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "behavioural shows its score",
+     "passed": true,
+     "saw": "91.89"
+    },
+    {
+     "check": "behavioural shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "behavioural shows its weight",
+     "passed": true,
+     "saw": "0.45"
+    },
+    {
+     "check": "behavioural names its top sublayer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "affordability is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "affordability shows its score",
+     "passed": true,
+     "saw": "95.26"
+    },
+    {
+     "check": "affordability shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "affordability shows its weight",
+     "passed": true,
+     "saw": "0.22"
+    },
+    {
+     "check": "affordability names its top sublayer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "bureau is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "bureau shows its score",
+     "passed": true,
+     "saw": "0.0"
+    },
+    {
+     "check": "bureau shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "bureau shows its weight",
+     "passed": true,
+     "saw": "0.13"
+    },
+    {
+     "check": "bureau names its top sublayer",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "facility is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "facility shows its score",
+     "passed": true,
+     "saw": "0.0"
+    },
+    {
+     "check": "facility shows its severity",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "facility shows its weight",
+     "passed": true,
+     "saw": "0.2"
+    },
+    {
+     "check": "facility names its top sublayer",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-36",
+   "title": "Layer trends where the layer is dynamic",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "behavioural has a trend",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "behavioural's trend is up to six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "affordability has a trend",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "affordability's trend is up to six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "bureau explains why it has no trend",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "facility has a trend",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "facility's trend is up to six months",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "the bureau layer is the classifier one",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-37",
+   "title": "Sub-layer detail with variables and values",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "nineteen sublayers are served",
+     "passed": true,
+     "saw": "19"
+    },
+    {
+     "check": "a scoring layer is expanded on load",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "delinquency is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "payment_performance is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "utilisation is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "behavioural_dynamics is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "a fired trigger carries its raw value and comparator",
+     "passed": true,
+     "saw": "7"
+    },
+    {
+     "check": "and its threshold and contribution",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "classifiers are rendered beside the triggers",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-38",
+   "title": "The six action dimensions on a fired trigger",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "at least one trigger fired",
+     "passed": true,
+     "saw": "7"
+    },
+    {
+     "check": "early_life_failure carries an action block",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "early_life_failure has direction",
+     "passed": true,
+     "saw": "DETERIORATING"
+    },
+    {
+     "check": "early_life_failure has magnitude",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "early_life_failure has velocity",
+     "passed": true,
+     "saw": "0.33"
+    },
+    {
+     "check": "early_life_failure has momentum",
+     "passed": true,
+     "saw": "ACCELERATING"
+    },
+    {
+     "check": "early_life_failure has persistence",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "early_life_failure has recency",
+     "passed": true,
+     "saw": "0.0"
+    },
+    {
+     "check": "early_life_failure's dimensions are on screen",
+     "passed": true,
+     "saw": "Direction: DETERIORATING\nMagnitude: 1.00\nVelocity: 0.33\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: 0"
+    },
+    {
+     "check": "behavioural_fall carries an action block",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "behavioural_fall has direction",
+     "passed": true,
+     "saw": "DETERIORATING"
+    },
+    {
+     "check": "behavioural_fall has magnitude",
+     "passed": true,
+     "saw": "2.83"
+    },
+    {
+     "check": "behavioural_fall has velocity",
+     "passed": true,
+     "saw": "28.04"
+    },
+    {
+     "check": "behavioural_fall has momentum",
+     "passed": true,
+     "saw": "ACCELERATING"
+    },
+    {
+     "check": "behavioural_fall has persistence",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "behavioural_fall has recency",
+     "passed": true,
+     "saw": "0.0"
+    },
+    {
+     "check": "behavioural_fall's dimensions are on screen",
+     "passed": true,
+     "saw": "Direction: DETERIORATING\nMagnitude: 2.83\nVelocity: 28.04\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: "
+    },
+    {
+     "check": "band_migration carries an action block",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "band_migration has direction",
+     "passed": true,
+     "saw": "DETERIORATING"
+    },
+    {
+     "check": "band_migration has magnitude",
+     "passed": true,
+     "saw": "3.0"
+    },
+    {
+     "check": "band_migration has velocity",
+     "passed": true,
+     "saw": "0.67"
+    },
+    {
+     "check": "band_migration has momentum",
+     "passed": true,
+     "saw": "ACCELERATING"
+    },
+    {
+     "check": "band_migration has persistence",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "band_migration has recency",
+     "passed": true,
+     "saw": "0.0"
+    },
+    {
+     "check": "band_migration's dimensions are on screen",
+     "passed": true,
+     "saw": "Direction: DETERIORATING\nMagnitude: 3.00\nVelocity: 0.67\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: 0"
+    }
+   ]
+  },
+  {
+   "id": "EW-39",
+   "title": "The customer's facilities and exposure share",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "facilities are listed",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "every facility is served with its share",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the shares sum to about a hundred per cent",
+     "passed": true,
+     "saw": "100.0"
+    },
+    {
+     "check": "the customer's share of retail is shown",
+     "passed": true,
+     "saw": "SHARE OF RETAIL EXPOSURE\n\n0.004%\n\n0.15% of product \u00b7 0.32% of sub-portfolio"
+    },
+    {
+     "check": "its share of product and sub-portfolio too",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-40",
+   "title": "The warning and reason-code history",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a history table is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it covers every month the customer is in the domain",
+     "passed": true,
+     "saw": "7"
+    },
+    {
+     "check": "it carries reason codes",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the months are on screen",
+     "passed": true,
+     "saw": "2026-08"
+    },
+    {
+     "check": "RET-EWS reason codes are on screen",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-41",
+   "title": "View Model opens the model screen",
+   "status": "PASS",
+   "note": "12.8s",
+   "checks": [
+    {
+     "check": "a View Model control is on the workspace",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the model screen opened",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it states the model_version",
+     "passed": true,
+     "saw": "2.0.0"
+    },
+    {
+     "check": "it states the purpose",
+     "passed": true,
+     "saw": "To identify retail customers whose position is det"
+    },
+    {
+     "check": "it states the target",
+     "passed": true,
+     "saw": "Deterioration in the customer's credit position ov"
+    },
+    {
+     "check": "it states the horizon",
+     "passed": true,
+     "saw": "One to three reporting months. Every trigger is ev"
+    },
+    {
+     "check": "it states the eligible_population",
+     "passed": true,
+     "saw": "Every open retail facility in the published book a"
+    },
+    {
+     "check": "it states the scoring_frequency",
+     "passed": true,
+     "saw": "Monthly, at each published month-end."
+    },
+    {
+     "check": "it states the score range",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it states the score direction",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "and carries the synthetic disclaimer",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-42",
+   "title": "The flow diagram",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a flow is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the flow names Classifiers",
+     "passed": true,
+     "saw": "Classifiers"
+    },
+    {
+     "check": "the flow names Dynamic triggers",
+     "passed": true,
+     "saw": "Dynamic triggers"
+    },
+    {
+     "check": "the flow names Action dimensions",
+     "passed": true,
+     "saw": "Action dimensions"
+    },
+    {
+     "check": "the flow names Sub-layer scores",
+     "passed": true,
+     "saw": "Sub-layer scores"
+    },
+    {
+     "check": "the flow names Four layer scores",
+     "passed": true,
+     "saw": "Four layer scores"
+    },
+    {
+     "check": "the flow names Overall Early Warning Score",
+     "passed": true,
+     "saw": "Overall Early Warning Score"
+    },
+    {
+     "check": "the flow names Severity",
+     "passed": true,
+     "saw": "Severity"
+    },
+    {
+     "check": "the flow names Reason codes",
+     "passed": true,
+     "saw": "Reason codes"
+    }
+   ]
+  },
+  {
+   "id": "EW-43",
+   "title": "Exactly four layers, named",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "four layers",
+     "passed": true,
+     "saw": "['behavioural', 'affordability', 'bureau', 'facility']"
+    },
+    {
+     "check": "named as the specification names them",
+     "passed": true,
+     "saw": "['Behavioural Intelligence', 'Affordability & Cash Flow Intelligence', 'Bureau & External Credit Intelligence', 'Facility & Exposure Intelligence']"
+    },
+    {
+     "check": "behavioural is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "affordability is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "bureau is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "facility is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the layer weights sum to one",
+     "passed": true,
+     "saw": "1.0"
+    }
+   ]
+  },
+  {
+   "id": "EW-44",
+   "title": "Classifier and trigger separated, per sublayer",
+   "status": "PASS",
+   "note": "4.2s",
+   "checks": [
+    {
+     "check": "delinquency is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "payment_performance is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "utilisation is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "behavioural_dynamics is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "classifier variables are served and rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "trigger variables are served and rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the page says which is which",
+     "passed": true,
+     "saw": "['36 stable context variables that set how a trigger is read.', 'Open a layer for its sublayers, and each sublayer for its classifier variables, its triggers and the action dimensions computed on them. The customer count beside each is what actually fired at 2026-08.', 'CLASSIFIER VARIABLES \u2014 STABLE CONTEXT, THEY NEVER FIRE']"
+    },
+    {
+     "check": "classifiers are declared never to fire",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-45",
+   "title": "The six action dimensions are documented",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "an action-dimension block is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "six dimensions",
+     "passed": true,
+     "saw": "['direction', 'magnitude', 'velocity', 'momentum', 'persistence', 'recency']"
+    },
+    {
+     "check": "direction is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "direction states how it is computed",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "direction states its values",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "magnitude is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "magnitude states how it is computed",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "magnitude states its values",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "velocity is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "velocity states how it is computed",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "velocity states its values",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "momentum is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "momentum states how it is computed",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "momentum states its values",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "persistence is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "persistence states how it is computed",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "persistence states its values",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "recency is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "recency states how it is computed",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "recency states its values",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "their weights sum to one",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-46",
+   "title": "Product-specific configuration",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a weight matrix is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "all four products are configured",
+     "passed": true,
+     "saw": "['AUTO_LOAN', 'CREDIT_CARD', 'HOME_LOAN', 'PERSONAL_LOAN']"
+    },
+    {
+     "check": "CREDIT_CARD's weights sum to one",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "CREDIT_CARD has a row on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "PERSONAL_LOAN's weights sum to one",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "PERSONAL_LOAN has a row on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "AUTO_LOAN's weights sum to one",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "AUTO_LOAN has a row on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "HOME_LOAN's weights sum to one",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "HOME_LOAN has a row on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the four products are not weighted identically",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the matrix lives in the model config, not the frontend",
+     "passed": true,
+     "saw": "backend/retail/ews_model.py"
+    }
+   ]
+  },
+  {
+   "id": "EW-47",
+   "title": "Thresholds, cutoff and hard triggers",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a thresholds block is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the CRITICAL band is shown",
+     "passed": true,
+     "saw": "CRITICAL"
+    },
+    {
+     "check": "the HIGH band is shown",
+     "passed": true,
+     "saw": "HIGH"
+    },
+    {
+     "check": "the MEDIUM band is shown",
+     "passed": true,
+     "saw": "MEDIUM"
+    },
+    {
+     "check": "the LOW band is shown",
+     "passed": true,
+     "saw": "LOW"
+    },
+    {
+     "check": "the warning cutoff is shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "customer and population bands are both shown",
+     "passed": true,
+     "saw": "Thresholds, cutoff and hard triggers\n\nCUSTOMER SEVERITY BANDS\n\nCRITICAL\n70 and above\nHIGH\n45 and above\nMEDIUM\n20 and above\nLOW\n0 and above\n\nA customer is WARNED"
+    },
+    {
+     "check": "hard triggers are shown",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "high_trigger_floor is documented",
+     "passed": true,
+     "saw": "any trigger of severity HIGH fired"
+    },
+    {
+     "check": "critical_trigger_floor is documented",
+     "passed": true,
+     "saw": "any trigger of severity CRITICAL fired"
+    },
+    {
+     "check": "dpd_90 is documented",
+     "passed": true,
+     "saw": "dpd >= 90"
+    },
+    {
+     "check": "stage_3 is documented",
+     "passed": true,
+     "saw": "ifrs9_stage >= 3"
+    },
+    {
+     "check": "default_entry is documented",
+     "passed": true,
+     "saw": "default_entry_this_month"
+    },
+    {
+     "check": "forbearance_arrears is documented",
+     "passed": true,
+     "saw": "forbearance_flag AND dpd >= 30"
+    }
+   ]
+  },
+  {
+   "id": "EW-48",
+   "title": "The bureau treatment",
+   "status": "PASS",
+   "note": "4.9s",
+   "checks": [
+    {
+     "check": "a bureau block is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it says the bank does not get a monthly file",
+     "passed": true,
+     "saw": "How bureau is treated\n\nThe bank does not receive a bureau file every month. A bureau observation exists at origination, on the customer's own re-pull "
+    },
+    {
+     "check": "it says values are carried forward unchanged",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it says no monthly movement is generated",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the synthetic proxy is labelled",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "and it says there is no bureau agreement",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the bureau layer is declared a classifier layer",
+     "passed": true,
+     "saw": "classifier"
+    },
+    {
+     "check": "bureau_profile is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "external_delinquency is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "external_leverage is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "credit_seeking is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "bureau_recency is rendered",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "its triggers are gated on a new observation",
+     "passed": true,
+     "saw": "['bureau_deterioration', 'new_external_delinquency', 'external_leverage_rise', 'new_enquiries']"
+    },
+    {
+     "check": "recency is a sub-layer of its own, on the page",
+     "passed": true,
+     "saw": "['bureau_profile', 'external_delinquency', 'external_leverage', 'credit_seeking', 'bureau_recency']"
+    },
+    {
+     "check": "and it is carried by a classifier, not a monthly trend",
+     "passed": true,
+     "saw": "['latest_bureau_score', 'bureau_at_origination', 'bureau_risk_band', 'external_dpd', 'bureau_monthly_obligations', 'bureau_exposure', 'enquiries', 'last_pull']"
+    }
+   ]
+  },
+  {
+   "id": "EW-49",
+   "title": "The glossary",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a glossary is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "EWS is defined",
+     "passed": true,
+     "saw": "EWS"
+    },
+    {
+     "check": "DPD is defined",
+     "passed": true,
+     "saw": "DPD"
+    },
+    {
+     "check": "ODR is defined",
+     "passed": true,
+     "saw": "ODR"
+    },
+    {
+     "check": "DBR is defined",
+     "passed": true,
+     "saw": "DBR"
+    },
+    {
+     "check": "SICR is defined",
+     "passed": true,
+     "saw": "SICR"
+    },
+    {
+     "check": "LTV is defined",
+     "passed": true,
+     "saw": "LTV"
+    },
+    {
+     "check": "Classifier is defined",
+     "passed": true,
+     "saw": "Classifier"
+    },
+    {
+     "check": "Trigger is defined",
+     "passed": true,
+     "saw": "Trigger"
+    },
+    {
+     "check": "Direction is defined",
+     "passed": true,
+     "saw": "Direction"
+    },
+    {
+     "check": "Magnitude is defined",
+     "passed": true,
+     "saw": "Magnitude"
+    },
+    {
+     "check": "Velocity is defined",
+     "passed": true,
+     "saw": "Velocity"
+    },
+    {
+     "check": "Momentum is defined",
+     "passed": true,
+     "saw": "Momentum"
+    },
+    {
+     "check": "Persistence is defined",
+     "passed": true,
+     "saw": "Persistence"
+    },
+    {
+     "check": "Recency is defined",
+     "passed": true,
+     "saw": "Recency"
+    },
+    {
+     "check": "T, A and C are not given an invented meaning",
+     "passed": true,
+     "saw": "T, A and C are not governed abbreviations in this deployment's Early Warning implementation. They appear nowhere in the "
+    }
+   ]
+  },
+  {
+   "id": "EW-50",
+   "title": "Lineage",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "a lineage block is on the page",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it names retail_ews_score",
+     "passed": true,
+     "saw": "retail_ews_score"
+    },
+    {
+     "check": "it names retail_facility_month",
+     "passed": true,
+     "saw": "retail_facility_month"
+    },
+    {
+     "check": "it names ews_model.py",
+     "passed": true,
+     "saw": "ews_model.py"
+    },
+    {
+     "check": "it names ews_score.py",
+     "passed": true,
+     "saw": "ews_score.py"
+    },
+    {
+     "check": "it names the domain and its month count",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-51",
+   "title": "The Early Warning Score domain exists",
+   "status": "PASS",
+   "note": "10.4s",
+   "checks": [
+    {
+     "check": "the domain is served",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "it is called Early Warning Score",
+     "passed": true,
+     "saw": "Early Warning Score"
+    },
+    {
+     "check": "its dataset is retail_ews_score",
+     "passed": true,
+     "saw": "retail_ews_score"
+    },
+    {
+     "check": "it appears in Data Builder",
+     "passed": true,
+     "saw": "['Early Warning Score', 'Early Warning Data', 'Retail Early Warning']"
+    }
+   ]
+  },
+  {
+   "id": "EW-52",
+   "title": "Exactly twenty monthly snapshots",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "twenty months",
+     "passed": true,
+     "saw": "20"
+    },
+    {
+     "check": "they are consecutive and end at the latest",
+     "passed": true,
+     "saw": "2025-01\u20262026-08"
+    },
+    {
+     "check": "the domain reports no problems",
+     "passed": true,
+     "saw": "[]"
+    },
+    {
+     "check": "they derive from one canonical book",
+     "passed": true,
+     "saw": "retail_facility_month"
+    }
+   ]
+  },
+  {
+   "id": "EW-53",
+   "title": "The field contract",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "the grain is customer-facility-month",
+     "passed": true,
+     "saw": "['reporting_month', 'customer_id', 'facility_id']"
+    },
+    {
+     "check": "the contract holds a Identity and hierarchy group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Exposure and facility group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Credit status group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Existing scores group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Bureau classifier group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Affordability and cash flow group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Trigger inputs group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Action dimensions group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Sub-layer scores group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Layer scores group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds a Overall Early Warning Score group",
+     "passed": true,
+     "saw": "['Action dimensions', 'Affordability and cash flow', 'Bureau classifier', 'Credit status', 'Existing scores', 'Exposure and facility', 'Identity and hierarchy', 'Layer scores', 'Overall Early Warning Score', 'Portfolio contribution', 'Sub-layer scores', 'Trigger inputs', 'Versions']"
+    },
+    {
+     "check": "the contract holds reporting_month",
+     "passed": true,
+     "saw": "reporting_month"
+    },
+    {
+     "check": "the contract holds customer_id",
+     "passed": true,
+     "saw": "customer_id"
+    },
+    {
+     "check": "the contract holds customer_name",
+     "passed": true,
+     "saw": "customer_name"
+    },
+    {
+     "check": "the contract holds facility_id",
+     "passed": true,
+     "saw": "facility_id"
+    },
+    {
+     "check": "the contract holds product_code",
+     "passed": true,
+     "saw": "product_code"
+    },
+    {
+     "check": "the contract holds sub_product",
+     "passed": true,
+     "saw": "sub_product"
+    },
+    {
+     "check": "the contract holds gross_carrying_amount_sar",
+     "passed": true,
+     "saw": "gross_carrying_amount_sar"
+    },
+    {
+     "check": "the contract holds dpd",
+     "passed": true,
+     "saw": "dpd"
+    },
+    {
+     "check": "the contract holds dpd_change",
+     "passed": true,
+     "saw": "dpd_change"
+    },
+    {
+     "check": "the contract holds ifrs9_stage",
+     "passed": true,
+     "saw": "ifrs9_stage"
+    },
+    {
+     "check": "the contract holds stage_change",
+     "passed": true,
+     "saw": "stage_change"
+    },
+    {
+     "check": "the contract holds current_bad_flag",
+     "passed": true,
+     "saw": "current_bad_flag"
+    },
+    {
+     "check": "the contract holds forward_risk_flag",
+     "passed": true,
+     "saw": "forward_risk_flag"
+    },
+    {
+     "check": "the contract holds default_entry_this_month",
+     "passed": true,
+     "saw": "default_entry_this_month"
+    },
+    {
+     "check": "the contract holds eligible_for_default_this_month",
+     "passed": true,
+     "saw": "eligible_for_default_this_month"
+    },
+    {
+     "check": "the contract holds application_score",
+     "passed": true,
+     "saw": "application_score"
+    },
+    {
+     "check": "the contract holds behavioural_score",
+     "passed": true,
+     "saw": "behavioural_score"
+    },
+    {
+     "check": "the contract holds behavioural_score_change",
+     "passed": true,
+     "saw": "behavioural_score_change"
+    },
+    {
+     "check": "the contract holds latest_bureau_score",
+     "passed": true,
+     "saw": "latest_bureau_score"
+    },
+    {
+     "check": "the contract holds bureau_last_observed_date",
+     "passed": true,
+     "saw": "bureau_last_observed_date"
+    },
+    {
+     "check": "the contract holds bureau_recency_months",
+     "passed": true,
+     "saw": "bureau_recency_months"
+    },
+    {
+     "check": "the contract holds bureau_risk_band",
+     "passed": true,
+     "saw": "bureau_risk_band"
+    },
+    {
+     "check": "the contract holds verified_income",
+     "passed": true,
+     "saw": "verified_income"
+    },
+    {
+     "check": "the contract holds dbr",
+     "passed": true,
+     "saw": "dbr"
+    },
+    {
+     "check": "the contract holds dbr_change",
+     "passed": true,
+     "saw": "dbr_change"
+    },
+    {
+     "check": "the contract holds disposable_income_sar",
+     "passed": true,
+     "saw": "disposable_income_sar"
+    },
+    {
+     "check": "the contract holds missed_payment_count_3m",
+     "passed": true,
+     "saw": "missed_payment_count_3m"
+    },
+    {
+     "check": "the contract holds ews_score",
+     "passed": true,
+     "saw": "ews_score"
+    },
+    {
+     "check": "the contract holds ews_severity",
+     "passed": true,
+     "saw": "ews_severity"
+    },
+    {
+     "check": "the contract holds ews_threshold",
+     "passed": true,
+     "saw": "ews_threshold"
+    },
+    {
+     "check": "the contract holds ews_alert_flag",
+     "passed": true,
+     "saw": "ews_alert_flag"
+    },
+    {
+     "check": "the contract holds top_reason_code_1",
+     "passed": true,
+     "saw": "top_reason_code_1"
+    },
+    {
+     "check": "the contract holds primary_deteriorating_layer",
+     "passed": true,
+     "saw": "primary_deteriorating_layer"
+    },
+    {
+     "check": "the contract holds model_version",
+     "passed": true,
+     "saw": "model_version"
+    },
+    {
+     "check": "the contract holds rulebook_version",
+     "passed": true,
+     "saw": "rulebook_version"
+    },
+    {
+     "check": "nineteen sub-layer scores",
+     "passed": true,
+     "saw": "19"
+    },
+    {
+     "check": "four layer scores",
+     "passed": true,
+     "saw": "['layer_affordability_score', 'layer_behavioural_score', 'layer_bureau_score', 'layer_facility_score']"
+    },
+    {
+     "check": "six action dimensions per evaluated trigger",
+     "passed": true,
+     "saw": "186"
+    }
+   ]
+  },
+  {
+   "id": "EW-54",
+   "title": "The Early Warning Score reproduces",
+   "status": "PASS",
+   "note": "2.1s",
+   "checks": [
+    {
+     "check": "RC-0026053 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.86 vs 99.86"
+    },
+    {
+     "check": "RC-0026053 bands the same way",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0015496 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.81 vs 99.81"
+    },
+    {
+     "check": "RC-0015496 bands the same way",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0025457 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.75 vs 99.75"
+    },
+    {
+     "check": "RC-0025457 bands the same way",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0010171 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.73 vs 99.73"
+    },
+    {
+     "check": "RC-0010171 bands the same way",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0011707 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.7 vs 99.7"
+    },
+    {
+     "check": "RC-0011707 bands the same way",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  },
+  {
+   "id": "EW-55",
+   "title": "The layer scores reproduce",
+   "status": "PASS",
+   "note": "1.8s",
+   "checks": [
+    {
+     "check": "RC-0026053 / behavioural agrees",
+     "passed": true,
+     "saw": "98.97 vs 98.97"
+    },
+    {
+     "check": "RC-0026053 / affordability agrees",
+     "passed": true,
+     "saw": "92.73 vs 92.73"
+    },
+    {
+     "check": "RC-0026053 / bureau agrees",
+     "passed": true,
+     "saw": "9.72 vs 9.72"
+    },
+    {
+     "check": "RC-0026053 / facility agrees",
+     "passed": true,
+     "saw": "79.5 vs 79.5"
+    },
+    {
+     "check": "RC-0015496 / behavioural agrees",
+     "passed": true,
+     "saw": "99.1 vs 99.1"
+    },
+    {
+     "check": "RC-0015496 / affordability agrees",
+     "passed": true,
+     "saw": "74.04 vs 74.04"
+    },
+    {
+     "check": "RC-0015496 / bureau agrees",
+     "passed": true,
+     "saw": "0.0 vs 0.0"
+    },
+    {
+     "check": "RC-0015496 / facility agrees",
+     "passed": true,
+     "saw": "83.95 vs 83.95"
+    },
+    {
+     "check": "RC-0025457 / behavioural agrees",
+     "passed": true,
+     "saw": "98.74 vs 98.74"
+    },
+    {
+     "check": "RC-0025457 / affordability agrees",
+     "passed": true,
+     "saw": "99.64 vs 99.64"
+    },
+    {
+     "check": "RC-0025457 / bureau agrees",
+     "passed": true,
+     "saw": "42.36 vs 42.36"
+    },
+    {
+     "check": "RC-0025457 / facility agrees",
+     "passed": true,
+     "saw": "22.24 vs 22.24"
+    },
+    {
+     "check": "RC-0010171 / behavioural agrees",
+     "passed": true,
+     "saw": "98.78 vs 98.78"
+    },
+    {
+     "check": "RC-0010171 / affordability agrees",
+     "passed": true,
+     "saw": "95.73 vs 95.73"
+    },
+    {
+     "check": "RC-0010171 / bureau agrees",
+     "passed": true,
+     "saw": "0.0 vs 0.0"
+    },
+    {
+     "check": "RC-0010171 / facility agrees",
+     "passed": true,
+     "saw": "23.26 vs 23.26"
+    },
+    {
+     "check": "RC-0011707 / behavioural agrees",
+     "passed": true,
+     "saw": "18.78 vs 18.78"
+    },
+    {
+     "check": "RC-0011707 / affordability agrees",
+     "passed": true,
+     "saw": "99.65 vs 99.65"
+    },
+    {
+     "check": "RC-0011707 / bureau agrees",
+     "passed": true,
+     "saw": "0.0 vs 0.0"
+    },
+    {
+     "check": "RC-0011707 / facility agrees",
+     "passed": true,
+     "saw": "0.0 vs 0.0"
+    }
+   ]
+  },
+  {
+   "id": "EW-56",
+   "title": "The UI reconciles with the domain",
+   "status": "PASS",
+   "note": "15.3s",
+   "checks": [
+    {
+     "check": "the products' warned counts do not exceed the portfolio's",
+     "passed": true,
+     "saw": "3893 vs 3377"
+    },
+    {
+     "check": "the products' exposure sums to the book's",
+     "passed": true,
+     "saw": "2082852855.82"
+    },
+    {
+     "check": "the sub-products' facilities sum to the product's exactly",
+     "passed": true,
+     "saw": "6532 vs 6532"
+    },
+    {
+     "check": "the sub-products' exposure sums to the product's",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "their customer counts are at least the product's, because they overlap",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "and the screen says the customer counts overlap",
+     "passed": true,
+     "saw": "Customer counts overlap: a customer holding two facilities in different sub-portfolios is counted once in each"
+    }
+   ]
+  },
+  {
+   "id": "EW-57",
+   "title": "No hard-coded figures in the frontend",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "the workspace source is present",
+     "passed": true,
+     "saw": "12"
+    },
+    {
+     "check": "no served figure is written into a screen",
+     "passed": true,
+     "saw": "[]"
+    },
+    {
+     "check": "no dataset other than the EWS domain is named in the workspace",
+     "passed": true,
+     "saw": "[]"
+    }
+   ]
+  },
+  {
+   "id": "EW-58",
+   "title": "The chat reads only the EWS domain",
+   "status": "PASS",
+   "note": "6.0s",
+   "checks": [
+    {
+     "check": "'Which product has the highest Early Warn' is answered in scope",
+     "passed": true,
+     "saw": "worst_product"
+    },
+    {
+     "check": "'Which product has the highest Early Warn' names the EWS domain",
+     "passed": true,
+     "saw": "retail_ews_score"
+    },
+    {
+     "check": "'Show currently bad customers.' is answered in scope",
+     "passed": true,
+     "saw": "customer_list"
+    },
+    {
+     "check": "'Show currently bad customers.' names the EWS domain",
+     "passed": true,
+     "saw": "retail_ews_score"
+    },
+    {
+     "check": "'Which signals increased most this month?' is answered in scope",
+     "passed": true,
+     "saw": "signals"
+    },
+    {
+     "check": "'Which signals increased most this month?' names the EWS domain",
+     "passed": true,
+     "saw": "retail_ews_score"
+    },
+    {
+     "check": "the chat's code holds no reference to retail_facility_month",
+     "passed": true,
+     "saw": "retail_facility_month"
+    },
+    {
+     "check": "the chat's code holds no reference to retail_whatif",
+     "passed": true,
+     "saw": "retail_whatif"
+    },
+    {
+     "check": "the chat's code holds no reference to retail_credit_scorecard",
+     "passed": true,
+     "saw": "retail_credit_scorecard"
+    },
+    {
+     "check": "the chat's code holds no reference to retail_early_warning",
+     "passed": true,
+     "saw": "retail_early_warning"
+    },
+    {
+     "check": "the chat's code holds no reference to corporate_",
+     "passed": true,
+     "saw": "corporate_"
+    },
+    {
+     "check": "the chat's code holds no reference to duckdb",
+     "passed": true,
+     "saw": "duckdb"
+    },
+    {
+     "check": "the chat's code holds no reference to read_parquet",
+     "passed": true,
+     "saw": "read_parquet"
+    },
+    {
+     "check": "the chat's code holds no reference to catalog",
+     "passed": true,
+     "saw": "catalog"
+    },
+    {
+     "check": "the chat's code holds no reference to reload_catalog",
+     "passed": true,
+     "saw": "reload_catalog"
+    },
+    {
+     "check": "the chat's code holds no reference to get_session",
+     "passed": true,
+     "saw": "get_session"
+    },
+    {
+     "check": "it imports only the model and the Early Warning views",
+     "passed": true,
+     "saw": "['from __future__ import annotations', 'import re', 'from dataclasses import dataclass, field', 'from typing import Any', 'from backend.retail import ews_model as M', 'from backend.retail import ews_views as V']"
+    }
+   ]
+  },
+  {
+   "id": "EW-59",
+   "title": "A source change moves the whole chain",
+   "status": "PASS",
+   "note": "0.0s",
+   "checks": [
+    {
+     "check": "the source changed",
+     "passed": true,
+     "saw": "{'before': 0.0, 'after': 3.0, 'changed': True}"
+    },
+    {
+     "check": "the sublayer changed",
+     "passed": true,
+     "saw": "{'key': 'salary_behaviour', 'before': 0.0, 'after': 97.95, 'changed': True}"
+    },
+    {
+     "check": "the layer changed",
+     "passed": true,
+     "saw": "{'key': 'affordability', 'before': 0.0, 'after': 97.95, 'changed': True}"
+    },
+    {
+     "check": "the overall changed",
+     "passed": true,
+     "saw": "{'before': 14.656, 'after': 55.524, 'changed': True}"
+    },
+    {
+     "check": "the reason changed",
+     "passed": true,
+     "saw": "{'before': ['RET-EWS-004', '', ''], 'after': ['RET-EWS-026', 'RET-EWS-008', 'RET-EWS-004'], 'changed': True}"
+    },
+    {
+     "check": "the aggregate changed",
+     "passed": true,
+     "saw": "{'product': 'CREDIT_CARD', 'before': 16.94, 'after': 17.01, 'changed': True}"
+    }
+   ]
+  },
+  {
+   "id": "EW-60",
+   "title": "Cross-domain questions are refused, not answered from the wrong book",
+   "status": "PASS",
+   "note": "16.3s",
+   "checks": [
+    {
+     "check": "'What is the ECL for the credit card bo' is refused",
+     "passed": true,
+     "saw": "out_of_scope"
+    },
+    {
+     "check": "'What is the ECL for the credit card bo' names where it belongs",
+     "passed": true,
+     "saw": "Expected credit loss, provisions and staging movements are answered on the Cockpit. Open C"
+    },
+    {
+     "check": "'What is the ECL for the credit card bo' carries the scope note",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "'Run a downturn stress scenario.' is refused",
+     "passed": true,
+     "saw": "out_of_scope"
+    },
+    {
+     "check": "'Run a downturn stress scenario.' names where it belongs",
+     "passed": true,
+     "saw": "Scenarios and stress are run in What-If Analysis. Open What-If Analysis for it."
+    },
+    {
+     "check": "'Run a downturn stress scenario.' carries the scope note",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "'What is the Gini of the behavioural sc' is refused",
+     "passed": true,
+     "saw": "out_of_scope"
+    },
+    {
+     "check": "'What is the Gini of the behavioural sc' names where it belongs",
+     "passed": true,
+     "saw": "Discrimination, calibration and stability are in Scorecard Validation. Open Scorecard Vali"
+    },
+    {
+     "check": "'What is the Gini of the behavioural sc' carries the scope note",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "'Show me the corporate portfolio.' is refused",
+     "passed": true,
+     "saw": "out_of_scope"
+    },
+    {
+     "check": "'Show me the corporate portfolio.' names where it belongs",
+     "passed": true,
+     "saw": "This installation serves the Saudi retail book only. There is no corporate portfolio here."
+    },
+    {
+     "check": "'Show me the corporate portfolio.' carries the scope note",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "'What is the RWA on this book?' is refused",
+     "passed": true,
+     "saw": "out_of_scope"
+    },
+    {
+     "check": "'What is the RWA on this book?' names where it belongs",
+     "passed": true,
+     "saw": "Capital measures are not part of the Early Warning Score domain. Open Cockpit for it."
+    },
+    {
+     "check": "'What is the RWA on this book?' carries the scope note",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "the refusal is visible on screen",
+     "passed": true,
+     "saw": ""
+    }
+   ]
+  }
+ ]
+}

@@ -158,7 +158,7 @@ Screenshots are in `docs/evidence/retail_ews_score/cases/`:
 | Customer 360 Early Warning section | `EW-34-customer-360.png` |
 | View Model, main tree | `EW-41-model.png` |
 | Behavioural layer expanded | `EW-44-behavioural-layer.png` |
-| Bureau layer expanded, classifier and recency treatment | `EW-48-bureau.png` |
+| Bureau layer expanded, classifier and recency treatment | `EW-48-bureau.png`, with the written treatment at `EW-48-bureau-treatment.png` |
 | Early Warning Score domain in Data Builder | `EW-51-data-builder.png` |
 | Signals / rules view | `EW-33-signals-view.png`, and where a rule lands: `EW-33-signals-filter.png` |
 | The chat, and a refused cross-domain question | `EW-18-chat.png`, `EW-60-out-of-scope.png` |
@@ -185,9 +185,9 @@ named customer id, answered from that customer.
 
 | Suite | Result |
 |---|---|
-| `scripts/retail_uat/ews_score_uat.py` — EW-01 … EW-60, real browser | **PLACEHOLDER** |
+| `scripts/retail_uat/ews_score_uat.py` — EW-01 … EW-60, real browser | **60 of 60 passed** (`docs/evidence/retail_ews_score/ew_score_uat.txt`, `ew_score_uat.json`) |
 | `tests/retail/test_ret_ews_score.py` — 61 model, arithmetic, domain, bureau, view and chat regressions | 61 passed |
-| `tests/retail/test_ret_ews_dynamic.py` — source-variable mutation proof | PLACEHOLDER |
+| `tests/retail/test_ret_ews_dynamic.py` — source-variable mutation proof | 2 passed |
 | `tests/retail` — the whole retail suite | PLACEHOLDER |
 | `npm test` — frontend units | 577 passed |
 | `npm run typecheck` | clean |

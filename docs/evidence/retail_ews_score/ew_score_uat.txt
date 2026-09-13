@@ -1,0 +1,62 @@
+EW-01 PASS One Early Warning nav item, and it is the workspace
+EW-02 PASS The chat box is at the top of the workspace
+EW-03 PASS The total-retail headline KPIs
+EW-04 PASS Four large product cards
+EW-05 PASS A six-month warning-customer trend on every product card
+EW-06 PASS A six-month ODR / default-entry trend
+EW-07 PASS A six-month aggregate EWS score trend
+EW-08 PASS Top five warning reasons on every product card
+EW-09 PASS Data-derived commentary, not hard-coded prose
+EW-10 PASS A product card opens the product level
+EW-11 PASS The Credit Card product page
+EW-12 PASS Sub-product cards, with the governed taxonomy
+EW-13 PASS Sub-product trends
+EW-14 PASS Sub-product ODR
+EW-15 PASS Top five signals per sub-product
+EW-16 PASS A sub-product card opens its own level
+EW-17 PASS The customer-list filters
+EW-18 PASS The chat applies filters
+EW-19 PASS Back retains the level and its filters
+EW-20 PASS Customer name and id on every card
+EW-21 PASS Every card shows the Early Warning Score
+EW-22 PASS Every card shows the severity
+EW-23 PASS The behavioural score is always accounted for
+EW-24 PASS An EWS sparkline on every card
+EW-25 PASS A DPD sparkline on every card
+EW-26 PASS A behavioural-score sparkline on every card
+EW-27 PASS Bureau shown as last observed plus recency
+EW-28 PASS The top deteriorating layer on every card
+EW-29 PASS Reason codes on every card
+EW-30 PASS Exposure contribution on every card
+EW-31 PASS The current-bad filter
+EW-32 PASS The forward-risk filter
+EW-33 PASS The rule filter, from the signals view
+EW-34 PASS The customer's overall Early Warning Score
+EW-35 PASS The four layer scores
+EW-36 PASS Layer trends where the layer is dynamic
+EW-37 PASS Sub-layer detail with variables and values
+EW-38 PASS The six action dimensions on a fired trigger
+EW-39 PASS The customer's facilities and exposure share
+EW-40 PASS The warning and reason-code history
+EW-41 PASS View Model opens the model screen
+EW-42 PASS The flow diagram
+EW-43 PASS Exactly four layers, named
+EW-44 PASS Classifier and trigger separated, per sublayer
+EW-45 PASS The six action dimensions are documented
+EW-46 PASS Product-specific configuration
+EW-47 PASS Thresholds, cutoff and hard triggers
+EW-48 PASS The bureau treatment
+EW-49 PASS The glossary
+EW-50 PASS Lineage
+EW-51 PASS The Early Warning Score domain exists
+EW-52 PASS Exactly twenty monthly snapshots
+EW-53 PASS The field contract
+EW-54 PASS The Early Warning Score reproduces
+EW-55 PASS The layer scores reproduce
+EW-56 PASS The UI reconciles with the domain
+EW-57 PASS No hard-coded figures in the frontend
+EW-58 PASS The chat reads only the EWS domain
+EW-59 PASS A source change moves the whole chain
+EW-60 PASS Cross-domain questions are refused, not answered from the wrong book
+
+60 of 60 passed
