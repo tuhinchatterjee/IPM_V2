@@ -13315,6 +13315,8 @@ export interface EwsPortfolio {
   /** Empty for the whole book; otherwise the product the headline counts. */
   product_code: string;
   product_label: string;
+  /** What the exposure percentage is of, in words: "retail", "credit card". */
+  population_label: string;
   previous_month: string;
   months: string[];
   rulebook_version: string;

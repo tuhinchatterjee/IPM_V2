@@ -651,19 +651,26 @@ def portfolio(month: str = "", *, product: str = "",
     frame = whole[whole["product_code"] == code] if code else whole
     prior = (prior_whole[prior_whole["product_code"] == code]
              if prior_whole is not None and code else prior_whole)
+    # What the exposure percentage is OF, in words, so the card can say it.
+    population = (str(frame["product_label"].iloc[0]).lower()
+                  if code and len(frame) else "retail")
 
-    # Exposure share is always over the WHOLE retail book, whichever product
-    # is selected: "20.3% of retail exposure" means of retail, and rebasing it
-    # on the product would make it mean something else under the same words.
-    head = _counts(frame, book=whole)
-    before = (_counts(prior, book=prior_whole)
-              if prior is not None and len(prior) else None)
+    # Based on the population the reader has selected, and LABELLED as that.
+    #
+    # The alternative — always dividing by the whole retail book — makes the
+    # headline disagree with the product card directly beneath it: Credit Card
+    # would read 1.0% under "% of retail exposure" while its own card read
+    # 35.3% under "share warned", for the same money. The screen says which
+    # population the percentage is of, so the two now agree.
+    head = _counts(frame)
+    before = (_counts(prior) if prior is not None and len(prior) else None)
     return {
         "available": True,
         "month": at,
         "product_code": code,
         "product_label": (str(frame["product_label"].iloc[0])
                           if code and len(frame) else ""),
+        "population_label": population,
         "previous_month": every[every.index(at) - 1] if every.index(at) else "",
         "months": every,
         "rulebook_version": rules_mod.RULEBOOK_VERSION,

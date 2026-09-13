@@ -1046,15 +1046,16 @@ export function RetailEarlyWarningPortfolio() {
              sub={data.movement ? `${signed(data.movement.forward_risk, 0)} on ${data.previous_month}` : undefined} />
         <Kpi label="Exposure under warning"
              value={money(head.exposure_warned_sar)} testId="ews-kpi-exposure" />
-        <Kpi label="% of retail exposure"
+        <Kpi label={`% of ${data.population_label} exposure`}
              value={`${head.exposure_warned_pct.toFixed(1)}%`}
              testId="ews-kpi-exposure-pct" />
-        <Kpi label="Portfolio EWS score" value={head.ews_score.toFixed(1)}
+        <Kpi label={`${data.product_label || "Portfolio"} EWS score`}
+             value={head.ews_score.toFixed(1)}
              sub={data.movement
                ? `${signed(data.movement.ews_score)} on ${data.previous_month}`
                : undefined}
              testId="ews-kpi-score" />
-        <Kpi label="Portfolio severity"
+        <Kpi label={`${data.product_label || "Portfolio"} severity`}
              value={<SeverityBadge band={head.severity_band} />}
              testId="ews-kpi-band" />
       </div>
@@ -1066,9 +1067,7 @@ export function RetailEarlyWarningPortfolio() {
           : "customers carry"}{" "}
         the {count(head.alerts)} signals raised at {data.month} under rulebook{" "}
         {data.rulebook_version}.{" "}
-        {data.product_label
-          ? "Exposure share is of the whole retail book, not of this product. "
-          : ""}
+
         <span className="font-medium text-text-secondary">Already bad</span>{" "}
         {data.definitions.current_bad}{" "}
         <span className="font-medium text-text-secondary">Forward risk</span>{" "}
@@ -1095,7 +1094,7 @@ export function RetailEarlyWarningPortfolio() {
         <div className="space-y-4">
           <Card className="p-5">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
-              Portfolio EWS score, 25 months
+              {data.product_label || "Portfolio"} EWS score, 25 months
             </p>
             <TrendChart
               data={data.trend.map((p) => ({ month: p.month, score: p.ews_score }))}

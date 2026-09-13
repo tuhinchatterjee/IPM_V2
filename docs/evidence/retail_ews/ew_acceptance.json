@@ -7,7 +7,7 @@
    "id": "EW-01",
    "title": "Early Warning opens on the portfolio, with a month selector and a product selector",
    "status": "PASS",
-   "note": "26.0s",
+   "note": "24.0s",
    "checks": [
     {
      "check": "the portfolio view renders",
@@ -40,7 +40,7 @@
    "id": "EW-02",
    "title": "Twelve headline figures, with customers counted apart from alerts",
    "status": "PASS",
-   "note": "4.4s",
+   "note": "4.1s",
    "checks": [
     {
      "check": "ews-kpi-customers reads the served customers",
@@ -113,7 +113,7 @@
    "id": "EW-03",
    "title": "The portfolio carries a 25-month EWS trend",
    "status": "PASS",
-   "note": "4.4s",
+   "note": "3.9s",
    "checks": [
     {
      "check": "the served trend is 25 months",
@@ -136,7 +136,7 @@
    "id": "EW-04",
    "title": "Every product has a dashboard card with a score, a severity, counts and a movement",
    "status": "PASS",
-   "note": "4.3s",
+   "note": "3.9s",
    "checks": [
     {
      "check": "PERSONAL_LOAN has a card",
@@ -327,7 +327,7 @@
    "id": "EW-06",
    "title": "Management commentary is generated from the product's own movements",
    "status": "PASS",
-   "note": "4.2s",
+   "note": "3.9s",
    "checks": [
     {
      "check": "every product has commentary",
@@ -365,7 +365,7 @@
    "id": "EW-07",
    "title": "A product opens subsegments cut on dimensions that belong to that product",
    "status": "PASS",
-   "note": "25.1s",
+   "note": "23.7s",
    "checks": [
     {
      "check": "the subsegment view opened",
@@ -428,7 +428,7 @@
    "id": "EW-08",
    "title": "A subsegment opens the customers inside it",
    "status": "PASS",
-   "note": "6.1s",
+   "note": "6.0s",
    "checks": [
     {
      "check": "the customer list opened",
@@ -534,7 +534,7 @@
    "id": "EW-10",
    "title": "Already bad and forward risk are filters, and their counts agree with the portfolio",
    "status": "PASS",
-   "note": "37.8s",
+   "note": "35.5s",
    "checks": [
     {
      "check": "the already-bad card opens the list filtered",
@@ -582,7 +582,7 @@
    "id": "EW-11",
    "title": "A customer opens with a 25-month trend for every scored layer",
    "status": "PASS",
-   "note": "15.2s",
+   "note": "13.8s",
    "checks": [
     {
      "check": "the customer detail opened",
@@ -673,7 +673,7 @@
    "id": "EW-13",
    "title": "The methodology page describes the model that is already running",
    "status": "PASS",
-   "note": "9.7s",
+   "note": "9.5s",
    "checks": [
     {
      "check": "the page renders",
@@ -918,7 +918,7 @@
    "id": "EW-18",
    "title": "The signals screen says how many alerts it is showing, out of how many there are",
    "status": "PASS",
-   "note": "14.7s",
+   "note": "14.6s",
    "checks": [
     {
      "check": "the line names the true total",
@@ -979,7 +979,7 @@
    "id": "EW-20",
    "title": "The Cockpit's Early Warning strip deep-links into Early Warning with the filter applied",
    "status": "PASS",
-   "note": "34.6s",
+   "note": "33.8s",
    "checks": [
     {
      "check": "the strip is on the Cockpit",
@@ -1012,7 +1012,7 @@
    "id": "EW-21",
    "title": "A prebuilt Credit Card story: five already bad, five still performing",
    "status": "PASS",
-   "note": "32.7s",
+   "note": "30.6s",
    "checks": [
     {
      "check": "the story is on the landing page",

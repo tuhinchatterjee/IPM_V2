@@ -209,9 +209,9 @@ has a regression test in `tests/retail/test_ret_ews_portfolio.py` or a case in
     left the twelve figures reading 14,251 customers and SAR 422.9mn — the
     whole book — above a Credit Card breakdown, so the two halves of one
     screen answered about two different populations. The headline now follows
-    the selector. Exposure share stays over the whole retail book, because
-    "% of retail exposure" means of retail, and the sentence under the cards
-    says so when a product is selected.
+    the selector, and every label follows it too: "% of credit card exposure"
+    reads 35.3%, the same figure as the Credit Card card's "share warned",
+    rather than 1.0% of retail under words that do not say which.
 
 15. **Two of the three "top reason codes" said the same thing.** A customer
     with two cards, both of which worsened a delinquency bucket, fired
