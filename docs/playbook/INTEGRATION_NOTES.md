@@ -133,6 +133,26 @@ codebase does not have.
 | `PLAYBOOK_SKILL_READ_TIMEOUT_SECONDS` | The read timeout used only when Skills are on, default 420. Silence is expected there rather than a symptom. |
 | `UPLOAD_DIR` | Where sources and artifacts are stored, under `<upload_dir>/playbook`. |
 
+## Live verification status
+
+Every criterion that needs the provider has been exercised against
+`claude-opus-5` with recorded request ids: PB-013, PB-015, PB-017, PB-029,
+PB-030 and PB-043. The requirement matrix carries the timings and ids per row.
+
+Two things a deployment should take from that rather than from the pass itself:
+
+* **No silent downgrade was observed on any run.** `AI_AUTHOR_MODEL` resolved,
+  was requested, and was served. A deployment that leaves it blank gets
+  `AUTHOR_MODEL_NOT_CONFIGURED` before the SDK is called, not a substitution.
+* **Authoring is one bounded provider call on the default path.** The runs
+  above were 1 turn and 0 tool calls with Skills off; files came from
+  `backend/playbook/render/`. Turning `PLAYBOOK_SKILL_RENDERING=1` on changes
+  that, and the timeout note in the table above is why.
+
+`backend/validation/live_playbook.py` is production code, so the same suite can
+be run against a deployed environment. It exits 2 without a credential rather
+than reporting a pass it did not earn.
+
 ## Migration and rollout
 
 Three additive migrations, `0032`, `0033` and `0034`, on top of head `0031`.

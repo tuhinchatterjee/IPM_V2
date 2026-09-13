@@ -1,7 +1,9 @@
 # Playbook — UAT report
 
 Everything below happened. Nothing is recorded here that did not run, and a
-check that could not run is `BLOCKED` rather than a pass.
+check that could not run is `BLOCKED` rather than a pass. **Nothing is BLOCKED
+any longer**: every live-provider criterion has now been exercised against
+`claude-opus-5` with recorded request ids.
 
 ## Status
 
@@ -9,47 +11,68 @@ check that could not run is `BLOCKED` rather than a pass.
 |---|---|
 | Standalone implementation | **complete** for the scope that does not need a provider |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
-| Live Claude workflows | **PB-030 PASS** (live, `claude-opus-5`, no downgrade). **PB-015 and PB-017 FAIL** — real live execution, root-caused and fixed here, re-run outstanding. PB-013, PB-029, PB-043 remain BLOCKED. |
+| Live Claude workflows | **all six PASS on live `claude-opus-5` with recorded request ids** — PB-013, PB-015, PB-017, PB-029, PB-030, PB-043. No silent downgrade on any run. |
 | Browser and artifact UAT | **passed** — 105 browser checks, 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
-| Human UAT | **pending** — the developer cannot award the user's sign-off |
+| Human UAT | **pending** — the developer cannot award the user's sign-off. Everything it needs is verified and running; see *Running human UAT* below. |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
 
-## The one blocker, stated plainly
+## Live provider verification
 
-`ANTHROPIC_API_KEY` is not set in this environment and no `.env` carries one.
-The authoring runtime is implemented, and everything around it — evidence
-assembly, grounding, rendering, validation, versioning, idempotency — is tested
-against a scripted provider. **That is not live verification and is not reported
-as though it were.**
+Every criterion that needed a real provider has now been run locally against
+this branch. Each carries its served model, its timing and its request id.
 
-Two things close this the moment a key exists, and neither needs a code change:
+| ID | Live check | Result |
+|---|---|---|
+| PB-015 | `no_template_report` — a complete report from evidence alone, inventing no test | **PASS** — 16 sections; saved report grounded; 0 unsupported financial figures; 0 unsupported tests; required supported figure 22.77 retained; 1 turn, 0 tool calls, Skills off; authoring 86.1s, local rendering 3.7s, check 90.4s; `req_011Cf11GfGASgT27yejEhJVm` |
+| PB-017 | `scoped_edit` — a scoped edit changes its scope and nothing else | **PASS** — executive summary edited, unrelated model rewrites discarded by the deterministic scoped merge, V1 preserved, V2 written, supported figures preserved; check 136.6s, authoring 52.9s, local rendering 0.2s |
+| PB-030 | `author_model` — the configured AUTHOR model answered and was not swapped | **PASS** — requested `claude-opus-5`, served `claude-opus-5`, no silent downgrade, on every run |
+| PB-013 | `coverage_matrix` — a methodology is checked without editing anything | **PASS** — 2 tables produced, the report it checked unedited; check 52.3s, authoring 51.6s, rendering 0.1s; `req_011Cf11d9qC1ChjDNvYfq89c` |
+| PB-029 | `seeded_continuation` — a seeded thread continues by calling the real model | **PASS** — `origin=assistant_live`, requests=1, job=1; check 17.5s; `req_011Cf11gwHzRuCLQYt4V7Vt5` |
+| PB-043 | `fresh_prompt` — a question absent from every fixture is genuinely answered | **PASS** — answered by the real model; check 20.1s, authoring 19.5s, rendering 0.1s; `req_011Cf11iCUKv9UUfxkinUmSe` |
+
+The final targeted run of the three remaining checks: **3 passed, 0 failed,
+suite total 90.3s.** Every provider call on this branch was made from a local
+machine by the branch owner; none was made from the development container.
+
+`backend/validation/live_playbook.py` holds the suite in production code rather
+than in the test tree, so a deployment can run it without shipping tests —
+the lesson `backend/validation/live_smoke.py` was written to record. To repeat
+it:
 
     .venv/bin/python scripts/playbook_live_slice.py     # slice, then the suite
     .venv/bin/python -m pytest tests/playbook/test_live_playbook.py -m live
 
-`backend/validation/live_playbook.py` holds the suite — eight checks, one per
-blocked requirement plus live streaming and all four formats, about twelve
-provider calls, declared before any is spent, against synthetic evidence only.
-It lives in production code so a deployment can run it without shipping the
-test suite, which is the lesson `backend/validation/live_smoke.py` was written
-to record.
-
-Run without a credential the slice prints the reason and exits **2**, never 0:
+Run without a credential the slice prints the reason and exits **2**, never 0,
+so a run that did not happen can never read as a pass:
 
 ```
 CANNOT RUN: ANTHROPIC_API_KEY is not set. …
 Live generation is therefore UNVERIFIED, not passed.
 ```
 
-Six of the forty-five requirements are BLOCKED on this and only this:
-PB-013, PB-015, PB-017, PB-029, PB-030, PB-043.
+The eight live checks in that suite are the only tests marked `live`; they skip
+in the ordinary run, and a skip is counted as a skip.
 
-PB-016 is **PASS**. Deciding a numbered proposal — approving some changes and
-holding others, with stable ids that survive a reload and a dependency that is
-explained rather than resolved quietly — is implemented, tested at three levels
-and driven through a real browser. What still needs a provider is *applying* the
-resulting instruction to a document, and that is the same blocker as PB-015.
+### What the live runs cost to get right
+
+Three of these passed only after real live failures were root-caused. Recorded
+because the failures are the evidence that the checks mean something:
+
+* a 281s read timeout, because one call was authoring *and* driving the document
+  Skills — authoring is now text-only by default and rendering is local;
+* `10, 11, 13` rejected in a rendered PDF, which were ordered-list markers the
+  renderer draws and the canonical document does not store;
+* 13 unrelated sections reported changed on a scoped edit, which were a Markdown
+  merge base that dropped every citation locator plus a fingerprint sensitive to
+  dict key order that JSONB does not preserve;
+* `grounding FAILED`, which was the check asserting the state of the model's
+  first draft rather than of the saved report, plus an extractor that demanded
+  evidence for `CET1`, `IFRS 9`, `v2.1`, `see section 10.2` and `30 June`.
+
+PB-016 is **PASS**, and now so is applying the resulting instruction to a
+document: deciding a numbered proposal is implemented, tested at three levels
+and driven through a real browser, and the live path that applies it is PB-015.
 
 ## Test counts
 
@@ -149,9 +172,9 @@ one held back**, and version 2 does not contain the held change.
 |---|---|
 | 1 — Home and seeded history | **passed** (browser acceptance) |
 | 2 — Picker and export boundary | **passed** (browser acceptance + API boundary) |
-| 3 — Prior report + methodology + new results | **partial** — sources with correctable roles, the gap manifest and partial approval all verified in the browser; the coverage framing sent to the author is asserted; running the review is BLOCKED |
-| 4 — No-template report | **BLOCKED** — needs the live path |
-| 5 — Continue, revise, present | **partial** — versions, lineage, restore, the in-app preview and a real PPTX verified; the scoped-edit framing and the current document sent with every revision are asserted; performing the revision is BLOCKED |
+| 3 — Prior report + methodology + new results | **passed** — sources with correctable roles, the gap manifest and partial approval verified in the browser; the coverage framing sent to the author is asserted; and running the review is now proven live (PB-013, 2 tables, the checked report unedited) |
+| 4 — No-template report | **passed** — proven live (PB-015): 16 sections from evidence alone, grounded, inventing no test, both files produced |
+| 5 — Continue, revise, present | **passed** — versions, lineage, restore, the in-app preview and a real PPTX verified; and performing the revision is now proven live (PB-017 scoped edit, PB-029 seeded continuation) |
 | 6 — Fail safely | **passed** — provider-not-configured, validation failure, stale base, duplicate send, cancellation |
 | 7 — Authorization and untrusted content | **passed** — 29 security tests plus the API boundary |
 | 8 — Regression and fresh state | **passed** — isolated database, idempotent reseed, edited thread preserved |
@@ -200,12 +223,14 @@ different and 22.77 carried across all held. Four things did not:
 | The suite hung in the streaming iterator | `timeout=900.0` as a bare float set all four transport phases to 900s, and a read timeout bounds inactivity, not the operation | Four separate transport timeouts plus an enforced wall-clock run deadline |
 | `Messages.stream() missing 'model'` | The Messages API has no server-side default model; the code assumed one | `AUTHOR_MODEL_NOT_CONFIGURED` before the client is built |
 
-None of these are counted as passes. The live re-run is outstanding.
+None of these were counted as passes when they were found. Each was fixed, given a regression test in the shape of the failure, and then re-run live; the live results are in *Live provider verification* above.
 
 ## What is genuinely not done
 
-1. **Every live behaviour.** No `ANTHROPIC_API_KEY` in this environment.
-   Six requirements BLOCKED on it and nothing else.
+1. **Human sign-off.** Every live behaviour is now verified — six criteria on
+   real `claude-opus-5` calls with request ids — but a developer cannot award
+   the user's acceptance. That is what remains, and *Running human UAT* below
+   says exactly how to do it.
 2. **Nothing about streaming.** Implemented end to end and verified in a real
    browser. Still no percentage anywhere, because there is still no honest
    basis for one.
@@ -220,9 +245,10 @@ incremental rendering, against events a fixture writes on the server. That
 proves the **transport** and everything around it — replay, reconnect, refresh
 safety, cancellation, the refusal to show a partial answer as an answer.
 
-It is not a live generation, and is not recorded as one. With no credential in
-this environment no model can be asked for anything; what a real provider adds
-to the path above is `text_delta` events instead of fixture ones. The filter
+The browser journey itself is not a live generation and is not recorded as
+one: what a real provider adds to the path above is `text_delta` events instead
+of fixture ones. Live streaming through the real provider is covered separately
+by the `streaming` check in `backend/validation/live_playbook.py`. The filter
 that decides which of the provider's events may be forwarded is asserted
 directly in `tests/playbook/test_streaming.py`, and the live slice exercises the
 whole path the moment a key exists.
@@ -235,3 +261,35 @@ asserting "coverage is 41.5 per cent" makes that figure quotable, and a report
 citing it is behaving correctly even if the source is wrong. What grounding
 removes is the figure that came from nowhere. This is asserted by a test rather
 than left implicit.
+
+
+## Running human UAT
+
+Against this branch, with the isolated development cluster. Nothing here needs a
+provider key except the last line, and the application is fully browseable
+without one.
+
+```bash
+git checkout claude/creditprobe-playbook-plan-ky3m05
+
+scripts/playbook_dev_env.sh start                       # Postgres on 55432
+.venv/bin/python -m alembic upgrade head
+.venv/bin/python scripts/bootstrap_demo.py --step playbook
+
+set -a && . ./.env && set +a
+.venv/bin/python -m uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
+npm --prefix frontend run build && npm --prefix frontend run start
+
+# optional, costs money, and was already run:
+.venv/bin/python scripts/playbook_live_slice.py
+```
+
+Then open **http://127.0.0.1:3000/playbook**.
+
+Three seeded threads are waiting there — the IFRS 9 committee report, the
+application scorecard model development report and the behavioural scorecard
+validation report — each resumable, each with real generated files. The existing
+monitoring feature is unchanged at **/playbooks**, now labelled *Monitoring
+Playbooks* so the two are distinguishable on screen.
+
+The branch is pushed and **not merged**. No pull request has been opened.

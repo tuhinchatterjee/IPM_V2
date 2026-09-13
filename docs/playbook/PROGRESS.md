@@ -65,13 +65,13 @@ These are pre-existing facts about the base commit, not defects introduced here.
 | Milestone | State |
 |---|---|
 | M0 — safe foundation | complete |
-| M1 — live vertical slice | implemented; live run **BLOCKED** on a credential |
+| M1 — live vertical slice | complete; run live against `claude-opus-5` with recorded request ids |
 | M2 — home and thread UX | complete |
 | M3 — exported-analysis flow | complete; What If DEFERRED-INTEGRATION |
-| M4 — intelligent reporting | implemented; live behaviours **BLOCKED** |
+| M4 — intelligent reporting | complete; the live behaviours are PB-013, PB-015, PB-017, PB-029 and PB-043, all PASS |
 | M5 — demo completeness | complete |
-| M6 — verification and hardening | complete except the live suite |
-| M7 — handoff | complete; live verification remains **BLOCKED** |
+| M6 — verification and hardening | complete, live suite included |
+| M7 — handoff | complete; live verification done, branch pushed and **not merged** |
 | M8 — streaming | complete; verified in a real browser |
 
 ## Baseline test run
@@ -486,21 +486,48 @@ backtest was performed" read as a claim that one had been; it is now
 negation-aware, because PB-015 asks the report both to name missing evidence
 honestly and never to claim a test it did not run.
 
+## The final live run — every provider criterion passes
+
+Run locally against the pushed branch. Three checks remained; **3 passed, 0
+failed, suite total 90.3s.** With the earlier results that closes all six
+live-provider criteria.
+
+| ID | Check | Live result |
+|---|---|---|
+| PB-015 | a complete report from evidence alone, inventing no test | 16 sections, saved report grounded, 0 unsupported financial figures, 0 unsupported tests, 22.77 retained; 1 turn, 0 tool calls, Skills off; authoring 86.1s, rendering 3.7s local, check 90.4s; `req_011Cf11GfGASgT27yejEhJVm` |
+| PB-017 | a scoped edit changes its scope and nothing else | executive summary edited, unrelated rewrites discarded by the scoped merge, V1 preserved, V2 written, supported figures preserved; check 136.6s, authoring 52.9s, rendering 0.2s |
+| PB-030 | the configured AUTHOR model answered and was not swapped | requested and served `claude-opus-5`, no silent downgrade |
+| PB-013 | a methodology is checked without editing anything | 2 tables, the checked report unedited; check 52.3s, authoring 51.6s, rendering 0.1s; `req_011Cf11d9qC1ChjDNvYfq89c` |
+| PB-029 | a seeded thread continues by calling the real model | `origin=assistant_live`, requests=1, job=1; check 17.5s; `req_011Cf11gwHzRuCLQYt4V7Vt5` |
+| PB-043 | a fresh question absent from fixtures is genuinely answered | answered by the real model; check 20.1s, authoring 19.5s, rendering 0.1s; `req_011Cf11iCUKv9UUfxkinUmSe` |
+
+The requirement matrix now reads **45 PASS, 0 FAIL, 0 BLOCKED, 0 SKIPPED**, with
+What If recorded as the one DEFERRED-INTEGRATION module rather than as a
+requirement. No application behaviour changed in this reconciliation — it is
+documentation and status only, re-verified with the Playbook suite, ruff and a
+matrix consistency check.
+
+Worth recording plainly: four of these six passed only after real live failures
+were root-caused and fixed — a collapsed transport timeout, ordered-list markers
+read as invented figures, a Markdown merge base that destroyed the sections it
+claimed to carry forward, and a grounding check that asserted the state of the
+model's first draft rather than of the saved report. Each fix carries a
+regression test written in the shape of the failure. The checks mean something
+because they failed first.
+
 ## What is genuinely not done
 
 Stated here rather than left to be discovered.
 
-1. **Every live behaviour.** `ANTHROPIC_API_KEY` is not set in this
-   environment, checked repeatedly through the work and again at the end. Six
-   requirements are BLOCKED on it and nothing else: PB-013, PB-015, PB-017,
-   PB-029, PB-030, PB-043. The pipeline around the provider is tested against a
-   scripted one; that is not live verification and is nowhere reported as
-   though it were.
+1. **Human sign-off.** Every live behaviour has now been verified — PB-013,
+   PB-015, PB-017, PB-029, PB-030 and PB-043 on real `claude-opus-5` calls
+   with recorded request ids. What a developer cannot do is award the user's
+   acceptance, and that is the one thing left.
 
-   The suite that closes them is written and waiting.
-   `backend/validation/live_playbook.py` holds eight checks — one per blocked
-   requirement, plus live streaming and all four file formats — as production
-   code, so a deployment can run them without shipping the test suite.
+   `backend/validation/live_playbook.py` holds those eight checks as production
+   code rather than as tests, so a deployment can re-run them without shipping
+   the test suite. It still exits 2 without a credential, so a run that did not
+   happen can never read as a pass.
    `tests/playbook/test_live_playbook.py` drives them and skips honestly
    without a key; `scripts/playbook_live_slice.py` runs the vertical slice and
    then the suite, and exits 2 rather than 0 when there is no credential. The
