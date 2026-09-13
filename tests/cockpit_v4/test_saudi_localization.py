@@ -35,6 +35,43 @@ from backend.cockpit_v4 import saudi
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
+#: This module is about the SAUDI release specifically, so it names it rather
+#: than reading whatever release happens to be selected. An operator running
+#: the suite against `v4-uat-20q-v1` should still have the Saudi release
+#: checked -- and must not see these assertions fail merely because they
+#: selected a different, legitimately INR-denominated book.
+SAUDI_RELEASE = "v4-saudi-20q-v1"
+
+
+@pytest.fixture(scope="module")
+def release_id():                                    # noqa: D103 - override
+    from backend.cockpit_agentic import store
+
+    try:
+        store.read_manifest(SAUDI_RELEASE)
+    except Exception:                                          # noqa: BLE001
+        pytest.skip(f"{SAUDI_RELEASE} is not published in this runtime")
+    return SAUDI_RELEASE
+
+
+@pytest.fixture(scope="module")
+def runtime(release_id):                             # noqa: D103 - override
+    from backend.cockpit_v4 import service
+
+    class _Cfg:
+        def __init__(self, rid): self.release_id = rid
+
+    class _Runtime:
+        pass
+
+    service._CATALOG_CACHE.pop(release_id, None)
+    catalog, coverage, summary = service.load_release(_Cfg(release_id))
+    runtime = _Runtime()
+    runtime.catalog = catalog
+    runtime.coverage = coverage
+    runtime.release_summary = summary
+    return runtime
+
 #: Money words that must not reach a reader of the Saudi demonstration.
 FORBIDDEN = ("INR", "crore", "lakh", "₹", "Indian rupee", "rupee")
 
@@ -149,11 +186,20 @@ def test_the_release_summary_shown_to_the_analyst_is_saudi(runtime):
         assert word not in blob, f"the release summary mentions {word}"
 
 
-def test_the_precision_policy_is_denominated_in_sar():
-    assert prec.CURRENCY == "SAR"
-    assert prec.AMOUNT_SCALE == "million"
-    assert prec.MONEY_UNIT == "SAR million"
+def test_the_saudi_profile_is_denominated_in_sar():
+    """The SAUDI profile says SAR. The precision policy says nothing.
+
+    The distinction is the point of this round's cleanup: `saudi.py` is a
+    release profile and is allowed an opinion; `precision.py` is shared by
+    every release and must not have one.
+    """
+    assert saudi.CURRENCY == "SAR"
+    assert saudi.AMOUNT_SCALE == "million"
     assert prec.classify("SAR million").kind == prec.MONEY
+    assert not hasattr(prec, "CURRENCY"), (
+        "precision.py must not name a currency; a release chooses its own")
+    assert not hasattr(prec, "MONEY_UNIT"), (
+        "precision.py must not name a money unit; see money_unit(catalog)")
 
 
 def test_a_published_amount_reads_as_saudi_money():
@@ -181,16 +227,38 @@ def _v4_sources():
                 yield path
 
 
-def test_no_v4_source_file_shows_an_india_specific_money_label():
-    """The whole V4 surface, not a list someone remembered to update.
+#: The two modules whose JOB is currency handling. A module that cannot say
+#: "crore" cannot classify it or convert away from it, so naming the word is
+#: required of them rather than forbidden. They are held to a STRICTER rule
+#: instead, in the test below: neither may carry a currency default.
+_CURRENCY_MODULES = {"saudi.py", "precision.py"}
 
-    `saudi.py` is exempt for the two lines that NAME what is being replaced
-    and the audit that looks for leaks -- a module that cannot say "INR"
-    cannot convert away from it.
+
+def test_neither_currency_module_carries_a_default():
+    """The rule that replaces the word-ban for the two modules that need it.
+
+    `saudi.py` is a release PROFILE and is allowed to name SAR. `precision.py`
+    is shared by every release and may name none -- that was the defect: a
+    module-level currency there became `service.load_release`'s fallback, and
+    a release whose data said INR was reported as SAR because its manifest
+    was merely silent.
     """
+    from backend.cockpit_v4 import precision, saudi
+
+    for forbidden in ("CURRENCY", "AMOUNT_SCALE", "MONEY_UNIT",
+                      "DEFAULT_CURRENCY"):
+        assert not hasattr(precision, forbidden), (
+            f"precision.{forbidden} is a currency default in a module every "
+            f"release shares")
+    assert saudi.CURRENCY == "SAR", (
+        "the Saudi profile is where a Saudi opinion belongs")
+
+
+def test_no_v4_source_file_shows_an_india_specific_money_label():
+    """The whole V4 surface, not a list someone remembered to update."""
     offenders: list[str] = []
     for path in _v4_sources():
-        if path.name == "saudi.py":
+        if path.name in _CURRENCY_MODULES:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         for line_no, line in enumerate(text.splitlines(), start=1):

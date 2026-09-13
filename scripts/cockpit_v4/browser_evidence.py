@@ -114,6 +114,9 @@ def main() -> int:
                  "V4_UI_URL": f"http://127.0.0.1:{ui_port}",
                  "V4_API_URL": f"http://127.0.0.1:{api_port}",
                  "V4_CHROME": CHROME,
+                 # The browser suite asserts the SELECTED release's currency.
+                 "V4_RELEASE": os.environ.get("COCKPIT_V4_TEST_RELEASE",
+                                              "v4-saudi-20q-v1"),
                  "V4_BROWSER_EVIDENCE": str(evidence),
                  "V4_BROWSER_SCREENSHOT": str(
                      evidence.parent / "cockpit_v4_answer.png"),

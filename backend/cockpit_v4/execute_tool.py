@@ -30,7 +30,6 @@ from typing import Any
 
 from backend.cockpit_agentic import sql as v3_sql
 from backend.cockpit_v4 import derivation as deriv
-from backend.cockpit_v4.precision import MONEY_UNIT as _MONEY_UNIT
 from backend.cockpit_v4.contracts import ExecutionSubmission, Rejection, Step
 from backend.cockpit_v4.provider import code_digest
 from backend.cockpit_v4.sqlbind import (BindFailure, parameter_argument,
@@ -47,13 +46,8 @@ CHECK_RUNTIME = "runtime"
 CHECK_SANDBOX = "sandbox"
 
 
-def deriv_unit() -> str:
-    """The money unit the worked example should show."""
-    return _MONEY_UNIT
-
-
 def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
-                row_count: int) -> dict[str, Any]:
+                row_count: int, money_unit: str = "") -> dict[str, Any]:
     """The evidence contract, sent with every successful result.
 
     This is a CONTRACT, not reasoning assistance. It exists because the
@@ -85,7 +79,7 @@ def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
             "A total is a derivation over the real rows."),
         "operations": deriv.describe(),
         "example_total": {
-            "claim_id": "total_x", "unit": deriv_unit(),
+            "claim_id": "total_x", "unit": money_unit,
             "derivation": {"operation": "sum", "operands": [
                 {"artifact_id": artifact_id,
                  "column_id": (columns[-1] if columns else "value"),
@@ -117,6 +111,11 @@ class StepResult:
     #: left to be guessed because a live run, given no ids, invented row
     #: labels ("all sectors", "top 4 sectors") and had its answer refused.
     row_ids: list[str] = field(default_factory=list)
+    #: The money unit of THIS release, used for the worked example in the
+    #: claim guide. Carried rather than imported: a worked example showing a
+    #: currency the selected release does not use would steer the analyst
+    #: into declaring the wrong unit on every amount.
+    money_unit: str = ""
     truncated: bool = False
     artifact_id: str = ""
     warnings: list[str] = field(default_factory=list)
@@ -141,7 +140,7 @@ class StepResult:
                         "artifact_id": self.artifact_id,
                         "how_to_cite_these_numbers": claim_guide(
                             self.artifact_id, self.columns, self.row_ids,
-                            self.row_count)})
+                            self.row_count, self.money_unit)})
         else:
             out.update({"error_code": self.error_code,
                         "failed_check": self.failed_check,
@@ -219,6 +218,12 @@ class ExecutionService:
     artifacts: dict[str, str] = field(default_factory=dict)
 
     # -- static validation of the WHOLE batch ---------------------------
+
+    def _money_unit(self) -> str:
+        """The money unit of the release this run is reading."""
+        from backend.cockpit_v4 import precision as prec
+
+        return prec.money_unit(self.catalog)
 
     def validate_batch(self, submission: ExecutionSubmission) -> None:
         """Every step is checked before ANY step runs.
@@ -473,6 +478,7 @@ class ExecutionService:
             step_id=step.step_id, status="ok", language="sql",
             code_digest=digest, purpose=step.purpose, columns=columns,
             row_count=result.row_count, preview=preview, row_ids=row_ids,
+            money_unit=self._money_unit(),
             truncated=bool(result.truncated) or len(
                 columns) > self.limits.preview_columns,
             artifact_id=artifact_id,
@@ -577,6 +583,7 @@ class ExecutionService:
             row_count=len(rows), preview=rows[:self.limits.preview_rows],
             row_ids=[deriv.row_id_for(i) for i in
                      range(min(len(rows), self.limits.preview_rows))],
+            money_unit=self._money_unit(),
             artifact_id=artifact_id,
             warnings=list(outcome.get("warnings") or []))
 

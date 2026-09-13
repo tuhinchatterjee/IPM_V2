@@ -37,6 +37,25 @@ sys.path.insert(0, str(ROOT / "tests" / "cockpit_v4"))
 RELEASE = os.environ.get("COCKPIT_V4_TEST_RELEASE", "v4-saudi-20q-v1")
 
 
+def money_unit() -> str:
+    """The money unit of the SELECTED release, not a baked-in one.
+
+    The stub's canned answer used to say "SAR million" whatever it was
+    serving, which is the same hard-coded-currency defect the runtime had:
+    pointed at an INR release it published Saudi money over Indian data.
+    """
+    os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
+    from backend.cockpit_agentic import store
+    from backend.cockpit_v4 import service
+
+    try:
+        currency, scale = service.denomination(
+            RELEASE, store.read_manifest(RELEASE))
+        return f"{currency} {scale}".strip() or "amount"
+    except Exception:                                          # noqa: BLE001
+        return "amount"
+
+
 def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
     os.environ.setdefault("COCKPIT_AGENTIC_V3_NAMESPACE", "cockpit_v4")
 
@@ -144,7 +163,7 @@ This environment uses synthetic demonstration data rather than a real bank portf
             "metadata_receipt_ids": [],
             "fields_required": ["cockpit_facility_quarter.ead_reported"],
             "expected_output_grain": "sector",
-            "expected_units": "SAR million",
+            "expected_units": money_unit(),
             "steps": [{"step_id": "s1", "language": "sql", "code": ead_sql,
                        "parameters": {}, "purpose": "EAD by sector",
                        "input_artifact_ids": [], "depends_on_step_ids": []}],
@@ -170,7 +189,7 @@ This environment uses synthetic demonstration data rather than a real bank portf
                   numeric_claims=[{
                       "claim_id": "top",
                       "decimal_value": repr(float(cell["ead_sar_mn"])),
-                      "unit": "SAR million", "display_precision": 2,
+                      "unit": money_unit(), "display_precision": 2,
                       "evidence": {"artifact_id": step["artifact_id"],
                                    "row_key": f"sector_name="
                                               f"{cell['sector_name']}",

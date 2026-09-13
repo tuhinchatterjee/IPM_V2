@@ -675,7 +675,16 @@ def test_the_live_ead_question_publishes_in_sar(drive, store_db, release_id):
     twelve rows came back, and publication failed on a rounded total. Here
     the same question runs against the Saudi book -- which returns the same
     twelve sectors and the same total the live run computed -- and publishes.
+
+    Scoped to the Saudi release ON PURPOSE. The twelve sectors and the SAR
+    unit are facts about THAT book, not about the engine: the engine is
+    release-neutral and `test_release_isolation.py` proves it in four
+    currencies. A test that asserted twelve sectors against whichever release
+    happened to be selected would be asserting the wrong thing.
     """
+    if release_id != "v4-saudi-20q-v1":
+        pytest.skip(f"this regression is about the Saudi book; "
+                    f"{release_id} is selected")
     period = bank.periods(release_id)
     outcome, provider, _ = drive(
         "What is total exposure at default by sector in the latest quarter?",

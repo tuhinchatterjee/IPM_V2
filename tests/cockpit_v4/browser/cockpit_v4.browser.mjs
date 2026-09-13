@@ -1223,13 +1223,26 @@ await test("the landing page mounts the V4 Cockpit and nothing legacy",
  * source was clean while the runtime still fell back to INR.
  */
 
-const INDIA_WORDS = ["INR", "crore", "lakh", "\u20b9", "rupee"];
+/*
+ * The currency assertions follow the SELECTED release rather than naming one.
+ * A Saudi book must not show INR and an INR book must not show SAR, and the
+ * failure that started this was a hard-coded default -- so hard-coding the
+ * expectation here would test the wrong property.
+ */
+const RELEASE = process.env.V4_RELEASE ?? "v4-saudi-20q-v1";
+const DENOMINATION = {
+  "v4-saudi-20q-v1": { expect: "SAR", forbid: ["INR", "crore", "lakh",
+                                               "\u20b9", "rupee"] },
+  "v4-uat-20q-v1": { expect: "INR", forbid: ["SAR"] },
+};
+const MONEY = DENOMINATION[RELEASE] ?? { expect: "", forbid: [] };
+const INDIA_WORDS = MONEY.forbid;
 
 async function visibleText(page) {
   return page.evaluate(() => document.body.innerText);
 }
 
-await test("no page in the Cockpit shows an India-specific money label",
+await test("no page shows a currency the selected release does not use",
   async () => {
     const { context, page, problems } = await openCockpit(browser);
     try {
@@ -1242,15 +1255,19 @@ await test("no page in the Cockpit shows an India-specific money label",
           `the landing page shows ${word}`,
         );
       }
-      assert.ok(/SAR/.test(text),
-        "a Saudi demonstration should show SAR somewhere on the landing page");
+      if (MONEY.expect) {
+        assert.ok(
+          new RegExp(MONEY.expect).test(text),
+          `release ${RELEASE} should show ${MONEY.expect} on the landing page`,
+        );
+      }
     } finally {
       await context.close();
     }
   },
 );
 
-await test("attention cards and ECL highlights are denominated in SAR",
+await test("attention cards and ECL highlights use the release's currency",
   async () => {
     const { context, page } = await openCockpit(browser);
     try {
@@ -1272,8 +1289,13 @@ await test("attention cards and ECL highlights are denominated in SAR",
   },
 );
 
-await test("borrower names in the drawer are GCC names, not Indian ones",
+await test("borrower names in the drawer belong to the selected release",
   async () => {
+    if (RELEASE !== "v4-saudi-20q-v1") {
+      // The INR book legitimately holds Indian synthetic names. Asserting
+      // their absence there would be asserting the wrong thing.
+      return;
+    }
     const { context, page } = await openCockpit(browser);
     try {
       await openDrawer(page);
@@ -1293,7 +1315,7 @@ await test("borrower names in the drawer are GCC names, not Indian ones",
   },
 );
 
-await test("an answer, its table and its chart all read in SAR", async () => {
+await test("an answer, its table and its chart use one currency", async () => {
   const { context, page, problems } = await openCockpit(browser);
   try {
     await ask(page, "What is total exposure at default by sector?");

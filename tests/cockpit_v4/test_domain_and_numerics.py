@@ -205,17 +205,22 @@ def test_the_release_declares_its_own_currency_and_scale(runtime):
     catalog = runtime.catalog
     assert getattr(catalog, "reporting_currency", "")
     assert getattr(catalog, "amount_scale", "")
-    # The V4 demonstration book is Saudi, quoted in SAR million. The guard
-    # that matters is that the pair is COHERENT: a currency from one country
-    # with a scale word from another is how a reader ends up off by orders of
-    # magnitude without anything looking wrong.
-    assert (catalog.reporting_currency, catalog.amount_scale) == (
-        prec.CURRENCY, prec.AMOUNT_SCALE), (
-        f"this release declares {catalog.reporting_currency} "
-        f"{catalog.amount_scale}; the V4 book is "
-        f"{prec.CURRENCY} {prec.AMOUNT_SCALE}")
-    assert catalog.amount_scale not in ("crore", "lakh"), (
-        "an Indian scale word under a Saudi currency is an incoherent pair")
+    # The pair must be COHERENT and must come from the SELECTED release. A
+    # currency from one country with a scale word from another is how a
+    # reader ends up off by orders of magnitude with nothing looking wrong --
+    # and asserting a particular currency here would bake one release's
+    # nationality into a test that every release has to pass.
+    unit = prec.money_unit(catalog)
+    assert prec.classify(unit).kind == prec.MONEY, (
+        f"{unit!r} is not a unit the precision policy can classify as money")
+    assert catalog.amount_scale in prec.MONEY_SCALES, (
+        f"{catalog.amount_scale!r} is not a scale this policy knows")
+    incoherent = {("SAR", "crore"), ("SAR", "lakh"), ("INR", "million"),
+                  ("USD", "crore")}
+    assert (catalog.reporting_currency, catalog.amount_scale) not in \
+        incoherent, (
+        f"{catalog.reporting_currency} {catalog.amount_scale} pairs a "
+        f"currency with a scale word from somewhere else")
 
 
 def test_no_eligible_rows_is_not_reported_as_zero(service, store_db,

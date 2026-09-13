@@ -175,19 +175,81 @@ def load_release(cfg: V4Config) -> tuple[Any, Any, dict[str, Any]]:
                   ("origin", "data_version", "not_client_data",
                    "reporting_currency", "amount_scale", "tenants")
                   if k in manifest}}
+    currency, scale = denomination(cfg.release_id, manifest)
     catalog = v3_catalog.build(
         dataset_release_id=cfg.release_id, calendar=calendar,
         tenant_id=str((manifest.get("tenants") or [""])[0]),
-        # The V4 demonstration book is Saudi. The shared release writer does
-        # not record a currency, so this fallback is what a runtime reports
-        # when the manifest is silent -- and it was reporting INR crore over
-        # a Saudi portfolio.
-        reporting_currency=str(manifest.get("reporting_currency")
-                               or prec.CURRENCY),
-        amount_scale=str(manifest.get("amount_scale") or prec.AMOUNT_SCALE))
+        reporting_currency=currency, amount_scale=scale)
+    summary["reporting_currency"] = currency
+    summary["amount_scale"] = scale
     with _LOCK:
         _CATALOG_CACHE[cfg.release_id] = (catalog, summary)
     return catalog, _COVERAGE_CACHE.get(cfg.release_id), summary
+
+
+def denomination(release_id: str,
+                 manifest: dict[str, Any]) -> tuple[str, str]:
+    """What this release is denominated in. Asked, never assumed.
+
+    The selected release decides its own currency and scale. There is no V4
+    default of any nationality here, in either direction:
+
+      1. The manifest, when the release declares one. A release published by
+         the V4 seeder records its own currency, so this is the normal path
+         and it is explicit.
+
+      2. Otherwise the release's OWN DATA. Every relation carries a
+         `reporting_currency` column, so a release that never declared a
+         currency can still be asked what it holds rather than told what it
+         must be.
+
+      3. Otherwise nothing. An empty pair means "this release does not say",
+         which is a fact a caller can render honestly. Inventing a currency
+         here is exactly the defect this function exists to remove: a
+         hard-coded fallback silently relabelled a release whose data said
+         something else, and the relabelling was invisible because the
+         manifest was merely silent rather than wrong.
+
+    The scale is read from the producer that built the release when the
+    manifest does not carry one. Asking the generator what it generated is
+    not a default; it is the release's provenance.
+    """
+    declared = str(manifest.get("reporting_currency") or "").strip()
+    scale = str(manifest.get("amount_scale") or "").strip()
+    if declared and scale:
+        return declared, scale
+
+    observed, observed_scale = _denomination_from_data(release_id)
+    return (declared or observed, scale or observed_scale)
+
+
+def _denomination_from_data(release_id: str) -> tuple[str, str]:
+    """Read the currency the release actually holds, and its producer's scale."""
+    currency = ""
+    try:
+        import pandas as pd
+
+        path = v3_store.relation_path(release_id, "cockpit_facility_quarter")
+        frame = pd.read_parquet(path, columns=["reporting_currency"])
+        values = [str(v) for v in frame["reporting_currency"].dropna().unique()]
+        if len(values) == 1:
+            currency = values[0]
+        elif values:
+            # More than one reporting currency in a reporting-currency column
+            # is a data problem, not something to pick a winner from.
+            logger.warning("release %s reports %d reporting currencies: %s",
+                           release_id, len(values), sorted(values)[:5])
+    except Exception:                                         # noqa: BLE001
+        logger.info("release %s: could not read a reporting currency from its "
+                    "data", release_id)
+    scale = ""
+    try:
+        from backend.cockpit_agentic import generate as v3_generate
+
+        scale = str(getattr(v3_generate, "AMOUNT_SCALE", "") or "")
+    except Exception:                                         # noqa: BLE001
+        pass
+    return currency, scale
 
 
 def coverage_for(cfg: V4Config) -> Any:

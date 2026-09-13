@@ -66,28 +66,37 @@ COUNT = "count"
 CATEGORICAL = "categorical"
 UNKNOWN = "unknown"
 
-#: The reporting currency of the V4 demonstration book. A Saudi corporate
-#: portfolio, quoted the way a Saudi credit paper quotes one.
-CURRENCY = "SAR"
-AMOUNT_SCALE = "million"
-
-#: How an amount is written. One style, used everywhere.
-MONEY_UNIT = "SAR million"
+#: There is deliberately NO module-level currency here.
+#:
+#: A previous version of this file named one, and `service.load_release` used
+#: it whenever a release's manifest was silent about its own denomination.
+#: The result was that a release whose DATA said INR was reported as SAR --
+#: silently, because a silent manifest is not a wrong one. Currency and scale
+#: belong to the selected release and are read from it; this module only
+#: knows how to CLASSIFY and FORMAT whatever unit it is handed.
+#:
+#: `money_unit(catalog)` builds the unit string for a given release.
 
 #: Scale words that are legitimate for money, and the multiplier each
 #: implies relative to the canonical scale. A figure in SAR million
 #: presented as SAR billion is a thousand-fold error if the number is not
 #: also divided, so the pair is checked together and never assumed.
+#: Relative to one MILLION of the currency. `crore` and `lakh` are here not
+#: because V4 defaults to them but because a release may be denominated in
+#: them, and a unit the policy cannot classify falls to the loosest precision
+#: rule -- which is how an Indian-denominated release would quietly get a
+#: weaker check than a Saudi one.
 MONEY_SCALES: dict[str, Decimal] = {
     "": Decimal(1),
     "million": Decimal(1), "mn": Decimal(1), "m": Decimal(1),
     "billion": Decimal(1000), "bn": Decimal(1000), "b": Decimal(1000),
     "thousand": Decimal("0.001"), "k": Decimal("0.001"),
+    "crore": Decimal(10), "lakh": Decimal("0.1"),
 }
 
 _MONEY = re.compile(
     r"^(?P<currency>[A-Za-z]{3})\s*(?P<scale>million|mn|m|billion|bn|b|"
-    r"thousand|k)?$", re.I)
+    r"thousand|k|crore|lakh)?$", re.I)
 
 _PERCENT_WORDS = {"percent", "%", "pct", "percentage"}
 _POINT_WORDS = {"percentage point", "percentage points", "pp", "ppt",
@@ -149,6 +158,18 @@ def classify(unit: str) -> Unit:
         return Unit(raw, MONEY, currency=match.group("currency").upper(),
                     scale=(match.group("scale") or "").lower())
     return Unit(raw, UNKNOWN)
+
+
+def money_unit(catalog: Any) -> str:
+    """The money unit of ONE release, e.g. "SAR million" or "INR crore".
+
+    Empty when the release does not say. An empty unit is honest; a guessed
+    one is not, and a caller can render "amount" rather than assert a
+    currency the release never claimed.
+    """
+    currency = str(getattr(catalog, "reporting_currency", "") or "").strip()
+    scale = str(getattr(catalog, "amount_scale", "") or "").strip()
+    return f"{currency} {scale}".strip()
 
 
 def allowed_precisions(unit: str) -> tuple[int, ...]:
@@ -234,7 +255,7 @@ def format_value(value: Decimal, unit: str, places: int) -> str:
     shown = quantize(value, places)
     body = f"{shown:,}"
     if parsed.is_money:
-        scale = parsed.scale or AMOUNT_SCALE
+        scale = parsed.scale
         pretty = {"m": "million", "mn": "million", "b": "billion",
                   "bn": "billion", "k": "thousand"}.get(scale, scale)
         return f"{parsed.currency} {body} {pretty}".strip()
@@ -246,8 +267,8 @@ def format_value(value: Decimal, unit: str, places: int) -> str:
     return f"{body} {parsed.raw}".strip()
 
 
-__all__ = ["ALLOWED", "AMOUNT_SCALE", "CATEGORICAL", "COUNT", "CURRENCY",
-           "MONEY", "MONEY_SCALES", "MONEY_UNIT", "PERCENT",
-           "PERCENTAGE_POINT", "RATIO", "ROUNDING", "UNKNOWN", "Unit",
-           "Verdict", "allowed_precisions", "check", "classify",
-           "default_precision", "format_value", "plain", "quantize"]
+__all__ = ["ALLOWED", "CATEGORICAL", "COUNT", "MONEY", "MONEY_SCALES",
+           "PERCENT", "PERCENTAGE_POINT", "RATIO", "ROUNDING", "UNKNOWN",
+           "Unit", "Verdict", "allowed_precisions", "check", "classify",
+           "default_precision", "format_value", "money_unit", "plain",
+           "quantize"]
