@@ -13,14 +13,14 @@
         "purpose": "ANALYSIS_ACTION",
         "phase": "action",
         "outcome": "ok",
-        "counted_input_tokens": 24100,
+        "counted_input_tokens": 24693,
         "output_allowance_granted": 4096,
         "tools_offered": 4,
         "context_bytes": {
-          "system": 30029,
-          "tools": 22786,
+          "system": 30836,
+          "tools": 23287,
           "messages": 221,
-          "total": 53036
+          "total": 54344
         }
       },
       {
@@ -28,39 +28,39 @@
         "purpose": "FINAL_ANSWER",
         "phase": "answer",
         "outcome": "ok",
-        "counted_input_tokens": 15655,
+        "counted_input_tokens": 16961,
         "output_allowance_granted": 4096,
         "tools_offered": 2,
         "context_bytes": {
-          "system": 14006,
-          "tools": 13505,
-          "messages": 6935,
-          "total": 34446
+          "system": 14813,
+          "tools": 14006,
+          "messages": 8506,
+          "total": 37325
         }
       }
     ],
     "answer_turn_saving": {
       "system_bytes": [
-        30029,
-        14006
+        30836,
+        14813
       ],
       "tools_bytes": [
-        22786,
-        13505
+        23287,
+        14006
       ],
       "tools_offered": [
         4,
         2
       ],
       "counted_input_tokens": [
-        24100,
-        15655
+        24693,
+        16961
       ]
     },
     "wall_clock_ms": {
-      "total": 415,
+      "total": 438,
       "provider": 0,
-      "creditprobe": 415
+      "creditprobe": 438
     }
   },
   "seeded_covenant_thread": {
@@ -74,14 +74,14 @@
         "purpose": "ANALYSIS_ACTION",
         "phase": "action",
         "outcome": "ok",
-        "counted_input_tokens": 27490,
+        "counted_input_tokens": 28082,
         "output_allowance_granted": 4096,
         "tools_offered": 4,
         "context_bytes": {
-          "system": 30029,
-          "tools": 22786,
+          "system": 30836,
+          "tools": 23287,
           "messages": 7678,
-          "total": 60493
+          "total": 61801
         }
       },
       {
@@ -89,14 +89,14 @@
         "purpose": "FINAL_ANSWER",
         "phase": "answer",
         "outcome": "ok",
-        "counted_input_tokens": 20042,
+        "counted_input_tokens": 22031,
         "output_allowance_granted": 4096,
         "tools_offered": 2,
         "context_bytes": {
-          "system": 14006,
-          "tools": 13505,
-          "messages": 16587,
-          "total": 44098
+          "system": 14813,
+          "tools": 14006,
+          "messages": 19660,
+          "total": 48479
         }
       }
     ]
