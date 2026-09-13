@@ -173,7 +173,14 @@ def load_release(cfg: V4Config) -> tuple[Any, Any, dict[str, Any]]:
     summary = {"dataset_release_id": cfg.release_id, "domain_id": DOMAIN,
                **{k: manifest.get(k) for k in
                   ("origin", "data_version", "not_client_data",
-                   "reporting_currency", "amount_scale", "tenants")
+                   "reporting_currency", "amount_scale", "tenants",
+                   # Where the book is. Carried so the execution header can
+                   # state the country rather than infer one from the
+                   # currency -- SAR is Saudi, but a currency is not a
+                   # country and reading one off the other is how a header
+                   # starts asserting things nobody published.
+                   "geography", "geography_name", "localization",
+                   "amounts_converted")
                   if k in manifest}}
     currency, scale = denomination(cfg.release_id, manifest)
     catalog = v3_catalog.build(
@@ -331,8 +338,19 @@ def diagnostics(cfg: V4Config | None = None, *,
                                      "code": exc.code}
     try:
         catalog, _, summary = load_release(cfg)
+        from backend.cockpit_v4 import release as release_mod
+
+        header = release_mod.header(
+            release_id=cfg.release_id, catalog=catalog,
+            release_summary=summary)
         checks["release"] = {
             "ok": True, "release": summary,
+            # Printed at startup, every time. Release selection is not a
+            # thing to discover afterwards from the numbers on the screen:
+            # which release, from which bytes, in which currency, at which
+            # scale, for which country.
+            "header": header.to_dict(),
+            "denominated": header.denominated,
             "relations": len(catalog.relations()),
             "quarters": len(getattr(catalog.calendar, "slots", ()) or ())}
     except PreflightFailed as exc:

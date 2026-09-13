@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.cockpit_v4 import DEEP, MODES, STANDARD
+from backend.cockpit_v4 import release as release_mod
 
 #: The only credential V4 will use. There is deliberately no fallback to
 #: ANTHROPIC_API_KEY, to an SDK default, or to any other module's key: a
@@ -283,7 +284,13 @@ def load() -> V4Config:
         mode = STANDARD
 
     reasoning_model = _text(REASONING_MODEL_VAR)
-    release_id = _text("COCKPIT_V4_RELEASE_ID")
+    # The Saudi demonstration release is the DEFAULT, not a fallback. An
+    # explicitly configured release is always honoured, and a configured
+    # release that is missing from the runtime is an error rather than an
+    # excuse to quietly load this one. What this removes is the third case:
+    # a runtime with nothing configured, which used to refuse to start and
+    # now starts on the release the demonstration is built around.
+    release_id = _text("COCKPIT_V4_RELEASE_ID") or release_mod.DEFAULT_RELEASE_ID
     price_card = _text("COCKPIT_V4_PRICE_CARD")
     memory_enabled = _flag("COCKPIT_V4_MEMORY_ENABLED", "false")
     memory_model = _text("COCKPIT_V4_MEMORY_MODEL")
@@ -291,8 +298,6 @@ def load() -> V4Config:
     missing: list[str] = []
     if not reasoning_model:
         missing.append(REASONING_MODEL_VAR)
-    if not release_id:
-        missing.append("COCKPIT_V4_RELEASE_ID")
     if not price_card:
         missing.append("COCKPIT_V4_PRICE_CARD")
     if memory_enabled and not memory_model:

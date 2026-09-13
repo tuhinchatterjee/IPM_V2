@@ -278,6 +278,29 @@ def main() -> int:
         f"python runner: {'available' if runner.get('available') else 'unavailable'}"
         + (f" — {runner.get('reason')}" if not runner.get("available") else "")))
 
+    # Which release, from which bytes, in which currency. Printed every
+    # start, never inferred afterwards from the figures on the screen.
+    header = (checks.get("release", {}) or {}).get("header") or {}
+    if header:
+        heading("Cockpit V4 · release")
+        table([("release", header.get("release_id", "—")),
+              ("fingerprint", str(header.get("release_fingerprint", ""))[:16]
+               or "—"),
+              ("country", header.get("country") or "not declared"),
+              ("currency", header.get("reporting_currency")
+               or "not declared"),
+              ("amount scale", header.get("amount_scale") or "not declared"),
+              ("latest quarter",
+               header.get("latest_populated_quarter", "—")),
+              ("synthetic", "yes" if header.get("not_client_data")
+               else "NO — this is client data")])
+        if header.get("unverified"):
+            print(bad(
+                "this release does not declare "
+                + ", ".join(header["unverified"])
+                + ". Denominated figures will not be published from it."))
+            return 1
+
     if not report.get("ready_for_product_help"):
         print()
         print(bad("V4 cannot answer anything yet. Fix the checks above."))
