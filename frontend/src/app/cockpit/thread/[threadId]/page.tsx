@@ -49,6 +49,9 @@ export default function CockpitThreadPage() {
     <CockpitV4Thread
       threadId={threadId}
       initialQuestion={question}
+      onQuestionAsked={() =>
+        router.replace(`/cockpit/thread/${encodeURIComponent(threadId)}`)
+      }
       onHome={() => router.push("/")}
     />
   );

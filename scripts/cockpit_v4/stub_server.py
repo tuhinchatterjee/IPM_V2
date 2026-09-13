@@ -196,7 +196,24 @@ This environment uses synthetic demonstration data rather than a real bank portf
                                    "column_id": "ead_sar_mn"}}],
                   tables=[{"title": "Reported EAD by sector",
                            "artifact_id": step["artifact_id"],
-                           "columns": ["sector_name", "ead_sar_mn"]}]),
+                           "columns": ["sector_name", "ead_sar_mn"]}],
+                  # A ranked comparison across sectors: the analyst decides a
+                  # chart helps HERE, and the stub stands in for that
+                  # decision. It supplies no values -- the schema has nowhere
+                  # to put one -- so every figure in the rendered chart still
+                  # comes out of the stored artifact.
+                  charts=[{"kind": "bar",
+                           "title": "Reported EAD by sector",
+                           "artifact_id": step["artifact_id"],
+                           "x_column": "sector_name",
+                           "y_columns": ["ead_sar_mn"],
+                           "unit": money_unit()}],
+                  suggested_questions=[
+                      {"question": "Show the borrowers behind the largest "
+                                   "sector.", "kind": "drilldown"},
+                      {"question": "How has sector concentration changed "
+                                   "over the latest year?",
+                       "kind": "comparison"}]),
             "tu-final")])
 
     def stall():

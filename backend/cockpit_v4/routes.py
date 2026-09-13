@@ -868,6 +868,40 @@ async def shell_health() -> dict[str, Any]:
         preflight_error=str(_STATE.get("preflight_error") or ""))
 
 
+@router.get("/runs/{run_id}/trace")
+async def read_trace(run_id: str,
+                     who: dict[str, Any] = Depends(principal)
+                     ) -> dict[str, Any]:
+    """What this run did, after it finished. §28.
+
+    The live panel shows a run while it happens; a reader who comes back to
+    a past turn -- their own, an hour later, or after a reload -- had no way
+    to see the same thing. This serves the COMMITTED events, which is the
+    same material the stream delivered, plus what the run cost and which
+    release answered it.
+
+    It costs no model call and it reads no model reasoning. Public
+    operations, their timings and their outcomes; nothing that was not
+    already written down while the run was going.
+    """
+    record = _authorize(run_id, who)
+    store = _store()
+    events = [e.to_dict() if hasattr(e, "to_dict") else dict(e)
+              for e in store.events_since(run_id, 0)]
+    return {
+        "run_id": run_id,
+        "thread_id": record.thread_id,
+        "question": record.question,
+        "state": record.state,
+        "mode": record.mode,
+        "error_code": record.error_code,
+        "created_at": record.created_at,
+        "events": events,
+        "budget": record.budget or {},
+        "release": _release_header(),
+    }
+
+
 @router.get("/runs/{run_id}/events")
 async def stream_events(run_id: str, request: Request,
                         last_event_id: str = Header("", alias="Last-Event-ID"),

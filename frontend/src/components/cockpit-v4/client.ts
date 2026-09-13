@@ -512,6 +512,35 @@ export async function readThread(
   );
 }
 
+export type RunTrace = {
+  run_id: string;
+  thread_id: string;
+  question: string;
+  state: string;
+  mode: string;
+  error_code: string;
+  created_at: string;
+  events: RunEvent[];
+  budget: Record<string, unknown>;
+  release?: Record<string, unknown>;
+};
+
+/**
+ * What a past run did. §28.
+ *
+ * The committed events -- the same material the live stream delivered --
+ * plus what the run cost and which release answered it. No model call, and
+ * no model reasoning: public operations and their outcomes only.
+ */
+export async function readTrace(runId: string): Promise<RunTrace> {
+  return json(
+    await fetch(
+      `${base()}${API_PREFIX}/runs/${encodeURIComponent(runId)}/trace`,
+      { credentials: "include" },
+    ),
+  );
+}
+
 /** Rename a conversation. Tenant-checked server-side; a URL is not access. */
 export async function renameThread(
   threadId: string,

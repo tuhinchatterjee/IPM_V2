@@ -40,6 +40,7 @@ import {
   cancelRun,
   forgetRun,
   readStatus,
+  readTrace,
   recallRun,
   rememberRun,
   readThread,
@@ -53,7 +54,7 @@ import {
 } from "./client";
 import { AnswerActions } from "./answer-actions";
 import { ProcessPanel } from "./process-panel";
-import { initial, reduce } from "./reducer";
+import { initial, reduce, type RunView } from "./reducer";
 import { ResponsePanel } from "./response-panel";
 import { Visuals } from "./visuals";
 
@@ -95,6 +96,80 @@ function UserTurn({ question }: { question: string }) {
   );
 }
 
+/**
+ * The trace of a turn that has already finished. §28.
+ *
+ * The live panel shows a run while it happens. A reader coming back to a
+ * past turn -- their own, an hour later, or after a reload -- had no way to
+ * see the same thing, and "trust the answer" is not the claim being made.
+ *
+ * Loaded on demand, because a transcript of twenty turns should not fetch
+ * twenty event streams to render. Nothing here costs a model call.
+ */
+function TurnTrace({ runId }: { runId: string }) {
+  const [view, setView] = React.useState<RunView | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [failed, setFailed] = React.useState("");
+
+  const open = React.useCallback(async () => {
+    if (view || busy) {
+      setView(null);
+      return;
+    }
+    setBusy(true);
+    setFailed("");
+    try {
+      const trace = await readTrace(runId);
+      let next = reduce(initial(runId), { type: "start", runId });
+      for (const event of trace.events) {
+        next = reduce(next, { type: "event", event });
+      }
+      // Settled from the RECORD, not from whichever event happened to be
+      // last: a stream that dropped its final frame must not leave a
+      // finished run looking as though it is still working.
+      next = {
+        ...next,
+        terminal: true,
+        state: trace.state,
+        errorCode: trace.error_code,
+        elapsedIsAuthoritative: true,
+        steps: next.steps.map((step) =>
+          step.state === "running" ? { ...step, state: "done" as const } : step,
+        ),
+      };
+      setView(next);
+    } catch (cause) {
+      setFailed(
+        cause instanceof Error ? cause.message : "The trace could not be read.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, runId, view]);
+
+  return (
+    <div data-testid="v4-turn-trace">
+      <button
+        type="button"
+        data-testid="v4-view-trace"
+        onClick={() => void open()}
+        aria-expanded={Boolean(view)}
+        className="text-xs font-medium text-sky-700 hover:underline"
+      >
+        {busy ? "Reading trace…" : view ? "Hide trace" : "View trace"}
+      </button>
+      {failed ? (
+        <p className="mt-1 text-xs text-rose-700">{failed}</p>
+      ) : null}
+      {view ? (
+        <div className="mt-2">
+          <ProcessPanel view={view} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AssistantTurn({
   turn,
   onAsk,
@@ -126,13 +201,20 @@ function AssistantTurn({
       />
       <Visuals tables={turn.answer.tables ?? []}
                charts={turn.answer.charts ?? []} />
+      <TurnTrace runId={turn.runId} />
     </div>
   );
 }
 
 
 /** What a seeded investigation already knows, before anything is asked. */
-function SeedCard({ context }: { context: ThreadTranscript["context"] }) {
+function SeedCard({
+  context,
+  threadId,
+}: {
+  context: ThreadTranscript["context"];
+  threadId: string;
+}) {
   const body = (context?.body ?? {}) as Record<string, unknown>;
   if (context?.kind !== "attention_item") return null;
   const rows: [string, string][] = [
@@ -144,7 +226,11 @@ function SeedCard({ context }: { context: ThreadTranscript["context"] }) {
 
   return (
     <section
-      data-testid="v4-investigation-context"
+      // The same name the concept has always had. One testid for one thing:
+      // this card IS the investigation context, wherever it is rendered.
+      data-testid="investigation-context"
+      data-thread-id={threadId}
+      data-segment={String(body.segment ?? "")}
       className="rounded-lg border border-sky-200 bg-sky-50/60 px-4 py-3"
     >
       <p className="text-xs font-medium uppercase tracking-wide text-sky-800">
@@ -328,11 +414,14 @@ function ThreadHeader({
 export function CockpitV4Thread({
   threadId,
   initialQuestion = "",
+  onQuestionAsked,
   onHome,
 }: {
   threadId: string;
   /** Asked once, on open, when the home page handed one over. */
   initialQuestion?: string;
+  /** Called the instant that question is asked, so it leaves the URL. */
+  onQuestionAsked?: () => void;
   onHome: () => void;
 }) {
   const [transcript, setTranscript] = React.useState<ThreadTranscript | null>(
@@ -432,8 +521,15 @@ export function CockpitV4Thread({
   React.useEffect(() => {
     if (!initialQuestion || asked.current) return;
     asked.current = true;
+    // CONSUMED, immediately. The question travels in the URL so that the
+    // navigation carries it, and it must leave the URL the moment it has
+    // been asked -- a refresh with `?q=` still on it asks again, which
+    // spends the analysis twice and is the one thing a reload must never
+    // do. `replace`, not `push`, so Back goes to the Cockpit rather than
+    // to a URL that would re-ask.
+    onQuestionAsked?.();
     void ask(initialQuestion);
-  }, [ask, initialQuestion]);
+  }, [ask, initialQuestion, onQuestionAsked]);
 
   /**
    * Pick a run back up after a refresh.
@@ -524,7 +620,8 @@ export function CockpitV4Thread({
       />
 
       <div className="mt-6 space-y-10">
-        <SeedCard context={transcript?.context ?? {}} />
+        <SeedCard context={transcript?.context ?? {}}
+                  threadId={threadId} />
 
         {turns.map((turn) => (
           <article key={turn.key} className="space-y-4">

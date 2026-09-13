@@ -654,7 +654,7 @@ if (process.env.V4_THREAD_SHOTS) {
     try {
       await openDrawer(page);
       await page.click('[data-testid="attention-investigate"]');
-      await page.waitForSelector('[data-testid="v4-investigation-context"]',
+      await page.waitForSelector('[data-testid="investigation-context"]',
         { timeout: 30_000 });
       await shot(page, "thread_investigation");
     } finally {
@@ -845,7 +845,7 @@ await test("Investigate Further opens the conversation, not just the context",
       assert.ok(threadIdFrom(page), "an investigation must open somewhere");
 
       const seed = await expect(
-        page, '[data-testid="v4-investigation-context"]', 15_000, problems);
+        page, '[data-testid="investigation-context"]', 15_000, problems);
       const shown = (await seed.textContent()) ?? "";
       assert.ok(shown.trim().length > 0, "the card says what is under review");
 
