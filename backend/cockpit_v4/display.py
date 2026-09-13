@@ -293,6 +293,24 @@ def format_value(canonical: Decimal, unit: str,
     return f"{body} {word}".strip()
 
 
+def format_unitless(value: Decimal) -> str:
+    """A number whose unit nothing could name, written for a person anyway.
+
+    Declining to name a unit is honest. Printing 1.5690646127781567 at a
+    credit officer is not -- it is machine precision reaching a reader, and
+    it is a defect whether or not we know what the number measures.
+
+    So: no unit is asserted, ever, and no currency is implied. A value that
+    is whole is written whole, because that is a fact about the value rather
+    than a guess about its kind; anything else gets two decimal places,
+    which is what a general figure carries when nobody has said otherwise.
+    """
+    shown = plain(value)
+    if shown == shown.to_integral_value():
+        return f"{shown.to_integral_value():,}"
+    return f"{quantize(shown, DECIMALS[UNKNOWN]):,}"
+
+
 def money_unit(catalog: Any) -> str:
     """The money unit of ONE release, e.g. "SAR million".
 
@@ -327,5 +345,6 @@ __all__ = ["CATALOG_UNITS", "CATEGORICAL", "COUNT", "DECIMALS",
            "DISPLAY_FACTOR", "IFRS_STAGE", "INTEGER", "MONETARY_AMOUNT",
            "PERCENTAGE", "PERCENTAGE_POINT", "PERIOD", "PERMITTED",
            "PROBABILITY", "RATING", "RATIO", "ROUNDING", "UNKNOWN",
-           "classify", "decimals", "display_value", "format_value",
+           "classify", "decimals", "display_value", "format_unitless",
+           "format_value",
            "money_unit", "permitted", "plain", "quantize", "unit_for_field"]

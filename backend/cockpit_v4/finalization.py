@@ -72,17 +72,23 @@ class ValidationReport:
 
 
 def _cell(value: Any, unit: str, disp: Any) -> Any:
-    """One published cell: the reader's form, or the value unchanged.
+    """One published cell, as a reader sees it.
 
-    A cell with no resolved unit, a null, or a non-numeric value is passed
-    through. Formatting is something a unit earns.
+    A null and a non-numeric value pass through unchanged. A number whose
+    unit was resolved is written in that unit. A number whose unit nobody
+    could name is still written for a person -- no unit asserted, but not
+    sixteen digits either, because machine precision reaching a reader is a
+    defect whether or not we know what the number measures.
     """
-    if value is None or not unit:
+    if value is None:
         return value
     try:
-        return disp.format_value(Decimal(str(value)), unit)
+        number = Decimal(str(value))
     except (InvalidOperation, ValueError):
         return value
+    if unit:
+        return disp.format_value(number, unit)
+    return disp.format_unitless(number)
 
 
 def _format(claim: NumericClaim) -> str:

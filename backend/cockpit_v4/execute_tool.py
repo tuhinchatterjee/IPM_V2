@@ -78,28 +78,30 @@ def formatted_preview(preview: list[dict[str, Any]],
                       units: dict[str, str]) -> list[dict[str, Any]]:
     """The same rows as a reader would see them. Canonical rows are kept.
 
-    Only cells whose column has a resolved unit are rewritten; everything
-    else is passed through unchanged, so a formatted preview never contains
-    a figure whose denomination was invented.
+    A cell whose column has a resolved unit is written in that unit. One
+    whose unit nobody could name is still written for a person, with no unit
+    asserted: a formatted preview never contains a denomination that was
+    invented, and never contains sixteen digits either.
     """
     from decimal import Decimal, InvalidOperation
 
     from backend.cockpit_v4 import display as disp
 
-    if not units:
-        return []
     out: list[dict[str, Any]] = []
     for row in preview:
         shown: dict[str, Any] = {}
         for key, value in row.items():
-            unit = units.get(key, "")
-            if not unit or value is None:
+            if value is None:
                 shown[key] = value
                 continue
             try:
-                shown[key] = disp.format_value(Decimal(str(value)), unit)
+                number = Decimal(str(value))
             except (InvalidOperation, ValueError):
                 shown[key] = value
+                continue
+            unit = units.get(key, "")
+            shown[key] = (disp.format_value(number, unit) if unit
+                          else disp.format_unitless(number))
         out.append(shown)
     return out
 

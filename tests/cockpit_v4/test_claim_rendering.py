@@ -254,12 +254,22 @@ def test_a_column_the_catalogue_cannot_name_is_not_given_a_currency(runtime):
     assert "breaches" not in units
 
 
-def test_an_unresolved_column_is_passed_through_unchanged(runtime):
+def test_an_unresolved_column_is_written_without_asserting_a_unit(runtime):
+    """No currency is implied, and no machine precision is printed either.
+
+    Both halves matter. Naming a denomination nobody computed shows a reader
+    something false; printing 1.5690646127781567 shows them something true
+    and unreadable, and a published table did exactly that until the second
+    half of this rule existed.
+    """
     from backend.cockpit_v4.execute_tool import formatted_preview
 
     rows = [{"sector_name": "Construction", "ead_reported": 3421.1736,
-             "total": 999.5}]
+             "coverage": 1.5690646127781567, "facilities": 12}]
     shown = formatted_preview(rows, {"ead_reported": "SAR million"})
     assert shown[0]["ead_reported"] == "SAR 3,421 million"
-    assert shown[0]["total"] == 999.5
+    assert shown[0]["coverage"] == "1.57"
+    assert shown[0]["facilities"] == "12", (
+        "a whole number is written whole; that is a fact about the value, "
+        "not a guess about its kind")
     assert shown[0]["sector_name"] == "Construction"
