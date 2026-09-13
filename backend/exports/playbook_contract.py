@@ -36,7 +36,9 @@ from typing import Any
 
 #: Bumped when the payload shape changes, so a snapshot found in a database in
 #: two years can be matched against the code that wrote it.
-SCHEMA_VERSION = "1.0"
+#: 1.1 adds `Table.metrics` — stable metric identity. Additive: a 1.0
+#: payload is still valid and simply carries no metrics.
+SCHEMA_VERSION = "1.1"
 GENERATOR = "creditprobe-playbook-export/1.0"
 
 COCKPIT = "cockpit"
@@ -72,6 +74,64 @@ class InvalidExport(ValueError):
 
 
 @dataclass
+class Metric:
+    """One governed figure, with the identity a document can bind to.
+
+    The reason this exists
+    ----------------------
+    A living document has to say "the default rate this paper relied on is the
+    same series as the default rate you are looking at now". Names cannot carry
+    that: two modules can both produce a "Default rate", for different
+    populations, periods and denominators, and binding them because the words
+    match is precisely the mistake that makes a governed pack wrong. So a
+    module that knows what it computed states an id, and everything downstream
+    links through the id or admits it did not link.
+
+    The dimensions below are part of identity, not decoration. A rate for the
+    retail book is not the same metric as a rate for the corporate book, and a
+    Q1 reading is not a Q2 reading — two figures agree on `metric_id` and
+    differ on `population`, and they are different series.
+
+    `value` is exact and `display_value` is how it is shown, the same
+    separation `backend/playbook/calc.py` keeps between a value and its
+    presentation. Both travel, because a report quotes one and reconciles
+    against the other.
+    """
+
+    metric_id: str
+    label: str = ""
+    value: str = ""
+    display_value: str = ""
+    unit: str = ""
+    currency: str = ""
+    population: str = ""
+    segment: str = ""
+    reporting_period: str = ""
+    scenario: str = ""
+    as_of: str = ""
+    #: Where in the producing analysis this came from — a cell, a table
+    #: coordinate, a calculation id. What makes the figure reviewable.
+    locator: str = ""
+    catalogue_id: str = ""
+
+    def as_dict(self) -> dict:
+        return {"metric_id": self.metric_id, "label": self.label,
+                "value": self.value, "display_value": self.display_value,
+                "unit": self.unit, "currency": self.currency,
+                "population": self.population, "segment": self.segment,
+                "reporting_period": self.reporting_period,
+                "scenario": self.scenario, "as_of": self.as_of,
+                "locator": self.locator, "catalogue_id": self.catalogue_id}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Metric:
+        return cls(**{k: d.get(k, "") for k in (
+            "metric_id", "label", "value", "display_value", "unit", "currency",
+            "population", "segment", "reporting_period", "scenario", "as_of",
+            "locator", "catalogue_id")})
+
+
+@dataclass
 class Table:
     """One result table, with what a reader needs to interpret it."""
 
@@ -83,11 +143,17 @@ class Table:
     #: ambiguous between a percentage, a ratio and SAR billion.
     units: dict[str, str] = field(default_factory=dict)
     precision: dict[str, int] = field(default_factory=dict)
+    #: The governed figures this table states. Additive and optional: an
+    #: exporter that does not know its metric ids omits them and its figures
+    #: are simply not auto-bindable, which is the honest outcome. It is never
+    #: filled in by guessing from a column heading.
+    metrics: list[Metric] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"id": self.id, "title": self.title, "columns": list(self.columns),
                 "rows": [list(r) for r in self.rows], "units": dict(self.units),
-                "precision": dict(self.precision)}
+                "precision": dict(self.precision),
+                "metrics": [m.as_dict() for m in self.metrics]}
 
 
 @dataclass

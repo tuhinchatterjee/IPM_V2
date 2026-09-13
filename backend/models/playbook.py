@@ -38,11 +38,12 @@ backend/db/models.py, so all three live in one schema and one Alembic history.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -773,4 +774,462 @@ class PlaybookJobEvent(Base):
     __table_args__ = (
         UniqueConstraint("job_id", "seq", name="uq_playbook_job_event_seq"),
         Index("ix_playbook_job_events_job", "job_id", "seq"),
+    )
+
+
+# ==========================================================================
+# Document intelligence — a Playbook document as a governed, living object
+# ==========================================================================
+#
+# Everything above answers "what does this document say, and can every figure
+# in it be traced". Everything below answers the questions a person asks of a
+# governed paper afterwards: what kind of document is this, how complete is
+# it, which sections are stale, what did this metric say when the paper was
+# written and what does it say now, what is unresolved, and what is the
+# committee being asked to decide.
+
+
+class PlaybookDocumentProfile(Base):
+    """What a document IS, as opposed to what it says.
+
+    The system may infer a type; only a person can settle it, and
+    `classified_by` is how those two are told apart afterwards. `requirements`
+    carries the sections this kind of paper needs and the weights its
+    completion score uses, per document — because a model development report
+    and a committee pack are not complete in the same way and one hard-coded
+    formula for both would be wrong for each.
+    """
+
+    __tablename__ = "playbook_document_profiles"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_workspaces.id", ondelete="CASCADE"),
+        nullable=False, unique=True,
+    )
+    tenant: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    document_type: Mapped[str] = mapped_column(String(48), nullable=False,
+                                               default="general")
+    report_family: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    committee_report: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                   default=False)
+    committee_name: Mapped[str] = mapped_column(String(160), nullable=False,
+                                                default="")
+    reporting_period: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                  default="")
+    meeting_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    owner: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="drafting")
+    previous_artifact_id: Mapped[int | None] = mapped_column(BigInteger,
+                                                             nullable=True)
+    classified_by: Mapped[str] = mapped_column(String(16), nullable=False,
+                                               default="inferred")
+    classification_confidence: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="")
+    requirements: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                               default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class PlaybookDocumentSection(Base):
+    """Per-section status, keyed by something a retitle cannot break.
+
+    `merge` deliberately allows an author to rename the section it was asked to
+    edit, so review state keyed on heading text would reset every time someone
+    sharpened a title. `section_key` is stable; `heading` is what the document
+    currently calls it.
+    """
+
+    __tablename__ = "playbook_document_sections"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    artifact_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_artifacts.id", ondelete="CASCADE"), nullable=False)
+    section_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    heading: Mapped[str] = mapped_column(String(400), nullable=False,
+                                         default="")
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="draft")
+    first_seen_version: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                    default=1)
+    last_changed_version: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                      default=1)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False,
+                                              default="")
+    page_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    word_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stale_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    reviewer: Mapped[str] = mapped_column(String(160), nullable=False,
+                                          default="")
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("artifact_id", "section_key",
+                         name="uq_playbook_section_key"),
+        Index("ix_playbook_sections_artifact", "artifact_id", "ordinal"),
+    )
+
+
+class PlaybookMetricBinding(Base):
+    """Which governed metric a document quotes, and on what authority.
+
+    A binding is never made from text similarity. `binding_method` records
+    which rule produced it — an export that carried a metric id, a confirmed
+    user mapping, a suggestion a person accepted — and `confirmed_by_user` is
+    the difference between a proposal and a link. The three value columns hold
+    the three true readings of one fact that `ingest.sheets` now preserves.
+    """
+
+    __tablename__ = "playbook_metric_bindings"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_workspaces.id", ondelete="CASCADE"), nullable=False)
+    artifact_id: Mapped[int | None] = mapped_column(
+        ForeignKey("playbook_artifacts.id", ondelete="CASCADE"), nullable=True)
+    section_key: Mapped[str] = mapped_column(String(128), nullable=False,
+                                             default="")
+    metric_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    canonical_name: Mapped[str] = mapped_column(String(240), nullable=False,
+                                                default="")
+    catalogue_id: Mapped[str] = mapped_column(String(160), nullable=False,
+                                              default="")
+    label: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    unit: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    currency: Mapped[str] = mapped_column(String(16), nullable=False,
+                                          default="")
+    population: Mapped[str] = mapped_column(String(160), nullable=False,
+                                            default="")
+    segment: Mapped[str] = mapped_column(String(160), nullable=False,
+                                         default="")
+    reporting_period: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                  default="")
+    scenario: Mapped[str] = mapped_column(String(96), nullable=False,
+                                          default="")
+    source_module: Mapped[str] = mapped_column(String(48), nullable=False,
+                                               default="")
+    source_export_revision_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True)
+    source_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    source_locator: Mapped[str] = mapped_column(String(400), nullable=False,
+                                                default="")
+    value_in_document: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                   default="")
+    display_value: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    raw_value: Mapped[str] = mapped_column(String(96), nullable=False,
+                                           default="")
+    as_of: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    binding_method: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="unlinked")
+    confidence: Mapped[str] = mapped_column(String(16), nullable=False,
+                                            default="")
+    confirmed_by_user: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                                    default=False)
+    confirmed_by: Mapped[str] = mapped_column(String(160), nullable=False,
+                                              default="")
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    refresh_strategy: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                  default="on_request")
+    freshness: Mapped[str] = mapped_column(String(24), nullable=False,
+                                           default="unknown")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_playbook_bindings_workspace", "workspace_id", "metric_id"),
+    )
+
+
+class PlaybookMetricSnapshot(Base):
+    """THEN: the value a version actually relied on, frozen when it was written.
+
+    Never updated. A snapshot that moves when today's data moves cannot answer
+    "what did the committee see", which is the only question it exists for.
+    """
+
+    __tablename__ = "playbook_metric_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    artifact_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_artifacts.id", ondelete="CASCADE"), nullable=False)
+    version_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    section_key: Mapped[str] = mapped_column(String(128), nullable=False,
+                                             default="")
+    metric_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    label: Mapped[str] = mapped_column(String(240), nullable=False, default="")
+    value: Mapped[str] = mapped_column(String(96), nullable=False, default="")
+    display_value: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    unit: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    as_of: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    reporting_period: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                  default="")
+    source_locator: Mapped[str] = mapped_column(String(400), nullable=False,
+                                                default="")
+    source_export_revision_id: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("version_id", "metric_id", "section_key",
+                         name="uq_playbook_snapshot_metric"),
+        Index("ix_playbook_snapshots_artifact", "artifact_id", "version"),
+    )
+
+
+class PlaybookFinding(Base):
+    """Something the document's own evidence says somebody has to answer."""
+
+    __tablename__ = "playbook_findings"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_workspaces.id", ondelete="CASCADE"), nullable=False)
+    artifact_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    section_key: Mapped[str] = mapped_column(String(128), nullable=False,
+                                             default="")
+    reference: Mapped[str] = mapped_column(String(32), nullable=False,
+                                           default="")
+    title: Mapped[str] = mapped_column(String(400), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False,
+                                          default="information")
+    status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="open")
+    raised_by: Mapped[str] = mapped_column(String(32), nullable=False,
+                                           default="rule")
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    metric_id: Mapped[str] = mapped_column(String(160), nullable=False,
+                                           default="")
+    threshold: Mapped[str] = mapped_column(String(64), nullable=False,
+                                           default="")
+    previous_value: Mapped[str] = mapped_column(String(64), nullable=False,
+                                                default="")
+    current_value: Mapped[str] = mapped_column(String(64), nullable=False,
+                                               default="")
+    source_locator: Mapped[str] = mapped_column(String(400), nullable=False,
+                                                default="")
+    owner: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    answer: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    answered_by: Mapped[str] = mapped_column(String(160), nullable=False,
+                                             default="")
+    answered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    resolution: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    blocking: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                           default=False)
+    evidence: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_playbook_findings_workspace", "workspace_id", "status",
+              "severity"),
+    )
+
+
+class PlaybookDecision(Base):
+    """What the committee is being asked to decide, and what it decided.
+
+    `decided_by` is a person. A model may draft the question, the options and
+    the recommendation; recording the outcome is a governance act and the
+    service layer refuses to perform it without a human actor.
+    """
+
+    __tablename__ = "playbook_decisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_workspaces.id", ondelete="CASCADE"), nullable=False)
+    artifact_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reference: Mapped[str] = mapped_column(String(32), nullable=False,
+                                           default="")
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    recommendation: Mapped[str] = mapped_column(Text, nullable=False,
+                                                default="")
+    options: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    current_position: Mapped[str] = mapped_column(String(240), nullable=False,
+                                                  default="")
+    proposed_position: Mapped[str] = mapped_column(String(240), nullable=False,
+                                                   default="")
+    effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False,
+                                        default="outstanding")
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False,
+                                         default="")
+    decided_by: Mapped[str] = mapped_column(String(160), nullable=False,
+                                            default="")
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    meeting: Mapped[str] = mapped_column(String(160), nullable=False,
+                                         default="")
+    rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    evidence: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_playbook_decisions_workspace", "workspace_id", "status"),
+    )
+
+
+class PlaybookAction(Base):
+    """Work a decision or a finding created.
+
+    `external_system` and `external_ref` are the whole of the coupling to a
+    planner: when one is connected, execution lives there and status is read
+    back. Nothing here depends on that module existing.
+    """
+
+    __tablename__ = "playbook_actions"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_workspaces.id", ondelete="CASCADE"), nullable=False)
+    decision_id: Mapped[int | None] = mapped_column(
+        ForeignKey("playbook_decisions.id", ondelete="SET NULL"), nullable=True)
+    finding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("playbook_findings.id", ondelete="SET NULL"), nullable=True)
+    reference: Mapped[str] = mapped_column(String(32), nullable=False,
+                                           default="")
+    title: Mapped[str] = mapped_column(String(400), nullable=False)
+    owner: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="open")
+    last_update: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    last_update_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    external_system: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                 default="")
+    external_ref: Mapped[str] = mapped_column(String(160), nullable=False,
+                                              default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_playbook_actions_workspace", "workspace_id", "status"),
+    )
+
+
+class PlaybookReview(Base):
+    """Who is reviewing what, and whether they have finished.
+
+    Only the reviewer completes their own review. A model may summarise what
+    is outstanding; it may not mark a human's review done.
+    """
+
+    __tablename__ = "playbook_reviews"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_workspaces.id", ondelete="CASCADE"), nullable=False)
+    artifact_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    section_key: Mapped[str] = mapped_column(String(128), nullable=False,
+                                             default="")
+    reviewer: Mapped[str] = mapped_column(String(160), nullable=False)
+    role: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="requested")
+    comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_playbook_reviews_workspace", "workspace_id", "status"),
+    )
+
+
+class PlaybookReadiness(Base):
+    """The computed state of a document, with the reasons kept beside it.
+
+    `components` and `blockers` are not decoration: a percentage a person
+    cannot click into and take apart is a percentage nobody should act on, and
+    storing the working is what makes §26's "why is readiness 81%?" answerable
+    without recomputing anything.
+    """
+
+    __tablename__ = "playbook_readiness"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_workspaces.id", ondelete="CASCADE"), nullable=False)
+    artifact_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    completion_pct: Mapped[int] = mapped_column(Integer, nullable=False,
+                                                default=0)
+    readiness_pct: Mapped[int] = mapped_column(Integer, nullable=False,
+                                               default=0)
+    approval_status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                 default="pending")
+    components: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                             default=list)
+    blockers: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    statistics: Mapped[dict] = mapped_column(JSONB, nullable=False,
+                                             default=dict)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "artifact_id",
+                         name="uq_playbook_readiness_artifact"),
+    )
+
+
+class PlaybookSourceParse(Base):
+    """One parse of a source's immutable bytes, and which parser made it.
+
+    The bytes never change, so improving the reader does not invalidate the
+    upload — it invalidates the READING. A stale parse is then re-read locally,
+    free, with no provider call and no asking the user to find the file again.
+    """
+
+    __tablename__ = "playbook_source_parses"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("playbook_sources.id", ondelete="CASCADE"), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    parser_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(32), nullable=False,
+                                                default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False,
+                                        default="parsed")
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False,
+                                             default=0)
+    manifest: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    failure_reason: Mapped[str] = mapped_column(Text, nullable=False,
+                                                default="")
+    superseded: Mapped[bool] = mapped_column(Boolean, nullable=False,
+                                             default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("source_id", "revision",
+                         name="uq_playbook_source_parse_revision"),
+        Index("ix_playbook_source_parses_source", "source_id", "revision"),
     )
