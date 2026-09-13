@@ -81,212 +81,212 @@
     {
       "name": "asking 'Who are you?' posts to the V4 run API and never to the legacy flow",
       "ok": true,
-      "ms": 2476
+      "ms": 2513
     },
     {
       "name": "the process panel appears and consumes the V4 event stream",
       "ok": true,
-      "ms": 1961
+      "ms": 1952
     },
     {
       "name": "progress events are rendered before the answer arrives",
       "ok": true,
-      "ms": 2031
+      "ms": 2026
     },
     {
       "name": "the final answer renders with its disposition",
       "ok": true,
-      "ms": 1914
+      "ms": 1953
     },
     {
       "name": "an evidence-bound analysis renders artifact links",
       "ok": true,
-      "ms": 2955
+      "ms": 2975
     },
     {
       "name": "a terminal failure renders explicitly with a support reference",
       "ok": true,
-      "ms": 1976
+      "ms": 1989
     },
     {
       "name": "stop cancels the run through the V4 cancel endpoint",
       "ok": true,
-      "ms": 1818
+      "ms": 830
     },
     {
       "name": "a browser refresh replays the same run instead of re-asking",
       "ok": true,
-      "ms": 1011
+      "ms": 1004
     },
     {
       "name": "optional landing widgets show a neutral state and request nothing",
       "ok": true,
-      "ms": 641
+      "ms": 639
     },
     {
       "name": "no request from the page goes to the legacy backend port",
       "ok": true,
-      "ms": 4444
+      "ms": 4414
     },
     {
       "name": "the process panel shows real stages, not 'not started' at 0s",
       "ok": true,
-      "ms": 2190
+      "ms": 2133
     },
     {
       "name": "the answer renders as Markdown, with no raw syntax left over",
       "ok": true,
-      "ms": 2000
+      "ms": 1961
     },
     {
       "name": "suggested-question chips stay interactive UI, not Markdown",
       "ok": true,
-      "ms": 2038
+      "ms": 1955
     },
     {
       "name": "a failed attempt stays visible after a later attempt succeeds",
       "ok": true,
-      "ms": 3081
+      "ms": 3089
     },
     {
       "name": "segments requiring attention loads from the pinned release",
       "ok": true,
-      "ms": 594
+      "ms": 569
     },
     {
       "name": "latest-quarter ECL highlights load below it",
       "ok": true,
-      "ms": 620
+      "ms": 588
     },
     {
       "name": "clicking a segment card opens the right-side drawer",
       "ok": true,
-      "ms": 689
+      "ms": 697
     },
     {
       "name": "the drawer offers borrower drill-down and no invented subsegment",
       "ok": true,
-      "ms": 653
+      "ms": 671
     },
     {
       "name": "possible drivers are stated as association, never as cause",
       "ok": true,
-      "ms": 632
+      "ms": 633
     },
     {
       "name": "Investigate Further opens a seeded V4 thread",
       "ok": true,
-      "ms": 797
+      "ms": 729
     },
     {
       "name": "a follow-up uses the seeded context without restating it",
       "ok": true,
-      "ms": 3124
+      "ms": 3075
     },
     {
       "name": "the seeded context load appears in the process panel",
       "ok": true,
-      "ms": 1139
+      "ms": 1153
     },
     {
       "name": "an ECL highlight opens the same drawer and investigates",
       "ok": true,
-      "ms": 718
+      "ms": 733
     },
     {
       "name": "a refresh keeps the open investigation",
       "ok": true,
-      "ms": 1052
+      "ms": 1059
     },
     {
       "name": "an attention-feed failure does not break Ask",
       "ok": true,
-      "ms": 2404
+      "ms": 1964
     },
     {
       "name": "the landing page greets, then asks what is on your mind",
       "ok": true,
-      "ms": 580
+      "ms": 631
     },
     {
       "name": "the Ask box is the primary element and spans the workspace",
       "ok": true,
-      "ms": 565
+      "ms": 602
     },
     {
       "name": "prompt chips render, ask when clicked, and can be dismissed",
       "ok": true,
-      "ms": 911
+      "ms": 946
     },
     {
       "name": "the Trace line is there and explains itself",
       "ok": true,
-      "ms": 606
+      "ms": 631
     },
     {
       "name": "Segments requiring attention shows its period and only segments",
       "ok": true,
-      "ms": 632
+      "ms": 639
     },
     {
       "name": "the two dashboards are distinct and share no card",
       "ok": true,
-      "ms": 638
+      "ms": 678
     },
     {
       "name": "both dashboards open the same right-hand drawer",
       "ok": true,
-      "ms": 848
+      "ms": 800
     },
     {
       "name": "Continue where you left off uses real V4 threads",
       "ok": true,
-      "ms": 2284
+      "ms": 2279
     },
     {
       "name": "an Arabic answer renders right-to-left without breaking the page",
       "ok": true,
-      "ms": 2932
+      "ms": 2924
     },
     {
       "name": "the landing page mounts the V4 Cockpit and nothing legacy",
       "ok": true,
-      "ms": 641
+      "ms": 576
     },
     {
       "name": "no page shows a currency the selected release does not use",
       "ok": true,
-      "ms": 673
+      "ms": 566
     },
     {
       "name": "attention cards and ECL highlights use the release's currency",
       "ok": true,
-      "ms": 591
+      "ms": 601
     },
     {
       "name": "borrower names in the drawer belong to the selected release",
       "ok": true,
-      "ms": 720
+      "ms": 628
     },
     {
       "name": "an answer, its table and its chart use one currency",
       "ok": true,
-      "ms": 2999
+      "ms": 2930
     },
     {
       "name": "the landing page fills a mac-16-inch window",
       "ok": true,
-      "ms": 606
+      "ms": 588
     },
     {
       "name": "the landing page fills a desktop-1440 window",
       "ok": true,
-      "ms": 583
+      "ms": 609
     },
     {
       "name": "the landing page fills a laptop-1280 window",
       "ok": true,
-      "ms": 593
+      "ms": 604
     },
     {
       "name": "the landing page fills a tablet-834 window",
@@ -296,7 +296,7 @@
     {
       "name": "the landing page fills a phone-390 window",
       "ok": true,
-      "ms": 589
+      "ms": 548
     },
     {
       "name": "the navigation rail collapses itself on a phone",
@@ -306,7 +306,7 @@
     {
       "name": "the greeting never addresses a deployment profile as a person",
       "ok": true,
-      "ms": 601
+      "ms": 588
     }
   ]
 }
