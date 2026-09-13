@@ -190,8 +190,17 @@ def test_the_false_premise_answer_contradicts_the_premise(monkeypatch):
             "ownership_rationale": "supposition", "ambiguous": False,
             "clarification": ""}}))
     turn = run(LIVE_5, "live-premise-said")
-    said = (turn["answer"].get("direct") or "").lower()
-    assert "deteriorated" in said
+    answer = turn["answer"]
+    said = " ".join([answer.get("direct") or "",
+                     answer.get("interpretation") or ""])
+    # It refuses the premise with counted figures rather than with a hedge:
+    # the question says every Contracting obligor improved, and the answer
+    # says how many of the thirty actually did.
+    figures = turn["result_packet"]["results"]["figures"]
+    population = int(figures["movement_population"])
+    improved = int(figures["improved"])
+    assert improved < population
+    assert f"{improved} of the {population} improved" in said
 
 
 def test_a_genuine_what_if_still_leaves_and_runs_nothing(monkeypatch):

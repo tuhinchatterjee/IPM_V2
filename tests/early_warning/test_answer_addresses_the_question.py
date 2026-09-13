@@ -77,11 +77,29 @@ def test_a_ranking_question_is_answered_with_the_names():
     assert any(str(r.get("customer_name") or "") in written for r in rows)
 
 
-def test_a_movement_question_is_answered_about_the_movement():
+def test_a_question_asking_for_names_by_movement_is_answered_with_the_names():
+    """"Show the 10 obligors whose score has risen the most" asks for ten
+    NAMES, ordered by a movement. Answering it with the population's average
+    move is a true sentence about a different question — and it is the shape
+    a live certification failed on: the reading opened with an obligor count
+    at high or above, claimed exposure order over a list sorted by movement,
+    and never named the obligor that moved most.
+
+    The ranking is the headline; the movement is what it is ranked by, over
+    the window the question named."""
     turn = pipe.answer("Show the 10 obligors whose Early Warning score has "
                        "risen the most over the last 12 months.")
-    assert turn.packet.intent == "movement", turn.packet.intent
-    assert turn.answer["scope"] == "movement", turn.answer["scope"]
+    assert turn.packet.intent == "ranking", turn.packet.intent
+    assert turn.answer["scope"] == "ranking", turn.answer["scope"]
+
+    planned = next(s for s in (turn.packet.plan or {}).get("steps", [])
+                   if s["analysis"] == "ranking")
+    assert planned["order_by"] == "ews_change_12m", planned["order_by"]
+    assert planned["descending"] is True
+    # And the movement decomposition still runs, because the question is
+    # about a change and the reader will want to know which layer carried it.
+    assert any(s["analysis"] == "movement" for s in turn.packet.steps)
+    assert "over twelve months" in turn.answer["direct"]
 
 
 def test_the_population_step_does_not_claim_the_headline_it_only_supports():

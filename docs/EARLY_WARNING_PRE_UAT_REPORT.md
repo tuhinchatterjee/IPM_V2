@@ -907,3 +907,191 @@ grounding check already enforces the consequence, because a claim the server
 did not reproduce permits nothing and any figure resting on it is rejected
 there. Making it a second failure would risk failing a case whose answer was
 correct.
+
+---
+
+# Run 4 — LIVE-5, and two failures of the harness itself
+
+The Mac certification returned **7/8**. LIVE-1, 2, 3, 4, 6, 7 and 8 passed and
+are unchanged. LIVE-5 — the incorrect-premise case — resolved to
+`early_warning`, made 7 of 7 model calls, ran 2 of 2 executions, and had its
+final Opus reading discarded for one ungrounded figure: `25`.
+
+## What `25` was, and how far the evidence goes
+
+The certification report could not say. Its `discarded_prose` was truncated at
+1,200 characters, before the token appeared, so the record read `25` and
+nothing else. Diagnosing it meant rebuilding the packet by hand. **That is the
+first defect this round fixes**, and it is fixed before anything about
+grounding was touched.
+
+What the evidence does establish, from the reproduced LIVE-5 packet:
+
+**Not A, and not D.** The allowed set is built from exactly the sections the
+writer is shown — `figures`, `rows`, `provenance`, `caveats`,
+`governed_actions`, `escalation_route`, `steps_that_ran`, the period labels and
+the deterministic reading — plus every number the packet carries, untruncated.
+So allowed ⊇ shown, by construction and now by test. A `25` living in any of
+those, the governed action library and the escalation route included, would
+have been permitted. It was rejected, so it was in none of them.
+
+**Not C.** With the lookbehind fixed last round, a bare `25` cannot be
+manufactured from a hyphenated word or a node code. `top-25`, `tier-25` and
+`L25` all tokenise to nothing. A bare `25` in prose is a quantity somebody
+wrote.
+
+**B or E, and both are handled the same way.** The strong candidate is
+arithmetic: the question asserts every Contracting obligor improved, the truth
+is that three of the thirty did, and the live packet listed five names — so
+"the other 25" (30 − 5) and "the other 27" (30 − 3) are both the shape a
+rebuttal takes. Under B the rule is unchanged and correct: a derived figure
+must be declared and recomputed by the server, and this one was not declared.
+Under E the rule is also unchanged: keep rejecting it.
+
+So no grounding behaviour was weakened, and nothing was whitelisted. What
+changed is the diagnostic, and the reason the model had to compute anything at
+all.
+
+## The reason it had to compute anything
+
+LIVE-5's deterministic reading — the floor the model is shown, and the answer a
+reader gets when a provider is absent — said this:
+
+    As at 2026-06, 11 obligors in Contracting sit at high or above. The 5
+    largest by exposure are listed, led by Al Rajhi Logistics 8 at 0.0
+    (very low)...
+
+Three sentences about three different populations, and none of them answers
+"which one improved most". The count came from a high-plus filter the ranking
+did not have. The order was claimed as exposure over a list the plan had
+sorted by one-month movement. The leader was described by a current score of
+zero rather than by the ten-point fall that put it first — with an empty pair
+of brackets where its band should be. The obligor the reader asked about was
+named, correctly, and then described as though it were an outlier.
+
+The model, shown that, had to construct the rebuttal itself out of the raw
+rows. **Four defects, all in the same place:**
+
+| | |
+|---|---|
+| The ranking claimed exposure order over a movement ranking | the pack carried `ordered_by` and the composer ignored it |
+| It opened with a high-or-above count on an unfiltered ranking | `high_plus_count` travels on every population pack and was read unconditionally |
+| The leader was named by its current score, not its move | rows printed `ews_score` whatever the list was ranked on |
+| `0.0 ()` | an empty band rendered as empty brackets |
+
+And two more, upstream of the composer:
+
+| | |
+|---|---|
+| The deterministic planner ranked by **exposure** for a movement question, filtered to `high_plus` | which excludes the answer — an obligor that improved is not at high severity, so the one name the reader asked for was the one name the filter removed |
+| "Which **one** improved most?" was not read as a request for a name | `_WANTS_NAMES` had no pattern for "which one", so the intent stayed `movement` and the headline became the sector's average |
+
+## What the answer says now
+
+    As at 2026-06, 30 obligors in Contracting match. The 10 that improved most
+    over the month are listed, led by Al Rajhi Logistics 8 at -10.0 points on
+    SAR 319.6m; the 10 together carry SAR 1.6bn.
+
+    3 of the 30 improved, 21 held and 6 deteriorated. Read the anchor and the
+    notches apart before calling a fall an improvement: a score that dropped
+    because a notch moved has not had its underlying condition ease.
+
+    • Al Rajhi Logistics 8 at -10.0 points, now at 0.0 (very low), SAR 319.6m
+    • Yamama Projects 6 at -8.0 points, now at 12.0 (very low), SAR 134.2m
+    • Salman Partners 4 at -8.0 points, now at 16.0 (very low), SAR 172.6m
+
+"3 of the 30 improved" is a **counted figure** on the pack, computed by the
+executor over the whole filtered population rather than over the rows the
+limit kept. The false premise is refused by a number the reader can check, and
+the model no longer has arithmetic to do.
+
+The ranking measure follows the window the question named — `ews_change_12m`
+for "over the last 12 months", `ews_change_1m` otherwise — and the window is
+named in the sentence, because the product publishes those two columns and
+nothing between them, so a six-month question is answered on the closest one
+and a reader who is not told cannot see it.
+
+`_WORSENED` and `_IMPROVED` gained the arithmetic words. A score that ROSE is a
+borrower that got worse and one that FELL is a borrower that improved, and
+"whose score has risen the most" was reaching the exposure ranking. "Fell
+into" stays with the worsening side.
+
+## What was NOT changed
+
+Ownership. The observed-state versus What-If routing is untouched, and its 38
+tests still pass. LIVE-6 still routes to `what_if` with zero EWS executions.
+The four derived claims LIVE-5 got right — the magnitudes of
+`rows[0].ews_change_1m`, `rows[0].anchor_change_1m`, `rows[1].ews_change_1m`
+and `rows[2].ews_change_1m` — still resolve and are still accepted.
+
+## Two failures of the harness
+
+**A required stage that never ran could read as a pass.** The check's detail
+said "stage never reached" whenever `fallback_reason` was empty, which is the
+normal state of a stage that worked, so passing cases printed those words
+beside `pass: true`. Each required stage is now asserted five ways —
+**ran**, **served by a model**, **served by the family it asked for**, **not
+truncated**, **no fallback** — and a stage that did not run fails all five
+rather than having four of them recorded as passes on properties nobody could
+observe. The §18 summary assertion had the same bug and has the same fix.
+
+What-If has its own required set — `sonnet_pass_1`, `sonnet_pass_2`,
+`opus_functionality_selection`, `sonnet_summary_update` — so a hand-over is
+shorter but not unchecked. Previously it asserted nothing about stages at all,
+and a hand-over that fell back to the deterministic router everywhere would
+have certified on the strength of having done nothing. LIVE-6 now carries 32
+checks where it carried 12.
+
+**The false-premise check could pass on the wrong words.** It scanned for
+"did not", "however", "premise" and so on — a list that matches "the model is
+**not** calibrated" in a runtime caveat, which contradicts nothing. It now
+tests arithmetic the answer states: where the result carries a movement census
+and the census says not everyone improved, the answer must quote both numbers.
+The phrase list survives as a fallback for results that carry no census.
+
+## Case isolation
+
+Already correct, now asserted and reported. Each case runs in
+`live-cert-<its own id>`; only LIVE-4, which declares `follows: LIVE-3`, shares
+a thread. An independent case's rolling summary is no longer even read — the
+one channel by which a previous case's sector, band or named obligor could
+reach the next one is closed at the source rather than left to be empty. Every
+run's report carries a `case_isolation` table and each case's
+`executed_filters`, so a severity band appearing on a question that named none
+is visible rather than reconstructed. LIVE-5's executed filters are
+`{"sector": "Contracting"}` on both steps: no band, inherited or otherwise.
+
+## Single-case diagnosis
+
+`--case LIVE-5` (and `--only`, which it aliases) runs one case through the
+**identical** checks. Its verdict is `PARTIAL_RUN`, never `CERTIFIED`, and the
+run prints how many of the eight it skipped. The gate is unchanged: all eight.
+
+Every run now also prints each rejected figure with the clause it sat in, so
+the next `25` explains itself.
+
+## Regression
+
+```
+tests/early_warning + tests/api   0 failures
+backend (full suite)              22 failed, 10,810 passed, 27 skipped
+                                  the 22 identical to the recorded baseline
+frontend                          429 of 429
+typecheck clean · lint clean · production build clean
+```
+
+56 new tests this round: 23 in `test_ranking_by_movement.py` and 33 in
+`test_certification_contract.py`, plus the two premise assertions in
+`test_ownership_premise.py` and `test_live_certification_cases.py` rewritten
+to check the counted rebuttal rather than a hedging word.
+
+One existing test changed, and it was pinning the defect:
+`test_a_movement_question_is_answered_about_the_movement` required "Show the
+10 obligors whose score has risen the most" to report its intent as
+`movement`. Ten obligors is a request for ten names. It is now
+`test_a_question_asking_for_names_by_movement_is_answered_with_the_names`,
+and it additionally requires the ranking to order by `ews_change_12m`
+descending and the answer to name the window.
+
+Against the stub, all eight cases pass, LIVE-6 among them, now carrying 32
+stage checks where it carried 12.

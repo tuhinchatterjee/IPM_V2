@@ -97,7 +97,120 @@ def _list_of(items: list[str]) -> str:
 
 
 def _band_phrase(score: float, band: str) -> str:
-    return f"{score:.1f} ({BAND_WORD.get(band, band.lower())})"
+    """A score and the band it sits in.
+
+    The band in brackets, and nothing in brackets where there is no band. A
+    row that carries a score but not its band printed "0.0 ()", which reads
+    as a rendering fault rather than as a figure.
+    """
+    word = BAND_WORD.get(band, (band or "").lower())
+    return f"{score:.1f} ({word})" if word else f"{score:.1f}"
+
+
+#: Ranked on one of these, a list is a list of MOVEMENT. The sign says better
+#: or worse rather than large or small, and the reading has to change with it:
+#: "who improved most?" is answered by the most negative one-month change, not
+#: by the largest exposure.
+_MOVEMENT_MEASURES: tuple[str, ...] = (
+    "ews_change_1m", "ews_change_12m", "anchor_change_1m",
+    "anchor_change_12m", "notch_change_1m", "score_change", "ews_change")
+
+
+def _measure_label(name: str) -> str:
+    """What a measure is called, from the field dictionary.
+
+    The dictionary is the product's one description of its own columns, so a
+    sentence that names a measure and a screen that labels it say the same
+    thing without a second list to keep in step.
+    """
+    from backend.early_warning import dictionary as dic
+
+    described = dic.describe(name) or {}
+    label = str(described.get("label") or "").strip()
+    return label.lower() if label else name.replace("_", " ")
+
+
+def _ordering_phrase(measure: str, descending: bool, shown: int) -> str:
+    """What the list is ordered by, said the way a reader would say it."""
+    if measure in ("exposure", ""):
+        return f"The {shown} largest by exposure are listed"
+    if measure in _MOVEMENT_MEASURES:
+        # The window is named, always. The product publishes a one-month and
+        # a twelve-month change column and nothing between them, so a
+        # question about six months is answered on the closest one — and a
+        # reader who is not told which window they are looking at cannot see
+        # that.
+        window = ("over twelve months" if measure.endswith("12m")
+                  else "over the month")
+        way = ("The {n} that deteriorated most {w} are listed" if descending
+               else "The {n} that improved most {w} are listed")
+        return way.format(n=shown, w=window)
+    direction = "highest" if descending else "lowest"
+    return f"The {shown} {direction} by {_measure_label(measure)} are listed"
+
+
+def _row_measure(row: dict[str, Any], measure: str) -> str:
+    """One row's value on the measure the list is ranked by."""
+    value = row.get(measure)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        if measure in ("exposure", ""):
+            return ""
+        return ""
+    if measure == "exposure":
+        return ""
+    if measure in _MOVEMENT_MEASURES:
+        # A sign on a zero says a direction that is not there. "+0.0 points"
+        # in a list of improvers reads as a very small improvement.
+        return (f" at {float(value):+.1f} points" if float(value)
+                else " unchanged")
+    return f" at {float(value):.1f}"
+
+
+def _row_context(row: dict[str, Any], measure: str) -> str:
+    """What else a reader needs beside the ranked value: the band, the size."""
+    bits: list[str] = []
+    score = row.get("ews_score")
+    if measure != "ews_score" and isinstance(score, (int, float)) \
+            and not isinstance(score, bool):
+        bits.append("now at " + _band_phrase(
+            float(score), str(row.get("ews_band") or "")))
+    exposure = row.get("exposure")
+    if isinstance(exposure, (int, float)) and not isinstance(exposure, bool):
+        bits.append(_money(float(exposure)))
+    return (", " + ", ".join(bits)) if bits else ""
+
+
+def _movement_census(figures: dict[str, Any]) -> str:
+    """How many of the ranked names improved, held and worsened.
+
+    Every figure here was counted by the executor and travels on the pack, so
+    the sentence quotes the result rather than working it out. That matters
+    beyond tidiness: a question whose premise is "every obligor improved" is
+    answered by these counts, and where the answer did not carry them the
+    writer had to derive them — arithmetic a grounding guard then refuses,
+    correctly, having never been shown the workings.
+    """
+    if not figures.get("movement_measure"):
+        return ""
+    population = int(figures.get("movement_population") or 0)
+    improved = int(figures.get("improved") or 0)
+    unchanged = int(figures.get("unchanged") or 0)
+    worsened = int(figures.get("worsened") or 0)
+    if not population:
+        return ""
+    if improved == 0:
+        lead = f"None of the {population} improved"
+    elif improved == population:
+        lead = f"All {population} improved"
+    else:
+        lead = f"{improved} of the {population} improved"
+    rest: list[str] = []
+    if unchanged:
+        rest.append(f"{unchanged} held")
+    if worsened:
+        rest.append(f"{worsened} deteriorated")
+    tail = (", " + " and ".join(rest)) if rest else ""
+    return f"{lead}{tail}."
 
 
 def _action_line(action: act.Action) -> str:
@@ -1267,9 +1380,14 @@ def ranking(pack: ff.FactPack) -> Composed:
     answering it with the portfolio's average score answers a different one
     while looking like an answer.
 
-    Ordered by exposure at high severity rather than by score, because the
-    reader asking which names drive a book is asking which ones matter, and a
-    very high score on a small exposure does not.
+    Ordered by whatever the plan ordered by, and SAID so. Exposure is the
+    default and the right one for "which names drive this book" — a very high
+    score on a small line is a smaller problem than a high score on a large
+    one. It is the wrong one for "which improved most?", and this reading used
+    to claim exposure order over a list sorted by one-month movement, name the
+    leader by a current score of 0.0 with an empty band in brackets, and open
+    with a count of obligors at high or above that the ranking had not
+    filtered to. Three sentences, three different populations.
     """
     f = pack.figures or {}
     rows = list(pack.rows or [])
@@ -1284,28 +1402,53 @@ def ranking(pack: ff.FactPack) -> Composed:
                         "Widen this to the whole book."],
             caveats=pack.caveats)
 
-    total = f.get("high_plus_count")
     shown = len(rows)
     lead = rows[0]
     lead_name = str(lead.get("customer_name") or lead.get("customer_id") or "")
     exposure = sum(float(r.get("exposure") or 0) for r in rows)
+    measure = str(f.get("ordered_by") or "exposure")
+    census = _movement_census(f)
 
-    counted = (f"{_count(total, 'obligor')} in {pack.label} sit at high or above"
-               if isinstance(total, (int, float)) and total
-               else f"{_count(shown, 'obligor')} in {pack.label} match")
+    # The count the first sentence opens with has to be a count of the
+    # population this ranking actually ran over. `high_plus_count` travels on
+    # every population pack, so reading it unconditionally announced eleven
+    # obligors at high or above above a list of thirty that was not filtered
+    # to any band.
+    if f.get("filtered_to_high_plus") and isinstance(
+            f.get("high_plus_count"), (int, float)) and f["high_plus_count"]:
+        counted = (f"{_count(f['high_plus_count'], 'obligor')} in {pack.label} "
+                   f"sit at high or above")
+    elif isinstance(f.get("obligors"), (int, float)) and f["obligors"]:
+        counted = f"{_count(f['obligors'], 'obligor')} in {pack.label} match"
+    else:
+        counted = f"{_count(shown, 'obligor')} in {pack.label} match"
+
+    ordering = _ordering_phrase(measure, bool(f.get("descending")), shown)
+    lead_value = _row_measure(lead, measure)
     direct = (
-        f"{_as_at(pack)}{counted[0].lower() + counted[1:]}. The {shown} "
-        f"largest by exposure are listed, led by "
-        f"{lead_name} at "
-        f"{_band_phrase(float(lead.get('ews_score') or 0), str(lead.get('ews_band') or ''))} "
-        f"on {_money(float(lead.get('exposure') or 0))}; the {shown} together "
+        f"{_as_at(pack)}{counted[0].lower() + counted[1:]}. {ordering}, led by "
+        f"{lead_name}{lead_value}"
+        f" on {_money(float(lead.get('exposure') or 0))}; the {shown} together "
         f"carry {_money(exposure)}.")
 
-    paras = [
-        "They are ordered by exposure rather than by score: a very high score "
-        "on a small line is a smaller problem than a high score on a large "
-        "one, and the order a reader acts in follows the money."
-    ]
+    paras: list[str] = []
+    if census:
+        # The reading a false-premise question needs, and the reason it has
+        # to be here rather than left to the writer: "given every obligor
+        # improved, which improved most?" is answered by saying how many
+        # actually did. Counted by the executor, so the figures are governed
+        # and the answer is not arithmetic somebody did in a sentence.
+        paras.append(census)
+    if measure in _MOVEMENT_MEASURES:
+        paras.append(
+            "Read the anchor and the notches apart before calling a fall an "
+            "improvement: a score that dropped because a notch moved has not "
+            "had its underlying condition ease.")
+    else:
+        paras.append(
+            "They are ordered by exposure rather than by score: a very high "
+            "score on a small line is a smaller problem than a high score on "
+            "a large one, and the order a reader acts in follows the money.")
     nodes = [str(r.get("dominant_subcategory") or "") for r in rows
              if r.get("dominant_subcategory")]
     if nodes:
@@ -1319,17 +1462,25 @@ def ranking(pack: ff.FactPack) -> Composed:
             "No single sub-category dominates the list, so treat them as "
             "separate cases until a diagnosis says otherwise.")
 
+    # Each name shown on the measure it was RANKED by, then its exposure. A
+    # list ordered by movement whose lines print only a current score reads
+    # as a ranking of that score, and "Al Rajhi Logistics 8 — 0.0 ()" at the
+    # top of an improvement ranking is the leader looking like the outlier.
     points = [
-        f"{str(r.get('customer_name') or r.get('customer_id'))} — "
-        f"{_band_phrase(float(r.get('ews_score') or 0), str(r.get('ews_band') or ''))}, "
-        f"{_money(float(r.get('exposure') or 0))}"
+        f"{str(r.get('customer_name') or r.get('customer_id'))}"
+        f"{_row_measure(r, measure) or ' —'}"
+        f"{_row_context(r, measure)}"
         for r in rows[:10]]
 
     return Composed(
         direct=direct, interpretation=_sentence(paras), points=points,
-        follow_ups=["Why is the first one flagged?",
-                    "What should I do about these names?",
-                    "Is this concentrated or broad-based?"],
+        follow_ups=(["Why did the first one move?",
+                     "Was that the anchor or the notches?",
+                     "Which obligors deteriorated most instead?"]
+                    if measure in _MOVEMENT_MEASURES else
+                    ["Why is the first one flagged?",
+                     "What should I do about these names?",
+                     "Is this concentrated or broad-based?"]),
         caveats=pack.caveats,
         # A ranked list is a table. A chart of ten bars sorted by the column
         # they are already sorted by adds nothing the list does not say.

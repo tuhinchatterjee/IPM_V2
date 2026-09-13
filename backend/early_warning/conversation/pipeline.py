@@ -685,6 +685,10 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
          # useful thing to see when a reading is discarded: it says which
          # figure the model computed and what this product computes instead.
          derived_claims=list(read.derived_claims),
+         # Each rejected figure with the clause it sat in. Without this a
+         # discard reports a bare number and the diagnosis means rebuilding
+         # the packet by hand to guess what the number was.
+         rejected_context=list(read.rejected_context),
          model_call=dict(read.model_call))
     return _finish(turn, request, prior, ledger, ui_state, emit)
 

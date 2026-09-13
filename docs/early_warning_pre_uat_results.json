@@ -1,8 +1,8 @@
 {
-  "verdict": "NOT_CERTIFIED_REMEDIATED_AWAITING_SECOND_LIVE_RUN",
+  "verdict": "SEVEN_OF_EIGHT_REMEDIATED_AWAITING_THIRD_LIVE_RUN",
   "reasons": [
-    "The local Mac real-provider certification returned 3/8 certified, VERDICT: NOT_CERTIFIED. Five cases failed on three defects, none of which any deterministic test could reach.",
-    "All three are fixed with reproduction, root cause and regression tests. 165 focused tests across four files, plus the existing grounding suite unchanged and still passing.",
+    "The second Mac certification returned 7/8. LIVE-1, 2, 3, 4, 6, 7 and 8 passed and are unchanged.",
+    "LIVE-5 resolved to early_warning with 7/7 model calls and 2/2 executions, and had its final Opus reading discarded for one ungrounded figure, 25.",
     "Early Warning is not certified until the Mac script returns 8/8 certified, VERDICT: CERTIFIED."
   ],
   "branch": "claude/early-warning-rebuild-v2-3lnttn",
@@ -5461,5 +5461,143 @@
       "production_build": "clean"
     },
     "commit": "7bc3c0f"
+  },
+  "run_4": {
+    "trigger": "second local Mac real-provider certification",
+    "live_result": {
+      "certified": 7,
+      "of": 8,
+      "verdict": "NOT_CERTIFIED",
+      "failed": [
+        "LIVE-5 incorrect premise"
+      ],
+      "preserved": [
+        "LIVE-1",
+        "LIVE-2",
+        "LIVE-3",
+        "LIVE-4",
+        "LIVE-6",
+        "LIVE-7",
+        "LIVE-8"
+      ]
+    },
+    "live_5_facts_preserved": {
+      "owner": "early_warning",
+      "model_calls": 7,
+      "model_calls_succeeded": 7,
+      "model_calls_failed": 0,
+      "executions": "2/2 succeeded",
+      "schema_errors": 0,
+      "truncation": null,
+      "sonnet_summary_update": "model",
+      "accepted_derived_claims": [
+        "magnitude(rows[0].ews_change_1m) = 10.0",
+        "magnitude(rows[0].anchor_change_1m) = 14.0",
+        "magnitude(rows[1].ews_change_1m) = 8.0",
+        "magnitude(rows[2].ews_change_1m) = 8.0"
+      ]
+    },
+    "the_figure_25": {
+      "classification": "B_OR_E \u2014 a derived count, undeclared, or invented",
+      "ruled_out": {
+        "A_direct": "the allowed set is built from exactly the sections the writer is shown, plus every number the packet carries untruncated \u2014 allowed is a superset of shown, by construction and now by test. A 25 in any of them would have been permitted",
+        "D_action_or_escalation_metadata": "governed_actions and escalation_route are both citable sections and both in the writer's context, so a 25 there was already allowed",
+        "C_scanner_misread": "with the lookbehind fixed in run 3, top-25, tier-25 and L25 all tokenise to nothing; a bare 25 in prose is a quantity somebody wrote"
+      },
+      "strong_candidate": "30 obligors minus the 5 rows the live packet listed, or minus the 3 that improved \u2014 the shape a false-premise rebuttal takes",
+      "why_not_certain": "the certification report truncated the discarded prose at 1200 characters, before the token appeared. That is the first defect fixed this round, before anything about grounding was touched",
+      "action_taken": "nothing whitelisted and no grounding behaviour weakened. Under B the rule already stands \u2014 a derived figure must be declared and recomputed \u2014 and under E it also stands. What changed is the diagnostic, and the reason the model had to compute anything"
+    },
+    "defects_fixed": [
+      {
+        "id": "R4-1",
+        "title": "a rejected figure was reported as a bare number",
+        "fix": "reading._rejected_context \u2014 every rejected token with the clause it sat in, the field it came from, the unit it was attached to and the stage that wrote it. Up to two occurrences per token, +/-120 characters, read from the model's own published answer and nothing else",
+        "surfaced_in": [
+          "the final-answer trace event",
+          "the certification report per case",
+          "the certification console output"
+        ]
+      },
+      {
+        "id": "R4-2",
+        "title": "the ranking composer claimed exposure order over a movement ranking, opened with a high-or-above count the ranking had not filtered to, described the leader by its current score rather than by its move, and rendered a missing band as empty brackets",
+        "fix": "the pack carries ordered_by, descending, filtered_to_high_plus and a movement census; the composer reads all four, and _band_phrase omits empty brackets"
+      },
+      {
+        "id": "R4-3",
+        "title": "the deterministic planner ranked by exposure and filtered to high_plus for a movement question",
+        "root_cause": "an obligor that improved is not at high severity, so the one name the reader asked for was the one name the filter removed",
+        "fix": "a movement ranking orders by the change column matching the window the question named, over the whole population"
+      },
+      {
+        "id": "R4-4",
+        "title": "'which one improved most?' was not read as a request for a name, so the headline became the sector's average move",
+        "fix": "_WANTS_NAMES reads 'which one'; a name request takes the headline unless a diagnosis, methodology, evidence, transition or grouping cue outranks it"
+      },
+      {
+        "id": "R4-5",
+        "title": "a score that ROSE was not read as deterioration",
+        "fix": "_WORSENED and _IMPROVED gained the arithmetic words; 'fell into' stays with the worsening side"
+      },
+      {
+        "id": "R4-6",
+        "title": "a required stage that never ran could read as a pass",
+        "root_cause": "the check's detail said 'stage never reached' whenever fallback_reason was empty, which is the normal state of a stage that worked",
+        "fix": "each required stage asserted five ways \u2014 ran, served by a model, served by the expected family, not truncated, no fallback \u2014 and a stage that did not run fails all five"
+      },
+      {
+        "id": "R4-7",
+        "title": "What-If asserted nothing about its stages",
+        "fix": "REQUIRED_HANDOVER_STAGES \u2014 pass 1, pass 2, functionality selection, summary. LIVE-6 now carries 32 checks where it carried 12"
+      },
+      {
+        "id": "R4-8",
+        "title": "the false-premise check could pass on the wrong words",
+        "root_cause": "a phrase list that matches 'the model is not calibrated' in a runtime caveat",
+        "fix": "where the result carries a movement census showing not everyone improved, the answer must quote both numbers; the phrase list survives as a fallback"
+      },
+      {
+        "id": "R4-9",
+        "title": "case isolation was correct but unasserted",
+        "fix": "thread_for() and case_isolation() are named, tested and reported; an independent case's rolling summary is no longer read at all, and each case's executed_filters are recorded"
+      }
+    ],
+    "not_changed": [
+      "the observed-state versus What-If ownership routing, and its 38 tests",
+      "LIVE-6: owner what_if, EWS executions 0",
+      "the four derived claims LIVE-5 already got right",
+      "every acceptance criterion in the certification script"
+    ],
+    "single_case_diagnosis": {
+      "flag": "--case LIVE-5 (aliases --only)",
+      "checks": "identical to the full run",
+      "verdict": "PARTIAL_RUN, never CERTIFIED",
+      "gate_unchanged": "all eight cases"
+    },
+    "new_tests": {
+      "tests/early_warning/test_ranking_by_movement.py": 23,
+      "tests/early_warning/test_certification_contract.py": 33
+    },
+    "amended_tests": [
+      "test_a_movement_question_is_answered_about_the_movement -> test_a_question_asking_for_names_by_movement_is_answered_with_the_names \u2014 it pinned the defect: ten obligors is a request for ten names",
+      "the two false-premise assertions now check the counted rebuttal rather than a hedging word"
+    ],
+    "regression": {
+      "early_warning_and_api": "0 failures",
+      "backend": {
+        "failed": 22,
+        "passed": 10810,
+        "skipped": 27,
+        "identical_to_baseline": true,
+        "new_failures": [],
+        "resolved_failures": []
+      },
+      "frontend": "429 / 429 pass",
+      "typecheck": "clean",
+      "lint": "clean",
+      "production_build": "clean",
+      "stub_certification": "8/8, LIVE-6 included"
+    }
   }
 }

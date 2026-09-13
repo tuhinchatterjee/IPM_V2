@@ -173,5 +173,9 @@ def test_the_false_premise_question_is_answered_rather_than_handed_over():
         == fn.EARLY_WARNING
     answer = turn["answer"]
     assert answer.get("answered") is True
-    said = (answer.get("direct") or "").lower()
-    assert "deteriorated" in said or "did not improve" in said
+    said = " ".join([answer.get("direct") or "",
+                     answer.get("interpretation") or ""])
+    figures = turn["result_packet"]["results"]["figures"]
+    assert int(figures["improved"]) < int(figures["movement_population"])
+    assert f"{int(figures['improved'])} of the " \
+        f"{int(figures['movement_population'])} improved" in said

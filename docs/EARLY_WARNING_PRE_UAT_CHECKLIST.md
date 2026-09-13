@@ -83,3 +83,29 @@ every one needed a model to actually answer.
 Run 3 commit `7bc3c0f`. Backend 22 failed / 10,754 passed / 27 skipped, the
 22 identical to the recorded baseline. Frontend 429 of 429; typecheck, lint
 and production build clean.
+
+
+## Run 4 — LIVE-5 remediation and certification hardening
+
+The second Mac run returned **7/8**. LIVE-5 alone failed, on one ungrounded
+figure: `25`.
+
+| # | Item | State |
+|---|---|---|
+| 38 | Capture the semantic context of every rejected token | done |
+| 39 | Classify `25` with evidence, A / B / C / D / E | done |
+| 40 | Ranking composer answers by the measure it ranked on | done |
+| 41 | Planner ranks a movement question by movement, unfiltered | done |
+| 42 | "Which one improved most?" is a request for a name | done |
+| 43 | Certification: a missing required stage can never pass | done |
+| 44 | Certification: What-If has its own required stage set | done |
+| 45 | Certification: the false-premise check tests arithmetic | done |
+| 46 | Certification: case isolation asserted and reported | done |
+| 47 | `--case LIVE-5`, with the identical checks | done |
+| 48 | Focused tests, EWS suite, baseline regression | done |
+| 49 | Third Mac certification run | blocked-external |
+
+Backend 22 failed / 10,810 passed / 27 skipped, the 22 identical to the
+recorded baseline. `tests/early_warning` and `tests/api` clean. Frontend 429 of
+429; typecheck, lint and production build clean. Against the stub the
+certification returns 8/8.

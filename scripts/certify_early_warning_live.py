@@ -157,6 +157,22 @@ REQUIRED_MODEL_STAGES: tuple[str, ...] = (
 #: deterministic writer would otherwise look like a pass.
 SUMMARY_STAGE = seam_mod.SUMMARY
 
+#: What a turn Early Warning hands to another product must still have served
+#: with a model. Deliberately shorter — it reads the question, decides the
+#: request does not belong here, and stops — but not unchecked: a hand-over
+#: that fell back to the deterministic router at every stage would otherwise
+#: certify as a pass on the strength of having done nothing.
+REQUIRED_HANDOVER_STAGES: tuple[str, ...] = (
+    seam_mod.PASS_1, seam_mod.PASS_2, seam_mod.FUNCTIONALITY, seam_mod.SUMMARY,
+)
+
+
+def required_stages(case: dict) -> tuple[str, ...]:
+    """Which stages this case must have served with a model."""
+    if case.get("analytical"):
+        return REQUIRED_MODEL_STAGES
+    return REQUIRED_HANDOVER_STAGES
+
 
 # ------------------------------------------------------------- the checks
 
@@ -219,6 +235,10 @@ def _reading_diagnostics(turn) -> dict:
         "ungrounded_figures": list(detail.get("ungrounded_figures") or []),
         "derived_claims": claims,
         "derived_claims_refused": [c for c in claims if not c.get("accepted")],
+        # One record per rejected figure: the token, the words either side,
+        # and the unit it was attached to. This is the whole reason a second
+        # remediation round was needed for a single number.
+        "rejected_context": list(detail.get("rejected_context") or []),
     }
     call = detail.get("model_call") or {}
     if detail.get("ungrounded_figures"):
@@ -257,22 +277,61 @@ def _check(case: dict, turn) -> tuple[list[dict], list[dict]]:
               budget["executions_succeeded"] > 0,
               f"{budget['executions_succeeded']} succeeded of "
               f"{budget['executions_attempted']} attempted")
-        for stage in REQUIRED_MODEL_STAGES:
-            row = by_stage.get(stage)
-            check(f"{stage} served by a model",
-                  bool(row and row["engine"] == seam_mod.MODEL),
-                  (row or {}).get("fallback_reason") or "stage never reached")
+
+    # Every required stage, asserted one property at a time.
+    #
+    # This used to be one check whose detail read "stage never reached"
+    # whenever `fallback_reason` was empty — which is the normal state of a
+    # stage that WORKED. So a passing case carried the words "stage never
+    # reached" beside `pass: true`, and a report nobody can read is a report
+    # nobody checks. Presence is now its own assertion, and its detail says
+    # what actually happened.
+    for stage in required_stages(case):
+        row = by_stage.get(stage)
+        if row is None:
+            check(f"{stage} ran", False, "stage never reached")
+            # The remaining properties are unknowable for a stage that did
+            # not run, and recording them as passes is exactly the failure
+            # this rewrite exists to remove.
+            for prop in ("served by a model", "served by the family it asked "
+                         "for", "not truncated", "no fallback"):
+                check(f"{stage} {prop}", False, "stage never reached")
+            continue
+        served = row.get("model") or "an unnamed model"
+        check(f"{stage} ran", True, f"served by {served}")
+        check(f"{stage} served by a model",
+              row["engine"] == seam_mod.MODEL,
+              row.get("fallback_reason") or f"engine={row['engine']}")
+        # "unknown" means the id is not one whose family can be read off it —
+        # a stub, or an alias. Absence of evidence, reported as such.
+        check(f"{stage} served by the family it asked for",
+              row["served_family"] in ("", "unknown")
+              or row["served_family"] == row["intended_family"],
+              f"asked {row['intended_family']}, served "
+              f"{row['served_family'] or 'an unreadable id'}")
+        check(f"{stage} not truncated", not row["truncated"],
+              f"{row['output_tokens']} of {row['output_allowance']} tokens")
+        check(f"{stage} no fallback", not row.get("fallback_reason"),
+              row.get("fallback_reason") or "none")
 
     # §18, stated as its own assertion so the report says it in as many words.
+    # The generic loop above already covers this stage; this repeats it under
+    # the name the instruction uses, because "the summary stage was model
+    # backed and not truncated" is the specific regression being watched and
+    # a reader should not have to infer it from a list.
     summary = by_stage.get(SUMMARY_STAGE)
-    if case.get("analytical"):
+    if summary is None:
+        check(f"{SUMMARY_STAGE} engine=model", False, "stage never reached")
+        check(f"{SUMMARY_STAGE} not truncated", False, "stage never reached")
+    else:
         check(f"{SUMMARY_STAGE} engine=model",
-              bool(summary and summary["engine"] == seam_mod.MODEL),
-              (summary or {}).get("fallback_reason") or "stage never reached")
-        check(f"{SUMMARY_STAGE} not truncated",
-              bool(summary and not summary["truncated"]),
-              f"{(summary or {}).get('output_tokens')} of "
-              f"{(summary or {}).get('output_allowance')} tokens")
+              summary["engine"] == seam_mod.MODEL,
+              summary.get("fallback_reason")
+              or f"engine={summary['engine']}, served by "
+                 f"{summary.get('model') or 'an unnamed model'}")
+        check(f"{SUMMARY_STAGE} not truncated", not summary["truncated"],
+              f"{summary['output_tokens']} of "
+              f"{summary['output_allowance']} tokens")
 
     truncated = [row["stage"] for row in stages if row["truncated"]]
     check("no stage spent its whole output allowance", not truncated, truncated)
@@ -309,14 +368,36 @@ def _check(case: dict, turn) -> tuple[list[dict], list[dict]]:
           budget.get("spent"))
 
     if case.get("must_not_simply_agree"):
+        # Two ways an answer can refuse a false premise, and the first is the
+        # one that matters.
+        #
+        # A phrase list is a weak test: it passes on "the model is not
+        # calibrated" in a runtime caveat, which contradicts nothing. So the
+        # primary test is arithmetic the answer STATES. Where the result
+        # carries a movement census — how many of the population improved —
+        # and the census says not all of them did, the answer refuses the
+        # premise by quoting those two numbers, and a reader can check it.
         text = " ".join(str(answer.get(k) or "") for k in
                         ("direct", "interpretation"))
-        text += " " + " ".join(str(c) for c in (answer.get("caveats") or []))
-        pushed_back = any(word in text.lower() for word in (
+        text += " " + " ".join(str(p) for p in (answer.get("points") or []))
+        with_caveats = text + " " + " ".join(
+            str(c) for c in (answer.get("caveats") or []))
+        figures = dict(getattr(turn.packet, "figures", {}) or {})
+        population = figures.get("movement_population")
+        improved = figures.get("improved")
+        counted = (isinstance(population, (int, float))
+                   and isinstance(improved, (int, float))
+                   and improved < population)
+        stated = counted and (str(int(improved)) in text
+                              and str(int(population)) in text)
+        said_so = any(word in with_caveats.lower() for word in (
             "did not", "does not", "not the case", "premise", "in fact",
             "however", "rather than", "no obligor", "none of", "instead"))
-        check("the false premise was not simply accepted", pushed_back,
-              text[:240])
+        check("the false premise was not simply accepted", stated or said_so,
+              (f"the result says {improved} of {population} improved; "
+               f"the answer {'quotes' if stated else 'does not quote'} both. "
+               if counted else "the result carries no movement census. ")
+              + text[:200])
 
     return checks, stages
 
@@ -324,15 +405,57 @@ def _check(case: dict, turn) -> tuple[list[dict], list[dict]]:
 # --------------------------------------------------------------- the runner
 
 
+def thread_for(case: dict) -> str:
+    """The conversation a case runs in.
+
+    Its own, unless the case declares itself a follow-up — in which case it
+    runs in its predecessor's, which is the whole point of the follow-up test:
+    "which two of those worsened fastest?" needs something for "those" to
+    refer to.
+
+    Named rather than inlined so `case_isolation()` can check it, and so a
+    future change that shares a thread has to change a function with a
+    docstring explaining why it must not.
+    """
+    return f"live-cert-{case.get('follows') or case['id']}"
+
+
+def case_isolation() -> list[dict]:
+    """Which cases share a conversation, and which must not.
+
+    Reported with every run. A band filter or a resolved population leaking
+    from one case into the next would make a certification pass or fail for
+    reasons that have nothing to do with the case, and the failure mode is
+    silent: the second case simply answers about the first one's population.
+    """
+    out = []
+    for case in CASES:
+        follows = case.get("follows") or ""
+        out.append({
+            "id": case["id"],
+            "thread_id": thread_for(case),
+            "independent": not follows,
+            "follows": follows,
+            "inherits_context_from": follows or None,
+        })
+    return out
+
+
 def _run_case(case: dict, threads: dict, mode: str) -> dict:
-    thread_id = f"live-cert-{case.get('follows') or case['id']}"
-    prior = threads.get(thread_id, {})
+    thread_id = thread_for(case)
+    follows = case.get("follows") or ""
+    # An independent case starts from nothing. The rolling summary is the one
+    # channel by which a previous case's resolved population — a sector, a
+    # severity band, a named obligor — could reach this one, so it is read
+    # only where the case declares itself a follow-up.
+    prior = threads.get(thread_id, {}) if follows else {}
+    inherited = prior.get("rolling_summary")
     started = time.perf_counter()
     error = ""
     turn = None
     try:
         turn = pipe.answer(case["question"], thread_id=thread_id, mode=mode,
-                           rolling_summary=prior.get("rolling_summary"))
+                           rolling_summary=inherited)
     except Exception as failure:  # noqa: BLE001 - a failure is a result
         error = f"{type(failure).__name__}: {failure}"
     elapsed = round(time.perf_counter() - started, 2)
@@ -350,12 +473,33 @@ def _run_case(case: dict, threads: dict, mode: str) -> dict:
         "rolling_summary": (turn.rolling_summary.to_dict()
                             if turn.rolling_summary else None)}
     checks, stages = _check(case, turn)
+    checks.append({
+        "what": "the case ran in the conversation its definition names",
+        "pass": bool(thread_id == thread_for(case)
+                     and (bool(inherited) == bool(follows))),
+        "detail": _safe(
+            f"thread {thread_id}, "
+            + (f"inheriting from {follows}" if follows
+               else "independent, no inherited context")
+            + ("" if bool(inherited) == bool(follows)
+               else " — but the inherited context does not match")),
+    })
     budget = turn.budget
     row = {
         "id": case["id"],
         "category": case["category"],
         "question": case["question"],
         "elapsed_s": elapsed,
+        "thread_id": thread_id,
+        "independent": not follows,
+        "inherited_context_from": follows or None,
+        # The filters every executed step actually carried. A severity band
+        # appearing here on a question that named none is the shape of a
+        # leaked scope, and it is cheaper to read than to reconstruct.
+        "executed_filters": [
+            {"analysis": s.get("analysis"), "filters": s.get("filters") or {}}
+            for s in ((getattr(turn.packet, "plan", None) or {})
+                      .get("steps") or [])],
         "resolved_ownership": (turn.selection or {}).get(
             "selected_functionality", ""),
         "ownership_engine": (turn.selection or {}).get("engine", ""),
@@ -400,7 +544,7 @@ def _provider() -> dict:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=DEFAULT_REPORT,
                         help="where to write the machine-readable report")
@@ -408,11 +552,20 @@ def main(argv: list[str] | None = None) -> int:
                         choices=[budget_mod.STANDARD, budget_mod.DEEP])
     parser.add_argument("--only", default="",
                         help="run one case by id, for example LIVE-4")
+    parser.add_argument("--case", dest="only",
+                        help=("the same thing, spelled the way you think of "
+                              "it. Diagnostic convenience only: a single case "
+                              "runs the identical checks, and the gate is "
+                              "still all eight."))
     parser.add_argument("--stub", action="store_true",
                         help=("run against the repository's test double "
                               "instead of a vendor. Proves the wiring and "
                               "the assertions; certifies nothing."))
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
 
     if args.stub:
         from tests.early_warning.stub_provider import StubProvider
@@ -464,7 +617,11 @@ def main(argv: list[str] | None = None) -> int:
     failed = [r for r in results if not r["pass"]]
     elapsed = [r["elapsed_s"] for r in results]
     report = {
+        # A single-case run is a diagnosis, never a certification. The checks
+        # it applies are identical; what it cannot do is say the product
+        # passed, because seven cases did not run.
         "verdict": ("STUB_ONLY" if args.stub else
+                    "PARTIAL_RUN" if args.only else
                     "CERTIFIED" if not failed else "NOT_CERTIFIED"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": args.mode,
@@ -473,6 +630,9 @@ def main(argv: list[str] | None = None) -> int:
         "cases_passed": len(results) - len(failed),
         "cases_failed": [r["id"] for r in failed],
         "required_model_stages": list(REQUIRED_MODEL_STAGES),
+        "required_handover_stages": list(REQUIRED_HANDOVER_STAGES),
+        "case_isolation": case_isolation(),
+        "partial_run": bool(args.only),
         "summary_stage_assertion": (
             f"{SUMMARY_STAGE} must report engine=model and must not spend its "
             f"whole output allowance"),
@@ -501,6 +661,18 @@ def main(argv: list[str] | None = None) -> int:
           f"slowest {report['elapsed_seconds']['slowest']}s")
     print(f"  report: {args.out}")
     print(f"  VERDICT: {report['verdict']}")
+    if args.only:
+        print(f"  ({report['cases_run']} of {len(CASES)} cases ran. The gate "
+              f"is all {len(CASES)}.)")
+    # Every rejected figure with the clause it sat in, printed where the
+    # person running this will see it. Reconstructing what a bare rejected
+    # number meant cost a whole round trip.
+    for row in results:
+        for found in (row.get("reading") or {}).get("rejected_context") or []:
+            print(f"           ? {row['id']} rejected "
+                  f"{found['token']!r} in {found['field']}: "
+                  f"\u2026{found['context_before'][-70:]} "
+                  f"[{found['token']}] {found['context_after'][:70]}\u2026")
     return 0 if not failed else 1
 
 

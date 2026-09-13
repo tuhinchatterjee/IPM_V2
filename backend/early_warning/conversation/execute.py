@@ -392,11 +392,27 @@ def _run(step: plan_mod.Step) -> Executed:
         # obligors are High or Very High?" was the portfolio's average score.
         # The names were in the rows the whole time; nothing was written from
         # them, because no pack said this reading was about them.
+        ordered_by = step.order_by or "exposure"
         pack = ff.FactPack(
             scope="ranking",
             label=pack.label, period=pack.period,
             figures={**dict(pack.figures), "named": len(found),
-                     "ordered_by": step.order_by or "exposure"},
+                     "ordered_by": ordered_by,
+                     # Which way, and whether the ranking is filtered to the
+                     # high-severity names. Both were computed here and
+                     # dropped, so the composer had to assume: it said "the
+                     # largest by exposure" over a list ordered by one-month
+                     # movement, and borrowed a high-or-above count from a
+                     # filter the ranking did not have.
+                     "descending": bool(step.descending),
+                     "filtered_to_high_plus": bool(
+                         (step.filters or {}).get("high_plus")),
+                     # Counted over the WHOLE filtered population, not over
+                     # the rows the limit kept. "Given every Contracting
+                     # obligor improved, which improved most?" is answered by
+                     # how many of the thirty improved; a census of the five
+                     # that were listed answers a question nobody asked.
+                     **_movement_census(frame, ordered_by)},
             rows=list(found),
             provenance=list(pack.provenance), caveats=list(pack.caveats))
 
@@ -405,6 +421,45 @@ def _run(step: plan_mod.Step) -> Executed:
                  rows=found, grain="population_month", pack=pack,
                  statement=f"early_warning_borrower_month[{step.period}]"
                            + (f" where {where}" if where else ""))
+
+
+#: The measures whose sign means "the position got better or worse" rather
+#: than "the position is large or small". A ranking on one of these is a
+#: ranking of MOVEMENT, and the reader asking "who improved most?" is asking
+#: for exactly this.
+MOVEMENT_MEASURES: tuple[str, ...] = (
+    "ews_change_1m", "ews_change_12m", "anchor_change_1m",
+    "anchor_change_12m", "notch_change_1m", "score_change", "ews_change")
+
+
+def _movement_census(frame: pd.DataFrame, measure: str) -> dict[str, Any]:
+    """How many of the population improved, held and worsened.
+
+    Governed figures rather than something the answer works out in prose.
+    "Given every Contracting obligor improved last month, which improved
+    most?" is answered by saying how many actually did; a product that
+    carries the rows but not the counts leaves the writer to do the
+    arithmetic, and that is exactly the arithmetic a grounding guard then
+    refuses — correctly, never having been shown the workings.
+
+    Over the whole filtered frame, because the population is what the premise
+    was about. The limit decides how many names are LISTED, not how many
+    moved.
+    """
+    if measure not in MOVEMENT_MEASURES or measure not in frame.columns:
+        return {}
+    values = pd.to_numeric(frame[measure], errors="coerce").dropna()
+    if values.empty:
+        return {}
+    return {
+        "movement_measure": measure,
+        "movement_population": int(len(values)),
+        "improved": int((values < 0).sum()),
+        "unchanged": int((values == 0).sum()),
+        "worsened": int((values > 0).sum()),
+        "largest_improvement": float(values.min()),
+        "largest_deterioration": float(values.max()),
+    }
 
 
 def _slice_label(step: plan_mod.Step) -> str:

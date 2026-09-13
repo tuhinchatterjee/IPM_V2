@@ -110,7 +110,13 @@ answer differs from yours, so declare only arithmetic you are certain of, and \
 express anything else in words — "roughly a third", "the largest by some \
 margin". A movement stored as a negative number is the commonest case: to \
 write "fell 11.31 points" from `movement.ews_change: -11.31`, declare \
-{"value": 11.31, "op": "magnitude", "refs": ["movement.ews_change"]}.
+{"value": 11.31, "op": "magnitude", "refs": ["movement.ews_change"]}. \
+A COUNT the result implies is the other one: to write "the other 27 did not \
+improve" from `improved: 3` out of `movement_population: 30`, declare \
+{"value": 27, "op": "difference", "refs": ["movement_population", \
+"improved"]}. Before you compute a count like that, check whether the result \
+already states it — where the answer carries `improved`, `unchanged` and \
+`worsened`, quote those rather than subtracting.
 2. Never invent a recommended action. The governed action library is in the \
 packet, with owners, timeframes and what closes each one. Report from it.
 3. Never decide an escalation. The route is in the packet, produced by the \
@@ -237,6 +243,12 @@ class Reading:
     #: accepted claim permits its figure; a refused one permits nothing and
     #: the figure falls through to the direct check.
     derived_claims: list[dict[str, Any]] = field(default_factory=list)
+    #: One record per rejected figure: the token, the words either side of it,
+    #: and what it was attached to. A bare list of numbers is not a diagnosis
+    #: — a live case was rejected for `25` and working out what 25 meant took
+    #: rebuilding the packet by hand, because the prose was truncated before
+    #: the token appeared.
+    rejected_context: list[dict[str, Any]] = field(default_factory=list)
 
 
 #: The sections of the interpretation packet whose numerals the reading may
@@ -347,6 +359,95 @@ def _ungrounded(written: dict[str, Any], allowed: set[str],
                 continue
             problems.append(found)
     return sorted(set(problems))
+
+
+#: How much of the sentence to keep either side of a rejected figure. Enough
+#: to read the clause it sat in; not enough to be a copy of the answer.
+_WINDOW = 120
+
+#: What a figure is attached to, read from the characters after it. Enough to
+#: tell a percentage from a count from a money amount, which is most of the
+#: work of classifying a rejected token.
+_SUFFIX = re.compile(
+    r"\s*(%|per ?cent\w*|bps|basis ?points?|bn|m\b|k\b|million|billion|"
+    r"points?|notch\w*|obligors?|names?|days?|months?|weeks?|years?)",
+    re.I)
+
+#: And what it is a figure OF, read from the characters before it.
+_PREFIX = re.compile(r"(SAR|USD|EUR|\$|£|€)\s*$", re.I)
+
+
+def _rejected_context(written: dict[str, Any],
+                      problems: list[str]) -> list[dict[str, Any]]:
+    """Every rejected figure, with the words around it.
+
+    Sanitised by construction: this reads the model's own ANSWER, which is
+    prose about the result packet. It never touches the prompt, the system
+    text, any provider credential or any reasoning the model did not publish
+    — there is nothing else in scope here to touch.
+    """
+    if not problems:
+        return []
+    wanted = set(problems)
+    out: list[dict[str, Any]] = []
+    #: Up to two occurrences of each rejected token. One is often ambiguous —
+    #: `25` as "the other 25" and `25` as "25% of the exposure" are different
+    #: findings — and all of them would be the answer pasted back.
+    seen: dict[str, int] = {}
+
+    def once_more(token: str) -> bool:
+        seen[token] = seen.get(token, 0) + 1
+        return seen[token] <= 2
+
+    for field_name, text in _prose_by_field(written):
+        stripped = _PERIOD_TOKEN.sub(lambda m: " " * len(m.group(0)), text)
+        for match in _NUMERAL.finditer(stripped):
+            token = match.group(0)
+            if token not in wanted or not once_more(token):
+                continue
+            start, end = match.span()
+            before = text[max(0, start - _WINDOW):start]
+            after = text[end:end + _WINDOW]
+            suffix = _SUFFIX.match(after)
+            prefix = _PREFIX.search(before.rstrip() + " ")
+            out.append({
+                "token": token,
+                "field": field_name,
+                "context_before": before.strip(),
+                "context_after": after.strip(),
+                "unit_or_suffix": (suffix.group(1).strip() if suffix
+                                   else (prefix.group(1) if prefix else "")),
+                "source_stage": seam_mod.INTERPRETATION,
+            })
+    # A period the answer named that nobody published is rejected too, and it
+    # is not found by the numeral scanner — it was taken out before it ran.
+    for field_name, text in _prose_by_field(written):
+        for month in _PERIOD_TOKEN.findall(text):
+            if month not in wanted or not once_more(month):
+                continue
+            at = text.find(month)
+            out.append({
+                "token": month, "field": field_name,
+                "context_before": text[max(0, at - _WINDOW):at].strip(),
+                "context_after": text[at + len(month):
+                                      at + len(month) + _WINDOW].strip(),
+                "unit_or_suffix": "period",
+                "source_stage": seam_mod.INTERPRETATION,
+            })
+    return out
+
+
+def _prose_by_field(answer: dict[str, Any]) -> list[tuple[str, str]]:
+    """The same text `_prose` scans, with the field each piece came from."""
+    out: list[tuple[str, str]] = []
+    for key in ("direct", "interpretation"):
+        value = answer.get(key)
+        if isinstance(value, str):
+            out.append((key, value))
+    for key in ("points", "drivers", "follow_ups", "caveats"):
+        for i, item in enumerate(answer.get(key) or []):
+            out.append((f"{key}[{i}]", str(item)))
+    return out
 
 
 def _permitted_periods(packet: packet_mod.ResultPacket) -> set[str]:
@@ -528,14 +629,20 @@ def write(question: str, packet: packet_mod.ResultPacket,
             "An Early Warning reading declared arithmetic the runtime did not "
             "reproduce: %s", "; ".join(c.reason for c in refused[:3]))
     if ungrounded:
+        context = _rejected_context(written, ungrounded)
         logger.error("Discarding an Early Warning reading: figures %s are not "
-                     "in the result packet.", ungrounded)
+                     "in the result packet. %s", ungrounded,
+                     "; ".join(f"{c['token']} in \u2026{c['context_before'][-60:]}"
+                               f" [{c['token']}] {c['context_after'][:60]}\u2026"
+                               for c in context[:3]))
         return Reading(
             answer=deterministic, ungrounded=ungrounded, fact_refs=refs,
             unresolved_refs=unresolved, derived_claims=declared,
+            rejected_context=context,
             model_call=dict(outcome.to_dict(),
                             engine=seam_mod.DETERMINISTIC,
                             derived_claims=declared,
+                            rejected_context=context,
                             # What it actually wrote. Not shown to the reader
                             # — that is the whole point of a discard — but on
                             # the trace, because "figures 11.31 and 3.67 were

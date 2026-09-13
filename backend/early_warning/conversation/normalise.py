@@ -458,6 +458,14 @@ _ANALYSIS: tuple[tuple[str, str], ...] = (
      "grouping"),
 )
 
+#: The analyses that stay the headline even where the question also asks for
+#: names. Each of them IS the question rather than a way of ordering it:
+#: "why", "how does the model work", "show me the evidence", "who crossed a
+#: band", "cut it by sector". A movement, a comparison or a concentration cue
+#: is absent on purpose — those describe what to rank BY.
+_OUTRANKS_A_NAME_REQUEST: frozenset[str] = frozenset(
+    {"diagnosis", "methodology", "evidence", "transition", "grouping"})
+
 #: How far back a phrase looks. Every spelling a reader uses for the same
 #: window, because a window the reader named and the answer did not use is a
 #: correct answer to a different question — "why has Contracting deteriorated
@@ -519,12 +527,22 @@ _FROM_TO = re.compile(
 _INTO = re.compile(rf"\b(?:in)?to (?:the )?(?P<b>{_BANDS_SAID})\b", re.I)
 _OUT_OF = re.compile(rf"\bout of (?:the )?(?P<a>{_BANDS_SAID})\b", re.I)
 
+#: A score that FELL is a borrower that improved, and one that ROSE is a
+#: borrower that got worse. Both directions are named here because "which
+#: obligors' scores rose most" and "which deteriorated most" are the same
+#: ranking, and a reader who used the arithmetic word rather than the credit
+#: word was getting a list ordered by exposure.
+#:
+#: "Fell into" is excluded from the improving side: an obligor that fell into
+#: Very High did not improve, and `_WORSENED` claims that phrase.
 _IMPROVED = re.compile(
-    r"\bimprov\w+|\bupgrad\w+|\bbetter\b|\brecover\w+|\bstrengthen\w+",
-    re.I)
+    r"\bimprov\w+|\bupgrad\w+|\bbetter\b|\brecover\w+|\bstrengthen\w+|"
+    r"\bfell\b(?!\s+into)|\bfallen\b(?!\s+into)|\bdeclin\w+|"
+    r"\bdropp?\w*\b(?!\s+into)|\bdecreas\w+", re.I)
 _WORSENED = re.compile(
     r"\bdeteriorat\w+|\bdowngrad\w+|\bworse\w*|\bweaken\w+|"
-    r"\bslipp\w+|\bfell into\b", re.I)
+    r"\bslipp\w+|\bfell into\b|\bros[e]\b|\brisen\b|\brising\b|"
+    r"\bincreas\w+|\bwiden\w+|\bjump\w+|\bspik\w+", re.I)
 
 
 def _canonical_band(said: str) -> str:
@@ -643,6 +661,11 @@ _WANTS_NAMES = re.compile(
     # population the thread already established. It is the commonest
     # follow-up there is, and it was read as a movement question.
     r"\bwhich (?:two|three|four|five|\d{1,3}|few)\b|"
+    # "Which ONE improved most?" asks for a name out of a population the
+    # sentence has already named, and it is how a superlative is usually put.
+    # Read as a movement question and nothing else, it returned the sector's
+    # average move and never named the obligor the reader asked for.
+    r"\bwhich (?:one|ones)\b|"
     r"\b(?:of|among|from) (?:those|them|these|that list|the list)\b|"
     r"\bdriv\w* it\b|\bdriving it\b", re.I)
 
@@ -1013,6 +1036,35 @@ def _read_deterministic(
 
     if wants_names and "ranking" not in analyses:
         analyses.insert(0, "ranking")
+
+    # And where the NAME is what was asked for, the ranking is what the
+    # answer is about.
+    #
+    # `analyses` gained the ranking; the leading label did not, so "which one
+    # improved most?" reported its intent as `movement` and the headline
+    # became the sector's average move — a true sentence about a population,
+    # in place of the obligor the reader asked for.
+    #
+    # Not every name request leads, though. A "why" outranks it: "why has
+    # Contracting deteriorated, and which names drive it?" is a diagnosis
+    # with a list attached, and promoting the list would answer the smaller
+    # half. So the analyses that keep the headline are the ones that ARE the
+    # question — a diagnosis, a methodology explanation, an evidence request,
+    # a band transition, a grouping. A movement cue is not: "who moved most"
+    # is a ranking whose measure happens to be movement.
+    if wants_names and not (set(analyses) & _OUTRANKS_A_NAME_REQUEST):
+        analysis = "ranking"
+        analyses = ["ranking"] + [a for a in analyses if a != "ranking"]
+
+    # Which way a movement question is pointing. "Who improved most?" and
+    # "who deteriorated most?" are the same analysis read from opposite ends,
+    # and a ranking that does not know which one it was asked answers the
+    # other half of the book. Both cues together mean neither: "how many
+    # improved and how many worsened?" is a census, not a direction.
+    worse, better = bool(_WORSENED.search(text)), bool(_IMPROVED.search(text))
+    if worse != better:
+        inherited["movement_direction"] = ("deteriorated" if worse
+                                           else "improved")
 
     return BusinessRequest(
         normalized_business_request=text,

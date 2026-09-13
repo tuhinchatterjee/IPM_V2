@@ -36,6 +36,31 @@ from backend.early_warning import layers as layers_mod
 #: What an analysis step is FOR. Each maps to a governed executor.
 POPULATION = "population"
 RANKING = "ranking"
+
+#: The columns a movement ranking may order by, and the window each covers.
+#: "Improved last month" and "risen most over the last twelve months" are the
+#: same analysis over different windows, and ranking the second by the first
+#: answers about the wrong month.
+_MOVEMENT_MEASURES: dict[str, str] = {"1m": "ews_change_1m",
+                                      "12m": "ews_change_12m"}
+
+
+def _movement_measure(period: str, comparison: str) -> str:
+    """Which change column matches the window the question named.
+
+    Twelve months where the comparison month is roughly a year back, one
+    month otherwise. Anything in between is closer to a one-month reading
+    than to an annual one, and the product publishes only these two.
+    """
+    if not comparison or not period:
+        return _MOVEMENT_MEASURES["1m"]
+    try:
+        y1, m1 = (int(x) for x in str(period).split("-")[:2])
+        y2, m2 = (int(x) for x in str(comparison).split("-")[:2])
+    except (TypeError, ValueError):
+        return _MOVEMENT_MEASURES["1m"]
+    months = (y1 - y2) * 12 + (m1 - m2)
+    return _MOVEMENT_MEASURES["12m" if months >= 9 else "1m"]
 GROUPING = "grouping"
 MOVEMENT = "movement"
 #: Who crossed a severity band between two published months. Not the same
@@ -452,6 +477,9 @@ def _build_deterministic(request: Any,
                    f"which is the population the question is about.")))
 
     if "ranking" in analyses:
+        # Which way the question points, where it points anywhere. Read by
+        # pass two from the sentence, not guessed at here.
+        moved = str(inherited.get("movement_direction") or "")
         # "Which names drive it?" points INTO the current scope. Ordered by
         # exposure at high severity rather than by score alone: the reader
         # asking which names drive a population is asking which ones matter,
@@ -476,6 +504,33 @@ def _build_deterministic(request: Any,
                            f"{layers_mod.described(layer)}, so they are "
                            f"ordered by that layer's own score rather than "
                            f"by the score it rolls into.")))
+        elif moved:
+            # A ranking of MOVEMENT. "Which one improved most?" is answered
+            # by the largest fall in the score, over the whole population.
+            #
+            # Neither half of that was true before. The step ranked by
+            # exposure, which is a different question, and it narrowed to
+            # `high_plus`, which excludes the answer: the Contracting obligor
+            # that improved most sits at VERY_LOW precisely because it
+            # improved, so the one name the reader asked for was the one name
+            # the filter removed.
+            improving = moved == "improved"
+            measure = _movement_measure(period, comparison)
+            window = "twelve-month" if measure.endswith("12m") else "one-month"
+            steps.append(Step(
+                analysis=RANKING, period=period,
+                comparison_period=comparison or "",
+                filters=dict(filters),
+                measures=[measure, "anchor_change_1m", "ews_score",
+                          "ews_band", "exposure", "dominant_subcategory"],
+                order_by=measure, descending=not improving, limit=10,
+                rationale=(
+                    f"The question asks which obligors "
+                    f"{'improved' if improving else 'deteriorated'} most, so "
+                    f"they are ordered by their {window} score movement over "
+                    f"the whole population — an obligor that improved is not "
+                    f"at high severity, and ranking the high-severity names "
+                    f"by exposure would leave the answer out.")))
         else:
             steps.append(Step(
                 analysis=RANKING, period=period,
