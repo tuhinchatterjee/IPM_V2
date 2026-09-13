@@ -190,7 +190,7 @@ named customer id, answered from that customer.
 | `tests/retail/test_ret_ews_dynamic.py` — source-variable mutation proof | 2 passed |
 | `tests/retail/test_ret_ews_wiring.py` — routes, runtime catalogue, readiness, restart script | 15 passed |
 | `scripts/retail_uat/fresh_install_check.py` — isolated database, migrations, accounts, bootstrap, application | 12 of 12 |
-| `tests/retail` — the whole retail suite | 1,392 collected, **1,387 passed, 5 failed**, 0 skipped. All five failures are in `test_ret_adversarial_cockpit.py` and pre-date this work (`docs/evidence/retail_ews_score/retail_suite.txt`) |
+| `tests/retail` — the whole retail suite | 1,407 collected, **1,402 passed, 5 failed**, 0 skipped. All five failures are in `test_ret_adversarial_cockpit.py` and pre-date this work (`docs/evidence/retail_ews_score/retail_suite.txt`) |
 | `npm test` — frontend units | 577 passed |
 | `npm run typecheck` | clean |
 | `npm run lint` | clean except two pre-existing errors in What-If, untouched by this pass |

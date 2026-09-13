@@ -3,25 +3,31 @@
 ........................................................................ [ 15%]
 ........................................................................ [ 20%]
 ........................................................................ [ 25%]
-........................................................................ [ 31%]
-........................................................................ [ 36%]
-........................................................................ [ 41%]
+........................................................................ [ 30%]
+........................................................................ [ 35%]
+........................................................................ [ 40%]
 .......................FFF.FF........................................... [ 46%]
 ........................................................................ [ 51%]
 ........................................................................ [ 56%]
-........................................................................ [ 62%]
-........................................................................ [ 67%]
-........................................................................ [ 72%]
-........................................................................ [ 77%]
-........................................................................ [ 82%]
-........................................................................ [ 87%]
-........................................................................ [ 93%]
-........................................................................ [ 98%]
-........................                                                 [100%]
+......../home/user/IPM_V2/backend/retail/ews_views.py:135: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+  joined = worst.join(totals, how="left").reset_index()
+..................................................../home/user/IPM_V2/backend/retail/ews_views.py:135: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+  joined = worst.join(totals, how="left").reset_index()
+............ [ 61%]
+........................................................................ [ 66%]
+................................................................./home/user/IPM_V2/backend/retail/ews_views.py:135: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+  joined = worst.join(totals, how="left").reset_index()
+....... [ 71%]
+........................................................................ [ 76%]
+........................................................................ [ 81%]
+........................................................................ [ 86%]
+........................................................................ [ 92%]
+........................................................................ [ 97%]
+.......................................                                  [100%]
 =================================== FAILURES ===================================
 _ TestAPrioritisationSaysWhatOrderedIt.test_an_open_judgement_question_runs_the_governed_review _
 
-self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f8dc2a65c10>
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7fc858089e50>
 
     def test_an_open_judgement_question_runs_the_governed_review(self):
 >       said = headline(answer("What would you escalate to the board?"))
@@ -62,7 +68,7 @@ E       AttributeError: 'NoneType' object has no attribute 'summary'
 backend/orchestration/assembly.py:690: AttributeError
 _ TestAPrioritisationSaysWhatOrderedIt.test_it_says_what_the_ordering_is_and_is_not _
 
-self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f8dc2a65f10>
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7fc85808a150>
 
     def test_it_says_what_the_ordering_is_and_is_not(self):
 >       said = headline(answer("What are the three numbers that matter "
@@ -80,12 +86,12 @@ question = 'What are the three numbers that matter most?', state = None
             f"{getattr(answered.clarification, 'question', answered.clarification)}")
 E       AssertionError: 'What are the three numbers that matter most?' was refused: Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.
 E       assert not 'Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.'
-E        +  where 'Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.' = Answered(question='What are the three numbers that matter most?', reading=Reading(intent='ANALYSIS', objective='What a... settled_window=('', ''), settled_population=(), cached=None, scope=None, degraded_reason='', calls=0, duration_ms=317).clarification
+E        +  where 'Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.' = Answered(question='What are the three numbers that matter most?', reading=Reading(intent='ANALYSIS', objective='What a... settled_window=('', ''), settled_population=(), cached=None, scope=None, degraded_reason='', calls=0, duration_ms=322).clarification
 
 tests/retail/test_ret_adversarial_cockpit.py:73: AssertionError
 _ TestAPrioritisationSaysWhatOrderedIt.test_the_attention_question_reads_its_own_window _
 
-self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f8dc2a66210>
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7fc85808a450>
 
     def test_the_attention_question_reads_its_own_window(self):
         said = headline(answer("What needs my attention in the retail "
@@ -97,7 +103,7 @@ E       assert ('2026-07' in '25 customers, ranked by how many of 8 governed cre
 tests/retail/test_ret_adversarial_cockpit.py:2030: AssertionError
 _ TestAReviewSettlesWhatItLedWith.test_it_inherits_the_measure_the_answer_led_with _
 
-self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7f8dc2a46270>
+self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7fc858066180>
 
     def test_it_inherits_the_measure_the_answer_led_with(self):
         _, state = advanced("What needs my attention in the retail portfolio "
@@ -110,7 +116,7 @@ E        +  where [] = ConversationState(subject='What needs my attention in the
 tests/retail/test_ret_adversarial_cockpit.py:2046: AssertionError
 _ TestAReviewSettlesWhatItLedWith.test_it_inherits_the_window_the_review_measured _
 
-self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7f8dc2a45670>
+self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7fc858065610>
 
     def test_it_inherits_the_window_the_review_measured(self):
         _, state = advanced("What needs my attention in the retail portfolio "
