@@ -85,16 +85,26 @@ DECIMALS: dict[str, int] = {
     UNKNOWN: 2,
 }
 
-#: What a class may declare instead of its default, when a figure genuinely
-#: needs it -- a coverage ratio quoted to three places, a small movement. A
-#: class not listed here permits only its default, because there is no such
-#: thing as a borrower count to two decimal places.
+#: What a class may be asked to show. Every GOVERNED class permits exactly
+#: its own default, so asking for something else changes nothing.
+#:
+#: This used to be wider. Money permitted (0, 1, 2, 3), which let an analyst
+#: declare two places and produce an answer whose prose read
+#: `SAR 7,013.12 million` above a table and a chart reading
+#: `SAR 7,013 million` -- the same figure, from the same cell, written three
+#: ways on one screen. Both were policy-legal and that was the defect: a
+#: display class that anyone may override is not a policy, it is a default.
+#:
+#: A metric that genuinely needs a different precision gets it by being
+#: classified differently -- a coverage RATIO is not a MONETARY_AMOUNT -- or
+#: by a governed rule added here, in one place, on purpose. It does not get
+#: it by a model asking nicely mid-answer.
 PERMITTED: dict[str, tuple[int, ...]] = {
-    MONETARY_AMOUNT: (0, 1, 2, 3),
-    PERCENTAGE: (2, 0, 1, 3),
-    PROBABILITY: (2, 0, 1, 3),
-    PERCENTAGE_POINT: (2, 0, 1, 3),
-    RATIO: (2, 3, 4, 1),
+    MONETARY_AMOUNT: (0,),
+    PERCENTAGE: (2,),
+    PROBABILITY: (2,),
+    PERCENTAGE_POINT: (2,),
+    RATIO: (2,),
     COUNT: (0,),
     INTEGER: (0,),
     RATING: (0,),
@@ -102,6 +112,16 @@ PERMITTED: dict[str, tuple[int, ...]] = {
     PERIOD: (0,),
     UNKNOWN: (2, 0, 1, 3, 4),
 }
+
+#: Classes whose precision CreditProbe owns outright. For these the answer
+#: to "how many decimal places" does not depend on who is asking.
+#:
+#: UNKNOWN is the one class not governed, and for a reason: nothing named
+#: its unit, so there is no business rule to apply and a declared precision
+#: is the only signal there is. It is still bounded, and it still never
+#: reaches a reader as raw digits.
+GOVERNED: frozenset[str] = frozenset(
+    kind for kind, places in PERMITTED.items() if len(places) == 1)
 
 #: Classes whose canonical value is a fraction and whose display is a
 #: percentage. The factor is part of the class, never inferred from the
@@ -228,6 +248,27 @@ def decimals(unit: str) -> int:
     return DECIMALS[classify(unit)]
 
 
+def resolve_decimals(unit: str, declared: int | None = None) -> int:
+    """The precision that will actually be used for this unit.
+
+    A declared precision the class does not permit is IGNORED, not refused.
+    Refusing it would cost a model turn to correct a presentation request
+    that changes nothing about whether the analysis is right, and the answer
+    would come back identical but for two characters. The server knows how a
+    riyal amount is written; it does not need to be told, and it does not
+    need to argue about it.
+    """
+    kind = classify(unit)
+    if declared is None or declared < 0:
+        return DECIMALS[kind]
+    return declared if declared in PERMITTED[kind] else DECIMALS[kind]
+
+
+def governed(unit: str) -> bool:
+    """Does CreditProbe own this unit's precision outright?"""
+    return classify(unit) in GOVERNED
+
+
 def permitted(unit: str) -> tuple[int, ...]:
     return PERMITTED[classify(unit)]
 
@@ -345,6 +386,8 @@ __all__ = ["CATALOG_UNITS", "CATEGORICAL", "COUNT", "DECIMALS",
            "DISPLAY_FACTOR", "IFRS_STAGE", "INTEGER", "MONETARY_AMOUNT",
            "PERCENTAGE", "PERCENTAGE_POINT", "PERIOD", "PERMITTED",
            "PROBABILITY", "RATING", "RATIO", "ROUNDING", "UNKNOWN",
+           "GOVERNED",
            "classify", "decimals", "display_value", "format_unitless",
-           "format_value",
-           "money_unit", "permitted", "plain", "quantize", "unit_for_field"]
+           "format_value", "governed",
+           "money_unit", "permitted", "plain", "quantize",
+           "resolve_decimals", "unit_for_field"]

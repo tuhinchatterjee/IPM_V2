@@ -128,6 +128,10 @@ def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
             "Omit decimal_value and omit display_precision: CreditProbe "
             "computes the value from the cell or the arithmetic you name, "
             "and writes it the way this domain writes that kind of figure. "
+            "How many decimal places a figure shows is not yours to set -- "
+            "an amount shows none, a percentage shows two -- and a "
+            "display_precision sent anyway is ignored rather than argued "
+            "with, so sending one costs a field and changes nothing. "
             "Reference it from your narrative as {{claim.<claim_id>}} and "
             "the validated, formatted figure is substituted there."),
         "direct_value": (

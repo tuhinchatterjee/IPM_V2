@@ -56,6 +56,12 @@ carries 2, because a ratio loses real information at two.
 
 Full policy: `docs/cockpit_v4/DISPLAY_PRECISION.md`.
 
+> **Superseded.** The permitted sets below are what this round shipped. A
+> later round narrowed every governed class to exactly its default, because
+> an overridable money precision let one answer print `SAR 7,013.12 million`
+> in prose above a table reading `SAR 7,013 million`. See
+> `DISPLAY_PRECISION.md` for the policy in force.
+
 | Unit class | Permitted | Default |
 | --- | --- | --- |
 | Money (`SAR million`) | 0, 1, 2, 3 | 2 |

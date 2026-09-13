@@ -280,6 +280,11 @@ decimals. This corrects §37; it does not redesign the claim architecture that
    disagree on screen inside one answer. Resolving it means deciding whether a
    claim may override the class default — a numeric-rendering decision §15 and
    §51 put out of scope for this round. Flagged, not changed.
+
+   **Resolved in the pre-UAT round that followed.** Every governed class now
+   permits exactly its own default and a declared precision is ignored rather
+   than honoured or refused. See `DISPLAY_PRECISION.md` and
+   `tests/cockpit_v4/test_governed_precision.py`.
 2. **Visual fidelity is unverified** — see §16 above.
 
 No other blockers.

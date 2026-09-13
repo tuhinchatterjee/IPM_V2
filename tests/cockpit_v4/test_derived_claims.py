@@ -112,7 +112,9 @@ def test_a_total_across_rows_is_recomputed_and_accepted(finalizer, artifact):
     report = finalizer.validate(parse_final(body), executed=True)
     assert report.ok, report.problems
     assert "{{claim." not in report.rendered_narrative
-    assert f"{TOTAL:,.2f}" in report.rendered_narrative
+    # The claim asked for two decimal places. It is an amount, so it gets
+    # none -- and the answer is published rather than sent back over it.
+    assert f"SAR {TOTAL:,.0f} million" in report.rendered_narrative
 
 
 def test_a_top_n_share_is_recomputed_and_accepted(finalizer, artifact):
@@ -129,9 +131,10 @@ def test_a_top_n_share_is_recomputed_and_accepted(finalizer, artifact):
                              _cells(artifact, ALL_ROWS)]}}])
     report = finalizer.validate(parse_final(body), executed=True)
     assert report.ok, report.problems
-    # Rendered at the declared precision, from the value the server
-    # recomputed -- not from anything the test asserted independently.
-    shown = expected.quantize(Decimal("0.1"))
+    # Rendered at the precision the CLASS governs, from the value the server
+    # recomputed -- not at the one decimal place the claim asked for, and
+    # not from anything the test asserted independently.
+    shown = expected.quantize(Decimal("0.01"))
     assert f"{shown}%" in report.rendered_narrative
 
 

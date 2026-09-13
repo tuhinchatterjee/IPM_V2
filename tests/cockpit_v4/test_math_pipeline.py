@@ -104,11 +104,16 @@ def _claims_for(question_id, artifact, rows, row_ids):
     claims = []
 
     def derived(claim_id, operation, operands, unit, precision=None):
-        # Precision from the UNIT unless the question genuinely wants more.
+        # What the analyst ASKS for. It is a request, and for a governed
+        # class -- every class here -- the class answers it instead: an
+        # amount shows no decimals, a percentage shows two. M01 asking for a
+        # one-place share is exactly the case worth keeping in the harness,
+        # because the published answer must come back at two and must not
+        # spend a turn arguing about it.
         if precision is None:
             precision = prec.default_precision(unit)
-        assert precision in prec.allowed_precisions(unit), (
-            f"{claim_id}: {precision}dp is not permitted for {unit!r}")
+        assert 0 <= precision <= 12, (
+            f"{claim_id}: {precision} is not a precision at all")
         claims.append({"claim_id": claim_id, "unit": unit,
                        "display_precision": precision,
                        "derivation": {"operation": operation,

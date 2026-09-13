@@ -28,6 +28,7 @@ from decimal import Decimal
 import pytest
 from conftest import final, intent
 
+from backend.cockpit_v4 import display as disp
 from backend.cockpit_v4 import precision as prec
 from backend.cockpit_v4.contracts import parse_final
 
@@ -56,12 +57,22 @@ def test_the_old_tolerance_was_too_tight_by_two_orders_of_magnitude():
 # ---- 2. the contract, on the live figures -----------------------------
 
 def test_the_live_display_value_is_accepted(store_db, release_id):
+    """The figure the live run was refused for is accepted -- and rewritten.
+
+    `40,599.17` is a correct reading of this value and the analyst is not
+    argued with for sending it. It is not, however, how CreditProbe writes
+    an amount: money shows no decimals, so the PUBLISHED figure is
+    `SAR 40,599 million`. Accepting the cross-check and choosing the
+    published string are separate decisions and only the second is the
+    display policy's.
+    """
     verdict = prec.check(str(LIVE_DISPLAY), LIVE_CANONICAL,
                          unit="SAR million", declared_precision=2,
                          label="total_ead")
     assert verdict.ok, verdict.problem
     assert verdict.canonical == LIVE_CANONICAL
-    assert verdict.display == LIVE_DISPLAY
+    assert verdict.display == disp.quantize(LIVE_CANONICAL, 0)
+    assert verdict.precision == 0
 
 
 def test_the_full_canonical_value_is_also_accepted():
@@ -130,10 +141,19 @@ def test_the_ratio_claim_fails_when_it_is_inverted():
     assert not verdict.ok
 
 
-def test_a_ratio_may_carry_more_places_than_money():
-    for places in (2, 3, 4):
-        assert places in prec.allowed_precisions("ratio")
-    assert 4 not in prec.allowed_precisions("SAR million")
+def test_a_ratio_and_an_amount_are_governed_to_different_places():
+    """And neither of them is negotiable.
+
+    A ratio reads at two places and an amount at none. Both are business
+    rules, and the difference between them is the unit, not what anybody
+    asked for -- `PERMITTED` lists exactly one precision per governed class
+    precisely so that asking changes nothing.
+    """
+    assert prec.allowed_precisions("ratio") == (2,)
+    assert prec.allowed_precisions("SAR million") == (0,)
+    for asked in (0, 1, 2, 3, 4):
+        assert disp.resolve_decimals("ratio", asked) == 2
+        assert disp.resolve_decimals("SAR million", asked) == 0
 
 
 # ---- 4. scale and unit safety -----------------------------------------
@@ -171,11 +191,19 @@ def test_a_thousandfold_scale_error_is_refused():
     assert not verdict.ok
 
 
-def test_a_count_may_not_declare_decimal_places():
+def test_a_count_asking_for_decimal_places_simply_does_not_get_them():
+    """There is no such thing as 22.00 breaches, and no argument about it.
+
+    This used to be a refusal, which sent the whole answer back for a model
+    turn over two characters of presentation. The count is right; it is
+    written as a count and the run carries on.
+    """
     verdict = prec.check("22.00", Decimal("22"), unit="count",
                          declared_precision=2, label="breaches")
-    assert not verdict.ok
-    assert "allows 0" in verdict.problem
+    assert verdict.ok, verdict.problem
+    assert verdict.precision == 0
+    assert disp.format_value(verdict.canonical, "count",
+                             verdict.precision) == "22"
 
 
 def test_precision_is_read_from_the_unit_not_the_claim_name():
@@ -183,7 +211,7 @@ def test_precision_is_read_from_the_unit_not_the_claim_name():
     assert prec.default_precision("SAR million") == 0
     assert prec.default_precision("percent") == 2
     assert prec.default_precision("count") == 0
-    assert prec.allowed_precisions("ratio") == (2, 3, 4, 1)
+    assert prec.allowed_precisions("ratio") == (2,)
 
 
 # ---- 5. zero, tiny, huge, and notation --------------------------------

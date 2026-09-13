@@ -37,8 +37,15 @@ expected_display = quantize(canonical, allowed_precision)
 asserted ∈ { canonical, expected_display }
 ```
 
-A third number that merely *rounds* to the right answer — `40599.1699` at 2dp
-— is refused. Rounding to something correct is not being it.
+A cross-check is valid as the canonical value itself, or as that value
+correctly rounded to any number of places: the analyst may round its own
+working however it likes, and that is a question about whether the number is
+RIGHT. How the figure is written is a separate question and the display
+class answers it.
+
+A third number that merely *rounds* to the right answer — `40599.1699`, which
+rounds to `40599.17` and is not this value at any precision — is still
+refused. Rounding to something correct is not being it.
 
 The published figure is rendered from the canonical verdict, not from the
 analyst's string, so what reaches the reader is CreditProbe's rounding of
@@ -49,18 +56,37 @@ CreditProbe's arithmetic.
 Read from the **unit**, never from a claim's name: `total_ead` and
 `ead_share` differ by unit, not by spelling.
 
-| Unit class | Permitted | Default | Example |
+| Unit class | Decimals | Governed | Example |
 | --- | --- | --- | --- |
-| Money (`SAR million`) | 0, 1, 2, 3 | 2 | `SAR 40,599.17 million` |
-| Percent | 0, 1, 2, 3 | 2 | `25.25%` |
-| Percentage point | 0, 1, 2, 3 | 2 | `1.31 percentage points` |
-| Ratio | 2, 3, 4 | 2 | `0.5714` |
-| Count | 0 | 0 | `59` |
-| Categorical | 0 | — | Stage 2, BBB+ |
+| Money (`SAR million`) | 0 | yes | `SAR 40,599 million` |
+| Percent | 2 | yes | `25.25%` |
+| Probability (`probability_0_1`) | 2 | yes | `4.33%` |
+| Percentage point | 2 | yes | `1.31 pp` |
+| Ratio | 2 | yes | `1.57x` |
+| Count | 0 | yes | `59` |
+| Categorical | — | yes | Stage 2, BBB+ |
+| Unknown unit | 2 | no | `1.57` |
 
-A claim declaring a precision outside its class is refused and told which are
-allowed. The first thing this caught was real: a covenant-breach count
-declaring two decimal places, which the old validator had no opinion about.
+**Governed means the class decides and nobody else does.** An analyst may
+send `display_precision`; for a governed class it changes nothing. It is
+ignored mechanically — never refused — because refusing it would send a
+correct analysis back for a model turn to alter two characters of
+presentation.
+
+This replaces a wider policy under which money permitted `0, 1, 2, 3`. That
+let one answer read `SAR 7,013.12 million` in its prose above a table and a
+chart reading `SAR 7,013 million`: three renderings of one cell, all legal,
+on one screen. A display class anyone may override is not a policy, it is a
+default.
+
+`UNKNOWN` is the one class not governed, and for a reason: nothing named the
+unit, so there is no business rule to apply and the declaration is the only
+signal available. It is still bounded, and machine precision still never
+reaches a reader.
+
+A metric that genuinely needs different places gets them by being classified
+differently — a coverage ratio is not an amount — or by a governed rule added
+to `PERMITTED` and `DECIMALS`, in one place, deliberately.
 
 ## Currency and scale
 

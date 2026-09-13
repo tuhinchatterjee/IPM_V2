@@ -156,24 +156,29 @@ class Verdict:
     precision: int = 2
 
 
+#: How far a cross-check may have been rounded and still be recognisable as
+#: this value. Beyond twelve places the contract will not accept the string
+#: at all, so there is nothing past it to match.
+_ROUNDINGS = range(0, 13)
+
+
 def check(asserted: str, canonical: Decimal, *, unit: str,
           declared_precision: int, label: str) -> Verdict:
     """Is `asserted` this canonical value, written for a reader?
 
-    Valid in exactly two forms: the canonical value itself, or the canonical
-    value quantized to a permitted precision. A third number that merely
-    rounds to the right answer is not one of them.
+    Valid as the canonical value itself, or as that value correctly rounded
+    -- to any number of places. A third number that merely rounds to the
+    right answer is not one of them: `40599.1699` rounds to `40599.17` and
+    is not the canonical value at any precision, so it is still refused.
+
+    Note what this does NOT decide: how the figure is written. The analyst
+    may have rounded its cross-check to two places for its own comfort; the
+    published string is still CreditProbe's, at the precision the display
+    class governs. Those two are separate questions and conflating them is
+    what used to send a correct answer back for a model turn over a decimal
+    point.
     """
-    semantic = disp.classify(unit)
-    permitted = disp.PERMITTED[semantic]
-    if declared_precision not in permitted:
-        return Verdict(
-            False,
-            f"{label} declares {declared_precision} decimal place"
-            f"{'s' if declared_precision != 1 else ''} for a value in "
-            f"{unit!r}. CreditProbe allows "
-            f"{', '.join(str(p) for p in permitted)} for a "
-            f"{semantic.replace('_', ' ').lower()}.")
+    places = disp.resolve_decimals(unit, declared_precision)
     try:
         given = Decimal(asserted)
     except (InvalidOperation, ValueError):
@@ -181,12 +186,13 @@ def check(asserted: str, canonical: Decimal, *, unit: str,
                               f"decimal.")
 
     canonical = plain(canonical)
-    display = plain(quantize(canonical, declared_precision))
-    if given == canonical or given == display:
+    display = plain(quantize(canonical, places))
+    if given == canonical or any(
+            given == plain(quantize(canonical, p)) for p in _ROUNDINGS):
         return Verdict(True, canonical=canonical, display=display,
-                       precision=declared_precision)
+                       precision=places)
 
-    rounds_right = quantize(given, declared_precision) == display
+    rounds_right = quantize(given, places) == display
     detail = (
         f" It rounds to the right figure, which is not the same as being it: "
         f"send the value CreditProbe computed, or that value rounded."
@@ -194,9 +200,8 @@ def check(asserted: str, canonical: Decimal, *, unit: str,
     return Verdict(
         False,
         f"{label} asserts {given} and the evidence gives {canonical}, which "
-        f"displays at {declared_precision}dp as {display}.{detail}",
-        canonical=canonical, display=display,
-        precision=declared_precision)
+        f"displays at {places}dp as {display}.{detail}",
+        canonical=canonical, display=display, precision=places)
 
 
 def format_value(value: Decimal, unit: str,

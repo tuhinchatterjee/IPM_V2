@@ -743,9 +743,12 @@ class NumericClaim:
     unit: str
     #: The cell this value was read from. Empty for a derived claim.
     evidence: EvidenceRef
-    #: -1 means the analyst did not declare one and the display policy
-    #: chooses from the unit. Zero is a real precision -- money shows no
-    #: decimals -- so "absent" cannot be spelled 0.
+    #: What the analyst ASKED for. -1 means it asked for nothing. For every
+    #: governed class the class answers instead, so this field changes
+    #: nothing there; it is kept because a unit nothing could classify has
+    #: no business rule to consult and this is the only signal available.
+    #: Zero is a real precision -- money shows no decimals -- so "absent"
+    #: cannot be spelled 0.
     display_precision: int = -1
     #: The arithmetic that produced this value, over cells that exist.
     #: Empty for a direct claim.
@@ -761,12 +764,17 @@ class NumericClaim:
         return bool(self.decimal_value)
 
     def precision(self) -> int:
-        """The declared precision, or the one the unit implies."""
-        if self.display_precision >= 0:
-            return self.display_precision
+        """The precision this claim will actually be written at.
+
+        A declared precision is a REQUEST. For a governed class -- money,
+        percentages, probabilities, movements, ratios, counts -- the class
+        answers it, and the request changes nothing. Only a unit nothing
+        could classify takes the analyst's word for it, because there no
+        business rule exists to take instead.
+        """
         from backend.cockpit_v4 import display as _display
 
-        return _display.decimals(self.unit)
+        return _display.resolve_decimals(self.unit, self.display_precision)
 
     def to_dict(self) -> dict[str, Any]:
         body: dict[str, Any] = {
