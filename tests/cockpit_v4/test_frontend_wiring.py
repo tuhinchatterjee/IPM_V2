@@ -262,10 +262,8 @@ def shell_client(store_db, runtime):
 
     app = FastAPI()
 
-    class Holder:
-        cfg = runtime.cfg
-
-    routes.install(store=store_db, runtime=Holder(),
+    routes.install(store=store_db, runtime=runtime,
+                   cfg=runtime.cfg,
                    principal_resolver=lambda request: {"id": "u",
                                                        "tenant": "demo-tenant"},
                    startup_sha="testsha")

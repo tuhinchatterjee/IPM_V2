@@ -280,7 +280,34 @@ def main() -> int:
 
     # Which release, from which bytes, in which currency. Printed every
     # start, never inferred afterwards from the figures on the screen.
-    header = (checks.get("release", {}) or {}).get("header") or {}
+    release_check = checks.get("release", {}) or {}
+    header = release_check.get("header") or {}
+
+    # FAIL CLOSED.
+    #
+    # This used to print the failure and start anyway. The result on a live
+    # Mac: uvicorn came up, /health answered 200, the browser posted a run,
+    # the API answered 202, and the run sat at "Request accepted" for the
+    # rest of the afternoon, because the worker had never been started. A
+    # half-started Cockpit costs an operator more than a refusal does --
+    # a refusal names one command.
+    if not release_check.get("ok"):
+        heading("Cockpit V4 · release")
+        print(bad(f"{release_check.get('code', 'DATA_UNAVAILABLE')}"))
+        print(f"  release {header.get('release_id', args.release)} is not "
+              f"available in this runtime.")
+        reason = str(release_check.get("reason") or "").strip()
+        if reason:
+            print(f"  {reason.splitlines()[0]}")
+        remedy = str(release_check.get("remedy") or "").strip()
+        if remedy:
+            print()
+            print("Action:")
+            print(f"  {remedy}")
+        print()
+        print(bad("Nothing else started."))
+        return 1
+
     if header:
         heading("Cockpit V4 · release")
         table([("release", header.get("release_id", "—")),
@@ -304,6 +331,10 @@ def main() -> int:
     if not report.get("ready_for_product_help"):
         print()
         print(bad("V4 cannot answer anything yet. Fix the checks above."))
+        return 1
+    if not report.get("ready_for_sql_analysis"):
+        print()
+        print(bad("V4 cannot run an analysis. Fix the checks above."))
         return 1
 
     heading("Cockpit V4 · starting")

@@ -166,9 +166,17 @@ def load_release(cfg: V4Config) -> tuple[Any, Any, dict[str, Any]]:
         manifest = v3_store.read_manifest(cfg.release_id)
         calendar = v3_store.load_calendar(cfg.release_id)
     except v3_store.ReleaseNotFound as exc:
+        # V3's own message tells the reader to run V3's build script. That
+        # instruction is wrong for V4: V4 publishes into its OWN namespace,
+        # localizes the book to Saudi Arabia after it is built, and never
+        # touches a V3 release. Forwarding V3's sentence sent an operator to
+        # the wrong tool, so V4 says what V4 needs instead.
         raise PreflightFailed(
             st.DATA_UNAVAILABLE,
-            f"{exc} Nothing was substituted for it.") from exc
+            f"release {cfg.release_id!r} is not published in this runtime. "
+            f"Nothing was substituted for it. Provision it with:\n"
+            f"    {provision_command(cfg.release_id)}",
+            variables=("COCKPIT_V4_RELEASE_ID",)) from exc
 
     summary = {"dataset_release_id": cfg.release_id, "domain_id": DOMAIN,
                **{k: manifest.get(k) for k in
@@ -192,6 +200,22 @@ def load_release(cfg: V4Config) -> tuple[Any, Any, dict[str, Any]]:
     with _LOCK:
         _CATALOG_CACHE[cfg.release_id] = (catalog, summary)
     return catalog, _COVERAGE_CACHE.get(cfg.release_id), summary
+
+
+def provision_command(release_id: str) -> str:
+    """The ONE V4-native command that publishes a release.
+
+    Named in one place because it appears in a preflight failure, in the
+    launcher's terminal output and in the diagnostics document, and an
+    operator who is handed three different instructions tries all three.
+
+    It is V4's own seeder, not V3's builder: it writes only into the V4
+    namespace, localizes the book to Saudi Arabia after the shared generator
+    has produced it, converts no amount, and refuses to overwrite a release
+    that is already published.
+    """
+    return (f"python3 scripts/cockpit_v4/seed_release.py "
+            f"--release {release_id}")
 
 
 def denomination(release_id: str,
@@ -354,7 +378,17 @@ def diagnostics(cfg: V4Config | None = None, *,
             "relations": len(catalog.relations()),
             "quarters": len(getattr(catalog.calendar, "slots", ()) or ())}
     except PreflightFailed as exc:
-        checks["release"] = {"ok": False, "reason": str(exc), "code": exc.code}
+        # What is selected, and why it will not open. Never a substitution:
+        # a runtime configured for the Saudi release does not quietly serve
+        # a different one, because the only thing worse than no numbers is
+        # someone else's numbers under your release's name.
+        checks["release"] = {
+            "ok": False, "reason": str(exc), "code": exc.code,
+            "header": {"release_id": cfg.release_id,
+                       "release_fingerprint": "", "published": False,
+                       "readable": False},
+            "remedy": provision_command(cfg.release_id),
+            "substituted": False}
 
     from backend.cockpit_v4 import pyrunner
 
@@ -377,8 +411,25 @@ def diagnostics(cfg: V4Config | None = None, *,
     report["ready_for_product_help"] = bool(base_ok)
     report["ready_for_sql_analysis"] = bool(
         base_ok and checks["release"].get("ok"))
+    report["ready_for_attention"] = bool(checks["release"].get("ok"))
     report["ready_for_python_analysis"] = bool(
         base_ok and checks["release"].get("ok") and runner.get("available"))
+    # The same six flags the health document serves, named identically, so a
+    # reader comparing the two documents is comparing like with like.
+    from backend.cockpit_v4 import readiness as ready_mod
+
+    report["capabilities"] = {
+        ready_mod.PROCESS_ALIVE: True,
+        ready_mod.RELEASE_READY: bool(checks["release"].get("ok")),
+        ready_mod.PRODUCT_HELP_READY: bool(base_ok),
+        ready_mod.SQL_ANALYSIS_READY: report["ready_for_sql_analysis"],
+        ready_mod.ATTENTION_READY: report["ready_for_attention"],
+        ready_mod.PYTHON_ANALYSIS_READY: report["ready_for_python_analysis"],
+    }
+    if not checks["release"].get("ok"):
+        report["preflight_error"] = (
+            f"{checks['release'].get('code', '')}: "
+            f"{checks['release'].get('reason', '')}".strip(": "))
     report["limits"] = {
         "standard": config_mod.STANDARD_LIMITS.__dict__,
         "deep": config_mod.DEEP_LIMITS.__dict__,
@@ -394,5 +445,5 @@ def reset_caches() -> None:
 
 __all__ = ["PreflightFailed", "Runtime", "build_runtime", "coverage_for",
            "credential", "credential_status", "diagnostics", "limits_for",
-           "load_capability", "load_release", "reset_caches",
-           "resolve_provider"]
+           "load_capability", "load_release", "provision_command",
+           "reset_caches", "resolve_provider"]

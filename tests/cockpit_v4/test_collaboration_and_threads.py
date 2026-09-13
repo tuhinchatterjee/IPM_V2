@@ -38,9 +38,6 @@ P = "/api/v1/cockpit-v4"
 def client(store_db, runtime):
     app = FastAPI()
 
-    class Holder:
-        cfg = runtime.cfg
-
     def resolver(request: Request):
         tenant = request.headers.get("X-Test-Tenant", "demo-tenant")
         user = request.headers.get("X-Test-User", "u1")
@@ -48,7 +45,8 @@ def client(store_db, runtime):
             return None
         return {"id": user, "tenant": tenant}
 
-    routes.install(store=store_db, runtime=Holder(),
+    routes.install(store=store_db, runtime=runtime,
+                   cfg=runtime.cfg,
                    principal_resolver=resolver, startup_sha="testsha")
     routes._STATE.pop("notifier", None)
     app.include_router(routes.router)

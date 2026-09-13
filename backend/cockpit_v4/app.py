@@ -133,15 +133,24 @@ def create_app(cfg: config_mod.V4Config | None = None, *,
         preflight_error = f"{exc.code}: {exc}"
         logger.warning("V4 preflight incomplete: %s", preflight_error)
 
-    class _Runtime:
-        cfg = None
-
-    holder = runtime or _Runtime()
-    holder.cfg = cfg
-
+    # There is NO stand-in runtime.
+    #
+    # A placeholder carrying only a config used to be installed here when
+    # preflight failed, so that /diagnostics could still answer. It did far
+    # more than that: every consumer then HAD a runtime, so nothing refused
+    # anything. The attention route called a method the real runtime has and
+    # the placeholder did not and returned a traceback; run creation had no
+    # reason to object and answered 202 for work that nothing would ever do,
+    # because the worker check looked at the REAL runtime and correctly saw
+    # none. A stand-in that is present but cannot work is worse than an
+    # absence, because an absence is checkable.
+    #
+    # So the runtime is the real one or it is None, and `readiness` answers
+    # what that means for each capability.
     resolver = (_demo_resolver(cfg, runtime) if cfg.local_demo_auth
                 else _session_resolver())
-    routes.install(store=store, runtime=holder,
+    routes.install(store=store, runtime=runtime, cfg=cfg,
+                   preflight_error=preflight_error,
                    principal_resolver=resolver, startup_sha=sha)
     app.include_router(routes.router)
     # The shell's status indicator polls /api/v1/health. Serving
@@ -167,8 +176,18 @@ def create_app(cfg: config_mod.V4Config | None = None, *,
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
+        # `ok` says the PROCESS is answering. What the process can do is a
+        # separate question with six separate answers, and a shell that reads
+        # only `ok` used to show a green badge over a runtime that could not
+        # accept a single analytical question.
+        from backend.cockpit_v4 import readiness as ready_mod
+
+        state = ready_mod.assess(runtime, cfg=cfg,
+                                 preflight_error=preflight_error)
         return {"ok": True, "service": "cockpit-v4", "startup_sha": sha,
                 "preflight_error": preflight_error,
+                "capabilities": state.to_dict(),
+                "ready": state.ready,
                 "api_port": cfg.api_port}
 
     return app

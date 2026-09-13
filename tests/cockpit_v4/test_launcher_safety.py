@@ -18,6 +18,9 @@ from pathlib import Path
 
 import pytest
 
+#: The worktree root, so the launcher's own source can be read.
+ROOT = Path(__file__).resolve().parents[2]
+
 from scripts.cockpit_v4._common import (Owned, pick_port, port_free,
                                         process_command, process_cwd,
                                         process_start_time, record, records,
@@ -148,3 +151,47 @@ def test_seeding_an_existing_release_does_not_overwrite_it(tmp_path):
     assert out.returncode == 0
     assert "already exists" in out.stdout
     assert "immutable" in out.stdout
+
+
+# ---- fail closed: an unprovisioned release stops the launcher ----------
+
+def test_the_launcher_stops_before_starting_anything_without_a_release():
+    """The live Mac failure, as a property of the launcher's own source.
+
+    It printed the DATA_UNAVAILABLE preflight failure and then started
+    uvicorn anyway. What followed was a health endpoint answering 200, a
+    browser posting a run, the API answering 202, and the run sitting at
+    "Request accepted" for the rest of the afternoon.
+
+    The gate has to come BEFORE the processes are launched, which is a fact
+    about where it sits in the file, so that is what this reads.
+    """
+    source = (ROOT / "scripts" / "cockpit_v4" / "start.py").read_text()
+
+    gate = source.index('if not release_check.get("ok"):')
+    launch = source.index('"backend.cockpit_v4.app:create_app"')
+    assert gate < launch, (
+        "the release gate runs after uvicorn is launched, which is the "
+        "defect: a half-started Cockpit costs an operator more than a "
+        "refusal does")
+
+    tail = source[gate:launch]
+    assert "Nothing else started." in tail
+    assert "return 1" in tail
+    assert 'print("Action:")' in tail, (
+        "a refusal that does not name the fix makes the operator guess")
+
+
+def test_the_launcher_refuses_when_analysis_is_not_ready():
+    source = (ROOT / "scripts" / "cockpit_v4" / "start.py").read_text()
+    gate = source.index('if not report.get("ready_for_sql_analysis"):')
+    launch = source.index('"backend.cockpit_v4.app:create_app"')
+    assert gate < launch
+
+
+def test_the_launcher_defaults_to_the_saudi_release():
+    from backend.cockpit_v4 import release as release_mod
+
+    source = (ROOT / "scripts" / "cockpit_v4" / "start.py").read_text()
+    assert f'"COCKPIT_V4_RELEASE_ID", "{release_mod.DEFAULT_RELEASE_ID}"' \
+        in source

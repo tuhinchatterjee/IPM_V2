@@ -46,10 +46,39 @@ _STATE: dict[str, Any] = {}
 
 
 def install(*, store: RunStore, runtime: Any, principal_resolver: Any,
-            startup_sha: str = "") -> None:
+            startup_sha: str = "", cfg: Any = None,
+            preflight_error: str = "") -> None:
+    """Install the REAL runtime, or None. Never a stand-in.
+
+    `cfg` and `preflight_error` are carried separately precisely because
+    `runtime` may be None: a runtime that could not be built still has a
+    configuration worth reporting and a reason worth naming.
+    """
     _STATE.update({"store": store, "runtime": runtime,
+                   "cfg": cfg or getattr(runtime, "cfg", None),
+                   "preflight_error": preflight_error,
                    "principal": principal_resolver,
                    "startup_sha": startup_sha})
+
+
+def _config() -> Any:
+    return _STATE.get("cfg") or getattr(
+        _STATE.get("runtime"), "cfg", None) or config_mod.load()
+
+
+def readiness() -> Any:
+    """What this runtime can do. One answer, consulted by every route."""
+    from backend.cockpit_v4 import readiness as ready_mod
+
+    return ready_mod.assess(
+        _STATE.get("runtime"), cfg=_config(),
+        preflight_error=str(_STATE.get("preflight_error") or ""))
+
+
+def _require(capability: str) -> Any:
+    """The runtime, once this capability is known to be available."""
+    readiness().require(capability)
+    return _STATE["runtime"]
 
 
 def _store() -> RunStore:
@@ -104,8 +133,29 @@ async def start_run(body: StartRun, request: Request,
                     idempotency_key: str = Header("", alias="Idempotency-Key"),
                     who: dict[str, Any] = Depends(principal)) -> JSONResponse:
     store = _store()
+    from backend.cockpit_v4 import readiness as ready_mod
+
+    state = readiness()
+    # A run this runtime cannot process must not be accepted.
+    #
+    # The live failure: with the release unpublished the API answered 202,
+    # the browser showed "Request accepted", and the worker had never been
+    # started -- so the run sat in ACCEPTED until the user gave up. 202 is a
+    # promise to do the work. Nothing that cannot keep it may send one.
+    #
+    # Product Help is refused separately and for a different reason: it needs
+    # a model, not a portfolio, so a runtime with no release open can still
+    # answer what the product does.
+    if not state[ready_mod.PRODUCT_HELP_READY]:
+        state.require(ready_mod.PRODUCT_HELP_READY)
+    if not state[ready_mod.SQL_ANALYSIS_READY]:
+        # The question's own mode is not known until the analyst declares an
+        # intent, which is a model call away. What IS known here is that no
+        # analysis can run at all, so a question is accepted only if Product
+        # Help could answer it -- and the refusal names the capability.
+        state.require(ready_mod.SQL_ANALYSIS_READY)
     runtime = _STATE.get("runtime")
-    cfg = getattr(runtime, "cfg", None) or config_mod.load()
+    cfg = _config()
 
     mode = body.mode.lower() if body.mode.lower() in MODES else STANDARD
     thread_id = body.thread_id
@@ -283,11 +333,14 @@ def _attention_session(who: dict[str, Any]) -> tuple[Any, Any, Any]:
     server, the tenant comes from the principal, and neither can be widened
     by the request.
     """
-    runtime = _STATE.get("runtime")
-    if runtime is None:
-        raise HTTPException(503, {
-            "error_code": "ATTENTION_UNAVAILABLE",
-            "message": "This runtime has no release open."})
+    # Typed, before anything is dereferenced. The live failure was an
+    # AttributeError from a stand-in runtime reaching this line -- a raw 500
+    # with a traceback in it, where the honest answer is "this runtime has no
+    # release open, and here is the command that publishes it".
+    from backend.cockpit_v4 import readiness as ready_mod
+
+    runtime = _require(ready_mod.ATTENTION_READY)
+
     from backend.cockpit_agentic import sql as v3_sql
 
     scope = runtime.scope_for(who)
@@ -765,9 +818,11 @@ async def shell_health() -> dict[str, Any]:
     """
     from backend.cockpit_v4.compat_health import health_payload
 
-    runtime = _STATE.get("runtime")
-    return health_payload(getattr(runtime, "cfg", None),
-                          startup_sha=str(_STATE.get("startup_sha") or ""))
+    state = readiness()
+    return health_payload(
+        _config(), startup_sha=str(_STATE.get("startup_sha") or ""),
+        capabilities=state.to_dict(),
+        preflight_error=str(_STATE.get("preflight_error") or ""))
 
 
 @router.get("/runs/{run_id}/events")

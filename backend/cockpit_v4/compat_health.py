@@ -50,8 +50,18 @@ def _component(name: str, status: str, detail: str,
 
 
 def health_payload(cfg: config_mod.V4Config | None = None, *,
-                   startup_sha: str = "") -> dict[str, Any]:
-    """A `HealthResponse`-shaped answer describing the V4 runtime."""
+                   startup_sha: str = "",
+                   capabilities: dict[str, Any] | None = None,
+                   preflight_error: str = "") -> dict[str, Any]:
+    """A `HealthResponse`-shaped answer describing the V4 runtime.
+
+    `capabilities` describes the runtime that is actually INSTALLED. Without
+    it this function re-derives readiness from the environment, which answers
+    a subtly different question -- "could a runtime be built from this
+    configuration" rather than "what can the one serving you do" -- and two
+    health documents disagreeing about the same process is worse than either
+    being wrong on its own.
+    """
     cfg = cfg or config_mod.load()
     report = diagnostics(cfg, startup_sha=startup_sha)
     checks = report.get("checks", {})
@@ -147,6 +157,13 @@ def health_payload(cfg: config_mod.V4Config | None = None, *,
         "environment": "local" if cfg.local_demo_auth else "server",
         "phase": BUILD_PHASE,
         "components": components,
+        # Six separate answers, not one badge. A shell that reads only
+        # `status` used to show green over a runtime with no release open,
+        # which could not accept a single analytical question.
+        "capabilities": (capabilities if capabilities is not None
+                         else report.get("capabilities", {})),
+        "preflight_error": (preflight_error
+                            or report.get("preflight_error", "")),
     }
 
 

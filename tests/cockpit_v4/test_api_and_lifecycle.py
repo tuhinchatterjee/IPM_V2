@@ -25,10 +25,18 @@ from backend.cockpit_v4 import states as st
 
 @pytest.fixture
 def client(store_db, runtime):
-    app = FastAPI()
+    """The REAL runtime, as production builds it.
 
-    class Holder:
-        cfg = runtime.cfg
+    This fixture used to install a stand-in carrying only a config -- the
+    same shape the application itself substituted when preflight failed. So
+    the suite and the broken runtime were fake in the same way, and every
+    test here passed while a live Mac served a traceback from the attention
+    endpoint and answered 202 for runs nothing would ever process.
+
+    A test runtime that exposes less than production's does not prove
+    production works. It proves the test agrees with itself.
+    """
+    app = FastAPI()
 
     def resolver(request: Request):
         tenant = request.headers.get("X-Test-Tenant", "demo-tenant")
@@ -37,9 +45,7 @@ def client(store_db, runtime):
             return None
         return {"id": user, "tenant": tenant}
 
-    holder = Holder()
-    holder.cfg = runtime.cfg
-    routes.install(store=store_db, runtime=holder,
+    routes.install(store=store_db, runtime=runtime, cfg=runtime.cfg,
                    principal_resolver=resolver, startup_sha="testsha")
     app.include_router(routes.router)
     return TestClient(app)
