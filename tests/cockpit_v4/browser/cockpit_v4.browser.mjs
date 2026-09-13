@@ -31,7 +31,17 @@ const FORBIDDEN = [
 ];
 
 const results = [];
+const measurements = [];
 let failures = 0;
+
+/** Record a timing so the evidence file carries it, not just the console. */
+function measure(what, ms, budgetMs) {
+  measurements.push({ what, ms: Math.round(ms), budget_ms: budgetMs });
+  console.log(`  ${String(Math.round(ms)).padStart(6)}ms  ${what} ` +
+              `(budget ${budgetMs}ms)`);
+  assert.ok(ms <= budgetMs,
+    `${what} took ${Math.round(ms)}ms, over its ${budgetMs}ms budget`);
+}
 
 /** Run a subset while diagnosing. Unset in CI, so the default is everything. */
 const ONLY = process.env.V4_BROWSER_ONLY
@@ -834,6 +844,159 @@ await test("the thread header names the conversation and renames it",
     }
   });
 
+await test("a published figure is written once, the way a credit paper writes it",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "reported EAD by sector this quarter");
+      await waitForAnswer(page);
+      const text = await page.textContent(
+        '[data-testid="v4-turn-live"], [data-testid="v4-turn-assistant"]');
+      const answer = text ?? "";
+      // §37: machine precision must never reach a reader. The live defect
+      // printed `7013.1167117986615 SAR million` under a narrative that had
+      // already written the same figure properly.
+      assert.ok(!/\d\.\d{4,}/.test(answer),
+        `machine precision on screen: ${
+          (/\d+\.\d{4,}/.exec(answer) ?? [""])[0]}`);
+      // And the unit is said once, not appended beside a string that
+      // already carries it.
+      assert.ok(!/SAR [\d,.]+ million SAR million/.test(answer),
+        "the unit was written twice");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("the conversation is quick to open, restore and ask again in",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      // Opening a conversation: from the click that asks to the thread being
+      // on screen, and from there to the first process event.
+      await page.fill('[data-testid="cockpit-v4-question"]',
+        "reported EAD by sector this quarter");
+      const asked = Date.now();
+      await page.click('[data-testid="cockpit-v4-ask"]');
+      await page.waitForSelector('[data-testid="cockpit-v4-thread"]',
+        { timeout: 30_000 });
+      measure("thread opens after asking", Date.now() - asked, 5_000);
+
+      // The panel opens collapsed, so the first event shows up in its
+      // summary line -- which is where a reader sees it too.
+      await page.waitForFunction(
+        () => /elapsed|Answered/.test(
+          document.querySelector(
+            '[data-testid="v4-process-summary"]')?.textContent ?? ""),
+        { timeout: 30_000 },
+      );
+      measure("first process event on screen", Date.now() - asked, 10_000);
+
+      await waitForAnswer(page);
+      // The analytical answer brings a chart and a table with it. Both are
+      // server-rendered, so this measures paint, not arithmetic.
+      const drawn = Date.now();
+      await page.waitForSelector('[data-testid="v4-chart-bar"]',
+        { timeout: 30_000 });
+      await page.click('[data-testid="v4-visual-table"]').catch(() => {});
+      await page.waitForSelector('[data-testid="v4-result-table"]',
+        { timeout: 30_000 });
+      measure("chart and table rendered", Date.now() - drawn, 5_000);
+
+      // Restoring it: a reload must put the whole transcript back.
+      const reloaded = Date.now();
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForSelector('[data-testid="v4-turn-assistant"]',
+        { timeout: 30_000 });
+      measure("transcript restored after reload", Date.now() - reloaded,
+        10_000);
+
+      // Asking again: the follow-up must appear in the transcript at once,
+      // long before its answer arrives.
+      const followed = Date.now();
+      await followUp(page, "and the quarter before that?");
+      await page.waitForFunction(
+        () => document.querySelectorAll(
+          '[data-testid="v4-turn-user"]').length >= 2,
+        { timeout: 30_000 },
+      );
+      measure("follow-up appears in the transcript", Date.now() - followed,
+        5_000);
+      await waitForAnswer(page);
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("the conversation can be shared, and says how it was delivered",
+  async () => {
+    const { context, page, requests } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+
+      await page.click('[data-testid="v4-thread-share"]');
+      await page.fill('[data-testid="v4-thread-share-audience"]',
+        "credit-committee");
+      await page.click('[data-testid="v4-thread-share-submit"]');
+      await page.waitForSelector('[data-testid="v4-thread-action-status"]',
+        { timeout: 30_000 });
+      const status = await page.textContent(
+        '[data-testid="v4-thread-action-status"]');
+      assert.match(status ?? "", /Shared with credit-committee/);
+
+      // The delivery line never claims an email was sent unless a transport
+      // accepted it, and this build configures none.
+      const delivery = await page.textContent(
+        '[data-testid="v4-thread-share-delivery"]').catch(() => "");
+      assert.ok(!/\bSent\b/.test(delivery ?? ""), delivery ?? "");
+      assertNoLegacyCalls(requests, "for a shared conversation");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("a conversation opens an investigation, and Projects are not faked",
+  async () => {
+    const { context, page, requests } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+
+      await page.click('[data-testid="v4-thread-investigate"]');
+      // No button pretends to reach a surface this runtime does not serve.
+      const note = await page.textContent(
+        '[data-testid="v4-thread-no-projects"]');
+      assert.match(note ?? "", /not available in this isolated Cockpit V4/);
+      assert.equal(await page.$('[data-testid="v4-thread-add-to-project"]'),
+        null, "there is no Add to Project button to click");
+
+      await page.click('[data-testid="v4-thread-investigate-submit"]');
+      await page.waitForSelector('[data-testid="v4-thread-action-status"]',
+        { timeout: 30_000 });
+      assert.match(
+        await page.textContent('[data-testid="v4-thread-action-status"]') ?? "",
+        /Investigation opened/);
+      assertNoLegacyCalls(requests, "for a conversation investigation");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("the conversation links to the trace of its latest answer",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+      const href = await page.getAttribute('[data-testid="v4-thread-trace"]',
+        "href");
+      assert.match(href ?? "", /^\/trace\/[^/]+$/, href ?? "");
+    } finally {
+      await context.close();
+    }
+  });
+
 await test("Investigate Further opens the conversation, not just the context",
   async () => {
     const { context, page, requests, problems } = await openCockpit(browser);
@@ -1486,7 +1649,11 @@ await test("Continue where you left off uses real V4 threads", async () => {
 
     await ask(page, "Who are you?");
     await waitForAnswer(page);
-    await page.reload({ waitUntil: "domcontentloaded" });
+    // Asking now opens a thread at its own URL, so the landing page has to
+    // be revisited -- reloading would only reload the conversation.
+    await page.click('[data-testid="v4-thread-home"]');
+    await page.waitForSelector('[data-testid="continue-where-you-left-off"]',
+      { timeout: 60_000 });
     await page.waitForSelector('[data-testid="continue-thread"]',
       { timeout: 60_000 });
     const after = await page.$$('[data-testid="continue-thread"]');
@@ -1505,14 +1672,19 @@ await test("an Arabic answer renders right-to-left without breaking the page",
     try {
       await ask(page, "ما هو CreditProbe؟");
       await waitForAnswer(page);
+      // dir="auto" resolves from the content, so an Arabic question reads
+      // right-to-left where it is shown -- in the transcript.
       const direction = await page.evaluate(() => {
-        const input = document.querySelector(
-          '[data-testid="cockpit-v4-question"]',
-        );
-        return input ? getComputedStyle(input).direction : "";
+        const turn = document.querySelector('[data-testid="v4-turn-user"] p');
+        return turn ? getComputedStyle(turn).direction : "";
       });
-      // dir="auto" resolves from the content, so the box itself flips.
-      assert.ok(["ltr", "rtl"].includes(direction), direction);
+      assert.equal(direction, "rtl");
+      // And the composer that takes the next one flips with its content too.
+      const composer = await page.evaluate(() => {
+        const box = document.querySelector('[data-testid="v4-composer-input"]');
+        return box ? box.getAttribute("dir") : "";
+      });
+      assert.equal(composer, "auto");
       const body = await page.evaluate(
         () => document.body.scrollWidth <= window.innerWidth + 2,
       );
@@ -1528,7 +1700,7 @@ await test("the landing page mounts the V4 Cockpit and nothing legacy",
     const { context, page, requests } = await openCockpit(browser);
     try {
       assert.ok(await page.$('[data-testid="cockpit-v4-home"]'));
-      assert.ok(await page.$('[data-testid="cockpit-v4"]'));
+      assert.ok(await page.$('[data-testid="cockpit-v4-question"]'));
       // The legacy Cockpit's own markers must be absent, not merely hidden.
       for (const legacy of [
         '[data-testid="cockpit-home"]',
@@ -1850,6 +2022,7 @@ const summary = {
   passed: results.filter((r) => r.ok).length,
   failed: failures,
   forbidden_endpoints_checked: FORBIDDEN,
+  measurements,
   responsive,
   results,
 };
