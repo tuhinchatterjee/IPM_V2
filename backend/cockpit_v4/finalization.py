@@ -72,13 +72,20 @@ class ValidationReport:
 
 
 def _format(claim: NumericClaim) -> str:
+    """Last resort: a claim that never reached the canonical registry.
+
+    Reached only when a claim was neither settled nor rejected, which the
+    validator does not allow. It renders whatever the analyst sent rather
+    than raising, because an answer that is already being refused should not
+    also crash while being described.
+    """
+    if not claim.decimal_value:
+        return ""
     try:
         value = Decimal(claim.decimal_value)
     except InvalidOperation:
         return claim.decimal_value
-    quantized = value.quantize(Decimal(1).scaleb(-claim.display_precision))
-    text = f"{quantized:,}"
-    return f"{text} {claim.unit}".strip()
+    return prec.format_value(value, claim.unit, claim.precision())
 
 
 @dataclass
@@ -96,6 +103,10 @@ class Finalizer:
     #: published figure is CreditProbe's rounding of CreditProbe's
     #: arithmetic rather than whatever the model happened to type.
     canonical: dict[str, Any] = field(default_factory=dict)
+    #: claim_id -> the stored text of a non-numeric cell (a sector name, a
+    #: rating grade). Rounding a category is meaningless, so these never
+    #: reach the precision policy and are published exactly as stored.
+    text: dict[str, str] = field(default_factory=dict)
 
     def validate(self, final: FinalResponse, *,
                  executed: bool) -> ValidationReport:
@@ -179,6 +190,8 @@ class Finalizer:
 
     def _render(self, claim: NumericClaim) -> str:
         """The published text of a claim, from the canonical value."""
+        if claim.claim_id in self.text:
+            return self.text[claim.claim_id]
         verdict = self.canonical.get(claim.claim_id)
         if verdict is None:
             return _format(claim)
@@ -196,6 +209,33 @@ class Finalizer:
             if record is not None:
                 out[artifact_id] = record
         return out
+
+    def _settle(self, claim: NumericClaim, computed, *, label: str) -> str:
+        """Record the canonical value, checking any figure the analyst sent.
+
+        Two paths, and the difference is the whole point of this round.
+
+        The analyst sent NOTHING: there is no figure to disagree with. The
+        value CreditProbe computed is the value, and the display policy says
+        how it is written. A correct analysis cannot be refused here.
+
+        The analyst sent a figure: it is a cross-check and it is checked as
+        strictly as before. Wrong arithmetic still fails.
+        """
+        precision = claim.precision()
+        if not claim.asserts_a_value:
+            canonical = prec.plain(computed)
+            self.canonical[claim.claim_id] = prec.Verdict(
+                True, canonical=canonical,
+                display=prec.plain(prec.quantize(canonical, precision)),
+                precision=precision)
+            return ""
+        verdict = prec.check(claim.decimal_value, computed, unit=claim.unit,
+                             declared_precision=precision, label=label)
+        if not verdict.ok:
+            return verdict.problem
+        self.canonical[claim.claim_id] = verdict
+        return ""
 
     def _check_derived(self, claim: NumericClaim) -> str:
         """Recompute the claim. Its arithmetic is redone, not taken on trust."""
@@ -225,13 +265,9 @@ class Finalizer:
         except deriv.DerivationError as exc:
             return f"{exc}"
 
-        verdict = prec.check(claim.decimal_value, computed, unit=claim.unit,
-                             declared_precision=claim.display_precision,
-                             label=label)
-        if not verdict.ok:
-            return (f"{verdict.problem} (derivation: "
-                    f"{derivation.operation})")
-        self.canonical[claim.claim_id] = verdict
+        problem = self._settle(claim, computed, label=label)
+        if problem:
+            return f"{problem} (derivation: {derivation.operation})"
         return ""
 
     def _check_claim(self, claim: NumericClaim) -> str:
@@ -266,18 +302,14 @@ class Finalizer:
         except (InvalidOperation, ValueError):
             # A non-numeric cell -- a sector name, a rating grade. Compared
             # as text, because rounding a category is meaningless.
-            if str(found) != claim.decimal_value:
+            if claim.asserts_a_value and str(found) != claim.decimal_value:
                 return (f"claim {claim.claim_id!r} asserts "
                         f"{claim.decimal_value!r} and the artifact holds "
                         f"{found!r}.")
+            self.text[claim.claim_id] = str(found)
             return ""
-        verdict = prec.check(claim.decimal_value, stored, unit=claim.unit,
-                             declared_precision=claim.display_precision,
-                             label=f"claim {claim.claim_id!r}")
-        if not verdict.ok:
-            return verdict.problem
-        self.canonical[claim.claim_id] = verdict
-        return ""
+        return self._settle(claim, stored,
+                            label=f"claim {claim.claim_id!r}")
 
     def _check_table(self, table: dict[str, Any], index: int) -> list[str]:
         """A published table must project columns the artifact really has.

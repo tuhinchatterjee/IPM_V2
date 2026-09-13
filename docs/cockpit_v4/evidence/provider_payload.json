@@ -6,7 +6,7 @@
       "model": "mock-analyst",
       "max_tokens": 4096,
       "system_blocks": 3,
-      "system_bytes": 30110,
+      "system_bytes": 30923,
       "message_bytes": 221,
       "tools": [
         {
@@ -23,7 +23,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10006
+          "schema_bytes": 10507
         }
       ],
       "unsupported_schema_keywords": []
@@ -33,7 +33,7 @@
       "model": "mock-analyst",
       "max_tokens": 4096,
       "system_blocks": 3,
-      "system_bytes": 30106,
+      "system_bytes": 30919,
       "message_bytes": 167,
       "tools": [
         {
@@ -54,7 +54,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10006
+          "schema_bytes": 10507
         }
       ],
       "unsupported_schema_keywords": []
@@ -64,7 +64,7 @@
       "model": "mock-analyst",
       "max_tokens": 4096,
       "system_blocks": 3,
-      "system_bytes": 30110,
+      "system_bytes": 30923,
       "message_bytes": 167,
       "tools": [
         {
@@ -81,7 +81,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10006
+          "schema_bytes": 10507
         }
       ],
       "unsupported_schema_keywords": []

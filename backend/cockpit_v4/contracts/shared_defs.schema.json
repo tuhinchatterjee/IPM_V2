@@ -163,7 +163,7 @@
         },
         "decimal_value": {
           "type": "string",
-          "description": "Lossless decimal string; not a floating-point display approximation."
+          "description": "OPTIONAL, and normally OMITTED. CreditProbe computes this number from the evidence or the derivation you name, and formats it for the reader. Send one only to cross-check yourself; it is verified, and a value that does not reconcile refuses the answer."
         },
         "unit": {
           "type": "string"
@@ -174,8 +174,9 @@
         },
         "display_precision": {
           "type": "integer",
-          "minimum": 0,
-          "maximum": 12
+          "minimum": -1,
+          "maximum": 12,
+          "description": "OPTIONAL. Omit it: the unit decides. Money shows no decimal places, percentages and ratios show two, counts none."
         },
         "derivation": {
           "$ref": "#/$defs/Derivation",
@@ -184,11 +185,10 @@
       },
       "required": [
         "claim_id",
-        "decimal_value",
         "unit"
       ],
       "additionalProperties": false,
-      "description": "One number in the answer. Send EXACTLY ONE of 'evidence' (the value appears in one result cell) or 'derivation' (the value is calculated from cells that do). Sending both, or neither, is refused."
+      "description": "One number in the answer: WHERE it comes from, not what it is. Send EXACTLY ONE of 'evidence' (the value appears in one result cell) or 'derivation' (the value is calculated from cells that do). Sending both, or neither, is refused. You do not need to send the number itself -- reference the claim from your narrative as {{claim.<id>}} and CreditProbe substitutes the validated, formatted figure."
     },
     "Table": {
       "type": "object",

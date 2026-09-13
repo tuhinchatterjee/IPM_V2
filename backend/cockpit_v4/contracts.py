@@ -728,13 +728,25 @@ class NumericClaim:
     """
 
     claim_id: str
-    #: A lossless decimal STRING. Never a float: a float display is an
-    #: approximation and this value is quoted to a credit officer.
+    #: OPTIONAL, and normally EMPTY.
+    #:
+    #: The analyst names the cell or the arithmetic; CreditProbe computes the
+    #: number from that and owns how it is written. An analyst that sends a
+    #: value is offering a cross-check and it is still verified -- what it
+    #: may no longer do is have a correct analysis refused because a figure
+    #: it reproduced by hand differed in the fifteenth decimal place.
+    #:
+    #: When present it is a lossless decimal STRING, never a float: a float
+    #: display is an approximation and this value is quoted to a credit
+    #: officer.
     decimal_value: str
     unit: str
     #: The cell this value was read from. Empty for a derived claim.
     evidence: EvidenceRef
-    display_precision: int = 2
+    #: -1 means the analyst did not declare one and the display policy
+    #: chooses from the unit. Zero is a real precision -- money shows no
+    #: decimals -- so "absent" cannot be spelled 0.
+    display_precision: int = -1
     #: The arithmetic that produced this value, over cells that exist.
     #: Empty for a direct claim.
     derivation: dict[str, Any] | None = None
@@ -743,10 +755,26 @@ class NumericClaim:
     def is_derived(self) -> bool:
         return bool(self.derivation)
 
+    @property
+    def asserts_a_value(self) -> bool:
+        """True when the analyst sent a number to be checked against."""
+        return bool(self.decimal_value)
+
+    def precision(self) -> int:
+        """The declared precision, or the one the unit implies."""
+        if self.display_precision >= 0:
+            return self.display_precision
+        from backend.cockpit_v4 import display as _display
+
+        return _display.decimals(self.unit)
+
     def to_dict(self) -> dict[str, Any]:
-        body = {"claim_id": self.claim_id, "decimal_value": self.decimal_value,
-                "unit": self.unit, "evidence": self.evidence.to_dict(),
-                "display_precision": self.display_precision}
+        body: dict[str, Any] = {
+            "claim_id": self.claim_id, "unit": self.unit,
+            "evidence": self.evidence.to_dict(),
+            "display_precision": self.precision()}
+        if self.decimal_value:
+            body["decimal_value"] = self.decimal_value
         if self.derivation:
             body["derivation"] = self.derivation
         return body
@@ -857,18 +885,31 @@ def parse_final(payload: Any) -> FinalResponse:
                             f"{path}.claim_id {claim_id!r} is repeated.",
                             field_path=f"{path}.claim_id")
         seen_claims.add(claim_id)
-        decimal_value = _require_text(raw, "decimal_value", path)
-        if not _DECIMAL.match(decimal_value):
+        # OPTIONAL, and normally absent. CreditProbe computes this value
+        # from the evidence or the derivation and owns how it is written;
+        # an analyst that sends one is asserting it as a cross-check, and it
+        # is still checked. What it may no longer do is REQUIRE the analyst
+        # to reproduce a figure the server already holds to the last digit.
+        decimal_value = str(raw.get("decimal_value") or "").strip()
+        if decimal_value and not _DECIMAL.match(decimal_value):
             raise Rejection(
                 "ANSWER_VALIDATION",
-                f"{path}.decimal_value must be a plain decimal string such "
-                f"as \"1234.50\"; got {decimal_value!r}.",
+                f"{path}.decimal_value, when sent at all, must be a plain "
+                f"decimal string such as \"1234.50\"; got "
+                f"{decimal_value!r}. It may also be omitted, and normally "
+                f"should be: CreditProbe computes and formats the value.",
                 field_path=f"{path}.decimal_value")
-        precision = raw.get("display_precision", 2)
+        # -1 means "not declared": the display policy chooses from the unit.
+        # Zero is a real precision now -- money shows no decimals -- so the
+        # absent case needs a value that is not a precision.
+        precision = raw.get("display_precision", -1)
+        if precision is None:
+            precision = -1
         if (not isinstance(precision, int) or isinstance(precision, bool)
-                or not 0 <= precision <= 12):
+                or not -1 <= precision <= 12):
             raise Rejection("ANSWER_VALIDATION",
-                            f"{path}.display_precision must be 0-12.",
+                            f"{path}.display_precision must be 0-12, or "
+                            f"omitted so the unit decides.",
                             field_path=f"{path}.display_precision")
         # Exactly one of the two forms. The provider's tool dialect has no
         # way to say "one of these two" in a schema -- oneOf and anyOf are

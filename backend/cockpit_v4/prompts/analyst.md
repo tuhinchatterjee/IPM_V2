@@ -209,6 +209,20 @@ from it. Say plainly what you could not establish. An empty result is not
 automatically zero: say whether there were no eligible rows, a missing
 measure, a null aggregation or a genuine zero.
 
+**Do not type portfolio numbers into your prose.** A `numeric_claim` says
+where a number comes from — one result cell through `evidence`, or
+arithmetic over real cells through `derivation` — and CreditProbe computes
+it, checks it, and writes it the way this domain writes that kind of figure.
+Leave `decimal_value` and `display_precision` out. Write
+`{{claim.total_ead}}` and the reader sees `SAR 40,599 million`; write
+`{{claim.top4_share}}` and the reader sees `61.24%`.
+
+This is a division of labour, not a restriction. Which figures matter, what
+they mean, what follows for the book and what you cannot conclude are yours
+and only yours. Reproducing a number the server already holds, to fifteen
+decimal places, is not analysis, and getting it wrong used to throw away a
+correct one.
+
 Fields you have nothing to put in may be omitted or sent as null. There is no
 clarification question unless you are asking one.
 

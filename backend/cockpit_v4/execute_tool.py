@@ -46,6 +46,64 @@ CHECK_RUNTIME = "runtime"
 CHECK_SANDBOX = "sandbox"
 
 
+def column_units(catalog: Any, columns: list[str],
+                 relations: list[str]) -> dict[str, str]:
+    """The unit of each result column, where the catalogue can say.
+
+    Resolved by EXACT column name against the relations this step was
+    authorized to read. An alias that matches a catalogue column is that
+    column; an alias that does not -- `ead_reported_sar_mn`, `breaches`,
+    `total` -- is not resolved, and is left out rather than guessed at.
+
+    Guessing here would be worse than silence. A column whose name merely
+    LOOKS like an amount could be a count of amounts, a ratio of them, or a
+    year; publishing "SAR" against it because the letters matched is how a
+    reader is shown a currency nobody computed. What is unresolved stays a
+    plain number, which is honest, and a claim that names the column can
+    still declare its unit -- that declaration is checked.
+    """
+    from backend.cockpit_v4 import display as disp
+
+    out: dict[str, str] = {}
+    for column in columns:
+        for relation in relations:
+            unit = disp.unit_for_field(catalog, relation, column)
+            if unit:
+                out[column] = unit
+                break
+    return out
+
+
+def formatted_preview(preview: list[dict[str, Any]],
+                      units: dict[str, str]) -> list[dict[str, Any]]:
+    """The same rows as a reader would see them. Canonical rows are kept.
+
+    Only cells whose column has a resolved unit are rewritten; everything
+    else is passed through unchanged, so a formatted preview never contains
+    a figure whose denomination was invented.
+    """
+    from decimal import Decimal, InvalidOperation
+
+    from backend.cockpit_v4 import display as disp
+
+    if not units:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in preview:
+        shown: dict[str, Any] = {}
+        for key, value in row.items():
+            unit = units.get(key, "")
+            if not unit or value is None:
+                shown[key] = value
+                continue
+            try:
+                shown[key] = disp.format_value(Decimal(str(value)), unit)
+            except (InvalidOperation, ValueError):
+                shown[key] = value
+        out.append(shown)
+    return out
+
+
 def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
                 row_count: int, money_unit: str = "") -> dict[str, Any]:
     """The evidence contract, sent with every successful result.
@@ -63,16 +121,27 @@ def claim_guide(artifact_id: str, columns: list[str], row_ids: list[str],
         "columns": list(columns),
         "row_ids": list(row_ids),
         "row_count": row_count,
+        "you_do_not_type_numbers": (
+            "A numeric_claim says WHERE a number comes from, not what it is. "
+            "Omit decimal_value and omit display_precision: CreditProbe "
+            "computes the value from the cell or the arithmetic you name, "
+            "and writes it the way this domain writes that kind of figure. "
+            "Reference it from your narrative as {{claim.<claim_id>}} and "
+            "the validated, formatted figure is substituted there."),
         "direct_value": (
             "A number that appears in one result cell: send 'evidence' with "
-            "this artifact_id, the row_id and the column_id. Send the EXACT "
-            "stored value and use display_precision for how it should read."),
+            "this artifact_id, the row_id and the column_id."),
         "calculated_value": (
             "A number you worked out from the result -- a total across rows, "
             "a share of a total, a difference, a growth rate: send "
             "'derivation' instead of 'evidence', naming the operation and "
             "the real rows it consumes. CreditProbe recomputes it and "
             "refuses the answer if the arithmetic does not hold."),
+        "how_numbers_are_written": (
+            "Amounts show no decimal places; percentages, probabilities, "
+            "point movements and ratios show two; counts are whole numbers. "
+            "You do not need to apply any of this -- it is stated so you "
+            "know what the reader will see."),
         "never": (
             "Do NOT invent a row to point at. There is no 'total', 'all "
             "sectors' or 'top 5' row unless one is listed in row_ids above. "
@@ -116,6 +185,13 @@ class StepResult:
     #: currency the selected release does not use would steer the analyst
     #: into declaring the wrong unit on every amount.
     money_unit: str = ""
+    #: column -> the unit that column holds, resolved from the catalogue.
+    #: What makes a formatted preview possible at all: without it a column
+    #: of floats is just floats, and "SAR" would be a guess.
+    units: dict[str, str] = field(default_factory=dict)
+    #: The preview rows as a reader would see them. §19: the packet carries
+    #: BOTH forms so the analyst never has to produce the second one.
+    formatted: list[dict[str, Any]] = field(default_factory=list)
     truncated: bool = False
     artifact_id: str = ""
     warnings: list[str] = field(default_factory=list)
@@ -138,6 +214,12 @@ class StepResult:
                         "preview": self.preview, "row_ids": self.row_ids,
                         "preview_truncated": self.truncated,
                         "artifact_id": self.artifact_id,
+                        # Canonical values are what the arithmetic runs on;
+                        # these are the same rows as a reader would see
+                        # them. Carried so the analyst can write about the
+                        # figures without reproducing any of them.
+                        "preview_formatted": self.formatted,
+                        "column_units": dict(self.units),
                         "how_to_cite_these_numbers": claim_guide(
                             self.artifact_id, self.columns, self.row_ids,
                             self.row_count, self.money_unit)})
@@ -474,11 +556,15 @@ class ExecutionService:
         preview = [{k: row.get(k) for k in preview_columns}
                    for row in result.rows[:self.limits.preview_rows]]
         row_ids = [deriv.row_id_for(i) for i in range(len(preview))]
+        units = column_units(
+            self.catalog, preview_columns,
+            list(getattr(self.session, "relations", ())))
         return StepResult(
             step_id=step.step_id, status="ok", language="sql",
             code_digest=digest, purpose=step.purpose, columns=columns,
             row_count=result.row_count, preview=preview, row_ids=row_ids,
-            money_unit=self._money_unit(),
+            money_unit=self._money_unit(), units=units,
+            formatted=formatted_preview(preview, units),
             truncated=bool(result.truncated) or len(
                 columns) > self.limits.preview_columns,
             artifact_id=artifact_id,
