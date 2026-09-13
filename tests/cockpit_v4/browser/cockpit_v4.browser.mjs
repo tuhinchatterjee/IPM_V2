@@ -98,9 +98,36 @@ function assertNoLegacyCalls(requests, where) {
   }
 }
 
+/**
+ * Ask from the HOME page, which now opens a conversation.
+ *
+ * Submitting no longer answers in place: it creates a thread and navigates
+ * into it. So the helper waits for the thread to be on screen, because every
+ * assertion after the click is about the thread and a test that raced the
+ * navigation would be asserting against the page it just left.
+ */
 async function ask(page, question) {
   await page.fill('[data-testid="cockpit-v4-question"]', question);
   await page.click('[data-testid="cockpit-v4-ask"]');
+  await page.waitForSelector('[data-testid="cockpit-v4-thread"]',
+    { timeout: 30_000 });
+}
+
+/** Ask again from inside the thread, where the composer is. */
+async function followUp(page, question) {
+  await page.fill('[data-testid="v4-composer-input"]', question);
+  await page.click('[data-testid="v4-composer-send"]');
+}
+
+/** The thread id in the URL, which is what makes a thread a place. */
+function threadIdFrom(page) {
+  const match = /\/cockpit\/thread\/([^/?#]+)/.exec(page.url());
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+/** An answer is on screen once its assistant turn has rendered. */
+async function waitForAnswer(page, timeout = 60_000) {
+  await page.waitForSelector('[data-testid="v4-turn-assistant"]', { timeout });
 }
 
 /** Wait, and say what the browser complained about when it times out. */
@@ -165,7 +192,7 @@ await test(
 
       await ask(page, "Who are you?");
 
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
 
       const runPosts = calls(requests, "/api/v1/cockpit-v4/runs").filter(
         (url) => !url.includes("/events") && !url.includes("/cancel"),
@@ -190,7 +217,7 @@ await test("the process panel appears and consumes the V4 event stream",
       // The panel is on screen while the run is still working — not after.
       await expect(page, '[data-testid="v4-process-panel"]', 30_000, problems);
 
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
 
       const streams = calls(requests, "/events");
       assert.ok(
@@ -251,7 +278,7 @@ await test("progress events are rendered before the answer arrives",
         `the stages must be backend stages, got ${JSON.stringify(steps)}`,
       );
 
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
     } finally {
       await context.close();
     }
@@ -407,7 +434,7 @@ await test("no request from the page goes to the legacy backend port",
     const { context, page, requests, problems } = await openCockpit(browser);
     try {
       await ask(page, "Who are you?");
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
       const stray = requests.filter((url) => /:8000(\/|$)/.test(url));
       assert.deepEqual(stray, [], "nothing may address the legacy backend");
     } finally {
@@ -425,7 +452,7 @@ await test("the process panel shows real stages, not 'not started' at 0s",
       await ask(page, "Who are you?");
       await expect(page, '[data-testid="v4-process-panel"]', 30_000, problems);
       await page.click('[data-testid="v4-toggle-process"]');
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
 
       const steps = await page.$$eval(
         '[data-testid="v4-process-steps"] li',
@@ -483,7 +510,7 @@ await test("the answer renders as Markdown, with no raw syntax left over",
     const { context, page, problems } = await openCockpit(browser);
     try {
       await ask(page, "Who are you?");
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
       await expect(page, '[data-testid="v4-markdown"]', 10_000, problems);
 
       const headings = await page.$$eval(
@@ -518,7 +545,7 @@ await test("suggested-question chips stay interactive UI, not Markdown",
     const { context, page, requests, problems } = await openCockpit(browser);
     try {
       await ask(page, "Who are you?");
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
 
       const chips = await page.$$('[data-testid="v4-response"] button');
       assert.ok(chips.length >= 1, "the answer offers next questions as chips");
@@ -596,13 +623,72 @@ await test("a failed attempt stays visible after a later attempt succeeds",
   },
 );
 
+// Pictures of the conversation, so "it feels like a thread" is inspectable
+// rather than asserted. §58: a human looks at these; a DOM assertion that a
+// component exists is not the same claim.
+if (process.env.V4_THREAD_SHOTS) {
+  const dir = process.env.V4_THREAD_SHOTS;
+  const shot = async (page, name) => {
+    await page.setViewportSize({ width: 1440, height: 1200 });
+    await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
+    console.log(`  screenshot ${dir}/${name}.png`);
+  };
+
+  // B. an analytical thread, with its chart and its table.
+  {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "What is the EAD by sector for the latest quarter?");
+      await waitForAnswer(page, 90_000);
+      await shot(page, "thread_analytical_chart");
+      await page.click('[data-testid="v4-visual-table"]').catch(() => {});
+      await shot(page, "thread_analytical_table");
+    } finally {
+      await context.close();
+    }
+  }
+
+  // C. a seeded investigation.
+  {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await openDrawer(page);
+      await page.click('[data-testid="attention-investigate"]');
+      await page.waitForSelector('[data-testid="v4-investigation-context"]',
+        { timeout: 30_000 });
+      await shot(page, "thread_investigation");
+    } finally {
+      await context.close();
+    }
+  }
+
+  // D. a multi-turn conversation.
+  {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+      await followUp(page, "What is Cockpit for?");
+      await page.waitForFunction(
+        () =>
+          document.querySelectorAll('[data-testid="v4-turn-assistant"]').length
+            >= 2,
+        { timeout: 90_000 },
+      );
+      await shot(page, "thread_multi_turn");
+    } finally {
+      await context.close();
+    }
+  }
+}
+
 // A picture of the rendered answer, so "polished" is inspectable rather than
 // asserted. Written only when a path is given.
 if (process.env.V4_BROWSER_SCREENSHOT) {
   const { context, page, problems } = await openCockpit(browser);
   try {
     await ask(page, "Who are you?");
-    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+    await waitForAnswer(page);
     await page.click('[data-testid="v4-toggle-process"]');
     await page.setViewportSize({ width: 900, height: 1400 });
     await page.screenshot({
@@ -614,6 +700,231 @@ if (process.env.V4_BROWSER_SCREENSHOT) {
     await context.close();
   }
 }
+
+
+// ---- the conversation ---------------------------------------------------
+//
+// The product problem this round exists for: V4 could answer, and the
+// experience was still a dashboard. One question, one answer, and to ask the
+// obvious next thing you scrolled back to the box you started in. These
+// assert the thread as a PLACE -- its own URL, its own transcript, its own
+// composer -- and that asking again appends rather than replaces.
+
+await test("asking from home opens a conversation at its own URL", async () => {
+  const { context, page, requests, problems } = await openCockpit(browser);
+  try {
+    await ask(page, "Who are you?");
+
+    const threadId = threadIdFrom(page);
+    assert.ok(threadId, `the URL is not a thread: ${page.url()}`);
+    const mounted = await page.getAttribute('[data-testid="cockpit-v4-thread"]',
+      "data-thread-id");
+    assert.equal(mounted, threadId, "the view and the URL name one thread");
+
+    // The question the reader typed is at the top of it, immediately.
+    const asked = await page.textContent('[data-testid="v4-turn-user"]');
+    assert.match(asked ?? "", /Who are you\?/);
+
+    assertNoLegacyCalls(requests, "after opening a thread");
+  } finally {
+    await context.close();
+  }
+});
+
+await test("the follow-up composer is waiting under the answer", async () => {
+  const { context, page, problems } = await openCockpit(browser);
+  try {
+    await ask(page, "Who are you?");
+    await waitForAnswer(page);
+    await expect(page, '[data-testid="v4-composer-input"]', 10_000, problems);
+    const placeholder = await page.getAttribute(
+      '[data-testid="v4-composer-input"]', "placeholder");
+    assert.match(placeholder ?? "", /follow-up/i,
+      "the reader must not have to go back to the landing page to continue");
+  } finally {
+    await context.close();
+  }
+});
+
+await test("a follow-up appends and does not replace what came before",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+      const threadId = threadIdFrom(page);
+
+      await followUp(page, "What is Cockpit for?");
+      await page.waitForFunction(
+        () =>
+          document.querySelectorAll('[data-testid="v4-turn-assistant"]').length
+            >= 2,
+        { timeout: 90_000 },
+      );
+
+      const questions = await page.$$eval('[data-testid="v4-turn-user"]',
+        (nodes) => nodes.map((n) => n.textContent ?? ""));
+      assert.ok(questions.length >= 2, "both questions must remain on screen");
+      assert.match(questions[0], /Who are you\?/,
+        "the first exchange must not have been replaced");
+      assert.equal(threadIdFrom(page), threadId,
+        "a follow-up stays in the same conversation");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("a refresh restores the transcript without asking again",
+  async () => {
+    const { context, page, requests, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+      const threadId = threadIdFrom(page);
+      const before = calls(requests, "/api/v1/cockpit-v4/runs").filter(
+        (url) => !url.includes("/events") && !url.includes("/cancel"),
+      ).length;
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page, '[data-testid="cockpit-v4-thread"]', 30_000, problems);
+      await waitForAnswer(page, 30_000);
+
+      assert.equal(threadIdFrom(page), threadId);
+      const after = calls(requests, "/api/v1/cockpit-v4/runs").filter(
+        (url) => !url.includes("/events") && !url.includes("/cancel"),
+      ).length;
+      assert.equal(after, before,
+        "a reload must not re-ask: it spends the analysis twice and tells "
+        + "the reader nothing about the first one");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("the thread header names the conversation and renames it",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "Who are you?");
+      await waitForAnswer(page);
+
+      const title = await page.textContent('[data-testid="v4-thread-title"]');
+      assert.match(title ?? "", /Who are you\?/,
+        "a thread is named by what was asked in it");
+
+      await page.click('[data-testid="v4-thread-rename"]');
+      await page.fill('[data-testid="v4-thread-title-input"]', "My review");
+      await page.click('[data-testid="v4-thread-rename-save"]');
+      await page.waitForFunction(
+        () =>
+          document.querySelector('[data-testid="v4-thread-title"]')
+            ?.textContent === "My review",
+        { timeout: 10_000 },
+      );
+
+      // And it survives a reload, because the rename reached the server.
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page, '[data-testid="v4-thread-title"]', 30_000, problems);
+      assert.equal(
+        await page.textContent('[data-testid="v4-thread-title"]'),
+        "My review",
+      );
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("Investigate Further opens the conversation, not just the context",
+  async () => {
+    const { context, page, requests, problems } = await openCockpit(browser);
+    try {
+      await openDrawer(page);
+      await page.click('[data-testid="attention-investigate"]');
+
+      await expect(page, '[data-testid="cockpit-v4-thread"]', 30_000, problems);
+      assert.ok(threadIdFrom(page), "an investigation must open somewhere");
+
+      const seed = await expect(
+        page, '[data-testid="v4-investigation-context"]', 15_000, problems);
+      const shown = (await seed.textContent()) ?? "";
+      assert.ok(shown.trim().length > 0, "the card says what is under review");
+
+      await expect(page, '[data-testid="v4-composer-input"]', 10_000, problems);
+      assertNoLegacyCalls(requests, "after Investigate Further");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("an analytical answer leads with a chart and offers its table",
+  async () => {
+    const { context, page, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "What is the EAD by sector for the latest quarter?");
+      await waitForAnswer(page, 90_000);
+
+      await expect(page, '[data-testid="v4-visuals"]', 20_000, problems);
+      const bars = await page.$$('[data-testid="v4-chart-bar"]');
+      assert.ok(bars.length >= 2,
+        "a ranked comparison of sectors is what a bar chart is for");
+
+      // Bars are scaled from CANONICAL values, so the widths must differ
+      // when the values do.
+      const values = await page.$$eval('[data-testid="v4-chart-bar"]',
+        (nodes) => nodes.map((n) => Number(n.getAttribute("data-value"))));
+      assert.ok(values.some((v) => v !== values[0]),
+        "every bar carries the same value; the chart is not reading the data");
+
+      // And the exact figures are one click away.
+      await page.click('[data-testid="v4-visual-table"]');
+      await expect(page, '[data-testid="v4-result-table"]', 10_000, problems);
+      const rows = await page.$$('[data-testid="v4-table-row"]');
+      assert.ok(rows.length >= 2, "the table shows the rows behind the chart");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("the active stage counts seconds while it is working", async () => {
+  // §64: the acceptance is that a reader can WATCH the number change. The
+  // stub is deliberately slow so there is something to watch.
+  const { context, page, problems } = await openCockpit(browser);
+  try {
+    await ask(page, "slowly answer");
+    await expect(page, '[data-testid="v4-process-panel"]', 20_000, problems);
+    await page.click('[data-testid="v4-toggle-process"]');
+
+    const readSummary = async () =>
+      (await page.textContent('[data-testid="v4-process-summary"]')) ?? "";
+
+    const first = await page.waitForFunction(
+      () => {
+        const text = document.querySelector(
+          '[data-testid="v4-process-summary"]')?.textContent ?? "";
+        const match = /(\d+)s elapsed/.exec(text);
+        return match ? Number(match[1]) : false;
+      },
+      { timeout: 30_000 },
+    );
+    const started = await first.jsonValue();
+
+    const moved = await page.waitForFunction(
+      (from) => {
+        const text = document.querySelector(
+          '[data-testid="v4-process-summary"]')?.textContent ?? "";
+        const match = /(\d+)s elapsed/.exec(text);
+        return match && Number(match[1]) > from ? Number(match[1]) : false;
+      },
+      started,
+      { timeout: 30_000 },
+    );
+    const later = await moved.jsonValue();
+    assert.ok(later > started,
+      `the clock did not move: ${started}s then ${await readSummary()}`);
+  } finally {
+    await context.close();
+  }
+});
 
 // ---- the home feed, the drawer, and Investigate Further ----------------
 
@@ -801,7 +1112,7 @@ await test("a follow-up uses the seeded context without restating it",
       });
 
       await ask(page, "show me the customers behind this");
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
 
       assert.equal(posted.length, 1, "one run submitted");
       const body = JSON.parse(posted[0]);
@@ -924,7 +1235,7 @@ await test("an attention-feed failure does not break Ask", async () => {
     );
 
     await ask(page, "Who are you?");
-    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+    await waitForAnswer(page);
   } finally {
     await context.close();
   }
@@ -1172,7 +1483,7 @@ await test("Continue where you left off uses real V4 threads", async () => {
     assert.ok(empty || before.length > 0);
 
     await ask(page, "Who are you?");
-    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+    await waitForAnswer(page);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector('[data-testid="continue-thread"]',
       { timeout: 60_000 });
@@ -1191,7 +1502,7 @@ await test("an Arabic answer renders right-to-left without breaking the page",
     const { context, page, problems } = await openCockpit(browser);
     try {
       await ask(page, "ما هو CreditProbe؟");
-      await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+      await waitForAnswer(page);
       const direction = await page.evaluate(() => {
         const input = document.querySelector(
           '[data-testid="cockpit-v4-question"]',
@@ -1338,7 +1649,7 @@ await test("an answer, its table and its chart use one currency", async () => {
   const { context, page, problems } = await openCockpit(browser);
   try {
     await ask(page, "What is total exposure at default by sector?");
-    await expect(page, '[data-testid="v4-response"]', 60_000, problems);
+    await waitForAnswer(page);
     const text = await page.textContent('[data-testid="v4-response"]');
     for (const word of INDIA_WORDS) {
       assert.ok(!new RegExp(word, "i").test(text ?? ""),

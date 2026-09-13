@@ -118,6 +118,7 @@ def main() -> int:
                  "V4_RELEASE": os.environ.get("COCKPIT_V4_TEST_RELEASE",
                                               "v4-saudi-20q-v1"),
                  "V4_BROWSER_EVIDENCE": str(evidence),
+                 "V4_THREAD_SHOTS": str(evidence.parent),
                  "V4_BROWSER_SCREENSHOT": str(
                      evidence.parent / "cockpit_v4_answer.png"),
                  # The restored landing page, captured for human review

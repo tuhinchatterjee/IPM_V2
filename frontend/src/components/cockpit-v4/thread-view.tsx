@@ -38,7 +38,10 @@ import * as React from "react";
 import {
   acknowledge,
   cancelRun,
+  forgetRun,
   readStatus,
+  recallRun,
+  rememberRun,
   readThread,
   renameThread,
   startRun,
@@ -52,8 +55,13 @@ import { AnswerActions } from "./answer-actions";
 import { ProcessPanel } from "./process-panel";
 import { initial, reduce } from "./reducer";
 import { ResponsePanel } from "./response-panel";
-import { Markdown } from "./markdown.tsx";
 import { Visuals } from "./visuals";
+
+/** A run in one of these states is finished; there is nothing to follow. */
+const TERMINAL_RUN_STATES = new Set([
+  "COMPLETED", "PARTIAL", "FAILED", "EXPIRED", "CANCELLED", "UNSUPPORTED",
+  "REFERRED", "WAITING_FOR_USER", "INTERRUPTED",
+]);
 
 /** One exchange already on the server. */
 type Settled = {
@@ -87,40 +95,6 @@ function UserTurn({ question }: { question: string }) {
   );
 }
 
-function Suggestions({
-  questions,
-  onAsk,
-}: {
-  questions: string[];
-  onAsk: (question: string) => void;
-}) {
-  if (!questions.length) return null;
-  return (
-    <div data-testid="v4-suggestions" className="flex flex-wrap gap-2">
-      {questions.map((question) => (
-        <button
-          key={question}
-          type="button"
-          dir="auto"
-          data-testid="v4-suggestion"
-          onClick={() => onAsk(question)}
-          className="rounded-full border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-        >
-          {question}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/**
- * A completed exchange.
- *
- * Executive first: the narrative leads, the visual evidence follows, the
- * suggestions close. Prose wraps at a readable measure; the chart and the
- * table get the workspace, because a twelve-row sector table squeezed into a
- * prose column is the reason people export to Excel.
- */
 function AssistantTurn({
   turn,
   onAsk,
@@ -128,38 +102,34 @@ function AssistantTurn({
   turn: Settled;
   onAsk: (question: string) => void;
 }) {
-  const answer = turn.answer;
-  const suggestions = (answer.suggested_questions ?? [])
-    .map((s) => (typeof s === "string" ? s : s?.question))
-    .filter((q): q is string => Boolean(q));
+  // The answer body is the SAME component the live run renders, driven by a
+  // view reconstructed from the stored turn. A second renderer for answers
+  // read back from the server would be a second set of rules about
+  // dispositions, evidence links and suggested questions, and the two would
+  // drift the first time either changed.
+  const view = React.useMemo(
+    () => ({
+      ...initial(turn.runId),
+      terminal: true,
+      state: "COMPLETED",
+      response: turn.answer,
+    }),
+    [turn.runId, turn.answer],
+  );
 
   return (
     <div data-testid="v4-turn-assistant" className="space-y-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-        CreditProbe
-      </p>
-      <div className="max-w-[68ch] text-sm leading-relaxed text-slate-800">
-        <Markdown source={answer.narrative ?? ""} />
-      </div>
-
-      <Visuals tables={answer.tables ?? []} charts={answer.charts ?? []} />
-
-      {(answer.limitations ?? []).length ? (
-        <ul
-          data-testid="v4-limitations"
-          className="max-w-[68ch] list-disc space-y-1 pl-5 text-xs text-amber-900"
-        >
-          {answer.limitations.map((limit) => (
-            <li key={limit}>{limit}</li>
-          ))}
-        </ul>
-      ) : null}
-
-      <AnswerActions runId={turn.runId} question={turn.question} />
-      <Suggestions questions={suggestions} onAsk={onAsk} />
+      <ResponsePanel
+        view={view}
+        question={turn.question}
+        onAsk={onAsk}
+      />
+      <Visuals tables={turn.answer.tables ?? []}
+               charts={turn.answer.charts ?? []} />
     </div>
   );
 }
+
 
 /** What a seeded investigation already knows, before anything is asked. */
 function SeedCard({ context }: { context: ThreadTranscript["context"] }) {
@@ -369,11 +339,14 @@ export function CockpitV4Thread({
     null,
   );
   const [loadError, setLoadError] = React.useState("");
-  const [live, setLive] = React.useState<{ question: string } | null>(null);
+  const [live, setLive] = React.useState<
+    { question: string; runId: string } | null
+  >(null);
   const [view, dispatch] = React.useReducer(reduce, initial());
   const [mode, setMode] = React.useState<RunMode>("standard");
   const [error, setError] = React.useState("");
   const asked = React.useRef(false);
+  const resumed = React.useRef(false);
   const bottom = React.useRef<HTMLDivElement | null>(null);
 
   const load = React.useCallback(async () => {
@@ -390,32 +363,58 @@ export function CockpitV4Thread({
     void load();
   }, [load]);
 
+  /**
+   * Follow a run that is already going: attach the stream, settle, reload.
+   *
+   * Shared by asking and by RESUMING after a refresh, because the two are the
+   * same thing from the moment the run id exists -- and a resumed run that
+   * followed a different code path would be a second set of rules about
+   * cursors, settlement and acknowledgement.
+   */
+  const follow = React.useCallback(
+    (runId: string) =>
+      watch(runId, {
+        onEvent: (event) => dispatch({ type: "event", event }),
+        onConnectionState: (state) =>
+          dispatch({ type: "connection", state }),
+        onSettled: async () => {
+          try {
+            const status = await readStatus(runId);
+            dispatch({ type: "settled", status });
+            await acknowledge(runId).catch(() => undefined);
+          } catch {
+            /* the transcript reload below is the authority anyway */
+          }
+          forgetRun();
+          await load();
+        },
+      }),
+    [load],
+  );
+
   const ask = React.useCallback(
     async (question: string) => {
       if (!question.trim()) return;
       setError("");
-      setLive({ question });
+      // The previous run's panel gives way to this one. Its exchange is
+      // already in the transcript by now, so the conversation keeps it.
+      await load();
+      setLive({ question, runId: "" });
       dispatch({ type: "start", runId: "" });
       try {
         const started = await startRun({ question, mode, threadId });
+        setLive({ question, runId: started.run_id });
         dispatch({ type: "start", runId: started.run_id });
-        const stop = watch(started.run_id, {
-          onEvent: (event) => dispatch({ type: "event", event }),
-          onConnectionState: (state) =>
-            dispatch({ type: "connection", state }),
-          onSettled: async () => {
-            try {
-              const status = await readStatus(started.run_id);
-              dispatch({ type: "settled", status });
-              await acknowledge(started.run_id).catch(() => undefined);
-            } catch {
-              /* the transcript reload below is the authority anyway */
-            }
-            await load();
-            setLive(null);
-          },
-        });
-        return stop;
+        // The pointer a refresh picks the run back up from. The transcript
+        // itself is the server's; this is only "which run is still working".
+        rememberRun({ runId: started.run_id, threadId, cursor: 0 });
+        // The live turn STAYS once the answer arrives. Its process panel is
+        // where the stages, their timings and any failed attempt live, and
+        // clearing it the moment the answer landed took the trace off the
+        // screen at exactly the point a reader wants to check it (§56). The
+        // turn it belongs to is filtered out of the reloaded transcript, so
+        // the exchange is drawn once.
+        return follow(started.run_id);
       } catch (cause) {
         setLive(null);
         setError(
@@ -436,6 +435,38 @@ export function CockpitV4Thread({
     void ask(initialQuestion);
   }, [ask, initialQuestion]);
 
+  /**
+   * Pick a run back up after a refresh.
+   *
+   * A run outlives this page. Reloading while one is working must reconnect
+   * to THAT run rather than ask again -- asking again spends the analysis
+   * twice and tells the reader nothing about the first one. The status is
+   * read first, so a run that settled while the browser was away is settled
+   * here rather than followed into a stream that has already ended.
+   */
+  React.useEffect(() => {
+    if (initialQuestion || resumed.current) return;
+    resumed.current = true;
+    const active = recallRun();
+    if (!active || active.threadId !== threadId) return;
+    let stop: (() => void) | undefined;
+    void (async () => {
+      try {
+        const status = await readStatus(active.runId);
+        if (TERMINAL_RUN_STATES.has(status.state)) {
+          forgetRun();
+          return;
+        }
+        setLive({ question: "", runId: active.runId });
+        dispatch({ type: "start", runId: active.runId });
+        stop = follow(active.runId);
+      } catch {
+        forgetRun();
+      }
+    })();
+    return () => stop?.();
+  }, [follow, initialQuestion, threadId]);
+
   React.useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [transcript?.turn_count, live?.question, view.terminal]);
@@ -454,8 +485,15 @@ export function CockpitV4Thread({
     [threadId],
   );
 
-  const turns = (transcript?.turns ?? []).map(settled);
-  const busy = Boolean(live);
+  // The exchange that is still on screen as a live run is not drawn a second
+  // time from the transcript. Both are the same question and the same answer;
+  // the live one additionally carries its process panel.
+  const turns = (transcript?.turns ?? [])
+    .filter((turn) => !live || turn.run_id !== live.runId)
+    .map(settled);
+  // "Busy" is about whether a NEW question can be asked, which a finished run
+  // does not prevent -- the panel simply stays on screen.
+  const busy = Boolean(live) && !view.terminal;
 
   if (loadError) {
     return (
@@ -516,8 +554,31 @@ export function CockpitV4Thread({
                   : undefined
               }
             />
-            {view.terminal && view.state !== "COMPLETED" ? (
-              <ResponsePanel view={view} />
+            {/*
+              The answer lands HERE, under the process panel that produced
+              it, and a run that stopped shows the stop in the same place.
+              §55: one failed exchange does not wipe the conversation it
+              happened in -- the turns before it are untouched, and the
+              composer below is still available.
+            */}
+            {view.terminal ? (
+              // The same turn marker a settled exchange carries. This IS
+              // the assistant's turn -- it simply still has the process
+              // panel that produced it attached above.
+              <div data-testid="v4-turn-assistant" className="space-y-4">
+                <ResponsePanel
+                  view={view}
+                  question={live.question}
+                  threadId={threadId}
+                  onAsk={(q) => void ask(q)}
+                />
+                {view.response ? (
+                  <Visuals
+                    tables={view.response.tables ?? []}
+                    charts={view.response.charts ?? []}
+                  />
+                ) : null}
+              </div>
             ) : null}
           </article>
         ) : null}

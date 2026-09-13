@@ -27,18 +27,9 @@
 import * as React from "react";
 
 import type { ChartPoint, RenderedChart, RenderedTable } from "./client";
+import { TOP_N, choose, numeric, text } from "./visual-choice";
 
-/** How many rows a table shows before a reader asks for the rest. §14, §41. */
-export const TOP_N = 10;
-
-function numeric(value: unknown): number | null {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function text(value: unknown): string {
-  return value === null || value === undefined ? "" : String(value);
-}
+export { TOP_N, chartIsUseful } from "./visual-choice";
 
 // ---- table --------------------------------------------------------------
 
@@ -336,22 +327,6 @@ export function ResultChart({ chart }: { chart: RenderedChart }) {
 // ---- what to show -------------------------------------------------------
 
 /**
- * Whether a chart is worth drawing at all.
- *
- * §13 and §42: a chart earns its place. One point is a number and a chart of
- * it is decoration; no points is an empty frame that reads as missing data
- * rather than as no data.
- */
-export function chartIsUseful(chart: RenderedChart | undefined): boolean {
-  if (!chart) return false;
-  const points = chart.points ?? [];
-  if (points.length < 2) return false;
-  const columns = chart.y_columns ?? [];
-  if (!columns.length) return false;
-  return points.some((p) => numeric(p.values?.[columns[0]]) !== null);
-}
-
-/**
  * Chart and table together, with a toggle only when both say something.
  *
  * §21: a disabled Chart button beside a table that could never be charted is
@@ -365,13 +340,10 @@ export function Visuals({
   tables: RenderedTable[];
   charts: RenderedChart[];
 }) {
-  const chart = charts.find((c) => chartIsUseful(c));
-  const table = tables.find((t) => (t.rows ?? []).length > 0);
+  const { chart, table, both } = choose(tables, charts);
   const [view, setView] = React.useState<"chart" | "table">("chart");
 
   if (!chart && !table) return null;
-
-  const both = Boolean(chart && table);
   const showing = both ? view : chart ? "chart" : "table";
 
   return (
