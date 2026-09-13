@@ -26,6 +26,11 @@ def _refresh_evidence(args, target, store, profile, saudi) -> int:
     """Rewrite docs evidence from a published release, changing no data."""
     import pandas as pd
 
+    if args.no_evidence:
+        print(f"  {args.release} is not the demonstration release the docs "
+              f"describe; nothing was rewritten")
+        return 0
+
     manifest = store.read_manifest(args.release)
     frames = {path.stem: pd.read_parquet(path)
               for path in sorted(target.glob("*.parquet"))}
@@ -62,11 +67,25 @@ def main() -> int:
     parser.add_argument("--refresh-evidence", action="store_true",
                         help="Rewrite the evidence files for an already "
                              "published release. Does not touch the data.")
+    parser.add_argument("--no-evidence", action="store_true",
+                        help="Do not rewrite docs/cockpit_v4/evidence. Set "
+                             "automatically for any release other than the "
+                             "canonical demonstration one.")
     parser.add_argument("--no-localize", action="store_true",
                         help="Publish the generator's own currency and names "
                              "unchanged. For comparison only; the V4 "
                              "demonstration is Saudi.")
     args = parser.parse_args()
+
+    # The evidence documents under docs/ describe THE demonstration release.
+    # Seeding any other one used to rewrite them, so a probe release of
+    # twenty borrowers would be published in the docs as the book -- a
+    # reader of release_summary.json would have been told something false
+    # about the release they were actually running.
+    from backend.cockpit_v4 import release as release_mod
+
+    if args.release != release_mod.DEFAULT_RELEASE_ID:
+        args.no_evidence = True
 
     if args.namespace.strip() in ("", "cockpit_agentic_v3"):
         print("Refusing to seed into the V3 namespace. V4 uses its own.",
@@ -151,6 +170,11 @@ def main() -> int:
     print(f"  relations: {len(manifest['relations'])}")
     print(f"  quarters:  {len(release.calendar.slots)} "
           f"({release.calendar.slots[0]}..{release.calendar.slots[-1]})")
+
+    if args.no_evidence:
+        print(f"  evidence not rewritten: {args.release} is not the "
+              f"demonstration release the docs describe")
+        return 0
 
     evidence = ROOT / "docs" / "cockpit_v4" / "evidence"
     evidence.mkdir(parents=True, exist_ok=True)
