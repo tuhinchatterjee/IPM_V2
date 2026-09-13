@@ -212,6 +212,26 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
             "the dashboard already showed them, so re-derive any number you "
             "state from your own executed query):\n"
             + json.dumps(investigation, ensure_ascii=False, default=str))
+        # The case file. A seeded thread is about ONE indicator, and the
+        # schema that indicator turns on is already known -- CreditProbe
+        # computed the card from it. Handing it over costs a few hundred
+        # tokens and removes the only reason this thread would have to ask
+        # `inspect_catalog` for a relation it cannot name a field in. The
+        # covenant case is the live one: asking for the relation returned all
+        # fifty-nine of its columns and spent the run.
+        case_fields = sem.seed_field_packet(
+            catalog, str(investigation.get("metric") or ""))
+        if case_fields:
+            parts.append(
+                "CASE FILE FOR THIS INVESTIGATION (the schema behind the "
+                "card's own measure, already resolved. These are field "
+                "FACTS, not a method: which of them the answer needs, how to "
+                "aggregate them and which period to compare are yours to "
+                "decide. If the question turns on a field that is not here, "
+                "inspect_catalog is still available):\n"
+                + json.dumps({"metric": investigation.get("metric", ""),
+                              "fields": case_fields},
+                             ensure_ascii=False, default=str))
     if history:
         parts.append(
             "RECENT COMPLETED TURNS IN THIS THREAD (exact records; these "

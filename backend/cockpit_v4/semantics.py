@@ -192,6 +192,140 @@ _RELATION_FACTS: dict[str, dict[str, str]] = {
 }
 
 
+def _field_facts(
+    relation: str,
+    column: str,
+    spec: Any,
+    catalog: Any,
+) -> dict[str, Any]:
+    """Schema facts for one column, read straight off the catalogue.
+
+    The mechanical half of a field-packet entry: what the column IS -- its
+    type, unit, how it aggregates, the values it may take, the grain and key
+    of the relation it sits in. Not which question it answers.
+
+    Callers with a canonical mapping overwrite `means` with the term's
+    recorded meaning; callers seeding an investigation keep the catalogue's
+    own definition, because a covenant column has no canonical mapping and
+    inventing one here would be this module deciding the analysis.
+    """
+    entry: dict[str, Any] = {
+        "field_id": f"{relation}.{column}",
+        "relation": relation,
+        "column": column,
+    }
+    if spec is not None:
+        definition = str(getattr(spec, "definition", "") or "")
+        if definition:
+            entry["means"] = definition
+        entry["dtype"] = getattr(spec, "dtype", "")
+        unit = getattr(spec, "unit", "")
+        if unit:
+            entry["unit"] = unit
+        aggregation = getattr(spec, "aggregation", "")
+        if aggregation:
+            entry["aggregation"] = aggregation
+        enumeration = tuple(getattr(spec, "enumeration", ()) or ())
+        if enumeration:
+            entry["allowed_values"] = list(enumeration)
+        if getattr(spec, "currency_scoped", False):
+            entry["currency"] = getattr(catalog, "reporting_currency", "")
+            entry["amount_scale"] = getattr(catalog, "amount_scale", "")
+    facts = _RELATION_FACTS.get(relation, {})
+    entry.update({k: v for k, v in facts.items() if v})
+    return entry
+
+
+#: The fields a seeded investigation needs BEYOND the canonical measures,
+#: keyed by the attention indicator the card was built on.
+#:
+#: Mechanical, not analytical. Every column here is one the card's own
+#: server-authored SQL reads to compute that indicator, plus the columns that
+#: identify a row at its relation's grain. CreditProbe already knows them
+#: because it already ran that SQL. Nothing here says how to aggregate them,
+#: which quarter to compare, or what the answer is.
+#:
+#: Most indicators map to an empty tuple, and that is the finding rather than
+#: an omission: they are computed from `cockpit_facility_quarter` columns that
+#: `field_packet` already carries -- `ead_reported`, `ecl_reported`,
+#: `ifrs9_stage`, `pd_pit_12m`, `days_past_due`, `collateral_coverage_ratio`.
+#: A seeded thread on those needs no extra schema at all.
+#:
+#: The two that are not empty are the two whose measure lives outside the
+#: facility relation. This exists because a live seeded covenant run called
+#: `inspect_catalog` for `cockpit_covenant_quarter` and got back all
+#: fifty-nine of the columns the release carries for it -- the whole relation,
+#: because no covenant column is among the canonical measures and asking for
+#: the relation was the only way to ask.
+SEED_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
+    # SQL_COVENANT reads borrower_id, reporting_quarter, headroom_value and
+    # breach_date. The rest identify the obligation a breach belongs to, so
+    # "which covenants are in breach" resolves at the covenant grain instead
+    # of returning borrower ids with nothing to name them by.
+    "covenant_breach_share": (
+        ("cockpit_covenant_quarter", "covenant_id"),
+        ("cockpit_covenant_quarter", "borrower_id"),
+        ("cockpit_covenant_quarter", "facility_id"),
+        ("cockpit_covenant_quarter", "covenant_name"),
+        ("cockpit_covenant_quarter", "covenant_type"),
+        ("cockpit_covenant_quarter", "metric_name"),
+        ("cockpit_covenant_quarter", "comparison_operator"),
+        ("cockpit_covenant_quarter", "threshold_value"),
+        ("cockpit_covenant_quarter", "observed_value"),
+        ("cockpit_covenant_quarter", "test_status"),
+        ("cockpit_covenant_quarter", "headroom_value"),
+        ("cockpit_covenant_quarter", "headroom_unit"),
+        ("cockpit_covenant_quarter", "breach_date"),
+        ("cockpit_covenant_quarter", "waiver_flag"),
+    ),
+    # SQL_RATING reads borrower_id and rating_rank, and the relation is at
+    # borrower x quarter x rating_basis grain, so the basis has to come with
+    # it or a follow-up silently sums one borrower once per basis.
+    "rating_rank": (
+        ("cockpit_rating_ratio_quarter", "borrower_id"),
+        ("cockpit_rating_ratio_quarter", "rating_basis"),
+        ("cockpit_rating_ratio_quarter", "risk_rating"),
+        ("cockpit_rating_ratio_quarter", "rating_rank"),
+    ),
+    "stage2_share": (),
+    "stage3_share": (),
+    "ecl_coverage": (),
+    "ecl_amount": (),
+    "weighted_pd": (),
+    "uncovered_share": (),
+    "past_due_share": (),
+    "concentration_share": (),
+}
+
+#: The most field definitions a seeded case file may carry. Not a guess: the
+#: widest entry above is the covenant one at fourteen, and the bound exists so
+#: that widening it is a decision someone makes here rather than something a
+#: relation dump does by accident.
+MAX_SEED_FIELDS = 16
+
+
+def seed_field_packet(catalog: Any, metric: str) -> list[dict[str, Any]]:
+    """Schema facts for the fields THIS seeded investigation turns on.
+
+    Bounded by construction: only the columns the card's own indicator is
+    computed from, and only those the release actually carries. An indicator
+    with no entry returns nothing rather than falling back to a relation dump,
+    because "nothing extra" is the correct answer for every indicator whose
+    measure the canonical packet already covers.
+    """
+    wanted = SEED_FIELDS.get(str(metric or "").strip(), ())
+    packet: list[dict[str, Any]] = []
+    for relation, column in wanted:
+        try:
+            spec = catalog.resolve(relation, column)
+        except Exception:  # noqa: BLE001
+            continue
+        if spec is None:
+            continue
+        packet.append(_field_facts(relation, column, spec, catalog))
+    return packet[:MAX_SEED_FIELDS]
+
+
 def field_packet(catalog: Any) -> list[dict[str, Any]]:
     """Mechanical schema facts for the canonically mapped fields.
 
@@ -219,33 +353,13 @@ def field_packet(catalog: Any) -> list[dict[str, Any]]:
         if field_id in seen:
             continue
         seen.add(field_id)
-        entry: dict[str, Any] = {
-            "term": mapping["term"],
-            "field_id": field_id,
-            "relation": relation,
-            "column": column,
-            "means": mapping["means"],
-        }
         try:
             spec = catalog.resolve(relation, column)
         except Exception:  # noqa: BLE001
             spec = None
-        if spec is not None:
-            entry["dtype"] = getattr(spec, "dtype", "")
-            unit = getattr(spec, "unit", "")
-            if unit:
-                entry["unit"] = unit
-            aggregation = getattr(spec, "aggregation", "")
-            if aggregation:
-                entry["aggregation"] = aggregation
-            enumeration = tuple(getattr(spec, "enumeration", ()) or ())
-            if enumeration:
-                entry["allowed_values"] = list(enumeration)
-            if getattr(spec, "currency_scoped", False):
-                entry["currency"] = getattr(catalog, "reporting_currency", "")
-                entry["amount_scale"] = getattr(catalog, "amount_scale", "")
-        facts = _RELATION_FACTS.get(relation, {})
-        entry.update({k: v for k, v in facts.items() if v})
+        entry: dict[str, Any] = {"term": mapping["term"]}
+        entry.update(_field_facts(relation, column, spec, catalog))
+        entry["means"] = mapping["means"]
         packet.append(entry)
     return packet
 
