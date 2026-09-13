@@ -240,6 +240,10 @@ def _reading_diagnostics(turn) -> dict:
         # Grounded figures given the wrong verb. A different failure from an
         # invented one and reported apart from it.
         "direction_conflicts": list(detail.get("direction_conflicts") or []),
+        # Each movement the reading bound to a fact, and what that fact did.
+        # The route that tells an obligor improving by eight from five
+        # deteriorating by eight.
+        "movement_claims": list(detail.get("movement_claims") or []),
         # One record per rejected figure: the token, the words either side,
         # and the unit it was attached to. This is the whole reason a second
         # remediation round was needed for a single number.
@@ -379,6 +383,11 @@ def _check(case: dict, turn) -> tuple[list[dict], list[dict]]:
                if not c.get("accepted")]
     check("every declared derivation recomputed", not refused,
           [c.get("reason", "") for c in refused])
+
+    unbound = [m for m in (_final_detail(turn).get("movement_claims") or [])
+               if not m.get("accepted")]
+    check("every declared movement agreed with its own fact", not unbound,
+          [m.get("reason", "") for m in unbound])
 
     check("the ledger reconciles",
           (budget["model_calls_succeeded"] + budget["model_calls_failed"]

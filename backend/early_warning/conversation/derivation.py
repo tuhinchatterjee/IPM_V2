@@ -271,7 +271,9 @@ _NAMES_A_THING: frozenset[str] = frozenset({
     "dominant_subcategory", "dominant_driver", "ews_band", "classifier_band",
     "ta_band", "internal_rating", "ifrs9_stage", "utilisation_band",
     "relationship_manager", "leading_layer", "level_field", "level_value",
-    "movement_measure", "ordered_by", "population", "customer",
+    "movement_measure", "ordered_by", "population", "customer", "measure",
+    "direction", "weakest_group", "leading_group", "weakest_obligor",
+    "single_highest_value", "presentation", "grain", "analysis", "statement",
 })
 
 #: Keys whose value identifies the entry it sits in, best first. A list entry

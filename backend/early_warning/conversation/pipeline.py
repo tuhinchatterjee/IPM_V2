@@ -693,6 +693,10 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
          # apart from the ungrounded ones because it is a different failure:
          # every number was true and the sentence was not.
          direction_conflicts=list(read.direction_conflicts),
+         # The movements the reading bound to a fact, and the server's verdict
+         # on each. The route that can tell an obligor improving by eight from
+         # five deteriorating by eight.
+         movement_claims=list(read.movement_claims),
          model_call=dict(read.model_call))
     return _finish(turn, request, prior, ledger, ui_state, emit)
 

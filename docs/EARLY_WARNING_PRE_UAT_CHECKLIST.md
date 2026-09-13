@@ -136,3 +136,30 @@ stays rejected.
 Backend 22 failed / 10,843 passed / 27 skipped, the 22 identical to the
 recorded baseline. `tests/early_warning` and `tests/api` clean. Frontend 429 of
 429; typecheck, lint and production build clean. Against the stub, 8/8.
+
+## Run 6 — LIVE-5 direction disambiguation
+
+The fourth Mac run returned **7/8**. LIVE-5 alone failed, on a true sentence:
+the guard bound direction to the size `8.0`, which this population carries
+both ways.
+
+| # | Item | State |
+|---|---|---|
+| 60 | Prove the ±8.0 collision from the real frame | done |
+| 61 | Governed metric semantics: is it a move, which way is worse | done |
+| 62 | Direction binds to a fact, not a magnitude | done |
+| 63 | `movement_claims` — the reading names the fact it means | done |
+| 64 | `movement_census` published with names and signed changes | done |
+| 65 | Follow-ups held to the same grounding rules | done |
+| 66 | Certification: declared movements must agree with their fact | done |
+| 67 | Focused tests, EWS/API suites, baseline regression | done |
+| 68 | Fifth Mac certification run | blocked-external |
+
+±8.0 both exist: two Contracting obligors improved by 8.0 and five
+deteriorated by 8.0. The largest deterioration is +8.0 (Sahara Development
+first of five tied); the largest improvement is −10.0 (Al Rajhi Logistics 8).
+The reading was right; the guard was not.
+
+Backend 22 failed / 10,900 passed / 27 skipped, the 22 identical to the
+recorded baseline. `tests/early_warning` and `tests/api` clean. Against the
+stub, 8/8. No frontend file changed.

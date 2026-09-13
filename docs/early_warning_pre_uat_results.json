@@ -1,8 +1,8 @@
 {
-  "verdict": "SEVEN_OF_EIGHT_REMEDIATED_AWAITING_FOURTH_LIVE_RUN",
+  "verdict": "SEVEN_OF_EIGHT_REMEDIATED_AWAITING_FIFTH_LIVE_RUN",
   "reasons": [
-    "The third Mac certification returned 7/8. LIVE-1, 2, 4, 5, 6, 7 and 8 passed and are unchanged.",
-    "LIVE-3 reached the provider intact \u2014 7/7 model calls, 2/2 executions, no schema error, no truncation \u2014 and lost its final interpretation to two figures: -4.86 and 6,301.85.",
+    "The fourth Mac certification returned 7/8. LIVE-1, 2, 3, 4, 6, 7 and 8 passed; LIVE-3 now passes live and run 5's work is untouched.",
+    "LIVE-5 was correct on ownership, execution, the packet, grounding and its derived claims, and failed on the direction guard run 5 introduced \u2014 with a sentence that was true.",
     "Early Warning is not certified until the Mac script returns 8/8 certified, VERDICT: CERTIFIED."
   ],
   "branch": "claude/early-warning-rebuild-v2-3lnttn",
@@ -5730,6 +5730,158 @@
         "live_3_s": 74.06
       },
       "to_record": "two of LIVE-3's declarations failed and one was a wasted round of reasoning; whether removing them moves the number is for the next run to record"
+    }
+  },
+  "run_6": {
+    "trigger": "fourth local Mac real-provider certification",
+    "live_result": {
+      "certified": 7,
+      "of": 8,
+      "verdict": "NOT_CERTIFIED",
+      "failed": [
+        "LIVE-5 incorrect premise"
+      ],
+      "preserved": [
+        "LIVE-1",
+        "LIVE-2",
+        "LIVE-3",
+        "LIVE-4",
+        "LIVE-6",
+        "LIVE-7",
+        "LIVE-8"
+      ]
+    },
+    "magnitude_collision": {
+      "existed": true,
+      "population": "Contracting, 2026-06, 30 obligors",
+      "at_size_8_0": {
+        "improved": [
+          {
+            "customer_id": "CORP-102361",
+            "customer_name": "Yamama Projects 6",
+            "ews_change_1m": -8.0
+          },
+          {
+            "customer_id": "CORP-102909",
+            "customer_name": "Salman Partners 4",
+            "ews_change_1m": -8.0
+          }
+        ],
+        "deteriorated": [
+          {
+            "customer_id": "CORP-100034",
+            "customer_name": "Sahara Development",
+            "ews_change_1m": 8.0
+          },
+          {
+            "customer_id": "CORP-102691",
+            "customer_name": "Tihama Ventures",
+            "ews_change_1m": 8.0
+          },
+          {
+            "customer_id": "CORP-103324",
+            "customer_name": "Al Rajhi Resources 8",
+            "ews_change_1m": 8.0
+          },
+          {
+            "customer_id": "CORP-103122",
+            "customer_name": "Sahara Projects 9",
+            "ews_change_1m": 8.0
+          },
+          {
+            "customer_id": "CORP-103430",
+            "customer_name": "Tadawi Partners 9",
+            "ews_change_1m": 8.0
+          }
+        ]
+      },
+      "census": {
+        "total": 30,
+        "improved": 3,
+        "held": 21,
+        "deteriorated": 6
+      },
+      "largest_deterioration": {
+        "value": 8.0,
+        "tied_across": 5,
+        "first": "Sahara Development"
+      },
+      "largest_improvement": {
+        "value": -10.0,
+        "customer_name": "Al Rajhi Logistics 8"
+      },
+      "what_the_sentences_meant": "both follow_ups[1] and caveats[0] referred to the +8.0 largest deterioration, not to the -8.0 improvers. The reading was right"
+    },
+    "why_the_guard_chose_the_wrong_fact": "run 5's guard mapped size -> direction and dropped any size the result carried both ways. That safeguard was correct and did not fire, because the change-fact pattern was a regex looking for the word 'change' and `largest_deterioration: +8.0` does not contain it. The only 8.0 the map saw was rows.*.ews_change_1m = -8.0, so a genuine collision looked like a certainty",
+    "defects_fixed": [
+      {
+        "id": "R6-1",
+        "title": "direction was bound to a magnitude",
+        "fix": "backend/early_warning/metrics.py owns whether a name measures a move and which way is worse; the semantics come from the field dictionary's higher_is_worse, a change column inherits from the level it measures, and an unclassified metric is reported unknown and not checked",
+        "not_universal": "the EWS up-is-worse convention is stated once and not assumed for every metric"
+      },
+      {
+        "id": "R6-2",
+        "title": "no way for a reading to say WHICH fact a direction was about",
+        "fix": "movement_claims in the reading schema \u2014 {fact_ref, direction, value}. The server resolves the ref, applies that metric's semantics and checks the wording and the size. A size a bound claim accounts for is exempt from the size-based check"
+      },
+      {
+        "id": "R6-3",
+        "title": "the size-based check was fed an incomplete movement-fact set",
+        "fix": "it now reads every movement fact through the metric module, so 8.0 is dropped as ambiguous and 10.0 \u2014 only ever the improvement \u2014 is still checked"
+      },
+      {
+        "id": "R6-4",
+        "title": "the census forced the reading to infer counts and extremes from rows",
+        "fix": "movement_census on the packet and published to the writer: total, improved_count, held_count, deteriorated_count, and largest_improvement / largest_deterioration with the obligor's id, name and signed change"
+      },
+      {
+        "id": "R6-5",
+        "title": "follow-ups could manufacture a benchmark",
+        "fix": "the prompt holds a follow-up to the same grounding rules and says a plain drill is the better one"
+      },
+      {
+        "id": "R6-6",
+        "title": "label keys were published as figures",
+        "fix": "`measure`, `direction`, `analysis` and the rest excluded, so ews_change_1m is not published as the figure 1"
+      }
+    ],
+    "preserved_from_6ce2288": [
+      "published fact_index",
+      "server-owned weighted contributions",
+      "exposure_share_pct",
+      "obligor_share_pct",
+      "signed derived-claim rule",
+      "sign_corrected behaviour",
+      "LIVE-3 headline precedence",
+      "direction checking generally",
+      "the 6,301.85 rejection",
+      "strict grounding",
+      "hardened certification checks"
+    ],
+    "certification": {
+      "weakened": false,
+      "added": [
+        "every declared movement agreed with its own fact"
+      ],
+      "report_carries": "each movement claim with the server's verdict"
+    },
+    "new_tests": {
+      "tests/early_warning/test_direction_binding.py": 57
+    },
+    "amended_tests": [],
+    "regression": {
+      "early_warning_and_api": "0 failures",
+      "backend": {
+        "failed": 22,
+        "passed": 10900,
+        "skipped": 27,
+        "identical_to_baseline": true,
+        "new_failures": [],
+        "resolved_failures": []
+      },
+      "frontend": "429 / 429 pass (no frontend file changed this run)",
+      "stub_certification": "8/8"
     }
   }
 }

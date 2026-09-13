@@ -1247,3 +1247,118 @@ Not refactored. The last run's median was 53.64s and LIVE-3 74.06s, already
 well below the 134.6s of two runs ago. Two of LIVE-3's declarations failed and
 one was a wasted round of reasoning; whether removing them moves the number is
 for the next run to record rather than for me to claim.
+
+---
+
+# Run 6 — the same eight points, two directions
+
+The fourth Mac certification returned **7/8**. LIVE-1, 2, 3, 4, 6, 7 and 8
+passed; LIVE-3 in particular now passes live, and none of run 5's work is
+touched. LIVE-5 was correct on ownership, execution, the result packet,
+grounding and its derived claims, and failed on the direction guard run 5
+introduced — with a sentence that was true.
+
+## The collision, proven
+
+Contracting at 2026-06, 30 obligors:
+
+```
+CORP-103270  Al Rajhi Logistics 8   -10.0   improved
+CORP-102361  Yamama Projects 6       -8.0   improved
+CORP-102909  Salman Partners 4       -8.0   improved
+CORP-100034  Sahara Development      +8.0   deteriorated
+CORP-102691  Tihama Ventures         +8.0   deteriorated
+CORP-103324  Al Rajhi Resources 8    +8.0   deteriorated
+CORP-103122  Sahara Projects 9       +8.0   deteriorated
+CORP-103430  Tadawi Partners 9       +8.0   deteriorated
+CORP-102073  Mabani Manufacturing 4  +4.0   deteriorated
+                                     (3 improved, 21 held, 6 deteriorated)
+```
+
+**±8.0 both exist.** The largest deterioration is **+8.0**, tied across five
+obligors, Sahara Development first by row order. The largest improvement is
+−10.0.
+
+So the reading was right. "6 deteriorated, with the largest deterioration
+[8.0]" and "which six deteriorated, and by how much against the 8.0-point
+largest deterioration" are both about **+8.0**.
+
+## Why the guard chose the wrong fact
+
+Run 5's guard mapped **size → direction** and dropped any size the result
+carried both ways. That safeguard was correct and it did not fire, because the
+change-fact pattern was a regex looking for the word "change" — and
+`largest_deterioration: +8.0` does not contain it. The only 8.0 the map saw
+was `rows.*.ews_change_1m = -8.0`. The collision looked like a certainty, and
+a true sentence about a deterioration read as a contradiction.
+
+A widened regex would have fixed this instance and left the design wrong:
+within one population the same size genuinely goes both ways, and no map from
+a number to a direction can be right.
+
+## Direction now binds to a fact
+
+**`backend/early_warning/metrics.py`** owns two questions. *Is this name a
+movement?* — `ews_change_1m` is, `ews_score` is not, and
+`movement_census.largest_deterioration.change` is, by the segment that says so
+rather than by the leaf. *Which way is worse?* — from the field dictionary's
+own `higher_is_worse`, which already declares `ews_score: true` and
+`exposure: false`; a change column inherits it from the level it measures; and
+a metric nobody has classified returns unknown and is **not checked**. The EWS
+convention is stated once, in one place, and not assumed universal.
+
+**The reading binds.** A new `movement_claims` in the schema: `{fact_ref,
+direction, value}`. The server resolves the ref in the published index,
+applies that metric's semantics, and checks the wording and the size against
+it. `improved` of `rows.CORP-102361.ews_change_1m` passes; `deteriorated` of
+the same fact is refused; `deteriorated` of `rows.CORP-100034.ews_change_1m`
+passes. The model supplies wording, the server owns the truth.
+
+**The size-based check is the fallback, and it is now honest.** Fed a complete
+movement-fact set, it drops 8.0 as ambiguous and keeps 10.0, which only ever
+means the improvement. A size a bound claim has accounted for is exempt from
+it. Where neither route can bind, no directional assertion is made about that
+figure — stated plainly rather than silently approved.
+
+## The census is a fact now
+
+`movement_census` travels on the packet and is published to the writer:
+
+```
+movement_census.total                              30
+movement_census.improved_count                      3
+movement_census.held_count                         21
+movement_census.deteriorated_count                  6
+movement_census.largest_improvement.change      -10.0   Al Rajhi Logistics 8
+movement_census.largest_deterioration.change     +8.0   Sahara Development
+```
+
+The prompt says to quote these rather than count rows or pick an extreme out
+of a list, and never to manufacture a benchmark to make a follow-up sound
+richer: "Which six Contracting obligors deteriorated, and by how much?" is the
+better drill. A follow-up is held to the same grounding rules as the answer.
+
+`measure` and the other label keys are excluded from the index, so
+`ews_change_1m` is not published as the figure 1.
+
+## Certification
+
+Stricter again, not weaker: **every declared movement agreed with its own
+fact** joins the direction and derivation assertions, and each case's report
+carries the movement claims with the server's verdict. Nothing was relaxed.
+
+## Regression
+
+```
+tests/early_warning + tests/api   0 failures
+backend (full suite)              22 failed, 10,900 passed, 27 skipped
+                                  the 22 identical to the recorded baseline
+frontend                          429 of 429 — no frontend file changed
+stub certification                8/8
+```
+
+57 new tests in `test_direction_binding.py`: the ±8.0 collision from the real
+frame, the metric module across movements, levels, counts and an unclassified
+metric, twelve binding cases that turn on which obligor is named, the exempt
+bound size, every reading section, labels and ordinals left alone, and four
+end-to-end cases.

@@ -451,7 +451,18 @@ def _movement_census(frame: pd.DataFrame, measure: str) -> dict[str, Any]:
     values = pd.to_numeric(frame[measure], errors="coerce").dropna()
     if values.empty:
         return {}
-    return {
+
+    def extreme(index: Any) -> dict[str, Any]:
+        """The obligor at one end of the move, named."""
+        row = frame.loc[index]
+        return {
+            "customer_id": str(row.get("customer_id") or ""),
+            "customer_name": str(row.get("customer_name") or ""),
+            "change": float(values.loc[index]),
+        }
+
+    best, worst = values.idxmin(), values.idxmax()
+    census = {
         "movement_measure": measure,
         "movement_population": int(len(values)),
         "improved": int((values < 0).sum()),
@@ -460,6 +471,22 @@ def _movement_census(frame: pd.DataFrame, measure: str) -> dict[str, Any]:
         "largest_improvement": float(values.min()),
         "largest_deterioration": float(values.max()),
     }
+    # The same census under one name, with the obligor at each end.
+    #
+    # A reading that wants to say "the largest deterioration was Sahara
+    # Development at 8.0 points" should be quoting a fact, not picking the
+    # extreme out of a row list and hoping the direction word it chooses
+    # matches. The flat keys above stay because the composer reads them.
+    census["movement_census"] = {
+        "measure": measure,
+        "total": census["movement_population"],
+        "improved_count": census["improved"],
+        "held_count": census["unchanged"],
+        "deteriorated_count": census["worsened"],
+        "largest_improvement": extreme(best),
+        "largest_deterioration": extreme(worst),
+    }
+    return census
 
 
 def _slice_label(step: plan_mod.Step) -> str:

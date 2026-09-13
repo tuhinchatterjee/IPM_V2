@@ -308,12 +308,31 @@ def _interpret(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
                     "value": stated, "op": "mean",
                     "refs": [pairs[0][0], pairs[1][0]]})
 
+    movements: list[dict[str, Any]] = []
+    if behaviour in ("live_5_census", "live_5_wrong_way"):
+        # The shape LIVE-5's reading had: the premise refused with the census
+        # counts, and the largest deterioration named. Both are facts, and
+        # the direction is bound to the fact rather than left to a size that
+        # this population carries both ways.
+        index = packet.get("fact_index") or {}
+        worst = "movement_census.largest_deterioration.change"
+        if worst in index:
+            size = abs(float(index[worst]))
+            word = ("improved" if behaviour == "live_5_wrong_way"
+                    else "deteriorated")
+            reading += (f" The premise is not supported: the largest "
+                        f"{word} was {size:.1f} points.")
+            movements.append({"fact_ref": worst, "direction": word,
+                              "value": size})
+
     out = {"direct": direct, "interpretation": reading,
            "points": [], "drivers": list(floor.get("drivers") or []),
            "follow_ups": list(floor.get("follow_ups") or []),
            "caveats": []}
     if declared:
         out["derived_claims"] = declared
+    if movements:
+        out["movement_claims"] = movements
     return out
 
 

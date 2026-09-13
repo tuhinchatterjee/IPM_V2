@@ -38,6 +38,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.early_warning import metrics as mt
 from backend.early_warning.conversation import derivation as dv
 from backend.early_warning.conversation import packet as packet_mod
 from backend.early_warning.conversation import seam as seam_mod
@@ -124,11 +125,28 @@ may not.
    The runtime recomputes every claim and DISCARDS your whole reading if its \
 answer differs, so declare only arithmetic you are certain of and express \
 anything else in words: "roughly a third", "the largest by some margin".
-1c. THE DIRECTION MUST MATCH THE SIGN. Where you state the SIZE of a move, the \
-verb in front of it is checked against the result. `score_change: -15.46` is \
-"fell 15.46"; writing "rose 15.46" discards the reading even though every \
-number in the sentence is correct.
-1d. DO NOT MAKE THE ANSWER MORE ARITHMETICAL THAN THE QUESTION. A subtotal or \
+1c. THE DIRECTION MUST MATCH THE FACT, AND YOU MUST SAY WHICH FACT. For the \
+Early Warning score, UP is worse: a positive change is a deterioration and a \
+negative one an improvement. Within one population the same size goes both \
+ways — an obligor improving by 8.0 while five others deteriorate by 8.0 — so \
+the figure alone cannot say which you mean. Every sentence that puts a figure \
+on a direction goes in `movement_claims` with the fact it is about: \
+{"fact_ref": "movement_census.largest_deterioration.change", "direction": \
+"deteriorated", "value": 8.0}. The runtime reads that fact, applies the \
+metric's own semantics and checks your wording against it. Saying \
+"deteriorated" of a fact the result shows improving discards the reading, \
+however correct the number.
+1d. THE COUNTS AND THE EXTREMES ARE FACTS. `movement_census` carries \
+`total`, `improved_count`, `held_count`, `deteriorated_count`, and \
+`largest_improvement` and `largest_deterioration` with the obligor's name and \
+signed change. Quote them. Do not count rows and do not pick an extreme out of \
+a list.
+1e. A FOLLOW-UP IS HELD TO THE SAME STANDARD as the answer. It may name a \
+figure only if that figure is a fact you could cite, and it does not need one \
+to be a good question: "Which six Contracting obligors deteriorated, and by \
+how much?" is a better drill than the same question with a benchmark bolted \
+on. Never manufacture a comparison to make a follow-up sound richer.
+1f. DO NOT MAKE THE ANSWER MORE ARITHMETICAL THAN THE QUESTION. A subtotal or \
 a complement that carries no decision — "SAR 6,301.85m of the SAR 6,460.56m in \
 scope" — is a figure to get wrong for nothing. If the result gives you a share, \
 say the share.
@@ -223,6 +241,38 @@ SCHEMA: dict[str, Any] = {
                             "recomputes each one and discards the reading if it "
                             "disagrees."),
         },
+        "movement_claims": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "fact_ref": {
+                        "type": "string",
+                        "description": ("The movement fact this sentence is "
+                                        "about, named exactly as `fact_index` "
+                                        "spells it."),
+                    },
+                    "direction": {
+                        "type": "string",
+                        "enum": sorted(mt.DIRECTIONS),
+                        "description": "Which way you said it went.",
+                    },
+                    "value": {
+                        "type": "number",
+                        "description": ("The figure your prose states for it, "
+                                        "signed or as a size."),
+                    },
+                },
+                "required": ["fact_ref", "direction"],
+            },
+            "description": (
+                "Every sentence that says which WAY something moved and puts a "
+                "figure on it. Name the fact and the runtime checks your "
+                "wording against it: within one population an obligor can "
+                "improve by 8.0 while five others deteriorate by 8.0, and the "
+                "figure alone cannot tell them apart."),
+        },
         "fact_refs": {
             "type": "array", "items": {"type": "string"},
             "maxItems": 8,
@@ -246,6 +296,8 @@ class Reading:
     #: Figures the model wrote that the packet does not carry. Non-empty means
     #: the prose was discarded.
     ungrounded: list[str] = field(default_factory=list)
+    #: Movements the reading declared, each checked against its own fact.
+    movement_claims: list[dict[str, Any]] = field(default_factory=list)
     #: Figures the prose stated the size of, with the wrong direction word.
     #: Every number in such a sentence is grounded and the sentence is still
     #: false, so this discards the reading exactly as an invented figure does.
@@ -493,15 +545,15 @@ def _prose_by_field(answer: dict[str, Any]) -> list[tuple[str, str]]:
 # positive fact as a rise would report "fell from 15.46 to 3.31" as a
 # conflict on the 3.31.
 
-#: A fact name that measures a MOVE rather than a level.
-_A_CHANGE = re.compile(
-    r"(?:^|[.\]])(?:\w*_)?(?:change|delta|movement|move|shift|swing|"
-    r"points_contributed|contribution|weighted_contribution)"
-    r"(?:_\w+)?$", re.I)
+#: Whether a fact name measures a move, and which way is worse, are the
+#: metric module's to answer. They were a regex here, and the regex did not
+#: know `largest_deterioration` was a movement — so a packet holding
+#: `largest_deterioration: +8.0` beside two obligors at `ews_change_1m: -8.0`
+#: registered the size 8.0 as unambiguously a FALL, and a true sentence about
+#: the largest deterioration was refused.
 
-#: For the Early Warning score, DOWN is better. That is the product's own
-#: semantics — the score counts warning evidence — so "improved" pairs with a
-#: negative change and "deteriorated" with a positive one.
+#: The wording a reading uses for a direction. Metric semantics decide what
+#: the wording has to agree with; this only spots that a direction was named.
 _FELL = (r"fell|fallen|falling|\bfall\b|dropp?ed|dropping|declin\w+|"
          r"decreas\w+|reduc\w+|eas\w+|narrow\w+|shrank|shrunk|"
          r"improv\w+|recover\w+|strengthen\w+|lower\w*|down\b|"
@@ -526,32 +578,112 @@ _SENTENCE_END = re.compile(r"[.;?!]\s")
 
 def _signed_changes(packet: packet_mod.ResultPacket,
                     claims: list[dv.Claim] | None) -> dict[str, int]:
-    """Every change the result carries, as `size -> direction`.
+    """Every move the result carries, as `size -> which way`.
 
-    A size the result carries in BOTH directions is dropped: the reading has
-    two true things it could be saying and the guard cannot tell which, so it
-    says nothing rather than guessing.
+    "Which way" is the direction of the CONDITION, decided per fact by the
+    metric module, not the sign of the number: a fall of eight in a score
+    where higher is worse is an improvement, and `largest_deterioration: 8.0`
+    is a deterioration whatever its sign.
+
+    A size the result carries BOTH ways is dropped, and that is the whole
+    safety of this map. Within one population an obligor can improve by eight
+    while five others deteriorate by eight; the reading has two true things it
+    could be saying about `8.0` and nothing here can tell which, so the map
+    says nothing. It said the wrong thing once, and only because a movement
+    fact went unrecognised and the collision therefore looked like a
+    certainty.
     """
     signs: dict[str, set[int]] = {}
 
-    def note(value: float) -> None:
-        if not value:
+    def note(name: str, value: float) -> None:
+        way = mt.movement_sign(name, value)
+        if not way:
             return
         for spelling in dv.spellings(abs(value)):
-            signs.setdefault(spelling, set()).add(1 if value > 0 else -1)
+            signs.setdefault(spelling, set()).add(way)
 
     for name, value in dv.index(_facts_of(packet)).items():
-        if _A_CHANGE.search(name):
-            note(value)
+        note(name, value)
     for claim in claims or []:
         if claim.accepted and claim.recomputed is not None:
-            note(claim.recomputed)
+            # A declared derivation over movement facts is a movement. Over
+            # anything else it is not, and its direction goes unchecked.
+            if all(mt.is_a_movement(ref) for ref in claim.refs):
+                note(claim.refs[0], claim.recomputed)
     return {size: next(iter(ways)) for size, ways in signs.items()
             if len(ways) == 1}
 
 
+def _checked_movements(declared: Any, facts: dict[str, float]
+                       ) -> tuple[list[dict[str, Any]], set[str]]:
+    """Every movement the reading declared, checked against its own fact.
+
+    This is the route that works where the size alone cannot: the reading
+    names WHICH fact it is talking about, and the server decides what that
+    fact did. The model supplies wording; the direction, the signed value and
+    the metric's semantics are all read here.
+
+    Returns the verdicts, and the sizes a valid claim has accounted for —
+    those are then exempt from the size-based check below, because a bound
+    claim is a better answer than a guess about a nearby verb.
+    """
+    out: list[dict[str, Any]] = []
+    settled: set[str] = set()
+    for raw in list(declared or [])[:8]:
+        if not isinstance(raw, dict):
+            continue
+        ref = str(raw.get("fact_ref") or "").strip()
+        word = str(raw.get("direction") or "").strip().lower()
+        said = mt.direction_word(word)
+        record: dict[str, Any] = {"fact_ref": ref, "direction": word,
+                                  "accepted": False}
+        stated = raw.get("value")
+        if isinstance(stated, (int, float)) and not isinstance(stated, bool):
+            record["value"] = float(stated)
+
+        resolved = dv._resolve(ref, facts) if ref else None
+        if resolved is None:
+            record["reason"] = f"the result carries no fact called {ref!r}"
+            out.append(record)
+            continue
+        record["fact_value"] = resolved
+        if said is None:
+            record["reason"] = f"{word!r} is not a direction this product reads"
+            out.append(record)
+            continue
+        way = mt.movement_sign(ref, resolved)
+        record["fact_direction"] = mt.describes(ref, resolved)
+        if not way:
+            # A level, or a metric nobody has classified. Not a movement, so
+            # there is no direction to disagree with.
+            record["reason"] = (f"{mt.leaf(ref)!r} does not measure a move, so "
+                                f"its direction is not checked")
+            record["accepted"] = True
+            out.append(record)
+            continue
+        if said != way:
+            record["reason"] = (
+                f"the reading said {word!r} of {ref}, which the result shows "
+                f"{mt.describes(ref, resolved)} at {resolved:g}")
+            out.append(record)
+            continue
+        if "value" in record and not dv.agrees(abs(record["value"]),
+                                               abs(resolved)):
+            record["reason"] = (
+                f"the reading put {record['value']:g} on {ref}, which the "
+                f"result carries at {resolved:g}")
+            out.append(record)
+            continue
+        record["accepted"] = True
+        out.append(record)
+        settled |= dv.spellings(abs(resolved))
+    return out, settled
+
+
 def _direction_conflicts(written: dict[str, Any],
-                         changes: dict[str, int]) -> list[dict[str, Any]]:
+                         changes: dict[str, int],
+                         settled: set[str] | None = None
+                         ) -> list[dict[str, Any]]:
     """Prose that states the size of a move and names the wrong direction.
 
     The verb nearest before the figure, with no other figure in between —
@@ -566,6 +698,12 @@ def _direction_conflicts(written: dict[str, Any],
             if token.startswith("-"):
                 # A signed figure says its own direction, and the reader can
                 # see it. Only a bare size can be given the wrong verb.
+                continue
+            if settled and (token in settled
+                            or token.replace(",", "") in settled):
+                # The reading named the fact this figure is about and the
+                # server checked it. A bound claim beats a guess about a
+                # nearby verb.
                 continue
             if token in _ALWAYS_ALLOWED:
                 # An ordinal or a count of the answer's own list. "4 of the
@@ -826,13 +964,30 @@ def write(question: str, packet: packet_mod.ResultPacket,
     # facts. The model named the fields and the operation; the server did the
     # sum. A claim it agrees with permits its figure, and one it does not
     # permits nothing.
-    claims = dv.check(data.get("derived_claims"), dv.index(_facts_of(packet)))
+    facts = dv.index(_facts_of(packet))
+    claims = dv.check(data.get("derived_claims"), facts)
+    # Movements the reading BOUND to a fact. Checked first, because a bound
+    # claim settles a figure the size-based check could only guess at — and
+    # within one population the same size can be an improvement and a
+    # deterioration at once.
+    movements, settled = _checked_movements(data.get("movement_claims"), facts)
+    misdirected = [m for m in movements if not m["accepted"]]
     ungrounded = _ungrounded(
         written, _allowed_figures(packet, deterministic, context, claims),
         periods)
     # Grounded, and still possibly false. A figure can be exactly the one the
     # result carries and the verb in front of it can point the other way.
-    conflicts = _direction_conflicts(written, _signed_changes(packet, claims))
+    conflicts = _direction_conflicts(
+        written, _signed_changes(packet, claims), settled)
+    # A declared movement the server disagrees with is a conflict of the same
+    # kind, and a better-evidenced one: the reading named the fact itself.
+    conflicts = [
+        {"token": f"{m.get('value', m.get('fact_value', 0)):g}",
+         "field": "movement_claims", "said": m["direction"],
+         "direction_written": m["direction"],
+         "direction_in_the_result": m.get("fact_direction", "unknown"),
+         "context": m.get("reason", ""), "fact_ref": m.get("fact_ref", "")}
+        for m in misdirected] + conflicts
     declared = [c.to_dict() for c in claims]
     refused = [c for c in claims if not c.accepted]
     if refused:
@@ -848,10 +1003,12 @@ def write(question: str, packet: packet_mod.ResultPacket,
         return Reading(
             answer=deterministic, fact_refs=refs, unresolved_refs=unresolved,
             derived_claims=declared, direction_conflicts=conflicts,
+            movement_claims=movements,
             model_call=dict(outcome.to_dict(),
                             engine=seam_mod.DETERMINISTIC,
                             derived_claims=declared,
                             direction_conflicts=conflicts,
+                            movement_claims=movements,
                             discarded_prose=" ".join(_prose(written))[:1200],
                             fallback_reason=(
                                 "the reading gave a move the wrong direction: "
@@ -872,6 +1029,7 @@ def write(question: str, packet: packet_mod.ResultPacket,
             answer=deterministic, ungrounded=ungrounded, fact_refs=refs,
             unresolved_refs=unresolved, derived_claims=declared,
             rejected_context=context, direction_conflicts=conflicts,
+            movement_claims=movements,
             model_call=dict(outcome.to_dict(),
                             engine=seam_mod.DETERMINISTIC,
                             derived_claims=declared,
@@ -911,7 +1069,7 @@ def write(question: str, packet: packet_mod.ResultPacket,
     answer["caveats"] = caveats
     return Reading(answer=answer, engine=seam_mod.MODEL, fact_refs=refs,
                    unresolved_refs=unresolved, derived_claims=declared,
-                   direction_conflicts=[],
+                   direction_conflicts=[], movement_claims=movements,
                    model_call=dict(outcome.to_dict(), fact_refs=refs,
                                    unresolved_refs=unresolved,
                                    derived_claims=declared))
