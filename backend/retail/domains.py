@@ -438,6 +438,188 @@ def reconcile(*, analytics_dir: str | Path | None = None,
     return problems
 
 
+# ------------------------------------------ the Early Warning Score domain
+
+#: The Early Warning Score domain is NOT a column view.
+#:
+#: The three views above are built by selecting columns out of the canonical
+#: parquet and nothing else, which is what makes `reconcile()` a tautology.
+#: The Early Warning Score domain is COMPUTED: the governed model in
+#: `backend.retail.ews_model` evaluated over the book and rolled up. It still
+#: holds no customer, facility or exposure the book does not hold — a test
+#: reconciles it directly — but it is registered separately so the difference
+#: is visible rather than implied.
+EWS_SCORE_DATASET = "retail_ews_score"
+EWS_SCORE_DOMAIN = "Early Warning Score"
+
+
+def register_ews_score(*, metadata_dir: str | Path | None = None,
+                       analytics_dir: str | Path | None = None) -> bool:
+    """Put the Early Warning Score domain in the governed catalogue.
+
+    Idempotent. Returns True when it was added, False when it was already
+    there or the domain has not been built yet.
+    """
+    import json
+
+    from backend.config import settings
+    from backend.retail import ews_model, ews_score, guard
+
+    root = Path(metadata_dir or settings.metadata_dir)
+    guard.require_retail_directory(root, what="the Early Warning registration")
+    months = ews_score.panel_months(analytics_dir)
+    if not months:
+        return False
+
+    path = root / "catalog.json"
+    payload = json.loads(path.read_text())
+    datasets = payload.get("datasets") or []
+    if any(d.get("name") == EWS_SCORE_DATASET for d in datasets):
+        return False
+    canonical = next((d for d in datasets if d.get("name") == CANONICAL), None)
+    if canonical is None:
+        raise LookupError(
+            f"{CANONICAL} is not in {path}; the Early Warning Score domain "
+            "cannot be registered against a book the catalogue does not hold.")
+
+    by_name = {str(f.get("name")): f for f in (canonical.get("fields") or [])}
+    frame = ews_score.read(months[-1], analytics_dir)
+    fields = []
+    for column in frame.columns:
+        known = by_name.get(column)
+        if known is not None:
+            fields.append(dict(known))
+            continue
+        fields.append({
+            "name": column,
+            # The catalogue requires it, and for this domain the source
+            # column IS the field: nothing here is renamed on the way in.
+            "source_column": column,
+            "business_name": _ews_business_name(column, ews_model),
+            "definition": _ews_definition(column, ews_model, ews_score),
+            "data_type": _ews_type(frame[column]),
+            "nullable": True,
+            "sensitivity": "internal",
+            "is_synthetic": True,
+        })
+
+    datasets.append({
+        "name": EWS_SCORE_DATASET,
+        "domain": EWS_SCORE_DOMAIN,
+        "business_name": "Retail Early Warning Score",
+        "purpose": (
+            "The governed Early Warning Score for every retail customer and "
+            "facility: four layers, their sublayers, every trigger with its "
+            "six action dimensions, the overall score, its severity, the "
+            "current-bad and forward-risk flags and the reason codes behind "
+            "them. Every figure the Early Warning workspace shows is read "
+            "from here."),
+        "grain": "One row per customer per facility per month-end.",
+        "primary_keys": ["reporting_month", "customer_id", "facility_id"],
+        "period_field": "reporting_month",
+        "owner": "Retail Early Warning",
+        "status": canonical.get("status", "active"),
+        "version": ews_model.EWS_MODEL_VERSION,
+        "is_synthetic": True,
+        "origin": canonical.get("origin", "demo"),
+        "dataset_family": EWS_SCORE_DATASET,
+        "authoritative_for": ["early_warning_score"],
+        "portfolio_scope": canonical.get("portfolio_scope", "RETAIL_BOOK"),
+        "derived_from": CANONICAL,
+        "derivation": (
+            "Computed, not selected: the model in backend/retail/ews_model.py "
+            "evaluated over the canonical book by "
+            "backend/retail/ews_score.py. It holds no customer, facility or "
+            "exposure the book does not hold."),
+        "fields": fields,
+    })
+    payload["datasets"] = datasets
+    path.write_text(json.dumps(payload, indent=2))
+    return True
+
+
+def _ews_business_name(column: str, model: Any) -> str:
+    for layer in model.LAYERS:
+        if column == layer.score_column:
+            return f"{layer.name} layer score"
+        for sub in layer.sublayers:
+            if column == sub.score_column:
+                return f"{sub.name} sub-layer score"
+    if column.startswith("trg_"):
+        body = column[4:]
+        for one in model.all_triggers():
+            if body.startswith(one.key + "_"):
+                suffix = body[len(one.key) + 1:].replace("_", " ")
+                return f"{one.name} — {suffix}"
+    return column.replace("_", " ").capitalize()
+
+
+def _ews_definition(column: str, model: Any, score: Any) -> str:
+    for layer in model.LAYERS:
+        if column == layer.score_column:
+            return (f"{layer.purpose} Weighted {layer.weight:.0%} in the "
+                    "default configuration; each product carries its own "
+                    "weight.")
+        for sub in layer.sublayers:
+            if column == sub.score_column:
+                return (f"{sub.purpose} Weighted {sub.weight:.0%} within "
+                        f"{layer.name}.")
+    if column.startswith("trg_"):
+        body = column[4:]
+        for one in model.all_triggers():
+            if body.startswith(one.key + "_"):
+                suffix = body[len(one.key) + 1:]
+                if suffix == "fired":
+                    return f"Whether this trigger fired. {one.meaning}"
+                if suffix == "value":
+                    return (f"The measured value of `{one.column}` this "
+                            "trigger tested.")
+                if suffix == "comparator":
+                    return ("What the measured value was compared against: "
+                            + (f"`{one.comparator}`." if one.comparator
+                               else f"the threshold of {one.threshold:g}."))
+                if suffix == "contribution":
+                    return ("Points this trigger contributed to its "
+                            "sub-layer, after the action dimensions scaled "
+                            "it.")
+                for dimension in model.ACTION_DIMENSIONS:
+                    if suffix == dimension.key:
+                        return f"{dimension.meaning} {dimension.computed}"
+    if column == "default_entry_this_month":
+        return ("Whether this facility entered default during the month. The "
+                "numerator of the observed default rate; " + score.ODR_DEFINITION)
+    if column == "eligible_for_default_this_month":
+        return ("Whether this facility was not in default at the start of the "
+                "month. The denominator of the observed default rate.")
+    if column == "customer_name":
+        return score.SYNTHETIC_NAME_NOTE
+    if column == "bureau_last_observed_date":
+        return model.BUREAU_RULE.statement
+    if column == "bureau_recency_months":
+        return ("Months since the last dated bureau observation. "
+                + model.BUREAU_RULE.proxy_label)
+    if column == "ews_score":
+        return (f"The Early Warning Score, {model.SCALE.minimum:g} to "
+                f"{model.SCALE.maximum:g}. {model.SCALE.direction}")
+    if column == "current_bad_flag":
+        return score.CURRENT_BAD_RULE
+    if column == "forward_risk_flag":
+        return score.FORWARD_RISK_RULE
+    return (f"Carried into the Early Warning Score domain from "
+            f"{CANONICAL}, or derived by backend/retail/ews_score.py.")
+
+
+def _ews_type(series: Any) -> str:
+    kind = str(series.dtype)
+    if "bool" in kind:
+        return "boolean"
+    if "int" in kind:
+        return "integer"
+    if "float" in kind:
+        return "number"
+    return "string"
+
+
 # ------------------------------------------------------------- registration
 
 def register(*, metadata_dir: str | Path | None = None) -> list[str]:

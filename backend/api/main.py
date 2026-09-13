@@ -14,7 +14,9 @@ Interactive API documentation is served at /docs when ENV=dev.
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import threading
 import time
 import uuid
 
@@ -113,10 +115,48 @@ def _is_public(path: str) -> bool:
     return any(path.startswith(prefix) for prefix in PUBLIC_PREFIXES)
 
 
+def _warm_the_early_warning_score() -> None:
+    """Compute the Early Warning landing figures before a reader asks for them.
+
+    The retail portfolio screen counts every customer across seven months and
+    four products. That is arithmetic over an immutable panel, and the answer
+    is the same for everybody, but the first caller was paying ten seconds of
+    it while the page showed skeletons. Started here on a daemon thread, it is
+    normally finished before a browser has signed in; a reader who beats it
+    simply computes it themselves, as before.
+
+    Failure here is never fatal: a warm-up that cannot run leaves a working
+    API that is merely slower on its first request.
+    """
+    from backend.retail import profile
+
+    if not profile.is_retail():
+        return
+
+    def run() -> None:
+        with contextlib.suppress(Exception):
+            from backend.retail import ews_views
+
+            started = time.perf_counter()
+            ews_views.warm()
+            logging.getLogger(__name__).info(
+                "early warning score warmed in %.1fs",
+                time.perf_counter() - started)
+
+    threading.Thread(target=run, name="ews-warm", daemon=True).start()
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(app: FastAPI):
+    _warm_the_early_warning_score()
+    yield
+
+
 def create_app() -> FastAPI:
     init_logging()
 
     app = FastAPI(
+        lifespan=_lifespan,
         title=health_router.APP_NAME,
         version=health_router.APP_VERSION,
         description=(

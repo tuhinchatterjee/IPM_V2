@@ -739,6 +739,170 @@ def ews_rule(rule_id: str, month: str | None = Query(None)) -> dict:
 
 
 # --------------------------------------------------------------------------
+# The Early Warning Score workspace
+#
+# One domain — `retail_ews_score`, twenty monthly snapshots at
+# customer-facility-month grain — read through `backend.retail.ews_views`.
+# Every figure the workspace shows comes through here, so a number on a screen
+# and the same number in the chat cannot come from different places.
+# --------------------------------------------------------------------------
+
+@router.get("/ews/portfolio", summary="Total retail, and the four products")
+def ews_portfolio_view(month: str | None = Query(None)) -> dict:
+    from backend.retail import ews_views as views
+
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      **views.portfolio(month or "")})
+
+
+@router.get("/ews/product/{product_code}",
+            summary="One product, and its sub-portfolios")
+def ews_product_view(product_code: str,
+                     month: str | None = Query(None)) -> dict:
+    from backend.retail import ews_views as views
+
+    found = views.product(product_code, month or "")
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because") or f"{product_code} is not a "
+                                                    "retail product.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
+@router.get("/ews/customers", summary="The Early Warning customer list")
+def ews_customers_view(
+        month: str | None = Query(None),
+        product: str | None = Query(None),
+        sub_product: str | None = Query(None),
+        cohort: str = Query("all"),
+        reason: str | None = Query(None),
+        layer: str | None = Query(None),
+        dpd_bucket: str | None = Query(None),
+        stage: str | None = Query(None),
+        score_min: float | None = Query(None, ge=0, le=100),
+        score_max: float | None = Query(None, ge=0, le=100),
+        behavioural_min: float | None = Query(None),
+        behavioural_max: float | None = Query(None),
+        search: str | None = Query(None, max_length=64),
+        limit: int = Query(50, ge=1, le=500),
+        offset: int = Query(0, ge=0)) -> dict:
+    from backend.retail import ews_views as views
+
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        **views.customers(
+            month or "", product=product or "", sub_product=sub_product or "",
+            cohort=cohort, reason=reason or "", layer=layer or "",
+            dpd_bucket=dpd_bucket or "", stage=stage or "",
+            score_min=score_min, score_max=score_max,
+            behavioural_min=behavioural_min, behavioural_max=behavioural_max,
+            search=search or "", limit=limit, offset=offset)})
+
+
+@router.get("/ews/customers/{customer_id}",
+            summary="One customer: four layers, sublayers, triggers")
+def ews_customer_view(customer_id: str,
+                      month: str | None = Query(None)) -> dict:
+    from backend.retail import ews_views as views
+
+    found = views.customer(customer_id, month or "")
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because")
+                            or f"{customer_id} is not in the domain.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
+@router.get("/ews/signals", summary="Every trigger, and what it caught")
+def ews_signals_view(month: str | None = Query(None),
+                     product: str | None = Query(None),
+                     sub_product: str | None = Query(None),
+                     layer: str | None = Query(None),
+                     severity: str | None = Query(None),
+                     reason: str | None = Query(None),
+                     limit: int = Query(500, ge=1, le=500)) -> dict:
+    from backend.retail import ews_views as views
+
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        **views.signals(month or "", product=product or "",
+                        sub_product=sub_product or "", layer=layer or "",
+                        severity=severity or "", reason=reason or "",
+                        limit=limit)})
+
+
+@router.get("/ews/signals/{key}", summary="One trigger, with its history")
+def ews_signal_view(key: str, month: str | None = Query(None)) -> dict:
+    from backend.retail import ews_views as views
+
+    found = views.signal(key, month or "")
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because") or f"No trigger {key!r}.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
+@router.get("/ews/model", summary="The model tree, with live hit counts")
+def ews_model_view(month: str | None = Query(None)) -> dict:
+    from backend.retail import ews_views as views
+
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      **views.model(month or "")})
+
+
+@router.get("/ews/domain", summary="What the Early Warning Score domain holds")
+def ews_domain_view() -> dict:
+    from backend.retail import ews_score as score
+    from backend.retail import ews_views as views
+
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        **views.field_contract(),
+        "problems": score.check(),
+        "months_expected": score.MONTHS_KEPT,
+        "source_dataset": score.BOOK,
+    })
+
+
+class EwsAskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+    month: str | None = Field(default=None, max_length=16)
+    product: str | None = Field(default=None, max_length=32)
+    sub_product: str | None = Field(default=None, max_length=32)
+    customer: str | None = Field(default=None, max_length=32)
+
+
+@router.post("/ews/ask", summary="Ask the Early Warning Score domain")
+def ews_ask(payload: EwsAskIn) -> dict:
+    """Answer one question, from the Early Warning Score domain only.
+
+    The scope is structural: `backend.retail.ews_chat` imports the model
+    configuration and the Early Warning views, and holds no other dataset
+    name, no catalogue and no planner. A question about expected credit loss,
+    a scenario or a corporate book is answered with a scope notice naming the
+    module that owns it, rather than from the wrong data.
+    """
+    from backend.retail import ews_chat as chat
+
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        "question": payload.question,
+        **chat.ask(payload.question, month=payload.month or "",
+                   product=payload.product or "",
+                   sub_product=payload.sub_product or "",
+                   customer=payload.customer or "")})
+
+
+@router.get("/ews/prompts", summary="The chat's seeded questions")
+def ews_prompts(level: str = Query("portfolio")) -> dict:
+    from backend.retail import ews_chat as chat
+
+    return json_safe({"level": level, "prompts": chat.chips(level),
+                      "scope": list(chat.SCOPE),
+                      "scope_note": chat.OUT_OF_SCOPE_NOTE})
+
+
+# --------------------------------------------------------------------------
 # ECL movement
 # --------------------------------------------------------------------------
 

@@ -98,6 +98,23 @@ def main() -> int:
     for note in built.notes or []:
         log.warning("  %s", note)
 
+    # The Early Warning SCORE domain: twenty monthly snapshots at
+    # customer-facility-month grain, carrying the four-layer model's own
+    # output. The workspace reads nothing else, so a fresh install without it
+    # opens on an empty state.
+    from backend.retail import domains as retail_domains
+    from backend.retail import ews_score
+
+    scored = ews_score.build()
+    log.info("Early Warning Score domain: %s", scored.summary())
+    for note in scored.notes or []:
+        log.info("  %s", note)
+    if retail_domains.register_ews_score():
+        log.info("Registered %s in the governed catalogue.",
+                 retail_domains.EWS_SCORE_DATASET)
+    for problem in ews_score.check():
+        log.warning("  %s", problem)
+
     if "retail_facility_month" not in published:
         log.warning(
             "retail_facility_month is not published in Data Builder. The Cockpit will "
@@ -139,7 +156,14 @@ def _check(log) -> int:
         problems.extend(workspace_seed.check(session))
     if "retail_facility_month" not in published:
         problems.append("Data Builder does not publish retail_facility_month")
-    from backend.retail import ews_portfolio
+    from backend.retail import ews_portfolio, ews_score
+    problems.extend(ews_score.check())
+    if ews_score.DOMAIN not in {str(d.get("name"))
+                                for d in _catalogue_datasets()}:
+        problems.append(
+            f"{ews_score.DOMAIN} is not registered in the governed "
+            "catalogue, so the Early Warning Score domain will not appear in "
+            "Data Builder")
     scored = ews_portfolio._panel_months()
     if not scored:
         problems.append("the early-warning panel has not been built, so "
@@ -159,6 +183,20 @@ def _check(log) -> int:
         return 1
     log.info("The retail installation is ready to demonstrate.")
     return 0
+
+
+def _catalogue_datasets() -> list:
+    """What the governed catalogue holds, read rather than assumed."""
+    import json
+    import os
+
+    from backend.config import settings
+
+    path = Path(os.environ.get("METADATA_DIR") or settings.metadata_dir) \
+        / "catalog.json"
+    if not path.exists():
+        return []
+    return json.loads(path.read_text()).get("datasets") or []
 
 
 if __name__ == "__main__":

@@ -26,9 +26,13 @@
 
 /** The Early Warning capability, in one sentence. */
 export const EWS_DESCRIPTION =
-  "Where the retail book is deteriorating, how badly, and who it is — from "
-  + "the governed rulebook, down through product, subsegment and customer to "
-  + "the signals that fired.";
+  "Where the retail book is deteriorating, how badly, and who it is — one "
+  + "governed score over four layers, from total retail down through product, "
+  + "sub-portfolio and customer to the trigger that fired.";
+
+/** The one workspace. There is no second Early Warning entry. */
+export const EWS_LABEL = "Early Warning Score";
+export const EWS_ROUTE = "/early-warning";
 
 /** The signals list — the same rulebook, one row per signal. */
 export const EWS_SIGNALS_DESCRIPTION =

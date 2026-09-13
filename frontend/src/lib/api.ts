@@ -7053,11 +7053,6 @@ export const api = {
       `/retail/early-warning/portfolio${qs({
         month, product, trend_months: String(trendMonths) })}`,
       { timeoutMs: LAKE_TIMEOUT_MS }),
-  ewsSubsegments: (product: string, month = "", dimension = "") =>
-    request<EwsSubsegments>(
-      `/retail/early-warning/portfolio/subsegments${qs({
-        product, month, dimension })}`,
-      { timeoutMs: LAKE_TIMEOUT_MS }),
   ewsCustomers: (opts: {
     month?: string; product?: string; dimension?: string; value?: string;
     cohort?: string; limit?: number;
@@ -7076,9 +7071,63 @@ export const api = {
   ewsMethodology: () =>
     request<EwsMethodology>("/retail/early-warning/methodology-detail",
       { timeoutMs: LAKE_TIMEOUT_MS }),
-  ewsStory: (month = "", product = "CREDIT_CARD") =>
-    request<EwsStory>(
-      "/retail/early-warning/portfolio/story" + qs({ month, product }),
+  // ---- the Early Warning Score workspace ----
+  ewsScorePortfolio: (month = "") =>
+    request<EwsPortfolio>("/retail/ews/portfolio" + qs({ month }),
+                          { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreProduct: (product: string, month = "") =>
+    request<EwsProduct>(
+      `/retail/ews/product/${encodeURIComponent(product)}` + qs({ month }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreCustomers: (opts: {
+    month?: string; product?: string; sub_product?: string; cohort?: string;
+    reason?: string; layer?: string; dpd_bucket?: string; stage?: string;
+    score_min?: string; score_max?: string; behavioural_min?: string;
+    behavioural_max?: string; search?: string; limit?: number; offset?: number;
+  }) =>
+    request<EwsCustomers>("/retail/ews/customers" + qs({
+      month: opts.month ?? "", product: opts.product ?? "",
+      sub_product: opts.sub_product ?? "", cohort: opts.cohort ?? "all",
+      reason: opts.reason ?? "", layer: opts.layer ?? "",
+      dpd_bucket: opts.dpd_bucket ?? "", stage: opts.stage ?? "",
+      score_min: opts.score_min ?? "", score_max: opts.score_max ?? "",
+      behavioural_min: opts.behavioural_min ?? "",
+      behavioural_max: opts.behavioural_max ?? "",
+      search: opts.search ?? "",
+      limit: String(opts.limit ?? 50), offset: String(opts.offset ?? 0),
+    }), { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreCustomer: (customerId: string, month = "") =>
+    request<EwsCustomerDetail>(
+      `/retail/ews/customers/${encodeURIComponent(customerId)}` + qs({ month }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreSignals: (opts: {
+    month?: string; product?: string; sub_product?: string; layer?: string;
+    severity?: string; reason?: string;
+  } = {}) =>
+    request<EwsSignals>("/retail/ews/signals" + qs({
+      month: opts.month ?? "", product: opts.product ?? "",
+      sub_product: opts.sub_product ?? "", layer: opts.layer ?? "",
+      severity: opts.severity ?? "", reason: opts.reason ?? "",
+    }), { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreSignal: (key: string, month = "") =>
+    request<EwsSignalDetail>(
+      `/retail/ews/signals/${encodeURIComponent(key)}` + qs({ month }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreModel: (month = "") =>
+    request<EwsModel>("/retail/ews/model" + qs({ month }),
+                      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreDomain: () =>
+    request<EwsDomainContract>("/retail/ews/domain",
+                               { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScoreAsk: (body: { question: string; month?: string; product?: string;
+                        sub_product?: string; customer?: string }) =>
+    request<EwsAnswer>("/retail/ews/ask", {
+      method: "POST", body: JSON.stringify(body),
+      timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsScorePrompts: (level = "portfolio") =>
+    request<{ level: string; prompts: string[]; scope: string[];
+              scope_note: string }>(
+      "/retail/ews/prompts" + qs({ level }),
       { timeoutMs: LAKE_TIMEOUT_MS }),
   ewsRule: (ruleId: string, month = "") =>
     request<EwsRuleDetail>(
@@ -13262,22 +13311,32 @@ export type ScvAnswer = {
   };
 };
 
-// ---------------------------------------------------------------------------
-// Early warning as a portfolio
-// ---------------------------------------------------------------------------
+// ======================================================================
+// The Early Warning Score workspace
+//
+// One domain, `retail_ews_score`. Every type below mirrors what
+// backend/retail/ews_views.py serves, so a figure on a card and the same
+// figure in the chat cannot come from two shapes.
+// ======================================================================
 
 export interface EwsCounts {
   customers: number;
   customers_warned: number;
-  alerts: number;
-  severity: Record<string, number>;
+  high_or_critical: number;
   current_bad: number;
   forward_risk: number;
+  facilities: number;
   exposure_sar: number;
   exposure_warned_sar: number;
   exposure_warned_pct: number;
   ews_score: number;
   severity_band: string;
+  severity: Record<string, number>;
+  triggers_fired: number;
+  default_entries: number;
+  default_eligible: number;
+  odr_pct: number;
+  dpd_30_plus_pct: number;
 }
 
 export interface EwsTrendPoint {
@@ -13287,194 +13346,510 @@ export interface EwsTrendPoint {
   customers_warned: number;
   current_bad: number;
   forward_risk: number;
+  high_or_critical: number;
+  odr_pct: number;
+  default_entries: number;
   exposure_warned_sar: number;
-  layers: Record<string, number>;
 }
 
-export interface EwsProduct extends EwsCounts {
+export interface EwsReason {
+  key: string;
+  reason_code: string;
+  name: string;
+  severity: string;
+  layer: string;
+  layer_name: string;
+  sublayer: string;
+  sublayer_name: string;
+  customers: number;
+  facilities: number;
+  exposure_sar: number;
+  previous_customers: number;
+  change: number;
+}
+
+export interface EwsMovement {
+  ews_score: number;
+  customers_warned: number;
+  current_bad: number;
+  forward_risk: number;
+  high_or_critical?: number;
+  odr_pct?: number;
+}
+
+export interface EwsProductCard extends EwsCounts {
   product_code: string;
   product_label: string;
   month: string;
-  previous_month: string;
   previous: EwsCounts | null;
-  movement: {
-    ews_score: number; customers_warned: number; current_bad: number;
-    forward_risk: number; severity_from: string; severity_to: string;
-  } | null;
+  movement: EwsMovement | null;
   layers: Record<string, number>;
   layer_movement: Record<string, number>;
+  weights: Record<string, number>;
+  emphasis: string;
   trend: EwsTrendPoint[];
+  top_reasons: EwsReason[];
   commentary: string;
-  subsegment_dimensions: { column: string; label: string }[];
+  sub_products: string[];
+}
+
+export interface EwsSubProductCard extends EwsCounts {
+  sub_product: string;
+  sub_product_label: string;
+  meaning: string;
+  derivation: string;
+  month: string;
+  previous: EwsCounts | null;
+  movement: EwsMovement | null;
+  layers: Record<string, number>;
+  share_of_product_exposure_pct: number;
+  trend: EwsTrendPoint[];
+  top_reasons: EwsReason[];
+  commentary: string;
+}
+
+export interface EwsDefinitions {
+  current_bad: string;
+  forward_risk: string;
+  odr?: string;
+  warning_cutoff?: string;
 }
 
 export interface EwsPortfolio {
   available: boolean;
   because?: string;
+  domain: string;
+  domain_name: string;
   month: string;
-  /** Empty for the whole book; otherwise the product the headline counts. */
-  product_code: string;
-  product_label: string;
-  /** What the exposure percentage is of, in words: "retail", "credit card". */
-  population_label: string;
   previous_month: string;
   months: string[];
-  rulebook_version: string;
+  model_version: string;
   panel_version: string;
-  layers_version: string;
-  definitions: { current_bad: string; forward_risk: string };
+  rulebook_version: string;
   headline: EwsCounts;
   previous: EwsCounts | null;
-  movement: {
-    ews_score: number; customers_warned: number; current_bad: number;
-    forward_risk: number;
-  } | null;
+  movement: EwsMovement | null;
   layers: Record<string, number>;
   trend: EwsTrendPoint[];
-  products: EwsProduct[];
+  products: EwsProductCard[];
+  sub_product_labels: Record<string, string>;
+  definitions: EwsDefinitions;
+  disclaimer: string;
 }
 
-export interface EwsSubsegment extends EwsCounts {
-  value: string;
-  previous: EwsCounts | null;
-  movement: { ews_score: number; current_bad: number; forward_risk: number } | null;
-  layers: Record<string, number>;
-  primary_layer: string;
-  primary_layer_name: string;
-  top_reasons: { rule_id: string; rule_name: string; customers: number }[];
-  trend: EwsTrendPoint[];
-}
-
-export interface EwsSubsegments {
+export interface EwsProduct {
   available: boolean;
+  because?: string;
   month: string;
   previous_month: string;
+  months: string[];
   product_code: string;
   product_label: string;
-  dimension: string;
-  dimension_label: string;
-  dimensions: { column: string; label: string }[];
-  subsegments: EwsSubsegment[];
-  definitions: { current_bad: string; forward_risk: string };
+  headline: EwsCounts;
+  previous: EwsCounts | null;
+  movement: EwsMovement | null;
+  layers: Record<string, number>;
+  weights: Record<string, number>;
+  emphasis: string;
+  trend: EwsTrendPoint[];
+  top_reasons: EwsReason[];
+  commentary: string;
+  sub_products: EwsSubProductCard[];
+  definitions: EwsDefinitions;
+}
+
+export interface EwsMiniPoint {
+  month: string;
+  ews_score: number;
+  dpd: number | null;
+  behavioural_score: number | null;
 }
 
 export interface EwsCustomerRow {
   customer_id: string;
+  customer_name: string;
   product_code: string;
   product_label: string;
+  sub_product: string;
+  sub_product_label: string;
   facilities: number;
+  worst_facility_id: string;
   exposure_sar: number;
-  share_of_subsegment_pct: number;
+  share_of_sub_product_pct: number;
   share_of_product_pct: number;
   share_of_portfolio_pct: number;
   dpd: number | null;
+  dpd_bucket: string;
   ifrs9_stage: number | null;
   current_bad: boolean;
   forward_risk: boolean;
   ews_score: number;
-  severity: string;
+  ews_severity: string;
+  ews_threshold: number | null;
+  hard_trigger_applied: string;
   behavioural_score: number | null;
-  behavioural_score_previous: number | null;
   behavioural_score_change: number | null;
   behavioural_score_band: string;
-  /** Empty when there is one. Otherwise the reason there is not. */
-  behavioural_score_absent_because?: string;
+  behavioural_score_absent_because: string;
   application_score: number | null;
   application_score_band: string;
+  bureau_score: number | null;
+  bureau_band: string;
+  bureau_last_observed: string;
+  bureau_recency_months: number | null;
+  layers: Record<string, number>;
   primary_layer: string;
   primary_layer_name: string;
-  top_rules: string[];
-  top_rule_names: string[];
-  layers: Record<string, number>;
-  alerts: number;
+  reasons: { code: string; name: string }[];
+  triggers_fired: number;
+  series: EwsMiniPoint[];
+}
+
+export interface EwsCohort {
+  key: string;
+  label: string;
+  definition: string;
+  customers: number;
 }
 
 export interface EwsCustomers {
   available: boolean;
   month: string;
   product_code: string;
-  dimension: string;
-  value: string;
+  sub_product: string;
   cohort: string;
-  cohorts: { key: string; label: string; definition: string; customers: number }[];
-  /** Rows, at customer-product grain. `total_customers` is the people. */
+  cohorts: EwsCohort[];
+  filters: Record<string, unknown>;
+  dpd_buckets: string[];
   total: number;
-  total_customers: number;
   shown: number;
+  limit: number;
+  offset: number;
   customers: EwsCustomerRow[];
-  definitions: { current_bad: string; forward_risk: string };
+  definitions: EwsDefinitions;
+  name_note: string;
+  bureau_note: string;
 }
 
-export interface EwsCustomerMonth {
-  month: string;
-  ews_score: number;
+export interface EwsAction {
+  direction: string;
+  magnitude: number | null;
+  velocity: number | null;
+  momentum: string;
+  persistence: number | null;
+  recency: number | null;
+}
+
+export interface EwsTrigger {
+  key: string;
+  name: string;
+  reason_code: string;
+  meaning: string;
   severity: string;
-  layers: Record<string, number>;
-  behavioural_score: number | null;
-  dpd: number | null;
-  ifrs9_stage: number | null;
-  exposure_sar: number;
-  current_bad: boolean;
-  forward_risk: boolean;
-  alerts: number;
-  top_rules: string[];
+  source_class: string;
+  column: string;
+  comparator_column: string;
+  threshold: number;
+  threshold_source: string;
+  unit: string;
+  expression: string;
+  products: string[];
+  rule_id: string;
+  absent_because: string;
+  available: boolean;
+  needs_new_observation: boolean;
+  layer: string;
+  fired: boolean;
+  raw_value: number | null;
+  comparator_value: number | null;
+  contribution: number | null;
+  recommended_review: string;
+  action: EwsAction | null;
+  /** Live: how many customers this trigger caught at the served month. */
+  customers?: number;
+}
+
+export interface EwsClassifier {
+  key: string;
+  name: string;
+  column: string;
+  meaning: string;
+  source_class: string;
+  value: string | number | null;
+  absent_because: string;
+  sublayer: string;
+}
+
+export interface EwsSublayer {
+  key: string;
+  name: string;
+  purpose: string;
+  weight: number;
+  score: number;
+  classifiers: EwsClassifier[];
+  triggers: EwsTrigger[];
+  customers?: number;
 }
 
 export interface EwsLayerDetail {
   key: string;
   name: string;
   purpose: string;
-  source_class: string;
+  kind: string;
   weight: number;
-  value: number;
+  weight_because: string;
+  refresh: string;
+  score: number;
+  severity: string;
   previous: number | null;
   movement: number | null;
+  dynamic: boolean;
   trend: { month: string; value: number }[];
-  families: string[];
+  sublayers: EwsSublayer[];
+  top_sublayer: string;
+}
+
+export interface EwsCustomerMonth {
+  month: string;
+  ews_score: number;
+  severity: string;
+  dpd: number | null;
+  ifrs9_stage: number | null;
+  behavioural_score: number | null;
+  exposure_sar: number;
+  current_bad: boolean;
+  forward_risk: boolean;
+  triggers_fired: number;
+  layers: Record<string, number>;
+  reasons: string[];
+}
+
+export interface EwsFacility {
+  facility_id: string;
+  product_label: string;
+  sub_product_label: string;
+  exposure_sar: number;
+  share_of_customer_pct: number;
+  dpd: number | null;
+  ifrs9_stage: number | null;
+  ews_score: number;
+  ews_severity: string;
+  months_on_book: number | null;
+  utilisation_ratio: number | null;
+  secured: boolean;
+  triggers_fired: number;
+}
+
+export interface EwsBureau {
+  score: number | null;
+  band: string;
+  at_origination: number | null;
+  last_observed: string;
+  recency_months: number | null;
+  observed_this_month: boolean;
+  external_delinquency: boolean;
+  enquiries: number | null;
+  rule: string;
+  proxy_label: string;
+  no_trend_because: string;
 }
 
 export interface EwsCustomerDetail {
   available: boolean;
-  customer_id: string;
-  month: string;
-  products: string[];
-  exposure_sar: number;
-  facilities: number;
-  ews_score: number;
-  severity: string;
-  current_bad: boolean;
-  forward_risk: boolean;
-  behavioural_score: number | null;
-  behavioural_score_previous: number | null;
-  behavioural_score_absent_because?: string;
-  // Its own shape rather than an intersection with EwsTrendPoint: a trend
-  // point counts customers in each class, and one customer's history says
-  // whether THEY were in it, so `current_bad` is a number there and a boolean
-  // here. Intersecting the two collapses the type to `never`.
-  history: EwsCustomerMonth[];
-  layers: EwsLayerDetail[];
-  layers_without_rules: Record<string, unknown>[];
-  definitions: { current_bad: string; forward_risk: string };
-}
-
-/** §17: the prebuilt product story — five already bad, five who are next. */
-export interface EwsStoryHalf {
-  customers: (EwsCustomerRow & { because: string })[];
-  total: number;
-}
-
-export interface EwsStory {
-  available: boolean;
   because?: string;
+  customer_id: string;
+  customer_name: string;
+  name_note: string;
   month: string;
+  previous_month: string;
   product_code: string;
   product_label: string;
-  title: string;
-  narrative: string;
-  current_bad: EwsStoryHalf;
-  forward_risk: EwsStoryHalf;
-  definitions: { current_bad: string; forward_risk: string };
-  note: string;
+  sub_product: string;
+  sub_product_label: string;
+  customer_segment: string;
+  ews_score: number;
+  ews_severity: string;
+  ews_threshold: number;
+  movement: number | null;
+  current_bad: boolean;
+  forward_risk: boolean;
+  hard_trigger_applied: string;
+  hard_triggers: { key: string; name: string; condition: string;
+                   because: string }[];
+  behavioural_score: number | null;
+  behavioural_score_previous: number | null;
+  behavioural_score_band: string;
+  behavioural_score_absent_because: string;
+  application_score: number | null;
+  application_score_band: string;
+  bureau: EwsBureau;
+  exposure_sar: number;
+  facilities: EwsFacility[];
+  facility_count: number;
+  exposure_share: { sub_product_pct: number; product_pct: number;
+                    portfolio_pct: number };
+  layers: EwsLayerDetail[];
+  history: EwsCustomerMonth[];
+  trend: EwsCustomerMonth[];
+  reasons: { code: string; name: string }[];
+  weights: Record<string, number>;
+  definitions: EwsDefinitions;
+  model_version: string;
+  domain: string;
+}
+
+export interface EwsSignalRow {
+  key: string;
+  reason_code: string;
+  name: string;
+  meaning: string;
+  severity: string;
+  layer: string;
+  layer_name: string;
+  sublayer: string;
+  sublayer_name: string;
+  source_class: string;
+  column: string;
+  comparator_column: string;
+  threshold: number;
+  threshold_source: string;
+  unit: string;
+  expression: string;
+  products: string[];
+  rule_id: string;
+  reason_template: string;
+  recommended_review: string;
+  available: boolean;
+  absent_because: string;
+  needs_new_observation: boolean;
+  hits: number;
+  customers: number;
+  previous_customers: number;
+  change: number;
+  exposure_sar: number;
+  current_bad: number;
+  forward_risk: number;
+}
+
+export interface EwsSignals {
+  available: boolean;
+  month: string;
+  months: string[];
+  product_code: string;
+  sub_product: string;
+  filters: Record<string, string>;
+  signals: EwsSignalRow[];
+  shown: number;
+  total_signals: number;
+  total_hits: number;
+  capped: boolean;
+  by_layer: { layer: string; layer_name: string; hits: number }[];
+  by_severity: { severity: string; hits: number }[];
+  domain: string;
+  model_version: string;
+}
+
+export interface EwsSignalDetail extends EwsSignalRow {
+  available: boolean;
+  month: string;
+  trend: { month: string; customers: number; hits: number;
+           exposure_sar: number }[];
+  by_product: { product_code: string; product_label: string;
+                customers: number; exposure_sar: number }[];
+}
+
+export interface EwsModelLayer {
+  key: string;
+  name: string;
+  purpose: string;
+  kind: string;
+  weight: number;
+  weight_because: string;
+  refresh: string;
+  score_column: string;
+  sublayer_count: number;
+  classifier_count: number;
+  trigger_count: number;
+  customers?: number;
+  sublayers: EwsSublayer[];
+}
+
+export interface EwsModel {
+  name: string;
+  model_version: string;
+  purpose: string;
+  target: string;
+  horizon: string;
+  eligible_population: string;
+  scoring_frequency: string;
+  month: string;
+  months_scored: number;
+  domain: string;
+  domain_name: string;
+  panel_version: string;
+  build_date: string;
+  scale: { minimum: number; maximum: number; direction: string;
+           warning_cutoff: number };
+  severity_bands: { from: number; band: string }[];
+  population_bands: { from: number; band: string }[];
+  severity_points: Record<string, number>;
+  trigger_contribution_cap: number;
+  threshold_source: string;
+  hard_triggers: { key: string; name: string; condition: string;
+                   floor_score: number; band: string; because: string }[];
+  action_dimensions: { key: string; name: string; meaning: string;
+                       computed: string; values: string; weight: number }[];
+  action_multiplier: { floor: number; ceiling: number; meaning: string };
+  layers: EwsModelLayer[];
+  product_weights: Record<string, Record<string, number>>;
+  product_emphasis: Record<string, string>;
+  sub_products: { code: string; label: string; product: string;
+                  meaning: string; derivation: string }[];
+  bureau_rule: { statement: string; cadence_months: number[];
+                 delinquency_pull_at_dpd: number; proxy_label: string;
+                 no_agreement: string };
+  glossary: { term: string; meaning: string; authority: string }[];
+  unsourced_shorthand: string;
+  counts: Record<string, number>;
+  definitions: EwsDefinitions;
+  flow: { step: string; detail: string }[];
+  lineage: Record<string, unknown>;
+  disclaimer: string;
+}
+
+export interface EwsDomainContract {
+  available: boolean;
+  because?: string;
+  domain: string;
+  domain_name: string;
+  months: string[];
+  month_count: number;
+  grain: string;
+  primary_keys: string[];
+  field_count: number;
+  rows_latest_month: number;
+  groups: { group: string; fields: string[]; count: number }[];
+  problems: string[];
+  months_expected: number;
+  source_dataset: string;
+}
+
+export interface EwsAnswer {
+  question: string;
+  interpretation: string;
+  answer: string;
+  evidence: { label: string; value: string; note: string }[];
+  table: { columns: string[]; rows: string[][] } | null;
+  chart: { kind: string; x: string; y: string;
+           points: { label: string; value: number }[] } | null;
+  follow_ups: string[];
+  filters: Record<string, unknown>;
+  in_scope: boolean;
+  scope_note: string;
+  intent: string;
+  domain: string;
+  domain_name: string;
+  model_version: string;
 }
 
 export interface EwsRuleView {

@@ -98,6 +98,28 @@ DOMAINS: tuple[BusinessDomain, ...] = (
         catalogue_domains=("Early Warning Data",),
         datasets=("retail_early_warning",),
     ),
+    # The Early Warning SCORE domain is its own heading, beside Early Warning
+    # Data rather than inside it. The two are different objects: one is a
+    # column VIEW of the book for an analyst reading raw signals, the other is
+    # the four-layer model's own OUTPUT — sublayer scores, layer scores, the
+    # overall score, its severity and the triggers behind it — which the book
+    # does not contain. Filing them together would put five hundred computed
+    # columns under a heading that promises published ones.
+    BusinessDomain(
+        name="Early Warning Score",
+        description=(
+            "The governed Early Warning Score for every retail customer and "
+            "facility, over twenty month-ends: four layers, their sublayers, "
+            "every trigger with its direction, magnitude, velocity, momentum, "
+            "persistence and recency, the overall score and its severity, the "
+            "current-bad and forward-risk flags, and the reason codes behind "
+            "them. Computed from the canonical book by the model in "
+            "backend/retail/ews_model.py; every customer, facility and "
+            "exposure in it is the book's."),
+        owner="Retail Early Warning",
+        catalogue_domains=("Early Warning Score",),
+        datasets=("retail_ews_score",),
+    ),
     BusinessDomain(
         name="Credit Scorecard Data",
         description=(
@@ -314,8 +336,8 @@ def business_domain(*, dataset: str = "", catalogue_domain: str = "") -> str:
 #: headings because the five hundred and forty-six columns of the canonical
 #: book serve four different readers, and one list of them serves none.
 RETAIL_DOMAIN_NAMES: tuple[str, ...] = (
-    "Cockpit Data", "Early Warning Data", "Credit Scorecard Data",
-    "What-If Analysis Data",
+    "Cockpit Data", "Early Warning Data", "Early Warning Score",
+    "Credit Scorecard Data", "What-If Analysis Data",
 )
 
 

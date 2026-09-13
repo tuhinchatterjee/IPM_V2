@@ -30,7 +30,7 @@ import { useAsync } from "@/lib/hooks";
 import { isRetail } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 
-import { PrototypeNotice } from "../page";
+import { PrototypeNotice } from "../forward-risk";
 
 /**
  * The Model Lab.

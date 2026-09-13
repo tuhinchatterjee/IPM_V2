@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
-import { EWS_DESCRIPTION, EWS_SIGNALS_DESCRIPTION } from "@/lib/ews";
+import { EWS_DESCRIPTION, EWS_LABEL } from "@/lib/ews";
 import { isRetail } from "@/lib/profile";
 import {
   BarChart3,
@@ -17,7 +17,6 @@ import {
   GitBranch,
   Inbox,
   LayoutGrid,
-  ListChecks,
   Mail,
   Network,
   Radar,
@@ -251,31 +250,21 @@ export const NAV_ITEMS: NavItem[] = [
     demoNote:
       "Real. Sixty-one governed metrics over the published data, and the ones this deployment cannot calculate are listed with the reason.",
   },
+  // ONE Early Warning entry. There were two — "Early Warning" and "Early
+  // Warning Signals" — and a reader could not tell which was the product.
+  // Signals is now a view INSIDE the workspace, and /early-warning/signals
+  // still resolves so an existing link does not break.
   {
     href: "/early-warning",
-    label: "Early Warning",
-    description:
-      "Forward Risk Signal: a transparent, factor-based estimate of the chance a facility moves to a worse IFRS 9 stage next quarter, for three transitions. Every score decomposes exactly into one number per factor.",
+    label: EWS_LABEL,
+    description: EWS_DESCRIPTION,
     icon: Radar,
     status: "partial",
-    phase: "Prototype signal, fitted on synthetic data. Not a validated model.",
-    group: "Intelligence",
-    demo: "optional",
-    demoNote:
-      "Real and honestly labelled a prototype fitted on synthetic data. Show it only if the audience asks about predictive signals, and read the label out.",
-  },
-  {
-    href: "/early-warning/signals",
-    label: "Early Warning Signals",
-    description:
-      "The governed conditions this book is watched for, borrower by borrower. Not one score: 34 named tests across eight families, each with a threshold, an owner and a version, and each traceable to the field it read. Where a test could not be run on a borrower, the screen says so on that signal rather than in a blanket list.",
-    icon: ListChecks,
-    status: "live",
-    phase: "",
+    phase: "Governed model on synthetic demonstration data",
     group: "Intelligence",
     demo: "core",
     demoNote:
-      "The transparency argument in one screen. Open a borrower and read a condition out: the value, the previous value, the threshold and who owns it.",
+      "The whole Early Warning journey in one workspace: chat at the top, total retail, four products, sub-portfolios, customers, and the model behind the score.",
   },
   {
     href: "/what-if",
@@ -487,11 +476,7 @@ export const NAV_ITEMS: NavItem[] = [
 const RETAIL_DESCRIPTIONS: Record<string, { description: string; phase?: string }> = {
   "/early-warning": {
     description: EWS_DESCRIPTION,
-    phase: "Governed rulebook on synthetic demonstration data",
-  },
-  "/early-warning/signals": {
-    description: EWS_SIGNALS_DESCRIPTION,
-    phase: "Governed rulebook on synthetic demonstration data",
+    phase: "Governed model on synthetic demonstration data",
   },
 };
 
@@ -516,7 +501,6 @@ export const RETAIL_NAV_HREFS: ReadonlySet<string> = new Set([
   "/lenses",
   "/metrics",
   "/early-warning",
-  "/early-warning/signals",
   "/what-if",
   "/borrower-360",
   "/scorecard-validation",

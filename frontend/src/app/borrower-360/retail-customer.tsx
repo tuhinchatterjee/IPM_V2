@@ -43,12 +43,19 @@ import type {
 } from "@/lib/api";
 import { api } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
+import { CustomerDetail as CustomerEarlyWarning }
+  from "@/app/early-warning/customer-detail";
 
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "facilities", label: "Facilities" },
   { id: "history", label: "History" },
   { id: "scores", label: "Scores" },
+  // §12: the complete Early Warning Score section, inside Customer 360 rather
+  // than only inside the Early Warning workspace. It is the SAME component the
+  // workspace renders, reading the same domain, so the two screens cannot
+  // disagree about a customer's score, their four layers or why.
+  { id: "ews", label: "Early Warning Score" },
   { id: "warnings", label: "Warnings" },
 ];
 
@@ -117,33 +124,37 @@ export function RetailCustomer360() {
   const [score, setScore] = React.useState<RetailFacilityScore | null>(null);
   const [scoreProblem, setScoreProblem] = React.useState("");
 
-  React.useEffect(() => {
-    if (!month && months.length) setMonth(months[months.length - 1]);
-  }, [months, month]);
+  // The month actually read. Derived rather than written back by an effect:
+  // until the manifest lands there is no month to default to, and a setState
+  // in an effect to supply one is a second render for a value this one has.
+  const at = month || (months.length ? months[months.length - 1] : "");
 
   const search = React.useCallback(async (q: string) => {
-    if (!month) return;
+    if (!at) return;
     setSearching(true);
     setProblem("");
     try {
-      const body = await api.retailCustomers(q, month, 25);
+      const body = await api.retailCustomers(q, at, 25);
       setResults(body.customers);
     } catch (caught) {
       setProblem(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setSearching(false);
     }
-  }, [month]);
+  }, [at]);
 
   // The customer the reader is on, reloaded when they change month — the whole
   // point of a month selector on a customer screen.
   React.useEffect(() => {
-    if (!customerId || !month) return;
+    if (!customerId || !at) return;
     let live = true;
-    setProblem("");
-    api.retailCustomer(customerId, month)
+    // The error is cleared where the NEXT answer arrives, not in the effect
+    // body: clearing it here is a setState on every run, which is a second
+    // render before anything has been fetched.
+    api.retailCustomer(customerId, at)
       .then((body) => {
         if (!live) return;
+        setProblem("");
         setFound(body);
         setFacilityId((current) => {
           const ids = body.facilities.map((f) => String(f.facility_id));
@@ -156,14 +167,17 @@ export function RetailCustomer360() {
         setProblem(caught instanceof Error ? caught.message : String(caught));
       });
     return () => { live = false; };
-  }, [customerId, month]);
+  }, [customerId, at]);
 
   React.useEffect(() => {
-    if (!facilityId || !month) return;
+    if (!facilityId || !at) return;
     let live = true;
-    setScoreProblem("");
-    api.retailFacilityScore(facilityId, month)
-      .then((body) => { if (live) setScore(body); })
+    api.retailFacilityScore(facilityId, at)
+      .then((body) => {
+        if (!live) return;
+        setScoreProblem("");
+        setScore(body);
+      })
       .catch((caught) => {
         if (!live) return;
         setScore(null);
@@ -171,7 +185,7 @@ export function RetailCustomer360() {
           caught instanceof Error ? caught.message : String(caught));
       });
     return () => { live = false; };
-  }, [facilityId, month]);
+  }, [facilityId, at]);
 
   const customer = (found?.customer ?? {}) as Record<string, unknown>;
   const facility = (found?.facilities ?? []).find(
@@ -180,7 +194,7 @@ export function RetailCustomer360() {
 
   return (
     <div className="space-y-5" data-testid="retail-customer-360">
-      <BackLink href="/early-warning/signals" label="Early Warning Signals" />
+      <BackLink href="/early-warning" label="Early Warning Score" />
 
       <PageHeader
         eyebrow="Intelligence"
@@ -197,7 +211,7 @@ export function RetailCustomer360() {
           <label className="flex flex-col gap-1 text-[11px] text-text-muted">
             Reporting month
             <select
-              value={month}
+              value={at}
               onChange={(e) => setMonth(e.target.value)}
               aria-label="Reporting month"
               data-testid="customer-month"
@@ -223,7 +237,7 @@ export function RetailCustomer360() {
             />
           </label>
           <Button size="sm" onClick={() => void search(text)}
-                  disabled={searching || !month}
+                  disabled={searching || !at}
                   data-testid="customer-search-go">
             {searching ? "Searching…" : "Search"}
           </Button>
@@ -241,7 +255,7 @@ export function RetailCustomer360() {
         <Card>
           <CardHeader>
             <CardTitle className="text-[14px]">
-              {results.length} customers at {month}
+              {results.length} customers at {at}
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border">
@@ -569,6 +583,14 @@ export function RetailCustomer360() {
             </Card>
           ) : null}
 
+          {tab === "ews" ? (
+            <div data-testid="c360-ews">
+              <CustomerEarlyWarning
+                customerId={String(found.customer?.customer_id ?? "")}
+                month={String(found.snapshot_month)} />
+            </div>
+          ) : null}
+
           {tab === "warnings" ? (
             <Card>
               <CardContent className="space-y-2 pt-4">
@@ -627,7 +649,7 @@ export function RetailCustomer360() {
             <Button size="sm" variant="outline" asChild>
               <Link
                 href={`/?focus=ask&q=${encodeURIComponent(
-                  `Show exposure and weighted ECL for customer ${customerId} at ${month}`)}`}
+                  `Show exposure and weighted ECL for customer ${customerId} at ${at}`)}`}
                 data-testid="customer-ask"
               >
                 Ask about this customer
