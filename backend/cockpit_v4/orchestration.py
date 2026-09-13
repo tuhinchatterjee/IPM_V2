@@ -1049,6 +1049,14 @@ class Orchestrator:
 
         published = final.to_dict()
         published["narrative"] = report.rendered_narrative
+        # The figure a reader sees is CreditProbe's rounding of CreditProbe's
+        # arithmetic -- the same string that was substituted into the
+        # narrative. `decimal_value` is the analyst's cross-check and may
+        # carry machine precision; it is never what gets shown.
+        for claim in published["numeric_claims"]:
+            shown = report.claim_values.get(claim["claim_id"], "")
+            if shown:
+                claim["display_value"] = shown
         # Every value in a published table or chart comes from the stored
         # artifact, formatted by the one display policy. The analyst chose
         # what to show; no number in either has passed through the model.

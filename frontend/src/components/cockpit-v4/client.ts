@@ -65,7 +65,10 @@ export type FinalResponse = {
   coverage: { subquestion: string; status: string }[];
   numeric_claims: {
     claim_id: string;
-    decimal_value: string;
+    /** The analyst's optional cross-check, at full precision. Not for display. */
+    decimal_value?: string;
+    /** What CreditProbe published for a reader: rounded, in this unit. */
+    display_value?: string;
     unit: string;
     display_precision: number;
     /** Present on a DIRECT claim: the one result cell it was read from. */

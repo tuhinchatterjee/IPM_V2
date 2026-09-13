@@ -324,3 +324,72 @@ def test_the_call_report_shows_two_generations_and_their_purposes(
     assert report["generations"] == 2
     assert [c["purpose"] for c in report["calls"]] == [
         "ANALYSIS_ACTION", "FINAL_ANSWER"]
+
+
+# ---- the figures list a reader sees ------------------------------------
+
+def test_every_published_claim_carries_the_string_a_reader_sees(
+        drive, release_id):
+    """§37. The claim list is rendered, and it renders from CreditProbe.
+
+    The defect: the answer panel listed each claim as its `decimal_value`,
+    so a figure the narrative wrote as `SAR 7,013 million` appeared two
+    inches below it as `7013.1167117986615 SAR million`. The narrative was
+    never the problem -- the substitution there has always used the server's
+    string. What the published payload did not carry was that same string
+    for anything ELSE to render, so the panel fell back to the analyst's
+    raw cross-check.
+
+    So the published claim carries `display_value`, and it is the very
+    string the narrative used. Nothing downstream has to round anything.
+    """
+    outcome, _, _ = _run(drive, release_id, _answer_with(
+        [_total_claim], "Total portfolio EAD is {{claim.total_ead}}."))
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    claims = outcome.response["numeric_claims"]
+    assert claims, "an evidence-bound answer publishes its claims"
+    for claim in claims:
+        shown = claim.get("display_value", "")
+        assert shown, f"claim {claim['claim_id']!r} published nothing to show"
+        assert shown in outcome.response["narrative"], (
+            "the figures list and the narrative must not disagree about the "
+            "same claim")
+        digits = shown.split(".")[1] if "." in shown else ""
+        assert len(digits) <= 2, (
+            f"machine precision reached the reader: {shown!r}")
+
+
+def test_a_full_precision_cross_check_is_kept_but_never_the_display(
+        drive, release_id):
+    """§37. A lossless cross-check is kept for audit, and kept off the screen.
+
+    A direct claim names one stored cell, so the analyst can echo that cell
+    exactly -- all fifteen digits of it -- and the check accepts it, because
+    it IS the canonical value. That is the case the live defect came from:
+    the panel then printed those fifteen digits under a narrative that had
+    written the same figure as `SAR 7,013 million`.
+
+    Both forms are published now, and they are not the same field.
+    """
+    def _claim(messages):
+        step = _result(messages)
+        row = step["preview"][0]
+        column = next(c for c in step["columns"] if c != "sector_name")
+        return {"claim_id": "top", "unit": "SAR million",
+                "decimal_value": str(Decimal(str(row[column]))),
+                "evidence": {"artifact_id": step["artifact_id"],
+                             "row_key": f"sector_name={row['sector_name']}",
+                             "column_id": column}}
+
+    outcome, _, _ = _run(drive, release_id, _answer_with(
+        [_claim], "The largest sector is {{claim.top}}."))
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    claim = outcome.response["numeric_claims"][0]
+    assert claim["display_value"] == disp.format_value(
+        Decimal(claim["decimal_value"]), "SAR million")
+    assert claim["display_value"] in outcome.response["narrative"]
+    assert "." not in claim["display_value"], (
+        f"an amount reached the reader with decimals: "
+        f"{claim['display_value']!r}")

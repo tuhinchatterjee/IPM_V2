@@ -12,6 +12,7 @@
  */
 
 import { AnswerActions } from "./answer-actions";
+import { claimDisplayLine } from "./claim-display";
 import { API_PREFIX, type FinalResponse } from "./client";
 import { Markdown } from "./markdown.tsx";
 import type { RunView } from "./reducer";
@@ -226,7 +227,7 @@ export function ResponsePanel({
           <ul className="mt-1 space-y-1 text-xs text-slate-600">
             {response.numeric_claims.map((claim) => (
               <li key={claim.claim_id} className="font-mono">
-                {claim.claim_id}: {claim.decimal_value} {claim.unit}
+                {claim.claim_id}: {claimDisplayLine(claim)}
               </li>
             ))}
           </ul>
