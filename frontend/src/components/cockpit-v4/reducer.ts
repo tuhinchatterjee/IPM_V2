@@ -61,6 +61,17 @@ export type RunView = {
    */
   elapsedMs: number;
   elapsedIsAuthoritative: boolean;
+  /**
+   * The reader's own clock when `elapsedMs` was last set from an event.
+   *
+   * The anchor for live timing. Elapsed is the server's number carried
+   * forward by this clock -- never a second clock started independently,
+   * which would drift, and would restart at zero on a remount while the run
+   * was already half a minute old.
+   *
+   * Zero until the first event: there is nothing to carry forward yet.
+   */
+  anchorLocalMs: number;
   terminal: boolean;
   state: string;
   errorCode: string;
@@ -96,6 +107,24 @@ export type Action =
   | { type: "connection"; state: RunView["connection"] }
   | { type: "settled"; status: RunStatus };
 
+/**
+ * Reads the local clock. Replaceable so a test can drive time by hand
+ * rather than by sleeping, which is how a one-second tick gets asserted in
+ * milliseconds.
+ */
+let nowMs: () => number = () =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+export function setClock(reader: () => number): () => void {
+  const previous = nowMs;
+  nowMs = reader;
+  return () => {
+    nowMs = previous;
+  };
+}
+
 export function initial(runId = ""): RunView {
   return {
     runId,
@@ -116,6 +145,7 @@ export function initial(runId = ""): RunView {
     currentStage: "",
     elapsedMs: 0,
     elapsedIsAuthoritative: false,
+    anchorLocalMs: 0,
     terminal: false,
     state: "ACCEPTED",
     errorCode: "",
@@ -213,6 +243,7 @@ export function reduce(view: RunView, action: Action): RunView {
         steps,
         currentStage: event.stage,
         elapsedMs: Math.max(view.elapsedMs, event.elapsed_ms),
+        anchorLocalMs: nowMs(),
         errorId: event.error_id || view.errorId,
         terminal: view.terminal || TERMINAL_EVENTS.has(event.event_type),
       };

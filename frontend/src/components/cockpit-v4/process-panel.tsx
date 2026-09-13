@@ -16,6 +16,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  formatElapsed,
+  isCounting,
+  liveStepElapsedMs,
+  runHeadline,
+  systemNow,
+} from "./clock";
 import type { RunView, Step } from "./reducer";
 import { collapsedSummary, failedStage, formatSeconds } from "./reducer";
 
@@ -103,7 +110,24 @@ export function ProcessPanel({
     }
   }, [failed]);
 
-  const summary = useMemo(() => collapsedSummary(view), [view]);
+  // ONE interval for the whole panel, started only while something is
+  // running and cleared the moment it is not. A timer per stage would be a
+  // dozen intervals on a busy run and a leak on every one that unmounts
+  // mid-flight.
+  const [now, setNow] = useState(() => systemNow());
+  const counting = isCounting(view);
+  useEffect(() => {
+    if (!counting) return undefined;
+    setNow(systemNow());
+    const handle = setInterval(() => setNow(systemNow()), 1000);
+    return () => clearInterval(handle);
+  }, [counting]);
+
+  // While the run is live this is the moving figure; once it settles
+  // `runHeadline` reports the server's authoritative total and stops.
+  const summary = counting
+    ? runHeadline(view, now)
+    : collapsedSummary(view);
 
   const toggle = () => {
     const next = !open;
@@ -202,10 +226,18 @@ export function ProcessPanel({
                           {step.label}
                           <span className="sr-only"> — {stateWord(step.state)}</span>
                         </span>
-                        <span className="shrink-0 tabular-nums text-xs text-slate-500">
+                        <span
+                          data-testid={`v4-step-elapsed-${step.stage}`}
+                          data-running={step.state === "running"
+                            ? "true" : "false"}
+                          className="shrink-0 tabular-nums text-xs text-slate-500"
+                        >
                           {step.state === "prospective"
                             ? "not started"
-                            : formatSeconds(step.elapsedMs)}
+                            : step.state === "running"
+                              ? formatElapsed(
+                                  liveStepElapsedMs(step, view, now))
+                              : formatSeconds(step.elapsedMs)}
                         </span>
                       </button>
                       {step.detail && step.state !== "prospective" ? (
