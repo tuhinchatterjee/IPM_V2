@@ -183,3 +183,56 @@ def test_a_call_refused_before_it_was_sent_is_still_reported(drive,
     assert last["purpose"] and last["phase"]
     assert "request_id" not in last, (
         "nothing was sent, so there is nothing to attribute it to")
+
+
+# ---- what the reader watching the panel sees ---------------------------
+
+def _messages(store_db, record):
+    return [e.public_message for e in store_db.events_since(record.run_id)]
+
+
+def test_the_panel_distinguishes_the_two_re_asks(drive, store_db,
+                                                 release_id):
+    """An action re-ask and an answer re-ask are different failures.
+
+    They have different allowances and different costs -- one happens before
+    any work exists, the other after the SQL has run and been paid for -- and
+    a live run stopped because they shared a counter. A reader watching the
+    panel must be able to tell which one just happened.
+    """
+    quarter = oracles.latest_quarter(release_id)
+    outcome, _, record = drive(QUESTION, [
+        OutputTruncated("cut off", limit=4096),
+        ScriptedResult(tool_calls=[_ead_call(quarter)]),
+        OutputTruncated("cut off", limit=4096), _good_answer])
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    said = _messages(store_db, record)
+    action_reask = [m for m in said
+                    if m.startswith("The response was cut off")]
+    answer_reask = [m for m in said
+                    if m.startswith("The written answer was cut off")]
+    assert len(action_reask) == 1, said
+    assert len(answer_reask) == 1, said
+    assert "result is preserved" in answer_reask[0], (
+        "a reader must not conclude the analysis was lost with the answer")
+    # And each re-ask is followed by a line saying what is now being asked
+    # for, rather than the same sentence printed twice.
+    assert "Asking again for a complete action" in said
+    assert "Asking again for a complete answer" in said
+
+
+def test_the_panel_names_what_each_model_call_is_for(drive, store_db,
+                                                     release_id):
+    quarter = oracles.latest_quarter(release_id)
+    outcome, _, record = drive(QUESTION, [
+        OutputTruncated("cut off", limit=4096),
+        ScriptedResult(tool_calls=[_ead_call(quarter)]),
+        _bad_answer, _good_answer])
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    said = _messages(store_db, record)
+    for expected in ("Asking again for a complete action",
+                     "Writing the answer from the result",
+                     "Correcting the written answer against the result"):
+        assert expected in said, f"the panel never said {expected!r}: {said}"

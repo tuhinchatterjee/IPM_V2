@@ -84,9 +84,12 @@ class Outcome:
 #: allowances, and a live run stopped because they shared one.
 _PURPOSE_MESSAGE: dict[str, str] = {
     "ANALYSIS_ACTION": "Preparing the next action",
-    "ACTION_FORMAT_RECOVERY": "The previous action was cut off; asking again",
+    # The retry notice has already said WHAT went wrong. These say what is
+    # being asked for now, so the panel does not print the same sentence
+    # twice in a row with nothing between them.
+    "ACTION_FORMAT_RECOVERY": "Asking again for a complete action",
     "FINAL_ANSWER": "Writing the answer from the result",
-    "ANSWER_FORMAT_RECOVERY": "The written answer was cut off; asking again",
+    "ANSWER_FORMAT_RECOVERY": "Asking again for a complete answer",
     "ANSWER_CORRECTION": "Correcting the written answer against the result",
 }
 
