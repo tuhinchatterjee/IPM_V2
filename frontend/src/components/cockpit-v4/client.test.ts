@@ -137,6 +137,9 @@ test("a remembered run survives and is forgotten deliberately", () => {
     runId: "run-abc",
     threadId: "th-1",
     cursor: 7,
+    // Absent when it was never written down; never undefined, so a caller
+    // rendering it does not have to guard.
+    question: "",
   });
   forgetRun();
   assert.equal(recallRun(), null,
@@ -147,4 +150,22 @@ test("a remembered run survives and is forgotten deliberately", () => {
   assert.equal(recallRun(), null);
   store.set("cockpit-v4:active-run", JSON.stringify({ cursor: 3 }));
   assert.equal(recallRun(), null, "an entry with no run id is not a run");
+});
+
+test("the remembered run keeps the question it is answering", () => {
+  // It is rebuilt field by field on the way out, and a field that is not
+  // named there is silently dropped -- which rendered the reader's own turn
+  // blank above a visibly working process panel after every refresh.
+  const store = new Map<string, string>();
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  };
+
+  rememberRun({
+    runId: "run-1", threadId: "th-1", cursor: 0,
+    question: "What is total EAD by sector?",
+  });
+  assert.equal(recallRun()?.question, "What is total EAD by sector?");
 });

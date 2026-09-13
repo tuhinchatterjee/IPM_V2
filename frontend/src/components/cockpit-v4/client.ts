@@ -232,6 +232,7 @@ export function recallRun(): ActiveRun | null {
       runId: parsed.runId,
       threadId: typeof parsed.threadId === "string" ? parsed.threadId : "",
       cursor: typeof parsed.cursor === "number" ? parsed.cursor : 0,
+      question: typeof parsed.question === "string" ? parsed.question : "",
     };
   } catch {
     return null;
