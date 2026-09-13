@@ -105,8 +105,10 @@ function VariableCard({ v }: { v: EwsVariable }) {
             .join(", ") : "—"}
         </Fact>
         <Fact label="Weight carried">
-          {v.layer_names.length
-            ? `${v.layer_names.join(", ")} — ${(v.layer_weight * 100).toFixed(0)}% of the overall score`
+          {v.layer_weights.length
+            ? v.layer_weights
+                .map((l) => `${l.name} (${(l.weight * 100).toFixed(0)}% of the overall score)`)
+                .join(", ")
             : "None. This input carries no risk weight."}
         </Fact>
         <Fact label="Reason codes generated">

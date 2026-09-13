@@ -149,6 +149,17 @@ export function RetailSignals() {
     return `Showing ${on} of ${total} alerts matching these filters.`;
   }, [found.data, alerts.length, shown]);
 
+  // What a rule id and a layer key are CALLED, read from the deck the server
+  // sends rather than spelled again here.
+  const ruleLabel = React.useMemo(() => {
+    const one = (found.data?.by_rule ?? []).find((r) => r.rule_id === rule);
+    return one ? `${one.rule_id} · ${one.rule_name}` : rule;
+  }, [found.data, rule]);
+  const layerLabel = React.useMemo(() => {
+    const one = (found.data?.by_layer ?? []).find((l) => l.layer === layer);
+    return one ? one.layer_name : layer;
+  }, [found.data, layer]);
+
   // Said once, under each deck: these counts are the month's, not the
   // filter's, so clicking a chip narrows the list without emptying the deck a
   // reader needs in order to click a different one.
@@ -310,6 +321,32 @@ export function RetailSignals() {
           <p className="text-[12px] text-text-secondary" data-testid="signals-showing">
             {showing}
           </p>
+
+          {/* A rule or a layer chosen by a chip — or by a link from the
+              methodology, the Cockpit or a customer's reason-code timeline —
+              is not in any of the dropdowns above, so it is named here.
+              Landing on "348 alerts" with nothing on screen saying which of
+              the twenty rules that is, is a filtered list nobody can read. */}
+          {rule || layer ? (
+            <div className="flex flex-wrap items-center gap-2"
+                 data-testid="signals-active-filters">
+              <span className="text-[11px] text-text-muted">Filtered to</span>
+              {rule ? (
+                <button type="button" onClick={() => { setRule(""); setShown(PAGE); }}
+                        data-testid="signals-clear-rule"
+                        className="rounded-full border border-accent bg-accent-subtle px-2.5 py-1 text-[11px] text-accent">
+                  {ruleLabel} ✕
+                </button>
+              ) : null}
+              {layer ? (
+                <button type="button" onClick={() => { setLayer(""); setShown(PAGE); }}
+                        data-testid="signals-clear-layer"
+                        className="rounded-full border border-accent bg-accent-subtle px-2.5 py-1 text-[11px] text-accent">
+                  {layerLabel} ✕
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           <ChipDeck
             title="By severity"

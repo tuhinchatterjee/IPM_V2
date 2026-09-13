@@ -505,8 +505,15 @@ def variables() -> list[dict[str, object]]:
             name, ("Derived", "Not documented.", "Not documented."))
         layers = sorted({layer_of(r.family) for r in rules} - {""})
         products = sorted({p for r in rules for p in r.products})
-        weight = sum(
-            (get(key).weight if get(key) else 0.0) for key in layers)
+        # Each layer's own weight, not their sum. `dpd` feeds two layers, and
+        # "45% of the overall score" reads as though reading one column
+        # accounted for nearly half of it. It accounts for part of 30% and
+        # part of 15%, which is what the two numbers say.
+        per_layer = [{"layer": key,
+                      "name": get(key).name if get(key) else key,
+                      "weight": get(key).weight if get(key) else 0.0}
+                     for key in layers]
+        weight = round(sum(one["weight"] for one in per_layer), 4)
         out.append({
             "name": name,
             "label": spec.business_name,
@@ -524,7 +531,8 @@ def variables() -> list[dict[str, object]]:
             "products": products,
             "layers": layers,
             "layer_names": [get(k).name for k in layers if get(k)],
-            "layer_weight": round(weight, 4),
+            "layer_weights": per_layer,
+            "layer_weight": weight,
             "rules": [r.rule_id for r in rules],
             "rule_names": [r.name for r in rules],
             "reason_codes": sorted({r.rule_id for r in rules}),

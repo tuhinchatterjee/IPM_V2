@@ -219,7 +219,18 @@ has a regression test in `tests/retail/test_ret_ews_portfolio.py` or a case in
     rule, and rendered two React children with the same key. The reason codes
     are one entry per rule; the alert count still counts both.
 
-16. **Two navigation entries described the corporate book.** Early Warning was
+16. **A variable's weight was the sum of two layers'.** `dpd` feeds both
+    repayment behaviour and facility structure, and the methodology read
+    "45% of the overall score", as though reading one column accounted for
+    nearly half of it. Each layer is now named with its own weight.
+
+17. **A deep link filtered the signals list and did not say to what.**
+    Arriving from the methodology, the Cockpit or a customer's reason-code
+    timeline showed "348 alerts" with every dropdown reading ALL. The active
+    rule and layer are now named above the list, and clicking the name clears
+    it.
+
+18. **Two navigation entries described the corporate book.** Early Warning was
     described as the Forward Risk Signal, and the signals entry as "34 named
     tests across eight families" — thirty-four across eight is the *corporate*
     rulebook. Both now read `frontend/src/lib/ews.ts`, which is the one place

@@ -13525,6 +13525,8 @@ export interface EwsVariable {
   products: string[];
   layers: string[];
   layer_names: string[];
+  /** Each layer's own weight. Their sum is `layer_weight`. */
+  layer_weights: { layer: string; name: string; weight: number }[];
   layer_weight: number;
   rules: string[];
   rule_names: string[];
