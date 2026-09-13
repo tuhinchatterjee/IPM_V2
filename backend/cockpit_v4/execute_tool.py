@@ -298,6 +298,10 @@ class ExecutionService:
     release_id: str
     limits: Any
     python_runner: Any = None
+    #: The run's release header. Stamped on every artifact, so an artifact
+    #: carries a statement about the BYTES it was computed from and not only
+    #: the name they were published under.
+    header: Any = None
     #: Result artifacts produced in this run, by step id, for dependencies.
     artifacts: dict[str, str] = field(default_factory=dict)
 
@@ -544,7 +548,10 @@ class ExecutionService:
             run_id=self.run_id, tenant_id=self.tenant_id, kind="result",
             release_id=self.release_id,
             scope={"relations": list(getattr(self.session, "relations", ())),
-                   "step_id": step.step_id},
+                   "step_id": step.step_id,
+                   **({"release_fingerprint":
+                       self.header.release_fingerprint} if self.header
+                      else {})},
             columns=columns, rows=result.rows, code_digest=digest)
         self.artifacts[step.step_id] = artifact_id
 

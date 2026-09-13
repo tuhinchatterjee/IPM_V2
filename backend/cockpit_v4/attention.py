@@ -1356,23 +1356,35 @@ def compute(*, session: Any, release_id: str, quarters: list[str],
 
 # ---- cache --------------------------------------------------------------
 
-_CACHE: dict[tuple[str, str], dict[str, Any]] = {}
+_CACHE: dict[tuple[str, str, str], dict[str, Any]] = {}
 _CACHE_LOCK = threading.Lock()
 
 
-def cache_key(release_id: str, tenant_id: str) -> tuple[str, str]:
-    return (str(release_id), str(tenant_id))
+def cache_key(release_id: str, tenant_id: str) -> tuple[str, str, str]:
+    """Release, tenant, and the FINGERPRINT of the release's bytes.
+
+    The id and the tenant were not enough. A release rebuilt under the same
+    id has the same key, so a dashboard computed from the old bytes would be
+    served against the new ones -- a cache hit that is a statement about a
+    book that no longer exists. The fingerprint is what the two builds
+    cannot share, so a rebuild is simply a new key.
+    """
+    from backend.cockpit_v4 import release as release_mod
+
+    return (str(release_id), str(tenant_id),
+            release_mod.fingerprint(str(release_id)))
 
 
 def cached(*, session: Any, release_id: str, tenant_id: str,
            quarters: list[str], currency: str, refresh: bool = False,
            deadline_seconds: float = 20.0) -> dict[str, Any]:
-    """The feed, computed once per release and tenant.
+    """The feed, computed once per release build and tenant.
 
-    Keyed by release and tenant, so a different release cannot be served from
-    another one's entry and a tenant cannot see a feed built under someone
-    else's authorization. A new release is a new key, which is the whole of
-    the invalidation rule.
+    Keyed by release, tenant and the release's own bytes, so a different
+    release cannot be served from another one's entry, a tenant cannot see a
+    feed built under someone else's authorization, and a rebuilt release
+    cannot be served a dashboard computed from what it used to hold. A new
+    build is a new key, which is the whole of the invalidation rule.
     """
     key = cache_key(release_id, tenant_id)
     if not refresh:

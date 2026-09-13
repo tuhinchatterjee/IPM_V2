@@ -147,6 +147,14 @@ class Worker:
         analyst.user(packet.first_user_message)
 
         from backend.cockpit_v4 import pyrunner
+        from backend.cockpit_v4 import release as release_mod
+
+        # The execution header: which release, which bytes, which currency.
+        # Pinned once per run and stamped on everything it produces.
+        header = release_mod.header(
+            release_id=record.release_id, catalog=self.runtime.catalog,
+            release_summary=self.runtime.release_summary,
+            tenant_id=record.tenant_id)
 
         orchestrator = Orchestrator(
             run=record, store=self.store, ledger=ledger, analyst=analyst,
@@ -157,13 +165,15 @@ class Worker:
                 session=session, scope=scope, catalog=self.runtime.catalog,
                 store=self.store, run_id=record.run_id,
                 tenant_id=record.tenant_id, release_id=record.release_id,
-                limits=limits, python_runner=pyrunner.PythonRunner()),
+                limits=limits, python_runner=pyrunner.PythonRunner(),
+                header=header),
             artifact_service=ArtifactService(
                 store=self.store, tenant_id=record.tenant_id,
                 release_id=record.release_id, limits=limits),
             finalizer=Finalizer(
                 store=self.store, tenant_id=record.tenant_id,
-                release_id=record.release_id, limits=limits),
+                release_id=record.release_id, limits=limits,
+                header=header),
             emitter=emitter, catalog=self.runtime.catalog,
             cancel_check=lambda: bool(
                 (self.store.get_run(record.run_id) or record).cancel_requested),

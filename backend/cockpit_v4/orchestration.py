@@ -1060,6 +1060,12 @@ class Orchestrator:
         published["validation"] = report.to_dict()
         published["evidence_bound"] = bool(final.numeric_claims)
         published["executed"] = self.executed
+        # What these numbers mean, travelling with them. A saved analysis, a
+        # shared link or a reopened thread carries the release, the bytes,
+        # the country, the currency and the scale, so a reader months later
+        # is not left inferring a denomination from the figures.
+        if self.finalizer.header is not None:
+            published["release"] = self.finalizer.header.to_dict()
 
         self.emitter.append(
             ev.ANSWER_VALIDATED, stage="publishing",

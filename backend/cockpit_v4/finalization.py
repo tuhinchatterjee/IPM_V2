@@ -131,6 +131,10 @@ class Finalizer:
     #: column's unit is one the answer has already been held to rather than
     #: one the renderer chose for it.
     _claims: tuple = ()
+    #: The run's release header. Evidence is checked against it: an artifact
+    #: from a DIFFERENT build of the same release id is not this run's
+    #: evidence, and an id alone cannot tell them apart.
+    header: Any = None
 
     def validate(self, final: FinalResponse, *,
                  executed: bool) -> ValidationReport:
@@ -223,6 +227,33 @@ class Finalizer:
         return prec.format_value(verdict.canonical, claim.unit,
                                  verdict.precision)
 
+    def release_problem(self, artifact_id: str) -> str:
+        """Is this artifact from the same release, and the same bytes?
+
+        A release id is a name. Two builds of one id have the same name and
+        different numbers, and an artifact stored before a rebuild satisfies
+        "same release_id" against the rebuild perfectly. The fingerprint is
+        what the two cannot share.
+        """
+        if self.header is None:
+            return ""
+        record = self.store.get_artifact(artifact_id,
+                                         tenant_id=self.tenant_id)
+        if record is None:
+            return ""
+        if str(record.get("release_id") or "") != self.header.release_id:
+            return (f"artifact {artifact_id!r} was computed from release "
+                    f"{record.get('release_id')!r} and this run is answering "
+                    f"from {self.header.release_id!r}. A figure from one "
+                    f"release is not evidence for another.")
+        stored = str((record.get("scope") or {}).get(
+            "release_fingerprint") or "")
+        if stored and stored != self.header.release_fingerprint:
+            return (f"artifact {artifact_id!r} carries release "
+                    f"{self.header.release_id!r} but was computed from a "
+                    f"different build of it. Same name, different numbers.")
+        return ""
+
     def _artifacts(self, ids) -> dict[str, Any]:
         """The stored artifacts for a derivation, tenant-checked."""
         out: dict[str, Any] = {}
@@ -278,6 +309,9 @@ class Finalizer:
                                        tenant_id=self.tenant_id) is None:
                 return (f"{label} references artifact {artifact_id!r}, which "
                         f"is not available to you.")
+            wrong_release = self.release_problem(artifact_id)
+            if wrong_release:
+                return f"{label}: {wrong_release}"
 
         unit_wrong = deriv.unit_problem(derivation, claim.unit)
         if unit_wrong:
@@ -307,6 +341,9 @@ class Finalizer:
         if record is None:
             return (f"claim {claim.claim_id!r} references artifact "
                     f"{ref.artifact_id!r}, which is not available to you.")
+        wrong_release = self.release_problem(ref.artifact_id)
+        if wrong_release:
+            return f"claim {claim.claim_id!r}: {wrong_release}"
         if ref.column_id and ref.column_id not in record["columns"]:
             return (f"claim {claim.claim_id!r} names column "
                     f"{ref.column_id!r}, which is not in artifact "
