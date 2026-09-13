@@ -292,4 +292,32 @@ def parse(markdown: str, *, title: str = "") -> Document:
         buffer.append(stripped)
 
     close_section()
+    return _title_is_not_a_section(doc)
+
+
+def _title_is_not_a_section(doc: Document) -> Document:
+    """Fold a leading title line back into the title it is.
+
+    A report opens with its own title, and `parse` is usually given a title
+    too — the artifact's label, which the author is not obliged to match word
+    for word. When the two differ, the H1 the author wrote used to fall through
+    and become an ordinary Section, so the document carried its title twice:
+    once as `Document.title` and once as a section. Every writer then rendered
+    both, and the validator, which compares canonical sections against the
+    rendered file, reported the title as a missing section.
+
+    The signature of that duplicate is exact and cannot be confused with a real
+    section: it is FIRST, it has a heading, it has NO content of its own, and
+    something follows it. A section with no content says nothing, so nothing is
+    lost by reading it as the title line it is — and an author who uses H1 for
+    real sections puts text under them, so those are untouched.
+
+    The document's own wording wins, because that is what the renderers print
+    and what a reader sees. The artifact's label is a separate field and is
+    unaffected.
+    """
+    if len(doc.sections) > 1 and doc.sections[0].heading \
+            and not doc.sections[0].blocks:
+        doc.title = doc.sections[0].heading
+        doc.sections.pop(0)
     return doc

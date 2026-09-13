@@ -364,15 +364,61 @@ def _document_text(doc: D.Document) -> str:
     return "\n".join(parts)
 
 
+def _flat(text: str) -> str:
+    """One line, one space, lower case — and nothing else.
+
+    A renderer wraps a long heading across lines and a reader hands it back
+    with a newline in the middle; the canonical model has no line breaks in a
+    heading at all, so collapsing them compares like with like. This is
+    whitespace only. It is deliberately NOT fuzzy: punctuation, an em dash, a
+    digit and a word are all still compared exactly, so a heading that differs
+    by anything a reader would notice still fails.
+    """
+    return re.sub(r"\s+", " ", (text or "")).strip().lower()
+
+
+def _check_title(v: Validation, doc: D.Document, found_text: str,
+                 found_title: str | None) -> None:
+    """The document's title, checked as a title.
+
+    Every writer renders `Document.title` once, in the format's own title slot
+    — a level-0 heading and the core properties in Word, the title style and
+    the PDF metadata in a PDF — and never as a section. So it is checked
+    against that slot, with its own diagnostic. Reporting a title as a missing
+    *section* is what sent a real UAT run looking for a chapter that was never
+    supposed to exist.
+    """
+    title = (doc.title or "").strip()
+    v.checked["title_expected"] = title
+    if not title:
+        return
+    if found_title is not None:
+        v.checked["title_found"] = found_title.strip()
+        if _flat(found_title) != _flat(title):
+            v.fail(f"the rendered file's title is "
+                   f"{found_title.strip()!r}, not {title!r}.")
+        return
+    # No structured title slot in this format's reader: the title must at
+    # least be printed. Flattened on both sides, because a long title wraps.
+    if _flat(title) not in _flat(found_text):
+        v.fail(f"the rendered file does not carry the document title {title!r}.")
+
+
 def _check_content(v: Validation, doc: D.Document, found_text: str,
                    found_headings: list[str]) -> None:
-    """The checks every format shares: headings present, no invented figures."""
+    """The checks every format shares: headings present, no invented figures.
+
+    Only ORDINARY sections are compared here. The title is not one of them and
+    is checked by `_check_title`; `document.parse` guarantees it never appears
+    in `doc.sections`, so a missing-section finding always means a missing
+    section.
+    """
     expected = [s.heading for s in doc.sections if s.heading]
-    normalised = {re.sub(r"\s+", " ", h.strip().lower()) for h in found_headings}
+    normalised = {_flat(h) for h in found_headings}
+    flat_text = _flat(found_text)
     missing = [
         h for h in expected
-        if re.sub(r"\s+", " ", h.strip().lower()) not in normalised
-        and h.strip().lower() not in found_text.lower()
+        if _flat(h) not in normalised and _flat(h) not in flat_text
     ]
     if missing:
         v.fail(f"{len(missing)} section(s) are missing from the rendered file: "
@@ -414,7 +460,11 @@ def validate(content: bytes, fmt: str, doc: D.Document) -> Validation:
             if v.checked["tables"] < expected_tables:
                 v.fail(f"{expected_tables} table(s) were expected and "
                        f"{v.checked['tables']} are present.")
-            _check_content(v, doc, text, headings)
+            # The title is the level-0 heading the writer adds before any
+            # section, so it is the first heading chunk. Sections are compared
+            # against the rest.
+            _check_title(v, doc, text, headings[0] if headings else None)
+            _check_content(v, doc, text, headings[1:] if headings else [])
 
         elif fmt == "pdf":
             result = pdf_reader.read(content, filename="generated.pdf")
@@ -423,6 +473,9 @@ def validate(content: bytes, fmt: str, doc: D.Document) -> Validation:
             v.checked["pages"] = len(pages)
             if not pages:
                 v.fail("the PDF has no readable page.")
+            # A PDF's text layer has no headings, so there is no title slot to
+            # read: the title is checked as printed text instead.
+            _check_title(v, doc, text, None)
             _check_content(v, doc, text, [])
 
         elif fmt == "pptx":
