@@ -273,3 +273,54 @@ def test_an_unresolved_column_is_written_without_asserting_a_unit(runtime):
         "a whole number is written whole; that is a fact about the value, "
         "not a guess about its kind")
     assert shown[0]["sector_name"] == "Construction"
+
+
+# ---- §24, §39: this round REDUCES calls -------------------------------
+
+def test_no_recovery_allowance_is_spent_on_formatting(drive, store_db,
+                                                      release_id):
+    """§24. The failure this whole round exists to remove.
+
+    A run whose SQL was correct, whose evidence was valid and whose claim was
+    valid used to spend an entire model call because the visible figure had
+    two decimal places the validator would not accept. There is no longer a
+    figure for the analyst to get wrong, so there is nothing to re-ask for.
+    """
+    outcome, provider, record = _run(drive, release_id, _answer_with(
+        [_total_claim], "Total portfolio EAD is {{claim.total_ead}}."))
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    spend = store_db.get_run(record.run_id).budget
+    assert spend["generation_attempts"][0] == 2, (
+        "one action, one answer, and nothing in between")
+    assert spend["answer_format_recoveries"][0] == 0
+    assert spend["action_format_recoveries"][0] == 0
+    assert spend["answer_corrections"][0] == 0
+    assert len(provider.sent) == 2
+
+
+def test_formatting_is_deterministic_and_costs_no_measurable_time(
+        drive, release_id):
+    """§39. The same value formats the same way, every time, at no cost."""
+    import time
+
+    canonical = Decimal("40599.1736630513815")
+    first = disp.format_value(canonical, "SAR million")
+    started = time.perf_counter()
+    for _ in range(10_000):
+        assert disp.format_value(canonical, "SAR million") == first
+    elapsed_ms = (time.perf_counter() - started) * 1000
+    assert elapsed_ms < 2_000, (
+        f"ten thousand formats took {elapsed_ms:.0f}ms; this runs once per "
+        f"published figure and must not be a cost anybody thinks about")
+
+
+def test_the_call_report_shows_two_generations_and_their_purposes(
+        drive, release_id):
+    outcome, _, _ = _run(drive, release_id, _answer_with(
+        [_total_claim], "Total is {{claim.total_ead}}."))
+    assert outcome.state == st.COMPLETED, outcome.message
+    report = outcome.call_report
+    assert report["generations"] == 2
+    assert [c["purpose"] for c in report["calls"]] == [
+        "ANALYSIS_ACTION", "FINAL_ANSWER"]
