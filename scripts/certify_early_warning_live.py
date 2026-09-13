@@ -235,13 +235,18 @@ def _reading_diagnostics(turn) -> dict:
         "ungrounded_figures": list(detail.get("ungrounded_figures") or []),
         "derived_claims": claims,
         "derived_claims_refused": [c for c in claims if not c.get("accepted")],
+        "derived_claims_sign_corrected": [c for c in claims
+                                          if c.get("sign_corrected")],
+        # Grounded figures given the wrong verb. A different failure from an
+        # invented one and reported apart from it.
+        "direction_conflicts": list(detail.get("direction_conflicts") or []),
         # One record per rejected figure: the token, the words either side,
         # and the unit it was attached to. This is the whole reason a second
         # remediation round was needed for a single number.
         "rejected_context": list(detail.get("rejected_context") or []),
     }
     call = detail.get("model_call") or {}
-    if detail.get("ungrounded_figures"):
+    if detail.get("ungrounded_figures") or detail.get("direction_conflicts"):
         # The prose the runtime discarded. Scrubbed like everything else, and
         # trimmed: this is for diagnosis, not for reading the answer twice.
         out["discarded_prose"] = _safe(
@@ -361,6 +366,19 @@ def _check(case: dict, turn) -> tuple[list[dict], list[dict]]:
     ungrounded = _ungrounded(turn)
     check("the model's prose was kept rather than discarded for an "
           "ungrounded figure", not ungrounded, ungrounded)
+
+    # A figure can be exactly the one the result carries and the verb in
+    # front of it can point the other way. Every number true, the sentence
+    # false — so it is its own assertion rather than folded into grounding.
+    conflicts = list(_final_detail(turn).get("direction_conflicts") or [])
+    check("no move was written in the wrong direction", not conflicts,
+          [f"{c['said']!r} before {c['token']}, which the result shows going "
+           f"{c['direction_in_the_result']}" for c in conflicts])
+
+    refused = [c for c in (_final_detail(turn).get("derived_claims") or [])
+               if not c.get("accepted")]
+    check("every declared derivation recomputed", not refused,
+          [c.get("reason", "") for c in refused])
 
     check("the ledger reconciles",
           (budget["model_calls_succeeded"] + budget["model_calls_failed"]
@@ -668,11 +686,20 @@ def main(argv: list[str] | None = None) -> int:
     # person running this will see it. Reconstructing what a bare rejected
     # number meant cost a whole round trip.
     for row in results:
-        for found in (row.get("reading") or {}).get("rejected_context") or []:
+        reading = row.get("reading") or {}
+        for found in reading.get("rejected_context") or []:
             print(f"           ? {row['id']} rejected "
                   f"{found['token']!r} in {found['field']}: "
                   f"\u2026{found['context_before'][-70:]} "
                   f"[{found['token']}] {found['context_after'][:70]}\u2026")
+        for clash in reading.get("direction_conflicts") or []:
+            print(f"           ? {row['id']} wrote {clash['said']!r} before "
+                  f"{clash['token']} in {clash['field']}, which the result "
+                  f"shows going {clash['direction_in_the_result']}: "
+                  f"\u2026{clash['context'][:120]}\u2026")
+        for claim in reading.get("derived_claims_refused") or []:
+            print(f"           ? {row['id']} declared {claim.get('op')} over "
+                  f"{claim.get('refs')}: {claim.get('reason')}")
     return 0 if not failed else 1
 
 

@@ -44,6 +44,7 @@ beside it.
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -169,6 +170,12 @@ class Claim:
     accepted: bool = False
     #: Why not, in a sentence, where it was not accepted.
     reason: str = ""
+    #: The reading declared the size where the contract asks for the signed
+    #: value. Accepted — the arithmetic is right and the refs are right — but
+    #: recorded, because the figure it permits is the SERVER's signed one and
+    #: the direction check is what decides whether the prose may state its
+    #: size.
+    sign_corrected: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -177,6 +184,8 @@ class Claim:
         }
         if self.recomputed is not None:
             out["recomputed"] = round(self.recomputed, 6)
+        if self.sign_corrected:
+            out["sign_corrected"] = True
         if self.reason:
             out["reason"] = self.reason
         return out
@@ -195,11 +204,21 @@ def index(payload: Any) -> dict[str, float]:
     `movement.layers[0].score_change`, `rows[2].exposure`. A reading citing a
     name that is not in here has cited nothing, and its claim is dropped.
 
+    A list entry that identifies itself is ALSO indexed under that identity:
+    `layers[1]` is `layers.L4` as well, and a grouping row is named by its
+    group. Positional indices are how the data is stored and not how anybody
+    refers to it — a reading that wants the network layer's contribution
+    should be able to write `movement.layers.L4.points_contributed` rather
+    than count list entries.
+
     Strings are walked too, because a driver-tree split arrives as the label
     "Days past due >= 90" and the threshold inside it is a governed fact.
     They are indexed under the key that holds them, so a label yielding one
     number is citable and one yielding several is not — an ambiguous ref
-    resolves to nothing rather than to whichever number came first.
+    resolves to nothing rather than to whichever number came first. Keys that
+    name a THING rather than measure one are skipped: `layer: "L4"` is a code
+    and `customer_id: "CORP-100721"` is an identifier, and indexing the digits
+    inside them would publish 4 and 100721 as facts about the book.
     """
     from backend.early_warning.facts import _NUMERAL  # noqa: PLC0415
 
@@ -218,6 +237,8 @@ def index(payload: Any) -> dict[str, float]:
         if isinstance(value, (int, float)):
             put(path, float(value))
         elif isinstance(value, str):
+            if path.rsplit(".", 1)[-1].split("[")[0] in _NAMES_A_THING:
+                return
             found = _NUMERAL.findall(value)
             if len(found) == 1:
                 try:
@@ -230,11 +251,51 @@ def index(payload: Any) -> dict[str, float]:
         elif isinstance(value, (list, tuple)):
             for i, item in enumerate(value):
                 walk(item, f"{path}[{i}]")
+                identity = _identity_of(item)
+                if identity:
+                    walk(item, f"{path}.{identity}")
 
     walk(payload, "")
     for name in seen_twice:
         out.pop(name, None)
     return out
+
+
+#: Keys whose value names something rather than measuring it. A layer code, a
+#: band, an obligor id: the digits inside them are part of a name.
+_NAMES_A_THING: frozenset[str] = frozenset({
+    "layer", "name", "code", "band", "id", "label", "customer_id",
+    "customer_name", "period", "month", "from_period", "to_period",
+    "snapshot_month", "sector", "segment", "region", "owner", "owner_role",
+    "escalated_to", "notified", "team", "role", "action", "dominant_layer",
+    "dominant_subcategory", "dominant_driver", "ews_band", "classifier_band",
+    "ta_band", "internal_rating", "ifrs9_stage", "utilisation_band",
+    "relationship_manager", "leading_layer", "level_field", "level_value",
+    "movement_measure", "ordered_by", "population", "customer",
+})
+
+#: Keys whose value identifies the entry it sits in, best first. A list entry
+#: carrying one of these is indexed under it as well as under its position.
+_IDENTIFIES: tuple[str, ...] = (
+    "layer", "code", "customer_id", "dominant_layer", "dominant_subcategory",
+    "ews_band", "classifier_band", "ta_band", "segment", "sector", "region",
+    "internal_rating", "ifrs9_stage", "utilisation_band", "name")
+
+#: An identity has to be usable as a path segment. `L4` is; `Al Rajhi
+#: Logistics 8` is not, and a path with spaces in it is a ref nobody can type
+#: twice the same way.
+_PATH_SAFE = re.compile(r"^[A-Za-z0-9_.\-]{1,40}$")
+
+
+def _identity_of(item: Any) -> str:
+    """What a list entry calls itself, where it calls itself anything."""
+    if not isinstance(item, dict):
+        return ""
+    for key in _IDENTIFIES:
+        value = item.get(key)
+        if isinstance(value, str) and _PATH_SAFE.match(value.strip()):
+            return value.strip()
+    return ""
 
 
 def _resolve(ref: str, facts: dict[str, float]) -> float | None:
@@ -318,6 +379,21 @@ def check(declared: Any, facts: dict[str, float], *,
         claim.recomputed = computed
         if agrees(stated, computed):
             claim.accepted = True
+        elif agrees(abs(stated), abs(computed)):
+            # The size, where the contract asks for the signed value. The
+            # arithmetic is right and the refs are right — a live reading
+            # declared 4.86 for a contribution the server computes as -4.86,
+            # and losing a correct paragraph over the minus sign is not a
+            # control, it is a papercut.
+            #
+            # What it permits is the SERVER's value and its size, not the
+            # reading's sign: `direction_conflicts` decides whether prose may
+            # state that size, and prose saying it ROSE 4.86 is still refused.
+            claim.accepted = True
+            claim.sign_corrected = True
+            claim.reason = (f"the reading declared {stated:g} for a value the "
+                            f"server computes as {computed:.6g}; the size "
+                            f"matches and the sign is the server's")
         else:
             claim.reason = (f"the reading wrote {stated:g} where {op} over "
                             f"those facts gives {computed:.6g}")

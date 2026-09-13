@@ -273,6 +273,25 @@ def _interpret(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
         reading += (" The evidence rests on a single tier-3 source, and the "
                     "top-5 names carry most of it.")
 
+    if behaviour in ("live_3_reading", "live_3_wrong_direction",
+                     "live_3_unsupported_subtotal"):
+        # The shape the live multi-part reading had: two layer contributions
+        # summed, stated as a size, with the movement named. Declared against
+        # names taken from the published index rather than invented.
+        index = packet.get("fact_index") or {}
+        pair = [name for name in index
+                if name.endswith(".points_contributed")][:2]
+        if len(pair) == 2:
+            total = round(sum(float(index[n]) for n in pair), 2)
+            verb = ("drove an increase of"
+                    if behaviour == "live_3_wrong_direction"
+                    else "took")
+            tail = " off it" if verb == "took" else ""
+            reading += (f" Together they {verb} {abs(total):.2f} points{tail}.")
+            declared.append({"value": total, "op": "sum", "refs": pair})
+        if behaviour == "live_3_unsupported_subtotal":
+            reading += " That is across SAR 6,301.85m of the book."
+
     if behaviour in ("declares_arithmetic", "undeclared_arithmetic",
                      "bad_declaration"):
         pairs = _row_exposures(packet)[:2]

@@ -374,13 +374,37 @@ def contribution_by_layer(from_period: str, to_period: str,
     ews_before = _population_figures(start)["portfolio_ews"]
     ews_after = _population_figures(end)["portfolio_ews"]
     layers.sort(key=lambda l: abs(l["points_contributed"]), reverse=True)
+    # Each layer's share of the move, computed here rather than left to the
+    # sentence that states it.
+    #
+    # A reading needs three things about a movement: how big it was, which
+    # layer carried it, and how much of it that layer was. The first two were
+    # facts and the third was arithmetic — so a live interpretation declared
+    # its own sum over two layers' contributions, got the sign the wrong way
+    # round, and lost the whole paragraph. A product that can compute a share
+    # should not make its own writer derive one.
+    for entry in layers:
+        entry["share_of_move_pct"] = (
+            round(entry["points_contributed"] / total_ta_move * 100, 1)
+            if total_ta_move else None)
+    change = round(ews_after - ews_before, 2)
     return {
         "from_period": from_period, "to_period": to_period,
         "ews_before": ews_before, "ews_after": ews_after,
-        "ews_change": round(ews_after - ews_before, 2),
+        "ews_change": change,
+        # The size, as a fact. "Fell 2.38 points" is the sentence anybody
+        # writes about a change of -2.38, and it was arithmetic until now.
+        "ews_change_size": abs(change),
+        "direction": ("deteriorated" if change > 0
+                      else "improved" if change < 0 else "unchanged"),
         "ta_change": total_ta_move,
+        "ta_change_size": abs(total_ta_move),
         "layers": layers,
         "leading_layer": layers[0]["layer"] if layers else None,
+        "leading_layer_contribution": (layers[0]["points_contributed"]
+                                       if layers else None),
+        "leading_layer_share_of_move_pct": (layers[0]["share_of_move_pct"]
+                                            if layers else None),
     }
 
 
@@ -610,6 +634,20 @@ def level(field_name: str, period: str | None = None, *,
             "weakest_obligor": weakest["customer_name"],
             "weakest_customer_id": weakest["customer_id"],
         })
+    # Each group's share of the population, as a fact. A reading saying "the
+    # weakest group carries most of the exposure" should be quoting a figure,
+    # and where it is not, it is dividing one — which is how an
+    # interpretation came to state an exposure subtotal the book does not
+    # hold.
+    whole = float(bm["exposure"].sum()) if "exposure" in bm else 0.0
+    whole_obligors = int(len(bm))
+    for row in rows:
+        row["exposure_share_pct"] = (
+            round(float(row.get("exposure") or 0.0) / whole * 100, 1)
+            if whole else None)
+        row["obligor_share_pct"] = (
+            round(float(row.get("obligors") or 0) / whole_obligors * 100, 1)
+            if whole_obligors else None)
     # What the reader asked the groups to be ordered BY. "Which sectors have
     # the highest external-intelligence score?" is the same partition as
     # "which sectors are weakest" and a different ranking, and answering the

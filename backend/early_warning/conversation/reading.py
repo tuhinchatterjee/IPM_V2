@@ -100,23 +100,38 @@ named exactly. Never "would you like to know more?".
 ABSOLUTE RULES
 1. Never write a number that is not in the result you were given, unless you \
 DECLARE it (rule 1a). Do not annualise, convert, or estimate.
-1a. ARITHMETIC MUST BE DECLARED. You may state a figure the result implies — a \
-total, a difference, a share, the size of a signed move — only by listing it in \
-`derived_claims`, naming the exact result fields it came from and which of \
-these operations produced it: sum, difference, delta, product, ratio, share, \
-percent, mean, magnitude, minimum, maximum, count. The runtime recomputes every \
-one of them from the result itself and DISCARDS your whole reading if its \
-answer differs from yours, so declare only arithmetic you are certain of, and \
-express anything else in words — "roughly a third", "the largest by some \
-margin". A movement stored as a negative number is the commonest case: to \
-write "fell 11.31 points" from `movement.ews_change: -11.31`, declare \
-{"value": 11.31, "op": "magnitude", "refs": ["movement.ews_change"]}. \
-A COUNT the result implies is the other one: to write "the other 27 did not \
-improve" from `improved: 3` out of `movement_population: 30`, declare \
-{"value": 27, "op": "difference", "refs": ["movement_population", \
-"improved"]}. Before you compute a count like that, check whether the result \
-already states it — where the answer carries `improved`, `unchanged` and \
-`worsened`, quote those rather than subtracting.
+1a. LOOK FOR THE FIGURE BEFORE YOU COMPUTE ONE. In this order, always:
+   (i) a figure in `figures`, `rows` or the deterministic reading — quote it;
+   (ii) a figure the runtime has already derived for you. It computes the \
+common ones: each layer's `points_contributed` and `share_of_move_pct`, the \
+`leading_layer_contribution`, `ews_change_size`, each group's \
+`exposure_share_pct` and `obligor_share_pct`, and the improved / unchanged / \
+worsened counts. `fact_index` lists every one of them by name with its value. \
+Read it before you reach for arithmetic;
+   (iii) only then, a declared derivation.
+1b. ARITHMETIC MUST BE DECLARED, AND SIGNED. A figure the result implies \
+rather than states goes in `derived_claims`: the value, one operation from the \
+list, and the fields it came from. Two rules decide whether it is accepted.
+   **The refs must be names from `fact_index`, exactly as spelled there.** \
+That list is the whole vocabulary. A name not in it resolves to nothing and \
+your claim is dropped — `rows` is not a fact, `rows[0].exposure` may be.
+   **`value` is the exact SIGNED number the operation produces.** A fall is \
+negative. Write {"value": -4.86, "op": "sum", "refs": \
+["movement.layers.L1.points_contributed", \
+"movement.layers.L4.points_contributed"]} and then say "together they took \
+4.86 points off it" in the prose — the sentence may use the size, the claim \
+may not.
+   The runtime recomputes every claim and DISCARDS your whole reading if its \
+answer differs, so declare only arithmetic you are certain of and express \
+anything else in words: "roughly a third", "the largest by some margin".
+1c. THE DIRECTION MUST MATCH THE SIGN. Where you state the SIZE of a move, the \
+verb in front of it is checked against the result. `score_change: -15.46` is \
+"fell 15.46"; writing "rose 15.46" discards the reading even though every \
+number in the sentence is correct.
+1d. DO NOT MAKE THE ANSWER MORE ARITHMETICAL THAN THE QUESTION. A subtotal or \
+a complement that carries no decision — "SAR 6,301.85m of the SAR 6,460.56m in \
+scope" — is a figure to get wrong for nothing. If the result gives you a share, \
+say the share.
 2. Never invent a recommended action. The governed action library is in the \
 packet, with owners, timeframes and what closes each one. Report from it.
 3. Never decide an escalation. The route is in the packet, produced by the \
@@ -231,6 +246,10 @@ class Reading:
     #: Figures the model wrote that the packet does not carry. Non-empty means
     #: the prose was discarded.
     ungrounded: list[str] = field(default_factory=list)
+    #: Figures the prose stated the size of, with the wrong direction word.
+    #: Every number in such a sentence is grounded and the sentence is still
+    #: false, so this discards the reading exactly as an invented figure does.
+    direction_conflicts: list[dict[str, Any]] = field(default_factory=list)
     #: The result fields the reading says its figures came from, kept where
     #: they resolve to something the packet actually holds.
     fact_refs: list[str] = field(default_factory=list)
@@ -270,7 +289,12 @@ CITABLE_SECTIONS: tuple[str, ...] = (
     "question", "normalized_request", "period", "comparison_period",
     "filters", "figures", "rows", "provenance", "caveats",
     "governed_actions", "escalation_route", "steps_that_ran",
-    "deterministic_reading")
+    "deterministic_reading",
+    # The fact index is the SAME evidence under the names a derived claim
+    # must cite. Citable by construction: every value in it was read out of
+    # the packet, so listing it here adds no figure the writer could not
+    # already see in `figures` or `rows` — it names them.
+    "fact_index")
 
 #: Sections that carry no figure at all — a scope label, a verdict, a
 #: presentation choice. Listed so the contract test can tell "carries no
@@ -314,6 +338,12 @@ def _allowed_figures(packet: packet_mod.ResultPacket,
     for claim in claims or []:
         if claim.accepted and claim.recomputed is not None:
             allowed |= dv.spellings(claim.recomputed)
+            # And its size, on the same terms as a direct fact: a
+            # contribution of -4.86 is "took 4.86 points off it" in the
+            # sentence anybody writes. `_direction_conflicts` is what stops
+            # that becoming "added 4.86".
+            if claim.recomputed < 0:
+                allowed |= dv.spellings(-claim.recomputed)
     for text in _prose(deterministic):
         allowed.update(_NUMERAL.findall(text))
     for section in CITABLE_SECTIONS:
@@ -450,6 +480,131 @@ def _prose_by_field(answer: dict[str, Any]) -> list[tuple[str, str]]:
     return out
 
 
+# ------------------------------------------------------------------ direction
+#
+# A figure can be grounded and the sentence around it still wrong. The packet
+# holds L4 at 18.77 falling to 3.31, a change of -15.46; "fell 15.46 to 3.31"
+# and "rose 15.46 to 3.31" quote exactly the same three governed numbers, and
+# only one of them is true. Grounding checks figures. This checks the verb.
+#
+# Only CHANGE facts are checked, and that is the whole of the precision here.
+# A score of 3.31 is not going anywhere — it is a level, and the direction
+# word near it belongs to the change, not to it. A check that treated every
+# positive fact as a rise would report "fell from 15.46 to 3.31" as a
+# conflict on the 3.31.
+
+#: A fact name that measures a MOVE rather than a level.
+_A_CHANGE = re.compile(
+    r"(?:^|[.\]])(?:\w*_)?(?:change|delta|movement|move|shift|swing|"
+    r"points_contributed|contribution|weighted_contribution)"
+    r"(?:_\w+)?$", re.I)
+
+#: For the Early Warning score, DOWN is better. That is the product's own
+#: semantics — the score counts warning evidence — so "improved" pairs with a
+#: negative change and "deteriorated" with a positive one.
+_FELL = (r"fell|fallen|falling|\bfall\b|dropp?ed|dropping|declin\w+|"
+         r"decreas\w+|reduc\w+|eas\w+|narrow\w+|shrank|shrunk|"
+         r"improv\w+|recover\w+|strengthen\w+|lower\w*|down\b|"
+         r"better\b|unwound|receded")
+_ROSE = (r"ros[e]\b|risen|rising|\brise\b|increas\w+|grew\b|grown\b|"
+         r"climb\w+|jump\w+|spik\w+|widen\w+|deteriorat\w+|worsen\w+|"
+         r"weaken\w+|higher\b|\bup\b|steepen\w+")
+
+_DIRECTION = re.compile(rf"\b(?P<down>{_FELL})\b|\b(?P<up>{_ROSE})\b", re.I)
+
+#: How far back to look for the verb that governs a figure. Far enough for
+#: "L4 network and relationship fell 15.46"; the sentence boundary below is
+#: what actually stops it, and this only bounds the work.
+_VERB_WINDOW = 160
+
+#: Where a sentence starts. The verb that governs a figure is in the same
+#: sentence as the figure — "...has not had its underlying condition ease. 4
+#: of the 10 share L2.T1..." puts a falling verb three words before a four,
+#: and they have nothing to do with each other.
+_SENTENCE_END = re.compile(r"[.;?!]\s")
+
+
+def _signed_changes(packet: packet_mod.ResultPacket,
+                    claims: list[dv.Claim] | None) -> dict[str, int]:
+    """Every change the result carries, as `size -> direction`.
+
+    A size the result carries in BOTH directions is dropped: the reading has
+    two true things it could be saying and the guard cannot tell which, so it
+    says nothing rather than guessing.
+    """
+    signs: dict[str, set[int]] = {}
+
+    def note(value: float) -> None:
+        if not value:
+            return
+        for spelling in dv.spellings(abs(value)):
+            signs.setdefault(spelling, set()).add(1 if value > 0 else -1)
+
+    for name, value in dv.index(_facts_of(packet)).items():
+        if _A_CHANGE.search(name):
+            note(value)
+    for claim in claims or []:
+        if claim.accepted and claim.recomputed is not None:
+            note(claim.recomputed)
+    return {size: next(iter(ways)) for size, ways in signs.items()
+            if len(ways) == 1}
+
+
+def _direction_conflicts(written: dict[str, Any],
+                         changes: dict[str, int]) -> list[dict[str, Any]]:
+    """Prose that states the size of a move and names the wrong direction.
+
+    The verb nearest before the figure, with no other figure in between —
+    because "fell from 15.46 to 3.31" governs the 15.46 with "fell", and
+    whatever governs the 3.31 is not that verb.
+    """
+    out: list[dict[str, Any]] = []
+    for field_name, text in _prose_by_field(written):
+        stripped = _PERIOD_TOKEN.sub(lambda m: " " * len(m.group(0)), text)
+        for match in _NUMERAL.finditer(stripped):
+            token = match.group(0)
+            if token.startswith("-"):
+                # A signed figure says its own direction, and the reader can
+                # see it. Only a bare size can be given the wrong verb.
+                continue
+            if token in _ALWAYS_ALLOWED:
+                # An ordinal or a count of the answer's own list. "4 of the
+                # 10 share L2.T1" is not the size of anything, and a change
+                # of four points elsewhere in the packet does not make it
+                # one.
+                continue
+            wanted = changes.get(token) or changes.get(token.replace(",", ""))
+            if wanted is None:
+                continue
+            before = text[max(0, match.start() - _VERB_WINDOW):match.start()]
+            # Same sentence, and after any earlier figure: neither the
+            # previous sentence's verb nor the previous figure's is this
+            # figure's.
+            boundaries = list(_SENTENCE_END.finditer(before))
+            if boundaries:
+                before = before[boundaries[-1].end():]
+            previous = list(_NUMERAL.finditer(before))
+            if previous:
+                before = before[previous[-1].end():]
+            verbs = list(_DIRECTION.finditer(before))
+            if not verbs:
+                continue
+            last = verbs[-1]
+            said = -1 if last.group("down") else 1
+            if said == wanted:
+                continue
+            out.append({
+                "token": token,
+                "field": field_name,
+                "said": last.group(0),
+                "direction_written": "down" if said < 0 else "up",
+                "direction_in_the_result": "down" if wanted < 0 else "up",
+                "context": text[max(0, match.start() - _VERB_WINDOW):
+                                match.end() + 40].strip(),
+            })
+    return out
+
+
 def _permitted_periods(packet: packet_mod.ResultPacket) -> set[str]:
     """The months this answer is allowed to name.
 
@@ -524,6 +679,48 @@ def _facts_of(packet: packet_mod.ResultPacket) -> dict[str, Any]:
     }
 
 
+#: How many named facts to publish. Enough for any reading; short of a data
+#: export. The packet's own figures and its first ten rows are what the
+#: writer can already see, so the index describes what it is looking at
+#: rather than adding to it.
+_INDEX_LIMIT = 160
+
+
+def _published_index(packet: packet_mod.ResultPacket) -> dict[str, Any]:
+    """The citable fact names, with their values, exactly as `check` resolves.
+
+    Built from the same `_facts_of` the derived-claim contract indexes, so a
+    name the writer reads here is a name the server will resolve. The two
+    cannot drift: there is one index and this publishes it.
+    """
+    index = dv.index(_facts_of(packet))
+
+    def rank(name: str) -> tuple[int, int, str]:
+        # Shortest and plainest first, and a positional index last. Every
+        # fact appears under several names — `movement.ews_change`,
+        # `figures.movement.ews_change`, `layers[0].score_change`,
+        # `layers.L1.score_change` — and the cap should keep the one a
+        # person would write. `_resolve` matches on the tail of a path, so
+        # the short name resolves for free.
+        positional = 1 if "[" in name else 0
+        prefixed = 1 if name.startswith(("figures.", "steps[")) else 0
+        return (positional, prefixed, name)
+
+    kept: dict[str, float] = {}
+    seen: set[tuple[str, float]] = set()
+    for name in sorted(index, key=rank):
+        leaf = name.rsplit(".", 1)[-1]
+        if (leaf, index[name]) in seen:
+            # The same value under the same leaf name, reached by a longer
+            # path. One way of saying it is enough.
+            continue
+        seen.add((leaf, index[name]))
+        kept[name] = index[name]
+        if len(kept) >= _INDEX_LIMIT:
+            break
+    return kept
+
+
 def _context(question: str, packet: packet_mod.ResultPacket,
              deterministic: dict[str, Any],
              reviewed: Any) -> dict[str, Any]:
@@ -568,6 +765,17 @@ def _context(question: str, packet: packet_mod.ResultPacket,
         # figures a person would write, and prose quoting anything else is
         # prose that did not come from the result.
         "deterministic_reading": deterministic,
+        # Every fact a derived claim may be built from, under the exact name
+        # it must be cited by.
+        #
+        # Without this the writer had to guess the vocabulary, and a live
+        # reading declared a claim against `rows` — a name that resolves to
+        # nothing, because `rows` is a list and the index holds numbers. The
+        # claim was dropped, the figure fell through to the direct check, and
+        # a paragraph was discarded over a naming convention nobody had
+        # published. The server knows these names; not telling the writer
+        # what they are is asking it to invent them.
+        "fact_index": _published_index(packet),
         "steps_that_ran": [
             {"analysis": s.get("analysis"), "rows": s.get("row_count"),
              "statement": s.get("statement")} for s in packet.steps],
@@ -622,12 +830,37 @@ def write(question: str, packet: packet_mod.ResultPacket,
     ungrounded = _ungrounded(
         written, _allowed_figures(packet, deterministic, context, claims),
         periods)
+    # Grounded, and still possibly false. A figure can be exactly the one the
+    # result carries and the verb in front of it can point the other way.
+    conflicts = _direction_conflicts(written, _signed_changes(packet, claims))
     declared = [c.to_dict() for c in claims]
     refused = [c for c in claims if not c.accepted]
     if refused:
         logger.warning(
             "An Early Warning reading declared arithmetic the runtime did not "
             "reproduce: %s", "; ".join(c.reason for c in refused[:3]))
+    if conflicts and not ungrounded:
+        said = conflicts[0]
+        logger.error(
+            "Discarding an Early Warning reading: it wrote %r before %s, "
+            "which the result shows moving the other way.",
+            said["said"], said["token"])
+        return Reading(
+            answer=deterministic, fact_refs=refs, unresolved_refs=unresolved,
+            derived_claims=declared, direction_conflicts=conflicts,
+            model_call=dict(outcome.to_dict(),
+                            engine=seam_mod.DETERMINISTIC,
+                            derived_claims=declared,
+                            direction_conflicts=conflicts,
+                            discarded_prose=" ".join(_prose(written))[:1200],
+                            fallback_reason=(
+                                "the reading gave a move the wrong direction: "
+                                + "; ".join(
+                                    f"{c['said']!r} before {c['token']}, "
+                                    f"which the result shows going "
+                                    f"{c['direction_in_the_result']}"
+                                    for c in conflicts[:3]))))
+
     if ungrounded:
         context = _rejected_context(written, ungrounded)
         logger.error("Discarding an Early Warning reading: figures %s are not "
@@ -638,7 +871,7 @@ def write(question: str, packet: packet_mod.ResultPacket,
         return Reading(
             answer=deterministic, ungrounded=ungrounded, fact_refs=refs,
             unresolved_refs=unresolved, derived_claims=declared,
-            rejected_context=context,
+            rejected_context=context, direction_conflicts=conflicts,
             model_call=dict(outcome.to_dict(),
                             engine=seam_mod.DETERMINISTIC,
                             derived_claims=declared,
@@ -678,6 +911,7 @@ def write(question: str, packet: packet_mod.ResultPacket,
     answer["caveats"] = caveats
     return Reading(answer=answer, engine=seam_mod.MODEL, fact_refs=refs,
                    unresolved_refs=unresolved, derived_claims=declared,
+                   direction_conflicts=[],
                    model_call=dict(outcome.to_dict(), fact_refs=refs,
                                    unresolved_refs=unresolved,
                                    derived_claims=declared))

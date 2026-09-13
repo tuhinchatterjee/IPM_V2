@@ -458,6 +458,29 @@ _ANALYSIS: tuple[tuple[str, str], ...] = (
      "grouping"),
 )
 
+def leading_analysis(analyses: list[str], asked: str, *,
+                     wants_names: bool) -> str:
+    """Which of the parts a request contains the ANSWER is chiefly about.
+
+    One function because there are two readers. The patterns compute it, and
+    then pass two's merge recomputes the request from the model's reply — and
+    that merge was taking `analyses[0]`, which is declaration order in the cue
+    table rather than an answer to this question. So a model-backed turn
+    reported "why has Contracting deteriorated, is it concentrated, and which
+    layer is driving it?" as a RANKING, and the headline became a list of
+    names above a question that leads with "why".
+
+    A name request leads unless something outranks it. What outranks it is an
+    analysis that IS the question rather than a way of ordering it.
+    """
+    if wants_names and "ranking" in analyses \
+            and not (set(analyses) & _OUTRANKS_A_NAME_REQUEST):
+        return "ranking"
+    if asked:
+        return asked
+    return analyses[0] if analyses else ""
+
+
 #: The analyses that stay the headline even where the question also asks for
 #: names. Each of them IS the question rather than a way of ordering it:
 #: "why", "how does the model work", "show me the evidence", "who crossed a
@@ -1040,6 +1063,10 @@ def _read_deterministic(
     # And where the NAME is what was asked for, the ranking is what the
     # answer is about.
     #
+    # See `leading_analysis`, which pass two's merge uses as well: the merge
+    # took `analyses[0]` and so reported a name request as the headline of a
+    # question that leads with "why".
+    #
     # `analyses` gained the ranking; the leading label did not, so "which one
     # improved most?" reported its intent as `movement` and the headline
     # became the sector's average move — a true sentence about a population,
@@ -1052,8 +1079,8 @@ def _read_deterministic(
     # question — a diagnosis, a methodology explanation, an evidence request,
     # a band transition, a grouping. A movement cue is not: "who moved most"
     # is a ranking whose measure happens to be movement.
-    if wants_names and not (set(analyses) & _OUTRANKS_A_NAME_REQUEST):
-        analysis = "ranking"
+    analysis = leading_analysis(analyses, analysis, wants_names=wants_names)
+    if analysis == "ranking":
         analyses = ["ranking"] + [a for a in analyses if a != "ranking"]
 
     # Which way a movement question is pointing. "Who improved most?" and
@@ -1512,8 +1539,12 @@ def _merge_request(floor: BusinessRequest,
         ambiguous_obligors=list(floor.ambiguous_obligors),
         requested_grouping=grouping,
         requested_layer=layer,
-        requested_analysis=(analyses[0] if analyses
-                            else floor.requested_analysis),
+        # The same precedence the patterns apply, not `analyses[0]`. See
+        # `leading_analysis`: declaration order in the cue table is not an
+        # answer to which part of the question leads.
+        requested_analysis=leading_analysis(
+            analyses, floor.requested_analysis,
+            wants_names="ranking" in analyses) or floor.requested_analysis,
         requested_analyses=analyses,
         requested_evidence=bool(data.get("requested_evidence"))
         or floor.requested_evidence,

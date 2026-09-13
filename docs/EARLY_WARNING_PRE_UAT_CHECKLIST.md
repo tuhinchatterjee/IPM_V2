@@ -109,3 +109,30 @@ Backend 22 failed / 10,810 passed / 27 skipped, the 22 identical to the
 recorded baseline. `tests/early_warning` and `tests/api` clean. Frontend 429 of
 429; typecheck, lint and production build clean. Against the stub the
 certification returns 8/8.
+
+## Run 5 — LIVE-3 derived-claim remediation
+
+The third Mac run returned **7/8**. LIVE-3 alone failed, on `-4.86` and
+`6,301.85`.
+
+| # | Item | State |
+|---|---|---|
+| 50 | Reconstruct LIVE-3 and classify both figures with evidence | done |
+| 51 | Publish a fact index the writer selects its refs from | done |
+| 52 | One rule for sign: the declared value is signed | done |
+| 53 | Direction checked against the sign, in prose | done |
+| 54 | Common EWS derivations owned by the server | done |
+| 55 | Prompt priority: direct, then derived, then declared | done |
+| 56 | Pass two's merge keeps the headline precedence | done |
+| 57 | Certification: direction and derivation assertions added | done |
+| 58 | Focused tests, EWS/API suites, baseline regression | done |
+| 59 | Fourth Mac certification run | blocked-external |
+
+`-4.86` was right — `L1.points_contributed` + `L4.points_contributed` over the
+2024-11 to 2026-06 Contracting movement — and declared with the size instead of
+the signed value. `6,301.85` is reproducible from nothing in the packet and
+stays rejected.
+
+Backend 22 failed / 10,843 passed / 27 skipped, the 22 identical to the
+recorded baseline. `tests/early_warning` and `tests/api` clean. Frontend 429 of
+429; typecheck, lint and production build clean. Against the stub, 8/8.

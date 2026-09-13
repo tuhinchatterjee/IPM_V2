@@ -689,6 +689,10 @@ def _analyse(turn: Turn, request: Any, package: grain_mod.GrainPackage,
          # discard reports a bare number and the diagnosis means rebuilding
          # the packet by hand to guess what the number was.
          rejected_context=list(read.rejected_context),
+         # A grounded figure with the wrong verb in front of it. Recorded
+         # apart from the ungrounded ones because it is a different failure:
+         # every number was true and the sentence was not.
+         direction_conflicts=list(read.direction_conflicts),
          model_call=dict(read.model_call))
     return _finish(turn, request, prior, ledger, ui_state, emit)
 

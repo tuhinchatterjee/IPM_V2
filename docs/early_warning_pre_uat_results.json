@@ -1,8 +1,8 @@
 {
-  "verdict": "SEVEN_OF_EIGHT_REMEDIATED_AWAITING_THIRD_LIVE_RUN",
+  "verdict": "SEVEN_OF_EIGHT_REMEDIATED_AWAITING_FOURTH_LIVE_RUN",
   "reasons": [
-    "The second Mac certification returned 7/8. LIVE-1, 2, 3, 4, 6, 7 and 8 passed and are unchanged.",
-    "LIVE-5 resolved to early_warning with 7/7 model calls and 2/2 executions, and had its final Opus reading discarded for one ungrounded figure, 25.",
+    "The third Mac certification returned 7/8. LIVE-1, 2, 4, 5, 6, 7 and 8 passed and are unchanged.",
+    "LIVE-3 reached the provider intact \u2014 7/7 model calls, 2/2 executions, no schema error, no truncation \u2014 and lost its final interpretation to two figures: -4.86 and 6,301.85.",
     "Early Warning is not certified until the Mac script returns 8/8 certified, VERDICT: CERTIFIED."
   ],
   "branch": "claude/early-warning-rebuild-v2-3lnttn",
@@ -5598,6 +5598,138 @@
       "lint": "clean",
       "production_build": "clean",
       "stub_certification": "8/8, LIVE-6 included"
+    }
+  },
+  "run_5": {
+    "trigger": "third local Mac real-provider certification",
+    "live_result": {
+      "certified": 7,
+      "of": 8,
+      "verdict": "NOT_CERTIFIED",
+      "failed": [
+        "LIVE-3 multi-part analytical"
+      ],
+      "preserved": [
+        "LIVE-1",
+        "LIVE-2",
+        "LIVE-4",
+        "LIVE-5",
+        "LIVE-6",
+        "LIVE-7",
+        "LIVE-8"
+      ],
+      "median_s": 53.64,
+      "slowest_s": 74.06
+    },
+    "reconstructed_window": {
+      "from": "2024-11",
+      "to": "2026-06",
+      "note": "the live plan used the earliest published month, not six months back, which is why the figures differ from the six-month reading"
+    },
+    "the_figure_minus_4_86": {
+      "classification": "B and C \u2014 a weighted contribution already governed, declared with the size where the contract asks for the signed value",
+      "formula": "sum(movement.layers.L1.points_contributed, movement.layers.L4.points_contributed)",
+      "values": {
+        "L1.points_contributed": -2.54,
+        "L4.points_contributed": -2.32,
+        "sum": -4.86,
+        "movement.ews_change": -2.38,
+        "L4.score_before": 18.77,
+        "L4.score_after": 3.31,
+        "L4.score_change": -15.46
+      },
+      "already_governed": "points_contributed IS score_change x weight, computed by the engine",
+      "why_rejected": "the reading declared 4.86; the server recomputed -4.86; refs, operation and arithmetic were all right"
+    },
+    "the_figure_6301_85": {
+      "classification": "E \u2014 genuinely unsupported. Keeps being rejected.",
+      "swept": [
+        "every published month's Contracting exposure",
+        "every dominant_layer group and its complement (L2 6259.15, L1 201.41, total 6460.56)",
+        "every single-attribute subgroup exposure across the sector and the book",
+        "every subset and complement sum of the grouping's rows",
+        "cumulative exposure under four orderings",
+        "the total less any one, two or three obligors"
+      ],
+      "gap_to_the_sector_total": 158.71,
+      "no_obligor_carries_that": true,
+      "what_the_reading_wanted": "L2's share of the sector, 96.9%, now a governed fact (exposure_share_pct)"
+    },
+    "the_bare_rows_reference": {
+      "classification": "reference-vocabulary failure",
+      "cause": "`rows` is a list; the index holds numbers, and no index had been published for the writer to select from"
+    },
+    "defects_fixed": [
+      {
+        "id": "R5-1",
+        "title": "no published reference vocabulary",
+        "fix": "the interpretation context carries `fact_index` \u2014 every citable fact under the exact name a claim must use, from the same index the server resolves against. Names are readable rather than positional (movement.layers.L4.points_contributed, not layers[3]); keys that name a thing rather than measure one are excluded so a layer code's digits are not published as a figure; capped at 160, preferring the short canonical spelling; declared citable, which the grounding contract test enforces"
+      },
+      {
+        "id": "R5-2",
+        "title": "sign and magnitude were ambiguous in the derived-claim contract",
+        "fix": "derived_claim.value is the exact signed number, and the prompt says so with this case's own example. A claim stating the size is accepted and recorded as sign_corrected; what it permits is the server's signed value and its size, never the reading's sign"
+      },
+      {
+        "id": "R5-3",
+        "title": "a grounded figure could carry the wrong verb",
+        "fix": "_direction_conflicts \u2014 prose stating the size of a move with a verb that disagrees with the sign is discarded exactly as an invented figure is. Narrowed three ways: change facts only, same sentence only and after any earlier figure, and the always-allowed small numbers skipped",
+        "narrowing_found_by": "a stub run flagged '...condition ease. 4 of the 10 share L2.T1' before any commit"
+      },
+      {
+        "id": "R5-4",
+        "title": "common EWS derivations were left to the model",
+        "fix": "share_of_move_pct per layer, ews_change_size, direction, leading_layer_contribution, leading_layer_share_of_move_pct, exposure_share_pct and obligor_share_pct per grouping row \u2014 presentation-layer derivations over already-governed values",
+        "methodology_unchanged": true
+      },
+      {
+        "id": "R5-5",
+        "title": "the prompt did not put the sources in order",
+        "fix": "quote a figure, then quote one the runtime derived, only then declare a derivation; and do not make the answer more arithmetical than the question"
+      },
+      {
+        "id": "R5-6",
+        "title": "pass two's merge lost the headline precedence",
+        "root_cause": "it set requested_analysis to analyses[0] \u2014 declaration order in the cue table \u2014 so a model-backed turn read a question opening with 'why' as a ranking",
+        "fix": "both readers call leading_analysis"
+      }
+    ],
+    "certification": {
+      "weakened": false,
+      "added": [
+        "no move was written in the wrong direction",
+        "every declared derivation recomputed"
+      ],
+      "required_stage_checks": "untouched",
+      "diagnostics": "a direction conflict and a refused declaration print with their context, refs and the server's own value"
+    },
+    "new_tests": {
+      "tests/early_warning/test_live3_derivations.py": 33
+    },
+    "amended_tests": [],
+    "regression": {
+      "early_warning_and_api": "0 failures",
+      "backend": {
+        "failed": 22,
+        "passed": 10843,
+        "skipped": 27,
+        "identical_to_baseline": true,
+        "new_failures": [],
+        "resolved_failures": []
+      },
+      "frontend": "429 / 429 pass",
+      "typecheck": "clean",
+      "lint": "clean",
+      "production_build": "clean",
+      "stub_certification": "8/8"
+    },
+    "performance": {
+      "not_refactored": true,
+      "last_run": {
+        "median_s": 53.64,
+        "live_3_s": 74.06
+      },
+      "to_record": "two of LIVE-3's declarations failed and one was a wasted round of reasoning; whether removing them moves the number is for the next run to record"
     }
   }
 }

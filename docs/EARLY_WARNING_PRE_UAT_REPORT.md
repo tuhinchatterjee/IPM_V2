@@ -1095,3 +1095,155 @@ descending and the answer to name the window.
 
 Against the stub, all eight cases pass, LIVE-6 among them, now carrying 32
 stage checks where it carried 12.
+
+---
+
+# Run 5 — LIVE-3, and the two figures it lost a paragraph to
+
+The third Mac certification returned **7/8**. LIVE-1, 2, 4, 5, 6, 7 and 8
+passed and are unchanged. LIVE-3, the multi-part analytical case, reached the
+provider intact — seven of seven model calls, two of two executions, no schema
+error, no truncation — and lost its final interpretation to two numbers.
+
+## `-4.86` — the reading was right
+
+The live plan measured the Contracting movement from **2024-11 to 2026-06**,
+not over six months: Opus reached for the earliest published month. That
+window gives
+
+```
+movement.ews_change                          -2.38
+movement.layers.L1.points_contributed        -2.54   (score_change -6.34  x 0.40)
+movement.layers.L4.points_contributed        -2.32   (score_change -15.46 x 0.15)
+movement.layers.L4.score_before / after      18.77 -> 3.31
+```
+
+and −2.54 + −2.32 = **−4.86**, of a **−2.38** point move. Every figure in
+"L4 network and relationship fell 15.46 to 3.31, together contributing −4.86
+of the −2.38 point move" is a governed fact or an exact sum of two.
+
+**Class B and C.** A weighted contribution the packet already carries — the
+weighting is `score_change × weight` and `points_contributed` is that product,
+computed by the engine — declared with the **size** where the contract asks
+for the signed value. Refs right, operation right, arithmetic right, sign
+wrong in the declaration. The prose even used the signed form.
+
+## `6,301.85` — the reading was not
+
+Swept against every permitted fact:
+
+- every published month's Contracting exposure;
+- every `dominant_layer` group and its complement (L2 6,259.15 / L1 201.41,
+  summing to the 6,460.56 in scope);
+- every single-attribute subgroup exposure — layer, sub-category, band,
+  classifier band, T&A band, stage, rating, region, segment, utilisation,
+  relationship manager, sector — across Contracting and across the book;
+- every subset and complement sum of the grouping's rows;
+- cumulative exposure under four orderings;
+- the total less any one, two or three obligors.
+
+Nothing reproduces it. The gap to the sector total is 158.71 and no obligor
+carries that. **Class E — genuinely unsupported.** It keeps being rejected,
+and a test pins the sweep so it stays rejected.
+
+What the reading actually wanted was L2's share of the sector. That is now a
+fact: `exposure_share_pct` on every grouping row — L2 at 96.9%.
+
+## The third error
+
+`the result carries no fact called rows` — the writer citing a name nobody had
+published. `rows` is a list; the index holds numbers.
+
+## Fixes
+
+**A published reference vocabulary.** The interpretation context now carries
+`fact_index`: every citable fact under the exact name a claim must use, built
+from the same index the server resolves against, so the two cannot drift.
+Names are readable rather than positional — a list entry that identifies
+itself is indexed under that identity, so it is
+`movement.layers.L4.points_contributed` and not `layers[3]`. Keys that name a
+thing rather than measure one are excluded: `layer: "L4"` is a code, and
+indexing its digits would have published `4` as a fact about the book. The
+index is capped at 160 names, preferring the short canonical spelling, and it
+is declared citable — the grounding contract test enforces that every section
+the writer sees is either evidence or carries no figure, and it caught this
+before the suite did.
+
+**One rule for sign.** `derived_claim.value` is the exact signed number the
+operation produces, and the prompt says so with the LIVE-3 example. A claim
+that states the size instead is **accepted** — the arithmetic and the refs are
+right, and losing a correct paragraph to a minus sign is a papercut, not a
+control — but it is recorded as `sign_corrected` and what it permits is the
+**server's** signed value and its size, never the reading's sign.
+
+**Direction is checked against the sign.** A figure can be exactly the one the
+result carries and the verb in front of it can point the other way; "fell
+15.46 to 3.31" and "rose 15.46 to 3.31" quote the same three governed numbers
+and only one is true. Prose that states the size of a move with the wrong verb
+is now discarded exactly as an invented figure is.
+
+The guard is deliberately narrow, and three things narrow it. Only **change**
+facts are checked — a score of 3.31 is a level, and the verb near it governs
+the change, not it. Only the **same sentence** is searched, and only after any
+earlier figure: a stub run caught this immediately, flagging "…has not had its
+underlying condition ease. 4 of the 10 share L2.T1" because a falling verb sat
+three words before a four. And the always-allowed small numbers are skipped —
+"4 of the 10" is a count of the answer's own list, not the size of anything.
+For the Early Warning score, down is better, so "improved" pairs with a
+negative change and "deteriorated" with a positive one.
+
+**Common derivations are server-owned.** The model should not compute what
+CreditProbe can. Each layer now carries `share_of_move_pct` beside its
+`points_contributed`; the movement carries `ews_change_size`, `direction`,
+`leading_layer_contribution` and `leading_layer_share_of_move_pct`; every
+grouping row carries `exposure_share_pct` and `obligor_share_pct`. All are
+presentation-layer derivations over already-governed values — no methodology,
+no data, no weight changed.
+
+**The prompt puts them in order.** Quote a figure; then quote one the runtime
+already derived; only then declare a derivation. And: do not make the answer
+more arithmetical than the question — a complement that carries no decision,
+"SAR 6,301.85m of the SAR 6,460.56m in scope", is a figure to get wrong for
+nothing.
+
+## One defect found while reconstructing
+
+Pass two's merge set `requested_analysis` to `analyses[0]` — declaration order
+in the cue table, not an answer to which part of the question leads. So a
+model-backed turn read "Why has Contracting deteriorated, is it concentrated,
+and which layer is driving it?" as a **ranking**, and the headline became a
+list of names above a question that opens with "why". The deterministic reader
+had the precedence; the merge did not. Both now call `leading_analysis`, and
+LIVE-3's headline is the diagnosis.
+
+## Certification
+
+Stricter, not weaker. Two assertions added — **no move was written in the
+wrong direction** and **every declared derivation recomputed** — on top of the
+hardened required-stage checks, which are untouched. Each rejected figure
+already printed with the clause it sat in; a direction conflict and a refused
+declaration now print the same way, with the refs and the server's own value.
+
+## Regression
+
+```
+tests/early_warning + tests/api   0 failures
+backend (full suite)              22 failed, 10,843 passed, 27 skipped
+                                  the 22 identical to the recorded baseline
+frontend                          429 of 429
+typecheck clean · lint clean · production build clean
+stub certification                8/8
+```
+
+33 new tests in `test_live3_derivations.py`, built on the reconstructed LIVE-3
+packet: the −4.86 derivation and its sign, seven direction wordings, the
+6,301.85 sweep, the published names, the bare-`rows` refusal, the server-owned
+share, and four end-to-end cases through a model that answers. No existing
+test was amended.
+
+## Performance
+
+Not refactored. The last run's median was 53.64s and LIVE-3 74.06s, already
+well below the 134.6s of two runs ago. Two of LIVE-3's declarations failed and
+one was a wasted round of reasoning; whether removing them moves the number is
+for the next run to record rather than for me to claim.
