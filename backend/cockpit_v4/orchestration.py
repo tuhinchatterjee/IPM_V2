@@ -68,6 +68,27 @@ class Outcome:
     #: exact misreading that sent an operator hunting for a delivery problem
     #: while the provider had refused the request before any inference.
     terminal_event_emitted: bool = False
+    #: Every generation attempt this run made: purpose, phase, what the
+    #: request measured, what the response was allowed, how it stopped and
+    #: how long the provider took. Attached on every terminal path, because
+    #: the runs worth explaining are the ones that did not finish.
+    call_report: dict[str, Any] = field(default_factory=dict)
+
+
+#: What each model-call purpose is called in front of a reader.
+#:
+#: The taxonomy exists so that "why was model call #3 made?" has an answer in
+#: the trace. A reader watching the panel should be able to tell an analysis
+#: round from a re-ask for a cut-off response, and a re-ask for the ACTION
+#: from a re-ask for the ANSWER -- those are different failures with different
+#: allowances, and a live run stopped because they shared one.
+_PURPOSE_MESSAGE: dict[str, str] = {
+    "ANALYSIS_ACTION": "Preparing the next action",
+    "ACTION_FORMAT_RECOVERY": "The previous action was cut off; asking again",
+    "FINAL_ANSWER": "Writing the answer from the result",
+    "ANSWER_FORMAT_RECOVERY": "The written answer was cut off; asking again",
+    "ANSWER_CORRECTION": "Correcting the written answer against the result",
+}
 
 
 #: Which disposition settles into which terminal state.
@@ -108,6 +129,8 @@ class Orchestrator:
     #: on the trace so "why was model call #3 made?" has an answer, and used
     #: to charge a structure recovery to the right phase.
     purpose: str = "ANALYSIS_ACTION"
+    #: Filled on every terminal path. See `_build_call_report`.
+    call_report: dict[str, Any] = field(default_factory=dict)
     #: Product-knowledge reads are cheap and bounded separately from the
     #: catalog: they touch no borrower data and open no analysis round.
     product_calls: int = 0
@@ -148,6 +171,53 @@ class Orchestrator:
     # -- the run ---------------------------------------------------------
 
     def run_to_completion(self) -> Outcome:
+        """One run, start to terminal state, with its call report attached.
+
+        The report is attached on EVERY path. A run that completed rarely
+        needs explaining; a run that stopped at a limit always does, and the
+        question is almost never "which limit" -- it is which calls were
+        made, what each one was for, how big each request had grown and where
+        the wall-clock actually went.
+        """
+        try:
+            return self._with_report(self._run_to_completion())
+        except BaseException:
+            # A path that escapes entirely still leaves the report on the
+            # orchestrator for the worker and the trace to read.
+            self.call_report = self._build_call_report()
+            raise
+
+    def _with_report(self, outcome: Outcome) -> Outcome:
+        self.call_report = self._build_call_report()
+        outcome.call_report = self.call_report
+        try:
+            self._detail({"call_report": self.call_report})
+        except Exception:  # noqa: BLE001 - observability is never the failure
+            pass
+        return outcome
+
+    def _build_call_report(self) -> dict[str, Any]:
+        """Provider time and CreditProbe time, separated.
+
+        A run that overran is a different defect depending on which of the
+        two grew. Before this the only figure available was the total, so
+        "the model was slow" and "we spent the deadline assembling requests"
+        were indistinguishable from the outside.
+        """
+        try:
+            report = self.analyst.call_report()
+        except Exception:  # noqa: BLE001
+            return {}
+        elapsed_ms = max(0, int(self.ledger.elapsed_seconds * 1000))
+        provider_ms = int(report.get("provider_ms") or 0)
+        report["elapsed_ms"] = elapsed_ms
+        report["local_ms"] = max(0, elapsed_ms - provider_ms)
+        report["deadline_seconds"] = self.ledger.limits.deadline_seconds
+        report["executed"] = self.executed
+        report["analysis_preserved"] = self._analysis_preserved
+        return report
+
+    def _run_to_completion(self) -> Outcome:
         try:
             return self._loop()
         except Cancelled:
@@ -389,6 +459,11 @@ class Orchestrator:
         restore_system = None
         narrowed = self._finalization_tools()
         if narrowed is not None:
+            # This call cannot execute, inspect or retrieve: the tools that
+            # do those things are not on it. Naming it an analysis action
+            # would be describing a turn that cannot take one.
+            if self.purpose == "ANALYSIS_ACTION":
+                self.purpose = "FINAL_ANSWER"
             restore_tools = self.analyst.tools
             self.analyst.tools = narrowed
             from backend.cockpit_v4 import context as ctx
@@ -401,9 +476,15 @@ class Orchestrator:
             ev.MODEL_REQUESTED, stage="understanding", operation="generate",
             status=ev.STATUS_STARTED,
             attempt=self.ledger.counters.generation_attempts + 1,
-            public_message=("Understanding the request"
-                            if not self.analyst.messages[1:]
-                            else "Preparing the next action"))
+            detail_ref=self._detail({"purpose": self.purpose,
+                                     "tools_offered": len(self.analyst.tools),
+                                     "context_bytes":
+                                         self.analyst.payload_bytes()}),
+            public_message=_PURPOSE_MESSAGE.get(
+                self.purpose,
+                "Understanding the request"
+                if not self.analyst.messages[1:]
+                else "Preparing the next action"))
         try:
             try:
                 turn = self.analyst.ask(
@@ -465,6 +546,7 @@ class Orchestrator:
             operation="generate", status=ev.STATUS_OK,
             attempt=self.ledger.counters.generation_attempts,
             detail_ref=self._detail({
+                "purpose": self.purpose,
                 "model": turn.model, "request_id": turn.request_id,
                 "stop_reason": turn.stop_reason,
                 "counted_input_tokens": turn.counted_input_tokens,
@@ -475,6 +557,12 @@ class Orchestrator:
                 "cache_write_tokens": turn.cache_write_tokens,
                 "duration_ms": turn.duration_ms}),
             public_message="Response received.")
+        # The recovery label belongs to the call that recovers, and to no
+        # call after it. Leaving it set was how a completed run reported its
+        # final answer as a structure re-ask -- on the ledger reservation as
+        # well as in the trace, so the cost of writing the answer was booked
+        # against a failure that had already been repaired.
+        self.purpose = "ANALYSIS_ACTION"
         self.store.save_messages(self.run.run_id, self.analyst.messages)
         return turn
 
@@ -936,6 +1024,7 @@ class Orchestrator:
                          "executed evidence and the one correction for this "
                          "run was already used.")))
             self.answer_only = True
+            self.purpose = "ANSWER_CORRECTION"
             from backend.cockpit_v4.finalization import (correction_packet,
                                                          rejection)
             # The analysis SUCCEEDED. What failed is the binding between the

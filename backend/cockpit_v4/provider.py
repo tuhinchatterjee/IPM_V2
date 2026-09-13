@@ -110,6 +110,14 @@ class Turn:
                 "cache_write_tokens": self.cache_write_tokens}
 
 
+def _tally(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for row in rows:
+        name = str(row.get(key) or "")
+        out[name] = out.get(name, 0) + 1
+    return out
+
+
 @dataclass
 class Analyst:
     """The one model conversation. Owns the history and its tool pairing.
@@ -211,22 +219,86 @@ class Analyst:
         return (counted + reserved_output + margin
                 <= self.capability.context_tokens), counted, method
 
+    def payload_bytes(self) -> dict[str, int]:
+        """Where the request's size actually sits, in bytes on the wire.
+
+        Tokens are the billed unit but they are counted for the whole
+        request, so a token count cannot say whether a call is large because
+        of the tool schemas, the standing context or the conversation. Bytes
+        can, and the three parts are separately fixable.
+        """
+        def _size(obj: Any) -> int:
+            if isinstance(obj, str):
+                return len(obj.encode("utf-8"))
+            return len(json.dumps(obj, ensure_ascii=False,
+                                  default=str).encode("utf-8"))
+
+        system = _size(self.system)
+        tools = _size(self.tools)
+        messages = _size(self.messages)
+        return {"system": system, "tools": tools, "messages": messages,
+                "total": system + tools + messages}
+
+    # -- the call report -------------------------------------------------
+
+    def _record(self, **fields: Any) -> dict[str, Any]:
+        """Append one generation ATTEMPT to the report and return it.
+
+        Every attempt, not every success. A call refused before it was sent
+        and a call whose socket died both cost the run something -- an
+        allowance, a deadline, an operator's afternoon -- and a report that
+        lists only the attempts that came back cannot explain where a run
+        went.
+        """
+        entry: dict[str, Any] = {"seq": len(self.turns) + 1}
+        entry.update(fields)
+        self.turns.append(entry)
+        return entry
+
+    def call_report(self) -> dict[str, Any]:
+        """Every generation attempt this run made, and what each one cost.
+
+        Separates PROVIDER time from everything else. A run that overran its
+        deadline is a different defect depending on which of the two grew,
+        and before this the only number available was the total.
+        """
+        provider_ms = sum(int(t.get("provider_ms") or 0) for t in self.turns)
+        return {
+            "calls": list(self.turns),
+            "generations": len(self.turns),
+            "provider_ms": provider_ms,
+            "by_purpose": _tally(self.turns, "purpose"),
+            "by_phase": _tally(self.turns, "phase"),
+        }
+
     # -- the call --------------------------------------------------------
 
     def ask(self, *, purpose: str, max_output_tokens: int,
             tool_choice: str = "any", phase: str = "action") -> Turn:
         """One generation attempt. Bounded, reserved, counted and settled."""
-        self.ledger.check_deadline()
-        # And refused outright if there is no longer time to use the answer
-        # it would produce. An ACTION must leave the finalization reserve
-        # intact; the ANSWER call may spend it.
-        self.ledger.check_call_window(phase=phase)
+        sizes = self.payload_bytes()
+        entry = self._record(
+            purpose=purpose, phase=phase, attempt=0,
+            tools_offered=[str(t.get("name") or "") for t in self.tools],
+            context_bytes=sizes, outcome="refused_before_send")
+        try:
+            self.ledger.check_deadline()
+            # And refused outright if there is no longer time to use the
+            # answer it would produce. An ACTION must leave the finalization
+            # reserve intact; the ANSWER call may spend it.
+            self.ledger.check_call_window(phase=phase)
+        except BudgetExceeded as exc:
+            entry["refusal"] = exc.code
+            raise
         attempt = self.ledger.spend_generation()
+        entry["attempt"] = attempt
 
         reserved_output = min(max_output_tokens,
                               self.capability.max_output_tokens)
         ok, counted, method = self.fits(reserved_output=reserved_output)
+        entry.update(counted_input_tokens=counted, count_method=method)
         if not ok:
+            entry["refusal"] = INPUT_CONTEXT_LIMIT
             raise InputTooLarge(
                 f"the assembled request measured {counted:,} tokens "
                 f"({method}) and, with {reserved_output:,} tokens reserved "
@@ -248,6 +320,7 @@ class Analyst:
             "reduced": affordable < reserved_output}
         if affordable < reserved_output:
             if affordable < self.ledger.MIN_RESPONSE_TOKENS:
+                entry["refusal"] = COST_LIMIT
                 raise BudgetExceeded(
                     COST_LIMIT,
                     f"the remaining budget affords {affordable:,} response "
@@ -256,6 +329,7 @@ class Analyst:
                     f"Nothing was sent.")
             reserved_output = affordable
             ok, counted, method = self.fits(reserved_output=reserved_output)
+            entry.update(counted_input_tokens=counted, count_method=method)
 
         reservation = self.ledger.reserve(
             purpose=purpose, input_tokens=counted,
@@ -265,6 +339,9 @@ class Analyst:
         # left, less a settlement margin, so a stalled socket cannot outlive
         # the run's own watchdog.
         timeout = self.ledger.call_timeout_seconds()
+        entry.update(output_allowance=dict(self.response_allowance),
+                     call_timeout_seconds=round(timeout, 3),
+                     outcome="sent")
         started = time.monotonic()
         try:
             self.ledger.spend_provider_attempt()
@@ -282,12 +359,25 @@ class Analyst:
             # stopped on CALL_LIMIT, and reporting that as an outage sends an
             # operator looking for a provider that is working perfectly.
             self.ledger.settle(reservation, usage={}, uncertain=False)
+            entry.update(outcome="refused_before_send",
+                         provider_ms=int((time.monotonic() - started) * 1000))
             raise
         except Exception as exc:  # noqa: BLE001
             # The request may have reached the provider and been billed.
             # Held pending, never booked as zero.
             self.ledger.settle(reservation, usage={"error": str(exc)[:200]},
                                uncertain=True)
+            # A provider failure that arrives as an EXCEPTION still has a
+            # name. Calling every one of them a transport error is how a
+            # truncated response -- which was served, billed and complete as
+            # far as the socket was concerned -- reads in the report as a
+            # network fault nobody can reproduce.
+            entry.update(
+                outcome=("truncated" if isinstance(exc, OutputTruncated)
+                         else exc.code if isinstance(exc, ProviderFailure)
+                         else "transport_error"),
+                provider_ms=int((time.monotonic() - started) * 1000),
+                error=str(exc)[:200])
             raise _classify(exc) from exc
 
         self.ledger.settle(reservation, usage={
@@ -314,15 +404,16 @@ class Analyst:
             cache_write_tokens=int(getattr(result, "cache_write_tokens", 0)
                                    or 0),
             counted_input_tokens=counted, count_method=method)
-        self.turns.append({
-            "purpose": purpose, "attempt": attempt,
-            "stop_reason": stop_reason, "request_id": turn.request_id,
-            "counted_input_tokens": counted, "count_method": method,
-            "reported_input_tokens": turn.input_tokens,
-            "output_tokens": turn.output_tokens,
-            "cache_read_tokens": turn.cache_read_tokens,
-            "cache_write_tokens": turn.cache_write_tokens,
-            "duration_ms": turn.duration_ms})
+        entry.update(
+            outcome=("truncated" if stop_reason == TRUNCATED_STOP
+                     else "ok" if stop_reason in COMPLETE_STOPS
+                     else stop_reason or "unknown_stop"),
+            stop_reason=stop_reason, request_id=turn.request_id,
+            reported_input_tokens=turn.input_tokens,
+            output_tokens=turn.output_tokens,
+            cache_read_tokens=turn.cache_read_tokens,
+            cache_write_tokens=turn.cache_write_tokens,
+            provider_ms=turn.duration_ms)
 
         if stop_reason == TRUNCATED_STOP:
             # The partial turn does NOT enter history. Keeping it would leave
