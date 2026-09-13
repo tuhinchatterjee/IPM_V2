@@ -13,7 +13,7 @@ nothing was rebased over or discarded.
 
 ## 2. Final HEAD
 
-See the tip of `claude/cockpit-single-agent-v4-h8fsbq` after this round's push.
+`bd25826cc187c86f75cbaf16c5cb45d42e74a447`.
 Commits added, oldest first:
 
 | Commit | What it does |
@@ -28,7 +28,7 @@ Commits added, oldest first:
 | `0727358` | The remembered run keeps the question it is answering |
 | `eb03ad5` | The figure in the list is the figure in the sentence |
 | `76f6735` | Share the conversation, and say what cannot be shared |
-| *(final)* | This report and its evidence |
+| `bd25826` | This report, its evidence and the performance measurements |
 
 ## 3. Files changed
 
