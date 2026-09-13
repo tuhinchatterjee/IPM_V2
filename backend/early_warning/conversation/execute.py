@@ -412,6 +412,7 @@ def _run(step: plan_mod.Step) -> Executed:
                      # obligor improved, which improved most?" is answered by
                      # how many of the thirty improved; a census of the five
                      # that were listed answers a question nobody asked.
+                     **_ranking_coverage(frame, found),
                      **_movement_census(frame, ordered_by)},
             rows=list(found),
             provenance=list(pack.provenance), caveats=list(pack.caveats))
@@ -430,6 +431,34 @@ def _run(step: plan_mod.Step) -> Executed:
 MOVEMENT_MEASURES: tuple[str, ...] = (
     "ews_change_1m", "ews_change_12m", "anchor_change_1m",
     "anchor_change_12m", "notch_change_1m", "score_change", "ews_change")
+
+
+def _ranking_coverage(frame: pd.DataFrame,
+                      shown: list[dict[str, Any]]) -> dict[str, Any]:
+    """How much of the population a ranking actually shows.
+
+    "The ranking names ten of the thirty; twenty are not shown" is a true and
+    useful thing to say, and until now it was arithmetic the writer had to do
+    — so a live reading subtracted ten from thirty in its own prose and the
+    grounding guard refused the twenty, correctly, having never been given it.
+
+    Counted over the frame the step READ, which is the population after its
+    filters. A ranking of the eleven high-severity names in a thirty-obligor
+    sector that lists five omits six, not twenty-five, and a coverage figure
+    taken from the sector total would say the wrong thing with confidence.
+    """
+    total = int(len(frame))
+    returned = int(len(shown))
+    return {
+        "ranking_coverage": {
+            "total_in_scope": total,
+            "returned_count": returned,
+            # Never negative: a limit above the population returns everything
+            # there is, and "minus four omitted" is not a fact about anything.
+            "omitted_count": max(0, total - returned),
+            "is_truncated": returned < total,
+        }
+    }
 
 
 def _movement_census(frame: pd.DataFrame, measure: str) -> dict[str, Any]:

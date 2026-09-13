@@ -163,3 +163,23 @@ The reading was right; the guard was not.
 Backend 22 failed / 10,900 passed / 27 skipped, the 22 identical to the
 recorded baseline. `tests/early_warning` and `tests/api` clean. Against the
 stub, 8/8. No frontend file changed.
+
+## Run 7 — ranking coverage
+
+The fifth Mac run returned **7/8**. LIVE-5 alone failed, on `20` — the count
+of obligors a ten-row ranking omitted from a population of thirty.
+
+| # | Item | State |
+|---|---|---|
+| 69 | Prove 30 − 10 = 20 from the reconstructed packet | done |
+| 70 | `ranking_coverage` computed server-side, after the step's filters | done |
+| 71 | Coverage published to the writer's fact index | done |
+| 72 | Prompt: quote the counts, never subtract one from another | done |
+| 73 | Truncation caveat demoted below the answer | done |
+| 74 | Grounding unchanged — `20` not whitelisted | done |
+| 75 | Focused tests, EWS/API suites, baseline regression | done |
+| 76 | Sixth Mac certification run | blocked-external |
+
+Backend 22 failed / 10,918 passed / 27 skipped, the 22 identical to the
+recorded baseline. `tests/early_warning` and `tests/api` clean. Against the
+stub, 8/8. No frontend file changed.

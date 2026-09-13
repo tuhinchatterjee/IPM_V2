@@ -1,8 +1,8 @@
 {
-  "verdict": "SEVEN_OF_EIGHT_REMEDIATED_AWAITING_FIFTH_LIVE_RUN",
+  "verdict": "SEVEN_OF_EIGHT_REMEDIATED_AWAITING_SIXTH_LIVE_RUN",
   "reasons": [
-    "The fourth Mac certification returned 7/8. LIVE-1, 2, 3, 4, 6, 7 and 8 passed; LIVE-3 now passes live and run 5's work is untouched.",
-    "LIVE-5 was correct on ownership, execution, the packet, grounding and its derived claims, and failed on the direction guard run 5 introduced \u2014 with a sentence that was true.",
+    "The fifth Mac certification returned 7/8. Seven cases passed and are unchanged.",
+    "LIVE-5 was correct on ownership, execution, the packet, grounding, its derived claims and the direction binding, and failed on one figure: 20, the count of obligors a ten-row ranking omitted from a thirty-obligor population.",
     "Early Warning is not certified until the Mac script returns 8/8 certified, VERDICT: CERTIFIED."
   ],
   "branch": "claude/early-warning-rebuild-v2-3lnttn",
@@ -5881,6 +5881,67 @@
         "resolved_failures": []
       },
       "frontend": "429 / 429 pass (no frontend file changed this run)",
+      "stub_certification": "8/8"
+    }
+  },
+  "run_7": {
+    "trigger": "fifth local Mac real-provider certification",
+    "live_result": {
+      "certified": 7,
+      "of": 8,
+      "verdict": "NOT_CERTIFIED",
+      "failed": [
+        "LIVE-5 incorrect premise"
+      ],
+      "rejected_figure": 20
+    },
+    "proof": {
+      "ranking_step": {
+        "filters": {
+          "sector": "Contracting"
+        },
+        "limit": 10,
+        "order_by": "ews_change_1m"
+      },
+      "figures.obligors": 30,
+      "figures.named": 10,
+      "rows_in_packet": 10,
+      "arithmetic": "30 - 10 = 20",
+      "classification": "a legitimate governed derived count, correctly refused: the packet held 30 and 10 and had never been given 20, and the writer subtracted in prose"
+    },
+    "server_owned_facts_added": {
+      "ranking_coverage.total_in_scope": "the population AFTER the step's filters",
+      "ranking_coverage.returned_count": "the rows returned, not the limit",
+      "ranking_coverage.omitted_count": "never negative",
+      "ranking_coverage.is_truncated": "returned < total",
+      "computed": "server-side from the frame the step read; nothing hard-coded, no methodology touched"
+    },
+    "caveat": {
+      "retained": true,
+      "demoted": true,
+      "reason": "that a table was cut at ten is a fact about the TABLE, not about the book. The prompt says a truncation note belongs after the answer or not at all, and never lets a technical aside crowd out it. The facts exist so a reading that wants the note can quote it"
+    },
+    "grounding_unchanged": {
+      "20_whitelisted": false,
+      "_ALWAYS_ALLOWED_touched": false,
+      "subtraction_licensed": false,
+      "note": "a declared difference(total_in_scope, returned_count) still has to recompute: 19 refused, 20 accepted. Coverage counts are not read as movements"
+    },
+    "new_tests": {
+      "tests/early_warning/test_ranking_coverage.py": 18
+    },
+    "amended_tests": [],
+    "regression": {
+      "early_warning_and_api": "0 failures",
+      "backend": {
+        "failed": 22,
+        "passed": 10918,
+        "skipped": 27,
+        "identical_to_baseline": true,
+        "new_failures": [],
+        "resolved_failures": []
+      },
+      "frontend": "not re-run \u2014 no frontend file changed this run",
       "stub_certification": "8/8"
     }
   }

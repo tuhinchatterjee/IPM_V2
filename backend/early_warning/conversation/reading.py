@@ -139,8 +139,17 @@ however correct the number.
 1d. THE COUNTS AND THE EXTREMES ARE FACTS. `movement_census` carries \
 `total`, `improved_count`, `held_count`, `deteriorated_count`, and \
 `largest_improvement` and `largest_deterioration` with the obligor's name and \
-signed change. Quote them. Do not count rows and do not pick an extreme out of \
-a list.
+signed change. `ranking_coverage` carries `total_in_scope`, `returned_count`, \
+`omitted_count` and `is_truncated`. Quote them. Do not count rows, do not pick \
+an extreme out of a list, and do not subtract one count from another to get a \
+third — where the runtime has not published the figure, say it in words: "the \
+ranking shows only the returned names, not the whole population".
+1d-i. AND ASK WHETHER IT IS WORTH SAYING. That a ranking was cut at ten is a \
+fact about the TABLE, not about the book, and it is rarely what a credit \
+officer needs. Asked which obligor improved most, the answer is the name, the \
+size of its move and how many of the population moved at all — a truncation \
+note belongs after those or not at all. Never let a technical aside crowd out \
+the answer.
 1e. A FOLLOW-UP IS HELD TO THE SAME STANDARD as the answer. It may name a \
 figure only if that figure is a fact you could cite, and it does not need one \
 to be a good question: "Which six Contracting obligors deteriorated, and by \

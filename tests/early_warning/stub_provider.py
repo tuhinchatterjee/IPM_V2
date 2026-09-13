@@ -325,6 +325,19 @@ def _interpret(packet: dict[str, Any], behaviour: str) -> dict[str, Any]:
             movements.append({"fact_ref": worst, "direction": word,
                               "value": size})
 
+    if behaviour == "live_5_coverage":
+        # The sentence LIVE-5 lost its reading to. Every figure quoted from
+        # `ranking_coverage` rather than subtracted in the prose.
+        index = packet.get("fact_index") or {}
+        names = ("ranking_coverage.returned_count",
+                 "ranking_coverage.omitted_count",
+                 "ranking_coverage.total_in_scope")
+        if all(n in index for n in names):
+            shown, omitted, total = (int(index[n]) for n in names)
+            reading += (f" The ranking names only the {shown} obligors "
+                        f"returned; the remaining {omitted} of the {total} in "
+                        f"scope are not shown.")
+
     out = {"direct": direct, "interpretation": reading,
            "points": [], "drivers": list(floor.get("drivers") or []),
            "follow_ups": list(floor.get("follow_ups") or []),

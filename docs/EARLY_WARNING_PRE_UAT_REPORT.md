@@ -1362,3 +1362,95 @@ frame, the metric module across movements, levels, counts and an unclassified
 metric, twelve binding cases that turn on which obligor is named, the exempt
 bound size, every reading section, labels and ordinals left alone, and four
 end-to-end cases.
+
+---
+
+# Run 7 — the ranking's own coverage
+
+The fifth Mac certification returned **7/8**. LIVE-5 was correct on everything
+run 6 addressed — ownership, execution, the packet, grounding, the derived
+claims, the direction binding, the ±8.0 collision — and failed on one sentence:
+
+    The ranking names only the 10 obligors returned; the remaining 20 of the
+    30 in scope are not shown...
+
+`20` was refused.
+
+## The arithmetic, proven
+
+Reconstructed from the LIVE-5 packet:
+
+```
+ranking step   filters {'sector': 'Contracting'}   limit 10   order ews_change_1m
+figures.obligors                                   30
+figures.named                                      10
+rows in packet                                     10
+                                       30 - 10  =  20
+```
+
+A **legitimate governed derived count** — and refused correctly. Two counts
+sitting in a result do not license a third; the packet held thirty and ten and
+had never been given twenty, and the writer subtracted in its own prose.
+
+## Coverage is a fact now
+
+`ranking_coverage` travels on every ranking pack and is published to the
+writer:
+
+```
+ranking_coverage.total_in_scope     30
+ranking_coverage.returned_count     10
+ranking_coverage.omitted_count      20
+ranking_coverage.is_truncated       true
+```
+
+Counted server-side from the frame the step actually read — nothing
+hard-coded, and no methodology touched. The scope is the population **after
+the step's filters**, which is the part that would otherwise be quietly wrong:
+a ranking of the eleven high-severity names in a thirty-obligor sector that
+lists five omits **six**, not twenty-five. `omitted_count` never goes negative
+— a limit above the population returns everything there is, and "minus four
+omitted" is not a fact about anything.
+
+The prompt tells the writer to quote these and adds one rule: **do not
+subtract one count from another to get a third.** Where the runtime has not
+published a figure, say it in words — "the ranking shows only the returned
+names, not the whole population".
+
+## The caveat, kept but demoted
+
+Reviewed rather than preserved. That a table was cut at ten is a fact about
+the **table**, not about the book, and it is rarely what a credit officer
+needs. Asked which obligor improved most, the answer is Al Rajhi Logistics 8
+at −10.0, and that 3 of 30 improved while 21 held and 6 deteriorated. The
+prompt now says a truncation note belongs after those or not at all, and never
+lets a technical aside crowd out the answer. The facts exist so a reading that
+does want the note can quote it; the instruction is not to reach for it.
+
+## Grounding is not weakened
+
+`20` is not whitelisted and `_ALWAYS_ALLOWED` is untouched. On the real LIVE-5
+packet a wrong count is still refused, and a declared derivation over the two
+counts still has to recompute — `difference(total_in_scope, returned_count)`
+declared as 19 is refused, declared as 20 is accepted. Coverage counts are not
+read as movements, so they have no direction to contradict.
+
+One test in this file is worth reading twice: a first draft asserted that `19`
+would be refused on the live packet, and it was not — a packet that size
+carries hundreds of figures and nineteen is one of them. That is the guard
+working, and the test now picks a figure the result genuinely does not hold.
+
+## Regression
+
+```
+tests/early_warning + tests/api   0 failures
+backend (full suite)              22 failed, 10,918 passed, 27 skipped
+                                  the 22 identical to the recorded baseline
+stub certification                8/8
+frontend                          not re-run — no frontend file changed
+```
+
+18 new tests in `test_ranking_coverage.py`: the five count cases the
+instruction names, the filtered-scope case that must say six rather than
+twenty-five, the live arithmetic from the real domain, publication to the
+writer, the end-to-end sentence, and four that prove the guard still bites.
