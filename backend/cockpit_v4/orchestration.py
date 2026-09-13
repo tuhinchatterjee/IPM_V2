@@ -103,6 +103,10 @@ class Orchestrator:
     #: Set once the analyst has been told to correct only its answer.
     answer_only: bool = False
     executed: bool = False
+    #: What the NEXT provider generation is for. Recorded on the ledger and
+    #: on the trace so "why was model call #3 made?" has an answer, and used
+    #: to charge a structure recovery to the right phase.
+    purpose: str = "ANALYSIS_ACTION"
     #: Product-knowledge reads are cheap and bounded separately from the
     #: catalog: they touch no borrower data and open no analysis round.
     product_calls: int = 0
@@ -312,6 +316,31 @@ class Orchestrator:
 
     # -- generation ------------------------------------------------------
 
+    def _finalization_tools(self) -> list[dict[str, Any]] | None:
+        """The tool set for a turn whose job is to WRITE THE ANSWER.
+
+        Once an analysis has succeeded, the next turn's task is "given this
+        exact result, answer the question" -- not "start investigating
+        again". Offering `execute_analysis` and `inspect_catalog` there costs
+        about fifteen kilobytes of schema on every answer turn and invites a
+        round the run does not need.
+
+        This is tool AVAILABILITY, not analytical judgement: CreditProbe is
+        not deciding what the answer says. And it is not a capability the run
+        can lose -- `answer_only` is set only after an analysis has already
+        succeeded or an answer has already been refused, and a run that has
+        executed nothing keeps everything.
+        """
+        from backend.cockpit_v4.contracts import (TOOL_EXECUTE, TOOL_INSPECT,
+                                                  TOOL_PRODUCT)
+
+        if not (self.executed or self.answer_only):
+            return None
+        keep = {TOOL_EXECUTE, TOOL_INSPECT, TOOL_PRODUCT}
+        current = list(self.analyst.tools or [])
+        trimmed = [t for t in current if t.get("name") not in keep]
+        return trimmed if trimmed and len(trimmed) < len(current) else None
+
     def _generate(self):
         reserved = self.ledger.limits.reserved_output_tokens
         if (self.deferred_tools is not None
@@ -325,6 +354,20 @@ class Orchestrator:
                 ev.CONTEXT_READY, stage="understanding",
                 operation="tools_restored", status=ev.STATUS_OK,
                 public_message="Product knowledge lookup available.")
+        # The answer turn carries only the tools an answer needs, and only
+        # the system context an answer needs.
+        restore_tools = None
+        restore_system = None
+        narrowed = self._finalization_tools()
+        if narrowed is not None:
+            restore_tools = self.analyst.tools
+            self.analyst.tools = narrowed
+            from backend.cockpit_v4 import context as ctx
+
+            compact = ctx.finalization_system(self.analyst.system)
+            if compact is not self.analyst.system:
+                restore_system = self.analyst.system
+                self.analyst.system = compact
         self.emitter.append(
             ev.MODEL_REQUESTED, stage="understanding", operation="generate",
             status=ev.STATUS_STARTED,
@@ -333,18 +376,42 @@ class Orchestrator:
                             if not self.analyst.messages[1:]
                             else "Preparing the next action"))
         try:
-            turn = self.analyst.ask(purpose="analyst_action",
-                                    max_output_tokens=reserved)
+            try:
+                turn = self.analyst.ask(purpose=self.purpose,
+                                        max_output_tokens=reserved)
+            finally:
+                # Narrowing is per CALL. The full set comes back immediately
+                # so a run that genuinely needs another analytical round --
+                # because the sufficiency review asked for one -- still has
+                # every tool available to it.
+                if restore_tools is not None:
+                    self.analyst.tools = restore_tools
+                if restore_system is not None:
+                    self.analyst.system = restore_system
         except OutputTruncated as exc:
-            # One structure regeneration, and the incomplete turn is not in
-            # history. Nothing from a truncated response executes.
-            self.ledger.spend_format_recovery()
+            # One structure regeneration PER PHASE, and the incomplete turn
+            # is not in history. Nothing from a truncated response executes.
+            #
+            # The phase matters. A truncated ACTION happens before any work
+            # exists; a truncated ANSWER happens after the SQL has run and
+            # been paid for. Charging both to one counter is what refused a
+            # live run whose query had already executed correctly.
+            phase = "answer" if self.executed else "action"
+            self.ledger.spend_format_recovery(phase=phase)
             self.analyst.rollback_last_turn()
+            self.purpose = ("ANSWER_FORMAT_RECOVERY" if phase == "answer"
+                            else "ACTION_FORMAT_RECOVERY")
             self.emitter.append(
-                ev.RETRY_REQUESTED, stage="understanding",
+                ev.RETRY_REQUESTED,
+                stage="publishing" if phase == "answer" else "understanding",
                 operation="output_truncated", status=ev.STATUS_REJECTED,
-                public_message=("The response was cut off before it was "
-                                "complete; asking again once."))
+                public_message=(
+                    "The written answer was cut off before it was complete; "
+                    "asking again once. The analysis is unaffected and its "
+                    "result is preserved."
+                    if phase == "answer" else
+                    "The response was cut off before it was complete; "
+                    "asking again once."))
             self.analyst.user(
                 f"Your previous response was cut off at its "
                 f"{exc.limit:,}-token output allowance and nothing from it "
@@ -386,7 +453,8 @@ class Orchestrator:
         calls = turn.tool_calls
         if not calls:
             # Free prose is not silently promoted into a validated answer.
-            self.ledger.spend_format_recovery()
+            self.ledger.spend_format_recovery(
+                phase="answer" if self.executed else "action")
             self.analyst.user(
                 "That response contained no tool call. Every action, "
                 "including the final answer, is taken through one of: "
@@ -428,7 +496,8 @@ class Orchestrator:
 
     def _reject_batch(self, calls, message: str) -> None:
         """Answer every call with a matching error. No side effects."""
-        self.ledger.spend_format_recovery()
+        self.ledger.spend_format_recovery(
+            phase="answer" if self.executed else "action")
         for call in calls:
             self.analyst.tool_result(
                 call.id, {"status": "rejected",

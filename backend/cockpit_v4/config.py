@@ -96,6 +96,9 @@ class Limits:
     preview_rows: int
     preview_columns: int
     format_regenerations: int
+    #: Structure recovery for the FINAL ANSWER turn, bounded separately from
+    #: the action turns. Not a widening: each phase still gets exactly one.
+    answer_format_regenerations: int
     answer_corrections: int
     spend_ceiling_usd: float
     charts: int
@@ -109,7 +112,8 @@ STANDARD_LIMITS = Limits(
     catalog_calls=4, artifact_reads=6, steps_per_batch=6, total_steps=12,
     step_seconds=15.0, python_memory_mib=512, sql_memory_mib=512,
     output_bytes_per_step=25 * 1024 * 1024, preview_rows=100,
-    preview_columns=32, format_regenerations=1, answer_corrections=1,
+    preview_columns=32, format_regenerations=1,
+    answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=1.0, charts=2, soft_input_tokens=6_000,
     reserved_output_tokens=4_096)
 
@@ -119,7 +123,8 @@ DEEP_LIMITS = Limits(
     catalog_calls=6, artifact_reads=10, steps_per_batch=8, total_steps=24,
     step_seconds=30.0, python_memory_mib=1024, sql_memory_mib=1024,
     output_bytes_per_step=50 * 1024 * 1024, preview_rows=100,
-    preview_columns=32, format_regenerations=1, answer_corrections=1,
+    preview_columns=32, format_regenerations=1,
+    answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=2.0, charts=3, soft_input_tokens=10_000,
     reserved_output_tokens=6_144)
 

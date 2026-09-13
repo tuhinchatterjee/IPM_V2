@@ -237,5 +237,48 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
                                "tenant": principal.get("tenant", "")}})
 
 
+def finalization_system(system_blocks: list[dict[str, Any]]
+                        ) -> list[dict[str, Any]]:
+    """The system context a turn needs when its job is to WRITE THE ANSWER.
+
+    The starting context is built for AUTHORING an analysis: the catalogue
+    index, the canonical semantics, the product synopsis and the module
+    registry are all there so the analyst can decide what to run. Once the
+    query has run, none of that decides anything -- the result is in hand and
+    the task is "given this exact result, answer the question".
+
+    Carrying it anyway costs about four thousand tokens on every answer turn,
+    and on a run that already spent an action retry that is the difference
+    between affording an answer and being refused one. So the heavy block is
+    replaced with a compact one; the analyst INSTRUCTION and the pinned scope
+    stay, because those still govern how the answer must be written.
+
+    Nothing analytical is removed: the result, its evidence and the
+    derived-claim contract all arrive in the tool result, not from here.
+    """
+    if not system_blocks:
+        return system_blocks
+    kept: list[dict[str, Any]] = []
+    for index, block in enumerate(system_blocks):
+        text = str(block.get("text") or "")
+        if index == 0 or "pinned_scope" in text:
+            # The instruction, and the volatile scope/budget block.
+            kept.append(block)
+            continue
+        if "catalog_index" in text or "creditprobe" in text:
+            kept.append({"type": "text", "text": json.dumps({
+                "phase": "FINAL ANSWER",
+                "note": (
+                    "The analysis has already run and its result is in the "
+                    "tool result above. Write the answer from that result. "
+                    "The catalogue index, the product synopsis and the "
+                    "canonical semantics were carried while you were "
+                    "choosing what to run and are not repeated here."),
+            }, ensure_ascii=False)})
+            continue
+        kept.append(block)
+    return kept
+
+
 __all__ = ["DEFAULT_RECENT_TURNS", "MAX_RECENT_TURNS", "Packet",
-           "analyst_instruction", "build"]
+           "analyst_instruction", "build", "finalization_system"]

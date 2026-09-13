@@ -234,6 +234,33 @@ def _v4_sources():
 _CURRENCY_MODULES = {"saudi.py", "precision.py"}
 
 
+def _docstring_lines(path, text: str) -> set[int]:
+    """Line numbers occupied by docstrings in a Python source file."""
+    if path.suffix != ".py":
+        return set()
+    import ast
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+            continue
+        body = getattr(node, "body", None)
+        if not body:
+            continue
+        first = body[0]
+        if (isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)):
+            lines.update(range(first.lineno, (first.end_lineno or
+                                              first.lineno) + 1))
+    return lines
+
+
 def test_neither_currency_module_carries_a_default():
     """The rule that replaces the word-ban for the two modules that need it.
 
@@ -261,8 +288,14 @@ def test_no_v4_source_file_shows_an_india_specific_money_label():
         if path.name in _CURRENCY_MODULES:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
+        prose = _docstring_lines(path, text)
         for line_no, line in enumerate(text.splitlines(), start=1):
-            if line.lstrip().startswith("#") or line.lstrip().startswith("//"):
+            stripped = line.lstrip()
+            if stripped.startswith(("#", "//", "*")) or line_no in prose:
+                # A comment or a docstring EXPLAINING the currency work is
+                # not a currency reaching a reader. The distinction is made
+                # by parsing rather than by guessing, so the guard stays
+                # strict about code and stops firing on its own explanation.
                 continue
             for word in ("INR", "crore", "₹"):
                 if word in line:

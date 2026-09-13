@@ -45,7 +45,15 @@ class Counters:
     catalog_calls: int = 0
     artifact_reads: int = 0
     steps_attempted: int = 0
-    format_recoveries: int = 0
+    #: Recovering a malformed or truncated response is bounded PER PHASE.
+    #: One counter used to serve both, and a hiccup while authoring the
+    #: analysis silently disarmed the recovery that writing the answer would
+    #: later need -- so a live run executed its SQL correctly and was then
+    #: refused at publication. The two phases cost different things: an
+    #: action retry happens before any work exists, an answer retry happens
+    #: after the query has already run and been paid for.
+    action_format_recoveries: int = 0
+    answer_format_recoveries: int = 0
     answer_corrections: int = 0
     transport_retries: int = 0
 
@@ -231,13 +239,31 @@ class Ledger:
                 f"no step was dropped.")
         self.counters.steps_attempted += count
 
-    def spend_format_recovery(self) -> None:
-        if self.counters.format_recoveries >= self.limits.format_regenerations:
-            raise BudgetExceeded(
-                CALL_LIMIT,
-                "the one structure-regeneration attempt for this run was "
-                "already used.")
-        self.counters.format_recoveries += 1
+    def spend_format_recovery(self, *, phase: str = "action") -> None:
+        """One structure recovery per PHASE, not one per run.
+
+        `phase` is "action" while the analyst is choosing and authoring what
+        to do, and "answer" once an analysis has succeeded and it is writing
+        the response. They are bounded separately because they fail for
+        different reasons at different costs.
+        """
+        if phase == "answer":
+            used = self.counters.answer_format_recoveries
+            allowed = self.limits.answer_format_regenerations
+            what = ("the one structure-regeneration attempt for the FINAL "
+                    "ANSWER was already used. The analysis itself succeeded "
+                    "and its result is preserved.")
+        else:
+            used = self.counters.action_format_recoveries
+            allowed = self.limits.format_regenerations
+            what = ("the one structure-regeneration attempt for choosing an "
+                    "action was already used.")
+        if used >= allowed:
+            raise BudgetExceeded(CALL_LIMIT, what)
+        if phase == "answer":
+            self.counters.answer_format_recoveries += 1
+        else:
+            self.counters.action_format_recoveries += 1
 
     def spend_answer_correction(self) -> None:
         if self.counters.answer_corrections >= self.limits.answer_corrections:
@@ -352,7 +378,12 @@ class Ledger:
             "catalog_calls": [c.catalog_calls, lim.catalog_calls],
             "artifact_reads": [c.artifact_reads, lim.artifact_reads],
             "steps_attempted": [c.steps_attempted, lim.total_steps],
-            "format_recoveries": [c.format_recoveries,
+            "action_format_recoveries": [c.action_format_recoveries,
+                                         self.limits.format_regenerations],
+            "answer_format_recoveries": [
+                c.answer_format_recoveries,
+                self.limits.answer_format_regenerations],
+            "format_recoveries": [c.action_format_recoveries,
                                   lim.format_regenerations],
             "answer_corrections": [c.answer_corrections,
                                    lim.answer_corrections],
