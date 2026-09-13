@@ -3,9 +3,9 @@
   "note": "The analyst model is a stub. This proves the wiring, the run lifecycle and the rendering. It is NOT a live Opus validation.",
   "ui": "http://127.0.0.1:5471",
   "api": "http://127.0.0.1:8471",
-  "total": 46,
+  "total": 54,
   "passed": 46,
-  "failed": 0,
+  "failed": 8,
   "forbidden_endpoints_checked": [
     "/api/v1/investigations",
     "/api/v1/agentic/officer",
@@ -81,77 +81,119 @@
     {
       "name": "asking 'Who are you?' posts to the V4 run API and never to the legacy flow",
       "ok": true,
-      "ms": 3905
+      "ms": 2780
     },
     {
       "name": "the process panel appears and consumes the V4 event stream",
       "ok": true,
-      "ms": 2006
+      "ms": 2184
     },
     {
       "name": "progress events are rendered before the answer arrives",
       "ok": true,
-      "ms": 2034
+      "ms": 2147
     },
     {
       "name": "the final answer renders with its disposition",
       "ok": true,
-      "ms": 1976
+      "ms": 2272
     },
     {
       "name": "an evidence-bound analysis renders artifact links",
       "ok": true,
-      "ms": 2991
+      "ms": 3107
     },
     {
       "name": "a terminal failure renders explicitly with a support reference",
       "ok": true,
-      "ms": 1919
+      "ms": 2009
     },
     {
       "name": "stop cancels the run through the V4 cancel endpoint",
       "ok": true,
-      "ms": 1820
+      "ms": 2746
     },
     {
       "name": "a browser refresh replays the same run instead of re-asking",
-      "ok": true,
-      "ms": 996
+      "ok": false,
+      "ms": 2003,
+      "error": "a refresh must not start a new run; it requested [\"http://127.0.0.1:8471/api/v1/cockpit-v4/runs\"] |  | 1 !== 0 | "
     },
     {
       "name": "optional landing widgets show a neutral state and request nothing",
       "ok": true,
-      "ms": 591
+      "ms": 645
     },
     {
       "name": "no request from the page goes to the legacy backend port",
       "ok": true,
-      "ms": 4476
+      "ms": 3804
     },
     {
       "name": "the process panel shows real stages, not 'not started' at 0s",
       "ok": true,
-      "ms": 2168
+      "ms": 2324
     },
     {
       "name": "the answer renders as Markdown, with no raw syntax left over",
       "ok": true,
-      "ms": 1951
+      "ms": 2072
     },
     {
       "name": "suggested-question chips stay interactive UI, not Markdown",
       "ok": true,
-      "ms": 1990
+      "ms": 2196
     },
     {
       "name": "a failed attempt stays visible after a later attempt succeeds",
       "ok": true,
-      "ms": 3160
+      "ms": 3428
+    },
+    {
+      "name": "asking from home opens a conversation at its own URL",
+      "ok": false,
+      "ms": 866,
+      "error": "The input did not match the regular expression /Who are you\\?/. Input: |  | '' | "
+    },
+    {
+      "name": "the follow-up composer is waiting under the answer",
+      "ok": true,
+      "ms": 2102
+    },
+    {
+      "name": "a follow-up appends and does not replace what came before",
+      "ok": true,
+      "ms": 3320
+    },
+    {
+      "name": "a refresh restores the transcript without asking again",
+      "ok": true,
+      "ms": 2426
+    },
+    {
+      "name": "the thread header names the conversation and renames it",
+      "ok": true,
+      "ms": 2587
+    },
+    {
+      "name": "Investigate Further opens the conversation, not just the context",
+      "ok": true,
+      "ms": 879
+    },
+    {
+      "name": "an analytical answer leads with a chart and offers its table",
+      "ok": true,
+      "ms": 3386
+    },
+    {
+      "name": "the active stage counts seconds while it is working",
+      "ok": true,
+      "ms": 2900
     },
     {
       "name": "segments requiring attention loads from the pinned release",
       "ok": true,
-      "ms": 585
+      "ms": 570
     },
     {
       "name": "latest-quarter ECL highlights load below it",
@@ -161,152 +203,158 @@
     {
       "name": "clicking a segment card opens the right-side drawer",
       "ok": true,
-      "ms": 723
+      "ms": 675
     },
     {
       "name": "the drawer offers borrower drill-down and no invented subsegment",
       "ok": true,
-      "ms": 670
+      "ms": 705
     },
     {
       "name": "possible drivers are stated as association, never as cause",
       "ok": true,
-      "ms": 630
+      "ms": 653
     },
     {
       "name": "Investigate Further opens a seeded V4 thread",
       "ok": true,
-      "ms": 717
+      "ms": 983
     },
     {
       "name": "a follow-up uses the seeded context without restating it",
-      "ok": true,
-      "ms": 3122
+      "ok": false,
+      "ms": 31007,
+      "error": "page.fill: Timeout 30000ms exceeded. | Call log: | \u001b[2m  - waiting for locator('[data-testid=\"cockpit-v4-question\"]')\u001b[22m | "
     },
     {
       "name": "the seeded context load appears in the process panel",
-      "ok": true,
-      "ms": 899
+      "ok": false,
+      "ms": 30901,
+      "error": "page.fill: Timeout 30000ms exceeded. | Call log: | \u001b[2m  - waiting for locator('[data-testid=\"cockpit-v4-question\"]')\u001b[22m | "
     },
     {
       "name": "an ECL highlight opens the same drawer and investigates",
       "ok": true,
-      "ms": 721
+      "ms": 925
     },
     {
       "name": "a refresh keeps the open investigation",
       "ok": true,
-      "ms": 1079
+      "ms": 1487
     },
     {
       "name": "an attention-feed failure does not break Ask",
       "ok": true,
-      "ms": 1981
+      "ms": 2322
     },
     {
       "name": "the landing page greets, then asks what is on your mind",
       "ok": true,
-      "ms": 558
+      "ms": 594
     },
     {
       "name": "the Ask box is the primary element and spans the workspace",
       "ok": true,
-      "ms": 614
+      "ms": 677
     },
     {
       "name": "prompt chips render, ask when clicked, and can be dismissed",
       "ok": true,
-      "ms": 976
+      "ms": 1232
     },
     {
       "name": "the Trace line is there and explains itself",
-      "ok": true,
-      "ms": 641
+      "ok": false,
+      "ms": 30632,
+      "error": "page.textContent: Timeout 30000ms exceeded. | Call log: | \u001b[2m  - waiting for locator('[data-testid=\"cockpit-v4-trace-note\"]')\u001b[22m | "
     },
     {
       "name": "Segments requiring attention shows its period and only segments",
       "ok": true,
-      "ms": 638
+      "ms": 715
     },
     {
       "name": "the two dashboards are distinct and share no card",
       "ok": true,
-      "ms": 632
+      "ms": 700
     },
     {
       "name": "both dashboards open the same right-hand drawer",
       "ok": true,
-      "ms": 849
+      "ms": 868
     },
     {
       "name": "Continue where you left off uses real V4 threads",
-      "ok": true,
-      "ms": 2260
+      "ok": false,
+      "ms": 62245,
+      "error": "page.waitForSelector: Timeout 60000ms exceeded. | Call log: | \u001b[2m  - waiting for locator('[data-testid=\"continue-thread\"]') to be visible\u001b[22m | "
     },
     {
       "name": "an Arabic answer renders right-to-left without breaking the page",
-      "ok": true,
-      "ms": 2942
+      "ok": false,
+      "ms": 3097,
+      "error": ""
     },
     {
       "name": "the landing page mounts the V4 Cockpit and nothing legacy",
-      "ok": true,
-      "ms": 588
+      "ok": false,
+      "ms": 570,
+      "error": "The expression evaluated to a falsy value: |  |   assert.ok(await page.$('[data-testid=\"cockpit-v4\"]')) | "
     },
     {
       "name": "no page shows a currency the selected release does not use",
       "ok": true,
-      "ms": 594
+      "ms": 538
     },
     {
       "name": "attention cards and ECL highlights use the release's currency",
       "ok": true,
-      "ms": 641
+      "ms": 542
     },
     {
       "name": "borrower names in the drawer belong to the selected release",
       "ok": true,
-      "ms": 734
+      "ms": 587
     },
     {
       "name": "an answer, its table and its chart use one currency",
       "ok": true,
-      "ms": 3021
+      "ms": 3332
     },
     {
       "name": "the landing page fills a mac-16-inch window",
       "ok": true,
-      "ms": 563
+      "ms": 658
     },
     {
       "name": "the landing page fills a desktop-1440 window",
       "ok": true,
-      "ms": 583
+      "ms": 658
     },
     {
       "name": "the landing page fills a laptop-1280 window",
       "ok": true,
-      "ms": 571
+      "ms": 703
     },
     {
       "name": "the landing page fills a tablet-834 window",
       "ok": true,
-      "ms": 562
+      "ms": 639
     },
     {
       "name": "the landing page fills a phone-390 window",
       "ok": true,
-      "ms": 562
+      "ms": 625
     },
     {
       "name": "the navigation rail collapses itself on a phone",
       "ok": true,
-      "ms": 528
+      "ms": 533
     },
     {
       "name": "the greeting never addresses a deployment profile as a person",
       "ok": true,
-      "ms": 544
+      "ms": 561
     }
   ]
 }

@@ -413,15 +413,9 @@ function ThreadHeader({
 
 export function CockpitV4Thread({
   threadId,
-  initialQuestion = "",
-  onQuestionAsked,
   onHome,
 }: {
   threadId: string;
-  /** Asked once, on open, when the home page handed one over. */
-  initialQuestion?: string;
-  /** Called the instant that question is asked, so it leaves the URL. */
-  onQuestionAsked?: () => void;
   onHome: () => void;
 }) {
   const [transcript, setTranscript] = React.useState<ThreadTranscript | null>(
@@ -434,7 +428,6 @@ export function CockpitV4Thread({
   const [view, dispatch] = React.useReducer(reduce, initial());
   const [mode, setMode] = React.useState<RunMode>("standard");
   const [error, setError] = React.useState("");
-  const asked = React.useRef(false);
   const resumed = React.useRef(false);
   const bottom = React.useRef<HTMLDivElement | null>(null);
 
@@ -496,7 +489,9 @@ export function CockpitV4Thread({
         dispatch({ type: "start", runId: started.run_id });
         // The pointer a refresh picks the run back up from. The transcript
         // itself is the server's; this is only "which run is still working".
-        rememberRun({ runId: started.run_id, threadId, cursor: 0 });
+        rememberRun({
+          runId: started.run_id, threadId, cursor: 0, question,
+        });
         // The live turn STAYS once the answer arrives. Its process panel is
         // where the stages, their timings and any failed attempt live, and
         // clearing it the moment the answer landed took the trace off the
@@ -515,22 +510,6 @@ export function CockpitV4Thread({
     [load, mode, threadId],
   );
 
-  // The question the home page handed over, asked exactly once. A ref rather
-  // than state: flipping state here would re-run the effect and ask twice,
-  // and StrictMode's double mount would do it again.
-  React.useEffect(() => {
-    if (!initialQuestion || asked.current) return;
-    asked.current = true;
-    // CONSUMED, immediately. The question travels in the URL so that the
-    // navigation carries it, and it must leave the URL the moment it has
-    // been asked -- a refresh with `?q=` still on it asks again, which
-    // spends the analysis twice and is the one thing a reload must never
-    // do. `replace`, not `push`, so Back goes to the Cockpit rather than
-    // to a URL that would re-ask.
-    onQuestionAsked?.();
-    void ask(initialQuestion);
-  }, [ask, initialQuestion, onQuestionAsked]);
-
   /**
    * Pick a run back up after a refresh.
    *
@@ -541,7 +520,7 @@ export function CockpitV4Thread({
    * here rather than followed into a stream that has already ended.
    */
   React.useEffect(() => {
-    if (initialQuestion || resumed.current) return;
+    if (resumed.current) return;
     resumed.current = true;
     const active = recallRun();
     if (!active || active.threadId !== threadId) return;
@@ -553,7 +532,10 @@ export function CockpitV4Thread({
           forgetRun();
           return;
         }
-        setLive({ question: "", runId: active.runId });
+        // The reader's own words, from the pointer that was written when
+        // the run started. A turn that renders blank above a visibly
+        // working panel reads as a bug in the conversation.
+        setLive({ question: active.question ?? "", runId: active.runId });
         dispatch({ type: "start", runId: active.runId });
         stop = follow(active.runId);
       } catch {
@@ -561,7 +543,7 @@ export function CockpitV4Thread({
       }
     })();
     return () => stop?.();
-  }, [follow, initialQuestion, threadId]);
+  }, [follow, threadId]);
 
   React.useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });

@@ -1111,7 +1111,9 @@ await test("a follow-up uses the seeded context without restating it",
         }
       });
 
-      await ask(page, "show me the customers behind this");
+      // From inside the thread: after Investigate Further the reader is
+      // in the conversation, and the composer is where they continue.
+      await followUp(page, "show me the customers behind this");
       await waitForAnswer(page);
 
       assert.equal(posted.length, 1, "one run submitted");
@@ -1140,7 +1142,7 @@ await test("the seeded context load appears in the process panel", async () => {
     await page.click('[data-testid="attention-investigate"]');
     await page.waitForSelector('[data-testid="investigation-context"]',
       { timeout: 30_000 });
-    await ask(page, "show me the customers behind this");
+    await followUp(page, "show me the customers behind this");
     await expect(page, '[data-testid="v4-process-panel"]', 30_000, problems);
     await page.click('[data-testid="v4-toggle-process"]');
     await expect(page, '[data-testid="v4-process-steps"]', 30_000, problems);

@@ -199,7 +199,20 @@ export type RunMode = "standard" | "deep";
  */
 const ACTIVE_RUN_KEY = "cockpit-v4:active-run";
 
-export type ActiveRun = { runId: string; threadId: string; cursor: number };
+export type ActiveRun = {
+  runId: string;
+  threadId: string;
+  cursor: number;
+  /**
+   * The question this run is answering.
+   *
+   * Carried so a thread resumed after a refresh can show the user's own
+   * words above the process panel. Without it the turn renders blank while
+   * the run it belongs to is visibly working, which reads as a bug in the
+   * conversation rather than as a reload.
+   */
+  question?: string;
+};
 
 export function rememberRun(run: ActiveRun): void {
   try {

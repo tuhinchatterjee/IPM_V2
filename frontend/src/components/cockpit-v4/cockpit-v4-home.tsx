@@ -34,7 +34,12 @@ import {
   type RecentThread,
 } from "./client";
 import { AskBox } from "./ask-box";
-import { createThread, type RunMode } from "./client";
+import {
+  createThread,
+  rememberRun,
+  startRun,
+  type RunMode,
+} from "./client";
 import {
   ContinueWhereYouLeftOff,
   useSession,
@@ -57,6 +62,7 @@ export function CockpitV4Home() {
   const [opening, setOpening] = React.useState(false);
   const [askError, setAskError] = React.useState("");
   const [showPrompts, setShowPrompts] = React.useState(true);
+  const [traceHelp, setTraceHelp] = React.useState(false);
 
   /**
    * Asking from the home page opens a CONVERSATION.
@@ -71,9 +77,8 @@ export function CockpitV4Home() {
    * it -- and the thread asks it exactly once.
    */
   const openThread = React.useCallback(
-    (threadId: string, ask = "") => {
-      const suffix = ask ? `?q=${encodeURIComponent(ask)}` : "";
-      router.push(`/cockpit/thread/${encodeURIComponent(threadId)}${suffix}`);
+    (threadId: string) => {
+      router.push(`/cockpit/thread/${encodeURIComponent(threadId)}`);
     },
     [router],
   );
@@ -86,7 +91,19 @@ export function CockpitV4Home() {
       setAskError("");
       try {
         const { thread_id } = await createThread();
-        openThread(thread_id, asked);
+        // The run STARTS here, before the navigation. The question never
+        // reaches the URL, so a reload cannot ask it a second time -- the
+        // thread finds a run already going and follows it. A question
+        // carried in a query string is a question one refresh away from
+        // being paid for twice.
+        const started = await startRun({
+          question: asked, mode, threadId: thread_id,
+        });
+        rememberRun({
+          runId: started.run_id, threadId: thread_id, cursor: 0,
+          question: asked,
+        });
+        openThread(thread_id);
       } catch (cause) {
         setOpening(false);
         setAskError(
@@ -151,6 +168,38 @@ export function CockpitV4Home() {
           showPrompts={showPrompts}
           onDismissPrompts={() => setShowPrompts(false)}
         />
+        {/*
+          §2A: the landing page says what an answer will carry, before one
+          exists. It belonged to the in-page Ask component, which the thread
+          replaced -- and it is a promise about every answer, not about one
+          run, so it lives with the box that makes the promise.
+        */}
+        <p className="mt-3 text-xs text-slate-500"
+           data-testid="cockpit-v4-trace-note">
+          <span aria-hidden="true">ⓘ </span>
+          Every answer carries a Trace.{" "}
+          <button
+            type="button"
+            data-testid="cockpit-v4-trace-explain"
+            onClick={() => setTraceHelp((open) => !open)}
+            className="underline underline-offset-2 hover:text-slate-700"
+          >
+            What is a Trace?
+          </button>
+        </p>
+        {traceHelp ? (
+          <p
+            data-testid="cockpit-v4-trace-help"
+            className="mt-2 rounded border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600"
+          >
+            Every figure in an answer is bound to a query that actually ran.
+            The process panel in the conversation shows each stage as it
+            happens — the metadata read, the query validated and bound, the
+            rows returned, any attempt that failed — and each stored result
+            can be opened from the answer. Nothing is asserted that has no
+            evidence behind it.
+          </p>
+        ) : null}
         {askError ? (
           <p
             data-testid="cockpit-v4-submit-error"

@@ -12,9 +12,14 @@
  * The id is in the path and the authorization is not. A thread is
  * tenant-checked server-side and answers 404 to anyone else, so typing
  * somebody else's id here reveals nothing, including whether it exists.
+ *
+ * The QUESTION is not in the path either. It used to be, so the navigation
+ * could carry it -- and a refresh then asked it again, which spends the
+ * analysis twice. The run is started before the navigation instead, and this
+ * page finds one already going and follows it.
  */
 
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
 
 import { cockpitV4Enabled } from "@/components/cockpit-v4/client";
@@ -25,12 +30,6 @@ import { useWideContent } from "@/components/layout/content-width";
 export default function CockpitThreadPage() {
   const params = useParams<{ threadId: string }>();
   const router = useRouter();
-  const search = useSearchParams();
-  // The question the home page handed over, carried in the URL so that a
-  // refresh before the first answer does not lose it -- and consumed exactly
-  // once, because a reload must never re-ask.
-  const question = search.get("q") ?? "";
-
   // Charts and tables want the workspace, not a centred ribbon.
   useWideContent();
 
@@ -46,13 +45,6 @@ export default function CockpitThreadPage() {
   if (!threadId) return null;
 
   return (
-    <CockpitV4Thread
-      threadId={threadId}
-      initialQuestion={question}
-      onQuestionAsked={() =>
-        router.replace(`/cockpit/thread/${encodeURIComponent(threadId)}`)
-      }
-      onHome={() => router.push("/")}
-    />
+    <CockpitV4Thread threadId={threadId} onHome={() => router.push("/")} />
   );
 }
