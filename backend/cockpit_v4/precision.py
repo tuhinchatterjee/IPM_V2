@@ -46,18 +46,20 @@ apart by their units, not by their spelling.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
-#: Business rounding, stated once. Decimal's default is ROUND_HALF_EVEN,
-#: which rounds 0.125 to 0.12 -- correct for statistics and wrong for a
-#: figure in a credit paper, where half goes up.
-ROUNDING = ROUND_HALF_UP
+from backend.cockpit_v4 import display as disp
 
-# ---- unit classes ------------------------------------------------------
+#: Business rounding. Defined once, in the display policy.
+ROUNDING = disp.ROUNDING
 
+# ---- unit classes, as the display policy names them --------------------
+
+#: The kind names this module used before the display policy existed.
+#: Kept because they appear in stored verdicts and in test vocabulary, and
+#: each is now just another spelling of a class in `display`.
 MONEY = "money"
 PERCENT = "percent"
 PERCENTAGE_POINT = "percentage_point"
@@ -66,58 +68,30 @@ COUNT = "count"
 CATEGORICAL = "categorical"
 UNKNOWN = "unknown"
 
+#: Scale words and what each means relative to one million. In `display`.
+MONEY_SCALES = disp.MONEY_SCALES
+
+_KIND = {
+    disp.MONETARY_AMOUNT: MONEY,
+    disp.PERCENTAGE: PERCENT,
+    disp.PROBABILITY: PERCENT,
+    disp.PERCENTAGE_POINT: PERCENTAGE_POINT,
+    disp.RATIO: RATIO,
+    disp.COUNT: COUNT,
+    disp.INTEGER: COUNT,
+    disp.RATING: CATEGORICAL,
+    disp.IFRS_STAGE: CATEGORICAL,
+    disp.PERIOD: CATEGORICAL,
+    disp.UNKNOWN: UNKNOWN,
+}
+
 #: There is deliberately NO module-level currency here.
 #:
 #: A previous version of this file named one, and `service.load_release` used
 #: it whenever a release's manifest was silent about its own denomination.
-#: The result was that a release whose DATA said INR was reported as SAR --
-#: silently, because a silent manifest is not a wrong one. Currency and scale
-#: belong to the selected release and are read from it; this module only
-#: knows how to CLASSIFY and FORMAT whatever unit it is handed.
-#:
-#: `money_unit(catalog)` builds the unit string for a given release.
-
-#: Scale words that are legitimate for money, and the multiplier each
-#: implies relative to the canonical scale. A figure in SAR million
-#: presented as SAR billion is a thousand-fold error if the number is not
-#: also divided, so the pair is checked together and never assumed.
-#: Relative to one MILLION of the currency. `crore` and `lakh` are here not
-#: because V4 defaults to them but because a release may be denominated in
-#: them, and a unit the policy cannot classify falls to the loosest precision
-#: rule -- which is how an Indian-denominated release would quietly get a
-#: weaker check than a Saudi one.
-MONEY_SCALES: dict[str, Decimal] = {
-    "": Decimal(1),
-    "million": Decimal(1), "mn": Decimal(1), "m": Decimal(1),
-    "billion": Decimal(1000), "bn": Decimal(1000), "b": Decimal(1000),
-    "thousand": Decimal("0.001"), "k": Decimal("0.001"),
-    "crore": Decimal(10), "lakh": Decimal("0.1"),
-}
-
-_MONEY = re.compile(
-    r"^(?P<currency>[A-Za-z]{3})\s*(?P<scale>million|mn|m|billion|bn|b|"
-    r"thousand|k|crore|lakh)?$", re.I)
-
-_PERCENT_WORDS = {"percent", "%", "pct", "percentage"}
-_POINT_WORDS = {"percentage point", "percentage points", "pp", "ppt",
-                "basis point", "basis points", "bps"}
-_RATIO_WORDS = {"ratio", "fraction", "share", "proportion", "x", "times",
-                "multiple"}
-_COUNT_WORDS = {"count", "borrowers", "facilities", "obligors", "accounts",
-                "names", "rows", "notches"}
-_CATEGORICAL_WORDS = {"stage", "ifrs9 stage", "rating", "grade", "category"}
-
-#: Permitted display precisions per class. The first is the default. A
-#: claim may declare any of them; anything else is refused with this list.
-ALLOWED: dict[str, tuple[int, ...]] = {
-    MONEY: (2, 0, 1, 3),
-    PERCENT: (2, 0, 1, 3),
-    PERCENTAGE_POINT: (2, 0, 1, 3),
-    RATIO: (2, 3, 4),
-    COUNT: (0,),
-    CATEGORICAL: (0,),
-    UNKNOWN: (2, 0, 1, 3, 4),
-}
+#: The result was that a release whose DATA said one thing was reported as
+#: another -- silently, because a silent manifest is not a wrong one.
+#: Currency and scale belong to the selected release and are read from it.
 
 
 @dataclass(frozen=True)
@@ -140,61 +114,37 @@ class Unit:
 def classify(unit: str) -> Unit:
     """What kind of number is this, read from the unit and nothing else."""
     raw = str(unit or "").strip()
-    lowered = raw.lower()
-    if not lowered:
-        return Unit(raw, UNKNOWN)
-    if lowered in _PERCENT_WORDS:
-        return Unit(raw, PERCENT)
-    if lowered in _POINT_WORDS:
-        return Unit(raw, PERCENTAGE_POINT)
-    if lowered in _RATIO_WORDS:
-        return Unit(raw, RATIO)
-    if lowered in _COUNT_WORDS:
-        return Unit(raw, COUNT)
-    if lowered in _CATEGORICAL_WORDS:
-        return Unit(raw, CATEGORICAL)
-    match = _MONEY.match(lowered)
-    if match:
-        return Unit(raw, MONEY, currency=match.group("currency").upper(),
-                    scale=(match.group("scale") or "").lower())
-    return Unit(raw, UNKNOWN)
+    kind = _KIND[disp.classify(raw)]
+    currency = scale = ""
+    if kind == MONEY:
+        match = disp._MONEY.match(raw.lower())
+        if match:
+            currency = match.group("currency").upper()
+            scale = (match.group("scale") or "").lower()
+    return Unit(raw, kind, currency=currency, scale=scale)
 
 
 def money_unit(catalog: Any) -> str:
-    """The money unit of ONE release, e.g. "SAR million" or "INR crore".
-
-    Empty when the release does not say. An empty unit is honest; a guessed
-    one is not, and a caller can render "amount" rather than assert a
-    currency the release never claimed.
-    """
-    currency = str(getattr(catalog, "reporting_currency", "") or "").strip()
-    scale = str(getattr(catalog, "amount_scale", "") or "").strip()
-    return f"{currency} {scale}".strip()
+    """The money unit of ONE release. Empty when the release does not say."""
+    return disp.money_unit(catalog)
 
 
 def allowed_precisions(unit: str) -> tuple[int, ...]:
-    return ALLOWED[classify(unit).kind]
+    return disp.permitted(unit)
 
 
 def default_precision(unit: str) -> int:
-    return allowed_precisions(unit)[0]
+    return disp.decimals(unit)
 
 
 def quantize(value: Decimal, places: int) -> Decimal:
-    """The display form of a canonical value. Deterministic, half up.
-
-    Negative zero is normalised away. A movement of -0.001 rounds to -0.00
-    in IEEE and in Decimal, and "SAR -0.00 million" on a credit paper reads
-    as a loss too small to name rather than as nothing -- which is worse
-    than either. Zero is zero.
-    """
-    shown = value.quantize(Decimal(1).scaleb(-places), rounding=ROUNDING)
-    return shown + Decimal(0) if shown == 0 else shown
+    """The display form of a canonical value. Deterministic, half up."""
+    return disp.quantize(value, places)
 
 
 def plain(value: Decimal) -> Decimal:
     """The same number, never in exponent notation."""
-    return Decimal(format(value, "f"))
+    return disp.plain(value)
 
 
 @dataclass(frozen=True)
@@ -214,8 +164,8 @@ def check(asserted: str, canonical: Decimal, *, unit: str,
     value quantized to a permitted precision. A third number that merely
     rounds to the right answer is not one of them.
     """
-    kind = classify(unit).kind
-    permitted = ALLOWED[kind]
+    semantic = disp.classify(unit)
+    permitted = disp.PERMITTED[semantic]
     if declared_precision not in permitted:
         return Verdict(
             False,
@@ -223,7 +173,7 @@ def check(asserted: str, canonical: Decimal, *, unit: str,
             f"{'s' if declared_precision != 1 else ''} for a value in "
             f"{unit!r}. CreditProbe allows "
             f"{', '.join(str(p) for p in permitted)} for a "
-            f"{kind.replace('_', ' ')}.")
+            f"{semantic.replace('_', ' ').lower()}.")
     try:
         given = Decimal(asserted)
     except (InvalidOperation, ValueError):
@@ -249,26 +199,14 @@ def check(asserted: str, canonical: Decimal, *, unit: str,
         precision=declared_precision)
 
 
-def format_value(value: Decimal, unit: str, places: int) -> str:
-    """How the number reads once it is published."""
-    parsed = classify(unit)
-    shown = quantize(value, places)
-    body = f"{shown:,}"
-    if parsed.is_money:
-        scale = parsed.scale
-        pretty = {"m": "million", "mn": "million", "b": "billion",
-                  "bn": "billion", "k": "thousand"}.get(scale, scale)
-        return f"{parsed.currency} {body} {pretty}".strip()
-    if parsed.kind == PERCENT:
-        return f"{body}%"
-    if parsed.kind == COUNT:
-        return f"{body} {parsed.raw}".strip() if parsed.raw.lower() not in (
-            "count",) else body
-    return f"{body} {parsed.raw}".strip()
+def format_value(value: Decimal, unit: str,
+                 places: int | None = None) -> str:
+    """How the number reads once it is published. One policy, in `display`."""
+    return disp.format_value(value, unit, places)
 
 
-__all__ = ["ALLOWED", "CATEGORICAL", "COUNT", "MONEY", "MONEY_SCALES",
-           "PERCENT", "PERCENTAGE_POINT", "RATIO", "ROUNDING", "UNKNOWN",
-           "Unit", "Verdict", "allowed_precisions", "check", "classify",
-           "default_precision", "format_value", "money_unit", "plain",
-           "quantize"]
+__all__ = ["CATEGORICAL", "COUNT", "MONEY", "MONEY_SCALES",
+           "PERCENT", "PERCENTAGE_POINT",
+           "RATIO", "ROUNDING", "UNKNOWN", "Unit", "Verdict",
+           "allowed_precisions", "check", "classify", "default_precision",
+           "format_value", "money_unit", "plain", "quantize"]

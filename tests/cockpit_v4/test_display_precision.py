@@ -180,9 +180,10 @@ def test_a_count_may_not_declare_decimal_places():
 
 def test_precision_is_read_from_the_unit_not_the_claim_name():
     """`total_ead` and `ead_share` differ by unit, not by spelling."""
-    assert prec.default_precision("SAR million") == 2
+    assert prec.default_precision("SAR million") == 0
+    assert prec.default_precision("percent") == 2
     assert prec.default_precision("count") == 0
-    assert prec.allowed_precisions("ratio") == (2, 3, 4)
+    assert prec.allowed_precisions("ratio") == (2, 3, 4, 1)
 
 
 # ---- 5. zero, tiny, huge, and notation --------------------------------

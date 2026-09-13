@@ -292,7 +292,10 @@ def test_the_canonical_display_contract_works_in_any_currency(unit):
     """The rounding fix is arithmetic, not geography."""
     canonical = Decimal("40599.1736630513815")
     assert prec.classify(unit).kind == prec.MONEY, unit
-    assert prec.allowed_precisions(unit) == (2, 0, 1, 3)
+    # Zero places first: a credit paper writes SAR 40,599 million, and two
+    # decimal places on a forty-billion book are three hundredths of a
+    # riyal. The rest stay permitted for a figure that genuinely needs them.
+    assert prec.allowed_precisions(unit) == (0, 1, 2, 3)
     assert prec.check("40599.17", canonical, unit=unit,
                       declared_precision=2, label="t").ok
     assert not prec.check("40599.18", canonical, unit=unit,

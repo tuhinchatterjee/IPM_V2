@@ -467,8 +467,12 @@ def test_m01_publishes_everything_the_question_asked_for(drive, store_db,
 
     published = {c["claim_id"]: c for c in body["numeric_claims"]}
     total = published["total_ead"]
-    assert prec.quantize(Decimal(total["decimal_value"]), 2) == prec.quantize(
-        Decimal(str(expected["total_ead"])), 2)
+    # Compared at whatever precision the claim DECLARES, which the display
+    # policy chose from the unit. Pinning a literal here is how a test keeps
+    # asserting the policy it was written under rather than the policy.
+    assert prec.quantize(Decimal(total["decimal_value"]),
+                         total["display_precision"]) == prec.quantize(
+        Decimal(str(expected["total_ead"])), total["display_precision"])
     assert total["unit"] == "SAR million", (
         "the demonstration book is Saudi and its money says so")
     share = published["top_share"]
@@ -662,7 +666,7 @@ def test_the_harness_emits_rounded_business_values_not_machine_precision(
     total = next(c for c in outcome.response["numeric_claims"]
                  if c["claim_id"] == "total_ead")
     assert Decimal(total["decimal_value"]) == prec.quantize(
-        Decimal(total["decimal_value"]), 2)
+        Decimal(total["decimal_value"]), total["display_precision"])
     assert "SAR" in outcome.response["narrative"]
 
 
@@ -710,7 +714,9 @@ def test_the_live_ead_question_publishes_in_sar(drive, store_db, release_id):
                  if c["claim_id"] == "total_ead")
     assert total["unit"] == "SAR million"
     assert Decimal(total["decimal_value"]) == prec.quantize(
-        Decimal(str(expected["total_ead"])), 2)
+        Decimal(str(expected["total_ead"])), total["display_precision"])
+    assert total["display_precision"] == 0, (
+        "money is written the way a credit paper writes it")
     assert total["derivation"]["operation"] == "sum"
     assert len(total["derivation"]["operands"][0]["row_ids"]) == 12, (
         "the total is a sum over the twelve real rows, not a pointer to an "
@@ -790,8 +796,9 @@ def test_the_correction_packet_names_the_expected_display_value(
 
     body = seen["body"]
     assert "40599.18" in body, "the packet names the value that was refused"
-    assert "displays at 2dp as" in body, (
-        "the packet must name the expected display value, not just say no")
+    assert "displays at 0dp as" in body, (
+        "the packet must name the expected display value, not just say no, "
+        "and money displays at the precision the policy chose for money")
     # And it must not invite another analysis.
     assert "do not run it again" in body.lower()
 
