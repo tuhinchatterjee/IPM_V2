@@ -48,7 +48,65 @@ BASIS_POINT = "basis_point"
 #: A dimensionless multiplier, e.g. a scenario weight.
 RATIO = "ratio"
 
-UNITS = (COUNT, CURRENCY, PERCENT, PERCENTAGE_POINT, BASIS_POINT, RATIO)
+#: A dimensionless discrimination or calibration statistic — AUC, Gini, KS,
+#: Brier. Bounded, unitless, and reported to three decimals by convention;
+#: quoting one to seventeen is not more precise, it is unreadable.
+STATISTIC = "statistic"
+
+UNITS = (COUNT, CURRENCY, PERCENT, PERCENTAGE_POINT, BASIS_POINT, RATIO,
+         STATISTIC)
+
+#: How many decimals each unit is PRESENTED with when nothing else says.
+#:
+#: One table, here, because this module already owns the separation between a
+#: value and the way it is shown — `Result.value` is exact and `Result.dp` is
+#: a display decision. A spreadsheet fact needs the same separation, so it
+#: borrows this rather than growing a second formatting policy somewhere else.
+#: A source that states its own presentation (an Excel number format) always
+#: wins over this table: the workbook's author said how the figure is read.
+DISPLAY_DP = {
+    COUNT: 0,
+    CURRENCY: 2,
+    PERCENT: 2,
+    PERCENTAGE_POINT: 2,
+    BASIS_POINT: 0,
+    RATIO: 4,
+    STATISTIC: 3,
+}
+
+#: The statistics whose name alone fixes their precision. Matched on whole
+#: words against a row or column label, so "Gini coefficient" and "KS
+#: statistic" are recognised and "kslabel" is not.
+STATISTIC_NAMES = ("auc", "gini", "ks", "roc", "brier", "auroc",
+                   "c-statistic", "cstat", "divergence", "iv",
+                   "information value")
+
+
+def display_dp(unit: str) -> int:
+    """The presentation precision for a unit. Raises on an unknown unit,
+    because a silent default is how a policy stops being one."""
+    if unit not in DISPLAY_DP:
+        raise CalculationError(f"unknown unit {unit!r}")
+    return DISPLAY_DP[unit]
+
+
+def statistic_dp(label: str) -> int | None:
+    """The precision a label implies, or None when it implies nothing."""
+    import re as _re
+
+    words = set(_re.findall(r"[a-z][a-z-]*", (label or "").lower()))
+    if words & set(STATISTIC_NAMES):
+        return DISPLAY_DP[STATISTIC]
+    return None
+
+
+def present(value: Decimal | str, dp: int) -> str:
+    """One value, shown to `dp` decimals. The only rounding in the product.
+
+    Half-even, like `Result.rounded`, and returned as a string so a float can
+    never re-enter the pipeline carrying drift with it.
+    """
+    return str(_round(dec(value), dp))
 
 
 class CalculationError(ValueError):

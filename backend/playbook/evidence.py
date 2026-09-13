@@ -105,9 +105,19 @@ class Ledger:
         found: set[str] = set()
         for item in self.items:
             found |= figures(item.text)
-            for row in item.data.get("rows", []):
-                found |= figures(" ".join(str(v) for v in row))
-            found |= figures(" ".join(str(c) for c in item.data.get("columns", [])))
+            # A spreadsheet cell is ONE fact with two true readings: what the
+            # workbook stores and what it shows. Both are admitted, because
+            # quoting either is quoting the cell — a report printing 0.559 for
+            # a cell holding 0.5593220338983 is reporting, not inventing. This
+            # is not a tolerance: the set is finite, every member is derived
+            # from the cell itself, and a figure the cell holds under neither
+            # reading is still unsupported.
+            for key in ("rows", "raw_rows"):
+                for row in item.data.get(key) or []:
+                    found |= figures(" ".join(str(v) for v in row))
+            for key in ("columns", "raw_columns"):
+                found |= figures(
+                    " ".join(str(c) for c in item.data.get(key) or []))
         return found
 
     def render(self) -> str:

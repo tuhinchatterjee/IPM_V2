@@ -428,8 +428,20 @@ def _check_content(v: Validation, doc: D.Document, found_text: str,
 
     claims, structural = structural_numerals(found_text, doc)
     v.checked["structural_numerals"] = structural
-    allowed = figures(_document_text(doc))
-    present = figures(claims)
+    # EVERY numeral the document contains, not only the evidence-bearing ones.
+    #
+    # This check asks whether the rendered file says something the document
+    # does not — a fidelity question. Whether a number needs evidence is
+    # grounding's question, and it was answered before anything was rendered.
+    # Applying the evidence filter here made the two sides disagree about the
+    # SAME fact, because the classifier reads the word before a number and a
+    # renderer moves it: a table row "Note 0.559" is one line in the canonical
+    # document, where "Note" makes it a section reference, and two lines in a
+    # PDF's text layer, where nothing precedes it. The number was then present
+    # and not allowed, and a real report was refused for stating a figure it
+    # had taken from its own table.
+    allowed = {f.token for f in classify(_document_text(doc))}
+    present = {f.token for f in classify(claims)}
     invented = sorted(present - allowed)
     if invented:
         v.fail("the rendered file states figure(s) that are in no source: "
