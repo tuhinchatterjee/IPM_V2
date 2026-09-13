@@ -187,3 +187,84 @@ def test_a_database_written_before_titles_existed_still_opens(tmp_path):
     assert store.set_thread_title("th-old", tenant_id="demo-tenant",
                                   title="Recovered")
     assert store.thread_title("th-old") == "Recovered"
+
+
+# ---- §23: every answer offers its next questions ----------------------
+
+def test_an_answer_carries_its_own_suggested_follow_ups(client, store_db):
+    """They ride in the final response. §50: no extra generation for them."""
+    thread_id = _thread_with(store_db, ["Total EAD by sector?"])
+    turn = client.get(f"{P}/threads/{thread_id}").json()["turns"][0]
+    assert turn["answer"]["suggested_questions"], (
+        "a reader with no next question has to invent one")
+
+
+# ---- §19: a rendered visual is bound to its release -------------------
+
+def test_a_rendered_table_travels_with_the_release_that_made_it(
+        drive, store_db, release_id):
+    """§19: a visualization is an artifact of ONE release, not a picture."""
+    import json as _json
+
+    import oracles
+    from conftest import ScriptedResult, final, intent, tool_call
+    from test_mandatory_analytical_cases import EAD_FIELDS, EAD_SQL
+    from test_orchestration_recovery import _execution_result
+    from test_vertical_slice import _execute_call
+
+    from backend.cockpit_v4 import release as rel
+    from backend.cockpit_v4 import states as st
+
+    quarter = oracles.latest_quarter(release_id)
+
+    def _answer(messages):
+        step = _execution_result(messages)["steps"][0]
+        column = next(c for c in step["columns"] if c != "sector_name")
+        return ScriptedResult(tool_calls=[tool_call(
+            "finalize_response",
+            final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
+                  narrative="The book totals {{claim.total}}.",
+                  numeric_claims=[{
+                      "claim_id": "total", "unit": "SAR million",
+                      "derivation": {"operation": "sum", "operands": [
+                          {"artifact_id": step["artifact_id"],
+                           "column_id": column,
+                           "row_ids": list(step["row_ids"])}]}}],
+                  tables=[{"title": "EAD by sector",
+                           "artifact_id": step["artifact_id"],
+                           "columns": ["sector_name", column]}],
+                  charts=[{"kind": "bar", "title": "EAD by sector",
+                           "artifact_id": step["artifact_id"],
+                           "x_column": "sector_name",
+                           "y_columns": [column],
+                           "unit": "SAR million"}]))])
+
+    outcome, _, record = drive(
+        "What is total exposure at default by sector in the latest quarter?",
+        [ScriptedResult(tool_calls=[_execute_call(
+            EAD_SQL, purpose="Reported EAD by sector", grain="sector",
+            units="SAR million", subquestions=["EAD by sector"],
+            fields=EAD_FIELDS, quarter=quarter)]), _answer])
+    assert outcome.state == st.COMPLETED, outcome.message
+
+    body = client_free_body = outcome.response
+    table = body["tables"][0]
+    chart = body["charts"][0]
+
+    # The visual names the artifact it was rendered from, and the answer
+    # carries the release header, so a chart read back months later says
+    # which book and which bytes produced it.
+    assert table["artifact_id"] and chart["artifact_id"]
+    assert table["rendered_by"] == "creditprobe"
+    assert chart["rendered_by"] == "creditprobe"
+    assert body["release"]["release_id"] == release_id
+    assert body["release"]["release_fingerprint"] == rel.fingerprint(
+        release_id)
+    assert body["release"]["reporting_currency"] == "SAR"
+
+    # And the figures a reader sees are the server's, at the server's
+    # precision -- the frontend is handed both forms and picks one.
+    row = table["rows"][0]
+    column = next(c for c in table["columns"] if c != "sector_name")
+    assert str(row["display"][column]).startswith("SAR ")
+    assert row["canonical"][column] != row["display"][column]
