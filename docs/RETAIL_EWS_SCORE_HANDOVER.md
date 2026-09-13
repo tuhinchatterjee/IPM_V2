@@ -188,6 +188,8 @@ named customer id, answered from that customer.
 | `scripts/retail_uat/ews_score_uat.py` — EW-01 … EW-60, real browser | **60 of 60 passed** (`docs/evidence/retail_ews_score/ew_score_uat.txt`, `ew_score_uat.json`) |
 | `tests/retail/test_ret_ews_score.py` — 61 model, arithmetic, domain, bureau, view and chat regressions | 61 passed |
 | `tests/retail/test_ret_ews_dynamic.py` — source-variable mutation proof | 2 passed |
+| `tests/retail/test_ret_ews_wiring.py` — routes, runtime catalogue, readiness, restart script | 15 passed |
+| `scripts/retail_uat/fresh_install_check.py` — isolated database, migrations, accounts, bootstrap, application | 12 of 12 |
 | `tests/retail` — the whole retail suite | 1,392 collected, **1,387 passed, 5 failed**, 0 skipped. All five failures are in `test_ret_adversarial_cockpit.py` and pre-date this work (`docs/evidence/retail_ews_score/retail_suite.txt`) |
 | `npm test` — frontend units | 577 passed |
 | `npm run typecheck` | clean |
@@ -273,6 +275,71 @@ one now held by a named regression test.
 12. **Cosmetic, found by looking at the screen.** Customer 360 carried a back
     link to the retired "Early Warning Signals" route, and the embedded Early
     Warning section offered to open Customer 360 while already inside it.
+
+## 8a. The fresh-install wiring defect, and what closed it
+
+Reported from a Mac running this branch: the bootstrap said ready, the twenty
+partitions were on disk, `metadata/retail/catalog.json` held the domain, Data
+Builder was synced — and `/openapi.json` carried no `/retail/ews/*` route at
+all, the runtime `data_catalog` held one dataset instead of five, and the
+screen read "The Early Warning Score domain could not be read."
+
+**Root cause 1 — the restart script could not stop anything on a Mac.**
+`scripts/retail_uat/restart_backend.sh` decided whether a backend was running
+by testing `/proc/$PID`. macOS has no `/proc`, so the test was always false:
+the old server was never stopped, the new one could not bind the port and
+exited, and the health check that followed was answered by the old server. The
+script printed "backend ready" naming a pid that no longer existed, and the
+machine went on serving whatever code it had booted with — which predated the
+Early Warning Score. It now uses `kill -0` and `ps`, stops anything of ours
+holding the port, refuses to start when the port stays busy, and reports ready
+only if the process IT started is the one alive. Its pid file is per port.
+
+**Root cause 2 — the governed catalogue was read once per process, forever.**
+`get_catalog()` was `lru_cache(maxsize=1)`. The bootstrap registers the domain
+by writing the catalogue file, and on a fresh install it runs while a backend
+is already up, so the running server kept serving a catalogue from before the
+domain existed. The cache is now keyed on that file's identity and size, so a
+catalogue written by another process is picked up; `reload_catalog()` still
+exists for datasets published through Data Builder, which change no file.
+
+**Root cause 3 — readiness never asked the application anything.** Every check
+was about files. `backend/retail/readiness.py` now builds the production app
+through its own factory, requires all ten Early Warning routes in its OpenAPI
+document, signs in and calls the endpoints, checks the twenty months and the
+model, panel and rulebook versions, checks the RUNTIME catalogue rather than
+the file — and, when something is listening on `API_PORT`, asks that server
+the same questions, which is what catches a stale process.
+
+Why the existing acceptance missed all three: every test drove the API over
+HTTP after `restart_backend.sh`, and on Linux that script works, so the server
+was always current and the catalogue always fresh. Nothing compared the code
+on disk with the code being served. A fourth trap sat underneath: an
+application's paths cannot be enumerated by walking `app.routes` in this
+FastAPI — an included router is one wrapper object with no path of its own, so
+such a check reports that an app serving 619 paths serves none. The checks
+read the OpenAPI document instead, which is what a person inspects.
+
+Closed by `tests/retail/test_ret_ews_wiring.py` (15 gates, including one that
+stands a healthy server with no Early Warning routes in front of readiness and
+requires a refusal) and by `scripts/retail_uat/fresh_install_check.py`, which
+walks an isolated database, the migrations, the accounts, the bootstrap and
+the application end to end: 12 of 12
+(`docs/evidence/retail_ews_score/fresh_install_check.txt`).
+
+### On a Mac
+
+```
+cd /path/to/IPM_V2
+git fetch origin && git checkout claude/funny-dirac-6n8f0o && git pull
+set -a && source .env.retail && set +a
+.venv/bin/python scripts/bootstrap_retail_installation.py
+bash scripts/retail_uat/restart_backend.sh
+.venv/bin/python scripts/bootstrap_retail_installation.py --check
+```
+
+The bootstrap first, then the restart, then the check — and the check now
+fails rather than passing if the server in front of it is serving older code.
 
 ## 9. Limitations
 

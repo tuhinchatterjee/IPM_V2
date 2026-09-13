@@ -1,0 +1,24 @@
+PASS  an isolated database is created — creditprobe_retail_freshcheck
+PASS  the retail migrations run
+PASS  the installation starts without the Early Warning Score domain — /tmp/retail-fresh-zdvb5mwa/metadata/retail/catalog.json
+PASS  a process started before the bootstrap sees one dataset — 1
+PASS  the demonstration accounts are seeded —   Synthetic data only. Change these before any real use.
+PASS  the retail bootstrap leaves nothing about Early Warning unfinished
+PASS  the bootstrap wrote a governed catalogue holding the domain — retail_ews_score, retail_facility_month
+PASS  the runtime catalogue holds the domain — retail_ews_score, retail_facility_month
+PASS  the production application routes every Early Warning endpoint — 10 paths
+      /api/v1/retail/ews/ask
+      /api/v1/retail/ews/customers
+      /api/v1/retail/ews/customers/{customer_id}
+      /api/v1/retail/ews/domain
+      /api/v1/retail/ews/model
+      /api/v1/retail/ews/portfolio
+      /api/v1/retail/ews/product/{product_code}
+      /api/v1/retail/ews/prompts
+      /api/v1/retail/ews/signals
+      /api/v1/retail/ews/signals/{key}
+PASS  the Early Warning endpoints answer and read the latest month
+PASS  readiness passes on this installation
+PASS  readiness REFUSES a server that is serving older code — the server answering http://127.0.0.1:33215 exposes none of 10 required Early Warning route(s) (first: /api/v1/retail/ews/ask). It is runnin
+
+12 of 12 passed

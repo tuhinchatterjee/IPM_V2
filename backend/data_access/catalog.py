@@ -395,13 +395,46 @@ def active_governed_purposes() -> dict[str, str]:
     return {k: v for k, v in RETAIL_PURPOSES.items() if k in ACTIVE_GOVERNED_PURPOSES}
 
 
-@lru_cache(maxsize=1)
-def get_catalog() -> Catalog:
-    """The process-wide catalogue. Cached because it is read on every request."""
+def _catalog_stamp() -> tuple[str, int, int]:
+    """What the catalogue FILE looks like right now.
+
+    Used as the cache key below so that a catalogue rebuilt by another process
+    is noticed. One `stat` per request, against a JSON file the loader would
+    otherwise parse on every call.
+    """
+    p = settings.metadata_dir / CATALOG_FILENAME
+    try:
+        info = p.stat()
+    except OSError:
+        return (str(p), -1, -1)
+    return (str(p), info.st_mtime_ns, info.st_size)
+
+
+@lru_cache(maxsize=4)
+def _catalog_for(stamp: tuple[str, int, int]) -> Catalog:
     return Catalog.load()
 
 
+def get_catalog() -> Catalog:
+    """The process-wide catalogue, re-read when the file behind it changes.
+
+    This was cached once per process and never looked again. The bootstrap
+    registers the Early Warning Score domain by WRITING that file, and on a
+    fresh install the bootstrap runs while a backend is already up — so the
+    running server kept serving a catalogue from before the domain existed,
+    reporting one governed dataset where the file on disk held five. The
+    dataset was in the catalogue, in the lake and in Data Builder, and
+    invisible to the process answering the requests.
+    """
+    return _catalog_for(_catalog_stamp())
+
+
 def reload_catalog() -> Catalog:
-    """Drop the cache and re-read from disk — used after the lake is rebuilt."""
-    get_catalog.cache_clear()
+    """Drop the cache and re-read from disk — used after the lake is rebuilt.
+
+    Still needed for the database side: a dataset PUBLISHED through Data
+    Builder changes no file, so no stamp changes and nothing above would
+    notice it.
+    """
+    _catalog_for.cache_clear()
     return get_catalog()

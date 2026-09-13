@@ -1,0 +1,10 @@
+/api/v1/retail/ews/ask
+/api/v1/retail/ews/customers
+/api/v1/retail/ews/customers/{customer_id}
+/api/v1/retail/ews/domain
+/api/v1/retail/ews/model
+/api/v1/retail/ews/portfolio
+/api/v1/retail/ews/product/{product_code}
+/api/v1/retail/ews/prompts
+/api/v1/retail/ews/signals
+/api/v1/retail/ews/signals/{key}

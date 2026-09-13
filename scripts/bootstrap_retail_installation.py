@@ -156,14 +156,23 @@ def _check(log) -> int:
         problems.extend(workspace_seed.check(session))
     if "retail_facility_month" not in published:
         problems.append("Data Builder does not publish retail_facility_month")
-    from backend.retail import ews_portfolio, ews_score
-    problems.extend(ews_score.check())
+    from backend.retail import ews_portfolio, ews_score, readiness
     if ews_score.DOMAIN not in {str(d.get("name"))
                                 for d in _catalogue_datasets()}:
         problems.append(
             f"{ews_score.DOMAIN} is not registered in the governed "
             "catalogue, so the Early Warning Score domain will not appear in "
             "Data Builder")
+
+    # Everything above is about files. None of it was ever about the thing a
+    # person opens. A fresh install reported itself ready while the Early
+    # Warning screen read "The Early Warning Score domain could not be read":
+    # twenty partitions on disk, the domain in the catalogue file, Data
+    # Builder synced — and a server exposing no /retail/ews route at all,
+    # because the process answering requests had been started before any of it
+    # existed. So the application is asked directly: its routing table, its
+    # endpoints, and the server actually listening on API_PORT if there is one.
+    problems.extend(readiness.check())
     scored = ews_portfolio._panel_months()
     if not scored:
         problems.append("the early-warning panel has not been built, so "
