@@ -503,9 +503,52 @@ async def read_thread(thread_id: str,
         raise HTTPException(404, {"error_code": "NOT_FOUND",
                                   "message": "No such conversation."})
     context = store.thread_context(thread_id, tenant_id=tenant)
+    turns = store.thread_turns(thread_id)
+    title = store.thread_title(thread_id)
+    if not title and turns:
+        title = str(turns[0].get("question") or "")
     return {"thread_id": thread_id,
-            "turns": store.recent_turns(thread_id, 8),
-            "context": context or {}}
+            "title": title,
+            # EVERY turn, oldest first. A transcript that renders only its
+            # last few exchanges is a window, and a reader scrolling up to
+            # find what they asked half an hour ago finds nothing.
+            "turns": turns,
+            "turn_count": len(turns),
+            "created_at": store.thread_created_at(thread_id),
+            "context": context or {},
+            "release": _release_header()}
+
+
+def _release_header() -> dict[str, Any]:
+    """What the numbers in this thread mean. Travels with the transcript."""
+    from backend.cockpit_v4 import release as release_mod
+
+    runtime = _STATE.get("runtime")
+    if runtime is None:
+        return {}
+    return release_mod.header(
+        release_id=str(_config().release_id),
+        catalog=getattr(runtime, "catalog", None),
+        release_summary=getattr(runtime, "release_summary", None)).to_dict()
+
+
+class RenameThread(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/threads/{thread_id}/title")
+async def rename_thread(thread_id: str, body: RenameThread,
+                        who: dict[str, Any] = Depends(principal)
+                        ) -> dict[str, Any]:
+    """Rename a conversation. Tenant-checked: a URL is not an authorization."""
+    store = _store()
+    tenant = str(who.get("tenant") or "")
+    if not store.set_thread_title(thread_id, tenant_id=tenant,
+                                  title=body.title):
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such conversation."})
+    return {"thread_id": thread_id,
+            "title": store.thread_title(thread_id)}
 
 
 # ---- what a credit officer does with an answer -------------------------

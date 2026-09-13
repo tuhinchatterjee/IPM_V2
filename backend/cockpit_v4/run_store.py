@@ -163,7 +163,11 @@ CREATE TABLE IF NOT EXISTS threads (
   thread_id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
   principal_id TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  -- Empty until the first question arrives or someone renames it. A thread
+  -- is titled by what was ASKED in it, never by a model call made purely to
+  -- name a conversation.
+  title TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS turns (
@@ -401,10 +405,22 @@ class RunStore:
             if lock is not None:
                 lock.release()
 
+    #: Columns added after a table shipped. `CREATE TABLE IF NOT EXISTS` does
+    #: not alter an existing table, so a database written by an earlier build
+    #: keeps its old shape and every query naming the new column fails.
+    _ADDED_COLUMNS = (("threads", "title", "TEXT NOT NULL DEFAULT ''"),)
+
     def _migrate(self) -> None:
         conn = self._connect()
         try:
             conn.executescript(_DDL)
+            for table, column, declaration in self._ADDED_COLUMNS:
+                existing = {row["name"] for row in
+                            conn.execute(f"PRAGMA table_info({table})")}
+                if column not in existing:
+                    conn.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {column} "
+                        f"{declaration}")
             if self._shared is not None:
                 conn.commit()
         except sqlite3.Error as exc:
@@ -899,6 +915,9 @@ class RunStore:
 
     def append_turn(self, *, thread_id: str, run_id: str, question: str,
                     answer: dict[str, Any]) -> str:
+        # The first question names the conversation. Free, and correct: a
+        # thread is about what was asked in it.
+        self.title_thread_from_question(thread_id, question)
         turn_id = f"turn-{uuid.uuid4().hex[:12]}"
         with self._tx() as conn:
             row = conn.execute(
@@ -913,13 +932,75 @@ class RunStore:
 
     def recent_turns(self, thread_id: str, limit: int = 3
                      ) -> list[dict[str, Any]]:
+        """The last few turns, for the ANALYST's context. Deliberately few.
+
+        This is what the model reads. `thread_turns` is what a reader reads,
+        and the two are different sizes on purpose: a twenty-turn
+        conversation should render in full and must not be sent in full.
+        """
         rows = self._connect().execute(
-            "SELECT turn_id, ordinal, question, answer FROM turns "
-            "WHERE thread_id=? ORDER BY ordinal DESC LIMIT ?",
+            "SELECT turn_id, run_id, ordinal, question, answer, created_at "
+            "FROM turns WHERE thread_id=? ORDER BY ordinal DESC LIMIT ?",
             (thread_id, limit)).fetchall()
-        return [{"turn_id": r["turn_id"], "ordinal": int(r["ordinal"]),
-                 "question": r["question"], "answer": json.loads(r["answer"])}
-                for r in reversed(rows)]
+        return [self._turn(r) for r in reversed(rows)]
+
+    def thread_turns(self, thread_id: str) -> list[dict[str, Any]]:
+        """EVERY turn, oldest first. The transcript a reader scrolls.
+
+        A conversation that renders only its last few exchanges is not a
+        transcript; it is a window, and a reader who scrolls up to find what
+        they asked half an hour ago finds nothing.
+        """
+        rows = self._connect().execute(
+            "SELECT turn_id, run_id, ordinal, question, answer, created_at "
+            "FROM turns WHERE thread_id=? ORDER BY ordinal ASC",
+            (thread_id,)).fetchall()
+        return [self._turn(r) for r in rows]
+
+    @staticmethod
+    def _turn(row: Any) -> dict[str, Any]:
+        return {"turn_id": row["turn_id"], "run_id": row["run_id"],
+                "ordinal": int(row["ordinal"]), "question": row["question"],
+                "answer": json.loads(row["answer"]),
+                "created_at": row["created_at"]}
+
+    def thread_created_at(self, thread_id: str) -> str:
+        row = self._connect().execute(
+            "SELECT created_at FROM threads WHERE thread_id=?",
+            (thread_id,)).fetchone()
+        return str(row["created_at"]) if row else ""
+
+    def thread_title(self, thread_id: str) -> str:
+        row = self._connect().execute(
+            "SELECT title FROM threads WHERE thread_id=?",
+            (thread_id,)).fetchone()
+        return str(row["title"]) if row else ""
+
+    def set_thread_title(self, thread_id: str, *, tenant_id: str,
+                         title: str) -> bool:
+        """Rename. Tenant-checked, so a URL is not an authorization."""
+        with self._tx() as conn:
+            changed = conn.execute(
+                "UPDATE threads SET title=? WHERE thread_id=? AND tenant_id=?",
+                (title.strip()[:200], thread_id, tenant_id)).rowcount
+        return bool(changed)
+
+    def title_thread_from_question(self, thread_id: str, question: str
+                                   ) -> None:
+        """Name an unnamed thread after the question that opened it.
+
+        No model call. A conversation is titled by what was asked in it, and
+        spending a generation to rephrase that would be paying for a
+        paraphrase of something already on the screen.
+        """
+        text = " ".join(str(question or "").split())
+        if not text:
+            return
+        with self._tx() as conn:
+            conn.execute(
+                "UPDATE threads SET title=? "
+                "WHERE thread_id=? AND (title IS NULL OR title='')",
+                (text[:200], thread_id))
 
     def recent_threads(self, *, tenant_id: str, principal_id: str = "",
                        limit: int = 5) -> list[dict[str, Any]]:
@@ -947,6 +1028,11 @@ class RunStore:
             context = self.thread_context(thread_id, tenant_id=tenant_id)
             out.append({
                 "thread_id": thread_id,
+                # §36: what a reader picks a conversation by. The title is
+                # what was asked in it, so a list of threads reads as a list
+                # of questions rather than a list of identifiers.
+                "title": self.thread_title(thread_id)
+                         or str(latest.get("question") or ""),
                 "turns": int(row["turns"] or 0),
                 "last_activity_at": str(row["last_at"] or row["created_at"]),
                 "last_question": str(latest.get("question") or ""),
