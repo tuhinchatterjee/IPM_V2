@@ -100,6 +100,10 @@ class ScriptedProvider:
                     f"the scripted turn could not build its response "
                     f"({type(exc).__name__}: {exc}). The tool result it read "
                     f"was: {_json.dumps(body, default=str)[:1500]}") from exc
+        if isinstance(nxt, Exception):
+            # A turn may RETURN the failure it wants to simulate, which lets
+            # a timed turn consume its latency before failing.
+            raise nxt
         return nxt
 
     # -- assertions the tests reuse --------------------------------------

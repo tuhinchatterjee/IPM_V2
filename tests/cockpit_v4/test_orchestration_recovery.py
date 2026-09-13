@@ -214,3 +214,87 @@ def test_a_truncated_action_never_executes_partial_arguments(drive,
     # Exactly one execution: the truncated turn ran nothing.
     spend = store_db.get_run(record.run_id).budget
     assert spend["execution_submissions"][0] == 1, spend
+
+
+# ---- the deadline must bound the CALL, not just be checked after it ----
+
+def test_a_call_is_not_launched_without_time_to_finish_and_publish(
+        store_db, capability, release_id):
+    """A 120s run reached ~143s live. The guard fires only at zero.
+
+    `check_deadline` raises when `remaining_seconds <= 0`, so a generation
+    launched with a few seconds left is allowed to consume them and the run
+    then discovers it has no time to write an answer. Time spent reaching a
+    result nobody receives is time wasted twice.
+    """
+    from backend.cockpit_v4.budgets import BudgetExceeded, Ledger
+    from backend.cockpit_v4.config import STANDARD_LIMITS
+    from backend.cockpit_v4 import states as st
+
+    ledger = Ledger(limits=STANDARD_LIMITS, capability=capability,
+                    store=store_db, run_id="run-deadline")
+    # One action has already happened: the reserve protects writing up an
+    # analysis, so it applies from the second generation onward, never to
+    # the first.
+    ledger.counters.generation_attempts = 1
+    # Pretend the run has been going for almost its whole allowance.
+    ledger.started_monotonic -= (STANDARD_LIMITS.deadline_seconds
+                                 - 6.0)
+    assert 0 < ledger.remaining_seconds < 10
+
+    with pytest.raises(BudgetExceeded) as caught:
+        ledger.check_call_window(phase="action")
+    assert caught.value.code == st.DEADLINE_EXPIRED
+    assert "publish" in str(caught.value).lower()
+
+
+def test_the_first_generation_is_never_blocked_by_the_reserve(
+        store_db, capability):
+    """Nothing exists to protect yet, and the run has not widened its
+    allowance: the analytical limit is adopted only once the analyst says
+    the turn is analytical, so reserving against the tight starting bound
+    would stop an analytical question before it could claim its own."""
+    from backend.cockpit_v4.budgets import Ledger
+    from backend.cockpit_v4.config import STANDARD_LIMITS
+
+    ledger = Ledger(limits=STANDARD_LIMITS, capability=capability,
+                    store=store_db, run_id="run-first")
+    ledger.started_monotonic -= (STANDARD_LIMITS.deadline_seconds - 8.0)
+    assert ledger.counters.generation_attempts == 0
+    ledger.check_call_window(phase="action")
+
+
+def test_an_answer_call_may_use_the_reserve_an_action_call_may_not(
+        store_db, capability):
+    """The reserve exists FOR the answer; the answer may spend it."""
+    from backend.cockpit_v4.budgets import BudgetExceeded, Ledger
+    from backend.cockpit_v4.config import STANDARD_LIMITS
+
+    ledger = Ledger(limits=STANDARD_LIMITS, capability=capability,
+                    store=store_db, run_id="run-reserve")
+    ledger.counters.generation_attempts = 1
+    ledger.started_monotonic -= (STANDARD_LIMITS.deadline_seconds
+                                 - (STANDARD_LIMITS.finalization_reserve_seconds
+                                    - 2.0))
+    # Too little for another ACTION...
+    with pytest.raises(BudgetExceeded):
+        ledger.check_call_window(phase="action")
+    # ...but the answer turn is exactly what the reserve was held for.
+    ledger.check_call_window(phase="answer")
+
+
+def test_the_provider_timeout_never_exceeds_the_time_the_run_has_left(
+        store_db, capability):
+    from backend.cockpit_v4.budgets import Ledger
+    from backend.cockpit_v4.config import STANDARD_LIMITS
+
+    ledger = Ledger(limits=STANDARD_LIMITS, capability=capability,
+                    store=store_db, run_id="run-timeout")
+    ledger.counters.generation_attempts = 1
+    ledger.started_monotonic -= (STANDARD_LIMITS.deadline_seconds - 23.0)
+    budget = ledger.call_timeout_seconds()
+    remaining = ledger.remaining_seconds
+    assert budget <= remaining - 1.0, (
+        f"a {budget:.1f}s provider timeout with only {remaining:.1f}s of "
+        f"run left leaves no margin to settle and stop cleanly")
+    assert budget > 0

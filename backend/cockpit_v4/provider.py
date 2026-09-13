@@ -214,9 +214,13 @@ class Analyst:
     # -- the call --------------------------------------------------------
 
     def ask(self, *, purpose: str, max_output_tokens: int,
-            tool_choice: str = "any") -> Turn:
+            tool_choice: str = "any", phase: str = "action") -> Turn:
         """One generation attempt. Bounded, reserved, counted and settled."""
         self.ledger.check_deadline()
+        # And refused outright if there is no longer time to use the answer
+        # it would produce. An ACTION must leave the finalization reserve
+        # intact; the ANSWER call may spend it.
+        self.ledger.check_call_window(phase=phase)
         attempt = self.ledger.spend_generation()
 
         reserved_output = min(max_output_tokens,
@@ -258,9 +262,9 @@ class Analyst:
             output_tokens=reserved_output)
 
         # The deadline the CLIENT gets is bounded by the time the RUN has
-        # left, so a stalled socket cannot outlive the run's own watchdog.
-        timeout = max(1.0, min(self.ledger.remaining_seconds,
-                               self.ledger.limits.deadline_seconds))
+        # left, less a settlement margin, so a stalled socket cannot outlive
+        # the run's own watchdog.
+        timeout = self.ledger.call_timeout_seconds()
         started = time.monotonic()
         try:
             self.ledger.spend_provider_attempt()

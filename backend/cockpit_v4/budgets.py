@@ -139,6 +139,53 @@ class Ledger:
             return wanted
         return max(0, min(wanted, int(for_output / per_token)))
 
+    #: Time left for settling a call, writing its events and stopping
+    #: cleanly. A timeout equal to the WHOLE remainder leaves nothing for
+    #: any of that, which is how a run ends past its own deadline even
+    #: though every individual bound was respected.
+    SETTLEMENT_MARGIN_SECONDS = 2.0
+
+    def call_timeout_seconds(self) -> float:
+        """How long a provider call may block, bounded by the run's clock.
+
+        Never longer than the time the run has left, less a settlement
+        margin. A socket that outlives the run's own watchdog is how a
+        120-second run reaches 143 seconds.
+        """
+        usable = self.remaining_seconds - self.SETTLEMENT_MARGIN_SECONDS
+        return max(1.0, min(usable, self.limits.deadline_seconds))
+
+    def check_call_window(self, *, phase: str = "action") -> None:
+        """Refuse a call there is no longer time to use.
+
+        `check_deadline` fires only at zero, so a generation launched with a
+        few seconds left was allowed to consume them -- and the run then
+        discovered it had no time to write the answer. Time spent reaching a
+        result nobody receives is time wasted twice.
+
+        An ACTION call must leave the finalization reserve intact. The ANSWER
+        call may spend it: that is what it was held for.
+        """
+        remaining = self.remaining_seconds
+        floor = self.limits.min_call_seconds
+        # The reserve protects writing up an analysis that succeeded, so it
+        # applies once the run is under way. Applying it to the FIRST
+        # generation would be wrong twice over: nothing exists to protect,
+        # and the run is still on the tight product-help allowance it widens
+        # only after the analyst declares the turn analytical -- so an
+        # analytical question with a slow first turn would be stopped before
+        # it could ever claim the allowance meant for it.
+        if phase != "answer" and self.counters.generation_attempts >= 1:
+            floor += self.limits.finalization_reserve_seconds
+        if remaining < floor:
+            raise BudgetExceeded(
+                DEADLINE_EXPIRED,
+                f"{remaining:.0f}s of the {self.limits.deadline_seconds:.0f}s "
+                f"allowance remain, which is not enough to run another "
+                f"action and still publish an answer "
+                f"({self.limits.finalization_reserve_seconds:.0f}s is held "
+                f"back to write one).")
+
     def check_deadline(self) -> None:
         if self.remaining_seconds <= 0:
             raise BudgetExceeded(

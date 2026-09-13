@@ -104,6 +104,12 @@ class Limits:
     charts: int
     soft_input_tokens: int
     reserved_output_tokens: int
+    #: Time held back so a finished analysis can still be written up. An
+    #: action call is refused once the run is inside this window; the ANSWER
+    #: call may spend it, because it is what the window was held for.
+    finalization_reserve_seconds: float
+    #: Below this there is not enough time for any useful provider call.
+    min_call_seconds: float
 
 
 STANDARD_LIMITS = Limits(
@@ -115,7 +121,8 @@ STANDARD_LIMITS = Limits(
     preview_columns=32, format_regenerations=1,
     answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=1.0, charts=2, soft_input_tokens=6_000,
-    reserved_output_tokens=4_096)
+    reserved_output_tokens=4_096,
+    finalization_reserve_seconds=20.0, min_call_seconds=5.0)
 
 DEEP_LIMITS = Limits(
     mode=DEEP, deadline_seconds=120.0, execution_submissions=5,
@@ -126,7 +133,8 @@ DEEP_LIMITS = Limits(
     preview_columns=32, format_regenerations=1,
     answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=2.0, charts=3, soft_input_tokens=10_000,
-    reserved_output_tokens=6_144)
+    reserved_output_tokens=6_144,
+    finalization_reserve_seconds=25.0, min_call_seconds=5.0)
 
 
 #: What a DATA_ANALYSIS run gets once the analyst declares one.

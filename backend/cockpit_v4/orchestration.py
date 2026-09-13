@@ -103,6 +103,7 @@ class Orchestrator:
     #: Set once the analyst has been told to correct only its answer.
     answer_only: bool = False
     executed: bool = False
+    _analysis_preserved: bool = False
     #: What the NEXT provider generation is for. Recorded on the ledger and
     #: on the trace so "why was model call #3 made?" has an answer, and used
     #: to charge a structure recovery to the right phase.
@@ -237,6 +238,33 @@ class Orchestrator:
         return Outcome(st.FAILED, error_code=exc.code, error_id=error_id,
                        message=str(exc), terminal_event_emitted=True)
 
+    def _preserve_analysis(self, reason: str) -> None:
+        """Say that the mathematics succeeded, whatever stopped afterwards.
+
+        Emitted on ANY terminal stop that follows a successful execution --
+        a deadline, a cost ceiling, an exhausted correction. A run reported
+        only as "failed" reads as if the query failed, and in the live case
+        the query had already returned its rows.
+        """
+        if not (self.executed and self.finalizer.run_artifacts):
+            return
+        if self._analysis_preserved:
+            return
+        self._analysis_preserved = True
+        try:
+            self.emitter.append(
+                ev.ANALYSIS_PRESERVED, stage="publishing",
+                operation="preserve_result", status=ev.STATUS_OK,
+                public_message=(
+                    "The analysis completed and its result was kept. "
+                    "Publication of the written answer is what stopped."),
+                detail_ref=self._detail({
+                    "artifact_ids": sorted(self.finalizer.run_artifacts),
+                    "analysis_status": "completed",
+                    "publication_status": "failed", "reason": reason}))
+        except Exception:                                     # noqa: BLE001
+            pass
+
     def _stop(self, code: str, message: str) -> Outcome:
         """A mechanical stop, generated from the error record.
 
@@ -256,6 +284,7 @@ class Orchestrator:
         an operator.
         """
         self.ledger.cancel()
+        self._preserve_analysis(code)
         if self.first_failure:
             message = (f"{message} The first analytical failure in this run "
                        f"was: {self.first_failure['summary']}")
@@ -377,8 +406,10 @@ class Orchestrator:
                             else "Preparing the next action"))
         try:
             try:
-                turn = self.analyst.ask(purpose=self.purpose,
-                                        max_output_tokens=reserved)
+                turn = self.analyst.ask(
+                    purpose=self.purpose, max_output_tokens=reserved,
+                    phase="answer" if (self.executed or self.answer_only)
+                    else "action")
             finally:
                 # Narrowing is per CALL. The full set comes back immediately
                 # so a run that genuinely needs another analytical round --
@@ -892,20 +923,7 @@ class Orchestrator:
                 # already succeeded and returned twelve correct rows. The
                 # event says which half stopped, and names the artifact that
                 # survived so the work can be inspected.
-                if self.executed and self.finalizer.run_artifacts:
-                    self.emitter.append(
-                        ev.ANALYSIS_PRESERVED, stage="publishing",
-                        operation="preserve_result", status=ev.STATUS_OK,
-                        public_message=(
-                            "The analysis completed and its result was kept. "
-                            "Publication of the written answer is what "
-                            "stopped."),
-                        detail_ref=self._detail({
-                            "artifact_ids": sorted(
-                                self.finalizer.run_artifacts),
-                            "analysis_status": "completed",
-                            "publication_status": "failed",
-                            "problems": report.problems}))
+                self._preserve_analysis("answer_correction_exhausted")
                 return Outcome(
                     st.FAILED, error_code=st.ANSWER_VALIDATION,
                     message=(
