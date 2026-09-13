@@ -666,6 +666,13 @@ if (process.env.V4_THREAD_SHOTS) {
       await page.click('[data-testid="attention-investigate"]');
       await page.waitForSelector('[data-testid="investigation-context"]',
         { timeout: 30_000 });
+      // A seeded thread with nothing asked in it yet shows the case and an
+      // empty transcript, which is not what the surface is FOR. Ask the
+      // question the case exists to raise, so the picture shows the seed
+      // doing its job.
+      await followUp(page,
+        "Show the borrowers behind this covenant breach.");
+      await waitForAnswer(page, 90_000);
       await shot(page, "thread_investigation");
     } finally {
       await context.close();
@@ -850,19 +857,51 @@ await test("a published figure is written once, the way a credit paper writes it
     try {
       await ask(page, "reported EAD by sector this quarter");
       await waitForAnswer(page);
-      const text = await page.textContent(
-        '[data-testid="v4-turn-live"], [data-testid="v4-turn-assistant"]');
-      const answer = text ?? "";
-      // §37: machine precision must never reach a reader. The live defect
-      // printed `7013.1167117986615 SAR million` under a narrative that had
-      // already written the same figure properly.
-      assert.ok(!/\d\.\d{4,}/.test(answer),
-        `machine precision on screen: ${
-          (/\d+\.\d{4,}/.exec(answer) ?? [""])[0]}`);
-      // And the unit is said once, not appended beside a string that
-      // already carries it.
-      assert.ok(!/SAR [\d,.]+ million SAR million/.test(answer),
-        "the unit was written twice");
+      // The whole conversation, not just the prose: the transcript, the
+      // table, the chart and every tooltip on it.
+      await page.waitForSelector('[data-testid="v4-chart-bar"]',
+        { timeout: 30_000 });
+      const read = async () =>
+        await page.evaluate(() => {
+          const root = document.querySelector(
+            '[data-testid="cockpit-v4-thread"]');
+          const titles = Array.from(root?.querySelectorAll("[title]") ?? [])
+            .map((el) => el.getAttribute("title") ?? "");
+          return `${root?.textContent ?? ""} ${titles.join(" ")}`;
+        });
+
+      const chartScreen = await read();
+      await page.click('[data-testid="v4-visual-table"]');
+      await page.waitForSelector('[data-testid="v4-result-table"]',
+        { timeout: 30_000 });
+      const tableScreen = await read();
+
+      for (const [where, screen] of [
+        ["chart", chartScreen], ["table", tableScreen]]) {
+        // §37: machine precision must never reach a reader. The live defect
+        // printed `7013.1167117986615 SAR million` under a narrative that
+        // had already written the same figure properly.
+        assert.ok(!/\d\.\d{4,}/.test(screen),
+          `machine precision on the ${where} screen: ${
+            (/\d+\.\d{4,}/.exec(screen) ?? [""])[0]}`);
+        // The unit is said once, not appended beside a string that already
+        // carries it.
+        assert.ok(!/SAR [\d,.]+ million SAR million/.test(screen),
+          `the unit was written twice on the ${where} screen`);
+        // And an amount is an amount: no decimals, anywhere, ever.
+        const withDecimals = /SAR [\d,]+\.\d+ million/.exec(screen);
+        assert.equal(withDecimals, null,
+          `an amount carried decimals on the ${where} screen: ${
+            withDecimals?.[0]}`);
+      }
+
+      // One metric, one string: the figure the prose quotes is a figure the
+      // table shows.
+      const quoted = /SAR [\d,]+ million/.exec(tableScreen)?.[0] ?? "";
+      assert.ok(quoted, "no amount was published at all");
+      const occurrences = tableScreen.split(quoted).length - 1;
+      assert.ok(occurrences >= 2,
+        `${quoted} appears once; the prose and the table must agree`);
     } finally {
       await context.close();
     }
