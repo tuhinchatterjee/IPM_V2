@@ -45,6 +45,11 @@ import {
   rememberRun,
   readThread,
   renameThread,
+  saveAnalysis,
+  shareItem,
+  createInvestigation,
+  deliveryWording,
+  type Notification,
   startRun,
   watch,
   type FinalResponse,
@@ -327,14 +332,204 @@ function Composer({
   );
 }
 
+/**
+ * What you can do with the conversation, not with one answer in it.
+ *
+ * These act on the LATEST answered turn, because that is what a colleague
+ * opening a shared link needs to land on and what an investigation entry
+ * should point at. The per-answer actions further down the transcript still
+ * act on their own turn; this is the shortcut for the one you just read.
+ *
+ * "Add to Project" is deliberately absent. Projects are a main-CreditProbe
+ * surface and this isolated V4 runtime does not serve them, so there is no
+ * endpoint behind a button here. A button that looks like it works and does
+ * not is worse than the sentence saying so. Investigations ARE V4-native and
+ * are offered here instead.
+ */
+function ThreadActions({
+  runId,
+  threadId,
+  title,
+}: {
+  runId: string;
+  threadId: string;
+  title: string;
+}) {
+  const [panel, setPanel] = React.useState<"" | "share" | "investigate">("");
+  const [audience, setAudience] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [status, setStatus] = React.useState("");
+  const [notification, setNotification] =
+    React.useState<Notification | null>(null);
+  const [notified, setNotified] = React.useState(false);
+
+  const run = React.useCallback(async (work: () => Promise<string>) => {
+    setBusy(true);
+    setStatus("");
+    try {
+      setStatus(await work());
+    } catch (cause) {
+      setStatus(
+        cause instanceof Error
+          ? `That did not go through: ${cause.message}`
+          : "That did not go through.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  if (!runId) return null;
+  const label = title || "Cockpit conversation";
+
+  return (
+    <div data-testid="v4-thread-actions" className="mt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          data-testid="v4-thread-share"
+          aria-pressed={panel === "share"}
+          onClick={() => setPanel(panel === "share" ? "" : "share")}
+          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+        >
+          Share
+        </button>
+        <button
+          type="button"
+          data-testid="v4-thread-investigate"
+          aria-pressed={panel === "investigate"}
+          onClick={() => setPanel(panel === "investigate" ? "" : "investigate")}
+          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+        >
+          Add to investigation
+        </button>
+        <a
+          data-testid="v4-thread-trace"
+          href={`/trace/${encodeURIComponent(runId)}`}
+          className="rounded border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+        >
+          Trace
+        </a>
+      </div>
+
+      {panel === "share" ? (
+        <div className="mt-2 max-w-md space-y-2" data-testid="v4-thread-share-panel">
+          <p className="text-xs text-slate-500">
+            Shares the latest answer in this conversation.
+          </p>
+          <label className="block text-xs text-slate-600">
+            Colleague or group inside the bank
+            <input
+              data-testid="v4-thread-share-audience"
+              value={audience}
+              onChange={(event) => setAudience(event.target.value)}
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            />
+          </label>
+          <label className="block text-xs text-slate-600">
+            Notify by email (optional)
+            <input
+              data-testid="v4-thread-share-email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+            />
+          </label>
+          <button
+            type="button"
+            data-testid="v4-thread-share-submit"
+            disabled={busy || !audience.trim()}
+            onClick={() =>
+              void run(async () => {
+                const saved = await saveAnalysis({
+                  run_id: runId, title: label.slice(0, 120),
+                });
+                const result = await shareItem({
+                  subject_kind: "saved_analysis",
+                  subject_id: saved.saved_id,
+                  audience_id: audience.trim(),
+                  notify_email: email.trim(),
+                });
+                setNotification(result.notification);
+                setNotified(true);
+                return `Shared with ${result.share.audience_id}.`;
+              })
+            }
+            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+          >
+            Share
+          </button>
+          {notified ? (
+            <p
+              data-testid="v4-thread-share-delivery"
+              className={
+                "text-xs " +
+                (notification?.delivered ? "text-emerald-700" : "text-amber-700")
+              }
+            >
+              {deliveryWording(notification)}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {panel === "investigate" ? (
+        <div
+          className="mt-2 max-w-md space-y-2"
+          data-testid="v4-thread-investigate-panel"
+        >
+          <p className="text-xs text-slate-500">
+            Opens an investigation for this conversation.
+          </p>
+          <button
+            type="button"
+            data-testid="v4-thread-investigate-submit"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const record = await createInvestigation({
+                  title: label.slice(0, 120),
+                  origin: "cockpit_thread",
+                  thread_id: threadId,
+                });
+                return `Investigation opened: ${record.title}.`;
+              })
+            }
+            className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+          >
+            Open investigation
+          </button>
+          <p className="text-xs text-slate-500" data-testid="v4-thread-no-projects">
+            Add to Project is not available in this isolated Cockpit V4
+            runtime. Projects are served by the main CreditProbe backend,
+            which this instance does not start, so nothing here would reach
+            one. Investigations are the V4-native equivalent.
+          </p>
+        </div>
+      ) : null}
+
+      {status ? (
+        <p className="mt-2 text-xs text-slate-600" data-testid="v4-thread-action-status">
+          {status}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ThreadHeader({
   title,
   turnCount,
+  latestRunId,
+  threadId,
   onRename,
   onHome,
 }: {
   title: string;
   turnCount: number;
+  latestRunId: string;
+  threadId: string;
   onRename: (title: string) => void;
   onHome: () => void;
 }) {
@@ -386,6 +581,11 @@ function ThreadHeader({
         <p className="mt-1 text-xs text-slate-500" data-testid="v4-thread-turns">
           {turnCount} message{turnCount === 1 ? "" : "s"}
         </p>
+        <ThreadActions
+          runId={latestRunId}
+          threadId={threadId}
+          title={title}
+        />
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <button
@@ -597,6 +797,17 @@ export function CockpitV4Thread({
       <ThreadHeader
         title={transcript?.title ?? ""}
         turnCount={turns.length + (live ? 1 : 0)}
+        latestRunId={
+          // The newest ANSWERED run: the live one once it has settled,
+          // otherwise the last turn already in the transcript. A run still
+          // working has nothing to share yet.
+          live && view.terminal && view.runId
+            ? view.runId
+            : turns.length
+              ? turns[turns.length - 1].runId
+              : ""
+        }
+        threadId={threadId}
         onRename={(title) => void rename(title)}
         onHome={onHome}
       />
