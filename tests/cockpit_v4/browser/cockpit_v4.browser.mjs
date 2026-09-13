@@ -119,6 +119,33 @@ async function expect(page, selector, timeout, problems) {
   }
 }
 
+/** Read the trace until it says something, expanding stages as they arrive.
+ *
+ * The panel is a LIVE view of a run that is still going, and its substeps are
+ * collapsed under their stage until a reader opens one. Expanding once and
+ * reading once samples whatever had arrived at that instant -- which is how
+ * this assertion failed about one run in three while the product was working
+ * correctly: the panel was read while the run was still on its first stage.
+ */
+async function traceContains(page, pattern, timeout = 30_000) {
+  const deadline = Date.now() + timeout;
+  let seen = "";
+  for (;;) {
+    const stages = await page.$$(
+      '[data-testid="v4-process-steps"] li button[aria-expanded]');
+    for (const stage of stages) {
+      if ((await stage.getAttribute("aria-expanded")) === "false"
+          && !(await stage.isDisabled())) {
+        await stage.click();
+      }
+    }
+    seen = (await page.textContent('[data-testid="v4-process-steps"]')) ?? "";
+    if (pattern.test(seen)) return seen;
+    if (Date.now() > deadline) return seen;
+    await page.waitForTimeout(250);
+  }
+}
+
 const browser = await chromium.launch({
   executablePath: CHROME,
   args: ["--no-sandbox", "--disable-dev-shm-usage"],
@@ -806,20 +833,12 @@ await test("the seeded context load appears in the process panel", async () => {
     await expect(page, '[data-testid="v4-process-panel"]', 30_000, problems);
     await page.click('[data-testid="v4-toggle-process"]');
     await expect(page, '[data-testid="v4-process-steps"]', 30_000, problems);
-    // The detail lives in substeps, which are collapsed under their stage
-    // until the reader opens one. Open every stage that has any.
-    const stages = await page.$$('[data-testid="v4-process-steps"] li button[aria-expanded]');
-    for (const stage of stages) {
-      if ((await stage.getAttribute("aria-expanded")) === "false"
-          && !(await stage.isDisabled())) {
-        await stage.click();
-      }
-    }
-    const panel = await page.textContent('[data-testid="v4-process-steps"]');
+    const panel = await traceContains(page, /Investigation context loaded/);
     assert.match(
-      panel ?? "",
+      panel,
       /Investigation context loaded/,
-      "context seeding is a real step and the trace shows it",
+      "context seeding is a real step and the trace shows it. Panel was: "
+        + JSON.stringify(panel),
     );
     assert.ok(
       !/chain of thought|reasoning:/i.test(panel ?? ""),
