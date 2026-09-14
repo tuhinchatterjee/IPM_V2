@@ -93,12 +93,32 @@ def _at(month: str = "") -> str:
     return month if month in every else every[-1]
 
 
-def _per_customer(frame: Any) -> Any:
+#: What `_counts` reads off a customer, and nothing else.
+#:
+#: The roll-up carries the worst facility's whole row, which is four hundred
+#: and ninety-eight columns of panel. `_counts` reads six of them, and the
+#: portfolio screen calls it forty times — so on a book of sixty thousand
+#: facilities the screen spent nineteen seconds moving columns nobody looked
+#: at. Naming the six here lets the roll-up carry only those when that is all
+#: the caller wants; every other caller still gets the whole row.
+COUNT_COLUMNS: tuple[str, ...] = (
+    "customer_id", "facility_id", "ews_score", "ews_severity",
+    "current_bad_flag", "forward_risk_flag", "dpd", "ifrs9_stage",
+    "gross_carrying_amount_sar", "triggers_fired",
+)
+
+
+def _per_customer(frame: Any, *, columns: tuple[str, ...] | None = None) -> Any:
     """One row per customer: their worst facility, and their total exposure.
 
     A customer's Early Warning Score is the worst of the facilities they hold.
     Averaging would let a large clean mortgage hide a card that is ninety days
     down, which is the whole point of not doing it.
+
+    `columns` narrows what the worst facility's row carries. It never changes
+    WHICH row is chosen or what the totals are — those are computed over the
+    whole frame either way — so a narrowed roll-up and a full one agree on
+    every figure they both report.
     """
     import pandas as pd
 
@@ -110,9 +130,10 @@ def _per_customer(frame: Any) -> Any:
     # by position, which is the same answer with a defined tie-break — the
     # first facility in panel order, rather than whatever an unstable sort
     # happened to leave on top.
-    worst = frame.loc[
-        frame.groupby("customer_id")["ews_score"].idxmax()
-    ].set_index("customer_id")
+    picked = frame.groupby("customer_id")["ews_score"].idxmax()
+    keep = ([one for one in columns if one in frame.columns] if columns
+            else list(frame.columns))
+    worst = frame.loc[picked, keep].set_index("customer_id")
     totals = frame.groupby("customer_id").agg(
         customer_exposure_sar=("gross_carrying_amount_sar", "sum"),
         facilities=("facility_id", "nunique"),
@@ -125,7 +146,8 @@ def _per_customer(frame: Any) -> Any:
         # own page disagreed: RC-0025457 read bureau 0.0 in the list and 42.4
         # on their page, because their card and their loan were seen by the
         # bureau at different pulls.
-        **{f"layer_{one.key}": (one.score_column, "max") for one in M.LAYERS},
+        **{f"layer_{one.key}": (one.score_column, "max") for one in M.LAYERS
+           if one.score_column in frame.columns},
         # Over ALL of the customer's facilities, not the worst-scoring one.
         # Taken from the worst row it under-counted the already-bad by one at
         # 2026-08: a customer can be thirty days down on a facility that is
@@ -134,7 +156,8 @@ def _per_customer(frame: Any) -> Any:
     )
     joined = worst.join(totals, how="left").reset_index()
     for one in M.LAYERS:
-        joined[one.score_column] = joined[f"layer_{one.key}"]
+        if f"layer_{one.key}" in joined.columns:
+            joined[one.score_column] = joined[f"layer_{one.key}"]
     joined["current_bad_flag"] = joined["any_current_bad"].fillna(False)
     joined["forward_risk_flag"] = (
         (~joined["current_bad_flag"])
@@ -157,10 +180,17 @@ def _counts(frame: Any, *, book_exposure: float | None = None) -> dict[str, Any]
             "triggers_fired": 0, "default_entries": 0, "odr_pct": 0.0,
             "dpd_30_plus_pct": 0.0,
         }
-    people = _per_customer(frame)
+    people = _per_customer(frame, columns=COUNT_COLUMNS)
     warned = people[people["ews_score"] >= M.SCALE.warning_cutoff]
     exposure_all = _money(frame["gross_carrying_amount_sar"].sum())
-    warned_ids = set(warned["customer_id"])
+    # Through numpy, not by iterating the column.
+    #
+    # The panel's identifier columns are Arrow-backed strings, and building a
+    # Python set out of one walks it element by element through Arrow's
+    # iterator. `_counts` runs forty times to draw the portfolio screen, which
+    # came to two hundred thousand element reads and several seconds of a
+    # fourteen-second page. `to_numpy` materialises the column once.
+    warned_ids = set(warned["customer_id"].to_numpy())
     exposure_warned = _money(
         frame[frame["customer_id"].isin(warned_ids)][
             "gross_carrying_amount_sar"].sum())
@@ -225,7 +255,7 @@ def _population_score(frame: Any, people: Any = None) -> float:
     # Taken from the caller where it has one: `_counts` already built it, and
     # building it twice was half the cost of every figure on the screen.
     if people is None:
-        people = _per_customer(frame)
+        people = _per_customer(frame, columns=COUNT_COLUMNS)
     weight = people["customer_exposure_sar"].fillna(0.0)
     total = float(weight.sum())
     if total <= 0:

@@ -182,8 +182,15 @@ def read(month: str, analytics_dir: str | Path | None = None) -> Any:
         _root(analytics_dir) / DOMAIN / f"reporting_month={month}"
         / "*.parquet")))
     if not parts:
+        # Truncated, and deliberately. Called with the wrong kind of argument —
+        # a selection object rather than its month — this interpolated six
+        # thousand customer ids into the message and produced a hundred and
+        # eighty kilobytes of traceback, which tells a reader nothing about
+        # what went wrong.
+        said = str(month)
         raise FileNotFoundError(
-            f"the Early Warning Score domain has no {month}")
+            "the Early Warning Score domain has no "
+            + (said if len(said) <= 80 else said[:80] + "…"))
     frame = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
     if len(_CACHE) > 26:
         _CACHE.clear()
@@ -1037,6 +1044,14 @@ def _score_month(frame: Any, results: dict[str, Fired],
                                    errors="coerce").fillna(0.0).to_numpy()
 
     contributions: dict[str, list[Any]] = {}
+    # Collected, then attached in one go.
+    #
+    # Thirty-four triggers with ten columns each is three hundred and forty
+    # single-column writes, and pandas reallocates the frame as it goes —
+    # which is what the fragmentation warning was about. It was being answered
+    # afterwards with a full copy, which fixes the frame for whatever comes
+    # next but not the cost of building it.
+    trigger_columns: dict[str, Any] = {}
     for trigger in triggers:
         result = results[trigger.key]
         recency = (bureau_recency if trigger.source_class == "External"
@@ -1044,18 +1059,18 @@ def _score_month(frame: Any, results: dict[str, Fired],
         action = action_dimensions(trigger, history[trigger.key], recency)
 
         key = trigger.key
-        out[f"trg_{key}_fired"] = result.fired
-        out[f"trg_{key}_value"] = np.round(result.value, 4)
-        out[f"trg_{key}_comparator"] = np.round(result.comparator, 4)
-        out[f"trg_{key}_direction"] = np.where(result.fired, action.direction, "")
-        out[f"trg_{key}_magnitude"] = np.where(
+        trigger_columns[f"trg_{key}_fired"] = result.fired
+        trigger_columns[f"trg_{key}_value"] = np.round(result.value, 4)
+        trigger_columns[f"trg_{key}_comparator"] = np.round(result.comparator, 4)
+        trigger_columns[f"trg_{key}_direction"] = np.where(result.fired, action.direction, "")
+        trigger_columns[f"trg_{key}_magnitude"] = np.where(
             result.fired, np.round(action.magnitude, 3), np.nan)
-        out[f"trg_{key}_velocity"] = np.where(
+        trigger_columns[f"trg_{key}_velocity"] = np.where(
             result.fired, np.round(action.velocity, 4), np.nan)
-        out[f"trg_{key}_momentum"] = np.where(result.fired, action.momentum, "")
-        out[f"trg_{key}_persistence"] = np.where(
+        trigger_columns[f"trg_{key}_momentum"] = np.where(result.fired, action.momentum, "")
+        trigger_columns[f"trg_{key}_persistence"] = np.where(
             result.fired, action.persistence, np.nan)
-        out[f"trg_{key}_recency"] = np.where(
+        trigger_columns[f"trg_{key}_recency"] = np.where(
             result.fired, np.round(action.recency, 2), np.nan)
 
         scored = np.where(
@@ -1063,29 +1078,29 @@ def _score_month(frame: Any, results: dict[str, Fired],
             np.minimum(points.get(trigger.severity, 0.0) * action.multiplier,
                        M.TRIGGER_CONTRIBUTION_CAP),
             0.0)
-        out[f"trg_{key}_contribution"] = np.round(scored, 3)
+        trigger_columns[f"trg_{key}_contribution"] = np.round(scored, 3)
         contributions.setdefault(
             M.sublayer_of_trigger(key).key, []).append(scored)
 
-    # Four hundred trigger columns inserted one at a time leaves pandas
-    # warning about a fragmented frame on every subsequent write. One copy
-    # here, before the scores are added.
-    out = out.copy()
+    if trigger_columns:
+        out = pd.concat([out, pd.DataFrame(trigger_columns, index=out.index)],
+                        axis=1, copy=False)
 
     # --- sublayer scores
     #
     # The worst contribution in the sublayer, plus a tenth of each further
     # one, capped at 100. Summing them instead would let four mild triggers
     # outrank one critical, which is not how a credit officer reads a file.
+    sublayer_columns: dict[str, Any] = {}
     for sub in M.all_sublayers():
         stacked = contributions.get(sub.key)
         if not stacked:
-            out[sub.score_column] = 0.0
+            sublayer_columns[sub.score_column] = np.zeros(rows)
             continue
-        block = np.vstack(stacked)
-        worst = block.max(axis=0)
-        others = np.clip(block.sum(axis=0) - worst, 0.0, None)
-        out[sub.score_column] = np.round(
+        piled = np.vstack(stacked)
+        worst = piled.max(axis=0)
+        others = np.clip(piled.sum(axis=0) - worst, 0.0, None)
+        sublayer_columns[sub.score_column] = np.round(
             np.minimum(worst + 0.10 * others, 100.0), 3)
 
     # --- layer scores, from the sublayer weights
@@ -1094,12 +1109,20 @@ def _score_month(frame: Any, results: dict[str, Fired],
     # single serious signal into the bottom of the scale, and a weighted sum
     # rescaled by the largest weight overshoots the moment three parts fire,
     # pinning five per cent of the book at exactly 100.
+    if sublayer_columns:
+        out = pd.concat([out, pd.DataFrame(sublayer_columns, index=out.index)],
+                        axis=1, copy=False)
+
+    layer_columns: dict[str, Any] = {}
     for layer in M.LAYERS:
         heaviest = max((sub.weight for sub in layer.sublayers), default=1.0)
-        out[layer.score_column] = np.round(_combine(
+        layer_columns[layer.score_column] = np.round(_combine(
             [(sub.weight / (heaviest or 1.0),
-              out[sub.score_column].to_numpy()) for sub in layer.sublayers],
+              sublayer_columns[sub.score_column]) for sub in layer.sublayers],
             rows), 3)
+    if layer_columns:
+        out = pd.concat([out, pd.DataFrame(layer_columns, index=out.index)],
+                        axis=1, copy=False)
 
     # --- the overall score, on the product's own weights, the same way
     #

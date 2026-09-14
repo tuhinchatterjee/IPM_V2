@@ -129,6 +129,15 @@ def _table(page: Any, styles: dict[str, Any], rows: list[dict[str, Any]],
                 page.write_blank(at + offset, index, None, styles["text"])
                 continue
             if isinstance(value, (int, float)) and not isinstance(value, bool):
+                # A facility in its first month on book has no behavioural
+                # score, and a customer with no bureau file has no bureau
+                # figure. Those arrive as NaN, and Excel has no number for
+                # "absent" — writing one produces an error cell that reads as
+                # a broken calculation. A blank cell is what absent looks like
+                # in a spreadsheet.
+                if value != value or value in (float("inf"), float("-inf")):
+                    page.write_blank(at + offset, index, None, styles["text"])
+                    continue
                 page.write_number(at + offset, index, float(value), style)
                 widths[index] = max(widths[index], len(f"{value:,.2f}"))
             else:
@@ -151,7 +160,9 @@ def _pairs(page: Any, styles: dict[str, Any],
     """A two-column block: what it is, and what it says."""
     for offset, (label, value) in enumerate(rows):
         page.write(at + offset, 0, str(label), styles["head"])
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and value == value and value not in (float("inf"),
+                                                     float("-inf"))):
             page.write_number(at + offset, 1, float(value),
                               _format_for(str(label), styles))
         else:
@@ -351,14 +362,34 @@ def _levels(workbook: Any, styles: dict[str, Any],
     _table(page, styles, rows, list(rows[0]) if rows else None, 3)
 
 
+#: What the affected-customers sheet carries.
+#:
+#: The scoring panel is four hundred and ninety-eight columns wide, and handing
+#: all of them over produced a four-megabyte sheet nobody could read across.
+#: These are the ones a person opening the list actually looks at: who, what
+#: they hold, how bad it is, and why. The rest of the panel is a governed
+#: domain in Data Builder, which is the right place to go for it.
+AFFECTED_COLUMNS: tuple[str, ...] = (
+    "customer_id", "customer_name", "facility_id", "product_label",
+    "sub_product_label", "classification_label", "ews_score", "ews_severity",
+    "current_bad_flag", "forward_risk_flag", "dpd", "dpd_bucket",
+    "ifrs9_stage", "behavioural_score", "behavioural_score_band",
+    "gross_carrying_amount_sar", "ecl_weighted_sar", "top_reason_codes",
+)
+
+
 def _affected(workbook: Any, styles: dict[str, Any],
               customers: list[dict[str, Any]]) -> None:
     page = _sheet(workbook, styles, "5 Affected customers",
                   "Every customer in the stressed cohort",
                   "The exact population the scenario ran on, named. This is "
                   "the list the selection carried out of Early Warning, not a "
-                  "re-derivation of it.")
-    _table(page, styles, customers, None, 3,
+                  "re-derivation of it. The full scoring panel is a governed "
+                  "domain in Data Builder; these are the columns a reader "
+                  "opening this list is looking for.")
+    columns = [one for one in AFFECTED_COLUMNS
+               if customers and one in customers[0]]
+    _table(page, styles, customers, columns or None, 3,
            empty="No customer list was carried with this result.")
 
 

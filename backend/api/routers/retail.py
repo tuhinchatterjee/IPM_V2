@@ -1184,7 +1184,17 @@ def ews_cohort_workbook(payload: CohortWorkbookIn,
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             out.get("because") or "Nothing to run.")
 
-    rows = selection_store.build_rows(found)
+    # `build_rows` takes the MONTH and the filters, not the selection. Passing
+    # the selection put a whole object where a month string belonged.
+    rows = selection_store.build_rows(
+        found.source_month,
+        product=found.source_product,
+        classification=found.source_classification,
+        sub_product=found.source_sub_product,
+        customer_id=found.source_customer_id,
+        **{k: v for k, v in (found.source_filters or {}).items()
+           if k in ("cohort", "severity", "reason", "layer", "dpd_bucket",
+                    "stage")})
     customers = (rows.to_dict("records")[:5000]
                  if rows is not None and len(rows) else [])
     facilities = _cohort_facility_detail(found, shocks, staging, weights)
