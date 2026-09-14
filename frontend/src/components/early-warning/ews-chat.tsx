@@ -12,6 +12,7 @@ import { chartFor, showsChart, type EwsScope } from "./chart-rules";
 import { TurnProgress } from "./ews-progress";
 import { answerOf, useEwsTurn } from "./use-turn";
 import { errorFor, isReconnecting, type Turn } from "./turn";
+import * as store from "./thread-store";
 import { TrendChart, CategoryBarChart } from "@/components/analytics/charts";
 
 /**
@@ -36,6 +37,34 @@ import { TrendChart, CategoryBarChart } from "@/components/analytics/charts";
  * The browser no longer decides that an analysis has failed because a socket
  * took longer than a minute.
  */
+/**
+ * A remembered turn, read back as the settled Entry it was.
+ *
+ * `completed` because only a settled turn is ever remembered: a turn still
+ * running was never written down, so there is no state to restore it into
+ * other than the one it reached.
+ */
+function restored(
+  remembered: store.RememberedTurn,
+  threadId: string,
+): Entry {
+  return {
+    turn: {
+      id: remembered.id,
+      threadId,
+      question: remembered.question,
+      state: "completed",
+      answer: remembered.answer ?? null,
+      failure: "",
+      missedPolls: 0,
+      elapsedMs: 0,
+      progress: remembered.progress ?? null,
+    },
+    answer: (remembered.answer as EarlyWarningV2Answer | null) ?? null,
+    progress: (remembered.progress as ProgressDocument | null) ?? null,
+  };
+}
+
 type Entry = {
   /** The turn this entry is, while it runs and after it settles. */
   turn: Turn;
@@ -70,9 +99,29 @@ export function EarlyWarningChat({
 }) {
   const suggestions = useAsync(() => api.earlyWarningV2Suggestions(), []);
   const [question, setQuestion] = React.useState("");
-  const [entries, setEntries] = React.useState<Entry[]>([]);
-  const [threadNumber, setThreadNumber] = React.useState(0);
   const { turn, progress, elapsedMs, start, clear } = useEwsTurn();
+
+  /**
+   * The thread this screen is showing, and everything it remembers.
+   *
+   * §4.7. The thread used to live in component state under an id React
+   * generated on mount: open a borrower, press Back, and four questions and
+   * their answers were gone — not archived, GONE, with no trace they had
+   * existed. So the thread has an id in the address, and its turns are kept
+   * against that id for as long as the tab is open.
+   *
+   * Restored on the first render, from the address, so a Back that returns
+   * here returns to the conversation rather than to an empty box.
+   */
+  const [threadId, setThreadId] = React.useState(() => {
+    if (typeof window === "undefined") return store.newThreadId(0);
+    return store.threadFromQuery(window.location.search) || store.newThreadId();
+  });
+  const [entries, setEntries] = React.useState<Entry[]>(() => {
+    if (typeof window === "undefined") return [];
+    const held = store.recall(store.threadFromQuery(window.location.search));
+    return (held?.turns ?? []).map((r) => restored(r, held?.id ?? ""));
+  });
 
   /**
    * The thread's analytical context, as the server last wrote it, handed
@@ -98,13 +147,21 @@ export function EarlyWarningChat({
   const [asked, setAsked] = React.useState<{
     spec: Record<string, unknown> | undefined;
     label: string;
-  } | null>(null);
+  } | null>(() => {
+    if (typeof window === "undefined") return null;
+    const held = store.recall(store.threadFromQuery(window.location.search));
+    return held?.scope ? { spec: held.scope.spec, label: held.scope.label } : null;
+  });
   const scope = asked ?? { spec: dashboardScope, label: scopeLabel ?? "" };
-  // `useId` rather than a random string: a ref initialiser runs on every
-  // render, so `Math.random()` there is a new thread id each time React
-  // decides to re-render and the server sees a different conversation.
-  const base = React.useId();
-  const threadId = `${base}-${threadNumber}`;
+
+  // Restore the server's rolling summary too, so a thread walked back to
+  // carries on rather than starting over under the same heading.
+  React.useEffect(() => {
+    const held = store.recall(threadId);
+    if (held?.summary && summary.current === undefined) {
+      summary.current = held.summary;
+    }
+  }, [threadId]);
 
   const pane = React.useRef<HTMLDivElement | null>(null);
   const [pinned, setPinned] = React.useState(true);
@@ -144,17 +201,29 @@ export function EarlyWarningChat({
       if (!settled) return;
       const answer = answerOf(settled);
       if (answer?.rolling_summary) summary.current = answer.rolling_summary;
-      setEntries((prior) => [
-        ...prior,
-        {
-          turn: settled,
-          answer,
-          progress:
-            (answer?.progress as ProgressDocument | undefined) ??
-            (settled.progress as ProgressDocument | null) ??
-            null,
-        },
-      ]);
+      const entry: Entry = {
+        turn: settled,
+        answer,
+        progress:
+          (answer?.progress as ProgressDocument | undefined) ??
+          (settled.progress as ProgressDocument | null) ??
+          null,
+      };
+      setEntries((prior) => {
+        const next = [...prior, entry];
+        // Remembered as it settles, so a Back from a borrower drilldown
+        // returns to the conversation and not to an empty composer.
+        store.remember({
+          id: threadId,
+          turns: next.map((e) => ({
+            id: e.turn.id, question: e.turn.question,
+            answer: e.answer, progress: e.progress,
+          })),
+          summary: summary.current,
+          scope: inScope,
+        });
+        return next;
+      });
       clear();
     },
     [turn, start, clear, threadId, customerId, uiState, asked,
@@ -166,6 +235,16 @@ export function EarlyWarningChat({
     setEntries([]);
     setQuestion("");
     setPinned(true);
+    // A NEW id, not a cleared one. The thread just left stays where it is,
+    // so Back reaches it — "New thread" starts a conversation, it does not
+    // destroy the last one.
+    const fresh = store.newThreadId();
+    setThreadId(fresh);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.search = store.queryWithThread(url.search, fresh);
+      window.history.pushState(window.history.state, "", url);
+    }
     // A new thread carries no memory of the last one. The server is handed
     // no rolling summary and a different thread id, so "those names" in the
     // first question of a new thread resolves to nothing — which is correct.
@@ -173,8 +252,42 @@ export function EarlyWarningChat({
     // A new thread also takes a new scope: it is about whatever the reader
     // is looking at now, not about what they were looking at an hour ago.
     setAsked(null);
-    setThreadNumber((n) => n + 1);
   }, [clear]);
+
+  /**
+   * The thread enters the address when it starts carrying something.
+   *
+   * Pushed, so Back leaves the thread and returns to the screen as it was —
+   * and a Back INTO it (from a borrower, from another page) finds it again.
+   * An empty thread is not pushed: a reader who opened the page and typed
+   * nothing has taken no step to walk back from.
+   */
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (entries.length === 0 && turn === null) return;
+    if (store.threadFromQuery(window.location.search) === threadId) return;
+    const url = new URL(window.location.href);
+    url.search = store.queryWithThread(url.search, threadId);
+    window.history.pushState(window.history.state, "", url);
+  }, [entries.length, turn, threadId]);
+
+  // The address is what Back and Forward move, so walking to another thread
+  // is walking to another conversation.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const walked = () => {
+      const walkedTo = store.threadFromQuery(window.location.search);
+      if (!walkedTo || walkedTo === threadId) return;
+      const held = store.recall(walkedTo);
+      setThreadId(walkedTo);
+      setAsked(held?.scope
+        ? { spec: held.scope.spec, label: held.scope.label } : null);
+      summary.current = held?.summary;
+      setEntries((held?.turns ?? []).map((r) => restored(r, walkedTo)));
+    };
+    window.addEventListener("popstate", walked);
+    return () => window.removeEventListener("popstate", walked);
+  }, [threadId]);
 
   const inThread = entries.length > 0 || turn !== null;
   const running = turn?.state === "running";

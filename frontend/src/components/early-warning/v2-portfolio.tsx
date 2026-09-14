@@ -302,9 +302,27 @@ export function EarlyWarningV2Portfolio() {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     const query = new URLSearchParams(flt.toQuery(settled));
-    for (const carried of ["customer", "level"]) {
-      const value = url.searchParams.get(carried);
-      if (value) query.set(carried, value);
+    // Everything in the address that is NOT this filter is carried through.
+    //
+    // An allow-list of the two keys this component happened to know about
+    // silently deleted the third: the chat pushed `?thread=` and the very
+    // next render of this effect wrote the address back without it, so Back
+    // returned to a thread id that was no longer anywhere and the
+    // conversation could not be found. A component that writes the whole
+    // query string owns every key in it, including the ones it has never
+    // heard of.
+    const mine = new Set(flt.toQuery({ ...settled, offset: 0 }).length
+      ? Array.from(new URLSearchParams(flt.toQuery(settled)).keys()) : []);
+    for (const column of SEED_COLUMNS) {
+      mine.add(column.key);
+      mine.add(`${column.key}_min`);
+      mine.add(`${column.key}_max`);
+    }
+    for (const owned of ["period", "q", "sort", "dir", "band", "segment"]) {
+      mine.add(owned);
+    }
+    for (const [key, value] of url.searchParams.entries()) {
+      if (!mine.has(key) && !query.has(key)) query.set(key, value);
     }
     const next = query.toString();
     if (next === url.searchParams.toString()) return;
