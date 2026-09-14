@@ -109,6 +109,31 @@ function calls(requests, fragment) {
   return requests.filter((entry) => entry.includes(fragment));
 }
 
+/**
+ * The period shapes each book writes, and the shape it must never write.
+ *
+ * The Corporate book reports QUARTERS and the Retail book reports MONTHS.
+ * These assertions used to name one calendar, which was right while both
+ * books had it and became a false expectation the day they diverged -- the
+ * failing message read "a monthly book offered a quarter" about a book that
+ * reports quarters.
+ */
+const QUARTER = /\b20\d\d ?Q[1-4]\b|\bQ[1-4] 20\d\d\b/;
+const MONTH = /\b20\d\d-(0[1-9]|1[0-2])\b(?![-\d])|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) 20\d\d\b/;
+
+/** The period pattern this book writes, and the one it must not. */
+function calendarOf(domain) {
+  return domain === "retail"
+    ? { own: MONTH, foreign: QUARTER, noun: "month" }
+    : { own: QUARTER, foreign: MONTH, noun: "quarter" };
+}
+
+/** Which book the API is serving under this domain. */
+async function feedFor(domain) {
+  const query = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+  return (await fetch(`${API}/api/v1/cockpit-v4/attention${query}`)).json();
+}
+
 /** Only the calls that ASK a question: a POST to the runs collection. */
 function asks(requests) {
   return requests.filter((entry) =>
@@ -1075,8 +1100,14 @@ await test("a seeded thread opens on three to five questions, before anybody typ
       for (const chip of chips) {
         assert.ok(chip.length > 8, `not a question: ${JSON.stringify(chip)}`);
         assert.ok(/[.?]$/.test(chip), `not a sentence: ${JSON.stringify(chip)}`);
-        assert.ok(!/\b20\d\d ?Q[1-4]\b/.test(chip),
-          `a monthly book offered a quarter: ${JSON.stringify(chip)}`);
+        // A seeded thread is in the book its card came from, so its
+        // questions are written in that book's calendar and never the
+        // other's.
+        const seededFeed = await feedFor("");
+        const calendar = calendarOf(seededFeed.domain_id);
+        assert.ok(!calendar.foreign.test(chip),
+          `a ${seededFeed.reporting_frequency} book offered the other `
+          + `calendar: ${JSON.stringify(chip)}`);
       }
       assert.equal(new Set(chips).size, chips.length,
         "the same question was offered twice");
@@ -1574,7 +1605,15 @@ await test("clicking a segment card opens the right-side drawer", async () => {
     // The card says WHY it is on the page: how far it moved, and how much
     // of the book it is. The wording changed with the per-domain engine;
     // the two facts it has to carry did not.
-    assert.match(why ?? "", /higher than \d{4}-\d{2}/);
+    {
+      const feed = await feedFor("");
+      const calendar = calendarOf(feed.domain_id);
+      assert.match(why ?? "", /higher than /);
+      assert.ok(calendar.own.test(why ?? ""),
+        `the drawer must compare against a ${calendar.noun}: ${why}`);
+      assert.ok(!calendar.foreign.test(why ?? ""),
+        `the drawer wrote the other book's calendar: ${why}`);
+    }
     assert.match(why ?? "", /of the book's exposure at default/);
     const numbers = await page.$$(
       '[data-testid="attention-drawer-numbers"] dd',
@@ -1926,21 +1965,30 @@ await test("Segments requiring attention shows its period and only segments",
       const period = await page.textContent(
         '[data-testid="attention-reporting-period"]',
       );
-      // The book reports MONTHLY, so the period is a month. It used to be
-      // asserted as a quarter, which was right when the Cockpit had one
-      // quarterly release and is a false expectation now: a monthly book
-      // described as Q2 2026 would be the page inventing a calendar.
+      // The period comes from the RELEASE, in the calendar that release
+      // keeps. Naming one calendar here was right while both books had it
+      // and is a false expectation now: a quarterly book described as
+      // 2026-08, or a monthly one as Q2 2026, would each be the page
+      // inventing a calendar.
+      const feed = await feedFor("");
+      const calendar = calendarOf(feed.domain_id);
       assert.match(
         period ?? "",
-        /Reporting period \d{4}-\d{2}/,
-        `the reporting period must come from the release, got ${period}`,
+        new RegExp(`Reporting ${calendar.noun} `),
+        `the heading must name this book's period, got ${period}`,
       );
-      const feed = await (await fetch(`${API}/api/v1/cockpit-v4/attention`))
-        .json();
+      assert.ok(calendar.own.test(period ?? ""),
+        `the period must be a ${calendar.noun}, got ${period}`);
+      assert.ok(!calendar.foreign.test(period ?? ""),
+        `the page wrote the other book's calendar: ${period}`);
+      // And it is THE period the release publishes, not merely one shaped
+      // like it.
+      const shown = (period ?? "").replace(/^Reporting \w+ /, "").trim();
+      const expected = feed.reporting_period;
       assert.ok(
-        (period ?? "").includes(feed.reporting_month),
-        `the page shows ${period} and the release says ` +
-          `${feed.reporting_month}`,
+        shown === expected
+          || shown === expected.replace(/^(\d{4})Q([1-4])$/, "Q$2 $1"),
+        `the page shows ${shown} and the release says ${expected}`,
       );
       const heading = await page.textContent(
         '[data-testid="segments-requiring-attention"] h2',

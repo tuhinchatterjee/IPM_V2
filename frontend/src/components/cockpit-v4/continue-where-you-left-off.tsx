@@ -43,6 +43,9 @@ export function ContinueWhereYouLeftOff({
               type="button"
               data-testid="continue-thread"
               data-thread-id={thread.thread_id}
+              // Which book this conversation is in, so the browser suite
+              // and a reader can both see it before clicking.
+              data-domain={thread.domain_id ?? ""}
               onClick={() => onOpen(thread)}
               className="flex w-full items-baseline gap-3 border-b border-slate-100 px-5 py-3 text-left transition last:border-b-0 hover:bg-slate-50"
             >

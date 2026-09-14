@@ -521,6 +521,11 @@ export type RecentThread = {
   origin: string;
   attention_item: string;
   segment: string;
+  /** Which book it is in. Reopening a conversation puts the reader back in
+   *  that book -- a thread reopened under the other one refuses their next
+   *  question for a reason that has nothing to do with what they typed. */
+  domain_id?: DomainId;
+  release_id?: string;
 };
 
 export type SessionSummary = {

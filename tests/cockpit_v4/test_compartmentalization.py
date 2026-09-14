@@ -347,3 +347,47 @@ def test_every_route_that_takes_a_domain_is_listed_in_this_file():
     assert not missing, (
         f"these routes serve a book and are not audited here: "
         f"{sorted(missing)}. Add a row to BOOK_SURFACES.")
+
+
+# ---- §51: reopening a conversation reopens its book ---------------------
+
+def test_a_reopenable_thread_names_the_book_it_is_in(client, store_db):
+    """§18, §51. "Continue where you left off" lists conversations, and a
+    conversation belongs to ONE book. A row without its domain sends the
+    reader into whatever the switch happened to be showing, and their next
+    question in the thread is refused for a reason that has nothing to do
+    with what they typed -- the thread's domain wins, correctly, and the
+    refusal is the first they hear of it.
+    """
+    opened = {}
+    for domain_id in dom.DOMAIN_IDS:
+        thread_id = client.post(f"{P}/threads",
+                                json={"domain": domain_id}
+                                ).json()["thread_id"]
+        store_db.append_turn(
+            thread_id=thread_id, run_id=f"run-{domain_id}",
+            question="what moved?",
+            answer={"disposition": "answer", "narrative": "x"})
+        opened[domain_id] = thread_id
+
+    listed = {row["thread_id"]: row
+              for row in client.get(f"{P}/session").json()["recent_threads"]}
+    for domain_id, thread_id in opened.items():
+        assert thread_id in listed, domain_id
+        row = listed[thread_id]
+        assert row["domain_id"] == domain_id, row
+        assert row["release_id"] == dom.DEFAULT_RELEASES[domain_id], row
+
+
+def test_the_home_page_switches_book_when_a_thread_is_reopened():
+    """The rule as the page implements it. A component cannot be rendered
+    from here, so this reads the source: the handler must consult the
+    thread's own domain rather than the one on screen."""
+    from pathlib import Path
+
+    home = (Path(__file__).resolve().parents[2] / "frontend" / "src"
+            / "components" / "cockpit-v4" / "cockpit-v4-home.tsx").read_text()
+    reopen = home.split("const reopen", 1)[1].split("openThread(", 1)[0]
+    assert "thread.domain_id" in reopen, (
+        "reopening a conversation must honour the book it is in")
+    assert "setDomain" in reopen and "rememberDomain" in reopen

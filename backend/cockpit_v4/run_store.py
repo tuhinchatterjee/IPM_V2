@@ -1122,7 +1122,8 @@ class RunStore:
         turn yet is not something to "continue": nothing happened in it.
         """
         rows = self._connect().execute(
-            "SELECT th.thread_id, th.created_at, "
+            "SELECT th.thread_id, th.created_at, th.domain_id, "
+            "       th.release_id, "
             "       MAX(t.ordinal) AS turns, MAX(t.created_at) AS last_at "
             "FROM threads th JOIN turns t ON t.thread_id = th.thread_id "
             "WHERE th.tenant_id = ?"
@@ -1154,6 +1155,13 @@ class RunStore:
                     "headline", ""),
                 "segment": ((context or {}).get("body") or {}).get(
                     "segment", ""),
+                # §18, §51. WHICH BOOK this conversation is in, so reopening
+                # it puts the reader back in that book. A row without it
+                # sends them into whatever the switch happened to be showing,
+                # and their next question is refused for a reason that has
+                # nothing to do with what they typed.
+                "domain_id": str(row["domain_id"] or _DEFAULT_DOMAIN),
+                "release_id": str(row["release_id"] or ""),
             })
         return out
 

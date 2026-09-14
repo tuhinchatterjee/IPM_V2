@@ -160,8 +160,20 @@ export function CockpitV4Home() {
   );
   /** Reopen a real persisted thread: its own page, with its own transcript. */
   const reopen = React.useCallback(
-    (thread: RecentThread) => openThread(thread.thread_id),
-    [openThread],
+    (thread: RecentThread) => {
+      // §18, §51. A conversation belongs to ONE book, and reopening it puts
+      // the reader back in that book. Without this they land in whatever
+      // the switch happened to be showing, and their next question in the
+      // thread is refused for a reason that has nothing to do with what
+      // they typed -- the thread's domain wins, correctly, and the refusal
+      // is the first they hear of it.
+      if (thread.domain_id && thread.domain_id !== domain) {
+        setDomain(thread.domain_id);
+        rememberDomain(thread.domain_id);
+      }
+      return openThread(thread.thread_id);
+    },
+    [domain, openThread],
   );
 
   // Two dashboards, wide tables and a chat column: this page IS the
