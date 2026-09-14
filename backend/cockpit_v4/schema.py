@@ -52,6 +52,12 @@ class Field:
     #: segments and a stage cannot be averaged, and a tool that offers either
     #: is offering a wrong number.
     aggregation: str = ""
+    #: What a person calls this column. Authored where the column's own name
+    #: does not read as English -- `ead_sar_mn` is "Exposure at default",
+    #: `score_band` is "Behavioural score band" -- and derived from the name
+    #: where it does. A schema browser that shows only `pd_ttc_12m` is a
+    #: schema browser for the person who already knows the schema.
+    business_label: str = ""
 
     @property
     def definition(self) -> str:
@@ -60,7 +66,9 @@ class Field:
 
     @property
     def label(self) -> str:
-        return self.name.replace("_", " ").strip()
+        if self.business_label:
+            return self.business_label
+        return self.name.replace("_", " ").strip().capitalize()
 
     @property
     def additive(self) -> str:
@@ -73,9 +81,9 @@ class Field:
         return "not_additive"
 
     def to_dict(self) -> dict[str, Any]:
-        return {"name": self.name, "type": self.dtype, "unit": self.unit,
-                "description": self.description, "group": self.group,
-                "aggregation": self.additive}
+        return {"name": self.name, "label": self.label, "type": self.dtype,
+                "unit": self.unit, "description": self.description,
+                "group": self.group, "aggregation": self.additive}
 
 
 @dataclass(frozen=True)
@@ -108,8 +116,8 @@ class Relation:
                 "fields": [f.to_dict() for f in self.fields]}
 
 
-def _f(name, dtype, unit, description, group=""):
-    return Field(name, dtype, unit, description, group)
+def _f(name, dtype, unit, description, group="", label="", aggregation=""):
+    return Field(name, dtype, unit, description, group, aggregation, label)
 
 
 #: Columns every relation in every domain carries. They are the isolation:
@@ -129,185 +137,320 @@ GOVERNANCE_FIELDS: tuple[Field, ...] = (
 
 # ---- corporate ---------------------------------------------------------
 
+#: The CORPORATE book reports quarterly and the RETAIL book monthly.
+#:
+#: Deliberate, and not a detail. A corporate credit file is reviewed on the
+#: financial, rating and IFRS 9 cycle its borrowers actually report on, and
+#: that cycle is quarterly; retail monitoring is behavioural and monthly.
+#: Every relation below names its own period column, and every consumer reads
+#: `Relation.period_column` rather than assuming one.
+PERIOD_COLUMNS: dict[str, str] = {
+    dom.CORPORATE: "reporting_quarter",
+    dom.RETAIL: "reporting_month",
+}
+
+FREQUENCIES: dict[str, str] = {
+    dom.CORPORATE: "quarterly",
+    dom.RETAIL: "monthly",
+}
+
+
+def period_column(domain_id: str) -> str:
+    """The column this domain records its reporting period in."""
+    return PERIOD_COLUMNS[dom.parse(domain_id)]
+
+
+def frequency(domain_id: str) -> str:
+    return FREQUENCIES[dom.parse(domain_id)]
+
+
 _CORP_BORROWER = Relation(
-    name="corp_borrower_month",
-    grain="one row per borrower per reporting month",
-    period_column="reporting_month",
-    key_columns=("borrower_id", "reporting_month"),
-    description=("The obligor as at a month end: who it is, how it is "
+    name="corp_borrower_quarter",
+    grain="one row per borrower per reporting quarter",
+    period_column="reporting_quarter",
+    key_columns=("borrower_id", "reporting_quarter"),
+    description=("The obligor as at a quarter end: who it is, how it is "
                  "segmented, how it is rated and what its financials say."),
     fields=GOVERNANCE_FIELDS + (
         _f("borrower_id", "string", "", "Stable obligor identifier.",
-           "Identity"),
+           "Identity", label="Borrower id"),
         _f("borrower_name", "string", "", "Fictional obligor name.",
-           "Identity"),
-        _f("group_id", "string", "", "Parent group identifier.", "Identity"),
+           "Identity", label="Borrower"),
+        _f("group_id", "string", "", "Parent group identifier.", "Identity",
+           label="Group id"),
         _f("group_name", "string", "", "Fictional parent group name.",
-           "Identity"),
-        _f("reporting_month", "string", "",
-           "Reporting month as YYYY-MM.", "Period"),
-        _f("sector", "string", "", "Economic sector.", "Segmentation"),
+           "Identity", label="Parent group"),
+        _f("reporting_quarter", "string", "",
+           "Reporting quarter as YYYYQn.", "Period",
+           label="Reporting quarter"),
+        _f("sector", "string", "", "Economic sector.", "Segmentation",
+           label="Sector"),
         _f("sub_sector", "string", "", "Sector sub-classification.",
-           "Segmentation"),
+           "Segmentation", label="Sub-sector"),
         _f("region", "string", "", "Saudi region of the primary operation.",
-           "Segmentation"),
+           "Segmentation", label="Region"),
         _f("relationship_tier", "string", "",
-           "Relationship management tier.", "Segmentation"),
+           "Relationship management tier: Strategic, Core or "
+           "Transactional.", "Segmentation", label="Relationship segment"),
         _f("rating_current", "string", "",
-           "Internal rating this month, on the 19-grade scale.", "Rating"),
+           "Internal rating this quarter, on the 19-grade scale.", "Rating",
+           label="Current rating"),
         _f("rating_previous", "string", "",
-           "Internal rating the previous month.", "Rating"),
+           "Internal rating the previous quarter.", "Rating",
+           label="Prior rating"),
+        _f("rating_at_origination", "string", "",
+           "The internal rating the exposure was written at.", "Rating",
+           label="Rating at origination"),
         _f("rating_notches_moved", "integer", "notches",
-           "Notches moved since last month. Negative is a downgrade.",
-           "Rating"),
+           "Notches moved since last quarter. Negative is a downgrade.",
+           "Rating", label="Notches moved this quarter"),
+        _f("rating_notches_from_origination", "integer", "notches",
+           "Notches moved since origination. Negative is a downgrade.",
+           "Rating", label="Notches moved since origination"),
+        _f("rating_migration", "string", "",
+           "UPGRADE, STABLE or DOWNGRADE this quarter.", "Rating",
+           label="Rating migration"),
         _f("rating_outlook", "string", "",
-           "Positive, Stable or Negative.", "Rating"),
+           "Positive, Stable or Negative.", "Rating", label="Outlook"),
+        _f("rating_driver", "string", "",
+           "The variable that moved the rating most this quarter: "
+           "Leverage, Debt service, Profitability, Liquidity, Qualitative "
+           "or None.", "Rating", label="Primary rating driver"),
         _f("pd_ttc_12m", "float", "probability_0_1",
-           "Through-the-cycle 12-month probability of default.", "Rating"),
+           "Through-the-cycle 12-month probability of default implied by "
+           "the rating.", "Rating", label="Through-the-cycle 12-month PD"),
         _f("revenue_sar_mn", "float", "rcy", "Trailing twelve-month revenue.",
-           "Financials"),
+           "Financials", label="Revenue"),
         _f("ebitda_sar_mn", "float", "rcy",
-           "Trailing twelve-month EBITDA.", "Financials"),
+           "Trailing twelve-month EBITDA.", "Financials", label="EBITDA"),
+        _f("ebit_sar_mn", "float", "rcy",
+           "Trailing twelve-month operating profit.", "Financials",
+           label="EBIT"),
+        _f("operating_cash_flow_sar_mn", "float", "rcy",
+           "Trailing twelve-month cash generated by operations.",
+           "Financials", label="Operating cash flow"),
         _f("total_debt_sar_mn", "float", "rcy", "Total debt outstanding.",
-           "Financials"),
+           "Financials", label="Total debt"),
         _f("cash_sar_mn", "float", "rcy", "Cash and equivalents.",
-           "Financials"),
+           "Financials", label="Cash"),
         _f("net_debt_sar_mn", "float", "rcy", "Total debt less cash.",
-           "Financials"),
-        _f("leverage_x", "float", "times", "Net debt to EBITDA.", "Ratios"),
+           "Financials", label="Net debt"),
+        _f("leverage_x", "float", "times", "Net debt to EBITDA.", "Ratios",
+           label="Leverage"),
         _f("dscr_x", "float", "times", "Debt service coverage ratio.",
-           "Ratios"),
+           "Ratios", label="DSCR"),
         _f("interest_cover_x", "float", "times",
-           "EBITDA to interest expense.", "Ratios"),
+           "EBITDA to interest expense.", "Ratios", label="Interest cover"),
         _f("current_ratio_x", "float", "times",
-           "Current assets to current liabilities.", "Ratios"),
+           "Current assets to current liabilities.", "Ratios",
+           label="Current ratio"),
+        _f("quick_ratio_x", "float", "times",
+           "Liquid assets to current liabilities.", "Ratios",
+           label="Quick ratio"),
         _f("ebitda_margin_pct", "float", "percent",
-           "EBITDA as a percentage of revenue.", "Ratios"),
+           "EBITDA as a percentage of revenue.", "Ratios",
+           label="EBITDA margin"),
+        _f("return_on_assets_pct", "float", "percent",
+           "Operating profit as a percentage of total assets.", "Ratios",
+           label="Return on assets"),
+        _f("cash_conversion_pct", "float", "percent",
+           "Operating cash flow as a percentage of EBITDA.", "Ratios",
+           label="Cash conversion"),
         _f("qualitative_score", "float", "index",
            "Analyst qualitative assessment, 0 (weak) to 100 (strong).",
-           "Qualitative"),
+           "Qualitative", label="Qualitative score"),
+        _f("watchlist_flag", "integer", "count",
+           "1 when the obligor is on the credit watch list this quarter.",
+           "Credit status", label="On watch list"),
+        _f("watchlist_reason", "string", "",
+           "Why it is on the watch list, empty when it is not.",
+           "Credit status", label="Watch-list reason"),
+        _f("restructured_flag", "integer", "count",
+           "1 when the obligor's facilities have been restructured.",
+           "Credit status", label="Restructured"),
+        _f("quarters_on_watchlist", "integer", "count",
+           "Consecutive quarters on the watch list.", "Credit status",
+           label="Quarters on watch list"),
     ))
 
 _CORP_FACILITY = Relation(
-    name="corp_facility_month",
-    grain="one row per facility per reporting month",
-    period_column="reporting_month",
-    key_columns=("facility_id", "reporting_month"),
-    description=("The exposure as at a month end: limits, drawings, IFRS 9 "
-                 "stage, PD, LGD, EAD and ECL."),
+    name="corp_facility_quarter",
+    grain="one row per facility per reporting quarter",
+    period_column="reporting_quarter",
+    key_columns=("facility_id", "reporting_quarter"),
+    description=("The exposure as at a quarter end: limits, drawings, "
+                 "IFRS 9 stage, PD, LGD, EAD and ECL."),
     fields=GOVERNANCE_FIELDS + (
         _f("facility_id", "string", "", "Stable facility identifier.",
-           "Identity"),
+           "Identity", label="Facility id"),
         _f("borrower_id", "string", "", "The obligor this facility is to.",
-           "Identity"),
-        _f("reporting_month", "string", "", "Reporting month as YYYY-MM.",
-           "Period"),
-        _f("facility_type", "string", "",
-           "Term Loan, Revolving Credit, Trade Finance, Project Finance or "
-           "Working Capital.", "Segmentation"),
+           "Identity", label="Borrower id"),
+        _f("borrower_name", "string", "", "The obligor's name, carried so a "
+           "facility question does not need the borrower relation.",
+           "Identity", label="Borrower"),
+        _f("reporting_quarter", "string", "",
+           "Reporting quarter as YYYYQn.", "Period",
+           label="Reporting quarter"),
+        _f("product_type", "string", "",
+           "The lending product: term_loan, working_capital, "
+           "revolving_credit, trade_finance, project_finance, overdraft or "
+           "asset_finance. Also called the facility type.", "Segmentation",
+           label="Product type"),
+        _f("facility_class", "string", "",
+           "funded or non_funded: whether drawing it puts cash out.",
+           "Segmentation", label="Facility class"),
         _f("sector", "string", "", "The obligor's sector, carried for "
-           "single-relation sector analysis.", "Segmentation"),
-        _f("region", "string", "", "The obligor's region.", "Segmentation"),
-        _f("limit_sar_mn", "float", "rcy", "Sanctioned limit.", "Exposure"),
-        _f("drawn_sar_mn", "float", "rcy", "Drawn balance.", "Exposure"),
+           "single-relation sector analysis.", "Segmentation",
+           label="Sector"),
+        _f("sub_sector", "string", "", "The obligor's sub-sector.",
+           "Segmentation", label="Sub-sector"),
+        _f("region", "string", "", "The obligor's region.", "Segmentation",
+           label="Region"),
+        _f("relationship_tier", "string", "",
+           "The obligor's relationship segment.", "Segmentation",
+           label="Relationship segment"),
+        _f("limit_sar_mn", "float", "rcy", "Sanctioned limit.", "Exposure",
+           label="Limit"),
+        _f("drawn_sar_mn", "float", "rcy", "Drawn balance.", "Exposure",
+           label="Drawn"),
         _f("undrawn_sar_mn", "float", "rcy", "Undrawn commitment.",
-           "Exposure"),
+           "Exposure", label="Undrawn"),
         _f("utilisation_pct", "float", "percent",
-           "Drawn as a percentage of limit.", "Exposure"),
+           "Drawn as a percentage of limit.", "Exposure",
+           label="Utilisation"),
         _f("ead_sar_mn", "float", "rcy",
            "Exposure at default: drawn plus the credit-converted undrawn.",
-           "Exposure"),
-        _f("stage", "integer", "count", "IFRS 9 stage: 1, 2 or 3.", "IFRS 9"),
+           "Exposure", label="Exposure at default"),
+        _f("stage", "integer", "count", "IFRS 9 stage: 1, 2 or 3.", "IFRS 9",
+           label="IFRS 9 stage"),
         _f("sicr_flag", "integer", "count",
            "1 when a significant increase in credit risk is recognised.",
-           "IFRS 9"),
+           "IFRS 9", label="SICR"),
         _f("default_flag", "integer", "count",
-           "1 when the facility is in default.", "IFRS 9"),
-        _f("dpd_days", "integer", "days", "Days past due.", "IFRS 9"),
+           "1 when the facility is in default.", "IFRS 9", label="Default"),
+        _f("dpd_days", "integer", "days", "Days past due.", "Delinquency",
+           label="Days past due"),
         _f("pd_pit_12m", "float", "probability_0_1",
-           "Point-in-time 12-month probability of default.", "IFRS 9"),
+           "Point-in-time 12-month probability of default.", "IFRS 9",
+           label="Point-in-time 12-month PD"),
         _f("pd_lifetime", "float", "probability_0_1",
-           "Lifetime probability of default.", "IFRS 9"),
-        _f("lgd_pct", "float", "percent", "Loss given default.", "IFRS 9"),
+           "Lifetime probability of default.", "IFRS 9",
+           label="Lifetime PD"),
+        _f("lgd_pct", "float", "percent", "Loss given default.", "IFRS 9",
+           label="LGD"),
         _f("ecl_12m_sar_mn", "float", "rcy", "Twelve-month expected credit "
-           "loss.", "IFRS 9"),
+           "loss.", "IFRS 9", label="12-month ECL"),
         _f("ecl_lifetime_sar_mn", "float", "rcy",
-           "Lifetime expected credit loss.", "IFRS 9"),
+           "Lifetime expected credit loss.", "IFRS 9", label="Lifetime ECL"),
         _f("ecl_sar_mn", "float", "rcy",
            "Recognised ECL: the 12-month figure in Stage 1 and the lifetime "
-           "figure in Stages 2 and 3.", "IFRS 9"),
+           "figure in Stages 2 and 3.", "IFRS 9", label="Recognised ECL"),
+        _f("ecl_coverage_pct", "float", "percent",
+           "Recognised ECL as a percentage of EAD.", "IFRS 9",
+           label="ECL coverage"),
+        _f("write_off_sar_mn", "float", "rcy",
+           "Amount written off this quarter.", "IFRS 9", label="Write-off"),
+        _f("recovery_sar_mn", "float", "rcy",
+           "Amount recovered this quarter.", "IFRS 9", label="Recovery"),
+        _f("cure_flag", "integer", "count",
+           "1 when the facility cured out of default or delinquency this "
+           "quarter.", "Delinquency", label="Cured this quarter"),
         _f("past_due_flag", "integer", "count",
-           "1 when any amount is past due.", "IFRS 9"),
-        _f("months_in_stage", "integer", "months",
-           "Consecutive months at the current stage.", "IFRS 9"),
+           "1 when any amount is past due.", "Delinquency",
+           label="Past due"),
+        _f("quarters_in_stage", "integer", "count",
+           "Consecutive quarters at the current stage.", "IFRS 9",
+           label="Quarters in stage"),
+        _f("origination_quarter", "string", "",
+           "The quarter the facility was written, as YYYYQn.", "Vintage",
+           label="Origination quarter"),
     ))
 
 _CORP_COLLATERAL = Relation(
-    name="corp_collateral_month",
-    grain="one row per collateral item per facility per reporting month",
-    period_column="reporting_month",
-    key_columns=("collateral_id", "reporting_month"),
+    name="corp_collateral_quarter",
+    grain="one row per collateral item per facility per reporting quarter",
+    period_column="reporting_quarter",
+    key_columns=("collateral_id", "reporting_quarter"),
     description="Security held against a facility, and what it is worth.",
     fields=GOVERNANCE_FIELDS + (
         _f("collateral_id", "string", "", "Stable collateral identifier.",
-           "Identity"),
+           "Identity", label="Collateral id"),
         _f("facility_id", "string", "", "The facility this secures.",
-           "Identity"),
-        _f("borrower_id", "string", "", "The obligor.", "Identity"),
-        _f("reporting_month", "string", "", "Reporting month as YYYY-MM.",
-           "Period"),
+           "Identity", label="Facility id"),
+        _f("borrower_id", "string", "", "The obligor.", "Identity",
+           label="Borrower id"),
+        _f("reporting_quarter", "string", "",
+           "Reporting quarter as YYYYQn.", "Period",
+           label="Reporting quarter"),
         _f("collateral_type", "string", "",
            "Real Estate, Plant and Equipment, Receivables, Cash Deposit or "
-           "Corporate Guarantee.", "Collateral"),
+           "Corporate Guarantee.", "Collateral", label="Collateral type"),
+        _f("sector", "string", "", "The obligor's sector.", "Segmentation",
+           label="Sector"),
         _f("market_value_sar_mn", "float", "rcy", "Appraised market value.",
-           "Collateral"),
+           "Collateral", label="Market value"),
         _f("haircut_pct", "float", "percent",
-           "Regulatory haircut applied to the market value.", "Collateral"),
+           "Regulatory haircut applied to the market value.", "Collateral",
+           label="Haircut"),
         _f("allocated_value_sar_mn", "float", "rcy",
            "Market value after haircut, allocated to this facility.",
-           "Collateral"),
+           "Collateral", label="Allocated value"),
         _f("coverage_pct", "float", "percent",
            "Allocated value as a percentage of the facility's EAD.",
-           "Collateral"),
+           "Collateral", label="Collateral coverage"),
         _f("ltv_pct", "float", "percent",
-           "EAD as a percentage of market value.", "Collateral"),
-        _f("valuation_age_months", "integer", "months",
-           "Months since the last appraisal.", "Collateral"),
+           "EAD as a percentage of market value.", "Collateral",
+           label="Loan to value"),
+        _f("valuation_age_quarters", "integer", "count",
+           "Quarters since the last appraisal.", "Collateral",
+           label="Quarters since valuation"),
     ))
 
 _CORP_COVENANT = Relation(
-    name="corp_covenant_month",
-    grain="one row per covenant test per facility per reporting month",
-    period_column="reporting_month",
-    key_columns=("covenant_id", "reporting_month"),
+    name="corp_covenant_quarter",
+    grain="one row per covenant test per facility per reporting quarter",
+    period_column="reporting_quarter",
+    key_columns=("covenant_id", "reporting_quarter"),
     description="Covenant tests, their thresholds and what was observed.",
     fields=GOVERNANCE_FIELDS + (
         _f("covenant_id", "string", "", "Stable covenant identifier.",
-           "Identity"),
+           "Identity", label="Covenant id"),
         _f("facility_id", "string", "", "The facility this tests.",
-           "Identity"),
-        _f("borrower_id", "string", "", "The obligor.", "Identity"),
-        _f("reporting_month", "string", "", "Reporting month as YYYY-MM.",
-           "Period"),
+           "Identity", label="Facility id"),
+        _f("borrower_id", "string", "", "The obligor.", "Identity",
+           label="Borrower id"),
+        _f("reporting_quarter", "string", "",
+           "Reporting quarter as YYYYQn.", "Period",
+           label="Reporting quarter"),
+        _f("sector", "string", "", "The obligor's sector.", "Segmentation",
+           label="Sector"),
         _f("covenant_type", "string", "",
            "Leverage, DSCR, Interest Cover, Current Ratio or Minimum "
-           "EBITDA.", "Covenants"),
+           "EBITDA.", "Covenants", label="Covenant type"),
         _f("threshold_value", "float", "times",
-           "The level the covenant requires.", "Covenants"),
+           "The level the covenant requires.", "Covenants",
+           label="Threshold"),
         _f("observed_value", "float", "times",
-           "The level actually observed this month.", "Covenants"),
+           "The level actually observed this quarter.", "Covenants",
+           label="Observed"),
         _f("headroom_pct", "float", "percent",
            "Headroom against the threshold. Negative is a breach.",
-           "Covenants"),
+           "Covenants", label="Headroom"),
         _f("test_status", "string", "", "PASS, WATCH or BREACH.",
-           "Covenants"),
+           "Covenants", label="Test status"),
         _f("breach_flag", "integer", "count", "1 when the test is breached.",
-           "Covenants"),
+           "Covenants", label="Breached"),
         _f("waiver_flag", "integer", "count",
-           "1 when a waiver has been granted for this breach.", "Covenants"),
-        _f("waiver_month", "string", "",
-           "The month the waiver was granted, empty when there is none.",
-           "Covenants"),
+           "1 when a waiver has been granted for this breach.", "Covenants",
+           label="Waived"),
+        _f("waiver_status", "string", "",
+           "GRANTED, REQUESTED or NONE.", "Covenants", label="Waiver status"),
+        _f("waiver_quarter", "string", "",
+           "The quarter the waiver was granted, empty when there is none.",
+           "Covenants", label="Waiver quarter"),
+        _f("consecutive_breaches", "integer", "count",
+           "Consecutive quarters this test has been breached.", "Covenants",
+           label="Consecutive breaches"),
     ))
 
 # ---- retail ------------------------------------------------------------
@@ -321,7 +464,7 @@ _RETAIL_CUSTOMER = Relation(
                  "behaviour score and their worst account position."),
     fields=GOVERNANCE_FIELDS + (
         _f("customer_id", "string", "", "Stable customer identifier.",
-           "Identity"),
+           "Identity", label="Customer id"),
         _f("reporting_month", "string", "", "Reporting month as YYYY-MM.",
            "Period"),
         _f("customer_segment", "string", "",
@@ -334,19 +477,22 @@ _RETAIL_CUSTOMER = Relation(
            "Number of open accounts this month.", "Segmentation"),
         _f("behaviour_score", "float", "index",
            "Behavioural score this month, 300 (weak) to 900 (strong).",
-           "Behaviour score"),
+           "Behaviour score", label="Behavioural score"),
         _f("behaviour_score_previous", "float", "index",
            "Behavioural score the previous month.", "Behaviour score"),
         _f("behaviour_score_change", "float", "index",
            "Change since last month. Negative is deterioration.",
            "Behaviour score"),
         _f("score_band", "string", "",
-           "Band of the current score: A (best) to E (worst).",
-           "Behaviour score"),
+           "Band of the current behavioural score: A (best) to E (worst). "
+           "Also called the behavioural score band.",
+           "Behaviour score", label="Behavioural score band"),
         _f("score_band_previous", "string", "",
-           "Band of the previous month's score.", "Behaviour score"),
+           "Band of the previous month's behavioural score.",
+           "Behaviour score", label="Prior behavioural score band"),
         _f("score_migration", "string", "",
-           "IMPROVED, STABLE or DETERIORATED.", "Behaviour score"),
+           "IMPROVED, STABLE or DETERIORATED.", "Behaviour score",
+           label="Behavioural score migration"),
         _f("total_ead_sar_mn", "float", "rcy",
            "Exposure at default across the customer's accounts.",
            "Exposure"),
@@ -369,7 +515,7 @@ _RETAIL_ACCOUNT = Relation(
                  "IFRS 9 position and delinquency."),
     fields=GOVERNANCE_FIELDS + (
         _f("account_id", "string", "", "Stable account identifier.",
-           "Identity"),
+           "Identity", label="Account id"),
         _f("customer_id", "string", "", "The customer who holds it.",
            "Identity"),
         _f("reporting_month", "string", "", "Reporting month as YYYY-MM.",
@@ -392,7 +538,8 @@ _RETAIL_ACCOUNT = Relation(
            "Sanctioned limit or original advance.", "Exposure"),
         _f("balance_sar_mn", "float", "rcy", "Outstanding balance.",
            "Exposure"),
-        _f("ead_sar_mn", "float", "rcy", "Exposure at default.", "Exposure"),
+        _f("ead_sar_mn", "float", "rcy", "Exposure at default.", "Exposure",
+           label="Exposure at default"),
         _f("utilisation_pct", "float", "percent",
            "Balance as a percentage of limit.", "Exposure"),
         _f("stage", "integer", "count", "IFRS 9 stage: 1, 2 or 3.", "IFRS 9"),
@@ -401,22 +548,26 @@ _RETAIL_ACCOUNT = Relation(
            "IFRS 9"),
         _f("default_flag", "integer", "count",
            "1 when the account is in default.", "IFRS 9"),
-        _f("dpd_days", "integer", "days", "Days past due.", "Delinquency"),
+        _f("dpd_days", "integer", "days", "Days past due.", "Delinquency",
+           label="Days past due"),
         _f("delinquency_bucket", "string", "",
            "Current, 1-29, 30-59, 60-89 or 90+ days past due.",
            "Delinquency"),
         _f("pd_pit_12m", "float", "probability_0_1",
-           "Point-in-time 12-month probability of default.", "IFRS 9"),
+           "Point-in-time 12-month probability of default.", "IFRS 9",
+           label="Point-in-time 12-month PD"),
         _f("pd_lifetime", "float", "probability_0_1",
-           "Lifetime probability of default.", "IFRS 9"),
-        _f("lgd_pct", "float", "percent", "Loss given default.", "IFRS 9"),
+           "Lifetime probability of default.", "IFRS 9",
+           label="Lifetime PD"),
+        _f("lgd_pct", "float", "percent", "Loss given default.", "IFRS 9",
+           label="LGD"),
         _f("ecl_12m_sar_mn", "float", "rcy",
            "Twelve-month expected credit loss.", "IFRS 9"),
         _f("ecl_lifetime_sar_mn", "float", "rcy",
            "Lifetime expected credit loss.", "IFRS 9"),
         _f("ecl_sar_mn", "float", "rcy",
            "Recognised ECL: the 12-month figure in Stage 1 and the lifetime "
-           "figure in Stages 2 and 3.", "IFRS 9"),
+           "figure in Stages 2 and 3.", "IFRS 9", label="Recognised ECL"),
         _f("write_off_sar_mn", "float", "rcy",
            "Amount written off this month.", "IFRS 9"),
         _f("recovery_sar_mn", "float", "rcy",
@@ -427,8 +578,9 @@ _RETAIL_ACCOUNT = Relation(
         _f("behaviour_score", "float", "index",
            "The customer's behavioural score, carried for single-relation "
            "score analysis.", "Behaviour score"),
-        _f("score_band", "string", "", "The customer's score band.",
-           "Behaviour score"),
+        _f("score_band", "string", "",
+           "The customer's behavioural score band.", "Behaviour score",
+           label="Behavioural score band"),
     ))
 
 _RETAIL_BEHAVIOUR = Relation(
@@ -494,7 +646,8 @@ _RETAIL_COLLATERAL = Relation(
         _f("collateral_value_sar_mn", "float", "rcy",
            "Appraised value of the security.", "Collateral"),
         _f("ltv_pct", "float", "percent",
-           "Balance as a percentage of collateral value.", "Collateral"),
+           "Balance as a percentage of collateral value.", "Collateral",
+           label="Loan to value"),
         _f("collateral_coverage_pct", "float", "percent",
            "Collateral value as a percentage of EAD.", "Collateral"),
         _f("valuation_age_months", "integer", "months",

@@ -40,7 +40,15 @@ SEED = 20260802
 #: small for the unit it is denominated in. A mass-market book is tens of
 #: thousands of accounts; this is the smallest number that makes the figures
 #: read like a portfolio rather than a branch.
-CUSTOMERS = 9000
+CUSTOMERS = 12000
+
+#: Releases this generator no longer produces. The earlier ids are published,
+#: fingerprinted books of a smaller population.
+FROZEN_RELEASES: frozenset[str] = frozenset({"v4-saudi-retail-20m-v1"})
+
+
+class FrozenRelease(ValueError):
+    """A published release this generator must not rebuild."""
 
 PRODUCTS: tuple[tuple[str, int, float, float, float], ...] = (
     # (product, secured, share, base limit SAR mn, base LGD)
@@ -196,6 +204,11 @@ def build(release_id: str = "",
     import pandas as pd
 
     release_id = release_id or dom.DEFAULT_RELEASES[dom.RETAIL]
+    if release_id in FROZEN_RELEASES:
+        raise FrozenRelease(
+            f"{release_id} is published and immutable, and this generator "
+            f"now writes a larger book. The current Retail release is "
+            f"{dom.DEFAULT_RELEASES[dom.RETAIL]}.")
     months = month_range()
     rng = random.Random(SEED)
 

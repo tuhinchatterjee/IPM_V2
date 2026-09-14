@@ -101,7 +101,7 @@ def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
     # with what was being tested. The analyst is TOLD the book in its pinned
     # scope, so the stub reads it from there, exactly as a real one would.
     BOOKS = {
-        "corporate": {"relation": "corp_facility_month",
+        "corporate": {"relation": "corp_facility_quarter",
                       "dimension": "sector", "amount": "ead_sar_mn"},
         "retail": {"relation": "retail_account_month",
                    "dimension": "product", "amount": "ead_sar_mn"},

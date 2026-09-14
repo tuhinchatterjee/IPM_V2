@@ -174,7 +174,7 @@ def _domain_specific(build, domain_id: str) -> list[Finding]:
     findings: list[Finding] = []
 
     if domain_id == dom.CORPORATE:
-        facilities = build.frames["corp_facility_month"]
+        facilities = build.frames["corp_facility_quarter"]
         # EAD must reconcile to its own components, every row.
         drift = (facilities["ead_sar_mn"]
                  - (facilities["drawn_sar_mn"]
@@ -183,13 +183,13 @@ def _domain_specific(build, domain_id: str) -> list[Finding]:
                        < facilities["drawn_sar_mn"] - 0.01).sum()
         if below_drawn:
             findings.append(Finding(
-                "EAD reconciliation", "corp_facility_month",
+                "EAD reconciliation", "corp_facility_quarter",
                 f"{below_drawn} row(s) have EAD below the drawn balance"))
         limit_short = (facilities["limit_sar_mn"]
                        < facilities["drawn_sar_mn"] - 0.01).sum()
         if limit_short:
             findings.append(Finding(
-                "limit reconciliation", "corp_facility_month",
+                "limit reconciliation", "corp_facility_quarter",
                 f"{limit_short} row(s) draw more than the limit"))
         # The recognised ECL is one of the two it is allowed to be.
         recognised = facilities["ecl_sar_mn"]
@@ -198,28 +198,35 @@ def _domain_specific(build, domain_id: str) -> list[Finding]:
         wrong = ((recognised - expected).abs() > 1e-6).sum()
         if wrong:
             findings.append(Finding(
-                "ECL staging", "corp_facility_month",
+                "ECL staging", "corp_facility_quarter",
                 f"{wrong} row(s) recognise neither the 12-month nor the "
                 f"lifetime ECL for their stage"))
-        borrowers = build.frames["corp_borrower_month"]
+        borrowers = build.frames["corp_borrower_quarter"]
         from backend.cockpit_v4.generate.corporate import DEFAULT_GRADE, RATINGS
 
         grades = set(RATINGS) | {DEFAULT_GRADE}
         bad = sorted(set(borrowers["rating_current"]) - grades)
         if bad:
-            findings.append(Finding("rating scale", "corp_borrower_month",
+            findings.append(Finding("rating scale", "corp_borrower_quarter",
                                     f"ratings {bad} are off the scale"))
-        # Every facility belongs to a borrower that exists in the same month.
+        # Every facility belongs to a borrower with a row in the same quarter.
         pairs = set(zip(borrowers["borrower_id"],
-                        borrowers["reporting_month"]))
-        orphans = sum(1 for b, m in zip(facilities["borrower_id"],
-                                        facilities["reporting_month"])
-                      if (b, m) not in pairs)
+                        borrowers["reporting_quarter"]))
+        orphans = sum(1 for b, q in zip(facilities["borrower_id"],
+                                        facilities["reporting_quarter"])
+                      if (b, q) not in pairs)
         if orphans:
             findings.append(Finding(
-                "referential integrity", "corp_facility_month",
+                "referential integrity", "corp_facility_quarter",
                 f"{orphans} facility row(s) name a borrower with no row that "
-                f"month"))
+                f"quarter"))
+        # A facility cannot report a quarter before it was written.
+        early = (facilities["origination_quarter"]
+                 > facilities["reporting_quarter"]).sum()
+        if early:
+            findings.append(Finding(
+                "facility continuity", "corp_facility_quarter",
+                f"{early} row(s) report a quarter before origination"))
 
     if domain_id == dom.RETAIL:
         accounts = build.frames["retail_account_month"]

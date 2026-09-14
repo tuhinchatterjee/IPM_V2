@@ -75,7 +75,10 @@ def main() -> int:
         manifest = lake.publish(build, overwrite=args.overwrite)
         rows = sum(manifest["row_counts"].values())
         print(f"  {domain_id:<10} published {release_id}")
-        print(f"             {len(manifest['reporting_periods'])} months "
+        noun = {"quarterly": "quarters",
+                "monthly": "months"}.get(manifest["reporting_frequency"],
+                                         "periods")
+        print(f"             {len(manifest['reporting_periods'])} {noun} "
               f"{manifest['reporting_periods'][0]}..{manifest['latest_period']}")
         print(f"             {len(manifest['relations'])} relations, "
               f"{rows:,} rows, "

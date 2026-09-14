@@ -42,6 +42,7 @@ from typing import Any
 from backend.cockpit_v4 import display as disp
 from backend.cockpit_v4 import domains as dom
 from backend.cockpit_v4 import values as val_mod
+from backend.cockpit_v4 import schema as schema_mod
 
 TOP_N = 5
 
@@ -88,10 +89,54 @@ class Family:
     #: almost every case -- but a relation that does not carry EAD needs its
     #: own answer rather than a crash or a silent zero.
     size_expression: str = "SUM(ead_sar_mn)"
+    #: An extra WHERE this family needs, for a family that watches a subset
+    #: -- covenant breaches, say -- rather than the whole relation.
+    filter_expression: str = ""
+
+    @property
+    def period_column(self) -> str:
+        """The column this family's relation records its period in.
+
+        Read from the schema rather than assumed. The Corporate book reports
+        quarterly and the Retail book monthly, and a feed that hard-codes
+        `reporting_month` computes the Corporate dashboard from a column that
+        does not exist.
+        """
+        return schema_mod.period_column(
+            schema_mod.domain_of_relation(self.relation))
+
+
+#: What a period IS in each book, for the words a card writes.
+PERIOD_NOUNS: dict[str, str] = {dom.CORPORATE: "quarter",
+                                dom.RETAIL: "month"}
+
+
+def _period_keys(domain_id: str, reporting: str,
+                 comparison: str) -> dict[str, str]:
+    """The period fields a card carries.
+
+    `reporting_period` is the truth and `period_noun` says what kind of
+    period it is. The older `reporting_quarter` and `reporting_month` keys
+    are still served, but ONLY the one this book actually reports in: a card
+    that fills both says the Corporate book has months, and a reader who
+    indexes on the wrong one then gets a value that looks right.
+    """
+    noun = PERIOD_NOUNS[domain_id]
+    body = {
+        "reporting_period": reporting,
+        "comparison_period": comparison,
+        "period_noun": noun,
+        "comparison_basis": f"previous {noun}",
+        "reporting_quarter": "", "comparison_quarter": "",
+        "reporting_month": "", "comparison_month": "",
+    }
+    body[f"reporting_{noun}"] = reporting
+    body[f"comparison_{noun}"] = comparison
+    return body
 
 
 def _corporate_families() -> tuple[Family, ...]:
-    rel = "corp_facility_month"
+    rel = "corp_facility_quarter"
     return (
         Family("sector_stage2", "Stage 2 exposure", "sector", "Sector", rel,
                "stage2_share", "Stage 2 share of EAD", "share", "percent",
@@ -107,20 +152,65 @@ def _corporate_families() -> tuple[Family, ...]:
                "past_due_share", "Past-due share of EAD", "share", "percent",
                "SUM(CASE WHEN dpd_days > 0 THEN ead_sar_mn ELSE 0 END) "
                "/ NULLIF(SUM(ead_sar_mn), 0)", weight=1.10),
-        Family("type_stage2", "Stage 2 exposure", "facility_type",
-               "Facility type", rel,
+        Family("product_stage2", "Stage 2 exposure", "product_type",
+               "Product type", rel,
                "stage2_share", "Stage 2 share of EAD", "share", "percent",
                "SUM(CASE WHEN stage >= 2 THEN ead_sar_mn ELSE 0 END) "
                "/ NULLIF(SUM(ead_sar_mn), 0)", weight=0.95),
+        Family("product_ecl", "ECL", "product_type", "Product type", rel,
+               "ecl", "Recognised ECL", "amount", "SAR million",
+               "SUM(ecl_sar_mn)", weight=0.92),
         Family("region_ecl", "ECL", "region", "Region", rel,
                "ecl", "Recognised ECL", "amount", "SAR million",
                "SUM(ecl_sar_mn)", weight=0.90),
+        # §23: the book watches RATINGS before it watches stage, so the feed
+        # has to as well. A downgrade is the earliest thing a corporate
+        # credit officer acts on and it moves a quarter before the stage
+        # does.
+        Family("sector_downgrades", "Rating downgrades", "sector", "Sector",
+               "corp_borrower_quarter",
+               "downgrade_share", "Share of obligors downgraded this quarter",
+               "share", "percent",
+               "SUM(CASE WHEN rating_notches_moved < 0 THEN 1 ELSE 0 END) "
+               "* 1.0 / NULLIF(COUNT(*), 0)", weight=1.25,
+               size_expression="COUNT(*) * 1.0"),
+        Family("sector_watchlist", "Watch list", "sector", "Sector",
+               "corp_borrower_quarter",
+               "watchlist_share", "Share of obligors on the watch list",
+               "share", "percent",
+               "SUM(watchlist_flag) * 1.0 / NULLIF(COUNT(*), 0)",
+               weight=1.05, size_expression="COUNT(*) * 1.0"),
+        # §23: covenants. A breach is a contractual event, and a sector where
+        # they are accumulating is a sector where the documentation is about
+        # to become the conversation.
+        Family("sector_breaches", "Covenant breaches", "sector", "Sector",
+               "corp_covenant_quarter",
+               "breach_share", "Share of covenant tests breached", "share",
+               "percent",
+               "SUM(breach_flag) * 1.0 / NULLIF(COUNT(*), 0)", weight=1.20,
+               size_expression="COUNT(*) * 1.0"),
+        Family("covenant_breaches", "Covenant breaches", "covenant_type",
+               "Covenant type", "corp_covenant_quarter",
+               "breach_share", "Share of covenant tests breached", "share",
+               "percent",
+               "SUM(breach_flag) * 1.0 / NULLIF(COUNT(*), 0)", weight=1.00,
+               size_expression="COUNT(*) * 1.0"),
+        # §23: concentration. The largest obligor inside a segment, as a
+        # share of that segment -- so "this sector is really three names" is
+        # a finding the dashboard can make rather than one a reader has to
+        # go looking for.
+        Family("group_concentration", "Group concentration", "group_name",
+               "Parent group", "corp_borrower_quarter",
+               "group_share", "Share of the book's obligors in this group",
+               "share", "percent",
+               "COUNT(*) * 1.0 / NULLIF(SUM(COUNT(*)) OVER (), 0)",
+               weight=0.85, size_expression="COUNT(*) * 1.0"),
         # "Collateral cover rose" was the label, and it read as good news:
         # the measure is LOAN TO VALUE, so a rise is security falling behind
         # the exposure it stands against. A card whose headline says the
         # opposite of what its number means is worse than no card.
         Family("sector_ltv", "Loan to value", "collateral_type",
-               "Collateral type", "corp_collateral_month",
+               "Collateral type", "corp_collateral_quarter",
                "ltv", "Exposure as a share of pledged collateral value",
                "share", "percent",
                "SUM(ltv_pct) / NULLIF(COUNT(*) * 100.0, 0)", weight=1.00,
@@ -156,6 +246,24 @@ def _retail_families() -> tuple[Family, ...]:
         Family("segment_ecl", "ECL", "customer_segment", "Customer segment",
                rel, "ecl", "Recognised ECL", "amount", "SAR million",
                "SUM(ecl_sar_mn)", weight=0.95),
+        # §23: utilisation, which moves before delinquency does, and the
+        # behavioural score, which moves before either.
+        Family("product_utilisation", "Utilisation", "product", "Product",
+               rel, "utilisation", "Average utilisation", "share", "percent",
+               "SUM(utilisation_pct) / NULLIF(COUNT(*) * 100.0, 0)",
+               weight=1.05),
+        Family("product_score_decline", "Behavioural score deterioration",
+               "product", "Product", "retail_customer_month",
+               "deteriorated_share",
+               "Share of customers whose score deteriorated", "share",
+               "percent",
+               "SUM(CASE WHEN score_migration = 'DETERIORATED' THEN 1 "
+               "ELSE 0 END) * 1.0 / NULLIF(COUNT(*), 0)", weight=1.22,
+               size_expression="SUM(total_ead_sar_mn)"),
+        Family("region_delinquency", "Delinquency", "region", "Region", rel,
+               "dpd_share", "Share of EAD past due", "share", "percent",
+               "SUM(CASE WHEN dpd_days > 0 THEN ead_sar_mn ELSE 0 END) "
+               "/ NULLIF(SUM(ead_sar_mn), 0)", weight=1.00),
     )
 
 
@@ -169,7 +277,7 @@ SECTION_LABELS: dict[str, str] = {
     dom.RETAIL: "Retail portfolio requiring attention",
 }
 HIGHLIGHT_LABELS: dict[str, str] = {
-    dom.CORPORATE: "Latest-month ECL highlights",
+    dom.CORPORATE: "Latest-quarter ECL highlights",
     dom.RETAIL: "Latest-month retail ECL highlights",
 }
 
@@ -203,10 +311,10 @@ class Candidate:
 #: the word a reader uses for it. A retail segment has customers; a corporate
 #: one has borrowers; a collateral segment has facilities.
 COUNTERPARTY: dict[str, str] = {
-    "corp_facility_month": "borrower_id",
-    "corp_borrower_month": "borrower_id",
-    "corp_collateral_month": "facility_id",
-    "corp_covenant_month": "facility_id",
+    "corp_facility_quarter": "borrower_id",
+    "corp_borrower_quarter": "borrower_id",
+    "corp_collateral_quarter": "facility_id",
+    "corp_covenant_quarter": "facility_id",
     "retail_account_month": "customer_id",
     "retail_customer_month": "customer_id",
     "retail_behaviour_month": "customer_id",
@@ -225,8 +333,10 @@ FINER: dict[str, str] = {
     "sector": "sub_sector",
     "product": "",
     "region": "",
-    "facility_type": "",
+    "product_type": "",
     "collateral_type": "",
+    "covenant_type": "",
+    "group_name": "",
     "customer_segment": "",
     "score_band": "",
     "vintage_year": "",
@@ -249,7 +359,8 @@ def _measure(session, family: Family, month: str) -> dict[str, dict[str, float]]
                {family.size_expression} AS ead,
                {counted} AS counterparties
         FROM {family.relation}
-        WHERE reporting_month = '{month}'
+        WHERE {family.period_column} = '{month}'
+        {f"AND {family.filter_expression}" if family.filter_expression else ""}
         GROUP BY 1
     """)
     return {str(r["segment"]): {"value": float(r["value"] or 0.0),
@@ -494,11 +605,7 @@ def _item(candidate: Candidate, *, scope: dom.DomainScope,
         "segment_dimension_label": family.dimension_label,
         "metric": family.measure,
         "metric_label": family.measure_label,
-        "reporting_quarter": month,
-        "reporting_month": month,
-        "comparison_quarter": comparison,
-        "comparison_month": comparison,
-        "comparison_basis": "previous month",
+        **_period_keys(scope.domain_id, month, comparison),
         "what_changed": (f"{family.measure_label} was {shown_before} in "
                          f"{comparison} and is {shown_now} in {month}."),
         "why_it_appeared": (
@@ -586,9 +693,9 @@ def _drilldown(candidate: Candidate, scope: dom.DomainScope,
 #: by when they want to know WHO inside it moved. Read from the release's own
 #: relations, so a question offered here is a question the book can answer.
 _CROSS: dict[str, tuple[tuple[str, str], ...]] = {
-    dom.CORPORATE: (("facility_type", "facility type"),
+    dom.CORPORATE: (("product_type", "product type"),
                     ("region", "region"),
-                    ("relationship_tier", "relationship tier")),
+                    ("relationship_tier", "relationship segment")),
     dom.RETAIL: (("product", "product"), ("region", "region"),
                  ("customer_segment", "customer segment")),
 }
@@ -687,22 +794,23 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
                 comparison: str) -> list[dict[str, Any]]:
     """The latest month's ECL, said four ways a reader actually asks for."""
     domain_id = scope.domain_id
-    relation = ("corp_facility_month" if domain_id == dom.CORPORATE
+    relation = ("corp_facility_quarter" if domain_id == dom.CORPORATE
                 else "retail_account_month")
     dimension = "sector" if domain_id == dom.CORPORATE else "product"
+    period = schema_mod.period_column(domain_id)
     money = f"{scope.currency} {scope.amount_scale}"
 
     rows = _query(session, f"""
         SELECT CAST({dimension} AS VARCHAR) AS segment,
                SUM(ecl_sar_mn) AS ecl,
                SUM(ead_sar_mn) AS ead
-        FROM {relation} WHERE reporting_month = '{month}'
+        FROM {relation} WHERE {period} = '{month}'
         GROUP BY 1 ORDER BY 2 DESC
     """)
     prior = {r["segment"]: float(r["ecl"] or 0.0) for r in _query(session, f"""
         SELECT CAST({dimension} AS VARCHAR) AS segment,
                SUM(ecl_sar_mn) AS ecl
-        FROM {relation} WHERE reporting_month = '{comparison}'
+        FROM {relation} WHERE {period} = '{comparison}'
         GROUP BY 1
     """)}
     if not rows:
@@ -716,7 +824,7 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
     stage2 = _query(session, f"""
         SELECT SUM(CASE WHEN stage >= 2 THEN ead_sar_mn ELSE 0 END) AS s2,
                SUM(ead_sar_mn) AS ead
-        FROM {relation} WHERE reporting_month = '{month}'
+        FROM {relation} WHERE {period} = '{month}'
     """)[0]
 
     def card(key: str, headline: str, one_line: str, shown: str, *,
@@ -754,9 +862,7 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
                 else "Product" if segment else "Whole book"),
             "metric": f"ecl_{key}",
             "metric_label": measure,
-            "reporting_quarter": month, "reporting_month": month,
-            "comparison_quarter": comparison, "comparison_month": comparison,
-            "comparison_basis": "previous month",
+            **_period_keys(scope.domain_id, month, comparison),
             "what_changed": one_line,
             "why_it_appeared": (
                 f"{measure} is one of the four figures this book reports on "

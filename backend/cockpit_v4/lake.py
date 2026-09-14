@@ -52,7 +52,13 @@ COUNTRY = "SA"
 COUNTRY_NAME = "Saudi Arabia"
 CURRENCY = "SAR"
 AMOUNT_SCALE = "million"
-FREQUENCY = "monthly"
+#: The reporting frequency of the DEFAULT book, kept for the readers that
+#: still ask the lake for "the" frequency. Each domain's own frequency is
+#: `schema.frequency(domain_id)` and that is what a published manifest
+#: records: the Corporate book reports quarterly and the Retail book monthly,
+#: and one constant for both is how a quarterly book came to be described as
+#: monthly on every screen that read this.
+FREQUENCY = "quarterly"
 
 
 class ReleaseNotFound(LookupError):
@@ -178,7 +184,7 @@ def publish(build: Build, *, overwrite: bool = False,
         "geography_name": COUNTRY_NAME,
         "reporting_currency": CURRENCY,
         "amount_scale": AMOUNT_SCALE,
-        "reporting_frequency": FREQUENCY,
+        "reporting_frequency": schema_mod.frequency(domain_id),
         "reporting_periods": list(build.periods),
         "latest_period": build.periods[-1] if build.periods else "",
         "relations": [spec.to_dict()

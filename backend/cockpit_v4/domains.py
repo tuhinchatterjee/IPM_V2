@@ -41,13 +41,18 @@ SHORT_LABELS: dict[str, str] = {CORPORATE: "Corporate", RETAIL: "Retail"}
 #: The release each domain is published as. A domain outlives its releases;
 #: this names the one this build of CreditProbe is written against.
 DEFAULT_RELEASES: dict[str, str] = {
-    # v2 is the three-thousand-borrower book. v1 was ninety-seven names,
-    # which is a relationship team's page rather than a corporate portfolio:
-    # every sub-sector held one obligor, so a sector movement was one
-    # company's news and nothing measured against it was a measurement. v1
-    # stays published and readable; nothing points at it.
-    CORPORATE: "v4-saudi-corporate-20m-v2",
-    RETAIL: "v4-saudi-retail-20m-v1",
+    # QUARTERLY, and that is in the name.
+    #
+    # A corporate credit file is reviewed on the cycle its obligors report
+    # on: audited financials, rating actions, covenant tests and the IFRS 9
+    # stage that follows them all land quarterly. The `-20m-` corporate
+    # releases were monthly and invented twelve observations a year no
+    # credit committee ever saw; they stay published and readable, and
+    # nothing points at them.
+    CORPORATE: "v4-saudi-corporate-20q-v3",
+    # Monthly, because retail risk is behavioural and behaviour is a monthly
+    # signal.
+    RETAIL: "v4-saudi-retail-20m-v3",
 }
 
 #: Which book a question belongs to when nothing has said. Corporate, because

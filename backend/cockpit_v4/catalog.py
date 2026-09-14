@@ -50,17 +50,17 @@ MAX_CACHED_SESSIONS = 4
 #: and a timeout rather than an error anyone can read.
 JOINS: dict[str, list[dict[str, Any]]] = {
     dom.CORPORATE: [
-        {"left": "corp_facility_month", "right": "corp_borrower_month",
-         "on": ["borrower_id", "reporting_month"],
+        {"left": "corp_facility_quarter", "right": "corp_borrower_quarter",
+         "on": ["borrower_id", "reporting_quarter"],
          "cardinality": "many facility rows to one borrower row",
-         "note": "Every facility belongs to a borrower in the same month.",
+         "note": "Every facility belongs to a borrower in the same quarter.",
          "warning": ("A borrower's own figures -- revenue, EBITDA, debt, "
                      "leverage -- repeat once per facility after this join. "
                      "Aggregate the facility side first, or de-duplicate on "
                      "borrower_id, before summing anything from the borrower "
                      "side.")},
-        {"left": "corp_collateral_month", "right": "corp_facility_month",
-         "on": ["facility_id", "reporting_month"],
+        {"left": "corp_collateral_quarter", "right": "corp_facility_quarter",
+         "on": ["facility_id", "reporting_quarter"],
          "cardinality": "many collateral items to one facility",
          "note": "Security is held against a facility.",
          "warning": ("A facility with three pledged assets appears three "
@@ -68,8 +68,8 @@ JOINS: dict[str, list[dict[str, Any]]] = {
                      "same exposure once per asset. Sum the ALLOCATED "
                      "collateral value against a de-duplicated facility "
                      "total.")},
-        {"left": "corp_covenant_month", "right": "corp_facility_month",
-         "on": ["facility_id", "reporting_month"],
+        {"left": "corp_covenant_quarter", "right": "corp_facility_quarter",
+         "on": ["facility_id", "reporting_quarter"],
          "cardinality": "many covenant tests to one facility",
          "note": "A covenant tests a facility.",
          "warning": ("A facility with four covenant tests appears four "
@@ -112,10 +112,17 @@ class CrossDomainAccess(PermissionError):
 
 @dataclass(frozen=True)
 class Calendar:
-    """The release's own months. `slots` for the shape V4 already reads."""
+    """The release's own periods, and what kind of period they are.
+
+    `frequency` is REQUIRED to come from the release. It defaulted to one
+    module constant for both books, so a quarterly Corporate catalogue
+    described itself as monthly to every consumer that asked -- the analyst
+    instruction, the tool schemas, the attention feed and the export footer
+    among them.
+    """
 
     slots: tuple[str, ...]
-    frequency: str = lake.FREQUENCY
+    frequency: str
 
     @property
     def latest(self) -> str:
@@ -127,7 +134,14 @@ class Calendar:
 
     @property
     def year_ago(self) -> str:
-        return self.slots[-13] if len(self.slots) > 12 else ""
+        """The same period one year earlier, whatever a year is here."""
+        step = 4 if self.frequency == "quarterly" else 12
+        return (self.slots[-(step + 1)]
+                if len(self.slots) > step else "")
+
+    @property
+    def periods_per_year(self) -> int:
+        return 4 if self.frequency == "quarterly" else 12
 
     def last(self, count: int) -> tuple[str, ...]:
         return self.slots[-count:] if count > 0 else ()
@@ -287,9 +301,12 @@ def build(*, domain_id: str, release_id: str = "",
         domain_id=domain_id,
         dataset_release_id=release_id,
         release_fingerprint=str(manifest.get("release_fingerprint") or ""),
+        # The DOMAIN decides the frequency, and the manifest records what
+        # the release was actually built with. Falling back to a module
+        # constant is what let a quarterly book call itself monthly.
         calendar=Calendar(tuple(manifest.get("reporting_periods") or ()),
                           str(manifest.get("reporting_frequency")
-                              or lake.FREQUENCY)),
+                              or schema_mod.frequency(domain_id))),
         tenant_id=tenant_id,
         reporting_currency=str(manifest.get("reporting_currency")
                                or lake.CURRENCY),

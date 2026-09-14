@@ -73,10 +73,12 @@ def _points(value: float) -> str:
 #: Which relation carries the stage, the exposure and the loss, per book, and
 #: what one row of it IS.
 EXPOSURE_GRAIN: dict[str, dict[str, str]] = {
-    dom.CORPORATE: {"relation": "corp_facility_month", "key": "facility_id",
-                    "noun": "facility", "plural": "facilities"},
+    dom.CORPORATE: {"relation": "corp_facility_quarter", "key": "facility_id",
+                    "noun": "facility", "plural": "facilities",
+                    "period": "reporting_quarter", "period_noun": "quarter"},
     dom.RETAIL: {"relation": "retail_account_month", "key": "account_id",
-                 "noun": "account", "plural": "accounts"},
+                 "noun": "account", "plural": "accounts",
+                 "period": "reporting_month", "period_noun": "month"},
 }
 
 STAGES = (1, 2, 3)
@@ -140,6 +142,8 @@ class Decomposition:
             "domain_label": dom.LABELS[self.domain_id],
             "release_id": self.release_id,
             "release_fingerprint": self.release_fingerprint,
+            "reporting_period": self.reporting_month,
+            "comparison_period": self.comparison_month,
             "reporting_month": self.reporting_month,
             "comparison_month": self.comparison_month,
             "money_unit": self.money_unit,
@@ -240,6 +244,9 @@ def stage_profile(*, session: Any, scope: Any, month: str = "",
         "domain_label": dom.LABELS[scope.domain_id],
         "release_id": scope.release_id,
         "release_fingerprint": scope.release_fingerprint,
+        "reporting_period": month,
+        "comparison_period": comparison,
+        "period_noun": grain["period_noun"],
         "reporting_month": month,
         "comparison_month": comparison,
         "money_unit": unit,
@@ -274,7 +281,7 @@ def _stage_rows(session: Any, grain: dict[str, str],
                SUM(ecl_sar_mn) AS ecl,
                COUNT(*) AS n
         FROM {grain['relation']}
-        WHERE reporting_month = '{month}'
+        WHERE {grain["period"]} = '{month}'
         GROUP BY stage
     """)
     return {int(r["stage"]): {"ead": float(r["ead"] or 0.0),
@@ -296,14 +303,15 @@ def decompose(*, session: Any, scope: Any, month: str = "",
     month = month or scope.latest_period
     comparison = comparison or scope.previous_period
     key, relation = grain["key"], grain["relation"]
+    period = grain["period"]
 
     rows = _rows(session, f"""
         WITH now AS (
             SELECT {key} AS id, stage, ead_sar_mn AS ead, ecl_sar_mn AS ecl
-            FROM {relation} WHERE reporting_month = '{month}'),
+            FROM {relation} WHERE {period} = '{month}'),
         before AS (
             SELECT {key} AS id, stage, ead_sar_mn AS ead, ecl_sar_mn AS ecl
-            FROM {relation} WHERE reporting_month = '{comparison}')
+            FROM {relation} WHERE {period} = '{comparison}')
         SELECT
             CASE
                 WHEN before.id IS NULL THEN 'new'
@@ -373,14 +381,15 @@ def decompose(*, session: Any, scope: Any, month: str = "",
         release_fingerprint=scope.release_fingerprint,
         reporting_month=month, comparison_month=comparison,
         money_unit=scope.money_unit,
-        opening=_total_ecl(session, relation, comparison),
-        closing=_total_ecl(session, relation, month),
+        opening=_total_ecl(session, relation, comparison, period),
+        closing=_total_ecl(session, relation, month, period),
         components=components)
 
 
-def _total_ecl(session: Any, relation: str, month: str) -> float:
+def _total_ecl(session: Any, relation: str, month: str,
+               period: str = "reporting_month") -> float:
     rows = _rows(session, f"SELECT SUM(ecl_sar_mn) AS ecl FROM {relation} "
-                          f"WHERE reporting_month = '{month}'")
+                          f"WHERE {period} = '{month}'")
     return float(rows[0]["ecl"] or 0.0) if rows else 0.0
 
 
