@@ -355,3 +355,100 @@ empty string: a valid-looking fingerprint that identifies no release and
 matches every other book's header. Both books were stamping it on every
 published answer and every export. It reads the digest the release recorded
 when it was published.
+
+## 24. The test matrix
+
+| Layer | Result |
+| --- | --- |
+| Python, `tests/cockpit_v4` | **1,638 passed, 2 skipped**, of 1,640 collected |
+| Frontend, `npm test` | **513 passed**, 39 suites, 0 failed |
+| Browser, real Chromium against the real UI | see `docs/cockpit_v4/evidence/browser.json` |
+| Flake matrix, 13 flows × 5 runs | see `docs/cockpit_v4/evidence/flake_matrix.json` |
+
+The two skips are the pre-domain release cases, which require a release this
+runtime does not publish and say so rather than passing vacuously.
+
+New files this round:
+
+| File | Tests | What it holds shut |
+| --- | --- | --- |
+| `test_provider_payload_isolation.py` | 24 | no quarterly vocabulary, no legacy release id, in the bytes a paid call would carry |
+| `test_investigation_routing.py` | 7 | every card of every family, both books, through to the run's own book |
+| `test_budget_envelope.py` | 37 | the allowance ladder, and which family a turn starts in |
+| `test_value_resolution.py` | 85 | one category, however the reader spells it |
+| `test_release_scale.py` | 24 | the shape of both published books, and their speed |
+| `test_opening_questions.py` | 17 | five schema-aware questions, on every card and every empty thread |
+| `test_money_and_period_format.py` | 15 | one figure and one period, on every surface including the export |
+| `test_live_uat_replay.py` | 13 | the four Mac failures, as the reader performed them |
+| `follow-ups.test.ts` | 11 | which set of chips is shown, and when |
+
+## 25. Each new regression fails on the old code
+
+A regression that passes before the fix is a regression that tests nothing.
+Each fix was reverted in isolation and the suite re-run:
+
+| Revert | Tests that fail |
+| --- | --- |
+| `release_id=scope.release_id` → `body.release_id or cfg.release_id` | **5** — both books' seeded-thread routing, and replays 1, 2 and 4 |
+| the per-book tool-schema vocabulary | **2** — the worked example in every tool, both books |
+| `envelope.for_request`, in the route and the worker | **9** — the deep clock, and replays 1, 2, 3 and 4 |
+| the value index in `context.build` | **5** — the payload carries no `value_resolution`, and replay 4 |
+| the header's `reporting_frequency` read | **2** — both books publish "quarterly" again |
+
+Twenty-three distinct failures across the five reverts, every one of them a
+test written this round. Each revert was applied alone and undone before the
+next.
+
+## 26. What is deliberately NOT in this round
+
+- **Retail was not rebuilt.** §22 asks for at least 3,000 customers and
+  prefers keeping at least 9,000. It has 9,000 and 12,000 accounts.
+  Republishing a release that already meets the requirement would break every
+  saved analysis that names it, for no gain.
+- **`attention.py` still speaks in quarters.** It is the pre-domain engine and
+  serves `/attention-legacy` against a quarterly release. Saying "quarter"
+  about a quarterly book is accurate; renaming it would be the lie.
+- **A single containment is left alone.** "personal" is a whole token of
+  exactly one Retail product, and the resolver does not take it: guessing
+  which word the reader omitted is still guessing. Two or more candidates
+  produce a named question; one produces nothing, and schema resolution
+  handles it.
+
+## 27. What a Mac retest should exercise first
+
+1. A NEW Corporate thread: "What is total ECL by sector for the latest
+   month?" — the answer must name `2026-08`, never a quarter, and never the
+   legacy release.
+2. A Retail Credit Card ECL card → Investigate Further → "Show me the
+   customers behind this." The thread must stay in Retail.
+3. In that thread: "How is risk building in Information Technology?" —
+   Corporate side — must run on the 120-second allowance, visible in the
+   process panel as "Allowance: 120s, $1.50" from the first second.
+4. "and within prject finance?" — one resolution, recorded as an assumption,
+   and no catalogue hunting.
+5. "and within finance?" — must ASK, naming Asset, Project and Trade Finance.
+6. Any answer → Export. The document must name the month and carry the
+   release's real fingerprint.
+
+## 28. What this round still cannot prove
+
+Every regression here is about what CreditProbe sends, opens, starts and
+resolves. None of them is about what Opus replies, because no paid call was
+made from this environment. The four failures were all in CreditProbe's half
+and all four are now held shut by tests that drive the real path — but
+"the analyst reads its instruction correctly" is a claim only a live Mac run
+can make, which is why this verdict is READY FOR MAC RETEST and not READY.
+
+## 29. Commits
+
+| | |
+| --- | --- |
+| `4e1f674` | the four live defects, and a corporate book worth measuring against |
+| `76ed3e6` | what to ask next, what a figure looks like, and which month it is |
+
+Branch `claude/cockpit-single-agent-v4-h8fsbq`, pushed. Not merged.
+
+## 30. The verdict
+
+**COCKPIT V4 LIVE-UAT HARDENING:
+READY FOR MAC RETEST**

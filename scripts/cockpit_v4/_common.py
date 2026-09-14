@@ -360,9 +360,37 @@ def table(rows: list[tuple[str, str]], *, width: int = 30) -> None:
         print(f"  {label.ljust(width)} {value}")
 
 
+def warm_routes(base_url: str, paths: tuple[str, ...],
+                timeout_seconds: float = 240.0) -> list[str]:
+    """Make the dev server compile these routes before anything is timed.
+
+    `next dev` compiles a route on its FIRST request. The readiness check
+    warms `/` and nothing else, so the first navigation to the transcript
+    page paid for compiling it -- and a browser assertion waiting sixty
+    seconds for an answer that had not started rendering reported a product
+    defect that was a cold bundler.
+
+    Best effort by design: a route that will not warm is reported and the
+    caller carries on, because failing to pre-compile a page is not a reason
+    to refuse to test it.
+    """
+    notes: list[str] = []
+    for path in paths:
+        started = time.time()
+        status, _body, error = _fetch(f"{base_url.rstrip('/')}{path}",
+                                      timeout=timeout_seconds)
+        took = time.time() - started
+        if status == 0:
+            notes.append(f"{path} did not warm: {error}")
+        else:
+            notes.append(f"{path} compiled in {took:.1f}s (HTTP {status})")
+    return notes
+
+
 __all__ = ["Owned", "ROOT", "UI_IDENTITY_MARKERS", "bad", "check_ui_page",
            "describe_port", "forget", "heading", "ok", "paint",
            "pick_port", "port_free", "process_command", "process_cwd",
            "process_start_time", "read_json_url", "record", "records",
            "still_ours", "table", "wait_for_health",
-           "wait_for_json_health", "wait_for_ui_ready", "warn"]
+           "wait_for_json_health", "wait_for_ui_ready", "warm_routes",
+           "warn"]

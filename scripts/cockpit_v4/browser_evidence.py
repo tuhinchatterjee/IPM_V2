@@ -25,7 +25,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from scripts.cockpit_v4._common import (  # noqa: E402
-    bad, heading, ok, pick_port, wait_for_json_health, wait_for_ui_ready, warn)
+    bad, heading, ok, pick_port, wait_for_json_health, wait_for_ui_ready,
+    warm_routes, warn)
 from scripts.cockpit_v4.start import ui_environment  # noqa: E402
 
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
@@ -99,6 +100,13 @@ def main() -> int:
             print(bad(f"the UI did not become ready: {detail}"))
             print((logs / "ui.log").read_text()[-3000:])
             return 1
+        # Compile every route the suite navigates to BEFORE anything is
+        # timed. A sixty-second assertion waiting for an answer on a page the
+        # bundler has not built yet reports a product defect that is a cold
+        # dev server.
+        for note in warm_routes(f"http://127.0.0.1:{ui_port}",
+                                ("/cockpit/thread/warmup", "/cockpit/data")):
+            print(f"  warmed {note}")
         print(ok(f"UI on http://127.0.0.1:{ui_port} ({detail})"))
         print(f"  NEXT_PUBLIC_COCKPIT_V4_API="
               f"{ui_env['NEXT_PUBLIC_COCKPIT_V4_API']}")
