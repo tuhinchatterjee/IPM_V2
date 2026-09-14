@@ -328,3 +328,111 @@ Stated so the next reader does not have to infer it from silence.
 | 29 | 20 follow-up chains (4–6 turns) + 20 attention chains | ✅ |
 | 30 | Every recorded Mac failure has a replay fixture | ✅ 7 of 7 |
 
+
+---
+
+## 12. Retesting on the Mac
+
+The Corporate book changed release. A Mac that ran the previous round has
+`v4-saudi-corporate-20m-v2` on disk and nothing that points at the new one,
+so the seed step below is not optional: without it the Cockpit opens, reports
+the Corporate book unavailable by name, and refuses rather than substituting.
+
+Run these in order, from the repository root.
+
+**1. Stop whatever is running.**
+
+```
+python3 scripts/cockpit_v4/stop.py
+```
+
+Or double-click `scripts/cockpit_v4/STOP_COCKPIT_V4.command`. It stops only
+Cockpit V4; nothing else on the Mac is touched.
+
+**2. Pull this branch.**
+
+```
+git fetch origin claude/cockpit-single-agent-v4-h8fsbq
+git checkout claude/cockpit-single-agent-v4-h8fsbq
+git pull --ff-only origin claude/cockpit-single-agent-v4-h8fsbq
+```
+
+**3. Build and publish the two releases.**
+
+```
+COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 \
+  python3 scripts/cockpit_v4/seed_domains.py --domain all
+```
+
+About a minute on a Mac that has neither release. It prints each book, the
+number of periods in that book's own noun — "20 quarters" for Corporate,
+"20 months" for Retail — and the fingerprint it published under.
+
+It REFUSES to overwrite a release that already exists, so running it twice is
+safe. A Mac that already has both prints this and writes nothing:
+
+```
+  corporate  v4-saudi-corporate-20q-v3  already exists -- immutable, nothing written
+  retail     v4-saudi-retail-20m-v3  already exists -- immutable, nothing written
+```
+
+**4. Check what was published, without building anything.**
+
+```
+COCKPIT_AGENTIC_V3_NAMESPACE=cockpit_v4 \
+  python3 scripts/cockpit_v4/seed_domains.py --verify
+```
+
+Expect exactly:
+
+```
+  corporate  v4-saudi-corporate-20q-v3  verified  46962675d801ed4e
+  retail     v4-saudi-retail-20m-v3  verified  95fa5d3e2c6b979b
+```
+
+"verified" means the bytes on disk still hash to the fingerprint the release
+was published under. The two fingerprints above are the ones this branch
+built; a Mac that rebuilds from the same source gets the same two, because
+the generators are deterministic.
+
+If a fingerprint does not match, stop there and say so: a release whose bytes
+moved under its own name is the one thing nothing downstream can detect.
+
+**5. Start.**
+
+```
+python3 scripts/cockpit_v4/start.py
+```
+
+Or double-click `scripts/cockpit_v4/START_COCKPIT_V4.command`. It prints the
+UI and API ports it chose and the release each book opened.
+
+**6. Check it is up.**
+
+```
+python3 scripts/cockpit_v4/status.py
+```
+
+### What to look at first
+
+1. **The home page.** The heading over the Corporate dashboard reads
+   "Reporting quarter Q2 2026", and over the Retail one "Reporting month
+   Aug 2026". Neither says the other's word.
+2. **Switch the book.** The cards change entirely — no card appears on both
+   pages — and the ECL panel's cover line changes with it.
+3. **Click a card, then Investigate Further.** The thread opens on three to
+   five questions written in that book's calendar. Click one: it should
+   answer without a "reading data definitions" step.
+4. **Ask "and within project finance?" in a Corporate thread.** It filters on
+   `product_type`, declares the mapping, and does not ask a clarifying
+   question. Misspell it — "prject finance" — and it still does.
+5. **Ask the same phrase in a Retail thread.** The book has no project
+   finance, and the answer should say so rather than offering Personal
+   Finance.
+6. **Open Data Builder from the sidebar.** Both books are at the top of the
+   page with their calendars, entity counts, subject areas and fingerprints.
+   Open a relation: every column has a label, an identifier, a meaning, and —
+   where it is a category — the values it may hold.
+7. **Watch the process panel on a live question.** At 0s it is empty. Rows
+   appear as stages start, and a stage that is finished says how long it took
+   rather than "not started".

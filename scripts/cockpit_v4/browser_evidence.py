@@ -32,18 +32,74 @@ from scripts.cockpit_v4.start import ui_environment  # noqa: E402
 CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 
 
-def stop(process: subprocess.Popen | None, name: str) -> None:
-    if process is None or process.poll() is not None:
+def stop(process: subprocess.Popen | None, name: str, *,
+         pid: int = 0) -> None:
+    """Stop a process this script started, or one identified by pid."""
+    if process is not None:
+        if process.poll() is not None:
+            return
+        pid = process.pid
+    if not pid:
         return
     try:
-        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-        process.wait(timeout=10)
+        os.killpg(os.getpgid(pid), signal.SIGTERM)
+        if process is not None:
+            process.wait(timeout=10)
+        else:
+            _wait_gone(pid, seconds=10)
     except Exception:  # noqa: BLE001
         try:
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
         except Exception:  # noqa: BLE001
             pass
     print(f"  stopped {name}")
+
+
+def _wait_gone(pid: int, *, seconds: float) -> None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return
+        time.sleep(0.2)
+
+
+def stale_next_dev(frontend: Path) -> int:
+    """The pid of a `next dev` already running in this working tree, or 0.
+
+    Next holds its own lock rather than only the port, so a dev server
+    orphaned by an interrupted run makes the NEXT one exit with "Another
+    next dev server is already running" while `pick_port` still reports the
+    port free. The suite then reports a product failure that is a leftover
+    process.
+
+    Identified by working directory, not by name: a `next dev` whose cwd is
+    this repository's frontend has no owner but us.
+    """
+    try:
+        listing = subprocess.run(
+            ["ps", "-eo", "pid,args"], capture_output=True, text=True,
+            check=False).stdout
+    except Exception:  # noqa: BLE001
+        return 0
+    mine = os.getpid()
+    for line in listing.splitlines()[1:]:
+        pid_text, _, command = line.strip().partition(" ")
+        if not pid_text.isdigit():
+            continue
+        pid = int(pid_text)
+        if pid == mine or "next" not in command:
+            continue
+        if "dev" not in command:
+            continue
+        try:
+            cwd = os.readlink(f"/proc/{pid}/cwd")
+        except OSError:
+            continue
+        if Path(cwd) == frontend.resolve():
+            return pid
+    return 0
 
 
 def main() -> int:
@@ -92,13 +148,40 @@ def main() -> int:
         # Exactly the environment the launcher gives the real UI process.
         ui_env = ui_environment({**os.environ}, api_port=api_port,
                                 ui_port=ui_port)
-        ui_proc = subprocess.Popen(
-            ["npm", "run", "dev", "--", "--port", str(ui_port),
-             "--hostname", "127.0.0.1"],
-            cwd=str(ROOT / "frontend"), env=ui_env,
-            stdout=ui_log, stderr=subprocess.STDOUT, start_new_session=True)
+        def start_ui():
+            return subprocess.Popen(
+                ["npm", "run", "dev", "--", "--port", str(ui_port),
+                 "--hostname", "127.0.0.1"],
+                cwd=str(ROOT / "frontend"), env=ui_env,
+                stdout=ui_log, stderr=subprocess.STDOUT,
+                start_new_session=True)
+
+        ui_proc = start_ui()
         ready, detail = wait_for_ui_ready(f"http://127.0.0.1:{ui_port}/",
                                           timeout_seconds=240)
+        if not ready:
+            # A `next dev` ORPHANED by an earlier run that was interrupted.
+            #
+            # Next refuses to start on its own lockfile rather than on the
+            # port, so `pick_port` sees the port as free, hands it over, and
+            # the new server exits with "Another next dev server is already
+            # running". The suite then reports a product failure that is a
+            # leftover process -- which is exactly how a previous round spent
+            # a day analysing a release no thread reads any more.
+            #
+            # A `next dev` running in THIS working tree has no owner but us:
+            # nothing else in this container runs one here. So it is stopped
+            # by name and the UI is started once more.
+            stale = stale_next_dev(ROOT / "frontend")
+            if stale:
+                print(warn(f"a leftover next dev (pid {stale}) held this "
+                           f"working tree; stopping it and retrying once"))
+                stop(None, "leftover next dev", pid=stale)
+                ui_log.close()
+                ui_log = (logs / "ui.log").open("w", encoding="utf-8")
+                ui_proc = start_ui()
+                ready, detail = wait_for_ui_ready(
+                    f"http://127.0.0.1:{ui_port}/", timeout_seconds=240)
         if not ready:
             print(bad(f"the UI did not become ready: {detail}"))
             print((logs / "ui.log").read_text()[-3000:])
