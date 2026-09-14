@@ -89,15 +89,28 @@ also what keeps the score off its ceiling: without it, twenty-one facilities
 landed on exactly 100 with no ordering between them, which is the failure the
 noisy-OR roll-up was written to avoid in the first place.
 
-Effect on the book, v2 → v3, measured over the same facilities and months:
+Effect on the book, v2 → v3, measured over the same facilities. Two months
+are quoted and they are not interchangeable: the workspace's latest month is
+2026-08, and the Model Log's comparison is measured at 2026-05 because that is
+the newest month with a full three-month outcome window behind it.
+
+At **2026-08**, 19,722 facilities:
 
 | | |
 |---|---|
-| Facilities whose score moves | 4,877 of 19,722 at the latest month |
+| Facilities whose score moves | 4,877 |
+| Moved up / down | 4,054 / 823 |
+| Mean score change | +0.1883 |
+| Facilities crossing the warning cutoff | 27 |
+| Facilities at the ceiling | 0, under either version |
+
+At **2026-05**, 19,090 observations — the population the Model Log compares:
+
+| | |
+|---|---|
+| Severity band changes | 112 (0.59%), 0.27% of exposure |
 | Moved up / down | 3,930 / 832 |
 | Mean score change | +0.2163 |
-| Severity band changes | 112 of 19,090 (0.59%), 0.27% of exposure |
-| Facilities crossing the warning cutoff | 27 |
 
 Every row records the weights it was scored at: `bureau_weight_base`,
 `bureau_weight_effective`, `bureau_weight_released`, `effective_weight_<layer>`
