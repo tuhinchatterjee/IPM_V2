@@ -499,6 +499,13 @@ def _held(key: tuple[Any, ...], make: Any) -> dict[str, Any]:
 
     Copied because the answer leaves this module and a caller that edited one
     in place would edit everybody's.
+
+    Every caller keys on the RESOLVED month. Keyed on the month as asked for,
+    "" and "2026-08" are two entries for one answer: the warm-up asks for the
+    default and the screen asks for the month it resolved to, so start-up
+    computed every level twice over and a reader arriving in the first seconds
+    waited for the second computation anyway. `_at` maps both onto the month
+    actually read.
     """
     import copy
 
@@ -526,7 +533,7 @@ def warm() -> None:
 
 def portfolio(month: str = "") -> dict[str, Any]:
     """Total retail: the headline, and one card per product."""
-    return _held(("portfolio", month), lambda: _portfolio(month))
+    return _held(("portfolio", _at(month)), lambda: _portfolio(month))
 
 
 def _portfolio(month: str = "") -> dict[str, Any]:
@@ -625,7 +632,7 @@ def _product_card(code: str, at: str, frame: Any, before: Any,
 
 def product(code: str, month: str = "") -> dict[str, Any]:
     """One product: its own headline, and a card per sub-product."""
-    return _held(("product", str(code).upper(), month),
+    return _held(("product", str(code).upper(), _at(month)),
                  lambda: _product(code, month))
 
 
@@ -806,7 +813,7 @@ def _cohort(people: Any, cohort: str) -> Any:
 def classification(product_code: str, code: str, month: str = "") -> dict[str, Any]:
     """One classification inside one product, and the sub-products under it."""
     return _held(("classification", str(product_code).upper(),
-                  str(code).upper(), month),
+                  str(code).upper(), _at(month)),
                  lambda: _classification(product_code, code, month))
 
 
