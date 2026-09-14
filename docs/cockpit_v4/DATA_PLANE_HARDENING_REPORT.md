@@ -557,6 +557,19 @@ one this round added: `/data-builder`, the route the Mac reader opened, as
 distinct from `/cockpit/data`, which is a different page. A screenshot of the
 right page proving the wrong one works is not evidence.
 
+### The V4 suite
+
+```
+tests/cockpit_v4
+2246 passed, 4 skipped, 1 warning in 619.76s
+```
+
+Zero failures. The previous sweep had two, and neither was rerun until it
+went green: one was the leaked write lock in §9, which now has twelve tests
+behind it, and the other was a new module that declared no evidence label —
+caught by the suite's own labelling test, which exists so that a reader can
+tell what a passing result establishes.
+
 ### V3 regression
 
 §58: do not change V3, and run its regression at the end with zero new
