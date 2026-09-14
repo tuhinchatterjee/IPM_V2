@@ -494,9 +494,46 @@ def phrases(question: str, *, index: dict[str, Dimension],
                     # correction: "auto" is an alias and "aut" is a mistake
                     # nobody can be sure about.
                     continue
+                if isinstance(outcome, Ambiguity) and _dropped_a_word(
+                        words, start, size, index):
+                    # The reader wrote MORE than this window, the longer
+                    # phrase matched nothing, and this window is ambiguous
+                    # only because a word was dropped.
+                    #
+                    # "and within project finance?" asked of the Retail book
+                    # resolved `finance` and asked "did you mean Auto Finance
+                    # or Personal Finance?" -- a question about something the
+                    # reader did not say, built by discarding the word that
+                    # made their phrase unambiguous. The Retail book has no
+                    # project finance, and saying so is the honest answer.
+                    continue
                 found.append(outcome)
                 taken |= span
     return found
+
+
+def _dropped_a_word(words: list[str], start: int, size: int,
+                    index: dict[str, Dimension]) -> bool:
+    """Whether this window is ambiguous only because a neighbour was cut.
+
+    True when the reader wrote an adjacent non-filler word that this window
+    excludes, and the longer phrase including it matches nothing at all. The
+    longer phrase is what they said; that it matches nothing is a fact about
+    this book, not an ambiguity in their wording.
+    """
+    for left, right in ((start - 1, start + size), (start, start + size + 1)):
+        if left < 0 or right > len(words):
+            continue
+        if right - left <= size:
+            continue
+        wider = words[left:right]
+        if _trim(wider) != wider:
+            continue
+        if all(word in STOPWORDS for word in wider):
+            continue
+        if resolve(" ".join(wider), index=index) is None:
+            return True
+    return False
 
 
 def block(index: dict[str, Dimension]) -> dict[str, Any]:

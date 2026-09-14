@@ -377,6 +377,10 @@ def _accepted(record: Any, *, created: bool) -> JSONResponse:
     return JSONResponse(status_code=202, content={
         "run_id": record.run_id, "thread_id": record.thread_id,
         "state": record.state, "mode": record.mode,
+        # §17, §18. Which book this run was ACCEPTED against, echoed back so
+        # the caller can see the thread's own domain won rather than the one
+        # it may have asked for.
+        "domain_id": record.domain_id,
         "release_id": record.release_id, "duplicate": not created,
         "status_url": f"{router.prefix}/runs/{record.run_id}",
         "events_url": f"{router.prefix}/runs/{record.run_id}/events",
@@ -933,13 +937,26 @@ async def ecl_panel(domain: str = Query(""), refresh: bool = Query(False),
                                   "message": str(exc)}) from exc
     scope, session, tenant = _domain_book(who, domain_id)
     try:
-        return ecl_mod.cached(session=session, scope=scope,
+        body = ecl_mod.cached(session=session, scope=scope,
                               tenant_id=tenant, refresh=refresh)
     except ecl_mod.EclUnavailable as exc:
         raise HTTPException(503, {
             "error_code": st.DATA_UNAVAILABLE, "message": str(exc),
             "component": f"{domain_id}_ecl_panel",
             "domain_id": domain_id}) from exc
+    # §17. Every surface that serves a book NAMES the book, at its top level
+    # and not only inside a nested panel. A caller that has to reach into
+    # `profile.domain_id` to find out which release it is looking at is a
+    # caller that will eventually not bother.
+    return {
+        "domain_id": scope.domain_id,
+        "domain_label": scope.label,
+        "release_id": scope.release_id,
+        "release_fingerprint": scope.release_fingerprint,
+        "reporting_frequency": scope.reporting_frequency,
+        "period_noun": scope.period_noun,
+        **body,
+    }
 
 
 def _feed(who: dict[str, Any], *, refresh: bool = False) -> dict[str, Any]:
