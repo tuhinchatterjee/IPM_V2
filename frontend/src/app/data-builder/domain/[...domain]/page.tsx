@@ -60,6 +60,13 @@ export default function DomainPage({
 
   const owned = datasets.data?.datasets ?? [];
   const catalogued = (catalog.data?.datasets ?? []).filter((d) => d.domain === domain);
+  // A dataset that is BOTH registered here and in the bundled catalogue is
+  // one dataset. The table already knew that and listed it once; the tab
+  // count added the two lists and said six above a list of three. Registering
+  // the Early Warning domain made every one of its datasets both, which is
+  // how a latent off-by-a-whole-list became visible.
+  const distinct = owned.length
+    + catalogued.filter((c) => !owned.some((o) => o.name === c.name)).length;
 
   // Full detail for each onboarded dataset — needed by the dictionary, quality
   // and versions tabs. Keyed on the dataset names so it refetches when the list
@@ -158,7 +165,7 @@ export default function DomainPage({
         onChange={setTab}
         tabs={[
           { id: "overview", label: "Overview" },
-          { id: "datasets", label: "Datasets", count: owned.length + catalogued.length },
+          { id: "datasets", label: "Datasets", count: distinct },
           { id: "dictionary", label: "Dictionary", count: dictionaryRows.length },
           { id: "relationships", label: "Relationships", count: domainRelationships.length },
           { id: "quality", label: "Quality" },
