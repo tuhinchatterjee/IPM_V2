@@ -127,13 +127,36 @@ def _digest(body: StartRun, who: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-@router.post("/threads")
-async def create_thread(who: dict[str, Any] = Depends(principal)
+class CreateThread(BaseModel):
+    """Which book the conversation is being opened in."""
+
+    domain: str | None = None
+
+
+@router.post("/threads", status_code=201)
+async def create_thread(body: CreateThread | None = None,
+                        who: dict[str, Any] = Depends(principal)
                         ) -> dict[str, Any]:
-    """A server-generated conversation id. Never a shared global constant."""
-    thread_id = _store().create_thread(tenant_id=str(who.get("tenant") or ""),
-                                       principal_id=str(who.get("id") or ""))
-    return {"thread_id": thread_id}
+    """A server-generated conversation id. Never a shared global constant.
+
+    The BOOK is stamped here, not inferred later. It used to be left unset,
+    so a thread opened from the Retail home page was a Corporate thread until
+    the first run happened to resolve a scope for it -- and the questions it
+    opened on were the Corporate book's, offered to a reader looking at
+    Retail. A thread is in one book from the moment it exists.
+    """
+    from backend.cockpit_v4 import domain_resolver as resolver
+    from backend.cockpit_v4 import domains as dom_mod
+
+    scope = resolver.scope_for(
+        dom_mod.parse((body.domain if body else None)))
+    thread_id = _store().create_thread(
+        tenant_id=str(who.get("tenant") or ""),
+        principal_id=str(who.get("id") or ""),
+        domain_id=scope.domain_id, release_id=scope.release_id,
+        release_fingerprint=scope.release_fingerprint)
+    return {"thread_id": thread_id, "domain_id": scope.domain_id,
+            "release_id": scope.release_id}
 
 
 @router.post("/runs", status_code=202)
@@ -588,7 +611,9 @@ async def export_analysis(run_id: str,
     record, answer = _export_context(run_id, who)
     artifacts = _run_artifacts(record, answer)
     rows = sum(len(a.get("rows") or []) for a in artifacts.values())
-    lineage = export_mod.lineage_for(record=record, row_count=rows)
+    lineage = export_mod.lineage_for(record=record, row_count=rows,
+                                     answer=answer, artifacts=artifacts,
+                                     header=_release_header_for(record))
     lineage = export_mod.Lineage(
         **{**lineage.__dict__,
            "artifact_ids": tuple(sorted(artifacts)),
@@ -634,7 +659,8 @@ async def export_table(run_id: str, artifact_id: str,
         body_rows = body_rows[:shown]
     payload = dict(stored, rows=body_rows)
     lineage = export_mod.lineage_for(
-        record=record, artifact=stored, row_scope=rows,
+        record=record, artifact=stored, row_scope=rows, answer=answer,
+        header=_release_header_for(record),
         row_count=len(body_rows), total_rows=total,
         complete=len(body_rows) >= total)
     try:
@@ -665,7 +691,8 @@ async def export_chart(run_id: str, index: int,
     chart = charts[index]
     stored = artifacts.get(str(chart.get("artifact_id") or ""))
     lineage = export_mod.lineage_for(
-        record=record, artifact=stored,
+        record=record, artifact=stored, answer=answer,
+        header=_release_header_for(record),
         row_count=len(chart.get("points") or []))
     try:
         body = export_mod.chart_svg(chart=chart, lineage=lineage)
@@ -1144,6 +1171,27 @@ def _latest_month(domain_id: str) -> str:
         return str(populated[-1]) if populated else ""
     except Exception:  # noqa: BLE001 - an unopenable book offers no period
         return ""
+
+
+def _release_header_for(record: Any):
+    """The header of the book THIS RUN was accepted in.
+
+    Not the runtime's configured release: an export is a record of one
+    analysis, and stamping it with whichever release the process happens to
+    be pointed at is how a Retail document ends up naming the Corporate book.
+    Returns None rather than a wrong header when the book cannot be opened.
+    """
+    from backend.cockpit_v4 import analytical_runtime as arun_mod
+    from backend.cockpit_v4 import release as release_mod
+
+    try:
+        runtime = arun_mod.for_run(record, store=_store())
+        return release_mod.header(
+            release_id=runtime.release_id, catalog=runtime.catalog,
+            release_summary=runtime.release_summary(),
+            tenant_id=str(getattr(record, "tenant_id", "")))
+    except Exception:  # noqa: BLE001 - an unopenable book stamps nothing
+        return None
 
 
 def _release_header() -> dict[str, Any]:

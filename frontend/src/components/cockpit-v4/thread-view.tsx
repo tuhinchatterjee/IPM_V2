@@ -57,6 +57,7 @@ import {
   type ThreadTranscript,
   type ThreadTurn,
 } from "./client";
+import { chipsToShow } from "./follow-ups";
 import { AnswerActions } from "./answer-actions";
 import { ProcessPanel } from "./process-panel";
 import { initial, reduce, type RunView } from "./reducer";
@@ -260,34 +261,6 @@ function SeedCard({
       ) : null}
     </section>
   );
-}
-
-/**
- * What to offer when an answer offered nothing.
- *
- * §32. A validated answer may legitimately carry no suggestions -- the
- * analyst is not required to invent them, and validation drops any that name
- * a field the release does not hold. The reader then reached the end of a
- * good answer and had nowhere to go, which is the state the strip exists to
- * prevent. These are deterministic, book-specific, and cost no model call.
- */
-const FALLBACK_FOLLOW_UPS: Record<string, string[]> = {
-  corporate: [
-    "Break this down by sector.",
-    "Which borrowers drove this?",
-    "How has this moved over the last twelve months?",
-    "Show the same figure by facility type.",
-  ],
-  retail: [
-    "Break this down by product.",
-    "Which customer segments drove this?",
-    "How has this moved over the last twelve months?",
-    "Show the same figure by region.",
-  ],
-};
-
-function fallbackFollowUps(domainId: string): string[] {
-  return FALLBACK_FOLLOW_UPS[domainId] ?? [];
 }
 
 /**
@@ -908,29 +881,16 @@ export function CockpitV4Thread({
     : turns.length
       ? turns[turns.length - 1].answer
       : null;
-  // §31/§32. Three sources, in order of authority, and never two at once.
-  //
-  //  1. the newest ANSWER's own follow-ups, when it offered any;
-  //  2. the book's deterministic fallbacks, when it did not -- a turn that
-  //     ends with an answer and no next question leaves the reader at a
-  //     dead end, and the follow-ups are the whole reason the strip exists;
-  //  3. the thread's OPENING questions, while it is still empty. A thread
-  //     seeded from a card opens on that card's five.
-  const answered = Boolean(latest);
-  const offered = (latest?.suggested_questions ?? [])
-    .map((s) => s.question)
-    .filter(Boolean);
-  const opening = (transcript?.opening_questions ?? [])
-    .map((s) => s.question)
-    .filter(Boolean);
-  const followUps = busy
-    ? []
-    : answered
-      ? (offered.length
-          ? offered
-          : fallbackFollowUps(transcript?.domain_id ?? "")
-        ).slice(0, 4)
-      : opening.slice(0, 5);
+  // §31/§32. See `chipsToShow`: the answer's own suggestions, else the
+  // book's deterministic fallbacks, else -- while the thread is still empty
+  // -- the questions it was opened on.
+  const followUps = chipsToShow({
+    busy,
+    answered: Boolean(latest),
+    domainId: transcript?.domain_id ?? "",
+    offered: latest?.suggested_questions,
+    opening: transcript?.opening_questions,
+  });
 
   if (loadError) {
     return (

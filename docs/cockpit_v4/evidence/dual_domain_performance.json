@@ -17,17 +17,17 @@
   "measurements": {
     "analysis_end_to_end:corporate": {
       "samples": 5,
-      "min_ms": 48.9,
-      "median_ms": 53.1,
-      "p90_ms": 58.9,
-      "max_ms": 58.9
+      "min_ms": 54.7,
+      "median_ms": 64.3,
+      "p90_ms": 70.4,
+      "max_ms": 70.4
     },
     "analysis_end_to_end:retail": {
       "samples": 5,
-      "min_ms": 48.9,
-      "median_ms": 52.2,
-      "p90_ms": 58.5,
-      "max_ms": 58.5
+      "min_ms": 49.6,
+      "median_ms": 51.7,
+      "p90_ms": 61.3,
+      "max_ms": 61.3
     },
     "dashboard_cached:corporate": {
       "samples": 5,
@@ -45,38 +45,38 @@
     },
     "dashboard_cold:corporate": {
       "samples": 5,
-      "min_ms": 63.5,
-      "median_ms": 72.7,
-      "p90_ms": 84.0,
-      "max_ms": 84.0
+      "min_ms": 61.3,
+      "median_ms": 63.6,
+      "p90_ms": 65.5,
+      "max_ms": 65.5
     },
     "dashboard_cold:retail": {
       "samples": 5,
-      "min_ms": 59.5,
-      "median_ms": 60.8,
-      "p90_ms": 65.1,
-      "max_ms": 65.1
+      "min_ms": 61.1,
+      "median_ms": 64.3,
+      "p90_ms": 70.0,
+      "max_ms": 70.0
     },
     "domain_switch:back": {
       "samples": 1,
-      "min_ms": 0.5,
-      "median_ms": 0.5,
-      "p90_ms": 0.5,
-      "max_ms": 0.5
+      "min_ms": 0.6,
+      "median_ms": 0.6,
+      "p90_ms": 0.6,
+      "max_ms": 0.6
     },
     "domain_switch:first": {
       "samples": 1,
-      "min_ms": 744.3,
-      "median_ms": 744.3,
-      "p90_ms": 744.3,
-      "max_ms": 744.3
+      "min_ms": 735.6,
+      "median_ms": 735.6,
+      "p90_ms": 735.6,
+      "max_ms": 735.6
     },
     "domain_switch:second": {
       "samples": 1,
-      "min_ms": 734.0,
-      "median_ms": 734.0,
-      "p90_ms": 734.0,
-      "max_ms": 734.0
+      "min_ms": 703.6,
+      "median_ms": 703.6,
+      "p90_ms": 703.6,
+      "max_ms": 703.6
     },
     "ecl_panel_cached:corporate": {
       "samples": 5,
@@ -94,17 +94,17 @@
     },
     "ecl_panel_cold:corporate": {
       "samples": 5,
-      "min_ms": 11.6,
-      "median_ms": 12.1,
-      "p90_ms": 12.2,
-      "max_ms": 12.2
+      "min_ms": 12.2,
+      "median_ms": 13.4,
+      "p90_ms": 14.1,
+      "max_ms": 14.1
     },
     "ecl_panel_cold:retail": {
       "samples": 5,
       "min_ms": 12.5,
-      "median_ms": 13.2,
-      "p90_ms": 14.9,
-      "max_ms": 14.9
+      "median_ms": 12.8,
+      "p90_ms": 14.3,
+      "max_ms": 14.3
     },
     "schema_browse:corporate": {
       "samples": 5,
@@ -122,22 +122,22 @@
     },
     "session_cold_open:corporate": {
       "samples": 3,
-      "min_ms": 738.1,
-      "median_ms": 746.2,
-      "p90_ms": 835.8,
-      "max_ms": 835.8
+      "min_ms": 740.9,
+      "median_ms": 777.5,
+      "p90_ms": 783.8,
+      "max_ms": 783.8
     },
     "session_cold_open:retail": {
       "samples": 3,
-      "min_ms": 687.0,
-      "median_ms": 693.7,
-      "p90_ms": 699.5,
-      "max_ms": 699.5
+      "min_ms": 690.5,
+      "median_ms": 704.1,
+      "p90_ms": 727.3,
+      "max_ms": 727.3
     },
     "session_warm_open:corporate": {
       "samples": 9,
       "min_ms": 0.2,
-      "median_ms": 0.2,
+      "median_ms": 0.3,
       "p90_ms": 0.4,
       "max_ms": 0.5
     },
@@ -145,7 +145,7 @@
       "samples": 9,
       "min_ms": 0.2,
       "median_ms": 0.2,
-      "p90_ms": 0.4,
+      "p90_ms": 0.5,
       "max_ms": 0.5
     }
   }

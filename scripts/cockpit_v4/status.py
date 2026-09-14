@@ -85,6 +85,19 @@ def main() -> int:
                                .get("dataset_release_id", "—"))),
                ("used for",
                 "historical threads and /attention-legacy only")])
+    # §12. The allowance ladder, by name. An operator looking at a run that
+    # stopped on time should be able to see which family it was in and what
+    # that family allows, without reading the source or inferring it from the
+    # number of seconds in an error message.
+    families = (report.get("budget_policy", {}) or {}).get("families", [])
+    if families:
+        print()
+        print("  ALLOWANCES")
+        table([(str(f.get("family", "")),
+                f"{float(f.get('deadline_seconds') or 0):.0f}s  "
+                f"${float(f.get('spend_ceiling_usd') or 0):.2f}")
+               for f in families if f.get("named")])
+
     runner = report.get("checks", {}).get("python_runner", {})
     if not runner.get("available"):
         print(f"  python runner unavailable: {runner.get('reason', '')}")

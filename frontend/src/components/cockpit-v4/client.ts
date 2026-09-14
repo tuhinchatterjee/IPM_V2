@@ -403,11 +403,23 @@ async function json<T>(response: Response): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-export async function createThread(): Promise<{ thread_id: string }> {
+/**
+ * Open a conversation in a book.
+ *
+ * The domain is sent HERE, not left to the first run to settle. A thread
+ * created without one was stamped with the default book, so a reader on
+ * Retail opened a Corporate conversation -- and the questions it offered
+ * them before their first message were the Corporate book's.
+ */
+export async function createThread(
+  domain?: DomainId,
+): Promise<{ thread_id: string; domain_id?: DomainId }> {
   return json(
     await fetch(`${base()}${API_PREFIX}/threads`, {
       method: "POST",
       credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(domain ? { domain } : {}),
     }),
   );
 }

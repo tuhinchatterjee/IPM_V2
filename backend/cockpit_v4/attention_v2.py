@@ -33,6 +33,7 @@ rather than ranked and buried.
 
 from __future__ import annotations
 
+import re
 import hashlib
 import time
 from dataclasses import dataclass, field
@@ -559,6 +560,32 @@ _CROSS: dict[str, tuple[tuple[str, str], ...]] = {
 }
 
 
+#: SQL words that appear in a family's measure expression and are not
+#: columns of the relation it reads.
+_NOT_A_COLUMN = frozenset((
+    "sum", "count", "avg", "min", "max", "case", "when", "then", "else",
+    "end", "nullif", "coalesce", "cast", "as", "varchar", "decimal", "and",
+    "or", "not", "null", "distinct", "over", "partition", "by",
+))
+
+
+def _measure_fields(family: Family) -> list[str]:
+    """The columns a family's measure is actually computed from.
+
+    Read out of the family's own SQL rather than from `measure`, which is a
+    METRIC KEY -- `ecl`, `stage2_share`, `ltv` -- and not a column of
+    anything. Offering `ecl` as a required field named a column no release
+    holds, which is exactly the failure these questions exist to avoid.
+    """
+    found = re.findall(r"[a-z_][a-z0-9_]*", family.expression.lower())
+    seen: list[str] = []
+    for word in found:
+        if word in _NOT_A_COLUMN or word in seen:
+            continue
+        seen.append(word)
+    return seen
+
+
 def _questions(candidate: Candidate, scope: dom.DomainScope,
                month: str) -> list[dict[str, Any]]:
     """What to ask next about THIS finding. Deterministic; no model call.
@@ -590,7 +617,7 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
          "kind": "drilldown"},
         {"question": (f"What drove the change in {measure} for {segment} "
                       f"in {month}?"),
-         "required_fields": [family.measure],
+         "required_fields": _measure_fields(family),
          "required_periods": [month], "required_quarters": [month],
          "kind": "diagnostic"},
     ]
@@ -610,7 +637,7 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
     out.append({
         "question": f"How has {measure} moved for {segment} over the last "
                     f"twelve months?",
-        "required_fields": [family.measure],
+        "required_fields": _measure_fields(family),
         "required_periods": [], "required_quarters": [], "kind": "trend"})
     if len(out) < 5 and len(cross) > 1:
         field, label = cross[1]

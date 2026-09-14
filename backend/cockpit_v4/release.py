@@ -67,6 +67,23 @@ def fingerprint(release_id: str) -> str:
     if cached is not None:
         return cached
 
+    # A DOMAIN release records its digest when it is published, and its bytes
+    # do not live where the pre-domain releases live. Hashing the empty
+    # directory it is not in returns the SHA-256 of nothing --
+    # `e3b0c442...` -- which is a valid-looking fingerprint that identifies
+    # no release, matches every other book's header, and was being stamped on
+    # every published answer of both books.
+    from backend.cockpit_v4 import lake as lake_mod
+
+    try:
+        recorded = lake_mod.fingerprint(release_id)
+    except Exception:  # noqa: BLE001 - not a domain release
+        recorded = ""
+    if recorded:
+        with _LOCK:
+            _FINGERPRINTS[release_id] = recorded
+        return recorded
+
     from backend.cockpit_agentic import store as v3_store
 
     directory = v3_store.release_dir(release_id)
@@ -112,10 +129,20 @@ class Header:
     country: str = ""
     reporting_currency: str = ""
     amount_scale: str = ""
-    latest_populated_quarter: str = ""
+    #: The last period this release actually holds, under a name that does
+    #: not decide what a period IS. `latest_populated_quarter` is still
+    #: served beside it because saved analyses and older readers index on
+    #: that key, but nothing in this build writes a quarter into it.
+    latest_populated_period: str = ""
     reporting_frequency: str = "quarterly"
     not_client_data: bool = True
     unverified: tuple[str, ...] = field(default_factory=tuple)
+
+    @property
+    def latest_populated_quarter(self) -> str:
+        """The name this field had before there were monthly books. Kept so
+        an older reader of a saved header is not broken; never a quarter."""
+        return self.latest_populated_period
 
     @property
     def denominated(self) -> bool:
@@ -135,7 +162,8 @@ class Header:
             "country": self.country,
             "reporting_currency": self.reporting_currency,
             "amount_scale": self.amount_scale,
-            "latest_populated_quarter": self.latest_populated_quarter,
+            "latest_populated_period": self.latest_populated_period,
+            "latest_populated_quarter": self.latest_populated_period,
             "reporting_frequency": self.reporting_frequency,
             "not_client_data": self.not_client_data,
         }
@@ -173,6 +201,18 @@ def header(*, release_id: str, catalog: Any = None,
     country = str(summary.get("geography_name") or "").strip()
     calendar = getattr(catalog, "calendar", None)
     populated = list(getattr(calendar, "populated", ()) or ())
+    # WHAT THIS BOOK'S PERIOD IS, read from the release rather than defaulted.
+    #
+    # `reporting_frequency` defaulted to "quarterly" and nothing ever set it,
+    # so every published answer from a MONTHLY book travelled with a header
+    # saying the book was quarterly -- into the thread header, into a saved
+    # analysis, into the export footer and into every shared link.
+    frequency = str(summary.get("reporting_frequency")
+                    or getattr(catalog, "reporting_frequency", "")
+                    or "").strip().lower()
+    if not frequency:
+        frequency = ("monthly" if populated and len(str(populated[-1])) == 7
+                     and "-" in str(populated[-1]) else "quarterly")
 
     missing = []
     if not currency:
@@ -191,7 +231,8 @@ def header(*, release_id: str, catalog: Any = None,
         country=country,
         reporting_currency=currency,
         amount_scale=scale,
-        latest_populated_quarter=str(populated[-1]) if populated else "",
+        latest_populated_period=str(populated[-1]) if populated else "",
+        reporting_frequency=frequency,
         not_client_data=bool(summary.get("not_client_data", True)),
         unverified=tuple(missing))
 

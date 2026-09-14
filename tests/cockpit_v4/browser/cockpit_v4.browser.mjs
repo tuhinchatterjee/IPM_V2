@@ -1019,6 +1019,108 @@ await test("the conversation is named by the question, not 'New conversation'",
     }
   });
 
+await test("a seeded thread opens on three to five questions, before anybody types (§31)",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      // Open a real attention card the way a reader does.
+      await page.waitForSelector('[data-testid="v4-attention-card"]',
+        { timeout: 30_000 });
+      await page.click('[data-testid="v4-attention-card"]');
+      await page.waitForSelector('[data-testid="v4-drawer-investigate"]',
+        { timeout: 20_000 });
+      await page.click('[data-testid="v4-drawer-investigate"]');
+      await page.waitForFunction(
+        () => document.querySelector('[data-testid="cockpit-v4-thread"]'),
+        { timeout: 30_000 });
+
+      // Nothing has been asked in it yet.
+      const asked = await page.$$('[data-testid="v4-turn-user"]');
+      assert.equal(asked.length, 0,
+        "this thread already has a question in it; §31 is about the empty one");
+
+      await page.waitForSelector('[data-testid="v4-followups"]',
+        { timeout: 20_000 });
+      const chips = await page.$$eval('[data-testid="v4-followup-chip"]',
+        (nodes) => nodes.map((n) => n.textContent?.trim() ?? ""));
+      assert.ok(chips.length >= 3 && chips.length <= 5,
+        `an empty seeded thread offered ${chips.length} questions; §31 wants 3-5`);
+      for (const chip of chips) {
+        assert.ok(chip.length > 8, `not a question: ${JSON.stringify(chip)}`);
+        assert.ok(/[.?]$/.test(chip), `not a sentence: ${JSON.stringify(chip)}`);
+        assert.ok(!/\b20\d\d ?Q[1-4]\b/.test(chip),
+          `a monthly book offered a quarter: ${JSON.stringify(chip)}`);
+      }
+      assert.equal(new Set(chips).size, chips.length,
+        "the same question was offered twice");
+    } finally {
+      await context.close();
+    }
+  });
+
+await test("the Ask next strip never overlaps what is behind it (§34)",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "reported EAD by sector this quarter");
+      await waitForAnswer(page);
+      await page.waitForSelector('[data-testid="v4-followups"]',
+        { timeout: 30_000 });
+
+      const geometry = await page.evaluate(() => {
+        const strip = document.querySelector('[data-testid="v4-followups"]');
+        const label = strip.querySelector("span");
+        const chips = Array.from(
+          strip.querySelectorAll('[data-testid="v4-followup-chip"]'));
+        const style = getComputedStyle(strip);
+        const box = strip.getBoundingClientRect();
+        return {
+          opaque: style.backgroundColor,
+          box: { top: box.top, bottom: box.bottom,
+                 left: box.left, right: box.right },
+          label: label ? label.getBoundingClientRect() : null,
+          chips: chips.map((c) => {
+            const r = c.getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom, left: r.left,
+                     right: r.right };
+          }),
+          // What the browser says is painted at the strip's own top-left
+          // corner. If the transcript shows through, the strip is not a
+          // band, it is a transparency.
+          atTopLeft: (document.elementFromPoint(box.left + 2, box.top + 2)
+                      ?? {}).getAttribute?.("data-testid") ?? "",
+        };
+      });
+
+      assert.ok(!/rgba\(0, 0, 0, 0\)|transparent/.test(geometry.opaque),
+        `the strip has no background of its own: ${geometry.opaque}`);
+
+      // The label is on its own line, above every chip.
+      assert.ok(geometry.label, "the Ask next label is missing");
+      for (const chip of geometry.chips) {
+        assert.ok(geometry.label.bottom <= chip.top + 1,
+          "the Ask next label shares a line with a chip");
+      }
+
+      // No two chips overlap, and every chip is inside the band.
+      for (let i = 0; i < geometry.chips.length; i += 1) {
+        const a = geometry.chips[i];
+        assert.ok(a.top >= geometry.box.top - 1
+                  && a.bottom <= geometry.box.bottom + 1,
+          `a chip hangs outside its own strip`);
+        for (let j = i + 1; j < geometry.chips.length; j += 1) {
+          const b = geometry.chips[j];
+          const overlaps = a.left < b.right && b.left < a.right
+            && a.top < b.bottom && b.top < a.bottom;
+          assert.ok(!overlaps,
+            `chips ${i} and ${j} overlap: ${JSON.stringify([a, b])}`);
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  });
+
 await test("follow-up chips sit directly above the composer and stay in the thread",
   async () => {
     const { context, page } = await openCockpit(browser);

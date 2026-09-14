@@ -71,7 +71,16 @@ class Lineage:
     tenant_id: str
     reporting_currency: str
     amount_scale: str
-    produced_at: str
+    #: WHICH PERIODS the figures are from, and what a period IS in this book.
+    #:
+    #: The document said which book, which release and which day it was
+    #: exported, and never which MONTH the numbers described. A reader who
+    #: keeps the file -- which is the whole point of exporting it -- could
+    #: not tell a year later what they were looking at, and neither could
+    #: anyone they sent it to.
+    reporting_periods: tuple[str, ...] = ()
+    reporting_frequency: str = ""
+    produced_at: str = ""
     artifact_ids: tuple[str, ...] = ()
     code_digests: tuple[str, ...] = ()
     row_scope: str = ALL_ROWS
@@ -81,6 +90,21 @@ class Lineage:
     total_rows: int = 0
     complete: bool = True
 
+    @property
+    def period_line(self) -> str:
+        """The period or periods these figures are for, in the book's own
+        vocabulary. Never a quarter for a monthly book."""
+        noun = ("month" if self.reporting_frequency == "monthly"
+                else "quarter" if self.reporting_frequency == "quarterly"
+                else "period")
+        periods = [p for p in self.reporting_periods if p]
+        if not periods:
+            return "unstated"
+        if len(periods) == 1:
+            return f"{periods[0]} (one {noun})"
+        return (f"{periods[0]} to {periods[-1]} "
+                f"({len(periods)} {noun}s)")
+
     def lines(self) -> list[str]:
         body = [
             f"Question: {self.question}",
@@ -89,6 +113,7 @@ class Lineage:
             f"Release fingerprint: {self.release_fingerprint or 'unstated'}",
             f"Tenant: {self.tenant_id}",
             f"Denomination: {self.reporting_currency} {self.amount_scale}",
+            f"Reporting period: {self.period_line}",
             f"Run: {self.run_id}",
             f"Exported: {self.produced_at}",
         ]
@@ -116,10 +141,60 @@ class Lineage:
         return body
 
 
+_PERIOD_KEYS = ("reporting_months", "reporting_periods",
+                "reporting_quarters")
+
+
+def _periods_of(record: Any, artifact: dict[str, Any] | None,
+                answer: dict[str, Any] | None,
+                artifacts: dict[str, dict[str, Any]] | None = None
+                ) -> tuple[str, ...]:
+    """The periods this analysis was actually run over.
+
+    Read from what the run PRODUCED -- the executed scope stored on each
+    artifact, then the pinned scope of the published answer -- rather than
+    from a guess. An export that names the wrong period is worse than one
+    that says the period is unstated, so the release's latest month is used
+    only when the run recorded nothing at all, and it is the last resort.
+    """
+    found: list[str] = []
+    sources = [(a or {}).get("scope") or {}
+               for a in (artifacts or {}).values()]
+    sources.append((artifact or {}).get("scope") or {})
+    sources.append(((answer or {}).get("pinned_scope") or {}))
+    for source in sources:
+        for key in _PERIOD_KEYS:
+            for value in list(source.get(key) or []):
+                text = str(value).strip()
+                if text and text not in found:
+                    found.append(text)
+    if not found:
+        latest = str((((answer or {}).get("release") or {})
+                      .get("latest_populated_period")) or "").strip()
+        if latest:
+            found.append(latest)
+    return tuple(sorted(found))
+
+
+def _frequency_of(periods: tuple[str, ...]) -> str:
+    """What a period IS here, read off its own spelling."""
+    if not periods:
+        return ""
+    first = periods[0]
+    if len(first) == 7 and first[4] == "-":
+        return "monthly"
+    if len(first) == 6 and first[4] in "Qq":
+        return "quarterly"
+    return ""
+
+
 def lineage_for(*, record: Any, artifact: dict[str, Any] | None = None,
                 header: Any = None, produced_at: str = "",
                 row_scope: str = ALL_ROWS, row_count: int = 0,
-                total_rows: int = 0, complete: bool = True) -> Lineage:
+                total_rows: int = 0, complete: bool = True,
+                answer: dict[str, Any] | None = None,
+                artifacts: dict[str, dict[str, Any]] | None = None
+                ) -> Lineage:
     """Assemble the lineage from the run and the artifact it produced."""
     from backend.cockpit_v4 import domains as dom
 
@@ -131,7 +206,11 @@ def lineage_for(*, record: Any, artifact: dict[str, Any] | None = None,
     if header is not None:
         fingerprint = fingerprint or str(
             getattr(header, "release_fingerprint", "") or "")
+    periods = _periods_of(record, artifact, answer, artifacts)
     return Lineage(
+        reporting_periods=periods,
+        reporting_frequency=str(getattr(header, "reporting_frequency", "")
+                                or _frequency_of(periods)),
         run_id=str(getattr(record, "run_id", "")),
         question=str(getattr(record, "question", "")),
         domain_id=domain_id,
@@ -221,7 +300,8 @@ def analysis_markdown(*, record: Any, answer: dict[str, Any],
     parts: list[str] = []
     parts.append(f"# {str(getattr(record, 'question', '')).strip()}\n")
     parts.append(f"*{lineage.domain_label or lineage.domain_id} · "
-                 f"{lineage.release_id} · exported {lineage.produced_at}*\n")
+                 f"{lineage.release_id} · {lineage.period_line} · "
+                 f"exported {lineage.produced_at}*\n")
 
     narrative = str(answer.get("narrative") or "").strip()
     if narrative:

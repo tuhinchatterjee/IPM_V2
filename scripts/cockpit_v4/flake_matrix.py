@@ -58,6 +58,11 @@ FLOWS: tuple[tuple[str, str], ...] = (
     ("domain-switch", r"switching the book asks the server again"),
     ("domain-numbers", r"each book shows its own release, currency"),
     ("back-to-cockpit", r"the way back to Cockpit is at the top left"),
+    # §31/§34. Both are rendering races by nature -- the chips depend on a
+    # transcript fetch, and the strip's geometry on a layout pass -- so they
+    # belong in the flow that runs things five times rather than once.
+    ("opening-questions", r"a seeded thread opens on three to five"),
+    ("ask-next-overlap", r"the Ask next strip never overlaps"),
 )
 
 
