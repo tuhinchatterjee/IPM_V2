@@ -1,4 +1,4 @@
-"""REAL DATA · NO MODEL. The two books, and the wall between them.
+"""REAL DATABASE · NO MODEL. The two books, and the wall between them.
 
 The defect this module exists for
 ---------------------------------

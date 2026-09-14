@@ -1,4 +1,4 @@
-"""REAL DATA · NO MODEL · INDEPENDENT ORACLE.
+"""REAL DATABASE · NO MODEL · INDEPENDENT ORACLE.
 
 Two dashboards, two books, one ranking rule.
 

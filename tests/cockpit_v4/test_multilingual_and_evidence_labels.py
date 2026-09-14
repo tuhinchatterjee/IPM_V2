@@ -102,6 +102,13 @@ def test_no_test_in_this_suite_claims_a_live_provider_measurement():
     allowed = {"MODEL MOCK", "REAL DATABASE/RUNNER", "REAL DATABASE",
                "REAL HTTP", "REAL SOURCE", "REAL PROCESS", "UNIT",
                "REPRODUCTION", "REAL RUNNER", "REAL SSE",
+               # A suite with no provider in it AT ALL -- not even a scripted
+               # one. The data-plane and dashboard suites are this: real
+               # parquet, real DuckDB, and nothing that could be mistaken for
+               # evidence about a model. It is a stronger claim than MODEL
+               # MOCK and it needed its own word.
+               "NO MODEL",
+               "INDEPENDENT ORACLE",
                "in-process ASGI client"}
     for path in sorted(TESTS.glob("test_*.py")):
         header = path.read_text(encoding="utf-8")[:900]
