@@ -1024,14 +1024,9 @@ await test("a seeded thread opens on three to five questions, before anybody typ
     const { context, page } = await openCockpit(browser);
     try {
       // Open a real attention card the way a reader does.
-      await page.waitForSelector('[data-testid="v4-attention-card"]',
-        { timeout: 30_000 });
-      await page.click('[data-testid="v4-attention-card"]');
-      await page.waitForSelector('[data-testid="v4-drawer-investigate"]',
-        { timeout: 20_000 });
-      await page.click('[data-testid="v4-drawer-investigate"]');
-      await page.waitForFunction(
-        () => document.querySelector('[data-testid="cockpit-v4-thread"]'),
+      await openDrawer(page);
+      await page.click('[data-testid="attention-investigate"]');
+      await page.waitForSelector('[data-testid="investigation-context"]',
         { timeout: 30_000 });
 
       // Nothing has been asked in it yet.
