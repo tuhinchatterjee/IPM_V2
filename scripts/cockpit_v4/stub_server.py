@@ -91,10 +91,51 @@ def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
 
     catalog, _, summary = load_release(cfg)
     quarter = oracles.latest_quarter(RELEASE)
-    ead_sql = (f"SELECT sector_name, SUM(ead_reported) AS ead_sar_mn "
-               f"FROM cockpit_facility_quarter "
-               f"WHERE reporting_quarter = '{quarter}' "
-               f"GROUP BY sector_name ORDER BY ead_sar_mn DESC")
+
+    # WHICH BOOK this turn is being asked in.
+    #
+    # The stub used to hold one hard-coded query over the pre-domain
+    # quarterly relations, which is the same defect the runtime had: pointed
+    # at a Retail thread it would have submitted corporate SQL and the run
+    # would have failed with an authorization refusal that had nothing to do
+    # with what was being tested. The analyst is TOLD the book in its pinned
+    # scope, so the stub reads it from there, exactly as a real one would.
+    BOOKS = {
+        "corporate": {"relation": "corp_facility_month",
+                      "dimension": "sector", "amount": "ead_sar_mn"},
+        "retail": {"relation": "retail_account_month",
+                   "dimension": "product", "amount": "ead_sar_mn"},
+    }
+
+    def book_of(system) -> dict:
+        """The pinned book, read out of the packet the analyst was handed."""
+        from backend.cockpit_v4 import domains as dom_mod
+
+        text = json.dumps(system, default=str)
+        chosen = ""
+        for domain_id in dom_mod.DOMAIN_IDS:
+            if f'"domain": "{domain_id}"' in text:
+                chosen = domain_id
+                break
+        if not chosen:
+            return {"domain_id": "", "relation": "cockpit_facility_quarter",
+                    "dimension": "sector_name", "amount": "ead_sar_mn",
+                    "period_column": "reporting_quarter", "period": quarter}
+        import domain_oracles
+
+        book = dict(BOOKS[chosen])
+        book.update({"domain_id": chosen,
+                     "period_column": "reporting_month",
+                     "period": domain_oracles.latest_month(chosen)})
+        return book
+
+    def ead_sql_for(book: dict) -> str:
+        source = ("SUM(ead_reported)" if not book["domain_id"]
+                  else f"SUM({book['amount']})")
+        return (f"SELECT {book['dimension']}, {source} AS ead_sar_mn "
+                f"FROM {book['relation']} "
+                f"WHERE {book['period_column']} = '{book['period']}' "
+                f"GROUP BY {book['dimension']} ORDER BY ead_sar_mn DESC")
 
     #: A product-help answer in the shape a real one takes: Markdown, and
     #: every optional field left null, because there is no clarification and
@@ -153,66 +194,74 @@ This environment uses synthetic demonstration data rather than a real bank portf
                 "referral_owner": None, "referral_reason": None},
             "tu-help")])
 
-    def analysis_call():
+    def analysis_call(book: dict):
+        grain = book["dimension"].replace("_name", "")
         return ScriptedResult(tool_calls=[tool_call("execute_analysis", {
             "intent": intent("DATA_ANALYSIS", "COCKPIT",
-                             understood="reported EAD by sector"),
-            "objective": "Reported EAD by sector for the latest quarter",
-            "subquestions": ["EAD by sector"],
-            "scope": {"reporting_quarters": [quarter], "filters": {}},
+                             understood=f"exposure at default by {grain}"),
+            "objective": f"Exposure at default by {grain}",
+            "subquestions": [f"EAD by {grain}"],
+            "scope": {"reporting_months": [book["period"]], "filters": {}},
             "metadata_receipt_ids": [],
-            "fields_required": ["cockpit_facility_quarter.ead_reported"],
-            "expected_output_grain": "sector",
+            "fields_required": [f"{book['relation']}.{book['amount']}"],
+            "expected_output_grain": grain,
             "expected_units": money_unit(),
-            "steps": [{"step_id": "s1", "language": "sql", "code": ead_sql,
-                       "parameters": {}, "purpose": "EAD by sector",
+            "steps": [{"step_id": "s1", "language": "sql",
+                       "code": ead_sql_for(book),
+                       "parameters": {}, "purpose": f"EAD by {grain}",
                        "input_artifact_ids": [], "depends_on_step_ids": []}],
             "repair_of_submission_id": ""}, "tu-exec")])
 
-    def analysis_finish(messages):
+    def analysis_finish(messages, book: dict):
         body = json.loads(messages[-1]["content"][0]["content"])
         step = body["steps"][0]
         cell = step["preview"][0]
+        dimension = book["dimension"]
+        grain = dimension.replace("_name", "")
         return ScriptedResult(tool_calls=[tool_call(
             "finalize_response",
             final(intent=intent("DATA_ANALYSIS", "COCKPIT",
-                                understood="reported EAD by sector"),
+                                understood=f"exposure at default by {grain}"),
                   narrative=("The largest reported exposure this quarter is "
                              "{{claim.top}}."),
-                  coverage=[{"subquestion": "EAD by sector",
+                  coverage=[{"subquestion": f"EAD by {grain}",
                              "status": "answered",
                              "evidence_refs": [
                                  {"artifact_id": step["artifact_id"],
-                                  "row_key": f"sector_name="
-                                             f"{cell['sector_name']}",
+                                  "row_key": f"{dimension}="
+                                             f"{cell[dimension]}",
                                   "column_id": "ead_sar_mn"}]}],
                   numeric_claims=[{
                       "claim_id": "top",
                       "decimal_value": repr(float(cell["ead_sar_mn"])),
                       "unit": money_unit(), "display_precision": 2,
                       "evidence": {"artifact_id": step["artifact_id"],
-                                   "row_key": f"sector_name="
-                                              f"{cell['sector_name']}",
+                                   "row_key": f"{dimension}="
+                                              f"{cell[dimension]}",
                                    "column_id": "ead_sar_mn"}}],
-                  tables=[{"title": "Reported EAD by sector",
+                  tables=[{"title": f"Exposure at default by {grain}",
                            "artifact_id": step["artifact_id"],
-                           "columns": ["sector_name", "ead_sar_mn"]}],
+                           "columns": [dimension, "ead_sar_mn"]}],
                   # A ranked comparison across sectors: the analyst decides a
                   # chart helps HERE, and the stub stands in for that
                   # decision. It supplies no values -- the schema has nowhere
                   # to put one -- so every figure in the rendered chart still
                   # comes out of the stored artifact.
                   charts=[{"kind": "bar",
-                           "title": "Reported EAD by sector",
+                           "title": f"Exposure at default by {grain}",
                            "artifact_id": step["artifact_id"],
-                           "x_column": "sector_name",
+                           "x_column": dimension,
                            "y_columns": ["ead_sar_mn"],
                            "unit": money_unit()}],
                   suggested_questions=[
-                      {"question": "Show the borrowers behind the largest "
-                                   "sector.", "kind": "drilldown"},
-                      {"question": "How has sector concentration changed "
-                                   "over the latest year?",
+                      {"question": f"Show the accounts behind the largest "
+                                   f"{grain}." if book["domain_id"]
+                                   == "retail"
+                                   else f"Show the borrowers behind the "
+                                        f"largest {grain}.",
+                       "kind": "drilldown"},
+                      {"question": f"How has {grain} concentration changed "
+                                   f"over the latest year?",
                        "kind": "comparison"}]),
             "tu-final")])
 
@@ -307,7 +356,9 @@ This environment uses synthetic demonstration data rather than a real bank portf
                 return stall()
             if "who are you" in question:
                 return help_answer()
-            return analysis_call() if turn == 0 else analysis_finish(messages)
+            book = book_of(system)
+            return (analysis_call(book) if turn == 0
+                    else analysis_finish(messages, book))
 
     provider = QuestionDrivenProvider()
     runtime = Runtime(cfg=cfg, capability=capability, provider=provider,

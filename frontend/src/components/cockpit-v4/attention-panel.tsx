@@ -235,8 +235,13 @@ export function AttentionPanel({
       </section>
 
       <p className="text-[11px] text-slate-400" data-testid="attention-footnote">
-        {feed.ownership.note} Computed from release {feed.release_id} in{" "}
-        {feed.computed_ms} ms with no model call.
+        {feed.ownership?.note ??
+          "Movements in the recorded book between two reporting periods."}{" "}
+        Computed from release {feed.release_id}
+        {typeof feed.computed_ms === "number"
+          ? ` in ${feed.computed_ms} ms`
+          : ""}{" "}
+        with no model call.
       </p>
     </div>
   );

@@ -34,6 +34,7 @@ rather than ranked and buried.
 from __future__ import annotations
 
 import hashlib
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -78,6 +79,9 @@ class Family:
     #: signal than a utilisation drift even at the same magnitude.
     weight: float = 1.0
     direction: str = "up"
+    #: The counterparty behind one row of this relation, so a card can say
+    #: how many of them the segment holds. A book that cannot say "this
+    #: sector has eleven borrowers" cannot offer a drill-down worth taking.
     #: How big this segment IS, for materiality. Exposure at default in
     #: almost every case -- but a relation that does not carry EAD needs its
     #: own answer rather than a crash or a silent zero.
@@ -177,6 +181,8 @@ class Candidate:
     ead_now: float
     ead_before: float
     share: float
+    #: How many counterparties this segment holds this month.
+    counterparties: int = 0
     score: float = 0.0
     extras: dict[str, Any] = field(default_factory=dict)
 
@@ -191,6 +197,40 @@ class Candidate:
         return (self.now - self.before) / abs(self.before)
 
 
+#: relation -> the column identifying the counterparty behind one row, and
+#: the word a reader uses for it. A retail segment has customers; a corporate
+#: one has borrowers; a collateral segment has facilities.
+COUNTERPARTY: dict[str, str] = {
+    "corp_facility_month": "borrower_id",
+    "corp_borrower_month": "borrower_id",
+    "corp_collateral_month": "facility_id",
+    "corp_covenant_month": "facility_id",
+    "retail_account_month": "customer_id",
+    "retail_customer_month": "customer_id",
+    "retail_behaviour_month": "customer_id",
+    "retail_collateral_month": "customer_id",
+}
+
+COUNTERPARTY_LABEL: dict[str, str] = {
+    "borrower_id": "borrowers", "customer_id": "customers",
+    "facility_id": "facilities",
+}
+
+#: The finer dimension this book records under each segment dimension, where
+#: one exists. Stating "there is no level below this" is a FACT about the
+#: release, and inventing a subsegment is the failure it prevents.
+FINER: dict[str, str] = {
+    "sector": "sub_sector",
+    "product": "",
+    "region": "",
+    "facility_type": "",
+    "collateral_type": "",
+    "customer_segment": "",
+    "score_band": "",
+    "vintage_year": "",
+}
+
+
 def _query(session, sql: str) -> list[dict[str, Any]]:
     cursor = session.connection.execute(sql)
     columns = [d[0] for d in cursor.description]
@@ -198,16 +238,22 @@ def _query(session, sql: str) -> list[dict[str, Any]]:
 
 
 def _measure(session, family: Family, month: str) -> dict[str, dict[str, float]]:
+    counterparty = COUNTERPARTY.get(family.relation, "")
+    counted = (f"COUNT(DISTINCT {counterparty})" if counterparty
+               else "COUNT(*)")
     rows = _query(session, f"""
         SELECT CAST({family.dimension} AS VARCHAR) AS segment,
                {family.expression} AS value,
-               {family.size_expression} AS ead
+               {family.size_expression} AS ead,
+               {counted} AS counterparties
         FROM {family.relation}
         WHERE reporting_month = '{month}'
         GROUP BY 1
     """)
     return {str(r["segment"]): {"value": float(r["value"] or 0.0),
-                                "ead": float(r["ead"] or 0.0)}
+                                "ead": float(r["ead"] or 0.0),
+                                "counterparties": int(r["counterparties"]
+                                                      or 0)}
             for r in rows}
 
 
@@ -231,7 +277,8 @@ def _candidates(session, family: Family, *, month: str,
         candidate = Candidate(
             family=family, segment=segment,
             now=current["value"], before=prior["value"],
-            ead_now=current["ead"], ead_before=prior["ead"], share=share)
+            ead_now=current["ead"], ead_before=prior["ead"], share=share,
+            counterparties=int(current.get("counterparties") or 0))
         movement = candidate.movement
         if family.kind == "amount":
             # An AMOUNT is measured against the BOOK, not against itself.
@@ -309,8 +356,75 @@ def _dec(value: float):
     return Decimal(str(value))
 
 
+#: What a credit officer checks next, by what moved. Deterministic, and
+#: written as a REVIEW step rather than a conclusion: the card says what
+#: changed, and these say where to look, never what it means.
+REVIEW_NEXT: dict[str, tuple[str, ...]] = {
+    "stage2_share": (
+        "Which exposures crossed into Stage 2, and on which trigger.",
+        "Whether the migration is concentrated in a few names or broad.",
+        "What the same segment's coverage did over the same month."),
+    "ecl": (
+        "Whether the increase is new exposure, migration or higher loss "
+        "rates.",
+        "Which exposures contributed most of the movement.",
+        "Whether coverage moved with it or the book simply grew."),
+    "ecl_coverage": (
+        "Whether coverage rose because ECL rose or because exposure fell.",
+        "Which stage the change sits in.",
+        "How this segment's coverage compares with the book."),
+    "past_due_share": (
+        "How far past due, and for how long.",
+        "Whether the arrears are cured, rolling or newly entered.",
+        "Whether the same exposures are already in Stage 2 or 3."),
+    "dpd_share": (
+        "Which delinquency buckets the movement sits in.",
+        "Whether entry or cure rates changed.",
+        "Whether the affected accounts share a vintage or a score band."),
+    "ltv": (
+        "Whether the exposure grew or the collateral value fell.",
+        "How old the valuations behind it are.",
+        "What is left uncovered after the haircut."),
+}
+
+DEFAULT_REVIEW = (
+    "What moved underneath this measure over the same month.",
+    "Whether the movement is concentrated or broad.",
+    "Whether other measures on this segment moved with it.")
+
+
+def _drivers(candidate: Candidate,
+             everything: list[Candidate]) -> list[dict[str, Any]]:
+    """Other measures that moved on the SAME segment, as associations.
+
+    Association, never cause: these are recorded alongside the movement, and
+    the drawer says so under them. Deriving a cause here would be the card
+    deciding the analysis, which is the analyst's job and the reason
+    Investigate Further exists.
+    """
+    out: list[dict[str, Any]] = []
+    for other in everything:
+        if other is candidate:
+            continue
+        if (other.segment != candidate.segment
+                or other.family.dimension != candidate.family.dimension):
+            continue
+        if other.family.measure == candidate.family.measure:
+            continue
+        out.append({
+            "relationship": "recorded alongside",
+            "statement": (f"{other.family.measure_label} on the same segment "
+                          f"also rose over this month."),
+            "metric": other.family.measure,
+            "delta": round(other.movement, 6),
+            "strength": round(min(1.0, abs(other.movement) * 10), 4),
+        })
+    return sorted(out, key=lambda d: -d["strength"])[:3]
+
+
 def _item(candidate: Candidate, *, scope: dom.DomainScope,
-          month: str, comparison: str) -> dict[str, Any]:
+          month: str, comparison: str,
+          everything: list[Candidate] | None = None) -> dict[str, Any]:
     family = candidate.family
     shown_now = _shown(candidate.now, family, scope.currency,
                        scope.amount_scale)
@@ -330,6 +444,10 @@ def _item(candidate: Candidate, *, scope: dom.DomainScope,
         "release_id": scope.release_id,
         "release_fingerprint": scope.release_fingerprint,
         "section": "attention",
+        # WHAT this card is about. The page groups by it and the drawer
+        # labels by it, and a card with no scope renders as a card about
+        # nothing in particular.
+        "scope": "segment",
         "family": family.key,
         # The family's label as written, not lower-cased: "ECL" is an
         # initialism and "ecl rose to" is how a card announces it was
@@ -374,11 +492,58 @@ def _item(candidate: Candidate, *, scope: dom.DomainScope,
                      "dimension": family.dimension,
                      "measure": family.measure},
         "evidence_url": "",
-        "drilldown": {"suggested_questions": _questions(candidate, scope,
-                                                        month)},
+        # The drawer renders both of these. They were absent when the
+        # per-domain engine replaced the quarterly one, and the drawer read
+        # `item.possible_drivers.length` -- so clicking ANY card threw inside
+        # the component and the error boundary took the whole Cockpit home
+        # page with it. A dashboard whose cards cannot be opened is not a
+        # dashboard.
+        "possible_drivers": _drivers(candidate, everything or []),
+        "what_to_review_next": list(
+            REVIEW_NEXT.get(family.measure, DEFAULT_REVIEW)),
+        "drilldown": _drilldown(candidate, scope, month),
         "severity": ("high" if candidate.score > 0.02
                      else "medium" if candidate.score > 0.005 else "low"),
         "score": round(candidate.score, 6),
+    }
+
+
+def _drilldown(candidate: Candidate, scope: dom.DomainScope,
+               month: str) -> dict[str, Any]:
+    """Where a reader can go from this card, and where the book stops.
+
+    The drawer prints this sentence. It printed "This segment has  borrowers
+    at 2026-08" -- with a hole where the count belongs and the wrong noun for
+    the Retail book -- because the per-domain engine emitted only the
+    suggested questions and the component filled the rest from fields that
+    were not there.
+
+    Saying where the book STOPS is the other half. A card that offers a
+    drill-down the release cannot serve is how an analyst ends up asking for
+    a subsegment that does not exist.
+    """
+    family = candidate.family
+    counterparty = COUNTERPARTY.get(family.relation, "")
+    noun = COUNTERPARTY_LABEL.get(counterparty, "rows")
+    finer = FINER.get(family.dimension, "")
+    if finer:
+        note = (f"{family.dimension_label} has a level below it in this "
+                f"book: {finer}.")
+    else:
+        note = (f"There is no subsegment level below "
+                f"{family.dimension_label.lower()} in this book, so a "
+                f"finer cut is not available and none is implied.")
+    return {
+        "note": note,
+        "entity_label": noun,
+        "entity_count": candidate.counterparties,
+        # The name the drawer has always used. Kept so a reader of the API
+        # sees the same number under both names rather than one of them
+        # empty.
+        "borrower_count": candidate.counterparties,
+        "available": ([finer] if finer else []) + [noun],
+        "unavailable": [] if finer else ["subsegment"],
+        "suggested_questions": _questions(candidate, scope, month),
     }
 
 
@@ -448,15 +613,85 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
         FROM {relation} WHERE reporting_month = '{month}'
     """)[0]
 
-    def card(key: str, headline: str, one_line: str, shown: str) -> dict:
-        return {"item_id": _item_id(scope.domain_id, f"ecl-{key}", "", month),
-                "domain_id": scope.domain_id,
-                "release_id": scope.release_id,
-                "release_fingerprint": scope.release_fingerprint,
-                "section": "ecl_highlight", "headline": headline,
-                "one_line": one_line, "display": shown,
-                "reporting_quarter": month, "reporting_month": month,
-                "comparison_quarter": comparison}
+    def card(key: str, headline: str, one_line: str, shown: str, *,
+             segment: str = "", before: str = "",
+             measure: str = "Recognised ECL",
+             extra: tuple[dict[str, str], ...] = ()) -> dict:
+        """One highlight, in the SAME envelope a segment card uses.
+
+        It used to be a short dict with a headline and a display string, and
+        the difference was not cosmetic: the drawer offers Investigate
+        Further on every card, and the route that opens a seeded thread reads
+        `segment`, `metric`, `what_changed`, `movement`, `key_numbers` and
+        `evidence` off the item. Clicking Investigate on an ECL highlight
+        therefore raised a KeyError and returned a 500 -- on the four cards a
+        reader is most likely to click.
+        """
+        subject = segment or scope.short_label
+        return {
+            "item_id": _item_id(scope.domain_id, f"ecl-{key}", segment,
+                                month),
+            "domain_id": scope.domain_id,
+            "release_id": scope.release_id,
+            "release_fingerprint": scope.release_fingerprint,
+            "section": "ecl_highlight",
+            "scope": "segment" if segment else "portfolio",
+            "family": f"ecl-{key}",
+            "headline": headline,
+            "one_line": one_line,
+            "display": shown,
+            "segment": subject,
+            "segment_dimension": dimension if segment else "portfolio",
+            "segment_dimension_label": (
+                "Sector" if dimension == "sector" and segment
+                else "Product" if segment else "Whole book"),
+            "metric": f"ecl_{key}",
+            "metric_label": measure,
+            "reporting_quarter": month, "reporting_month": month,
+            "comparison_quarter": comparison, "comparison_month": comparison,
+            "comparison_basis": "previous month",
+            "what_changed": one_line,
+            "why_it_appeared": (
+                f"{measure} is one of the four figures this book reports on "
+                f"its own ECL position for {month}."),
+            "movement": {"from": None, "to": None,
+                         "from_display": before, "to_display": shown,
+                         "unit": "amount"},
+            # At least two, always. A drawer that opens on a single figure
+            # has nothing to compare and answers none of the questions it is
+            # opened to answer.
+            "key_numbers": [{"label": f"{measure}, {month}",
+                             "display": shown}]
+            + ([{"label": f"{measure}, {comparison}", "display": before}]
+               if before else [])
+            + list(extra or []),
+            "evidence": {"relation": relation, "dimension": dimension,
+                         "measure": "ecl_sar_mn"},
+            "evidence_url": "",
+            "possible_drivers": [],
+            "what_to_review_next": list(REVIEW_NEXT["ecl"]),
+            "drilldown": {
+                "note": ("This is a book-level figure, so there is no "
+                         "segment below it to open."),
+                "entity_label": ("borrowers"
+                                 if scope.domain_id == dom.CORPORATE
+                                 else "customers"),
+                "entity_count": 0, "borrower_count": 0,
+                "available": [], "unavailable": ["subsegment"],
+                "suggested_questions": [
+                {"question": (f"What drove {subject} ECL in {month}?"
+                              if segment else
+                              f"Which segments drove ECL in {month}?"),
+                 "required_fields": [], "required_quarters": [month],
+                 "kind": "drilldown"},
+                {"question": f"How has {subject} ECL moved over the latest "
+                             f"year?",
+                 "required_fields": [], "required_quarters": [],
+                 "kind": "trend"},
+            ]},
+            "severity": "medium",
+            "score": 0.0,
+        }
 
     increase = float(moved["ecl"] or 0.0) - prior.get(moved["segment"], 0.0)
     return [
@@ -464,15 +699,28 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
                       f"{disp.format_value(_dec(total), money)}",
              f"Across the book in {month}, on exposure of "
              f"{disp.format_value(_dec(total_ead), money)}.",
-             disp.format_value(_dec(total), money)),
+             disp.format_value(_dec(total), money),
+             before=disp.format_value(_dec(sum(prior.values())), money),
+             extra=({"label": f"Exposure at default, {month}",
+                     "display": disp.format_value(_dec(total_ead), money)},
+                    {"label": f"Coverage, {month}",
+                     "display": disp.format_value(
+                         _dec(total / max(total_ead, 1e-9) * 100),
+                         "percent")})),
         card("largest", f"{largest['segment']} carries the most ECL",
              f"{disp.format_value(_dec(float(largest['ecl'])), money)} of "
              f"the {disp.format_value(_dec(total), money)} recognised.",
-             disp.format_value(_dec(float(largest["ecl"])), money)),
+             disp.format_value(_dec(float(largest["ecl"])), money),
+             segment=str(largest["segment"]),
+             before=disp.format_value(
+                 _dec(prior.get(largest["segment"], 0.0)), money)),
         card("increase", f"{moved['segment']} added the most ECL",
              f"Up {disp.format_value(_dec(increase), money)} against "
              f"{comparison}.",
-             disp.format_value(_dec(increase), money)),
+             disp.format_value(_dec(increase), money),
+             segment=str(moved["segment"]), measure="ECL added this month",
+             before=disp.format_value(
+                 _dec(prior.get(moved["segment"], 0.0)), money)),
         # Named for its book. Both dashboards carried a card headlined
         # "Stage 2 and 3 exposure" and a reader with two tabs open could not
         # tell which portfolio they were looking at.
@@ -482,7 +730,14 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
              f"in Stage 2 or 3.",
              disp.format_value(
                  _dec(float(stage2["s2"]) / max(float(stage2["ead"]), 1e-9)
-                      * 100), "percent")),
+                      * 100), "percent"),
+             measure="Stage 2 and 3 share of exposure",
+             extra=({"label": f"Stage 2 and 3 exposure, {month}",
+                     "display": disp.format_value(
+                         _dec(float(stage2["s2"])), money)},
+                    {"label": f"Exposure at default, {month}",
+                     "display": disp.format_value(
+                         _dec(float(stage2["ead"])), money)})),
     ]
 
 
@@ -492,6 +747,7 @@ def compute(*, session, scope: dom.DomainScope) -> dict[str, Any]:
         raise AttentionUnavailable(
             f"A {dom.LABELS[scope.domain_id]} feed was asked for from a "
             f"{dom.LABELS[session.domain_id]} session. Nothing was computed.")
+    started = time.monotonic()
     month, comparison = scope.latest_period, scope.previous_period
     if not month or not comparison:
         raise AttentionUnavailable(
@@ -538,11 +794,26 @@ def compute(*, session, scope: dom.DomainScope) -> dict[str, Any]:
         "attention_label": SECTION_LABELS[scope.domain_id],
         "highlights_label": HIGHLIGHT_LABELS[scope.domain_id],
         "segments_requiring_attention": [
-            _item(c, scope=scope, month=month, comparison=comparison)
+            _item(c, scope=scope, month=month, comparison=comparison,
+                  everything=candidates)
             for c in ranked[:TOP_N]],
         "ecl_highlights": _highlights(session, scope=scope, month=month,
                                       comparison=comparison),
         "model_calls": 0,
+        "computed_ms": int((time.monotonic() - started) * 1000),
+        # WHO computed this and on what basis. Carried because the page
+        # prints it, and because a reader looking at a movement deserves to
+        # know it is the recorded book and not a prediction. Dropping it when
+        # the per-domain engine replaced the quarterly one took the whole
+        # Home page down with a TypeError, which is a good argument for the
+        # footnote being part of the contract rather than a nicety.
+        "ownership": {
+            "functionality": "cockpit",
+            "basis": "recorded_book",
+            "note": (f"Movements in the recorded {scope.label} book between "
+                     f"two reporting months. Not Early Warning: no live "
+                     f"signal and no prediction is used here."),
+        },
         "method_summary": {
             "candidates_considered": len(candidates),
             "families": [f.key for f in FAMILIES[scope.domain_id]],
@@ -575,9 +846,17 @@ def clear_cache() -> None:
 
 
 def find_item(feed: dict[str, Any], item_id: str) -> dict[str, Any] | None:
-    for item in feed.get("segments_requiring_attention", []):
-        if item.get("item_id") == item_id:
-            return item
+    """Any card on the page, not only the movement ones.
+
+    It searched `segments_requiring_attention` alone, so the four ECL
+    highlight cards -- which sit on the same page, open the same drawer and
+    offer the same Investigate Further -- were "no such attention item". A
+    reader clicking the most prominent card on the Cockpit got a 404.
+    """
+    for section in ("segments_requiring_attention", "ecl_highlights"):
+        for item in feed.get(section, []) or []:
+            if item.get("item_id") == item_id:
+                return item
     return None
 
 

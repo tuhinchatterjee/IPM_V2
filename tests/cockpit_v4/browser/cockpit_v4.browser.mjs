@@ -1349,7 +1349,11 @@ await test("clicking a segment card opens the right-side drawer", async () => {
     );
     const why = await page.textContent('[data-testid="attention-drawer-why"]');
     assert.match(why ?? "", /Why it appeared/);
-    assert.match(why ?? "", /materiality floor|scored/);
+    // The card says WHY it is on the page: how far it moved, and how much
+    // of the book it is. The wording changed with the per-domain engine;
+    // the two facts it has to carry did not.
+    assert.match(why ?? "", /higher than \d{4}-\d{2}/);
+    assert.match(why ?? "", /of the book's exposure at default/);
     const numbers = await page.$$(
       '[data-testid="attention-drawer-numbers"] dd',
     );
@@ -1373,8 +1377,14 @@ await test("the drawer offers borrower drill-down and no invented subsegment",
       const drill = await page.textContent(
         '[data-testid="attention-drawer-drilldown"]',
       );
-      assert.match(drill ?? "", /no subsegment level/);
-      assert.match(drill ?? "", /borrowers/);
+      // Where the book stops, and how many counterparties are behind this
+      // segment. The noun belongs to the BOOK: a corporate sector holds
+      // borrowers and a retail product holds customers, so asserting
+      // "borrowers" here would be asserting that the page names one of them
+      // whatever it is showing.
+      assert.match(drill ?? "",
+        /no subsegment level|has a level below it in this book/);
+      assert.match(drill ?? "", /holds \d+ (borrowers|customers|facilities)/);
     } finally {
       await context.close();
     }
@@ -1694,10 +1704,21 @@ await test("Segments requiring attention shows its period and only segments",
       const period = await page.textContent(
         '[data-testid="attention-reporting-period"]',
       );
+      // The book reports MONTHLY, so the period is a month. It used to be
+      // asserted as a quarter, which was right when the Cockpit had one
+      // quarterly release and is a false expectation now: a monthly book
+      // described as Q2 2026 would be the page inventing a calendar.
       assert.match(
         period ?? "",
-        /Reporting period Q[1-4] \d{4}/,
+        /Reporting period \d{4}-\d{2}/,
         `the reporting period must come from the release, got ${period}`,
+      );
+      const feed = await (await fetch(`${API}/api/v1/cockpit-v4/attention`))
+        .json();
+      assert.ok(
+        (period ?? "").includes(feed.reporting_month),
+        `the page shows ${period} and the release says ` +
+          `${feed.reporting_month}`,
       );
       const heading = await page.textContent(
         '[data-testid="segments-requiring-attention"] h2',
@@ -1788,6 +1809,181 @@ await test("the two dashboards are distinct and share no card", async () => {
     await context.close();
   }
 });
+
+// ---- the two books, in the browser -------------------------------------
+
+async function switchTo(page, domain) {
+  await page.waitForSelector('[data-testid="domain-switch"]', {
+    timeout: 60_000,
+  });
+  await page.click(`[data-testid="domain-${domain}"]`);
+  await page.waitForFunction(
+    (want) =>
+      document
+        .querySelector('[data-testid="domain-switch"]')
+        ?.getAttribute("data-domain") === want,
+    domain,
+    { timeout: 30_000 },
+  );
+  await page.waitForFunction(
+    (want) => {
+      const cards = document.querySelectorAll(
+        '[data-testid="segments-requiring-attention"] ' +
+          '[data-testid="attention-card"]',
+      );
+      const panel = document.querySelector('[data-testid="v4-ecl-panel"]');
+      return (
+        cards.length > 0 && panel?.getAttribute("data-domain") === want
+      );
+    },
+    domain,
+    { timeout: 60_000 },
+  );
+}
+
+async function cardText(page, section) {
+  return (
+    await Promise.all(
+      (
+        await page.$$(
+          `[data-testid="${section}"] [data-testid="attention-card"]`,
+        )
+      ).map(async (card) => ((await card.textContent()) ?? "").trim()),
+    )
+  ).sort();
+}
+
+await test("switching the book asks the server again, it is not a filter",
+  async () => {
+    const { context, page, requests } = await openCockpit(browser);
+    try {
+      await switchTo(page, "corporate");
+      const before = requests.length;
+      const corporate = await cardText(page, "segments-requiring-attention");
+
+      await switchTo(page, "retail");
+      const retail = await cardText(page, "segments-requiring-attention");
+
+      // A NEW request, naming the book. A client-side filter over one
+      // payload would show different cards and issue nothing.
+      const asked = calls(requests.slice(before), "/attention").filter((u) =>
+        u.includes("domain=retail"),
+      );
+      assert.ok(
+        asked.length >= 1,
+        "switching to Retail must ask the server for the Retail book",
+      );
+      assert.ok(
+        calls(requests.slice(before), "/ecl").some((u) =>
+          u.includes("domain=retail"),
+        ),
+        "the ECL panel must follow the switch",
+      );
+      assert.notDeepEqual(
+        corporate,
+        retail,
+        "the two books must not show the same cards",
+      );
+      for (const card of retail) {
+        assert.ok(
+          !corporate.includes(card),
+          `a card appears in both books: ${card}`,
+        );
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("each book shows its own release, currency and ECL position",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      const seen = {};
+      for (const domain of ["corporate", "retail"]) {
+        await switchTo(page, domain);
+        seen[domain] = {
+          release: await page.getAttribute(
+            '[data-testid="v4-ecl-panel"]',
+            "data-release",
+          ),
+          ecl: await page.textContent('[data-testid="v4-ecl-ecl"]'),
+          ead: await page.textContent('[data-testid="v4-ecl-ead"]'),
+          coverage: await page.textContent(
+            '[data-testid="v4-ecl-coverage"]',
+          ),
+          reconciles: await page.textContent(
+            '[data-testid="v4-ecl-reconciliation"]',
+          ),
+        };
+      }
+      assert.notEqual(seen.corporate.release, seen.retail.release);
+      assert.notEqual(seen.corporate.ecl, seen.retail.ecl);
+      assert.notEqual(seen.corporate.ead, seen.retail.ead);
+      for (const domain of ["corporate", "retail"]) {
+        assert.match(seen[domain].ead, /SAR [\d,]+ million/);
+        assert.match(seen[domain].coverage, /\d+\.\d{2}%/);
+        assert.match(
+          seen[domain].reconciles,
+          /sum to the movement exactly/,
+          `${domain}: the decomposition must state that it reconciles`,
+        );
+      }
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("switching back shows the first book's numbers, not a cached other",
+  async () => {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await switchTo(page, "corporate");
+      const first = await page.textContent('[data-testid="v4-ecl-ecl"]');
+      const firstCards = await cardText(page, "segments-requiring-attention");
+      await switchTo(page, "retail");
+      const retail = await page.textContent('[data-testid="v4-ecl-ecl"]');
+      await switchTo(page, "corporate");
+      const again = await page.textContent('[data-testid="v4-ecl-ecl"]');
+      const againCards = await cardText(page, "segments-requiring-attention");
+
+      assert.notEqual(first, retail);
+      assert.equal(
+        first,
+        again,
+        "returning to Corporate must show Corporate's ECL, not Retail's",
+      );
+      assert.deepEqual(firstCards, againCards);
+    } finally {
+      await context.close();
+    }
+  },
+);
+
+await test("a question asked in a book opens a thread badged with that book",
+  async () => {
+    for (const domain of ["corporate", "retail"]) {
+      const { context, page } = await openCockpit(browser);
+      try {
+        await switchTo(page, domain);
+        await ask(page, "What is exposure at default this month?");
+        await waitForAnswer(page, 90_000);
+        const badge = await page.textContent(
+          '[data-testid="v4-thread-domain"]',
+        );
+        assert.match(
+          badge ?? "",
+          domain === "corporate" ? /Corporate/ : /Retail/,
+          `a ${domain} question opened a thread badged ${badge}`,
+        );
+      } finally {
+        await context.close();
+      }
+    }
+  },
+);
 
 await test("both dashboards open the same right-hand drawer", async () => {
   const { context, page } = await openCockpit(browser);

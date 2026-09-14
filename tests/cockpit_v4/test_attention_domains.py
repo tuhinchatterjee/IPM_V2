@@ -280,3 +280,79 @@ def test_the_retail_book_surfaces_its_worst_vintage_or_band(feeds):
     found = {(i["segment_dimension"], str(i["segment"]))
              for i in feed["segments_requiring_attention"]}
     assert any(d in ("vintage_year", "score_band") for d, _ in found), found
+
+
+# ---- the page reads this feed; the feed must carry what it reads --------
+
+#: Every top-level key `attention-panel.tsx` dereferences. Checked against
+#: the real feed because losing one of them is not a missing label: when the
+#: per-domain engine replaced the quarterly one it dropped `ownership`, the
+#: footnote read `feed.ownership.note`, and the whole Cockpit home page came
+#: down with a TypeError inside an error boundary. A unit test of the engine
+#: could not see it and the panel's own tests used a fixture that still had
+#: the key.
+PANEL_KEYS = (
+    "domain_id", "domain_label", "release_id", "release_fingerprint",
+    "reporting_month", "comparison_month", "reporting_currency",
+    "amount_scale", "attention_label", "highlights_label",
+    "segments_requiring_attention", "ecl_highlights", "model_calls",
+    "computed_ms", "ownership",
+)
+
+#: Every field a card is dereferenced for, by the panel AND by the drawer.
+#:
+#: The drawer is the half that was missed. It reads
+#: `item.possible_drivers.length` and maps `item.what_to_review_next`, and
+#: the per-domain engine emitted neither -- so clicking ANY card threw inside
+#: the component, the error boundary unmounted the page beneath it, and the
+#: Cockpit home screen went blank on a click. The panel's own tests passed
+#: throughout, because they never opened a card.
+CARD_KEYS = (
+    "item_id", "section", "headline", "segment", "segment_dimension",
+    "metric", "metric_label", "what_changed", "why_it_appeared", "movement",
+    "key_numbers", "evidence", "evidence_url", "reporting_month",
+    "comparison_month", "reporting_quarter", "comparison_quarter",
+    "possible_drivers", "what_to_review_next", "drilldown",
+)
+
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_the_feed_carries_every_key_the_page_reads(feeds, domain_id):
+    feed, _scope, _session = feeds[domain_id]
+    missing = [key for key in PANEL_KEYS if key not in feed]
+    assert missing == [], (
+        f"the {domain_id} feed is missing {missing}, which the Cockpit home "
+        f"page dereferences")
+    assert feed["ownership"]["note"]
+    assert feed["ownership"]["basis"] == "recorded_book"
+    assert isinstance(feed["computed_ms"], int)
+    for card in feed["segments_requiring_attention"] + feed["ecl_highlights"]:
+        absent = [key for key in CARD_KEYS if key not in card]
+        assert absent == [], f"a card is missing {absent}: {card}"
+        assert isinstance(card["possible_drivers"], list)
+        assert card["what_to_review_next"], (
+            "a card with nothing to review next is a dead end")
+        assert card["drilldown"]["suggested_questions"]
+
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_a_driver_is_an_association_and_never_a_cause(feeds, domain_id):
+    feed, _scope, _session = feeds[domain_id]
+    for card in feed["segments_requiring_attention"]:
+        for driver in card["possible_drivers"]:
+            assert driver["relationship"] == "recorded alongside"
+            assert driver["metric"] != card["metric"], (
+                "a measure is not a driver of itself")
+            assert "caused" not in driver["statement"].lower()
+            assert "because" not in driver["statement"].lower()
+
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_the_footnote_names_the_book_and_disclaims_prediction(feeds,
+                                                              domain_id):
+    feed, _scope, _session = feeds[domain_id]
+    note = feed["ownership"]["note"]
+    assert dom.LABELS[domain_id] in note
+    assert "Not Early Warning" in note
+    other = next(d for d in dom.DOMAIN_IDS if d != domain_id)
+    assert dom.LABELS[other] not in note

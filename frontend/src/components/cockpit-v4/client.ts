@@ -601,11 +601,20 @@ export type AttentionDriver = {
 };
 
 export type AttentionDrilldown = {
+  /** How many counterparties the segment holds, and what to call them.
+   *
+   * The book decides the noun: a corporate sector holds borrowers, a retail
+   * product holds customers. The page must not name one of them.
+   */
+  entity_count: number;
+  entity_label: string;
   available: string[];
   unavailable: string[];
   note: string;
+  /** The same number under the name the drawer used before there were two
+   * books. Kept so an existing reader of this payload is not broken. */
   borrower_count: number;
-  suggested_questions: string[];
+  suggested_questions: unknown[];
 };
 
 export type AttentionItem = {
@@ -621,7 +630,10 @@ export type AttentionItem = {
   metric_label: string;
   family: string;
   reporting_quarter: string;
+  /** The period under the name this book uses. Both are served. */
+  reporting_month?: string;
   comparison_quarter: string;
+  comparison_month?: string;
   comparison_basis: string;
   movement: string;
   severity: string;
@@ -648,13 +660,13 @@ export type AttentionFeed = {
   prior_year_quarter: string;
   reporting_currency: string;
   generated_at: string;
-  computed_ms: number;
+  computed_ms?: number;
   model_calls: number;
   cached: boolean;
   segments_requiring_attention: AttentionItem[];
   ecl_highlights: AttentionItem[];
   segment_note: string;
-  ownership: { functionality: string; basis: string; note: string };
+  ownership?: { functionality: string; basis: string; note: string };
 };
 
 export type InvestigationSeed = {

@@ -173,8 +173,10 @@ export function AttentionDrawer({
               className="mt-2 text-xs text-slate-500"
               data-testid="attention-drawer-drilldown"
             >
-              {drill.note} This segment has {drill.borrower_count} borrowers at{" "}
-              {item.reporting_quarter}.
+              {drill.note}
+              {drill.entity_count
+                ? ` This segment holds ${drill.entity_count} ${drill.entity_label} in ${item.reporting_month ?? item.reporting_quarter}.`
+                : ""}
             </p>
           ) : null}
         </section>

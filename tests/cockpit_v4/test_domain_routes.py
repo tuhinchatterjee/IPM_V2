@@ -328,3 +328,35 @@ def test_the_ecl_panel_refuses_an_unknown_book(client):
     response = client.get(f"{P}/ecl", params={"domain": "treasury"})
     assert response.status_code == 400
     assert response.json()["detail"]["error_code"] == "UNKNOWN_DOMAIN"
+
+
+# ---- Investigate Further works from EVERY card -------------------------
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_every_card_on_the_page_can_be_investigated(client, domain_id):
+    """§13. The drawer offers it on every card, so every card must support it.
+
+    The ECL highlights were a short dict with a headline and a number while
+    the route that opens a seeded thread read `segment`, `metric`,
+    `what_changed`, `movement`, `key_numbers` and `evidence` off the item.
+    Investigating one raised a KeyError and returned a 500 -- on the four
+    cards a reader is most likely to click.
+    """
+    feed = client.get(f"{P}/attention",
+                      params={"domain": domain_id}).json()
+    cards = (feed["segments_requiring_attention"] + feed["ecl_highlights"])
+    assert len(cards) >= 5
+    for card in cards:
+        opened = client.post(f"{P}/attention/{card['item_id']}/investigate")
+        assert opened.status_code == 201, (
+            f"{card['section']} card {card['headline']!r}: {opened.text}")
+        body = opened.json()
+        seed = body["seed"]
+        assert seed["domain_id"] == domain_id
+        assert seed["release_id"] == feed["release_id"]
+        assert seed["release_fingerprint"] == feed["release_fingerprint"]
+        assert seed["reporting_period"] == feed["reporting_month"]
+        assert body["suggested_questions"], (
+            "a seeded thread with nothing to ask next is a dead end")
+        thread = client.get(f"{P}/threads/{body['thread_id']}").json()
+        assert thread["domain_id"] == domain_id
