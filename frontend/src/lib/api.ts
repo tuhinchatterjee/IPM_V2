@@ -3481,6 +3481,31 @@ export interface EwsProgressDocument {
 export interface EwsProgressReply extends Partial<EwsProgressDocument> {
   watching: boolean;
   version: number;
+  /**
+   * What the BACKEND says about this turn. The client renders this and owns
+   * none of it: a certified turn takes forty to seventy-five seconds, and a
+   * browser that decided for itself when one had failed showed a red timeout
+   * above the completed answer.
+   *
+   * "" means this worker has never seen the turn, which is not a failure.
+   */
+  state?: "running" | "completed" | "failed" | "";
+  /** Present only when `state` is `completed`. */
+  answer?: EarlyWarningV2Answer;
+  /** Present only when `state` is `failed`. Written for a credit officer. */
+  failure?: string;
+  /** The question, so a failed turn can be retried without the client
+   *  having had to keep it. */
+  question?: string;
+  elapsed_ms?: number;
+}
+
+export interface EwsTurnStarted {
+  turn_id: string;
+  state: "running";
+  thread_id: string;
+  question: string;
+  version: number;
 }
 
 export interface EarlyWarningV2LevelRow {
@@ -4638,7 +4663,47 @@ export const api = {
         mode: payload.mode ?? "standard",
         turn_key: payload.turnKey ?? null,
       }),
-      timeoutMs: 60_000,
+      // Sixty seconds was the defect: a certified turn takes forty to
+      // seventy-five, so the browser aborted its own request and reported a
+      // timeout above the answer that then arrived. This door is kept for
+      // callers that genuinely want to block — the tests, and any script —
+      // and is given room to do it. The SCREEN uses `earlyWarningV2AskStart`
+      // and polls, so no fetch timeout can decide whether an analysis
+      // succeeded.
+      timeoutMs: 600_000,
+    }),
+  /**
+   * Start a turn and get its id back at once.
+   *
+   * The screen's door. Everything after this is a poll: the backend reports
+   * `running`, `completed` or `failed`, and the client renders that state
+   * rather than inventing one from a stopwatch.
+   */
+  earlyWarningV2AskStart: (payload: {
+    question: string;
+    period?: string;
+    customerId?: string;
+    uiState?: Record<string, unknown>;
+    rollingSummary?: Record<string, unknown>;
+    threadId?: string;
+    mode?: "standard" | "deep";
+    turnKey?: string;
+  }) =>
+    request<EwsTurnStarted>("/early-warning/v2/ask/start", {
+      method: "POST",
+      body: JSON.stringify({
+        question: payload.question,
+        period: payload.period ?? null,
+        customer_id: payload.customerId ?? null,
+        ui_state: payload.uiState ?? null,
+        rolling_summary: payload.rollingSummary ?? null,
+        thread_id: payload.threadId ?? null,
+        mode: payload.mode ?? "standard",
+        turn_key: payload.turnKey ?? null,
+      }),
+      // Short on purpose. This call creates a turn and returns; it does not
+      // wait for one.
+      timeoutMs: 20_000,
     }),
   // Polled while `earlyWarningV2Ask` is in flight, so it is deliberately the
   // smallest call in this file: the steps, their statuses and their timings.

@@ -64,6 +64,19 @@ MAX_TURNS = 256
 MAX_KEY_LENGTH = 64
 
 
+#: What a turn IS, as the backend knows it. The client renders from this and
+#: from nothing else — which is the whole point of the change that introduced
+#: it. A browser that decided for itself when a turn had failed showed "the
+#: backend did not respond within 60 seconds" above a completed answer,
+#: because a certified turn takes forty to seventy-five seconds and a fetch
+#: timeout is not a fact about the analysis.
+RUNNING = "running"
+COMPLETED = "completed"
+FAILED = "failed"
+
+TERMINAL: frozenset[str] = frozenset({COMPLETED, FAILED})
+
+
 @dataclass
 class _Turn:
     """One turn being watched."""
@@ -74,6 +87,19 @@ class _Turn:
     touched: float = field(default_factory=time.monotonic)
     events: list[Any] = field(default_factory=list)
     active: bool = True
+    #: The authoritative state. Only this module writes it, and only the turn
+    #: itself moves it out of `running`.
+    state: str = RUNNING
+    #: The finished answer, held for the poll that collects it. Kept on the
+    #: turn rather than returned from the POST so that a client which lost
+    #: its connection mid-turn can still collect what it asked for.
+    result: dict[str, Any] | None = None
+    #: Why it failed, in the reader's language. Never a provider message, a
+    #: stack trace or an HTTP status.
+    failure: str = ""
+    #: The question, so a failed turn can be offered back for retry without
+    #: the client having to have kept it.
+    question: str = ""
 
     @property
     def elapsed_ms(self) -> int:
@@ -124,7 +150,7 @@ def _evict(now: float) -> None:
         _turns.pop(key, None)
 
 
-def open_turn(key: str, principal: Any) -> str:
+def open_turn(key: str, principal: Any, *, question: str = "") -> str:
     """Begin watching a turn. Returns the key actually used, or "".
 
     An invalid key is refused rather than sanitised: a client that sent one
@@ -135,7 +161,8 @@ def open_turn(key: str, principal: Any) -> str:
         return ""
     now = time.monotonic()
     with _lock:
-        _turns[key] = _Turn(key=key, owner=_owner(principal))
+        _turns[key] = _Turn(key=key, owner=_owner(principal),
+                            question=str(question or ""))
         # After the insert rather than before it, so the bound counts the
         # turn being opened. Evicting first leaves the registry one over.
         _evict(now)
@@ -166,6 +193,52 @@ def close_turn(key: str) -> None:
         turn.touched = time.monotonic()
 
 
+def finish(key: str, result: dict[str, Any]) -> None:
+    """The turn completed and this is its answer.
+
+    Held on the turn rather than only returned from the request that started
+    it, so a client whose connection dropped mid-turn collects the answer on
+    its next poll instead of being told the analysis failed. The analysis did
+    not fail; a socket did.
+    """
+    if not key:
+        return
+    with _lock:
+        turn = _turns.get(key)
+        if turn is None:
+            return
+        turn.result = dict(result)
+        turn.state = COMPLETED
+        turn.active = False
+        turn.touched = time.monotonic()
+
+
+def fail(key: str, reason: str) -> None:
+    """The turn ended without an answer, and this is what to tell the reader.
+
+    `reason` is written for a credit officer. A provider error, an HTTP
+    status and a Python traceback are all facts about the plumbing, and none
+    of them belongs on a screen that was asked about a loan book.
+    """
+    if not key:
+        return
+    with _lock:
+        turn = _turns.get(key)
+        if turn is None:
+            return
+        turn.failure = str(reason or "")
+        turn.state = FAILED
+        turn.active = False
+        turn.touched = time.monotonic()
+
+
+def state_of(key: str) -> str:
+    """Where a turn has got to, or "" if this worker has never seen it."""
+    with _lock:
+        turn = _turns.get(key)
+        return turn.state if turn is not None else ""
+
+
 def read(key: str, principal: Any) -> dict[str, Any] | None:
     """The progress document for one turn, or None if there is not one.
 
@@ -184,9 +257,25 @@ def read(key: str, principal: Any) -> dict[str, Any] | None:
         events = list(turn.events)
         active = turn.active
         elapsed = turn.elapsed_ms
+        state = turn.state
+        result = dict(turn.result) if turn.result is not None else None
+        failure = turn.failure
+        question = turn.question
     document = progress_mod.build(events, turn_id=key, active=active,
                                   elapsed_ms=elapsed)
-    return document.to_dict()
+    out: dict[str, Any] = {
+        **document.to_dict(),
+        # The state the client renders from. A turn is running until this
+        # says otherwise, however long that takes and whatever a socket did.
+        "state": state,
+        "elapsed_ms": elapsed,
+    }
+    if result is not None:
+        out["answer"] = result
+    if failure:
+        out["failure"] = failure
+        out["question"] = question
+    return out
 
 
 def forget(key: str) -> None:
@@ -206,6 +295,7 @@ def watching() -> int:
         return len(_turns)
 
 
-__all__ = ["MAX_KEY_LENGTH", "MAX_TURNS", "TTL_SECONDS", "close_turn",
-           "forget", "open_turn", "read", "record", "reset", "valid_key",
-           "watching"]
+__all__ = ["COMPLETED", "FAILED", "MAX_KEY_LENGTH", "MAX_TURNS", "RUNNING",
+           "TERMINAL", "TTL_SECONDS", "close_turn", "fail", "finish",
+           "forget", "open_turn", "read", "record", "reset", "state_of",
+           "valid_key", "watching"]

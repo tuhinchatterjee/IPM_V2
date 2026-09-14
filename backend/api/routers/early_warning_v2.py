@@ -559,6 +559,15 @@ def ask_early_warning(payload: AskRequest,
         # animates forever.
         ews_live.close_turn(watch)
 
+    return _answer_payload(turn, payload.turn_key or "")
+
+
+def _answer_payload(turn: Any, turn_key: str) -> dict:
+    """One answer document, however the turn was started.
+
+    Shared by the synchronous `/ask` and by the started-turn lifecycle, so
+    the two cannot drift into describing the same turn differently.
+    """
     answer = dict(turn.answer)
     packet = turn.packet
     return {
@@ -593,8 +602,107 @@ def ask_early_warning(payload: AskRequest,
         # The finished progress panel, so the client does not have to race a
         # last poll to render the completed history it has been showing.
         "progress": ews_progress.build(
-            turn.events, turn_id=payload.turn_key or turn.request_id,
+            turn.events, turn_id=turn_key or turn.request_id,
             active=False).to_dict(),
+    }
+
+
+#: How long a started turn may run before the RUNTIME — not the browser —
+#: calls it dead. Generous, because a certified Deep turn legitimately takes
+#: minutes, and the point of this whole lifecycle is that only the backend
+#: decides when an analysis has failed.
+STARTED_TURN_CEILING_SECONDS = 15 * 60
+
+
+@router.post("/ask/start", summary="Start a turn and watch it happen")
+def start_early_warning_turn(
+        payload: AskRequest,
+        principal: Principal = RequireEarlyWarningView) -> dict:
+    """Begin the analysis and return immediately with its turn id.
+
+    Why this exists
+    ---------------
+    `/ask` answers in one synchronous call that takes forty to seventy-five
+    seconds on a certified provider. A browser cannot hold that open without
+    imposing a timeout, and a browser's timeout is not a fact about a credit
+    analysis: the screen showed "the backend did not respond within 60
+    seconds" in red while the completed answer arrived underneath it. Both
+    statements cannot be true, and the wrong one was the browser's.
+
+    So the turn becomes a thing with a state. This call creates it, hands
+    back its id, and returns; `/ask/progress` reports `running`, `completed`
+    or `failed` and carries the answer when there is one. The client renders
+    the backend's state and owns none of it.
+
+    `/ask` is unchanged and still answers synchronously. Nothing that calls
+    it has to move, and the certification drives the pipeline directly.
+    """
+    import threading
+    import uuid
+
+    from backend.early_warning.conversation import live as ews_live
+    from backend.early_warning.conversation import pipeline as ews_pipeline
+
+    turn_id = payload.turn_key or f"ews-{uuid.uuid4().hex[:24]}"
+    if not ews_live.valid_key(turn_id):
+        raise HTTPException(
+            status_code=400,
+            detail="That turn id is not one this product will store.")
+
+    ui_state = dict(payload.ui_state or {})
+    if payload.customer_id:
+        ui_state.setdefault("customer_id", payload.customer_id)
+    if payload.period:
+        ui_state.setdefault("period", payload.period)
+
+    watch = ews_live.open_turn(turn_id, principal, question=payload.question)
+    if not watch:
+        raise HTTPException(
+            status_code=400,
+            detail="That turn id is not one this product will store.")
+
+    role = principal.role
+
+    def run() -> None:
+        """The turn, on its own thread.
+
+        The pipeline opens no database session and holds no request state —
+        it reads the published Early Warning parquet and returns — so a
+        worker thread is the whole of what this needs.
+        """
+        try:
+            turn = ews_pipeline.answer(
+                payload.question,
+                thread_id=payload.thread_id or "",
+                ui_state=ui_state,
+                rolling_summary=payload.rolling_summary,
+                mode=payload.mode,
+                permissions={"can_read": True, "role": role},
+                on_event=lambda event: ews_live.record(watch, event),
+            )
+        except EarlyWarningDataNotBuilt:
+            ews_live.fail(watch, "The Early Warning data has not been built "
+                                 "in this environment, so there is nothing "
+                                 "to analyse yet.")
+        except Exception:  # noqa: BLE001 - a failure is a turn state
+            logger.exception("An Early Warning turn failed: %s", watch)
+            # Deliberately not the exception text. A provider message, an
+            # HTTP status and a traceback are facts about the plumbing, and
+            # the screen was asked about a loan book.
+            ews_live.fail(watch, "CreditProbe could not complete this "
+                                 "analysis.")
+        else:
+            ews_live.finish(watch, _answer_payload(turn, watch))
+
+    thread = threading.Thread(target=run, name=f"ews-turn-{turn_id}",
+                              daemon=True)
+    thread.start()
+    return {
+        "turn_id": turn_id,
+        "state": ews_live.RUNNING,
+        "thread_id": payload.thread_id or "",
+        "question": payload.question,
+        "version": ews_progress.CONTRACT_VERSION,
     }
 
 
@@ -619,7 +727,12 @@ def ask_progress(payload: ProgressRequest,
 
     found = ews_live.read(payload.turn_key or "", principal)
     if found is None:
-        return {"watching": False, "version": ews_progress.CONTRACT_VERSION}
+        # Not an error, and deliberately not a failure either. The turn may
+        # have expired, or this worker may never have run it, and a client
+        # that treats "I cannot see it" as "it failed" is the defect this
+        # whole lifecycle exists to remove.
+        return {"watching": False, "state": "",
+                "version": ews_progress.CONTRACT_VERSION}
     return {"watching": True, **found}
 
 

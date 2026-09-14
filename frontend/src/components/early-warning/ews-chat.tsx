@@ -6,30 +6,51 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Composer } from "@/components/ask/composer";
 import { type ProgressDocument } from "@/components/agentic/steps";
-import { api, ApiError, type EarlyWarningV2Answer } from "@/lib/api";
+import { api, type EarlyWarningV2Answer } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { chartFor, showsChart, type EwsScope } from "./chart-rules";
-import { TurnProgress, useTurnKey } from "./ews-progress";
+import { TurnProgress } from "./ews-progress";
+import { answerOf, useEwsTurn } from "./use-turn";
+import { errorFor, isReconnecting, type Turn } from "./turn";
 import { TrendChart, CategoryBarChart } from "@/components/analytics/charts";
 
 /**
- * The Early Warning chat, answering on the screen it was asked from.
+ * The Early Warning chat: a conversation, not a form with answers under it.
  *
- * The deck puts a chat bar on every early warning screen and treats it as
- * the primary navigation: the drill-downs are reachable from it, not only
- * from the tables. Sending the reader to a separate thread page to ask
- * "which layer moved most?" loses the screen they were reading, which is
- * the context that made the question worth asking.
+ * What changed, and why
+ * ---------------------
+ * It used to be a box at the top of the dashboard with answer cards piling
+ * up beneath it, newest first, while the box stayed where it was. Two things
+ * were wrong with that. The reader had to look UP to see the newest answer
+ * and DOWN to ask the next question, which is the opposite of every chat
+ * anybody uses. And nothing appeared at all until the turn finished — forty
+ * to seventy-five seconds of a composer that had gone quiet.
  *
- * It answers through the Early Warning domain's own endpoint rather than
- * the general one. That is narrower on purpose: it reads this domain and no
- * other, so it cannot reach another book by construction rather than by a
- * lock that has to hold. A question this domain does not answer says so.
+ * So: an empty state with a composer near the top and some suggestions, and
+ * the moment a question is asked, a thread. The question appears at once,
+ * the progress panel appears under it at once, the composer moves to the
+ * bottom and stays there, and answers append above it in the order they were
+ * asked.
+ *
+ * The turn's state comes from the backend — see `turn.ts` and `use-turn.ts`.
+ * The browser no longer decides that an analysis has failed because a socket
+ * took longer than a minute.
  */
+type Entry = {
+  /** The turn this entry is, while it runs and after it settles. */
+  turn: Turn;
+  answer: EarlyWarningV2Answer | null;
+  progress: ProgressDocument | null;
+};
+
 export function EarlyWarningChat({
   customerId,
   uiState,
   onOpenBorrower,
+  /** What the dashboard was showing when this thread began, if anything.
+   *  Snapshotted by the caller: a thread's scope does not change because
+   *  somebody later moved a filter on another screen. */
+  scopeLabel,
 }: {
   /** The obligor the screen is currently about, so "what should I do?"
    *  is answered about that obligor rather than about the book. */
@@ -42,27 +63,14 @@ export function EarlyWarningChat({
    */
   uiState?: Record<string, unknown>;
   onOpenBorrower?: (customerId: string) => void;
+  scopeLabel?: string | null;
 }) {
   const suggestions = useAsync(() => api.earlyWarningV2Suggestions(), []);
   const [question, setQuestion] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-  const [turns, setTurns] = React.useState<
-    {
-      question: string;
-      answer: EarlyWarningV2Answer;
-      /** The completed progress history for THIS turn, kept so an older
-       *  turn's trace can still be reopened after newer ones have run. */
-      progress: ProgressDocument | null;
-    }[]
-  >([]);
-  /**
-   * The turn currently in flight, named before it is sent so the browser can
-   * watch it. Null between questions, which is what stops the panel polling
-   * a turn that has already finished.
-   */
-  const [live, setLive] = React.useState<string | null>(null);
-  const nextTurnKey = useTurnKey();
+  const [entries, setEntries] = React.useState<Entry[]>([]);
+  const [threadNumber, setThreadNumber] = React.useState(0);
+  const { turn, progress, elapsedMs, start, clear } = useEwsTurn();
+
   /**
    * The thread's analytical context, as the server last wrote it, handed
    * straight back on the next turn. Stored rather than reconstructed: the
@@ -73,80 +81,231 @@ export function EarlyWarningChat({
   // `useId` rather than a random string: a ref initialiser runs on every
   // render, so `Math.random()` there is a new thread id each time React
   // decides to re-render and the server sees a different conversation.
-  const threadId = React.useId();
+  const base = React.useId();
+  const threadId = `${base}-${threadNumber}`;
+
+  const pane = React.useRef<HTMLDivElement | null>(null);
+  const [pinned, setPinned] = React.useState(true);
+
+  // Follow the conversation while the reader is at the bottom of it, and
+  // stop the moment they scroll up to read something. Yanking somebody back
+  // down mid-sentence is worse than not scrolling at all.
+  React.useEffect(() => {
+    if (!pinned) return;
+    pane.current?.scrollTo({ top: pane.current.scrollHeight });
+  }, [entries, turn, progress, pinned]);
+
+  const onScroll = React.useCallback(() => {
+    const node = pane.current;
+    if (!node) return;
+    const slack = node.scrollHeight - node.scrollTop - node.clientHeight;
+    setPinned(slack < 80);
+  }, []);
 
   const ask = React.useCallback(
     async (text: string) => {
       const trimmed = text.trim();
-      if (!trimmed || busy) return;
-      const turnKey = nextTurnKey();
-      setBusy(true);
-      setError(null);
-      setLive(turnKey);
-      try {
-        const answer = await api.earlyWarningV2Ask({
-          question: trimmed,
-          customerId: customerId ?? undefined,
-          uiState: { ...(uiState ?? {}), customer_id: customerId ?? undefined },
-          rollingSummary: summary.current,
-          threadId,
-          turnKey,
-        });
-        if (answer.rolling_summary) summary.current = answer.rolling_summary;
-        setTurns((prior) => [
-          ...prior,
-          {
-            question: trimmed,
-            answer,
-            progress: (answer.progress as ProgressDocument | undefined) ?? null,
-          },
-        ]);
-        setQuestion("");
-      } catch (e) {
-        setError(
-          e instanceof ApiError
-            ? e.message
-            : "CreditProbe could not answer that question.",
-        );
-      } finally {
-        setBusy(false);
-        setLive(null);
-      }
+      if (!trimmed || (turn && turn.state === "running")) return;
+      setQuestion("");
+      setPinned(true);
+      const settled = await start(trimmed, {
+        threadId,
+        customerId,
+        uiState: { ...(uiState ?? {}), customer_id: customerId ?? undefined },
+        rollingSummary: summary.current,
+      });
+      if (!settled) return;
+      const answer = answerOf(settled);
+      if (answer?.rolling_summary) summary.current = answer.rolling_summary;
+      setEntries((prior) => [
+        ...prior,
+        {
+          turn: settled,
+          answer,
+          progress:
+            (answer?.progress as ProgressDocument | undefined) ??
+            (settled.progress as ProgressDocument | null) ??
+            null,
+        },
+      ]);
+      clear();
     },
-    [busy, customerId, uiState, threadId, nextTurnKey],
+    [turn, start, clear, threadId, customerId, uiState],
   );
 
+  const newThread = React.useCallback(() => {
+    clear();
+    setEntries([]);
+    setQuestion("");
+    setPinned(true);
+    // A new thread carries no memory of the last one. The server is handed
+    // no rolling summary and a different thread id, so "those names" in the
+    // first question of a new thread resolves to nothing — which is correct.
+    summary.current = undefined;
+    setThreadNumber((n) => n + 1);
+  }, [clear]);
+
+  const inThread = entries.length > 0 || turn !== null;
+  const running = turn?.state === "running";
+  const liveError = errorFor(turn, turn?.id ?? "");
+
+  const composer = (
+    <Composer
+      value={question}
+      onChange={setQuestion}
+      onSubmit={(q) => void ask(q)}
+      busy={running}
+      suggestions={
+        inThread ? [] : (suggestions.data?.questions ?? []).slice(0, 3)
+      }
+      placeholder="Ask about this portfolio. Try: which layer moved most?"
+    />
+  );
+
+  if (!inThread) {
+    // The landing state: the composer where the reader is already looking,
+    // and the questions this product can actually answer.
+    return (
+      <section className="space-y-3" data-testid="ews-chat-empty">
+        {composer}
+        {scopeLabel && <ScopeChip label={scopeLabel} />}
+      </section>
+    );
+  }
+
   return (
-    <section className="space-y-3">
-      <Composer
-        value={question}
-        onChange={setQuestion}
-        onSubmit={(q) => void ask(q)}
-        busy={busy}
-        suggestions={(suggestions.data?.questions ?? []).slice(0, 3)}
-        placeholder="Ask about this portfolio. Try: which layer moved most?"
-      />
-      {error && (
-        <Card className="border-negative/40 p-3 text-sm text-negative">{error}</Card>
-      )}
-      {/* The investigation as it happens. Replaces a grey rectangle that was
-          indistinguishable from a hang for the fifteen to sixty seconds an
-          Early Warning turn takes. */}
-      {busy && <TurnProgress turnKey={live} />}
-      {turns
-        .slice()
-        .reverse()
-        .map((turn, i) => (
-          <Answer
-            key={turns.length - i}
-            question={turn.question}
-            answer={turn.answer}
-            progress={turn.progress}
-            onAsk={(q) => void ask(q)}
-            onOpenBorrower={onOpenBorrower}
-          />
+    <section className="flex flex-col gap-3" data-testid="ews-chat-thread">
+      <div className="flex items-center justify-between gap-2">
+        {scopeLabel ? <ScopeChip label={scopeLabel} /> : <span />}
+        <button
+          type="button"
+          onClick={newThread}
+          className="rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent"
+        >
+          New thread
+        </button>
+      </div>
+
+      <div
+        ref={pane}
+        onScroll={onScroll}
+        className="relative max-h-[60vh] space-y-3 overflow-y-auto pr-1"
+      >
+        {entries.map((entry) => (
+          <React.Fragment key={entry.turn.id || entry.turn.question}>
+            <UserMessage text={entry.turn.question} />
+            {entry.answer ? (
+              <Answer
+                question={entry.turn.question}
+                answer={entry.answer}
+                progress={entry.progress}
+                onAsk={(q) => void ask(q)}
+                onOpenBorrower={onOpenBorrower}
+              />
+            ) : (
+              <TurnFailed turn={entry.turn} onRetry={(q) => void ask(q)} />
+            )}
+          </React.Fragment>
         ))}
+
+        {turn && (
+          <>
+            <UserMessage text={turn.question} />
+            {running ? (
+              <div className="space-y-2">
+                <TurnProgress turnKey={null} finished={progress} />
+                {progress === null && (
+                  <Card className="p-3 text-sm text-text-muted">
+                    Starting the analysis…
+                  </Card>
+                )}
+                {isReconnecting(turn) && (
+                  <p className="text-xs text-text-muted">
+                    Reconnecting… the analysis is still running.
+                  </p>
+                )}
+                <p className="text-[11px] text-text-muted">
+                  {(elapsedMs / 1000).toFixed(1)}s
+                </p>
+              </div>
+            ) : (
+              liveError && (
+                <TurnFailed turn={turn} onRetry={(q) => void ask(q)} />
+              )
+            )}
+          </>
+        )}
+      </div>
+
+      {!pinned && (
+        <button
+          type="button"
+          onClick={() => {
+            setPinned(true);
+            pane.current?.scrollTo({ top: pane.current.scrollHeight });
+          }}
+          className="self-center rounded-full border border-border bg-surface px-3 py-1 text-xs text-text-secondary shadow-sm hover:border-accent hover:text-accent"
+        >
+          Jump to latest
+        </button>
+      )}
+
+      {/* The composer, at the bottom, where every chat anybody uses puts it. */}
+      <div className="sticky bottom-0 border-t border-border bg-surface pt-3">
+        {composer}
+      </div>
     </section>
+  );
+}
+
+/** What the reader asked, shown the moment they ask it. */
+function UserMessage({ text }: { text: string }) {
+  return (
+    <div className="flex justify-end">
+      <p className="max-w-[80%] rounded-lg bg-surface-hover px-3 py-2 text-sm text-text-primary">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The one red box, and only where the BACKEND said the turn failed.
+ *
+ * Scoped to its turn, which is the other half of the timeout defect: an
+ * error that belonged to the screen outlived the turn that caused it, so a
+ * later successful answer appeared under an earlier turn's warning.
+ */
+function TurnFailed({
+  turn,
+  onRetry,
+}: {
+  turn: Turn;
+  onRetry: (question: string) => void;
+}) {
+  return (
+    <Card className="space-y-2 border-negative/40 p-3">
+      <p className="text-sm text-negative">
+        {turn.failure || "CreditProbe could not complete this analysis."}
+      </p>
+      <button
+        type="button"
+        onClick={() => onRetry(turn.question)}
+        className="rounded-md border border-border px-2.5 py-1 text-xs text-text-secondary transition-colors hover:border-accent hover:text-accent"
+      >
+        Retry
+      </button>
+    </Card>
+  );
+}
+
+/** What the dashboard was showing when this thread began. */
+function ScopeChip({ label }: { label: string }) {
+  return (
+    <p className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-text-secondary">
+      <span className="text-text-muted">Scope</span>
+      {label}
+    </p>
   );
 }
 
