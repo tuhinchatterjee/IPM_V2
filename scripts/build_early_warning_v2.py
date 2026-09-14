@@ -1322,6 +1322,18 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"> Wrote {bm_df['snapshot_month'].nunique()} monthly partitions to "
           f"{args.out_dir / 'early_warning_borrower_month'}")
+
+    # Writing the parquet is only half a build. A dataset the catalogue has
+    # never heard of is invisible to every surface that reads the catalogue
+    # rather than the lake -- which is how Data Builder came to report a
+    # populated domain as Empty. Registration is part of the build, so a
+    # rebuild republishes and the two cannot drift apart again.
+    from backend.early_warning import registration as ews_registration
+
+    published = ews_registration.publish()
+    print(f"> Registered {len(published['registered'])} Early Warning datasets "
+          f"in {published['catalog']} "
+          f"({published['borrower_month_fields']} borrower-month fields)")
     return 0
 
 
