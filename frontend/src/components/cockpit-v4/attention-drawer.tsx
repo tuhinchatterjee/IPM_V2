@@ -88,7 +88,7 @@ export function AttentionDrawer({
             {item.headline}
           </h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            {item.segment} · {item.reporting_quarter}
+            {item.segment_label || item.segment} · {item.reporting_quarter}
             {item.comparison_quarter ? ` vs ${item.comparison_quarter}` : ""}
           </p>
         </div>

@@ -41,6 +41,7 @@ from typing import Any
 
 from backend.cockpit_v4 import display as disp
 from backend.cockpit_v4 import domains as dom
+from backend.cockpit_v4 import values as val_mod
 
 TOP_N = 5
 
@@ -325,12 +326,39 @@ def _spread(ordered: list[Candidate], *, limit: int) -> list[Candidate]:
 
     taken: list[Candidate] = []
     seen: set[int] = set()
+    # ONE CARD PER SEGMENT while there are segments left to name.
+    #
+    # Spreading across dimensions is not enough: two families on the SAME
+    # dimension -- Stage 2 share and recognised ECL, say -- both top out on
+    # the same sector in a book where that sector is genuinely the story, and
+    # the reader gets five cards about four places. A dashboard answering
+    # "where should I look" should name five places while five have something
+    # to say.
+    #
+    # On a book too small or too quiet to offer five, the backfill below
+    # still fills the section rather than showing four cards: a repeated
+    # segment is worse than a missing one only when there was an alternative.
+    segments: set[str] = set()
     for rounds in range(MAX_PER_DIMENSION):
         for dimension in order:
             queue = by_dimension[dimension]
-            if len(queue) > rounds and len(taken) < limit:
-                taken.append(queue[rounds])
-                seen.add(id(queue[rounds]))
+            if len(queue) <= rounds or len(taken) >= limit:
+                continue
+            candidate = queue[rounds]
+            if candidate.segment in segments:
+                continue
+            taken.append(candidate)
+            seen.add(id(candidate))
+            segments.add(candidate.segment)
+    for candidate in ordered:
+        if len(taken) >= limit:
+            break
+        if id(candidate) in seen or candidate.segment in segments:
+            continue
+        taken.append(candidate)
+        seen.add(id(candidate))
+        segments.add(candidate.segment)
+    # Only now, and only to fill the section, may a segment appear twice.
     for candidate in ordered:
         if len(taken) >= limit:
             break
@@ -453,9 +481,15 @@ def _item(candidate: Candidate, *, scope: dom.DomainScope,
         # The family's label as written, not lower-cased: "ECL" is an
         # initialism and "ecl rose to" is how a card announces it was
         # assembled by string concatenation.
-        "headline": (f"{candidate.segment}: {family.label} rose to "
-                     f"{shown_now}"),
+        # The reader's form in the prose, the book's own identifier in the
+        # data. A governed value is spelled `asset_finance` in the release,
+        # and a card headlined "asset_finance carries the most ECL" is the
+        # database talking. `segment` stays canonical because the seed
+        # filters on it and the drill-down query needs the real value.
+        "headline": (f"{val_mod.pretty(candidate.segment)}: {family.label} "
+                     f"rose to {shown_now}"),
         "segment": candidate.segment,
+        "segment_label": val_mod.pretty(candidate.segment),
         "segment_dimension": family.dimension,
         "segment_dimension_label": family.dimension_label,
         "metric": family.measure,
@@ -602,7 +636,7 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
     CROSS-CUT names a real second dimension of the same relation.
     """
     family = candidate.family
-    segment = candidate.segment
+    segment = val_mod.pretty(candidate.segment)
     measure = family.measure_label or family.measure
     counterparty = COUNTERPARTY.get(family.relation, "")
     noun = COUNTERPARTY_LABEL.get(counterparty, "rows")
@@ -699,7 +733,7 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
         therefore raised a KeyError and returned a 500 -- on the four cards a
         reader is most likely to click.
         """
-        subject = segment or scope.short_label
+        subject = val_mod.pretty(segment) if segment else scope.short_label
         return {
             "item_id": _item_id(scope.domain_id, f"ecl-{key}", segment,
                                 month),
@@ -712,7 +746,8 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
             "headline": headline,
             "one_line": one_line,
             "display": shown,
-            "segment": subject,
+            "segment": segment or subject,
+            "segment_label": subject,
             "segment_dimension": dimension if segment else "portfolio",
             "segment_dimension_label": (
                 "Sector" if dimension == "sector" and segment

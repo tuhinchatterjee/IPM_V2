@@ -108,14 +108,30 @@ def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
     }
 
     def book_of(system) -> dict:
-        """The pinned book, read out of the packet the analyst was handed."""
+        """The pinned book, read out of the packet the analyst was handed.
+
+        PARSED, not grepped. This searched the serialised blocks for the
+        literal `"domain": "corporate"` -- and each block's `text` is itself
+        a JSON string, so what the search actually had to match was
+        `\"domain\": \"corporate\"`. It never matched, the stub always took
+        its pre-domain fallback, and the browser suite spent a round
+        analysing `cockpit_facility_quarter` in a release no thread reads any
+        more. A stub that says it reads the pinned scope has to read it.
+        """
         from backend.cockpit_v4 import domains as dom_mod
 
-        text = json.dumps(system, default=str)
         chosen = ""
-        for domain_id in dom_mod.DOMAIN_IDS:
-            if f'"domain": "{domain_id}"' in text:
-                chosen = domain_id
+        for block in list(system or []):
+            try:
+                body = json.loads(block.get("text") or "")
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if not isinstance(body, dict):
+                continue
+            scope = body.get("pinned_scope") or {}
+            named = str(scope.get("domain") or "")
+            if named in dom_mod.DOMAIN_IDS:
+                chosen = named
                 break
         if not chosen:
             return {"domain_id": "", "relation": "cockpit_facility_quarter",
@@ -382,13 +398,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8414)
     parser.add_argument("--ui-port", type=int, default=0)
-    parser.add_argument("--runtime-dir",
-                        default="/tmp/cockpit_v4_browser")
+    # PER PORT, not one directory for every stack that ever runs.
+    #
+    # It defaulted to `/tmp/cockpit_v4_browser` for everybody, so two stub
+    # servers -- a leftover from an earlier run and the one a suite had just
+    # started -- shared one SQLite state database. Both workers polled it,
+    # both claimed runs, and the stale process answered questions the live UI
+    # was watching, with its own older code and its own older release. Every
+    # browser assertion waiting for an answer then timed out against a run
+    # that had been settled by a server nobody knew was still up.
+    parser.add_argument("--runtime-dir", default="")
     args = parser.parse_args()
 
     import uvicorn
 
-    runtime_dir = Path(args.runtime_dir)
+    runtime_dir = Path(args.runtime_dir
+                       or f"/tmp/cockpit_v4_browser_{args.port}")
     runtime_dir.mkdir(parents=True, exist_ok=True)
     app = build_app(args.port, runtime_dir, ui_port=args.ui_port)
     print(f"stub V4 API listening on http://127.0.0.1:{args.port}",

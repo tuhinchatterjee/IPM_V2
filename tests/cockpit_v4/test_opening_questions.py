@@ -197,3 +197,57 @@ def test_an_opener_names_no_field_outside_the_book_it_is_offered_in(client):
                       ).json()["thread_id"]).json()["opening_questions"]]
     for corporate_only in ("covenant", "borrower", "facility type"):
         assert not any(corporate_only in q for q in retail), retail
+
+
+# ---- the dashboard names five places, in the reader's words -------------
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_five_cards_name_five_different_segments(client, domain_id):
+    """A dashboard answering "where should I look" should name five places
+    while five have something to say.
+
+    Spreading across DIMENSIONS was not enough. Two families on the same
+    dimension -- Stage 2 share and recognised ECL -- both top out on the same
+    sector in a book where that sector is genuinely the story, and the reader
+    got five cards about four places. The three-thousand-borrower Corporate
+    release made it happen; the ninety-seven-name one never did.
+    """
+    cards = feed(client, domain_id)["segments_requiring_attention"]
+    assert len(cards) >= 4, len(cards)
+    segments = [c["segment"] for c in cards]
+    assert len(set(segments)) == len(segments), segments
+
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_a_card_says_the_segment_in_the_readers_words(client, domain_id):
+    """§16. A governed value is spelled `asset_finance` in the release. A
+    card headlined "asset_finance: Stage 2 exposure rose to 35.82%" is the
+    database talking."""
+    for card in every_card(feed(client, domain_id)):
+        label = card.get("segment_label") or ""
+        assert label, card["item_id"]
+        assert "_" not in label, label
+        assert label in card["headline"], (label, card["headline"])
+        # And the canonical value survives, because the seed filters on it.
+        assert card["segment"]
+
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_a_seeded_thread_keeps_the_books_own_value_to_filter_on(
+        client, domain_id):
+    cards = every_card(feed(client, domain_id))
+    card = next((c for c in cards if "_" in c["segment"]), cards[0])
+    seed = client.post(
+        f"{P}/attention/{card['item_id']}/investigate").json()["seed"]
+    assert seed["segment"] == card["segment"], (
+        "the seed must carry the value the release actually holds, not its "
+        "prettified spelling")
+
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_no_suggested_question_shows_a_snake_case_value(client, domain_id):
+    for card in every_card(feed(client, domain_id)):
+        for entry in card["drilldown"]["suggested_questions"]:
+            for word in entry["question"].split():
+                assert "_" not in word.strip(".?,"), (
+                    card["item_id"], entry["question"])

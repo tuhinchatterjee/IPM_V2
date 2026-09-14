@@ -646,7 +646,12 @@ export type AttentionItem = {
   scope: string;
   headline: string;
   one_line: string;
+  /** The book's own identifier for the segment: `asset_finance`. The seed
+   *  filters on it, so it stays exactly as the release spells it. */
   segment: string;
+  /** The same segment written for a reader: `Asset Finance`. Shown; never
+   *  filtered on. */
+  segment_label?: string;
   segment_dimension: string;
   metric: string;
   metric_label: string;

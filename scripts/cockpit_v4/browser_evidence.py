@@ -71,7 +71,10 @@ def main() -> int:
         api_log = (logs / "api.log").open("w", encoding="utf-8")
         api_proc = subprocess.Popen(
             [sys.executable, "scripts/cockpit_v4/stub_server.py",
-             "--port", str(api_port), "--ui-port", str(ui_port)],
+             "--port", str(api_port), "--ui-port", str(ui_port),
+             # Its OWN store. Two stacks sharing one state database means two
+             # workers claiming each other's runs.
+             "--runtime-dir", f"/tmp/cockpit_v4_browser_{api_port}"],
             cwd=str(ROOT),
             env={**os.environ, "COCKPIT_AGENTIC_V3_NAMESPACE": "cockpit_v4",
                  "PYTHONPATH": str(ROOT)},
