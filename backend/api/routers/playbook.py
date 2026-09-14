@@ -1124,3 +1124,121 @@ def recompute_readiness(workspace_id: int,
         raise _not_found(exc) from exc
     except RuntimeError as exc:
         raise _unavailable(exc) from exc
+
+
+class SectionStatusIn(BaseModel):
+    status: str = Field(max_length=32)
+    reason: str = Field(default="", max_length=500)
+
+
+class ReviewerIn(BaseModel):
+    reviewer: str = Field(max_length=160)
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/sections/{section_key}")
+def section_detail(workspace_id: int, section_key: str,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """One section with its metrics, findings, sources, reviews and history."""
+    from backend.playbook.intelligence import sections as sect
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            artifact = intelligence.service._current_artifact(session,
+                                                              workspace_id)
+            if artifact is None:
+                raise repo.NotFound("This workspace has no document yet.")
+            found = sect.detail(session, artifact.id, section_key,
+                                workspace_id)
+            if not found:
+                raise repo.NotFound(f"No section {section_key!r} here.")
+            return found
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/sections/{section_key}/status")
+def set_section_status(workspace_id: int, section_key: str,
+                       body: SectionStatusIn,
+                       principal: Principal = RequireAnalyst) -> dict:
+    """Move a section's status. Review states require a named person."""
+    from backend.models.playbook import PlaybookDocumentSection
+    from backend.playbook.intelligence import sections as sect
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            artifact = intelligence.service._current_artifact(session,
+                                                              workspace_id)
+            row = (session.query(PlaybookDocumentSection)
+                   .filter(PlaybookDocumentSection.artifact_id ==
+                           (artifact.id if artifact else 0),
+                           PlaybookDocumentSection.section_key == section_key)
+                   .one_or_none())
+            if row is None:
+                raise repo.NotFound(f"No section {section_key!r} here.")
+            sect.transition(session, row, to=body.status,
+                            actor=_actor(principal), reason=body.reason)
+            session.commit()
+            return sect.detail(session, artifact.id, section_key, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except sect.TransitionRefused as exc:
+        raise _refused(exc, code="transition_refused") from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/sections/{section_key}/reviewer")
+def assign_section_reviewer(workspace_id: int, section_key: str,
+                            body: ReviewerIn,
+                            principal: Principal = RequireAnalyst) -> dict:
+    """Put a named person on a section. A governance act, so it names both."""
+    from backend.models.playbook import PlaybookDocumentSection
+    from backend.playbook.intelligence import sections as sect
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            artifact = intelligence.service._current_artifact(session,
+                                                              workspace_id)
+            row = (session.query(PlaybookDocumentSection)
+                   .filter(PlaybookDocumentSection.artifact_id ==
+                           (artifact.id if artifact else 0),
+                           PlaybookDocumentSection.section_key == section_key)
+                   .one_or_none())
+            if row is None:
+                raise repo.NotFound(f"No section {section_key!r} here.")
+            sect.assign_reviewer(session, row, reviewer=body.reviewer,
+                                 actor=_actor(principal))
+            session.commit()
+            return sect.detail(session, artifact.id, section_key, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except sect.TransitionRefused as exc:
+        raise _refused(exc, code="transition_refused") from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/since-last-time")
+def since_last_time(workspace_id: int, version: int | None = None,
+                    principal: Principal = RequireAnalyst) -> dict:
+    """THEN against NOW, for every metric the document actually relied on."""
+    from backend.playbook.intelligence import compare
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return compare.since_last_time(session, workspace_id,
+                                           version=version)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc

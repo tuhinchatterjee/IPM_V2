@@ -870,6 +870,10 @@ class PlaybookDocumentSection(Base):
                                           default="")
     reviewed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    #: Append-only. Every status transition with who made it, when, and what
+    #: it moved from — a status nobody can account for is not auditable, and
+    #: "Approved" is the one a governed document must explain months later.
+    history: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -976,6 +980,17 @@ class PlaybookMetricSnapshot(Base):
     display_value: Mapped[str] = mapped_column(String(64), nullable=False,
                                                default="")
     unit: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    #: The context that decides whether two readings are the same series. A
+    #: retail rate and a corporate rate share a name and are different
+    #: metrics; a base case and a downturn are different scenarios.
+    currency: Mapped[str] = mapped_column(String(16), nullable=False,
+                                          default="")
+    population: Mapped[str] = mapped_column(String(160), nullable=False,
+                                            default="")
+    segment: Mapped[str] = mapped_column(String(160), nullable=False,
+                                         default="")
+    scenario: Mapped[str] = mapped_column(String(96), nullable=False,
+                                          default="")
     as_of: Mapped[str] = mapped_column(String(48), nullable=False, default="")
     reporting_period: Mapped[str] = mapped_column(String(48), nullable=False,
                                                   default="")

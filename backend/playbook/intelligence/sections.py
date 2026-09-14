@@ -130,19 +130,23 @@ def sync(session, artifact_id: int, doc: D.Document, *,
             session.add(row)
             rows[fact.section_key] = row
         elif row.content_hash and row.content_hash != fact.content_hash:
+            previous = row.last_changed_version
             row.last_changed_version = version
             if row.reviewed_at is not None:
-                row.reviewed_at = None
-                row.status = NEEDS_REVIEW
                 row.stale_reason = (
-                    f"reviewed at version {row.last_changed_version - 1}; "
+                    f"reviewed at version {previous}; "
                     "the section has changed since")
+                _record(session, row, NEEDS_REVIEW, row.stale_reason)
 
         row.heading = fact.heading
         row.ordinal = fact.ordinal
         row.content_hash = fact.content_hash
         row.word_count = fact.word_count
-        if row.status in ("", DRAFT):
+        # `not row.status` matters: a row that has been added but not yet
+        # flushed has status None, because the column default applies at
+        # flush. Checking only for "" and DRAFT meant a newly created section
+        # never became GENERATED and every first version looked like a draft.
+        if not row.status or row.status == DRAFT:
             row.status = GENERATED if fact.substantive else DRAFT
         seen.add(row.section_key)
         written.append(row)
@@ -151,10 +155,29 @@ def sync(session, artifact_id: int, doc: D.Document, *,
     # is evidence of what was once in the paper. It is marked instead.
     for key, row in rows.items():
         if key not in seen and row.status != STALE:
-            row.status = STALE
             row.stale_reason = f"not present in version {version}"
+            _record(session, row, STALE, row.stale_reason)
     session.flush()
     return written
+
+
+def _record(session, row, to: str, reason: str) -> None:
+    """A transition the DOCUMENT caused, written down like any other.
+
+    `sync` bypasses the HUMAN_ONLY guard deliberately and only in this
+    direction: a section going stale or needing review again is something the
+    document did, not something a person claimed. It can never move a section
+    INTO approved — that is what the guard protects.
+    """
+    from datetime import UTC, datetime
+
+    row.history = list(row.history or []) + [{
+        "at": datetime.now(UTC).isoformat(),
+        "from": row.status or DRAFT, "to": to, "actor": "system",
+        "reason": reason,
+    }]
+    row.status = to
+    row.reviewed_at = None
 
 
 def statistics(doc: D.Document, *, files: dict | None = None,
@@ -186,4 +209,196 @@ def statistics(doc: D.Document, *, files: dict | None = None,
         "formats": sorted(files),
         "sections_with_sources": sum(1 for s in sections if s.has_sources),
         "substantive_sections": sum(1 for s in sections if s.substantive),
+    }
+
+
+# ==========================================================================
+# Status transitions — deterministic, and accountable to a person
+# ==========================================================================
+#
+# A status that changes with no record of who changed it, when, or from what
+# is not auditable, and "Approved" is exactly the status a governed document
+# has to account for months later. So every transition is checked against a
+# table, recorded in `history`, and — for the ones that are governance acts —
+# refused without a named person.
+
+class TransitionRefused(ValueError):
+    """A status change that is not allowed, with the reason."""
+
+
+#: What may follow what. Read as "from: the statuses it may become".
+#:
+#: The system moves a section between DRAFT, GENERATED, EVIDENCE_INCOMPLETE
+#: and STALE as the document and its evidence change. A PERSON moves it
+#: through review: ready for review, needs review, approved. Nothing may leave
+#: APPROVED except by the document changing under it, which is exactly what
+#: `sync` does when the content hash moves.
+ALLOWED: dict[str, frozenset[str]] = {
+    DRAFT: frozenset({GENERATED, EVIDENCE_INCOMPLETE, READY_FOR_REVIEW,
+                      STALE}),
+    GENERATED: frozenset({DRAFT, EVIDENCE_INCOMPLETE, READY_FOR_REVIEW,
+                          NEEDS_REVIEW, STALE}),
+    EVIDENCE_INCOMPLETE: frozenset({GENERATED, DRAFT, READY_FOR_REVIEW,
+                                    STALE}),
+    READY_FOR_REVIEW: frozenset({NEEDS_REVIEW, APPROVED, GENERATED, STALE}),
+    NEEDS_REVIEW: frozenset({READY_FOR_REVIEW, GENERATED, APPROVED, STALE}),
+    APPROVED: frozenset({NEEDS_REVIEW, STALE}),
+    STALE: frozenset({DRAFT, GENERATED, READY_FOR_REVIEW}),
+}
+
+#: Transitions a person must own. Marking work reviewed or approved is a
+#: governance act: a model may say a section looks finished, and may not
+#: record that a human agreed.
+HUMAN_ONLY = frozenset({READY_FOR_REVIEW, NEEDS_REVIEW, APPROVED})
+
+
+def transition(session, row, *, to: str, actor: str = "", reason: str = "",
+               by_system: bool = False):
+    """Move one section's status, and write down that it happened.
+
+    `by_system` is how `sync` records the transitions the document itself
+    causes — a section going STALE because it left the document, or needing
+    review again because its text changed. Everything in HUMAN_ONLY refuses a
+    system caller outright, which is the §27 boundary expressed as code rather
+    than as a convention somebody has to remember.
+    """
+    from datetime import UTC, datetime
+
+    if to not in STATUSES:
+        raise TransitionRefused(
+            f"{to!r} is not a section status. Expected one of: "
+            + ", ".join(STATUSES))
+
+    current = row.status or DRAFT
+    if to == current:
+        return row
+    if to not in ALLOWED.get(current, frozenset()):
+        raise TransitionRefused(
+            f"A section that is {current!r} cannot become {to!r}. "
+            f"From {current!r} it may become: "
+            + ", ".join(sorted(ALLOWED.get(current, frozenset()))) + ".")
+    if to in HUMAN_ONLY:
+        if by_system:
+            raise TransitionRefused(
+                f"Moving a section to {to!r} is a person's decision. "
+                "Nothing was changed.")
+        if not (actor or "").strip():
+            raise TransitionRefused(
+                f"Moving a section to {to!r} records who did it. "
+                "Nothing was changed.")
+
+    row.history = list(row.history or []) + [{
+        "at": datetime.now(UTC).isoformat(),
+        "from": current, "to": to,
+        "actor": "system" if by_system else (actor or "").strip()[:160],
+        "reason": reason,
+    }]
+    row.status = to
+    if to == APPROVED:
+        row.reviewed_at = datetime.now(UTC)
+    elif to in (NEEDS_REVIEW, STALE):
+        row.reviewed_at = None
+    session.flush()
+    return row
+
+
+def assign_reviewer(session, row, *, reviewer: str, actor: str):
+    """Put a named person on a section. A governance act, so it names both.
+
+    Assigning review is not the same as reviewing: the reviewer is recorded
+    and the section moves to READY_FOR_REVIEW, but only that reviewer's own
+    completion can approve it.
+    """
+    if not (actor or "").strip():
+        raise TransitionRefused(
+            "Assigning a reviewer records who assigned them. Nothing changed.")
+    if not (reviewer or "").strip():
+        raise TransitionRefused(
+            "A section is reviewed by a named person. Nothing changed.")
+    row.reviewer = reviewer.strip()[:160]
+    if row.status in ALLOWED and READY_FOR_REVIEW in ALLOWED[row.status]:
+        transition(session, row, to=READY_FOR_REVIEW, actor=actor,
+                   reason=f"assigned to {row.reviewer}")
+    else:
+        session.flush()
+    return row
+
+
+def detail(session, artifact_id: int, section_key: str,
+           workspace_id: int) -> dict:
+    """One section with everything attached to it, in one read.
+
+    Metrics, findings, sources, reviewer state and history together — because
+    a section pane that needs five round trips to answer "what is the state of
+    this section" is a pane nobody keeps open.
+    """
+    from backend.models.playbook import (
+        PlaybookFinding,
+        PlaybookMetricBinding,
+        PlaybookReview,
+        PlaybookSource,
+    )
+    from backend.playbook.intelligence import binding as bind
+
+    row = (session.query(PlaybookDocumentSection)
+           .filter(PlaybookDocumentSection.artifact_id == artifact_id,
+                   PlaybookDocumentSection.section_key == section_key)
+           .one_or_none())
+    if row is None:
+        return {}
+
+    bindings = (session.query(PlaybookMetricBinding)
+                .filter(PlaybookMetricBinding.workspace_id == workspace_id,
+                        PlaybookMetricBinding.section_key == section_key)
+                .all())
+    findings = (session.query(PlaybookFinding)
+                .filter(PlaybookFinding.workspace_id == workspace_id,
+                        PlaybookFinding.section_key == section_key).all())
+    reviews = (session.query(PlaybookReview)
+               .filter(PlaybookReview.workspace_id == workspace_id,
+                       PlaybookReview.section_key == section_key).all())
+    locators = {b.source_locator for b in bindings if b.source_locator}
+    sources = (session.query(PlaybookSource)
+               .filter(PlaybookSource.workspace_id == workspace_id).all())
+
+    return {
+        "section_key": row.section_key,
+        "heading": row.heading,
+        "ordinal": row.ordinal,
+        "status": row.status,
+        "may_become": sorted(ALLOWED.get(row.status or DRAFT, frozenset())),
+        "word_count": row.word_count,
+        "page_from": row.page_from,
+        "page_to": row.page_to,
+        "reviewer": row.reviewer,
+        "reviewed": row.reviewed_at is not None,
+        "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else "",
+        "stale_reason": row.stale_reason,
+        "first_seen_version": row.first_seen_version,
+        "last_changed_version": row.last_changed_version,
+        "history": list(row.history or []),
+        "metrics": [{
+            "id": b.id, "metric_id": b.metric_id,
+            "label": b.label or b.metric_id,
+            "value_in_document": b.value_in_document,
+            "display_value": b.display_value,
+            "governed": bind.is_governed(b),
+            "method": b.binding_method,
+            "source_locator": b.source_locator,
+        } for b in bindings],
+        "findings": [{
+            "id": f.id, "reference": f.reference, "title": f.title,
+            "severity": f.severity, "status": f.status,
+            "blocking": f.blocking,
+        } for f in findings],
+        "reviews": [{
+            "id": r.id, "reviewer": r.reviewer, "role": r.role,
+            "status": r.status, "comment": r.comment,
+        } for r in reviews],
+        "sources": [{
+            "id": s.id, "filename": s.filename, "status": s.status,
+            "source_role": s.source_role,
+            "cited": any(str(s.id) in loc or s.filename in loc
+                         for loc in locators),
+        } for s in sources],
     }

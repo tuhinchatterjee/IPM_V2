@@ -158,6 +158,7 @@ class Dashboard:
     actions: dict = field(default_factory=dict)
     reviews: dict = field(default_factory=dict)
     readiness: dict = field(default_factory=dict)
+    since_last_time: dict = field(default_factory=dict)
     #: Whether there is enough here to be worth showing. §14: a brand-new
     #: empty thread does not get a status badge it cannot fill.
     available: bool = False
@@ -189,6 +190,7 @@ class Dashboard:
             "actions": dict(self.actions),
             "reviews": dict(self.reviews),
             "readiness": dict(self.readiness),
+            "since_last_time": dict(self.since_last_time),
             "available": self.available,
         }
 
@@ -262,6 +264,10 @@ def dashboard(session, workspace_id: int) -> Dashboard:
         from backend.playbook.intelligence import readiness as score
 
         state.readiness = score.compute(session, workspace_id).as_dict()
+
+    from backend.playbook.intelligence import compare
+
+    state.since_last_time = compare.since_last_time(session, workspace_id)
     return state
 
 
