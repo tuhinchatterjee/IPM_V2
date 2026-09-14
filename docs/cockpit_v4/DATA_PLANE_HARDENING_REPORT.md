@@ -239,3 +239,92 @@ And one bug in the oracles themselves, which is the kind a bank catches and a
 single example does not: flags are `int64` in the Parquet, so
 `frame[frame["breach_flag"]]` selects COLUMNS rather than rows — silently,
 until the integers happen not to be column names.
+
+---
+
+## 9. The flake that was a defect
+
+§57 says an intermittent failure is a defect and must be root-caused rather
+than rerun until green. One appeared: a full-suite run stopped a follow-up
+chain at `sqlite3.OperationalError: database is locked` after waiting out its
+whole sixty-second allowance, and the same test passed on its own every time.
+
+The cause was not contention. `RunStore._tx` reached its ROLLBACK only via
+`except sqlite3.Error`, so any OTHER exception raised inside the block — a
+validation failure, an HTTPException, a KeyError in the caller's own code —
+propagated straight through with `BEGIN IMMEDIATE` still open on that
+thread's connection, holding the database's write lock.
+
+Nothing released it. Every later writer waited out its thirty-second
+`busy_timeout` and failed with "database is locked": a message that reads as
+a storage problem and is not one. It is one earlier caller's exception, still
+holding the door — and which caller it was depends on test ordering, which is
+why it looked like a flake.
+
+The rollback is now in `finally`, and a connection too broken to roll back is
+dropped rather than kept, because the next caller on that thread would inherit
+its open transaction. `test_store_transactions.py` has twelve tests; nine of
+them fail on the old code.
+
+---
+
+## 10. What is NOT in this round
+
+Stated so the next reader does not have to infer it from silence.
+
+- **No paid provider call was made.** No suite here declares REAL PROVIDER,
+  and a test in the suite fails if one starts to. Everything analytical runs
+  against a scripted analyst driving the real worker, the real contracts and
+  the real database.
+- **V3 was not modified.** The only files this round touched outside
+  `backend/cockpit_v4`, `tests/cockpit_v4` and `scripts/cockpit_v4` are the
+  V4 components under `frontend/src/components/cockpit-v4` and one line of
+  `frontend/src/app/data-builder/page.tsx` that mounts the V4 books.
+- **The published Corporate releases were not rewritten.** The book moved to
+  quarters by publishing `v4-saudi-corporate-20q-v3`; `-20m-v1` and `-20m-v2`
+  are still published and still verify.
+- **Seven product types, not eight.** §8 asks for seven with deep
+  populations, and the release has seven with 500+ facilities each. An eighth
+  thin one would have met a word and not the requirement, and adding one now
+  would mean a new release and a new fingerprint for every stored answer.
+- **`valuation_age_quarters` cycles one to four.** It cannot express a stale
+  valuation, and the governance question asks for the oldest band instead.
+  Changing the column means rebuilding and republishing the book.
+
+---
+
+## 11. Release gate
+
+| # | Gate | State |
+|---|---|---|
+| 1 | Corporate publishes 20 quarters, 2021Q3 … 2026Q2 | ✅ |
+| 2 | Retail publishes 20 months, 2025-01 … 2026-08 | ✅ |
+| 3 | Neither book's calendar appears in the other's payload, export, feed or vocabulary | ✅ |
+| 4 | The published monthly Corporate releases were not rewritten and still verify | ✅ |
+| 5 | Corporate ≥3,000 borrowers / ≥8,000 facilities | ✅ 3,652 / 12,782 |
+| 6 | Retail ≥3,000 customers | ✅ 12,000 customers, 16,000 accounts |
+| 7 | 14 sectors, 75 sub-sectors, 7 product types, all with real populations | ✅ |
+| 8 | Both books carry the full credit-risk model by subject area | ✅ checked against the catalogue's own groups |
+| 9 | `/data-builder` from the sidebar opens the dual-domain books | ✅ |
+| 10 | The Data Builder reads the SAME catalogue the Cockpit answers from | ✅ asserted object by object |
+| 11 | Field inspection shows labels, identifiers, governed values and bounded samples | ✅ |
+| 12 | Every path that serves a book serves the one it was asked for | ✅ audited, and the audit fails on an unlisted route |
+| 13 | A thread's book is immutable, refused by name with an offer | ✅ 409 `DOMAIN_PINNED` |
+| 14 | A seeded investigation gets its analysis packet on turn one | ✅ under 6 KB |
+| 15 | Every attention family in both books: investigate → execute → publish | ✅ no CALL_LIMIT, no DEADLINE_EXPIRED |
+| 16 | Every suggested question binds against the release before it is offered | ✅ 86 of 86 |
+| 17 | `intent` is not a property of any tool schema | ✅ |
+| 18 | `intent must be an object` is structurally impossible | ✅ ten live shapes replayed through the real parser |
+| 19 | The run owns its intent before the first provider call | ✅ |
+| 20 | The mode widens into analysis and never narrows | ✅ |
+| 21 | Action and answer structure-recovery budgets are separate | ✅ |
+| 22 | A simple question costs one action turn and one answer turn | ✅ with zero catalogue calls |
+| 23 | 120s standard / 240s deep, with product help still at 60s | ✅ |
+| 24 | Only started steps appear in the process panel | ✅ `prospective` removed from the type |
+| 25 | The previous foreground step closes when the next begins | ✅ server-stated, not inferred |
+| 26 | Sequence, stage instance, start, end and state are persisted | ✅ |
+| 27 | Replay and reconnect neither duplicate nor reorder | ✅ folded twice, in two implementations |
+| 28 | 40 Corporate + 40 Retail questions against independent oracles | ✅ |
+| 29 | 20 follow-up chains (4–6 turns) + 20 attention chains | ✅ |
+| 30 | Every recorded Mac failure has a replay fixture | ✅ 7 of 7 |
+
