@@ -556,3 +556,34 @@ Twenty, under `docs/cockpit_v4/evidence/`. `data_builder_sidebar.png` is the
 one this round added: `/data-builder`, the route the Mac reader opened, as
 distinct from `/cockpit/data`, which is a different page. A screenshot of the
 right page proving the wrong one works is not evidence.
+
+### V3 regression
+
+§58: do not change V3, and run its regression at the end with zero new
+failures.
+
+```
+tests/cockpit_agentic + tests/agentic
+771 passed, 105 skipped, 2 warnings in 186.34s
+```
+
+Zero failures. The 105 skips are the suite's own gating: tests conditioned on
+a live provider or on a release that is not provisioned in this environment.
+Nothing this round changed can reach them — no file under
+`backend/cockpit_agentic` or `tests/cockpit_agentic` was touched.
+
+Nothing under `backend/cockpit_agentic` or `tests/cockpit_agentic` was
+touched. The complete list of files this round changed outside
+`backend/cockpit_v4`, `tests/cockpit_v4`, `scripts/cockpit_v4` and
+`frontend/src/components/cockpit-v4` is one line of
+`frontend/src/app/data-builder/page.tsx`, which mounts the V4 books on the
+sidebar route.
+
+### Frontend unit tests
+
+```
+node --experimental-strip-types --test frontend/src/components/cockpit-v4/*.test.ts
+119 pass, 0 fail
+```
+
+`npx tsc --noEmit` is clean.
