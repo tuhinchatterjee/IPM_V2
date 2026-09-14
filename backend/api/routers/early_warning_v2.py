@@ -36,7 +36,10 @@ from backend.early_warning import (
     case_bridge,
     catalog as ews_catalog,
     classifiers_v2 as clf,
+    dashboard_view as dash,
     escalation as esc,
+    export as ews_export,
+    filterspec as fsp,
     layers as ews_layers,
     lineage as ews_lineage,
     matrix,
@@ -202,6 +205,87 @@ def overview(period: str | None = Query(None),
         }
     except EarlyWarningDataNotBuilt as exc:
         raise _not_built(exc)
+
+
+# ------------------------------------------------------------- the dashboard
+
+
+class DashboardRequest(BaseModel):
+    """What the reader has narrowed the book to.
+
+    A POST rather than a query string, because a filter is a structure: three
+    multi-selects, four ranges and a text match do not survive being flattened
+    into `?a=1&a=2&b_min=` without somebody inventing an encoding. It reads
+    nothing and writes nothing -- it is a read shaped like a body.
+    """
+
+    period: str = ""
+    filters: dict[str, Any] = Field(default_factory=dict)
+    sort_by: str = "ews_score"
+    descending: bool = True
+    limit: int = fsp.DEFAULT_PAGE
+    offset: int = 0
+
+
+def _spec(body: "DashboardRequest") -> fsp.FilterSpec:
+    try:
+        return fsp.FilterSpec.from_payload(body.model_dump())
+    except fsp.InvalidFilter as exc:
+        # 422, not 400: the request is well-formed and asks for something the
+        # domain does not offer. The message names the column and what it
+        # does offer, so the screen can show it rather than "invalid filter".
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "invalid_filter", "message": str(exc)}) from exc
+
+
+@router.get("/dashboard/contract", summary="What the dashboard can filter by")
+def dashboard_contract(
+        principal: Principal = RequireEarlyWarningView) -> dict:
+    """The filter registry, so the screen builds its controls from the
+    contract rather than from a list kept in step by hand. §28."""
+    return fsp.contract()
+
+
+@router.post("/dashboard", summary="The dashboard, over one filtered scope")
+def dashboard(body: DashboardRequest,
+              principal: Principal = RequireEarlyWarningView) -> dict:
+    """Every measure on the screen, computed from one filtered population.
+
+    The tiles, the band distribution, the trend and the table are projections
+    of the same frame, so they cannot describe different populations under one
+    heading -- which is what they did while the table filtered its twenty
+    fetched rows in the browser and everything above it read the whole book.
+    """
+    try:
+        return dash.view(_spec(body))
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+
+
+@router.post("/dashboard/export", summary="The filtered book, as a workbook")
+def dashboard_export(body: DashboardRequest,
+                     principal: Principal = RequireEarlyWarningView
+                     ) -> Response:
+    """The COMPLETE filtered result as a real XLSX, not the page on screen.
+
+    Same scope, same as-of month, same sort. A second sheet records what was
+    filtered, so the file can still say what it is about next quarter.
+    """
+    spec = _spec(body)
+    # The export is the whole result by definition, so paging is not applied.
+    try:
+        frame, meta = dash.complete(spec)
+    except EarlyWarningDataNotBuilt as exc:
+        raise _not_built(exc)
+
+    who = f"user {principal.user_id}" if principal.user_id else str(
+        getattr(principal.role, "value", principal.role))
+    data = ews_export.workbook(frame, meta, exported_by=who)
+    name = ews_export.filename(meta)
+    return Response(content=data, media_type=ews_export.MIME,
+                    headers={"Content-Disposition":
+                             f'attachment; filename="{name}"'})
 
 
 @router.get("/segments", summary="Segment-level Early Warning")
@@ -496,6 +580,17 @@ class AskRequest(BaseModel):
     #: analytical summary because a screen rebuilt from prose is sometimes
     #: wrong and the client already knows exactly where it is.
     ui_state: dict[str, Any] | None = None
+    #: What the dashboard was narrowed to when this thread began, as the same
+    #: governed FilterSpec the dashboard and the export use. Structured, not
+    #: prose: "the reader is looking at High and Very High obligors in
+    #: Contracting" reconstructed from a sentence is a scope that can be read
+    #: back wrong, and this one is already exact.
+    #:
+    #: Snapshotted by the CLIENT at thread start. A thread's scope does not
+    #: change because somebody later moved a filter -- an answer given three
+    #: turns ago was about the population of three turns ago, and a thread
+    #: that silently re-scoped itself would make its own history unreadable.
+    dashboard_scope: dict[str, Any] | None = None
     #: The thread's analytical context, returned by the previous turn.
     rolling_summary: dict[str, Any] | None = None
     thread_id: str | None = Field(None, max_length=64)
@@ -529,11 +624,7 @@ def ask_early_warning(payload: AskRequest,
     from backend.early_warning.conversation import live as ews_live
     from backend.early_warning.conversation import pipeline as ews_pipeline
 
-    ui_state = dict(payload.ui_state or {})
-    if payload.customer_id:
-        ui_state.setdefault("customer_id", payload.customer_id)
-    if payload.period:
-        ui_state.setdefault("period", payload.period)
+    ui_state = _screen_state(payload)
 
     # The turn writes its events where `/ask/progress` can read them while it
     # is still running. An observer and nothing more: the pipeline decides
@@ -560,6 +651,52 @@ def ask_early_warning(payload: AskRequest,
         ews_live.close_turn(watch)
 
     return _answer_payload(turn, payload.turn_key or "")
+
+
+def _screen_state(payload: "AskRequest") -> dict[str, Any]:
+    """Where the reader is, including what the dashboard is narrowed to.
+
+    The dashboard's filter enters as the SAME governed object the dashboard
+    and the export use, validated on the way in -- so a scope the dashboard
+    could not have produced cannot enter the conversation through the chat,
+    and an ungoverned filter cannot reach the planner by being written into
+    a request body by hand.
+
+    Its narrowing parts are also flattened onto the screen state, because
+    that is what the request reader already inherits from. A question that
+    names its own population still outranks all of it: the filter says what
+    the reader is LOOKING at, the sentence says what they are ASKING about.
+    """
+    ui_state = dict(payload.ui_state or {})
+    if payload.customer_id:
+        ui_state.setdefault("customer_id", payload.customer_id)
+    if payload.period:
+        ui_state.setdefault("period", payload.period)
+
+    if not payload.dashboard_scope:
+        return ui_state
+
+    try:
+        spec = fsp.FilterSpec.from_payload(payload.dashboard_scope)
+    except fsp.InvalidFilter as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"error": "invalid_filter",
+                    "message": str(exc)}) from exc
+
+    ui_state["dashboard_scope"] = spec.to_dict()
+    ui_state["dashboard_scope_sentence"] = spec.sentence()
+    if spec.period:
+        ui_state.setdefault("period", spec.period)
+    # One band or one segment is a scope the request reader already knows how
+    # to inherit. Several are not a filter it can express, so they travel as
+    # the structured scope only rather than being collapsed into the first
+    # one -- which would answer about High and call it High-or-Very-High.
+    for key, column in (("band", "ews_band"), ("segment", "segment")):
+        chosen = spec.selections.get(column, ())
+        if len(chosen) == 1:
+            ui_state.setdefault(key, chosen[0])
+    return ui_state
 
 
 def _answer_payload(turn: Any, turn_key: str) -> dict:
@@ -649,11 +786,9 @@ def start_early_warning_turn(
             status_code=400,
             detail="That turn id is not one this product will store.")
 
-    ui_state = dict(payload.ui_state or {})
-    if payload.customer_id:
-        ui_state.setdefault("customer_id", payload.customer_id)
-    if payload.period:
-        ui_state.setdefault("period", payload.period)
+    # One reader of the payload, so `/ask` and `/ask/start` cannot come to
+    # disagree about what the screen was showing.
+    ui_state = _screen_state(payload)
 
     watch = ews_live.open_turn(turn_id, principal, question=payload.question)
     if not watch:

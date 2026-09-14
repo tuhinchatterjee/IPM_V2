@@ -704,6 +704,24 @@ _STATES_A_POPULATION = re.compile(
 #: slices rather than what they are looking at.
 _NARROWING: frozenset[str] = frozenset({"band", "level"})
 
+def _names_a_population(text: str) -> bool:
+    """Whether the sentence names a population of its own.
+
+    A severity band, a sector, a grade or a region written in the question
+    is the reader saying what they want an answer about. The screen's filter
+    is what they happen to be looking at, and the two are not the same
+    statement -- so when the sentence makes one, it wins.
+
+    Deliberately narrow: only the things that NARROW a population count, and
+    only when the question actually names one. Anything broader would make
+    the dashboard's scope stop travelling into the chat at all, which is the
+    opposite defect.
+    """
+    if _named_band(text):
+        return True
+    return _named_group(text) is not None
+
+
 #: "Open the weakest one" — a request to resolve one obligor from that scope.
 _WANTS_WEAKEST = re.compile(
     r"\b(open|show|take|drill into)\b[^.?]*\b(the )?(weakest|worst|"
@@ -926,12 +944,19 @@ def _read_deterministic(
     # the latest month?" came back as "all 52 held their band", because 52
     # was the high-risk population an earlier turn had been about.
     states_its_own = bool(_STATES_A_POPULATION.search(text)) and not referential
+    # A question that names its own population outranks the screen as well as
+    # the thread. The dashboard's filter says what the reader is LOOKING at;
+    # the sentence says what they are ASKING about, and when those differ the
+    # sentence is the request. Without this, a reader filtered to High who
+    # then typed "and how does the Contracting sector compare?" was answered
+    # about High obligors in Contracting and told it was Contracting.
+    names_its_own = _names_a_population(text)
     for key in ("customer_id", "customer_name", "segment", "sector", "region",
                 "internal_rating", "period", "band", "level", "layer",
                 "sub_category", "signal"):
         from_screen = ui.get(key)
         from_thread = summary.get(key)
-        if from_screen:
+        if from_screen and not (names_its_own and key in _NARROWING):
             inherited[key] = from_screen
         elif from_thread and not (states_its_own and key in _NARROWING):
             inherited[key] = from_thread

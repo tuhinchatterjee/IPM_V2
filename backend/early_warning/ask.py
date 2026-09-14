@@ -390,13 +390,22 @@ def resolve_groups(question: str, period: str | None = None
     # values overlap at the same position.
     found.sort(key=lambda f: (f[0], -f[1]))
     out: list[tuple[str, str]] = []
-    taken: set[int] = set()
+    #: The stretches of the sentence already spoken for, as (start, end).
+    #: Spans rather than start positions, and that is the whole of it: a
+    #: guard that only remembered where a match BEGAN let "high" be read out
+    #: of the middle of "very high", so "which obligors are at very high
+    #: risk?" resolved to two bands and was answered as a COMPARISON of Very
+    #: High against High -- a question the reader did not ask, from words
+    #: they did not write.
+    taken: list[tuple[int, int]] = []
     for start, size, field_name, value in found:
-        if any(start < t + 1 and start >= t - size for t in taken):
+        end = start + size
+        if any(start < spoken_end and end > spoken_start
+               for spoken_start, spoken_end in taken):
             continue
         if (field_name, value) in out:
             continue
-        taken.add(start)
+        taken.append((start, end))
         out.append((field_name, value))
     return out
 

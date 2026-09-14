@@ -7,12 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   api,
   type EarlyWarningV2BorrowerRow,
-  type EarlyWarningV2Overview,
   type EarlyWarningV2Segments,
+  type EwsDashboard,
+  type EwsFilterContract,
 } from "@/lib/api";
+import { saveBlob } from "@/lib/downloads";
+import { EwsFilterBar } from "@/components/early-warning/filter-bar";
+import * as flt from "@/components/early-warning/filters";
 import { money, moneyCell, MONEY_COLUMN_UNIT } from "@/lib/early-warning-format";
 import { useAsync } from "@/lib/hooks";
 import { BorrowerDrilldown } from "@/components/early-warning/borrower-drilldown";
@@ -48,6 +53,19 @@ const BAND_LABEL: Record<string, string> = {
   LOW: "Low",
   VERY_LOW: "Very Low",
 };
+
+/**
+ * Enough of the filter registry to read the address on the FIRST render,
+ * before the contract has arrived. The server's registry is still the
+ * authority — this is only what a link is allowed to have carried, and a key
+ * it does not name is simply not seeded.
+ */
+const SEED_COLUMNS: flt.FilterColumn[] = [
+  ...["segment", "ews_band", "ta_band", "classifier_band", "dominant_driver"]
+    .map((key) => ({ key, label: key, kind: "multi" as const, field: key, choices: [], unit: "" })),
+  ...["exposure", "dpd", "ews_score", "ta_score", "classifier_score"]
+    .map((key) => ({ key, label: key, kind: "range" as const, field: key, choices: [], unit: "" })),
+];
 
 function BandBadge({ band }: { band: string }) {
   return (
@@ -116,22 +134,206 @@ function useUrlSelection() {
   return { ...state, patch };
 }
 
-export function EarlyWarningV2Portfolio() {
-  const overview = useAsync<EarlyWarningV2Overview>(
-    () => api.earlyWarningV2Overview(),
-    [],
+
+/* -------------------------------------------------------------- pieces */
+
+function Kpi({ title, value, note }: { title: string; value: string; note?: string }) {
+  return (
+    <Card>
+      <CardHeader className="pb-1">
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="text-2xl font-semibold">
+        {value}
+        {note && (
+          <span className="ml-1 text-sm font-normal text-text-secondary">{note}</span>
+        )}
+      </CardContent>
+    </Card>
   );
+}
+
+/**
+ * A sortable column heading.
+ *
+ * The sort is server-side, like the filter: sorting a fetched page puts the
+ * largest of twenty at the top and calls it the largest exposure.
+ */
+function SortHeader({
+  field,
+  state,
+  onSort,
+  children,
+}: {
+  field: string;
+  state: flt.FilterState;
+  onSort: (next: flt.FilterState) => void;
+  children: React.ReactNode;
+}) {
+  const active = state.sortBy === field;
+  return (
+    <th
+      className="py-1.5 pr-3 font-normal"
+      aria-sort={active ? (state.descending ? "descending" : "ascending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(flt.sortOn(state, field))}
+        className={`inline-flex items-center gap-1 hover:text-text-primary ${
+          active ? "font-medium text-text-primary" : ""
+        }`}
+      >
+        {children}
+        {active && <span aria-hidden>{state.descending ? "\u2193" : "\u2191"}</span>}
+      </button>
+    </th>
+  );
+}
+
+/**
+ * Where the reader is in the result, said in obligors rather than in pages.
+ *
+ * "51-100 of 213" answers "how much of this have I seen?"; "page 2" does not,
+ * because a page is a fact about the fetch.
+ */
+function Pager({
+  offset,
+  shown,
+  total,
+  onPage,
+}: {
+  offset: number;
+  shown: number;
+  total: number;
+  onPage: (offset: number) => void;
+}) {
+  if (total <= shown && offset === 0) return null;
+  const size = shown || 50;
+  return (
+    <div className="mt-3 flex items-center justify-between text-xs text-text-secondary">
+      <span className="tabular">
+        {offset + 1}\u2013{offset + shown} of {total.toLocaleString()}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={offset === 0}
+          onClick={() => onPage(Math.max(0, offset - size))}
+        >
+          Previous
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={offset + shown >= total}
+          onClick={() => onPage(offset + size)}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+export function EarlyWarningV2Portfolio() {
+  const selection = useUrlSelection();
   const segments = useAsync<EarlyWarningV2Segments>(
     () => api.earlyWarningV2Segments(),
     [],
   );
-  const selection = useUrlSelection();
-  const filterBand = selection.band;
 
-  if (overview.loading) {
+  // The filter registry drives the controls, so adding a filterable column is
+  // one entry in the backend registry and nothing here. §28.
+  const contract = useAsync<EwsFilterContract>(
+    () => api.earlyWarningV2DashboardContract(),
+    [],
+  );
+  const columns = contract.data?.columns ?? [];
+
+  /**
+   * ONE idea of what is being looked at.
+   *
+   * The band and the segment used to live in their own URL keys, read by
+   * their own state, while the table filtered its fetched rows separately —
+   * which is how the tiles came to describe the book while the table
+   * described a band. They are filters, so they live in the filter state
+   * with every other filter, and the band chips and the segment table write
+   * into it like the controls above them do.
+   *
+   * Seeded from the address on the first render only. The URL is written
+   * back from the state afterwards; reading it again would be a second
+   * opinion about what the reader asked for.
+   */
+  const [state, setState] = React.useState<flt.FilterState>(() => {
+    if (typeof window === "undefined") return flt.EMPTY;
+    const query = new URLSearchParams(window.location.search);
+    // `?band=` and `?segment=` are the keys the older screen wrote, and
+    // links carrying them are still in people's histories and messages.
+    const seeded = flt.fromQuery(window.location.search, SEED_COLUMNS);
+    for (const [legacy, key] of [["band", "ews_band"], ["segment", "segment"]] as const) {
+      const value = query.get(legacy);
+      if (value && !seeded.selections[key]) seeded.selections[key] = [value];
+    }
+    return seeded;
+  });
+
+  const chosenSegments = state.selections.segment ?? [];
+
+  // Debounced, because a range box fires on every keystroke and each one is a
+  // request against three hundred obligors. §33.
+  const [settled, setSettled] = React.useState(state);
+  React.useEffect(() => {
+    if (flt.sameRequest(settled, state)) return;
+    const timer = setTimeout(() => setSettled(state), 250);
+    return () => clearTimeout(timer);
+  }, [state, settled]);
+
+  const specKey = JSON.stringify(flt.toSpec(settled));
+  const dashboard = useAsync<EwsDashboard>(
+    () => api.earlyWarningV2Dashboard(flt.toSpec(settled)),
+    [specKey],
+  );
+
+  // The address carries the filter, so a narrowed view can be shared and
+  // walked back to. Replaced rather than pushed: typing into a range box is
+  // not four steps a reader wants to press Back through.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const query = new URLSearchParams(flt.toQuery(settled));
+    for (const carried of ["customer", "level"]) {
+      const value = url.searchParams.get(carried);
+      if (value) query.set(carried, value);
+    }
+    const next = query.toString();
+    if (next === url.searchParams.toString()) return;
+    url.search = next;
+    window.history.replaceState(window.history.state, "", url);
+  }, [settled]);
+
+  const [exporting, setExporting] = React.useState(false);
+  const [exportError, setExportError] = React.useState("");
+
+  async function exportBook() {
+    setExporting(true);
+    setExportError("");
+    try {
+      // The SAME scope the screen is showing. A download that quietly took
+      // the unfiltered book would be a different answer under the same button.
+      const file = await api.earlyWarningV2Export(flt.toSpec(settled));
+      saveBlob(file.blob, file.filename);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  if (dashboard.loading && !dashboard.data) {
     return <Skeleton className="h-96 w-full" />;
   }
-  if (overview.error || !overview.data) {
+  if (dashboard.error && !dashboard.data) {
     return (
       <EmptyState
         title="Early Warning V2 data is not built yet"
@@ -139,74 +341,60 @@ export function EarlyWarningV2Portfolio() {
       />
     );
   }
+  if (!dashboard.data) return <Skeleton className="h-96 w-full" />;
 
-  const { summary, top_high_risk } = overview.data;
-  const filteredRows = filterBand
-    ? top_high_risk.filter((r: EarlyWarningV2BorrowerRow) => r.ews_band === filterBand)
-    : top_high_risk;
+  const { kpis, distribution, trend, rows, row_count, scope } = dashboard.data;
+  const chosenBands = state.selections.ews_band ?? [];
+  const empty = row_count === 0;
 
   return (
     <div className="space-y-5">
       <EarlyWarningChat
         customerId={selection.customer}
-        uiState={{
-          band: selection.band ?? undefined,
-          segment: selection.segment ?? undefined,
-          level: selection.level ?? undefined,
-        }}
+        scopeLabel={scope.active ? scope.sentence : ""}
+        dashboardScope={scope.active ? flt.toSpec(settled) : undefined}
+        uiState={{ level: selection.level ?? undefined }}
         onOpenBorrower={(id) => selection.patch({ customer: id })}
       />
 
       <PortfolioInsight />
 
+      <EwsFilterBar
+        columns={columns}
+        facets={dashboard.data.facets}
+        state={state}
+        chips={scope.chips}
+        matched={scope.matched}
+        population={scope.population}
+        busy={dashboard.loading}
+        onChange={setState}
+        onExport={exportBook}
+        exporting={exporting}
+        exportError={exportError}
+      />
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle>Portfolio EWS, exposure-weighted</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {summary.portfolio_ews.toFixed(1)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle>Borrowers at High or above</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {summary.high_plus_count}
-            <span className="ml-1 text-sm font-normal text-text-secondary">
-              of {summary.borrower_count}
-            </span>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle>Exposure at High or above</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {money(summary.high_plus_exposure)}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-1">
-            <CardTitle>Total exposure</CardTitle>
-          </CardHeader>
-          <CardContent className="text-2xl font-semibold">
-            {money(summary.total_exposure)}
-          </CardContent>
-        </Card>
+        <Kpi title="Portfolio EWS, exposure-weighted" value={kpis.portfolio_ews.toFixed(1)} />
+        <Kpi
+          title={scope.active ? "In scope, at High or above" : "Borrowers at High or above"}
+          value={String(kpis.high_plus_count)}
+          note={`of ${kpis.borrower_count}`}
+        />
+        <Kpi title="Exposure at High or above" value={money(kpis.high_plus_exposure)} />
+        <Kpi
+          title={scope.active ? "Exposure in scope" : "Total exposure"}
+          value={money(kpis.total_exposure)}
+        />
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {summary.severity_distribution.map((band) => (
+        {distribution.map((band) => (
           <button
             key={band.band}
             type="button"
-            onClick={() =>
-              selection.patch({ band: filterBand === band.band ? null : band.band })
-            }
+            onClick={() => setState(flt.toggle(state, "ews_band", band.band))}
             className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
-              filterBand === band.band
+              chosenBands.includes(band.band)
                 ? "border-accent bg-accent-muted"
                 : "border-border bg-surface hover:border-border-strong"
             }`}
@@ -222,14 +410,18 @@ export function EarlyWarningV2Portfolio() {
         ))}
       </div>
 
-      {overview.data.trend.length >= 3 && (
+      {trend.points.length >= 3 && (
         <Card>
           <CardHeader>
-            <CardTitle>Portfolio Early Warning score by month</CardTitle>
+            <CardTitle>
+              {trend.basis === "current_snapshot_cohort"
+                ? `These ${trend.cohort_size} obligors, month by month`
+                : "Portfolio Early Warning score by month"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <TrendChart
-              data={overview.data.trend.map((t) => ({
+              data={trend.points.map((t) => ({
                 period: t.period,
                 ews: t.portfolio_ews,
                 high: t.high_plus_count,
@@ -242,74 +434,101 @@ export function EarlyWarningV2Portfolio() {
               height={220}
               area
             />
+            {/* The basis, printed rather than assumed. A cohort trend shown
+                as a portfolio trend is a survivorship claim nobody made. */}
+            <p className="mt-2 text-xs text-text-muted">{trend.note}</p>
           </CardContent>
         </Card>
       )}
 
-      {filterBand && (
-        <InterpretationPanel band={filterBand} label={`${BAND_LABEL[filterBand]} risk`} />
+      {chosenBands.length === 1 && (
+        <InterpretationPanel
+          band={chosenBands[0]}
+          label={`${BAND_LABEL[chosenBands[0]] ?? chosenBands[0]} risk`}
+        />
       )}
 
       <Card>
         <CardHeader>
           <CardTitle>
-            {filterBand ? `${BAND_LABEL[filterBand]} risk borrowers` : "Top high-risk borrowers"}
+            {scope.active ? "Borrowers in scope" : "Borrowers by Early Warning score"}
           </CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-text-secondary">
-                <th className="py-1.5 pr-3">Customer</th>
-                <th className="py-1.5 pr-3">Segment</th>
-                <th className="py-1.5 pr-3">Exposure ({MONEY_COLUMN_UNIT})</th>
-                <th className="py-1.5 pr-3">DPD</th>
-                <th className="py-1.5 pr-3">EWS</th>
-                <th className="py-1.5 pr-3">T&amp;A</th>
-                <th className="py-1.5 pr-3">Classifier</th>
-                <th className="py-1.5 pr-3">Dominant driver</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row: EarlyWarningV2BorrowerRow) => (
-                <tr
-                  key={row.customer_id}
-                  className={`cursor-pointer border-b border-border/60 hover:bg-surface-hover ${
-                    selection.customer === row.customer_id ? "bg-accent-muted/40" : ""
-                  }`}
-                  onClick={() =>
-                    selection.patch({
-                      customer: selection.customer === row.customer_id ? null : row.customer_id,
-                    })
-                  }
-                >
-                  <td className="py-1.5 pr-3 font-medium text-accent">{row.customer_name}</td>
-                  <td className="py-1.5 pr-3 text-text-secondary">{row.segment}</td>
-                  <td className="py-1.5 pr-3">{moneyCell(row.exposure)}</td>
-                  <td className="py-1.5 pr-3">{row.dpd}</td>
-                  <td className="py-1.5 pr-3">
-                    <div className="flex items-center gap-1.5">
-                      <BandBadge band={row.ews_band} />
-                      <span className="text-text-secondary">{row.ews_score.toFixed(1)}</span>
-                    </div>
-                  </td>
-                  <td className="py-1.5 pr-3 text-text-secondary">
-                    {row.ta_band} ({row.ta_score.toFixed(1)})
-                  </td>
-                  <td className="py-1.5 pr-3 text-text-secondary">
-                    {row.classifier_band} ({row.classifier_score.toFixed(1)})
-                  </td>
-                  <td className="py-1.5 pr-3 text-text-secondary">
-                    {row.dominant_driver ?? "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filteredRows.length === 0 && (
-            <p className="py-4 text-center text-sm text-text-secondary">
-              No borrowers in this band.
-            </p>
+          {empty ? (
+            <EmptyState
+              title="No obligors match this filter"
+              description={`Nothing in ${scope.period || "this month"} matches ${scope.sentence}. Clear a filter to widen the population.`}
+              action={
+                <Button size="sm" variant="outline" onClick={() => setState(flt.clearAll(state))}>
+                  Clear all filters
+                </Button>
+              }
+            />
+          ) : (
+            <>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-text-secondary">
+                    <SortHeader field="customer_name" state={state} onSort={setState}>Customer</SortHeader>
+                    <SortHeader field="segment" state={state} onSort={setState}>Segment</SortHeader>
+                    <SortHeader field="exposure" state={state} onSort={setState}>
+                      Exposure ({MONEY_COLUMN_UNIT})
+                    </SortHeader>
+                    <SortHeader field="dpd" state={state} onSort={setState}>DPD</SortHeader>
+                    <SortHeader field="ews_score" state={state} onSort={setState}>EWS</SortHeader>
+                    <SortHeader field="ta_score" state={state} onSort={setState}>T&amp;A</SortHeader>
+                    <SortHeader field="classifier_score" state={state} onSort={setState}>
+                      Classifier
+                    </SortHeader>
+                    <SortHeader field="dominant_driver" state={state} onSort={setState}>
+                      Dominant driver
+                    </SortHeader>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row: EarlyWarningV2BorrowerRow) => (
+                    <tr
+                      key={row.customer_id}
+                      className={`cursor-pointer border-b border-border/60 hover:bg-surface-hover ${
+                        selection.customer === row.customer_id ? "bg-accent-muted/40" : ""
+                      }`}
+                      onClick={() =>
+                        selection.patch({
+                          customer: selection.customer === row.customer_id ? null : row.customer_id,
+                        })
+                      }
+                    >
+                      <td className="py-1.5 pr-3 font-medium text-accent">{row.customer_name}</td>
+                      <td className="py-1.5 pr-3 text-text-secondary">{row.segment}</td>
+                      <td className="py-1.5 pr-3">{moneyCell(row.exposure)}</td>
+                      <td className="py-1.5 pr-3">{row.dpd}</td>
+                      <td className="py-1.5 pr-3">
+                        <div className="flex items-center gap-1.5">
+                          <BandBadge band={row.ews_band} />
+                          <span className="text-text-secondary">{row.ews_score.toFixed(1)}</span>
+                        </div>
+                      </td>
+                      <td className="py-1.5 pr-3 text-text-secondary">
+                        {row.ta_band} ({row.ta_score.toFixed(1)})
+                      </td>
+                      <td className="py-1.5 pr-3 text-text-secondary">
+                        {row.classifier_band} ({row.classifier_score.toFixed(1)})
+                      </td>
+                      <td className="py-1.5 pr-3 text-text-secondary">
+                        {row.dominant_driver ?? "\u2014"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pager
+                offset={dashboard.data.offset}
+                shown={rows.length}
+                total={row_count}
+                onPage={(offset) => setState(flt.page(state, offset))}
+              />
+            </>
           )}
         </CardContent>
       </Card>
@@ -324,9 +543,9 @@ export function EarlyWarningV2Portfolio() {
       <LevelView
         field={selection.level ?? "segment"}
         onChangeField={(field) => selection.patch({ level: field })}
-        onOpenGroup={(field, value) =>
-          selection.patch({ segment: field === "segment" ? value : null })
-        }
+        onOpenGroup={(field, value) => {
+          if (field === "segment") setState(flt.toggle(state, "segment", value));
+        }}
       />
 
       {segments.data && (
@@ -350,13 +569,9 @@ export function EarlyWarningV2Portfolio() {
                   <tr
                     key={seg.segment}
                     className={`cursor-pointer border-b border-border/60 hover:bg-surface-hover ${
-                      selection.segment === seg.segment ? "bg-accent-muted/40" : ""
+                      chosenSegments.includes(seg.segment) ? "bg-accent-muted/40" : ""
                     }`}
-                    onClick={() =>
-                      selection.patch({
-                        segment: selection.segment === seg.segment ? null : seg.segment,
-                      })
-                    }
+                    onClick={() => setState(flt.toggle(state, "segment", seg.segment))}
                   >
                     <td className="py-1.5 pr-3 font-medium">{seg.segment}</td>
                     <td className="py-1.5 pr-3">{seg.borrower_count}</td>
@@ -371,8 +586,11 @@ export function EarlyWarningV2Portfolio() {
         </Card>
       )}
 
-      {selection.segment && (
-        <InterpretationPanel segment={selection.segment} label={selection.segment} />
+      {chosenSegments.length === 1 && (
+        <InterpretationPanel
+          segment={chosenSegments[0]}
+          label={chosenSegments[0]}
+        />
       )}
     </div>
   );

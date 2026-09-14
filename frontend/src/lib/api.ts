@@ -2501,6 +2501,10 @@ async function download(
   path: string,
   fallback: string,
   timeoutMs = 180_000,
+  // A filtered export is a POST, because the filter is a structure: three
+  // multi-selects, four ranges and a text match do not survive being
+  // flattened into a query string without somebody inventing an encoding.
+  body?: unknown,
 ): Promise<DownloadedFile> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -2510,7 +2514,12 @@ async function download(
     response = await fetch(`${API_BASE_URL}${API_PREFIX}${path}`, {
       signal: controller.signal,
       credentials: "include",
-      headers: identity(),
+      method: body === undefined ? "GET" : "POST",
+      headers: {
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+        ...identity(),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch (error) {
     const aborted =
@@ -3342,6 +3351,108 @@ export interface EarlyWarningV2SegmentRow {
   portfolio_ews: number;
   high_plus_count: number;
   weakest_borrower: string | null;
+}
+
+/* ------------------------------------------------- the filtered dashboard */
+
+/**
+ * What the reader has narrowed the book to.
+ *
+ * The SAME object is sent to the dashboard and to the export, and a snapshot
+ * of it travels into a chat thread as the scope the question is asked in.
+ * One description, three consumers — which is what stops the tiles, the
+ * chart, the table and the downloaded file describing four populations.
+ */
+export interface EwsFilterSpec {
+  period?: string;
+  filters?: Record<string, unknown>;
+  sort_by?: string;
+  descending?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+/** One filter a reader has set, as the server applied it. */
+export interface EwsFilterChip {
+  key: string;
+  label: string;
+  value: string;
+}
+
+/** One filterable column, and what a reader may do with it. */
+export interface EwsFilterColumn {
+  key: string;
+  label: string;
+  kind: "text" | "multi" | "range";
+  field: string;
+  choices: string[];
+  unit: string;
+}
+
+export interface EwsFilterContract {
+  columns: EwsFilterColumn[];
+  sortable: string[];
+  bands: string[];
+  max_page: number;
+  default_page: number;
+}
+
+export interface EwsDashboardScope extends EwsFilterSpec {
+  chips: EwsFilterChip[];
+  sentence: string;
+  active: boolean;
+  /** How many obligors match, out of how many were published that month. */
+  matched: number;
+  population: number;
+}
+
+export interface EwsDashboardKpis {
+  period: string;
+  portfolio_ews: number;
+  borrower_count: number;
+  total_exposure: number;
+  high_plus_count: number;
+  high_plus_exposure: number;
+}
+
+export interface EwsBandSlice {
+  band: string;
+  borrower_count: number;
+  borrower_pct: number;
+  exposure: number;
+  exposure_pct: number;
+}
+
+/**
+ * The trend, with the population it is about stated rather than assumed.
+ *
+ * `whole_book` is every obligor in every month. `current_snapshot_cohort` is
+ * the filtered obligors tracked BACK — membership fixed at the as-of month,
+ * so a movement in the line is a movement in those obligors rather than a
+ * change in who is being counted. The chart prints `note`, because a cohort
+ * trend presented as a portfolio trend is a survivorship claim nobody made.
+ */
+export interface EwsDashboardTrend {
+  basis: "whole_book" | "current_snapshot_cohort";
+  note: string;
+  as_of: string;
+  cohort_size: number;
+  points: (EwsDashboardKpis & { period: string; in_cohort?: number })[];
+}
+
+export interface EwsDashboard {
+  period: string;
+  available_periods: string[];
+  scope: EwsDashboardScope;
+  kpis: EwsDashboardKpis;
+  distribution: EwsBandSlice[];
+  trend: EwsDashboardTrend;
+  rows: EarlyWarningV2BorrowerRow[];
+  row_count: number;
+  returned: number;
+  offset: number;
+  facets: Record<string, string[]>;
+  contract: EwsFilterContract;
 }
 
 export interface EarlyWarningV2Segments {
@@ -4617,6 +4728,30 @@ export const api = {
     request<EarlyWarningV2Overview>(
       `/early-warning/v2${period ? `?period=${encodeURIComponent(period)}` : ""}`,
     ),
+  /**
+   * The whole dashboard from one scope: tiles, band mix, trend and a page of
+   * the table, all projections of the same filtered population.
+   */
+  /** What the dashboard may be filtered by, so the controls come from the
+   * contract rather than a list kept in step by hand. */
+  earlyWarningV2DashboardContract: () =>
+    request<EwsFilterContract>("/early-warning/v2/dashboard/contract"),
+  earlyWarningV2Dashboard: (spec: EwsFilterSpec) =>
+    request<EwsDashboard>("/early-warning/v2/dashboard", {
+      method: "POST",
+      body: JSON.stringify(spec),
+    }),
+  /**
+   * The COMPLETE filtered result as a workbook — not the page on screen,
+   * which is what the export exists to escape.
+   */
+  earlyWarningV2Export: (spec: EwsFilterSpec) =>
+    download(
+      "/early-warning/v2/dashboard/export",
+      "early-warning.xlsx",
+      180_000,
+      spec,
+    ),
   earlyWarningV2Segments: (period?: string) =>
     request<EarlyWarningV2Segments>(
       `/early-warning/v2/segments${period ? `?period=${encodeURIComponent(period)}` : ""}`,
@@ -4688,6 +4823,8 @@ export const api = {
     threadId?: string;
     mode?: "standard" | "deep";
     turnKey?: string;
+    /** What the dashboard was narrowed to when the thread began. */
+    dashboardScope?: EwsFilterSpec;
   }) =>
     request<EwsTurnStarted>("/early-warning/v2/ask/start", {
       method: "POST",
@@ -4696,6 +4833,7 @@ export const api = {
         period: payload.period ?? null,
         customer_id: payload.customerId ?? null,
         ui_state: payload.uiState ?? null,
+        dashboard_scope: payload.dashboardScope ?? null,
         rolling_summary: payload.rollingSummary ?? null,
         thread_id: payload.threadId ?? null,
         mode: payload.mode ?? "standard",

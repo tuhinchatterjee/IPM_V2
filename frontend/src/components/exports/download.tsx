@@ -4,7 +4,7 @@ import * as React from "react";
 import { AlertTriangle, Check, FileSpreadsheet, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { captionFor, type DownloadPhase } from "@/lib/downloads";
+import { captionFor, saveBlob, type DownloadPhase } from "@/lib/downloads";
 import { cn } from "@/lib/utils";
 import { ApiError, api, type ExportAvailability } from "@/lib/api";
 
@@ -46,24 +46,6 @@ export interface DownloadProps {
   className?: string;
   /** Hide the label and keep the icon, for a narrow header. */
   compact?: boolean;
-}
-
-/**
- * Save a blob the browser has already been handed.
- *
- * The object URL is revoked on the next tick rather than immediately: Safari
- * has not started reading it when the click handler returns, and revoking
- * synchronously produces a download that silently never happens.
- */
-function save(blob: Blob, filename: string): void {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /**
@@ -110,7 +92,7 @@ function DownloadButton({
     setProblem("");
     try {
       const file = await fetcher();
-      save(file.blob, file.filename);
+      saveBlob(file.blob, file.filename);
       if (!alive.current) return;
       setPhase("done");
       setTimeout(() => alive.current && setPhase("idle"), SETTLE_MS);

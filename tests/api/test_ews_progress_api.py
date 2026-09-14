@@ -156,7 +156,15 @@ def test_an_unknown_turn_is_not_an_error(client):
                         json={"turn_key": "never-existed"})
 
     assert reply.status_code == 200
-    assert reply.json() == {"watching": False, "version": 1}
+    document = reply.json()
+    assert document["watching"] is False
+    assert document["version"] == 1
+    # The reducer keys off `state`, so the reply always carries one. Empty
+    # for a turn nobody has heard of -- which is neither running, nor
+    # completed, nor failed, and must not be shown as any of the three.
+    assert document["state"] == ""
+    assert "answer" not in document
+    assert "failure" not in document
 
 
 def test_a_rejected_key_is_refused_by_the_schema(client):

@@ -52,3 +52,25 @@ export function captionFor(phase: DownloadPhase, label: string): string {
   if (phase === "done") return "Workbook ready";
   return label;
 }
+
+/**
+ * Save a blob the browser has already been handed.
+ *
+ * The object URL is revoked on the next tick rather than immediately: Safari
+ * has not started reading it when the click handler returns, and revoking
+ * synchronously produces a download that silently never happens.
+ *
+ * Lifted here from the export button so the Early Warning workbook and the
+ * analysis packs share one implementation. Two copies of this would be two
+ * chances for one of them to grow the Safari bug back.
+ */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}

@@ -16,6 +16,12 @@ export interface StartOptions {
   threadId: string;
   customerId?: string | null;
   uiState?: Record<string, unknown>;
+  /**
+   * The dashboard's filter as the governed spec, snapshotted when the thread
+   * began. Structured rather than described: a scope reconstructed from prose
+   * is a scope that can be read back wrong, and this one is already exact.
+   */
+  dashboardScope?: Record<string, unknown>;
   rollingSummary?: Record<string, unknown>;
   mode?: "standard" | "deep";
 }
@@ -74,6 +80,7 @@ export function useEwsTurn(): {
           threadId: options.threadId,
           customerId: options.customerId ?? undefined,
           uiState: options.uiState,
+          dashboardScope: options.dashboardScope,
           rollingSummary: options.rollingSummary,
           mode: options.mode ?? "standard",
         });

@@ -47,10 +47,12 @@ export function EarlyWarningChat({
   customerId,
   uiState,
   onOpenBorrower,
-  /** What the dashboard was showing when this thread began, if anything.
-   *  Snapshotted by the caller: a thread's scope does not change because
-   *  somebody later moved a filter on another screen. */
+  /** What the dashboard was showing when this thread began, if anything. */
   scopeLabel,
+  /** The same scope, as the governed FilterSpec the dashboard and the export
+   *  use. Sent with the question so the answer is about the population the
+   *  reader is looking at rather than the whole book. */
+  dashboardScope,
 }: {
   /** The obligor the screen is currently about, so "what should I do?"
    *  is answered about that obligor rather than about the book. */
@@ -64,6 +66,7 @@ export function EarlyWarningChat({
   uiState?: Record<string, unknown>;
   onOpenBorrower?: (customerId: string) => void;
   scopeLabel?: string | null;
+  dashboardScope?: Record<string, unknown>;
 }) {
   const suggestions = useAsync(() => api.earlyWarningV2Suggestions(), []);
   const [question, setQuestion] = React.useState("");
@@ -78,6 +81,25 @@ export function EarlyWarningChat({
    * would be a second thread quietly disagreeing with the first.
    */
   const summary = React.useRef<Record<string, unknown> | undefined>(undefined);
+
+  /**
+   * The scope this thread is asked in, taken once and then held.
+   *
+   * §42: snapshotted at thread start. A thread whose scope followed the live
+   * filter would make its own history unreadable — the answer three turns up
+   * was about the population of three turns ago, and re-scoping it now would
+   * silently restate what it said. So the snapshot is taken when the FIRST
+   * question is asked, and only a new thread takes a new one.
+   *
+   * Held in state rather than a ref, and written in the ask handler rather
+   * than during render: taking the snapshot is an event, and the moment it
+   * happens is exactly the moment the reader presses Ask.
+   */
+  const [asked, setAsked] = React.useState<{
+    spec: Record<string, unknown> | undefined;
+    label: string;
+  } | null>(null);
+  const scope = asked ?? { spec: dashboardScope, label: scopeLabel ?? "" };
   // `useId` rather than a random string: a ref initialiser runs on every
   // render, so `Math.random()` there is a new thread id each time React
   // decides to re-render and the server sees a different conversation.
@@ -108,10 +130,15 @@ export function EarlyWarningChat({
       if (!trimmed || (turn && turn.state === "running")) return;
       setQuestion("");
       setPinned(true);
+      // The thread's scope, fixed here and not moved again until a new
+      // thread is started.
+      const inScope = asked ?? { spec: dashboardScope, label: scopeLabel ?? "" };
+      if (!asked) setAsked(inScope);
       const settled = await start(trimmed, {
         threadId,
         customerId,
         uiState: { ...(uiState ?? {}), customer_id: customerId ?? undefined },
+        dashboardScope: inScope.spec,
         rollingSummary: summary.current,
       });
       if (!settled) return;
@@ -130,7 +157,8 @@ export function EarlyWarningChat({
       ]);
       clear();
     },
-    [turn, start, clear, threadId, customerId, uiState],
+    [turn, start, clear, threadId, customerId, uiState, asked,
+     dashboardScope, scopeLabel],
   );
 
   const newThread = React.useCallback(() => {
@@ -142,6 +170,9 @@ export function EarlyWarningChat({
     // no rolling summary and a different thread id, so "those names" in the
     // first question of a new thread resolves to nothing — which is correct.
     summary.current = undefined;
+    // A new thread also takes a new scope: it is about whatever the reader
+    // is looking at now, not about what they were looking at an hour ago.
+    setAsked(null);
     setThreadNumber((n) => n + 1);
   }, [clear]);
 
@@ -168,7 +199,7 @@ export function EarlyWarningChat({
     return (
       <section className="space-y-3" data-testid="ews-chat-empty">
         {composer}
-        {scopeLabel && <ScopeChip label={scopeLabel} />}
+        {scope.label && <ScopeChip label={scope.label} />}
       </section>
     );
   }
@@ -176,7 +207,7 @@ export function EarlyWarningChat({
   return (
     <section className="flex flex-col gap-3" data-testid="ews-chat-thread">
       <div className="flex items-center justify-between gap-2">
-        {scopeLabel ? <ScopeChip label={scopeLabel} /> : <span />}
+        {scope.label ? <ScopeChip label={scope.label} /> : <span />}
         <button
           type="button"
           onClick={newThread}
@@ -299,11 +330,21 @@ function TurnFailed({
   );
 }
 
-/** What the dashboard was showing when this thread began. */
+/**
+ * What the dashboard was narrowed to when this thread began.
+ *
+ * Shown, not implied. A reader who filtered to High-and-above obligors in
+ * Contracting and then asked "how many are deteriorating?" is owed a visible
+ * statement that the answer is about those and not about the book -- and a
+ * thread they come back to tomorrow is owed it more, not less.
+ */
 function ScopeChip({ label }: { label: string }) {
   return (
-    <p className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-text-secondary">
-      <span className="text-text-muted">Scope</span>
+    <p
+      className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-text-secondary"
+      data-testid="ews-chat-scope"
+    >
+      <span className="text-text-muted">Asked about</span>
       {label}
     </p>
   );
