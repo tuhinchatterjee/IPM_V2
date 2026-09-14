@@ -38,7 +38,7 @@ from sqlalchemy import select
 
 from backend.api.permissions import Principal, RequireAnalyst
 from backend.exports import playbook_contract as contract
-from backend.playbook import capabilities, library, service, store
+from backend.playbook import capabilities, intelligence, library, service, store
 from backend.playbook import repository as repo
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,18 @@ def _scope(principal: Principal) -> repo.Scope:
 
     return repo.Scope(tenant=tenant_of(principal),
                       user_id=getattr(principal, "user_id", None))
+
+
+def _actor(principal: Principal) -> str:
+    """Who is performing a governance act, as a string a row can keep.
+
+    A confirmation, a recorded decision or a completed review has to name a
+    person. `permissions._known_user` already refuses an unknown id and leaves
+    `user_id` as None, so an unauthenticated caller reaches here with nothing
+    to record — and the service layer refuses rather than writing a governance
+    row with no actor in it.
+    """
+    return f"user:{principal.user_id}" if principal.user_id else ""
 
 
 def _unavailable(exc: Exception) -> HTTPException:
@@ -935,3 +947,157 @@ def _source_payload(source) -> dict:
             "reporting_period": source.reporting_period,
             "manifest": source.manifest,
             "failure_reason": source.failure_reason}
+
+
+# ==========================================================================
+# Document intelligence — Know the Status
+# ==========================================================================
+#
+# Read-only except where a governance act is being recorded, and every such
+# act names the person performing it. Nothing here calls a provider: the whole
+# dashboard is computed from rows, so it is fast, reproducible and explainable.
+
+
+class ClassifyIn(BaseModel):
+    document_type: str = Field(max_length=48)
+    committee_report: bool | None = None
+    committee_name: str = Field(default="", max_length=160)
+    reporting_period: str = Field(default="", max_length=48)
+    owner: str = Field(default="", max_length=160)
+
+
+class ConfirmMetricIn(BaseModel):
+    """Confirm, change or ignore a suggested metric link.
+
+    `metric_id` present with action="confirm" changes the mapping to that
+    metric and confirms it in one step, which is what the Change action does.
+    """
+
+    action: str = Field(default="confirm", max_length=16)
+    metric_id: str = Field(default="", max_length=160)
+
+
+class ConfirmManyIn(BaseModel):
+    binding_ids: list[int] = Field(default_factory=list)
+    #: "high" confirms every high-confidence suggestion in one action, which
+    #: is the bulk control §8 asks for. Never every suggestion regardless of
+    #: confidence — that would be the automatic confirmation the rule forbids.
+    confidence: str = Field(default="", max_length=16)
+
+
+@router.get("/workspaces/{workspace_id}/intelligence")
+def document_intelligence(workspace_id: int,
+                          principal: Principal = RequireAnalyst) -> dict:
+    """The Know the Status dashboard for one document."""
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return intelligence.dashboard(session, workspace_id).as_dict()
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.put("/workspaces/{workspace_id}/intelligence/profile")
+def set_document_profile(workspace_id: int, body: ClassifyIn,
+                         principal: Principal = RequireAnalyst) -> dict:
+    """A person settles what kind of document this is. §2."""
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            intelligence.classify(
+                session, workspace_id, document_type=body.document_type,
+                actor=_actor(principal),
+                committee_report=body.committee_report,
+                committee_name=body.committee_name,
+                reporting_period=body.reporting_period, owner=body.owner)
+            session.commit()
+            return intelligence.dashboard(session, workspace_id).as_dict()
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except intelligence.UnknownDocumentType as exc:
+        raise _refused(exc, code="invalid_request") from exc
+    except intelligence.NotPermitted as exc:
+        raise _refused(exc, code="not_permitted") from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/metrics")
+def document_metrics(workspace_id: int,
+                     principal: Principal = RequireAnalyst) -> dict:
+    """The metric inventory, with governed links and suggestions kept apart."""
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return intelligence.dashboard(session, workspace_id).as_dict()["metrics"]
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/metrics/{binding_id}")
+def decide_metric_binding(workspace_id: int, binding_id: int,
+                          body: ConfirmMetricIn,
+                          principal: Principal = RequireAnalyst) -> dict:
+    """Confirm, change or ignore one suggested metric link."""
+    from backend.models.playbook import PlaybookMetricBinding
+    from backend.playbook.intelligence import binding as bind
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = session.get(PlaybookMetricBinding, binding_id)
+            if row is None or row.workspace_id != workspace_id:
+                raise repo.NotFound(f"No metric binding {binding_id} here.")
+            if body.action == "ignore":
+                bind.ignore(session, row)
+            else:
+                bind.confirm(session, row, actor=_actor(principal),
+                             metric_id=body.metric_id)
+            session.commit()
+            return intelligence.dashboard(session, workspace_id).as_dict()["metrics"]
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except bind.NotConfirmable as exc:
+        raise _refused(exc, code="not_confirmable") from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/metrics")
+def confirm_metric_bindings(workspace_id: int, body: ConfirmManyIn,
+                            principal: Principal = RequireAnalyst) -> dict:
+    """Confirm several suggestions at once — §8's bulk review controls."""
+    from backend.models.playbook import PlaybookMetricBinding
+    from backend.playbook.intelligence import binding as bind
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            rows = (session.query(PlaybookMetricBinding)
+                    .filter(PlaybookMetricBinding.workspace_id == workspace_id)
+                    .all())
+            chosen = [r for r in rows if r.id in set(body.binding_ids)]
+            if body.confidence:
+                chosen += [r for r in rows
+                           if r.binding_method == bind.SUGGESTED
+                           and not r.confirmed_by_user
+                           and r.confidence == body.confidence]
+            for row in {r.id: r for r in chosen}.values():
+                bind.confirm(session, row, actor=_actor(principal))
+            session.commit()
+            return intelligence.dashboard(session, workspace_id).as_dict()["metrics"]
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except bind.NotConfirmable as exc:
+        raise _refused(exc, code="not_confirmable") from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc

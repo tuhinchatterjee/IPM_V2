@@ -777,3 +777,162 @@ class TestStreamingOverHTTP:
         response = client.post(f"/api/v1/playbook/jobs/{streamed_job}/retry")
         assert response.status_code == 422
         assert response.json()["detail"]["error"] == "not_retryable"
+
+
+class TestDocumentIntelligenceOverHttp:
+    """Gate 2's API. Read-only except where a governance act is recorded, and
+    every such act names the person performing it."""
+
+    @pytest.fixture
+    def signed_in(self, client):
+        """A caller the platform can name.
+
+        Classifying a document and confirming a metric mapping are governance
+        acts, and the service refuses them without a person. The header is how
+        a real caller is identified; `permissions._known_user` checks the id
+        exists rather than trusting it.
+        """
+        client.headers.update({"X-IPM-User-Id": "1"})
+        yield client
+        client.headers.pop("X-IPM-User-Id", None)
+
+    def _workspace(self, client) -> int:
+        r = client.post("/api/v1/playbook/workspaces",
+                        json={"title": "Auto Loan scorecard report"})
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    @staticmethod
+    def _seed(workspace_id, proposals):
+        """Write bindings straight to the database.
+
+        These tests exercise the intelligence ROUTES; how bindings get created
+        during ingestion is Gate 5's path and is tested there.
+        """
+        from backend.db.engine import get_session
+        from backend.playbook.intelligence import binding as bind
+
+        with get_session() as session:
+            rows = bind.apply(session, workspace_id, proposals)
+            ids = [r.id for r in rows]
+            session.commit()
+        return ids
+
+    def test_a_new_workspace_offers_no_status_badge(self, client):
+        ws = self._workspace(client)
+        r = client.get(f"/api/v1/playbook/workspaces/{ws}/intelligence")
+        assert r.status_code == 200
+        assert r.json()["available"] is False
+
+    def test_a_person_classifies_the_document(self, signed_in):
+        ws = self._workspace(signed_in)
+        r = signed_in.put(
+            f"/api/v1/playbook/workspaces/{ws}/intelligence/profile",
+            json={"document_type": "committee_report",
+                  "committee_name": "Credit Risk Committee",
+                  "reporting_period": "Q2 2026"})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["document_type"] == "committee_report"
+        assert body["committee_report"] is True
+        assert body["classified_by"] == "user"
+        assert body["document_type_label"] == "Committee report"
+
+    def test_an_unknown_document_type_is_refused(self, signed_in):
+        ws = self._workspace(signed_in)
+        r = signed_in.put(
+            f"/api/v1/playbook/workspaces/{ws}/intelligence/profile",
+            json={"document_type": "novel"})
+        assert r.status_code == 422
+        # Not a permission problem, and the code says so — a caller that
+        # cannot tell "you may not" from "that is not a thing" can correct
+        # neither.
+        assert r.json()["detail"]["error"] == "invalid_request"
+        assert "is not a document type" in r.text
+
+    def test_the_metric_inventory_keeps_suggestions_apart(self, client):
+        from backend.exports import playbook_contract as contract
+        from backend.playbook.intelligence import binding as bind
+
+        ws = self._workspace(client)
+        self._seed(ws, bind.from_export(
+            [contract.Metric(metric_id="retail.default_rate",
+                             label="Retail default rate",
+                             display_value="6.88%")]))
+        self._seed(ws, bind.from_labels(
+            [("Application cohort bad rate", "6.47%", "0.0647", "B4")],
+            locator="xlsx://Performance!A1"))
+
+        r = client.get(f"/api/v1/playbook/workspaces/{ws}/intelligence/metrics")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["detected"] == 2
+        assert body["confirmed"] == 1 and body["suggested"] == 1
+        assert body["coverage_pct"] == 50
+        assert body["review_prompt"] == "Review 1 suggested metric link"
+        suggested = body["suggested_review"][0]
+        assert suggested["governed"] is False
+        assert suggested["method_label"] == "Suggested — confirmation required"
+        assert suggested["source_locator"] == "xlsx://Performance!B4"
+
+    def test_confirming_a_suggestion_makes_it_governed(self, signed_in):
+        from backend.playbook.intelligence import binding as bind
+
+        ws = self._workspace(signed_in)
+        [binding_id] = self._seed(ws, bind.from_labels(
+            [("Gini", "0.415", "0.4152", "B2")], locator="xlsx://P!A1"))
+
+        r = signed_in.post(
+            f"/api/v1/playbook/workspaces/{ws}/intelligence/metrics/{binding_id}",
+            json={"action": "confirm"})
+        assert r.status_code == 200, r.text
+        assert r.json()["confirmed"] == 1
+        assert r.json()["inventory"][0]["governed"] is True
+        assert r.json()["inventory"][0]["confirmed_by"]
+
+    def test_ignoring_keeps_the_figure_but_not_as_a_link(self, signed_in):
+        from backend.playbook.intelligence import binding as bind
+
+        ws = self._workspace(signed_in)
+        [binding_id] = self._seed(ws, bind.from_labels(
+            [("Gini", "0.415", "0.4152", "B2")], locator="xlsx://P!A1"))
+
+        r = signed_in.post(
+            f"/api/v1/playbook/workspaces/{ws}/intelligence/metrics/{binding_id}",
+            json={"action": "ignore"})
+        assert r.status_code == 200
+        assert r.json()["detected"] == 1 and r.json()["confirmed"] == 0
+
+    def test_bulk_confirm_takes_high_confidence_only(self, signed_in):
+        """Never every suggestion regardless of confidence — that would be the
+        automatic confirmation the rule forbids."""
+        from backend.playbook.intelligence import binding as bind
+
+        ws = self._workspace(signed_in)
+        self._seed(ws, bind.from_labels(
+            [("Gini", "0.415", "0.4152", "B2"),
+             ("The retail default rate for the book", "6.88%", "0.0688",
+              "B3")],
+            locator="xlsx://P!A1"))
+
+        r = signed_in.post(f"/api/v1/playbook/workspaces/{ws}/intelligence/metrics",
+                        json={"confidence": "high"})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["confirmed"] == 1
+        assert body["suggested"] == 1
+
+    def test_a_foreign_workspace_is_not_readable(self, client):
+        r = client.get("/api/v1/playbook/workspaces/99999999/intelligence")
+        assert r.status_code == 404
+
+    def test_a_governance_act_without_a_named_person_is_refused(self, client):
+        """The boundary itself. A row that cannot say who classified a
+        document is not a classification, and the route refuses rather than
+        writing one."""
+        ws = self._workspace(client)
+        r = client.put(
+            f"/api/v1/playbook/workspaces/{ws}/intelligence/profile",
+            json={"document_type": "committee_report"})
+        assert r.status_code == 422
+        assert "person" in r.text
