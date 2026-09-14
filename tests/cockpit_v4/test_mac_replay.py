@@ -1,4 +1,4 @@
-"""REAL PARSER · REAL WORKER · REAL ROUTES. The Mac UAT, replayed.
+"""REAL DATABASE · MODEL MOCK · REAL ROUTES. The Mac UAT, replayed.
 
 §46, §47. Every failure the latest Mac run produced, as a fixture that fails
 on the code that produced it and passes on the code that replaced it.

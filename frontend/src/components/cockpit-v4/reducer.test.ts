@@ -308,13 +308,46 @@ test("an out-of-order frame cannot reorder the trace", () => {
   assert.equal(view.lastSeq, 5);
 });
 
-test("a stage with no instance id from an older server still renders", () => {
+test("a stream from an older server still closes its stages", () => {
+  // Such a stream carries no `closed_stages`, so nothing in it can close
+  // anything. The reducer falls back to the inference the old client used
+  // -- which is wrong in the ways §35 describes, and is still better than a
+  // panel where every stage of an old stream spins forever.
   let view = initial("run-a");
   view = reduce(view, {
     type: "event",
-    event: event({ seq: 1, stage: "understanding",
-                   stage_instance_id: undefined }),
+    event: event({ seq: 1, stage: "accepted", status: "ok",
+                   stage_instance_id: undefined, stage_state: undefined,
+                   closed_stages: undefined }),
   });
-  assert.equal(view.steps.length, 1);
-  assert.equal(view.steps[0].stage, "understanding");
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 2, stage: "publishing", status: "ok",
+                   event_type: "answer.ready",
+                   stage_instance_id: undefined, stage_state: undefined,
+                   closed_stages: undefined }),
+  });
+  assert.deepEqual(view.steps.map((s) => s.stage),
+    ["accepted", "publishing"]);
+  assert.ok(view.steps.every((s) => s.state === "done"),
+    JSON.stringify(view.steps.map((s) => [s.stage, s.state])));
+});
+
+test("a stated stage is not closed by one of its own operations", () => {
+  // The other half of the same rule: where the server DOES run the state
+  // machine, an "ok" substep means one operation finished, not that the
+  // stage did. Treating it as the stage's completion is how a run showed
+  // "Executing query ✓" while it was still executing.
+  let view = initial("run-a");
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 1, stage: "executing", status: "started",
+                   stage_instance_id: "executing#1" }),
+  });
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 2, stage: "executing", status: "ok",
+                   stage_instance_id: "executing#1" }),
+  });
+  assert.equal(view.steps[0].state, "running");
 });

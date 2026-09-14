@@ -398,23 +398,62 @@ class RunStore:
 
     @contextmanager
     def _tx(self) -> Iterator[sqlite3.Connection]:
+        """One write transaction, which ALWAYS ends.
+
+        The rollback used to be reached only by `sqlite3.Error`. Any other
+        exception raised inside the block -- a validation failure, an
+        HTTPException, a KeyError in the caller's own code -- propagated
+        straight through, and `BEGIN IMMEDIATE` stayed open on this thread's
+        connection with the database's write lock held.
+
+        Nothing ever released it. Every later writer waited out its thirty
+        second `busy_timeout` and then failed with "database is locked",
+        which reads as a storage problem and is not one: it is one earlier
+        caller's exception, still holding the door.
+
+        So the rollback is in `finally`, and it runs on the success path too
+        -- a COMMIT that succeeded leaves no transaction to roll back, and
+        one that did not is exactly the case this exists for.
+        """
         conn = self._connect()
         lock = getattr(self, "_guard", None)
         if lock is not None:
             lock.acquire()
+        started = False
         try:
             conn.execute("BEGIN IMMEDIATE")
+            started = True
             yield conn
             conn.execute("COMMIT")
+            started = False
         except sqlite3.Error as exc:
-            try:
-                conn.execute("ROLLBACK")
-            except sqlite3.Error:
-                pass
             raise StorageUnavailable(str(exc)) from exc
         finally:
+            if started:
+                try:
+                    conn.execute("ROLLBACK")
+                except sqlite3.Error:
+                    # A connection too broken to roll back is a connection
+                    # this thread must not keep: the next caller would
+                    # inherit its open transaction.
+                    self._discard(conn)
             if lock is not None:
                 lock.release()
+
+    def _discard(self, conn: sqlite3.Connection) -> None:
+        """Drop a connection this thread can no longer trust.
+
+        Only ever the thread-local one: the shared in-memory connection IS
+        the database, and closing it would delete the store.
+        """
+        if self._shared is not None:
+            return
+        if getattr(self._local, "conn", None) is conn:
+            self._local.conn = None
+        try:
+            conn.close()
+        except sqlite3.Error:
+            pass
 
     #: Columns added after a table shipped. `CREATE TABLE IF NOT EXISTS` does
     #: not alter an existing table, so a database written by an earlier build

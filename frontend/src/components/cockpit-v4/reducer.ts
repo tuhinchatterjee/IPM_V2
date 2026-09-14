@@ -192,6 +192,13 @@ export function reduce(view: RunView, action: Action): RunView {
       // The instance this event belongs to. Keyed by the server's instance
       // id, so a second pass through a stage is a second row rather than a
       // row whose state flickers.
+      //
+      // `stated` is whether the SERVER ran the state machine for this
+      // event. A stream that predates it closes nothing, so the branches
+      // below fall back to the inference the old client used -- which is
+      // wrong in the ways §35 describes and is still better than a panel
+      // where every stage of an old stream spins forever.
+      const stated = Boolean(event.stage_instance_id);
       const instanceId =
         event.stage_instance_id || `${event.stage}#legacy`;
       let index = steps.findIndex((s) => s.instanceId === instanceId);
@@ -244,15 +251,30 @@ export function reduce(view: RunView, action: Action): RunView {
         // to "done", and this is what keeps the failure on screen.
         step.failures = Math.max(step.failures + 1, event.stage_failures ?? 0);
         step.errorId = event.error_id || step.errorId;
-      } else if (step.state !== "failed") {
+      } else if (stated) {
+        // A server that runs the state machine will close this stage when
+        // the next one begins. Until then it is running, whatever its
+        // individual operations reported.
         step.state = "running";
       } else {
-        // Recovered inside the same instance. The failure survives in
-        // `failures` and in the substep list, which is what the audit trace
-        // is for.
-        step.state = "running";
+        // A stream from a server that does not send the state machine. It
+        // closes nothing, so the OLD inference is the only thing that can
+        // close anything -- and a panel that left every stage of such a
+        // stream spinning would be worse than the inference it replaced.
+        step.state = "done";
       }
       steps[index] = step;
+
+      if (!stated) {
+        // The same legacy rule for the stages this one displaced: array
+        // order, which is what the old client had and all an old stream
+        // supports.
+        for (let i = 0; i < index; i += 1) {
+          if (steps[i].state === "running") {
+            steps[i] = { ...steps[i], state: "done" };
+          }
+        }
+      }
 
       // §35. Close whatever this event closed, exactly as the SERVER says.
       // The panel used to infer it -- "any earlier stage still marked

@@ -24,11 +24,12 @@ import { initial, reduce, setClock } from "./reducer.ts";
  */
 
 function event(over: Partial<RunEvent> = {}): RunEvent {
+  const stage = over.stage ?? "understanding";
   return {
     run_id: "run-1",
     seq: 1,
     event_type: "model.requested",
-    stage: "understanding",
+    stage,
     operation: "generate",
     status: "started",
     public_message: "Understanding the request",
@@ -36,8 +37,28 @@ function event(over: Partial<RunEvent> = {}): RunEvent {
     attempt: 1,
     error_id: "",
     detail_ref: "",
+    // The stage state machine the server sends. A fixture without it makes
+    // the panel look as though a stage never closes, which is a property of
+    // the fixture rather than of anything under test.
+    stage_instance_id: `${stage}#1`,
+    stage_started_ms: over.elapsed_ms ?? 0,
+    stage_state: "running",
+    stage_failures: 0,
+    closed_stages: [],
     ...over,
   } as RunEvent;
+}
+
+/** What the server sends when one stage displaces another. */
+function closed(instance: string, started: number, ended: number) {
+  return {
+    stage: instance.split("#")[0],
+    stage_instance_id: instance,
+    started_ms: started,
+    ended_ms: ended,
+    failures: 0,
+    state: "done" as const,
+  };
 }
 
 function at(ms: number) {
@@ -67,12 +88,14 @@ test("the step that is running is the one that counts", () => {
   });
   view = reduce(view, {
     type: "event",
-    event: event({ seq: 2, elapsed_ms: 500, status: "started" }),
+    event: event({ seq: 2, elapsed_ms: 500, status: "started",
+                   closed_stages: [closed("accepted#1", 0, 500)] }),
   });
   restore();
 
   const understanding = view.steps.find((s) => s.stage === "understanding")!;
   const accepted = view.steps.find((s) => s.stage === "accepted")!;
+  assert.equal(accepted.state, "done");
   assert.equal(understanding.state, "running");
 
   assert.equal(liveStepElapsedMs(understanding, view, 9_000), 8_000);
