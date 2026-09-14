@@ -570,6 +570,22 @@ def test_stamp_03_an_unstamped_installation_is_not_called_stale(
     assert not source_stamp.stale(tmp_path, "unstamped", metadata)
 
 
+def test_stamp_04_a_targeted_rebuild_does_not_delete_the_other_months() -> None:
+    """A build of three months is not a statement about the other seventeen.
+
+    The retention cleanup pruned against the CALLER'S month list rather than
+    against the retention window, so `build(months=[...])` deleted every month
+    the caller had not named. Asked to rebuild three, it left three.
+    """
+    import inspect
+
+    source = inspect.getsource(S.build)
+    assert "keep = set(scored_months(analytics_dir)) | set(wanted)" in source
+    assert "if month not in keep:" in source
+    assert "if month not in wanted:" not in source, (
+        "the retention cleanup is pruning against the caller's request again")
+
+
 # ===================================================== XL: the workbook ======
 
 @pytest.mark.slow

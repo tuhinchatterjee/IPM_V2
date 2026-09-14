@@ -130,11 +130,19 @@ def _per_customer(frame: Any, *, columns: tuple[str, ...] | None = None) -> Any:
     # by position, which is the same answer with a defined tie-break — the
     # first facility in panel order, rather than whatever an unstable sort
     # happened to leave on top.
-    picked = frame.groupby("customer_id")["ews_score"].idxmax()
+    # Grouped ONCE. The two passes below both group on customer_id, and
+    # factorising forty-two thousand Arrow-backed strings is not free — the
+    # portfolio screen rolls up forty-nine times to draw itself, so the second
+    # grouping was being paid for forty-nine times over.
+    # Sorted, as the default is. `sort=False` would be marginally faster and
+    # would change the ROW ORDER of the roll-up, which anything downstream
+    # taking a head without sorting would silently read as a different answer.
+    grouped = frame.groupby("customer_id")
+    picked = grouped["ews_score"].idxmax()
     keep = ([one for one in columns if one in frame.columns] if columns
             else list(frame.columns))
     worst = frame.loc[picked, keep].set_index("customer_id")
-    totals = frame.groupby("customer_id").agg(
+    totals = grouped.agg(
         customer_exposure_sar=("gross_carrying_amount_sar", "sum"),
         facilities=("facility_id", "nunique"),
         customer_dpd=("dpd", "max"),
@@ -183,17 +191,17 @@ def _counts(frame: Any, *, book_exposure: float | None = None) -> dict[str, Any]
     people = _per_customer(frame, columns=COUNT_COLUMNS)
     warned = people[people["ews_score"] >= M.SCALE.warning_cutoff]
     exposure_all = _money(frame["gross_carrying_amount_sar"].sum())
-    # Through numpy, not by iterating the column.
+    # The warned customers' exposure, added up rather than looked up.
     #
-    # The panel's identifier columns are Arrow-backed strings, and building a
-    # Python set out of one walks it element by element through Arrow's
-    # iterator. `_counts` runs forty times to draw the portfolio screen, which
-    # came to two hundred thousand element reads and several seconds of a
-    # fourteen-second page. `to_numpy` materialises the column once.
-    warned_ids = set(warned["customer_id"].to_numpy())
+    # This used to collect the warned customer ids into a set and then ask the
+    # facility frame which of its rows belonged to them — an `isin` over
+    # forty-two thousand Arrow-backed strings, run once per call and forty
+    # times per screen. The roll-up has already computed each customer's total
+    # across all their facilities, so the warned exposure is the sum of those
+    # totals for the warned customers. Identical figure, no second pass over
+    # the facilities.
     exposure_warned = _money(
-        frame[frame["customer_id"].isin(warned_ids)][
-            "gross_carrying_amount_sar"].sum())
+        warned["customer_exposure_sar"].fillna(0.0).sum())
     base = book_exposure if book_exposure is not None else exposure_all
 
     bands = people["ews_score"].map(M.band_of).value_counts()

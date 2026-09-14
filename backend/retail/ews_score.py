@@ -810,16 +810,37 @@ def build(*, analytics_dir: str | Path | None = None,
     fired_history: dict[str, list[dict[str, Any]]] = {t.key: [] for t in triggers}
 
     lead_in = every[max(0, every.index(wanted[0]) - 4):every.index(wanted[0])]
+    ordered = lead_in + wanted
+
+    #: How far back an action dimension looks. The history loop below reads
+    #: `index - 1` to `index - 3`, so a month older than this can never be
+    #: consulted again.
+    LOOKBACK = 3
+    dropped_too_early = 0
+
+    # Prepared as they are reached, and dropped once nothing can read them.
+    #
+    # This used to prepare all twenty-four months before scoring any of them,
+    # and hold every one of them for the whole run. On a twenty-thousand
+    # facility book that was a few gigabytes and nobody noticed; on sixty
+    # thousand it reached ten gigabytes of resident memory and the kernel
+    # killed the build half way through, leaving twelve months of the domain
+    # rebuilt and eight missing. Nothing beyond three months back is ever
+    # read, so nothing beyond three months back is kept.
     previous_frame = None
-    for month in lead_in + wanted:
+    for index, month in enumerate(ordered):
         frame = _prepare(month, previous_frame, analytics_dir)
         frame = _carry_bureau(frame, previous_frame)
         prepared[month] = frame
         previous_frame = frame
 
-    ordered = lead_in + wanted
-    for index, month in enumerate(ordered):
-        frame = prepared[month]
+        # Everything the history can no longer reach.
+        for stale_month in ordered[:max(0, index - LOOKBACK)]:
+            dropped = prepared.pop(stale_month, None)
+            del dropped
+            for trigger in triggers:
+                fired_history.pop(f"{stale_month}|{trigger.key}", None)
+
         results = {t.key: evaluate(frame, t) for t in triggers}
         # Align the previous months' values onto THIS month's rows, by
         # facility, so an action dimension compares the same facility rather
@@ -832,10 +853,16 @@ def build(*, analytics_dir: str | Path | None = None,
                 if index - back < 0:
                     break
                 older_month = ordered[index - back]
-                older = prepared[older_month]
+                older = prepared.get(older_month)
                 older_results = fired_history.get(
                     f"{older_month}|{trigger.key}")
-                if older_results is None:
+                if older is None and older_results is not None:
+                    # The sliding window dropped a month the history still
+                    # wants. That would silently shorten an action dimension's
+                    # look-back, so it is counted and reported rather than
+                    # absorbed — if this is ever non-zero the window is wrong.
+                    dropped_too_early += 1
+                if older is None or older_results is None:
                     break
                 mapped_value = frame["facility_id"].map(
                     pd.Series(older_results["value"],
@@ -866,15 +893,32 @@ def build(*, analytics_dir: str | Path | None = None,
         out.months += 1
         out.rows += len(scored)
         out.fields = max(out.fields, len(scored.columns))
+        # The scored month is five hundred columns wide and has just been
+        # written; holding it while the next month is prepared doubles the
+        # peak for no reason.
+        del scored
+
+    if dropped_too_early:
+        out.notes.append(
+            f"the sliding window dropped a prepared month the action "
+            f"dimensions still needed, {dropped_too_early} time(s); the "
+            f"look-back is shorter than the model declares")
 
     # Anything older than the twenty months is removed, so the domain holds
     # exactly what it claims to and a stale month cannot be read by accident.
+    #
+    # Pruned against the RETENTION WINDOW, never against the caller's request.
+    # These were the same list while `build()` was only ever called for
+    # everything, and the moment it was called for three months it deleted the
+    # other seventeen — a targeted rebuild is not a statement about what the
+    # domain should contain.
+    keep = set(scored_months(analytics_dir)) | set(wanted)
     if target.exists():
         for directory in sorted(target.iterdir()):
             if not directory.is_dir():
                 continue
             month = directory.name.split("=", 1)[-1]
-            if month not in wanted:
+            if month not in keep:
                 for part in directory.iterdir():
                     part.unlink()
                 directory.rmdir()
