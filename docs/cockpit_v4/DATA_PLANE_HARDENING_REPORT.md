@@ -436,3 +436,92 @@ python3 scripts/cockpit_v4/status.py
 7. **Watch the process panel on a live question.** At 0s it is empty. Rows
    appear as stages start, and a stage that is finished says how long it took
    rather than "not started".
+
+---
+
+## 13. The round, item by item
+
+Thirty-nine claims. Each one is a thing that is now true and was not before,
+with where to look.
+
+**The data plane**
+
+1. The Corporate book publishes 20 quarters, 2021Q3 … 2026Q2, as
+   `v4-saudi-corporate-20q-v3`. `scripts/cockpit_v4/seed_domains.py --verify`
+2. The Retail book publishes 20 months, 2025-01 … 2026-08, as
+   `v4-saudi-retail-20m-v3`. Same command.
+3. Both previous Corporate releases are still published and still verify
+   against their original fingerprints. `test_release_scale.py`
+4. `schema.period_column` / `frequency` / `period_noun` / `period_keys` are
+   the one place a calendar is decided.
+5. `Calendar.frequency` has no default. A book that does not state its
+   frequency cannot be opened.
+6. Only a book's OWN legacy period key is ever filled. A Corporate payload
+   leaves `reporting_month` empty. `schema.period_keys`
+7. `values.dimensions` derives its calendar exclusion from the set of
+   calendars there are, not from the literal `_month`.
+8. The Corporate book holds 3,652 borrowers, 12,782 facilities, 1,725 groups,
+   14 sectors, 75 sub-sectors, 10 regions and 7 product types, each with 500+
+   facilities. `test_release_scale.py`, `test_data_builder.py`
+9. The Retail book holds 12,000 customers and 16,000 accounts across 4
+   products and 8 regions.
+10. Every relation in both books is read by some question in the bank.
+    `test_question_banks.py`
+
+**The contract**
+
+11. `intent` is not a property of any tool schema, in either book.
+12. The run owns an `IntentEnvelope` before its first provider call.
+13. Ten shapes a live model has sent — including the bare string that
+    produced `intent must be an object` — all parse. `test_intent_envelope.py`
+14. The mode widens into analysis and never narrows, at the parser and in
+    the orchestrator.
+15. `finalize_response` carries the reader-facing half flat and optional;
+    no other tool carries any of it.
+16. A run's book, release and fingerprint are not overwritable by an answer.
+
+**The investigation**
+
+17. A seeded thread opens with an analysis packet under 6 KB.
+    `investigation.analysis_packet`
+18. Every attention family in both books runs investigate → execute →
+    publish with no CALL_LIMIT and no DEADLINE_EXPIRED.
+    `test_investigation_packet.py`
+19. All 86 offered questions in both books bind against the release before
+    they are shown. `investigation.executable`
+20. A cross-cut is a column of the finding's OWN relation. Four chips that
+    were not have gone.
+21. A trend question is written in the book's own periods — eight quarters,
+    or twelve months.
+
+**Compartmentalization**
+
+22. Every route that serves a book is audited, and the audit fails on one
+    that is added without a row. `test_compartmentalization.py`
+23. `/ecl` and the run-accept response now name the book at their top level.
+24. A thread's book is immutable and refused by name with an offer.
+25. Reopening a conversation reopens its book.
+26. A phrase only the other book has resolves to nothing rather than to a
+    question about something the reader did not say.
+27. An obvious typo is resolved, declared, and not escalated.
+
+**The panel**
+
+28. No step is drawn before it starts; `prospective` is gone from the type.
+29. A stage closes because the server said so, with its instance named.
+30. Two passes through one stage are two rows, in the order they ran.
+31. A terminal event leaves nothing running.
+32. Replaying the stream twice lands where it landed once, in two
+    independent implementations. `test_process_events.py`, `reducer.test.ts`
+
+**The evidence**
+
+33. 40 Corporate + 40 Retail questions against pandas oracles that import
+    nothing from the analytical path.
+34. 20 follow-up chains of 4–6 turns, and 20 attention chains.
+35. 7 Mac failure replays, and a test that fails when one has no fixture.
+36. 22 negative cases, including six the executability checker must refuse.
+37. 15 performance gates, two of which check the plan rather than the clock.
+38. 12 store-transaction tests; 9 of them fail on the code they replaced.
+39. The Data Builder's every claim is checked against the analytical path's
+    own catalogue object.
