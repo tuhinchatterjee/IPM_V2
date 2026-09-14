@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import DEEP, MODES, STANDARD
 from backend.cockpit_v4 import attention
+from backend.cockpit_v4 import lake as lake_mod
 from backend.cockpit_v4 import collaboration as collab
 from backend.cockpit_v4 import config as config_mod
 from backend.cockpit_v4.intake import normalize_question
@@ -108,12 +109,17 @@ class StartRun(BaseModel):
     thread_id: str = ""
     mode: str = STANDARD
     release_id: str = ""
+    #: Which book. Read only when a NEW conversation is being opened -- a
+    #: thread that already exists decides for itself, and a request that
+    #: disagrees with it is refused rather than obeyed or ignored.
+    domain: str = ""
     ui_filters: dict[str, Any] = Field(default_factory=dict)
 
 
 def _digest(body: StartRun, who: dict[str, Any]) -> str:
     payload = json.dumps({"q": body.question, "t": body.thread_id,
                           "m": body.mode, "r": body.release_id,
+                          "d": body.domain,
                           "f": body.ui_filters, "p": who.get("id")},
                          sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -158,17 +164,52 @@ async def start_run(body: StartRun, request: Request,
     cfg = _config()
 
     mode = body.mode.lower() if body.mode.lower() in MODES else STANDARD
+    from backend.cockpit_v4 import domain_resolver as resolver
+    from backend.cockpit_v4 import domains as dom_mod
+
+    tenant = str(who.get("tenant") or "")
     thread_id = body.thread_id
+    pinned = ""
     if thread_id:
         owner = store.thread_owner(thread_id)
-        if owner is None or owner[0] != str(who.get("tenant") or ""):
+        if owner is None or owner[0] != tenant:
             # Does not reveal whether the thread exists for someone else.
             raise HTTPException(404, {"error_code": "NOT_FOUND",
                                       "message": "No such conversation."})
-    else:
+        pinned = (store.thread_domain(thread_id) or {}).get("domain_id", "")
+
+    # The book, decided once. Inside a thread the thread wins; a request that
+    # names a different one is REFUSED rather than obeyed or silently
+    # overruled, because evidence from two books in one transcript cannot be
+    # told apart afterwards.
+    try:
+        scope = resolver.resolve(thread_domain=pinned, requested=body.domain,
+                                 tenant_id=tenant or lake_mod.DEFAULT_TENANT)
+    except resolver.DomainPinned as exc:
+        raise HTTPException(409, {
+            "error_code": "DOMAIN_PINNED",
+            "message": str(exc),
+            "thread_domain": exc.thread_domain,
+            "requested_domain": exc.asked,
+            "action": {"label": f"Start a "
+                                f"{dom_mod.SHORT_LABELS[exc.asked]} "
+                                f"conversation",
+                       "domain": exc.asked}}) from exc
+    except resolver.DomainUnavailable as exc:
+        raise HTTPException(503, {
+            "error_code": st.DATA_UNAVAILABLE, "message": str(exc),
+            "domain_id": exc.domain_id,
+            "provision_command": resolver.provision_command(
+                exc.domain_id)}) from exc
+    except dom_mod.UnknownDomain as exc:
+        raise HTTPException(400, {"error_code": "UNKNOWN_DOMAIN",
+                                  "message": str(exc)}) from exc
+
+    if not thread_id:
         thread_id = store.create_thread(
-            tenant_id=str(who.get("tenant") or ""),
-            principal_id=str(who.get("id") or ""))
+            tenant_id=tenant, principal_id=str(who.get("id") or ""),
+            domain_id=scope.domain_id, release_id=scope.release_id,
+            release_fingerprint=scope.release_fingerprint)
 
     # A conversation is named the moment it has a question in it, not when
     # the answer lands. Naming it on `append_turn` meant a reader watched a
@@ -361,6 +402,49 @@ def _attention_session(who: dict[str, Any]) -> tuple[Any, Any, Any]:
     return session, runtime, scope
 
 
+def _domain_feed(who: dict[str, Any], domain_id: str, *,
+                 refresh: bool = False) -> dict[str, Any]:
+    """The dashboard for ONE book, computed from that book's own release.
+
+    Switching domains is not a relabel and not a filter over one dataset: it
+    opens a different release, a different catalogue and a different session,
+    and the cache entry it fills is keyed by domain, release and fingerprint
+    so it can never be served to the other book.
+    """
+    from backend.cockpit_v4 import attention_v2
+    from backend.cockpit_v4 import catalog as cat_mod
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    tenant = str(who.get("tenant") or "") or lake_mod.DEFAULT_TENANT
+    try:
+        scope = resolver.scope_for(domain_id, tenant_id=tenant)
+    except resolver.DomainUnavailable as exc:
+        # One book being unpublished never makes the other stand in for it.
+        raise HTTPException(503, {
+            "error_code": st.DATA_UNAVAILABLE,
+            "message": str(exc),
+            "component": f"{domain_id}_attention_feed",
+            "domain_id": domain_id,
+            "provision_command": resolver.provision_command(domain_id),
+        }) from exc
+    session = cat_mod.open_session(
+        catalog=cat_mod.build(domain_id=scope.domain_id,
+                              release_id=scope.release_id,
+                              tenant_id=tenant))
+    try:
+        return attention_v2.cached(session=session, scope=scope,
+                                   tenant_id=tenant, refresh=refresh)
+    except attention_v2.AttentionUnavailable as exc:
+        # A component-level failure with a reference, never a bare 404 and
+        # never a claim that the backend is down: Ask keeps working.
+        raise HTTPException(503, {
+            "error_code": st.DATA_UNAVAILABLE, "message": str(exc),
+            "component": f"{domain_id}_attention_feed",
+            "domain_id": domain_id,
+            "error_reference": "att-" + hashlib.sha256(
+                str(exc).encode("utf-8")).hexdigest()[:12]}) from exc
+
+
 def _feed(who: dict[str, Any], *, refresh: bool = False) -> dict[str, Any]:
     session, runtime, _scope = _attention_session(who)
     catalog = runtime.catalog
@@ -384,15 +468,46 @@ def _feed(who: dict[str, Any], *, refresh: bool = False) -> dict[str, Any]:
                 exc.message.encode("utf-8")).hexdigest()[:12]}) from exc
 
 
+@router.get("/domains")
+async def domain_list(who: dict[str, Any] = Depends(principal)
+                      ) -> dict[str, Any]:
+    """Which books this runtime serves, and whether each can be asked.
+
+    §56, §57: reported separately. One domain being unpublished does not make
+    the other unavailable and absolutely does not make it a substitute, so a
+    switch can disable the book that is missing and say why.
+    """
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    tenant = str(who.get("tenant") or "") or lake_mod.DEFAULT_TENANT
+    return resolver.availability(tenant_id=tenant).to_dict()
+
+
 @router.get("/attention")
 async def attention_feed(refresh: bool = Query(False),
+                         domain: str = Query(""),
                          who: dict[str, Any] = Depends(principal)
                          ) -> dict[str, Any]:
-    """Segments requiring attention, and latest-quarter ECL highlights.
+    """One book's dashboard: what requires attention, and this month's ECL.
 
-    Deterministic, cached per release and tenant, and free of model calls:
-    rendering this page costs nothing at the provider.
+    Deterministic, cached per tenant AND domain AND release fingerprint, and
+    free of model calls: rendering this page costs nothing at the provider.
     """
+    from backend.cockpit_v4 import domains as dom_mod
+
+    try:
+        domain_id = dom_mod.parse(domain)
+    except dom_mod.UnknownDomain as exc:
+        raise HTTPException(400, {"error_code": "UNKNOWN_DOMAIN",
+                                  "message": str(exc)}) from exc
+    return _domain_feed(who, domain_id, refresh=refresh)
+
+
+@router.get("/attention-legacy")
+async def attention_feed_legacy(refresh: bool = Query(False),
+                                who: dict[str, Any] = Depends(principal)
+                                ) -> dict[str, Any]:
+    """The quarterly corporate feed, kept while its suite still reads it."""
     feed = _feed(who, refresh=refresh)
     public = {k: v for k, v in feed.items() if k not in ("method", "dropped")}
     public["method_summary"] = {
@@ -519,8 +634,21 @@ async def read_thread(thread_id: str,
     title = store.thread_title(thread_id)
     if not title and turns:
         title = str(turns[0].get("question") or "")
+    from backend.cockpit_v4 import domains as dom_mod
+
+    # Which book this conversation was held in. Decided when it was created
+    # and carried with the transcript, so a reader reopening it months later
+    # is not left inferring the domain from the vocabulary of the answers.
+    pinned = store.thread_domain(thread_id) or {}
+    domain_id = pinned.get("domain_id") or dom_mod.DEFAULT_DOMAIN
     return {"thread_id": thread_id,
             "title": title,
+            "domain_id": domain_id,
+            "domain_label": dom_mod.LABELS.get(domain_id, domain_id),
+            "domain_short_label": dom_mod.SHORT_LABELS.get(domain_id,
+                                                           domain_id),
+            "release_id": pinned.get("release_id", ""),
+            "release_fingerprint": pinned.get("release_fingerprint", ""),
             # EVERY turn, oldest first. A transcript that renders only its
             # last few exchanges is a window, and a reader scrolling up to
             # find what they asked half an hour ago finds nothing.

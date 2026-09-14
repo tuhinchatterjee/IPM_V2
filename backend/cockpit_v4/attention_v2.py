@@ -437,7 +437,7 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
 
     increase = float(moved["ecl"] or 0.0) - prior.get(moved["segment"], 0.0)
     return [
-        card("total", f"Recognised ECL is "
+        card("total", f"{scope.short_label} recognised ECL is "
                       f"{disp.format_value(_dec(total), money)}",
              f"Across the book in {month}, on exposure of "
              f"{disp.format_value(_dec(total_ead), money)}.",
@@ -450,7 +450,10 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
              f"Up {disp.format_value(_dec(increase), money)} against "
              f"{comparison}.",
              disp.format_value(_dec(increase), money)),
-        card("stage2", "Stage 2 and 3 exposure",
+        # Named for its book. Both dashboards carried a card headlined
+        # "Stage 2 and 3 exposure" and a reader with two tabs open could not
+        # tell which portfolio they were looking at.
+        card("stage2", f"{scope.short_label} Stage 2 and 3 exposure",
              f"{disp.format_value(_dec(float(stage2['s2'])), money)} of "
              f"{disp.format_value(_dec(float(stage2['ead'])), money)} sits "
              f"in Stage 2 or 3.",
