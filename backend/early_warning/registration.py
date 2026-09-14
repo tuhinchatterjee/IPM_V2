@@ -53,6 +53,11 @@ from backend.early_warning import domain as dom
 
 CATALOGUE_DOMAIN = dom.DOMAIN
 
+#: The book these datasets describe. Their own, because they are a derived
+#: copy of the others: a general question must not reach for them, and the
+#: Early Warning product does not reach for them through the general planner.
+PORTFOLIO_SCOPE = "EARLY_WARNING"
+
 BORROWER_MONTH = dom.BORROWER_MONTH
 SIGNAL_OBSERVATION = dom.SIGNAL_OBSERVATION
 EXTERNAL_EVENT = dom.EXTERNAL_EVENT
@@ -62,6 +67,25 @@ EXTERNAL_EVENT = dom.EXTERNAL_EVENT
 GRAIN = "One row per customer per published month end."
 
 CATALOG_FILENAME = "catalog.json"
+
+
+#: The catalogue's closed set of field types. The Early Warning dictionary
+#: has a richer vocabulary than the catalogue does -- it distinguishes a
+#: `category` (a closed set of values, like a severity band) from free
+#: `string` -- and the catalogue does not, so the richer type is mapped down
+#: on the way in rather than published as a type no catalogue reader knows.
+#:
+#: Mapped, not dropped: the distinction still exists in the dictionary, which
+#: is where the conversation reads it. What the catalogue is told is what the
+#: catalogue can say.
+_CATALOGUE_TYPES: frozenset[str] = frozenset(
+    {"string", "number", "integer", "boolean", "date"})
+_TYPE_MAP: dict[str, str] = {"category": "string"}
+
+
+def _catalogue_type(dtype: str) -> str:
+    mapped = _TYPE_MAP.get(str(dtype), str(dtype))
+    return mapped if mapped in _CATALOGUE_TYPES else "string"
 
 
 def _field_entries() -> list[dict[str, Any]]:
@@ -80,7 +104,7 @@ def _field_entries() -> list[dict[str, Any]]:
             "source_column": entry.name,
             "business_name": entry.label,
             "definition": entry.definition,
-            "data_type": entry.dtype,
+            "data_type": _catalogue_type(entry.dtype),
             "unit": entry.unit or None,
             "sensitivity": "internal",
             "nullable": True,
@@ -210,6 +234,7 @@ def dataset_definitions() -> list[dict[str, Any]]:
             "is_synthetic": True,
             "origin": "derived",
             "dataset_family": "early_warning",
+            "portfolio_scope": PORTFOLIO_SCOPE,
             "authoritative_for": ["early_warning_position"],
             "fields": _field_entries(),
         },
@@ -232,6 +257,7 @@ def dataset_definitions() -> list[dict[str, Any]]:
             "is_synthetic": True,
             "origin": "derived",
             "dataset_family": "early_warning",
+            "portfolio_scope": PORTFOLIO_SCOPE,
             "authoritative_for": ["early_warning_evidence"],
             "fields": _observation_fields(),
         },
@@ -253,6 +279,7 @@ def dataset_definitions() -> list[dict[str, Any]]:
             "is_synthetic": True,
             "origin": "derived",
             "dataset_family": "early_warning",
+            "portfolio_scope": PORTFOLIO_SCOPE,
             "authoritative_for": [],
             "fields": _event_fields(),
         },

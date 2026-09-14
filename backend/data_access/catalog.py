@@ -159,7 +159,27 @@ GOVERNED_PURPOSES: dict[str, str] = {
 CREDIT_BOOK_SCOPE = "CREDIT_BOOK"
 BORROWER_360_SCOPE = "BORROWER_360"
 
-PORTFOLIO_SCOPES: tuple[str, ...] = (CREDIT_BOOK_SCOPE, BORROWER_360_SCOPE)
+#: The Early Warning snapshots are a third book, and a DERIVED one: every
+#: non-behavioural field in them is a governed copy of something the credit
+#: book or the corporate graph already holds, as it stood when the score was
+#: computed.
+#:
+#: They are scoped apart for the same reason B44 scoped the corporate book
+#: apart, and more sharply. Two and a half thousand fields covering every
+#: signal, classifier, trigger, node, layer and notch mention almost every
+#: word a credit question can contain, so on word overlap alone they outscore
+#: the dataset that actually answers one: registering them made "what is the
+#: observed default rate by score band?" -- a retail scorecard question --
+#: lead with `early_warning_borrower_month`.
+#:
+#: Nothing is hidden by this. The datasets are governed, visible in Data
+#: Builder, and read by the Early Warning product through its own path. What
+#: the scope says is that a general question does not reach for them, which is
+#: the same statement the domain lock makes in the other direction.
+EARLY_WARNING_SCOPE = "EARLY_WARNING"
+
+PORTFOLIO_SCOPES: tuple[str, ...] = (CREDIT_BOOK_SCOPE, BORROWER_360_SCOPE,
+                                     EARLY_WARNING_SCOPE)
 
 
 class DatasetOrigin(StrEnum):

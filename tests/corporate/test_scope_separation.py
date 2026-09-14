@@ -220,6 +220,7 @@ class TestThreeBooksAfterTheGraph:
         from backend.data_access.catalog import (
             BORROWER_360_SCOPE,
             CREDIT_BOOK_SCOPE,
+            PORTFOLIO_SCOPES,
             get_catalog,
         )
 
@@ -229,4 +230,11 @@ class TestThreeBooksAfterTheGraph:
                 scopes.get(dataset.portfolio_scope, 0) + 1)
         assert scopes.get(CREDIT_BOOK_SCOPE, 0) >= 20
         assert scopes.get(BORROWER_360_SCOPE, 0) >= 20
-        assert set(scopes) == {CREDIT_BOOK_SCOPE, BORROWER_360_SCOPE}
+        # Against the module's own declaration rather than a literal pair.
+        # There is a third book now -- the Early Warning snapshots, which are
+        # a derived copy of the other two and are scoped apart so a general
+        # question does not reach for them. A test that named the two it knew
+        # about would have to be edited for every governed book, and would
+        # fail for the one case it exists to allow.
+        assert set(scopes) <= set(PORTFOLIO_SCOPES), (
+            "a dataset declares a scope the catalogue does not define")

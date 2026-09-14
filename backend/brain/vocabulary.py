@@ -410,7 +410,44 @@ _MEASURES: tuple[tuple[str, str, str, str], ...] = (
     ("corporate_macro", "real_gdp_growth_pct", "real GDP growth", "rate"),
 )
 
+#: Early Warning. The snapshots carry two and a half thousand fields, and
+#: registering all of them here would be registering the model rather than the
+#: vocabulary. What an officer asks an early warning book for is the score,
+#: the two dimensions it is composed from, the anchor, the exposure at risk
+#: and how much evidence fired -- so those are what is named.
+#:
+#: Registered at all because a governed dataset with no measure is one the
+#: Teaching Factory silently skips, and a domain nobody can ask a question
+#: about is a domain that does not exist. The scoring engine's own detail
+#: stays where it belongs: in the Early Warning product, which reads the full
+#: dictionary rather than this list.
+_EARLY_WARNING_MEASURES: tuple[tuple[str, str, str, str], ...] = (
+    ("early_warning_borrower_month", "ews_score", "early warning score", "score"),
+    ("early_warning_borrower_month", "ta_score",
+     "trigger and accelerator score", "score"),
+    ("early_warning_borrower_month", "classifier_score", "classifier score", "score"),
+    ("early_warning_borrower_month", "anchor_score", "anchor score", "score"),
+    ("early_warning_borrower_month", "exposure", "exposure", "money"),
+    ("early_warning_borrower_month", "dpd", "days past due", "count"),
+    ("early_warning_borrower_month", "utilisation_pct", "utilisation", "rate"),
+    ("early_warning_borrower_month", "signal_count_fired", "signals fired", "count"),
+    ("early_warning_signal_observation", "signal_score", "signal score", "score"),
+    ("early_warning_signal_observation", "trigger_severity_score",
+     "trigger severity", "score"),
+    ("early_warning_signal_observation", "decay_factor", "decay factor", "ratio"),
+)
+
 _DIMENSIONS: tuple[tuple[str, str, str], ...] = (
+    ("early_warning_borrower_month", "segment", "segment"),
+    ("early_warning_borrower_month", "ews_band", "early warning band"),
+    ("early_warning_borrower_month", "ta_band", "trigger and accelerator band"),
+    ("early_warning_borrower_month", "classifier_band", "classifier band"),
+    ("early_warning_borrower_month", "internal_rating", "internal rating"),
+    ("early_warning_borrower_month", "dominant_driver", "dominant driver"),
+    ("early_warning_signal_observation", "layer", "detection layer"),
+    ("early_warning_signal_observation", "sub_category", "sub-category"),
+    ("early_warning_external_event_synthetic", "event_type", "event type"),
+
     ("borrower_cash_flow", "sector", "sector"),
     ("borrower_cash_flow", "region", "region"),
     ("working_capital_position", "sector", "sector"),
@@ -607,7 +644,7 @@ def _check() -> tuple[tuple[Measure, ...], tuple[Dimension, ...]]:
 
     problems: list[str] = []
     measures: list[Measure] = []
-    for dataset, name, phrase, kind in _MEASURES:
+    for dataset, name, phrase, kind in _MEASURES + _EARLY_WARNING_MEASURES:
         if dataset not in known:
             problems.append(f"measure on unknown dataset {dataset!r}")
         elif name not in known[dataset]:
@@ -705,6 +742,10 @@ WEIGHT_FIELD: dict[str, str] = {
 EVENT_DATASETS: frozenset[str] = frozenset({
     "sector_events", "macro_events", "geopolitical_events",
     "commodity_events", "shipping_events",
+    # The Layer 3 feed: news, legal filings, rating actions and market
+    # signals, each with a type, a severity, a source and a date, and nothing
+    # to sum. A question over it counts events or filters them.
+    "early_warning_external_event_synthetic",
 })
 
 #: Datasets that are a time series in their own right rather than a book. A

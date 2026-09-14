@@ -217,3 +217,85 @@ def test_the_build_registers_as_part_of_building():
     source = Path("scripts/build_early_warning_v2.py").read_text()
     assert "registration" in source
     assert "publish()" in source
+
+
+# ------------------------------------ registering a domain without breaking one
+
+
+def test_the_early_warning_datasets_declare_their_own_book():
+    """A derived copy must not compete with what it was derived from.
+
+    The snapshots carry two and a half thousand fields covering every signal,
+    classifier, trigger, node, layer and notch, so they mention almost every
+    word a credit question can contain. Registered into the general catalogue
+    at the credit book's own scope, they outscored the dataset that actually
+    answers one: "what is the observed default rate by score band?" -- a
+    retail scorecard question -- led with `early_warning_borrower_month`.
+
+    Scoping them apart is the same mechanism the corporate book already uses,
+    and it hides nothing: the datasets stay governed, visible in Data Builder
+    and read by the Early Warning product through its own path.
+    """
+    from backend.data_access.catalog import EARLY_WARNING_SCOPE
+
+    for definition in reg.dataset_definitions():
+        assert definition["portfolio_scope"] == EARLY_WARNING_SCOPE, (
+            definition["name"])
+
+
+def test_a_retail_question_still_leads_with_a_retail_dataset():
+    """The regression itself, held where the registration is."""
+    from backend.orchestration import context as ctx
+
+    if not reg.registered():
+        pytest.skip("Run scripts/register_early_warning_domain.py first.")
+
+    found = ctx.retrieve("What is the observed default rate by score band?")
+    assert found.datasets
+    lead = found.datasets[0].name
+    assert lead.startswith("retail_"), (
+        f"a retail question led with {lead}")
+
+
+def test_a_credit_book_question_does_not_lead_with_early_warning():
+    from backend.orchestration import context as ctx
+
+    if not reg.registered():
+        pytest.skip("Run scripts/register_early_warning_domain.py first.")
+
+    for question in ("the ten largest customers by exposure at default",
+                     "how much collateral do we hold?",
+                     "what is the IFRS 9 stage 3 exposure?"):
+        found = ctx.retrieve(question)
+        if not found.datasets:
+            continue
+        assert not found.datasets[0].name.startswith("early_warning"), (
+            f"{question!r} led with {found.datasets[0].name}")
+
+
+def test_the_registered_domain_can_carry_a_question_of_its_own():
+    """The other half: a governed dataset with no measure is one the
+    Teaching Factory silently skips, and a domain nobody can ask a question
+    about is a domain that does not exist."""
+    from backend.brain import vocabulary as vocab
+
+    assert vocab.measures_for(reg.BORROWER_MONTH)
+    assert vocab.dimensions_for(reg.BORROWER_MONTH)
+    assert vocab.measures_for(reg.SIGNAL_OBSERVATION)
+    # The external feed is an event log: a type, a severity, a source and a
+    # date, and nothing to sum. Exempted by name rather than by inference,
+    # because "no measure" and "somebody forgot" look identical from outside.
+    assert reg.EXTERNAL_EVENT in vocab.EVENT_DATASETS
+    assert vocab.dimensions_for(reg.EXTERNAL_EVENT)
+
+
+def test_every_registered_field_type_is_one_the_catalogue_knows():
+    """The Early Warning dictionary has a richer type vocabulary than the
+    catalogue -- it distinguishes a closed `category` from free `string` --
+    and publishing the richer one put a type into the catalogue that no
+    catalogue reader could interpret."""
+    allowed = {"string", "number", "integer", "boolean", "date"}
+    for definition in reg.dataset_definitions():
+        for field in definition["fields"]:
+            assert field["data_type"] in allowed, (
+                f"{definition['name']}.{field['name']}: {field['data_type']}")
