@@ -48,7 +48,14 @@ export function DomainSwitch({
             data-selected={selected ? "true" : "false"}
             aria-pressed={selected}
             disabled={!domain.ready}
-            title={domain.ready ? undefined : domain.reason}
+            title={
+              domain.ready
+                ? domain.analysis_ready === false
+                  ? "Browsable in Data Builder. Questions in this book are " +
+                    "not answerable in this build."
+                  : undefined
+                : domain.reason
+            }
             onClick={() => domain.ready && onChange(domain.domain_id)}
             className={
               "rounded-md px-3.5 py-1.5 text-sm font-medium transition " +
@@ -59,6 +66,14 @@ export function DomainSwitch({
             }
           >
             {short}
+            {domain.ready && domain.analysis_ready === false ? (
+              <span
+                data-testid={`domain-${domain.domain_id}-browse-only`}
+                className="ml-1.5 text-[10px] uppercase tracking-wide opacity-70"
+              >
+                browse
+              </span>
+            ) : null}
           </button>
         );
       })}

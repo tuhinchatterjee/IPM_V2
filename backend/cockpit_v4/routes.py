@@ -205,6 +205,17 @@ async def start_run(body: StartRun, request: Request,
         raise HTTPException(400, {"error_code": "UNKNOWN_DOMAIN",
                                   "message": str(exc)}) from exc
 
+    # A book that can be browsed but not yet asked is refused HERE, before a
+    # model call is paid for and before a thread is left holding a question
+    # nothing can answer.
+    if not resolver.analysis_supported(scope.domain_id):
+        exc = resolver.AnalysisNotWiredForDomain(scope.domain_id)
+        raise HTTPException(503, {
+            "error_code": st.DATA_UNAVAILABLE,
+            "message": str(exc),
+            "domain_id": exc.domain_id,
+            "analysis_domains": list(resolver.ANALYSIS_DOMAINS)})
+
     if not thread_id:
         thread_id = store.create_thread(
             tenant_id=tenant, principal_id=str(who.get("id") or ""),
@@ -489,7 +500,14 @@ async def domain_list(who: dict[str, Any] = Depends(principal)
     from backend.cockpit_v4 import domain_resolver as resolver
 
     tenant = str(who.get("tenant") or "") or lake_mod.DEFAULT_TENANT
-    return resolver.availability(tenant_id=tenant).to_dict()
+    body = resolver.availability(tenant_id=tenant).to_dict()
+    # Browsable is not the same as askable, and the switch needs to know the
+    # difference so it can offer the book without promising an answer.
+    body["analysis_domains"] = list(resolver.ANALYSIS_DOMAINS)
+    for entry in body["domains"]:
+        entry["analysis_ready"] = resolver.analysis_supported(
+            entry["domain_id"])
+    return body
 
 
 @router.get("/attention")

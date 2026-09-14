@@ -47,6 +47,45 @@ class DomainPinned(PermissionError):
             f"{dom.SHORT_LABELS[asked]} conversation for this question.")
 
 
+#: The books the ANALYTICAL path can currently answer questions about.
+#:
+#: Both books are published, browsable and have their own dashboards. The
+#: execution path -- the catalogue the analyst is shown, the SQL session its
+#: queries run in -- is still built from the runtime's single pinned
+#: analytical release, which serves the corporate book.
+#:
+#: This is stated as a fact and enforced rather than hidden. The alternative
+#: was to let a retail thread run its SQL against the corporate catalogue,
+#: which is the exact defect the domain model exists to prevent: the answer
+#: would be fluent, wrong, and would say nothing about which book it came
+#: from. §5 says fail closed, so a question in a book the analyst cannot yet
+#: reach is refused at acceptance -- before a model call is paid for -- with
+#: a message saying what is and is not available.
+ANALYSIS_DOMAINS: tuple[str, ...] = (dom.CORPORATE,)
+
+
+def analysis_supported(domain_id: str) -> bool:
+    return dom.parse(domain_id) in ANALYSIS_DOMAINS
+
+
+class AnalysisNotWiredForDomain(RuntimeError):
+    """This book can be browsed but not yet asked. Said, never faked."""
+
+    def __init__(self, domain_id: str) -> None:
+        self.domain_id = dom.parse(domain_id)
+        supported = ", ".join(dom.LABELS[d] for d in ANALYSIS_DOMAINS)
+        super().__init__(
+            f"{dom.LABELS[self.domain_id]} questions are not answerable in "
+            f"this build. The {dom.LABELS[self.domain_id]} book is published "
+            f"and its dashboard and schema are live, but the analytical "
+            f"execution path is still bound to the "
+            f"{supported} release, and running a "
+            f"{dom.SHORT_LABELS[self.domain_id]} question against it would "
+            f"answer from the wrong book without saying so. Ask in "
+            f"{supported}, or browse "
+            f"{dom.SHORT_LABELS[self.domain_id]} in Data Builder.")
+
+
 class DomainUnavailable(RuntimeError):
     """This book has no published release in this runtime. Said, not swapped."""
 

@@ -677,6 +677,9 @@ export type DomainStatus = {
   domain_label: string;
   release_id: string;
   ready: boolean;
+  /** Published and browsable. Not the same as answerable -- a book can be
+   *  read in Data Builder before the analytical path can query it. */
+  analysis_ready?: boolean;
   reason?: string;
   latest_period?: string;
   periods?: string[];
@@ -695,6 +698,7 @@ export type DomainAvailability = {
   domains: DomainStatus[];
   default_domain: DomainId;
   ready: DomainId[];
+  analysis_domains?: DomainId[];
 };
 
 /** The books this runtime serves, and whether each can be asked anything.

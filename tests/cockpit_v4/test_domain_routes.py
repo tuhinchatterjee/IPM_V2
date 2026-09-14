@@ -110,17 +110,28 @@ def test_rendering_a_dashboard_costs_no_model_call(client):
 
 def test_a_new_thread_is_pinned_to_the_domain_it_was_opened_in(client):
     started = client.post(f"{P}/runs", json={
-        "question": "Which products saw the largest Stage 2 increase?",
-        "mode": "standard", "domain": "retail"})
+        "question": "What is EAD by sector for the latest month?",
+        "mode": "standard", "domain": "corporate"})
     assert started.status_code == 202, started.text
     thread_id = started.json()["thread_id"]
 
+    body = client.get(f"{P}/threads/{thread_id}").json()
+    assert body["domain_id"] == dom.CORPORATE
+    assert body["domain_label"] == "Corporate Credit"
+    assert body["domain_short_label"] == "Corporate"
+    assert body["release_id"] == dom.DEFAULT_RELEASES[dom.CORPORATE]
+    assert body["release_fingerprint"]
+
+
+def test_a_retail_thread_carries_its_book_on_the_transcript(client,
+                                                            store_db):
+    """Pinning is a property of the thread, not of what can be asked in it."""
+    thread_id = _retail_thread(store_db)
     body = client.get(f"{P}/threads/{thread_id}").json()
     assert body["domain_id"] == dom.RETAIL
     assert body["domain_label"] == "Retail Credit"
     assert body["domain_short_label"] == "Retail"
     assert body["release_id"] == dom.DEFAULT_RELEASES[dom.RETAIL]
-    assert body["release_fingerprint"]
 
 
 def test_a_thread_with_no_domain_named_opens_in_the_default_book(client):
@@ -139,24 +150,32 @@ def _retail_thread(store_db):
         release_fingerprint="fp")
 
 
+def _corporate_thread(store_db):
+    return store_db.create_thread(
+        tenant_id=lake.DEFAULT_TENANT, principal_id="u1",
+        domain_id=dom.CORPORATE,
+        release_id=dom.DEFAULT_RELEASES[dom.CORPORATE],
+        release_fingerprint="fp")
+
+
 def test_a_follow_up_in_the_same_book_is_accepted(client, store_db):
-    thread_id = _retail_thread(store_db)
+    thread_id = _corporate_thread(store_db)
     again = client.post(f"{P}/runs", json={
-        "question": "Which score bands drove that?", "mode": "standard",
-        "thread_id": thread_id, "domain": "retail"})
+        "question": "Which sectors drove that?", "mode": "standard",
+        "thread_id": thread_id, "domain": "corporate"})
     assert again.status_code == 202, again.text
     assert again.json()["thread_id"] == thread_id
 
 
 def test_a_follow_up_saying_nothing_inherits_the_threads_book(client,
                                                               store_db):
-    thread_id = _retail_thread(store_db)
+    thread_id = _corporate_thread(store_db)
     again = client.post(f"{P}/runs", json={
-        "question": "And the accounts behind it?", "mode": "standard",
+        "question": "And the borrowers behind it?", "mode": "standard",
         "thread_id": thread_id})
     assert again.status_code == 202, again.text
     assert client.get(f"{P}/threads/{thread_id}").json()["domain_id"] == \
-        dom.RETAIL
+        dom.CORPORATE
 
 
 def test_a_follow_up_cannot_drag_a_thread_into_the_other_book(client,
@@ -186,6 +205,7 @@ def test_the_offered_action_really_opens_a_thread_in_the_other_book(
     refused = client.post(f"{P}/runs", json={
         "question": "Now show corporate sectors.", "mode": "standard",
         "thread_id": thread_id, "domain": "corporate"})
+    assert refused.status_code == 409, refused.text
     offered = refused.json()["detail"]["action"]["domain"]
 
     opened = client.post(f"{P}/runs", json={
@@ -196,3 +216,53 @@ def test_the_offered_action_really_opens_a_thread_in_the_other_book(
     assert client.get(
         f"{P}/threads/{opened.json()['thread_id']}").json()["domain_id"] == \
         dom.CORPORATE
+
+
+# ---- browsable is not the same as askable ------------------------------
+
+def test_a_book_that_cannot_be_asked_yet_refuses_before_paying_for_it(
+        client):
+    """§5, §55. Fail closed rather than answer from the wrong book.
+
+    Retail is published, its dashboard is live and its schema browses. The
+    ANALYTICAL path is still bound to the corporate release, so a retail
+    question would run its SQL against the corporate catalogue and come back
+    fluent, wrong, and silent about which book it came from.
+
+    That is the exact defect the domain model exists to prevent, so the
+    question is refused at acceptance -- before a model call is paid for and
+    before a thread is left holding a question nothing can answer -- with a
+    message saying what IS available.
+    """
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    if resolver.analysis_supported(dom.RETAIL):
+        pytest.skip("retail analysis is wired; this refusal no longer applies")
+
+    refused = client.post(f"{P}/runs", json={
+        "question": "Which products saw the largest Stage 2 increase?",
+        "mode": "standard", "domain": "retail"})
+    assert refused.status_code == 503, refused.text
+    detail = refused.json()["detail"]
+    assert detail["domain_id"] == dom.RETAIL
+    assert detail["analysis_domains"] == [dom.CORPORATE]
+    assert "answer from the wrong book" in detail["message"]
+    assert "Data Builder" in detail["message"]
+
+
+def test_the_book_that_can_be_asked_still_answers(client):
+    accepted = client.post(f"{P}/runs", json={
+        "question": "What is EAD by sector for the latest month?",
+        "mode": "standard", "domain": "corporate"})
+    assert accepted.status_code == 202, accepted.text
+
+
+def test_the_switch_is_told_which_books_can_be_asked(client):
+    """A control that offers a book must not promise an answer it cannot give."""
+    body = client.get(f"{P}/domains").json()
+    assert body["analysis_domains"] == [dom.CORPORATE]
+    by_id = {d["domain_id"]: d for d in body["domains"]}
+    assert by_id[dom.CORPORATE]["analysis_ready"] is True
+    assert by_id[dom.RETAIL]["ready"] is True, (
+        "retail is published and browsable")
+    assert by_id[dom.RETAIL]["analysis_ready"] is False
