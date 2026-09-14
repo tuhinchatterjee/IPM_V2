@@ -28,6 +28,7 @@ import { useWideContent } from "@/components/layout/content-width";
 
 import { AttentionDrawer } from "./attention-drawer";
 import { AttentionPanel } from "./attention-panel";
+import { EclPanel } from "./ecl-panel";
 import { DomainSwitch, recallDomain, rememberDomain } from "./domain-switch";
 import {
   rememberInvestigation,
@@ -270,6 +271,10 @@ export function CockpitV4Home() {
 
       <div className="mt-12">
         <AttentionPanel onOpen={(item) => setOpen(item)} domain={domain} />
+      </div>
+
+      <div className="mt-12">
+        <EclPanel domain={domain} />
       </div>
 
       <div className="mt-12">

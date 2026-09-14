@@ -261,9 +261,17 @@ def test_the_cache_cannot_serve_one_book_from_the_others_entry(feeds):
 def test_the_corporate_book_surfaces_a_stressed_sector(feeds):
     """The generator authored construction and real-estate stress."""
     feed, _, _ = feeds[dom.CORPORATE]
-    sectors = {i["segment"] for i in feed["segments_requiring_attention"]
-               if i["segment_dimension"] == "sector"}
-    assert sectors & {"Construction", "Real Estate"}, sectors
+    # Either lens counts. The movement cards answer "what changed this
+    # month" and the ECL highlights answer "where is the loss"; a book whose
+    # authored crisis is deep and no longer accelerating belongs in the
+    # second, and demanding it appear in the first would be demanding the
+    # dashboard rank by level while calling itself a movement feed.
+    named = {i["segment"] for i in feed["segments_requiring_attention"]
+             if i["segment_dimension"] == "sector"}
+    named |= {word for h in feed["ecl_highlights"]
+              for word in ("Construction", "Real Estate")
+              if word in str(h.get("headline", ""))}
+    assert named & {"Construction", "Real Estate"}, named
 
 
 def test_the_retail_book_surfaces_its_worst_vintage_or_band(feeds):

@@ -729,6 +729,85 @@ export async function readAttention(
   );
 }
 
+export type EclStage = {
+  stage: number;
+  label: string;
+  ead: number;
+  ecl: number;
+  display_ead: string;
+  display_ecl: string;
+  exposures: number;
+  share_of_ead: number;
+  display_share_of_ead: string;
+  coverage: number;
+  display_coverage: string;
+  display_ead_movement: string;
+  display_ecl_movement: string;
+};
+
+export type EclProfile = {
+  domain_id: DomainId;
+  domain_label: string;
+  release_id: string;
+  release_fingerprint: string;
+  reporting_month: string;
+  comparison_month: string;
+  money_unit: string;
+  exposure_grain: string;
+  relation: string;
+  display_total_ead: string;
+  display_total_ecl: string;
+  display_coverage: string;
+  display_ecl_movement: string;
+  stages: EclStage[];
+  note: string;
+  model_calls: number;
+};
+
+export type EclComponent = {
+  component_id: string;
+  label: string;
+  amount: number;
+  display_amount: string;
+  exposures: number;
+  explanation: string;
+};
+
+export type EclDecomposition = {
+  domain_id: DomainId;
+  domain_label: string;
+  reporting_month: string;
+  comparison_month: string;
+  display_opening: string;
+  display_closing: string;
+  display_movement: string;
+  movement: number;
+  components: EclComponent[];
+  residual: number;
+  reconciles: boolean;
+  method: string;
+  model_calls: number;
+};
+
+export type EclPanel = {
+  profile: EclProfile;
+  decomposition: EclDecomposition;
+};
+
+/** Where this book's ECL is, and what moved it. Server-computed, no model.
+ *
+ * Every figure arrives as a STRING the server already formatted, alongside
+ * the number it was formatted from. The page renders the string; it never
+ * decides a currency, a scale or a decimal place.
+ */
+export async function readEcl(domain: DomainId): Promise<EclPanel> {
+  return json(
+    await fetch(`${base()}${API_PREFIX}/ecl?domain=${encodeURIComponent(domain)}`, {
+      credentials: "include",
+    }),
+  );
+}
+
 /** Open a thread seeded with this item, so follow-ups keep its context. */
 export async function investigate(itemId: string): Promise<{
   thread_id: string;

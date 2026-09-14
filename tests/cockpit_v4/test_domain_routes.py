@@ -291,3 +291,40 @@ def test_the_switch_is_told_which_books_can_be_asked(client):
     for domain_id in dom.DOMAIN_IDS:
         assert by_id[domain_id]["ready"] is True
         assert by_id[domain_id]["analysis_ready"] is True
+
+
+# ---- the ECL panel, per book -------------------------------------------
+
+def test_each_book_serves_its_own_ecl_panel(client):
+    """§23, §24. Where the loss is and what moved it, computed per book."""
+    seen = {}
+    for domain_id in dom.DOMAIN_IDS:
+        response = client.get(f"{P}/ecl", params={"domain": domain_id})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        profile, decomposition = body["profile"], body["decomposition"]
+        assert profile["domain_id"] == domain_id
+        assert decomposition["domain_id"] == domain_id
+        assert profile["release_id"] == decomposition["release_id"]
+        assert profile["release_fingerprint"] == \
+            decomposition["release_fingerprint"]
+        assert decomposition["reconciles"] is True
+        assert abs(decomposition["residual"]) < 1e-6
+        assert decomposition["model_calls"] == 0
+        assert profile["model_calls"] == 0
+        assert len(profile["stages"]) == 3
+        seen[domain_id] = body
+
+    corporate = seen[dom.CORPORATE]["profile"]
+    retail = seen[dom.RETAIL]["profile"]
+    assert corporate["release_id"] != retail["release_id"]
+    assert corporate["total_ecl"] != retail["total_ecl"]
+    assert corporate["relation"] != retail["relation"]
+    assert corporate["exposure_grain"] == "facility"
+    assert retail["exposure_grain"] == "account"
+
+
+def test_the_ecl_panel_refuses_an_unknown_book(client):
+    response = client.get(f"{P}/ecl", params={"domain": "treasury"})
+    assert response.status_code == 400
+    assert response.json()["detail"]["error_code"] == "UNKNOWN_DOMAIN"

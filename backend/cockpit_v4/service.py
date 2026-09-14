@@ -390,6 +390,11 @@ def diagnostics(cfg: V4Config | None = None, *,
             "remedy": provision_command(cfg.release_id),
             "substituted": False}
 
+    # Each book, separately. One dashboard being green says nothing about
+    # the other, and a single "release" row would let an unopenable Retail
+    # release hide behind a healthy Corporate one.
+    checks["domains"] = _domain_checks()
+
     from backend.cockpit_v4 import pyrunner
 
     runner = pyrunner.probe()
@@ -434,7 +439,69 @@ def diagnostics(cfg: V4Config | None = None, *,
         "standard": config_mod.STANDARD_LIMITS.__dict__,
         "deep": config_mod.DEEP_LIMITS.__dict__,
     }
+    askable = [d["domain_id"] for d in checks["domains"]["books"]
+               if d["analysis_ready"]]
+    report["analysis_domains"] = askable
+    report["ready_for_sql_analysis"] = bool(
+        base_ok and (checks["release"].get("ok") or askable))
+    report["capabilities"][ready_mod.SQL_ANALYSIS_READY] = \
+        report["ready_for_sql_analysis"]
     return report
+
+
+def _domain_checks() -> dict[str, Any]:
+    """What each book is, and whether it can be browsed and asked.
+
+    Browsable and askable are reported separately because they fail
+    separately: a release can be published and still refuse to materialize a
+    session, and a reader offered the book deserves to know which of the two
+    they have.
+    """
+    from backend.cockpit_v4 import domain_resolver as resolver
+    from backend.cockpit_v4 import domains as dom_mod
+
+    books: list[dict[str, Any]] = []
+    try:
+        available = resolver.availability()
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "reason": str(exc)[:300], "books": []}
+
+    for status in available.statuses:
+        entry: dict[str, Any] = {
+            "domain_id": status.domain_id,
+            "domain_label": dom_mod.LABELS[status.domain_id],
+            "release_id": status.release_id,
+            "published": bool(status.ready),
+            "browse_ready": bool(status.ready),
+            "analysis_ready": False,
+            "reason": status.reason,
+            "provision_command": resolver.provision_command(
+                status.domain_id),
+            "substituted": False,
+        }
+        if status.ready and status.scope is not None:
+            scope = status.scope
+            entry.update({
+                "release_fingerprint": scope.release_fingerprint,
+                "reporting_currency": scope.currency,
+                "amount_scale": scope.amount_scale,
+                "reporting_frequency": scope.reporting_frequency,
+                "reporting_periods": len(scope.periods),
+                "latest_period": scope.latest_period,
+                "relations": len(scope.relations),
+            })
+            try:
+                entry["analysis_ready"] = resolver.analysis_supported(
+                    status.domain_id)
+            except Exception as exc:  # noqa: BLE001
+                entry["reason"] = str(exc)[:300]
+        books.append(entry)
+    return {"ok": all(b["browse_ready"] for b in books) and bool(books),
+            "books": books,
+            "note": ("Each book is a different release with different bytes. "
+                     "Neither is ever served in place of the other, and a "
+                     "book that cannot be opened is reported rather than "
+                     "substituted.")}
 
 
 def reset_caches() -> None:

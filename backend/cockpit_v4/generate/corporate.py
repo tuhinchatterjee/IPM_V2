@@ -59,6 +59,115 @@ BORROWERS: tuple[tuple[str, str, str, str], ...] = (
     ("Al Fanar Hospitality", "Hospitality", "Hotels", "Makkah"),
 )
 
+#: The book is not twenty names.
+#:
+#: It was, and the consequence showed in every answer: thirteen sectors over
+#: twenty borrowers meant "EAD by sector" returned thirteen rows of which
+#: most held a single obligor, so "sector" and "borrower" were the same
+#: dimension wearing two names, and every month-on-month movement was one
+#: company's news. A wholesale book a credit officer would recognise has
+#: several names in each sector, a spread of sizes, and enough of them that a
+#: sector aggregate says something about the sector.
+#:
+#: The twenty above are the authored anchors and keep their stories. The tail
+#: below is composed deterministically from Saudi place and trade words, so
+#: it is reproducible byte for byte and no real institution is described.
+_TAIL_PREFIXES: tuple[str, ...] = (
+    "Al Faisaliah", "Najd", "Hijaz", "Tuwaiq", "Dhahran", "Qassim",
+    "Al Khobar", "Unayzah", "Al Jouf", "Wadi Hanifah", "Rabigh", "Al Ahsa",
+    "Sudair", "Al Kharj", "Buraydah", "Taif", "Najran", "Jazan",
+)
+
+#: sector -> (sub-sectors, trade words, home regions)
+_TAIL_SECTORS: dict[str, tuple[tuple[str, ...], tuple[str, ...],
+                               tuple[str, ...]]] = {
+    "Construction": (("Civil Infrastructure", "Building Contracting",
+                      "Roads and Bridges", "Marine Works"),
+                     ("Contracting", "Engineering", "Civil Works"),
+                     ("Riyadh", "Makkah", "Eastern Province", "Qassim")),
+    "Real Estate": (("Commercial Property", "Mixed Use", "Residential",
+                     "Industrial Parks"),
+                    ("Properties", "Estates", "Development"),
+                    ("Riyadh", "Makkah", "Madinah", "Eastern Province")),
+    "Hospitality": (("Hotels", "Serviced Apartments", "Catering"),
+                    ("Hospitality", "Hotels", "Resorts"),
+                    ("Makkah", "Madinah", "Riyadh", "Tabuk")),
+    "Retail Trade": (("Department Stores", "Grocery", "Specialty Retail"),
+                     ("Retail", "Stores", "Markets"),
+                     ("Riyadh", "Hail", "Asir", "Eastern Province")),
+    "Transport and Logistics": (("Freight", "Land Transport", "Warehousing",
+                                 "Port Services"),
+                                ("Logistics", "Transport", "Shipping"),
+                                ("Makkah", "Madinah", "Eastern Province",
+                                 "Riyadh")),
+    "Manufacturing": (("Industrial Products", "Metal Fabrication",
+                       "Packaging", "Building Materials"),
+                      ("Industries", "Manufacturing", "Works"),
+                      ("Qassim", "Eastern Province", "Riyadh", "Asir")),
+    "Wholesale Trade": (("General Trading", "Food Distribution",
+                         "Equipment Distribution"),
+                        ("Trading", "Distribution", "Supplies"),
+                        ("Riyadh", "Eastern Province", "Makkah")),
+    "Agriculture and Agri-processing": (("Food Processing", "Dairy",
+                                         "Poultry", "Grain Handling"),
+                                        ("Agri", "Farms", "Foods"),
+                                        ("Asir", "Qassim", "Hail",
+                                         "Northern Borders")),
+    "Metals and Mining": (("Mining", "Smelting", "Aggregates"),
+                          ("Minerals", "Metals", "Mining"),
+                          ("Northern Borders", "Eastern Province", "Hail")),
+    "Healthcare": (("Hospitals", "Clinics", "Pharmaceuticals"),
+                   ("Medical", "Healthcare", "Care"),
+                   ("Riyadh", "Makkah", "Eastern Province")),
+    "Chemicals": (("Petrochemicals", "Specialty Chemicals", "Fertilisers"),
+                  ("Chemicals", "Petrochemicals", "Industries"),
+                  ("Eastern Province", "Madinah", "Riyadh")),
+    "Information Technology": (("IT Services", "Software", "Data Centres"),
+                               ("Technologies", "Digital", "Systems"),
+                               ("Riyadh", "Eastern Province", "Makkah")),
+    "Power and Utilities": (("Generation", "Renewables", "Water"),
+                            ("Energy", "Power", "Utilities"),
+                            ("Madinah", "Tabuk", "Eastern Province",
+                             "Najran")),
+}
+
+#: Extra names per sector. Weighted so the sectors with an authored story
+#: carry enough obligors for that story to be a SECTOR finding rather than
+#: one company's news.
+_TAIL_COUNTS: dict[str, int] = {
+    "Construction": 9, "Real Estate": 8, "Hospitality": 6,
+    "Retail Trade": 6, "Transport and Logistics": 6, "Manufacturing": 7,
+    "Wholesale Trade": 5, "Agriculture and Agri-processing": 5,
+    "Metals and Mining": 4, "Healthcare": 5, "Chemicals": 6,
+    "Information Technology": 5, "Power and Utilities": 5,
+}
+
+
+def _tail() -> tuple[tuple[str, str, str, str], ...]:
+    """The generated part of the book. A pure function of the tables above."""
+    taken = {name for name, *_ in BORROWERS}
+    out: list[tuple[str, str, str, str]] = []
+    for sector in sorted(_TAIL_COUNTS):
+        subs, words, regions = _TAIL_SECTORS[sector]
+        for index in range(_TAIL_COUNTS[sector]):
+            seed = _stable(f"{sector}|{index}", 10_000)
+            prefix = _TAIL_PREFIXES[(seed + index) % len(_TAIL_PREFIXES)]
+            word = words[(seed // 7 + index) % len(words)]
+            name = f"{prefix} {word}"
+            bump = 0
+            while name in taken:
+                bump += 1
+                prefix = _TAIL_PREFIXES[(seed + index + bump)
+                                        % len(_TAIL_PREFIXES)]
+                name = f"{prefix} {word}"
+                if bump > len(_TAIL_PREFIXES):
+                    name = f"{prefix} {word} {bump}"
+            taken.add(name)
+            out.append((name, sector, subs[(seed // 3 + index) % len(subs)],
+                        regions[(seed // 11 + index) % len(regions)]))
+    return tuple(out)
+
+
 GROUPS: dict[str, str] = {
     "Construction": "Tuwaiq Holding",
     "Chemicals": "Eastern Industrial Group",
@@ -73,6 +182,60 @@ RATINGS: tuple[str, ...] = (
     "AAA", "AA+", "AA", "AA-", "A+", "A", "A-", "BBB+", "BBB", "BBB-",
     "BB+", "BB", "BB-", "B+", "B", "B-", "CCC", "CC", "C")
 DEFAULT_GRADE = "D"
+
+#: The through-the-cycle PD of each grade, as a master scale.
+#:
+#: Calibrated rather than convenient. The first version of this generator
+#: priced the whole book off `0.004 * exp(grade / 3.4)`, which put the
+#: AVERAGE Stage 1 twelve-month PD at nine and a half per cent -- a CCC
+#: number applied to a performing investment-grade book, and a Stage 1
+#: coverage ratio of four and a half per cent that no credit reader would
+#: accept. The curve below is the shape a rating master scale actually has:
+#: roughly a doubling every grade and a half, from one basis point at AAA to
+#: the high teens at C.
+PD_ANCHOR = 0.00012
+PD_DECAY = 2.55
+
+#: How hard the sector stories push. Tuned against the book they produce:
+#: at 1.0 the three stressed sectors finished with every single obligor on
+#: the watch list and forty-five per cent of the book in Stage 2, which is a
+#: portfolio in resolution rather than one under pressure, and a book where
+#: "which names deteriorated?" has no answer because all of them did.
+STRESS_SCALE = 0.62
+
+#: The grade at which the book treats an exposure as weak enough to watch as
+#: a backstop, and the grade at which it is credit-impaired. The primary
+#: trigger is RELATIVE -- a downgrade since origination -- because that is
+#: what a significant increase in credit risk means.
+WATCH_GRADE = RATINGS.index("CCC")
+IMPAIRED_GRADE = RATINGS.index("CC")
+
+#: Notches of downgrade since origination that trigger a significant
+#: increase in credit risk on their own. Two is the common policy.
+SICR_NOTCHES = 2
+
+#: How the book was written: the grade distribution at origination.
+#:
+#: It used to be `4 + (index * 3) % 11`, which spans A+ to B and nothing
+#: else. A wholesale book with no name weaker than B has no watch list on
+#: day one, and the generated book duly reported exactly zero Stage 2
+#: exposure for the first fifteen months of the window and no impaired
+#: exposure at all. A real book is written across the scale, with most of it
+#: around BBB/BB and a short tail either side.
+ORIGINATION_GRADES: tuple[int, ...] = tuple(range(2, 18))
+ORIGINATION_WEIGHTS: tuple[int, ...] = (
+    1, 2, 3, 5, 8, 11, 13, 13, 12, 10, 8, 6, 4, 3, 2, 1)
+
+#: Debt service coverage below which a borrower starts missing payments, and
+#: above which arrears cure. Between the two the arrears freeze: a borrower
+#: that has stopped deteriorating has not yet repaid.
+ARREARS_DSCR = 1.00
+CURE_DSCR = 1.20
+
+
+def grade_pd(grade: int) -> float:
+    """Twelve-month PD for a rating grade, from the master scale."""
+    return _clamp(PD_ANCHOR * math.exp(grade / PD_DECAY), 0.0001, 0.40)
 
 FACILITY_TYPES = ("Term Loan", "Revolving Credit", "Working Capital",
                   "Trade Finance", "Project Finance")
@@ -108,6 +271,18 @@ COLLATERAL_DRIFT: dict[str, float] = {
     "Receivables": -0.04, "Cash Deposit": 0.0,
     "Corporate Guarantee": -0.02,
 }
+
+
+def _jitter(key: str, month: str, spread: float) -> float:
+    """A per-(entity, month) wobble that is stable across builds.
+
+    Hashed rather than drawn, so it is a pure function of who and when: two
+    builds fingerprint identically and adding a borrower does not reshuffle
+    everyone else's history.
+    """
+    digest = hashlib.sha256(f"corp|{key}|{month}".encode("utf-8")).digest()
+    unit = int.from_bytes(digest[:4], "big") / 0xFFFFFFFF
+    return (unit - 0.5) * 2 * spread
 
 
 def _stable(text: str, modulus: int) -> int:
@@ -151,7 +326,8 @@ def build(release_id: str = "",
 
     borrowers: list[dict[str, Any]] = []
     facilities: list[dict[str, Any]] = []
-    for index, (name, sector, sub_sector, region) in enumerate(BORROWERS):
+    book = BORROWERS + _tail()
+    for index, (name, sector, sub_sector, region) in enumerate(book):
         borrower_id = f"CB{index + 1:04d}"
         borrowers.append({
             "borrower_id": borrower_id, "borrower_name": name,
@@ -159,7 +335,8 @@ def build(release_id: str = "",
             "group_name": GROUPS.get(sector, f"{name} Holding"),
             "sector": sector, "sub_sector": sub_sector, "region": region,
             "relationship_tier": TIERS[index % len(TIERS)],
-            "base_rating": 4 + (index * 3) % 11,
+            "base_rating": rng.choices(ORIGINATION_GRADES,
+                                       weights=ORIGINATION_WEIGHTS, k=1)[0],
             "base_revenue": round(rng.uniform(900, 7200), 1),
             "base_margin": rng.uniform(0.09, 0.28),
             "base_leverage": rng.uniform(1.4, 4.2),
@@ -193,14 +370,25 @@ def build(release_id: str = "",
     covenant_rows: list[dict[str, Any]] = []
     previous_rating: dict[str, int] = {}
     stage_since: dict[str, tuple[int, int]] = {}
+    #: Days past due carried forward per facility, driven by the borrower's
+    #: own debt service coverage rather than by a threshold on a stress
+    #: index. "Why is this facility in arrears?" is then a question the book
+    #: can answer from a column it publishes.
+    arrears: dict[str, int] = {}
 
     for m_index, month in enumerate(months):
         ramp = _ramp(m_index, len(months))
         season = math.sin((m_index % 12) / 12 * 2 * math.pi)
+        #: What the borrower loop worked out, for the facility loop to read.
+        #: It used to recompute `stress` and `personal` itself, which meant
+        #: the facility's risk and the borrower's financials could drift
+        #: apart silently the moment either formula changed.
+        state: dict[str, dict[str, Any]] = {}
 
         for borrower in borrowers:
             bid = borrower["borrower_id"]
-            stress = SECTOR_STRESS.get(borrower["sector"], 0.0) * ramp
+            stress = (SECTOR_STRESS.get(borrower["sector"], 0.0) * ramp
+                      * STRESS_SCALE)
             # A borrower's own quality softens or sharpens its sector's story.
             personal = stress * (0.55 + 0.9 * (1 - borrower["quality"]))
 
@@ -218,11 +406,33 @@ def build(release_id: str = "",
             interest_cover = _clamp(5.4 - 2.2 * personal - 0.22 * leverage,
                                     0.7, 12.0)
 
-            notches = int(round(3.1 * personal))
-            grade = min(len(RATINGS) - 1, borrower["base_rating"] + notches)
-            prior = previous_rating.get(bid, grade)
+            # Unevenly, and stickily.
+            #
+            # Unevenly because a sector whose obligors all downgrade together
+            # is a sector where "which names moved?" has no answer: every
+            # borrower carries a permanent idiosyncratic offset, so the weak
+            # names go first, some hold on, and a healthy sector still has a
+            # name or two on the watch list.
+            #
+            # Stickily because a rating is a decision, not a reading. Letting
+            # it follow a monthly wobble put names into Stage 2 and out again
+            # month after month, which is not a credit cycle and would make
+            # every "what changed?" answer noise. A downgrade lands at once;
+            # a recovery takes a notch a month.
+            idiosyncratic = _jitter(bid, "origination", 1.7)
+            notches = max(0, int(round(4.2 * personal + idiosyncratic
+                                       + _jitter(bid, month, 0.3))))
+            target = min(len(RATINGS) - 1,
+                         borrower["base_rating"] + notches)
+            prior = previous_rating.get(bid, target)
+            grade = max(target, prior - 1)
             previous_rating[bid] = grade
             moved = prior - grade  # negative is a downgrade
+
+            state[bid] = {
+                "personal": personal, "grade": grade, "dscr": dscr,
+                "notches_from_origination": grade - borrower["base_rating"],
+            }
 
             borrower_rows.append({
                 **gov,
@@ -239,8 +449,7 @@ def build(release_id: str = "",
                 "rating_outlook": ("Negative" if personal > 0.35
                                    else "Positive" if personal < -0.12
                                    else "Stable"),
-                "pd_ttc_12m": round(_clamp(0.0035 * math.exp(grade / 3.6),
-                                           0.0002, 0.65), 6),
+                "pd_ttc_12m": round(grade_pd(grade), 6),
                 "revenue_sar_mn": round(revenue, 1),
                 "ebitda_sar_mn": round(ebitda, 1),
                 "total_debt_sar_mn": round(debt, 1),
@@ -259,8 +468,9 @@ def build(release_id: str = "",
         for facility in facilities:
             borrower = by_id[facility["borrower_id"]]
             bid = borrower["borrower_id"]
-            stress = SECTOR_STRESS.get(borrower["sector"], 0.0) * ramp
-            personal = stress * (0.55 + 0.9 * (1 - borrower["quality"]))
+            here = state[bid]
+            personal = here["personal"]
+            grade = here["grade"]
 
             limit = facility["base_limit"] * (1 + 0.004 * m_index)
             util = _clamp(facility["base_util"] + 0.12 * personal
@@ -269,23 +479,50 @@ def build(release_id: str = "",
             undrawn = max(0.0, limit - drawn)
             ead = drawn + undrawn * facility["ccf"]
 
-            pd_pit = _clamp(0.004 * math.exp(
-                (borrower["base_rating"] + 3.1 * personal) / 3.4)
-                + 0.004 * personal, 0.0003, 0.85)
-            dpd = int(max(0, round((personal - 0.42) * 165))) if personal > 0.42 else 0
-            if personal > 0.80:
+            # Arrears follow debt service, not a threshold on a stress
+            # index. A borrower that cannot cover its debt service starts
+            # missing payments and rolls thirty days deeper each month; one
+            # that recovers cures; one in between is frozen where it is.
+            prior_dpd = arrears.get(facility["facility_id"], 0)
+            dscr = here["dscr"]
+            if dscr < ARREARS_DSCR:
+                dpd = min(360, prior_dpd + 30 if prior_dpd else 12)
+            elif dscr < CURE_DSCR and prior_dpd:
+                dpd = prior_dpd
+            else:
+                dpd = 0
+            arrears[facility["facility_id"]] = dpd
+
+            # Staging from what the book OBSERVES: arrears, the grade
+            # itself, and the downgrade since origination. Reading it off
+            # the stress index instead left the first nine months of the
+            # window with exactly zero Stage 2 exposure -- a book with a
+            # switch in it rather than a credit cycle.
+            if dpd >= 90 or grade >= IMPAIRED_GRADE:
                 stage = 3
-            elif personal > 0.34 or dpd >= 30:
+            elif (dpd >= 30 or grade >= WATCH_GRADE
+                  or here["notches_from_origination"] >= SICR_NOTCHES):
                 stage = 2
             else:
                 stage = 1
             sicr = 1 if stage >= 2 else 0
             default_flag = 1 if stage == 3 else 0
-            pd_life = _clamp(pd_pit * (2.4 + 1.6 * personal), pd_pit, 0.97)
-            lgd = _clamp(facility["lgd"] + 0.09 * personal, 0.12, 0.85)
 
-            ecl_12m = ead * pd_pit * lgd
-            ecl_life = ead * pd_life * lgd
+            lgd = _clamp(facility["lgd"] + 0.09 * personal, 0.12, 0.85)
+            if stage == 3:
+                # A defaulted exposure has already defaulted. Publishing a
+                # point-in-time PD of eight per cent against it, as this
+                # book once did, is not a calibration choice -- it is a
+                # contradiction of the flag in the next column.
+                pd_pit = pd_life = 1.0
+                ecl_12m = ecl_life = ead * lgd
+            else:
+                pd_pit = _clamp(grade_pd(grade) * (1 + 0.35 * personal),
+                                0.0001, 0.45)
+                pd_life = _clamp(pd_pit * (2.4 + 1.6 * personal), pd_pit,
+                                 0.97)
+                ecl_12m = ead * pd_pit * lgd
+                ecl_life = ead * pd_life * lgd
             ecl = ecl_12m if stage == 1 else ecl_life
 
             seen, since = stage_since.get(facility["facility_id"], (stage, 0))
@@ -397,4 +634,10 @@ def build(release_id: str = "",
                                      if v < 0]})
 
 
-__all__ = ["BORROWERS", "RATINGS", "SECTOR_STRESS", "build"]
+__all__ = ["BORROWERS", "RATINGS", "SECTOR_STRESS", "build",
+           "grade_pd", "obligors"]
+
+
+def obligors() -> tuple[tuple[str, str, str, str], ...]:
+    """Every name in the book: the authored anchors and the generated tail."""
+    return BORROWERS + _tail()

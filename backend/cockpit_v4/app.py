@@ -174,6 +174,12 @@ def create_app(cfg: config_mod.V4Config | None = None, *,
         app.state.cockpit_v4["worker"] = worker
         app.state.cockpit_v4["supervisor"] = supervisor
 
+    # §41: which books this process opened, printed at startup, every time.
+    # Which release, from which bytes, at which scale, over how many periods
+    # -- for EACH book. A deployment serving one book and not the other is
+    # not a thing to discover afterwards from the numbers on the screen.
+    _announce_books()
+
     @app.get("/health")
     async def health() -> dict[str, Any]:
         # `ok` says the PROCESS is answering. What the process can do is a
@@ -191,6 +197,38 @@ def create_app(cfg: config_mod.V4Config | None = None, *,
                 "api_port": cfg.api_port}
 
     return app
+
+
+def _announce_books() -> None:
+    """One line per book, at startup. Never one line for "the release"."""
+    try:
+        from backend.cockpit_v4 import domain_resolver as resolver
+        from backend.cockpit_v4 import domains as dom_mod
+
+        available = resolver.availability()
+    except Exception as exc:  # noqa: BLE001 - announcing must never fail boot
+        logger.warning("V4 could not enumerate its books: %s", exc)
+        return
+
+    for status in available.statuses:
+        label = dom_mod.LABELS[status.domain_id]
+        if not status.ready or status.scope is None:
+            logger.warning(
+                "V4 book %s: NOT AVAILABLE (%s). Nothing was substituted "
+                "for it. Publish with: %s",
+                label, status.reason or "no published release",
+                resolver.provision_command(status.domain_id))
+            continue
+        scope = status.scope
+        askable = "askable" if resolver.analysis_supported(
+            status.domain_id) else "browse only"
+        logger.info(
+            "V4 book %s: release %s fingerprint %s, %s %s, %s %s periods "
+            "to %s, %d relations, %s",
+            label, scope.release_id, scope.release_fingerprint[:16],
+            scope.currency, scope.amount_scale, len(scope.periods),
+            scope.reporting_frequency, scope.latest_period,
+            len(scope.relations), askable)
 
 
 __all__ = ["DEMO_PRINCIPAL", "create_app", "startup_sha"]

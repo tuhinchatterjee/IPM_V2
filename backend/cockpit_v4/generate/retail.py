@@ -72,6 +72,50 @@ PRODUCT_STRESS: dict[str, float] = {
 #: meant to be findable, not total.
 STRESS_SCALE = 0.27
 
+#: Monthly probability that a CURRENT account misses a payment, before the
+#: account's own fragility and the product's stress are applied.
+#:
+#: Delinquency is not a threshold on a smooth stress index. Modelled that
+#: way -- which is how this generator began -- the worst account in the book
+#: reached eighty days past due and SEVEN accounts out of twelve thousand
+#: ever defaulted, because a smooth index has no tail. A retail book without
+#: a tail has no non-performing population, so every question about arrears,
+#: Stage 3, write-offs, cures or coverage answers "approximately nothing" and
+#: means nothing.
+#:
+#: So arrears are a ROLL-RATE process: an account enters at a hazard, then
+#: each month either cures or rolls thirty days deeper, and one deep enough
+#: is charged off and leaves the book. Stress raises the entry hazard and
+#: slows the cure; it does not decide the outcome.
+ENTRY_HAZARD: dict[str, float] = {
+    "Credit Card": 0.022,
+    "Personal Finance": 0.015,
+    "Auto Finance": 0.008,
+    "Mortgage": 0.0035,
+}
+
+#: Monthly probability that a delinquent account cures, before depth,
+#: fragility and stress. Cure gets materially harder the deeper the arrears:
+#: a bucket an account has sat in for four months is not one it walks out of
+#: at the same rate as the first missed payment.
+CURE_RATE: dict[str, float] = {
+    "Credit Card": 0.30,
+    "Personal Finance": 0.27,
+    "Auto Finance": 0.34,
+    "Mortgage": 0.40,
+}
+
+#: Days past due at which the account is charged off, written down and
+#: leaves the book. Saudi retail practice and IFRS 9 both put the
+#: write-off point well past the ninety-day default marker.
+CHARGE_OFF_DPD = 210
+
+#: How much of the exposure is written off at charge-off, and how much of
+#: THAT comes back. Secured products recover more, which is what the security
+#: is for.
+WRITE_OFF_FRACTION = 0.82
+RECOVERY_OF_WRITE_OFF = {0: 0.14, 1: 0.46}
+
 #: Older vintages carry more of the stress. A 2024 book has been through more
 #: than a 2026 one and it should show.
 VINTAGE_STRESS: dict[int, float] = {2021: 0.15, 2022: 0.30, 2023: 0.55,
@@ -100,6 +144,17 @@ def _bucket(dpd: int) -> str:
     if dpd < 90:
         return "60-89"
     return "90+"
+
+
+def _unit(key: str, month: str) -> float:
+    """A stable uniform draw in [0, 1) for one entity in one month.
+
+    Hashed rather than drawn from a stream, so the roll-rate process is a
+    pure function of who and when: two builds produce the same arrears, and
+    adding a customer does not reshuffle everyone else's.
+    """
+    digest = hashlib.sha256(f"roll|{key}|{month}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:6], "big") / float(1 << 48)
 
 
 def _jitter(key: str, month: str, spread: float) -> float:
@@ -178,6 +233,12 @@ def build(release_id: str = "",
                 "base_lgd": base_lgd,
                 "wobble": rng.uniform(-0.04, 0.04),
                 "cure_cohort": rng.random() < 0.08,
+                # Heavy-tailed on purpose: most accounts are near zero and a
+                # few are genuinely fragile. A uniform draw here would give
+                # every account the same modest chance of arrears and
+                # produce a book with no tail, which is the defect this
+                # replaces.
+                "fragility": round(rng.random() ** 3.0, 6),
             })
 
     by_id = {c["customer_id"]: c for c in customers}
@@ -192,6 +253,10 @@ def build(release_id: str = "",
     previous_util: dict[str, float] = {}
     previous_balance: dict[str, float] = {}
     streak: dict[str, int] = {}
+    #: Days past due carried into the next month, and the accounts that have
+    #: been charged off and no longer report.
+    arrears: dict[str, int] = {}
+    charged_off: set[str] = set()
 
     for m_index, month in enumerate(months):
         ramp = _ramp(m_index, len(months))
@@ -201,6 +266,8 @@ def build(release_id: str = "",
         for account in accounts:
             if months_between(account["origination_month"], month) < 0:
                 continue  # not opened yet: no row rather than a zero row
+            if account["account_id"] in charged_off:
+                continue  # written off and closed: no row rather than zeros
             customer = by_id[account["customer_id"]]
             on_book = months_between(account["origination_month"], month)
 
@@ -232,29 +299,81 @@ def build(release_id: str = "",
             band = _band(score)
             prior_score = previous_score.get(account["customer_id"], score)
 
-            dpd = 0
-            if personal > 0.34:
-                dpd = int(round((personal - 0.34) * 260))
-            was = streak.get(account["account_id"], 0)
-            streak[account["account_id"]] = was + 1 if dpd > 0 else 0
+            # The roll-rate process. Entry, then cure or roll, then
+            # charge-off. Stress moves the rates; it does not set the state.
+            account_id = account["account_id"]
+            prior_dpd = arrears.get(account_id, 0)
+            pressure = max(0.0, personal)
+            draw = _unit(account_id, month)
+            fragility = account["fragility"]
+            if prior_dpd <= 0:
+                hazard = (ENTRY_HAZARD[account["product"]]
+                          * (0.25 + 3.1 * fragility)
+                          * (1.0 + 2.6 * pressure))
+                dpd = (4 + int(24 * _unit(account_id + "entry", month))
+                       if draw < hazard else 0)
+            else:
+                depth = min(1.0, prior_dpd / float(CHARGE_OFF_DPD))
+                cure = (CURE_RATE[account["product"]]
+                        * (1.25 - 0.85 * fragility)
+                        * (1.0 - 0.72 * depth)
+                        / (1.0 + 1.4 * pressure))
+                dpd = 0 if draw < cure else prior_dpd + 30
+            was = streak.get(account_id, 0)
+            streak[account_id] = was + 1 if dpd > 0 else 0
+            arrears[account_id] = dpd
 
-            if personal > 0.62 or dpd >= 90:
+            # Staging from OBSERVABLE triggers, not from the stress index.
+            #
+            # Reading Stage 2 off a smooth index put forty-eight per cent of
+            # the card book in Stage 2 while five per cent of it was actually
+            # in arrears -- a book no bank would recognise, and one where
+            # "what drove the Stage 2 increase?" has no answer an analyst
+            # could act on. The triggers below are the ones a retail SICR
+            # policy actually uses: thirty days past due, an absolute score
+            # floor below the lowest band boundary, and a material fall from
+            # the score the account was written at.
+            score_fall = customer["base_score"] - score
+            if dpd >= 90:
                 stage = 3
-            elif personal > 0.30 or dpd >= 30 or score < 520:
+            elif dpd >= 30 or score < 520 or score_fall > 105:
                 stage = 2
             else:
                 stage = 1
-            pd_pit = _clamp(0.006 * math.exp((900 - score) / 150)
-                            + 0.02 * personal, 0.0004, 0.92)
-            pd_life = _clamp(pd_pit * (2.2 + 1.8 * personal), pd_pit, 0.98)
             lgd = _clamp(account["base_lgd"] + 0.10 * personal
                          - (0.12 if account["secured_flag"] else 0.0),
                          0.05, 0.92)
-            ecl_12m = ead * pd_pit * lgd
-            ecl_life = ead * pd_life * lgd
+            if stage == 3:
+                # An account ninety days past due has defaulted. Pricing it
+                # off a score-driven PD of a few per cent put the Stage 3
+                # coverage of this book at twelve per cent, which says the
+                # bank expects to collect eighty-eight per cent of its
+                # non-performing retail book. It does not.
+                pd_pit = pd_life = 1.0
+                ecl_12m = ecl_life = ead * lgd
+            else:
+                pd_pit = _clamp(0.006 * math.exp((900 - score) / 150)
+                                + 0.02 * personal, 0.0004, 0.92)
+                pd_life = _clamp(pd_pit * (2.2 + 1.8 * personal), pd_pit,
+                                 0.98)
+                ecl_12m = ead * pd_pit * lgd
+                ecl_life = ead * pd_life * lgd
             ecl = ecl_12m if stage == 1 else ecl_life
-            wrote_off = ead * 0.08 if (stage == 3 and dpd > 150) else 0.0
-            recovered = wrote_off * 0.22
+            # Charge-off: the account is written down in THIS month's row and
+            # reports no month after it. The write-off is a flow and the row
+            # that carries it is the last one the account has.
+            wrote_off = 0.0
+            recovered = 0.0
+            if dpd >= CHARGE_OFF_DPD:
+                wrote_off = ead * WRITE_OFF_FRACTION
+                recovered = wrote_off * RECOVERY_OF_WRITE_OFF[
+                    account["secured_flag"]]
+                charged_off.add(account_id)
+                # A charged-off account is fully provided at the point it
+                # leaves: carrying a lifetime ECL below the amount written
+                # off would say the book expected to keep it.
+                ecl = max(ecl, wrote_off - recovered)
+                ecl_life = max(ecl_life, ecl)
             cured = 1 if (was > 0 and dpd == 0) else 0
 
             row = {

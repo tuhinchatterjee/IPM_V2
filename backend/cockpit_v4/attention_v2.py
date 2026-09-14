@@ -109,10 +109,14 @@ def _corporate_families() -> tuple[Family, ...]:
         Family("region_ecl", "ECL", "region", "Region", rel,
                "ecl", "Recognised ECL", "amount", "SAR million",
                "SUM(ecl_sar_mn)", weight=0.90),
-        Family("sector_ltv", "Collateral cover", "collateral_type",
+        # "Collateral cover rose" was the label, and it read as good news:
+        # the measure is LOAN TO VALUE, so a rise is security falling behind
+        # the exposure it stands against. A card whose headline says the
+        # opposite of what its number means is worse than no card.
+        Family("sector_ltv", "Loan to value", "collateral_type",
                "Collateral type", "corp_collateral_month",
-               "ltv", "EAD as a share of collateral value", "share",
-               "percent",
+               "ltv", "Exposure as a share of pledged collateral value",
+               "share", "percent",
                "SUM(ltv_pct) / NULLIF(COUNT(*) * 100.0, 0)", weight=1.00,
                size_expression="SUM(allocated_value_sar_mn)"),
     )
@@ -212,6 +216,9 @@ def _candidates(session, family: Family, *, month: str,
     now = _measure(session, family, month)
     before = _measure(session, family, comparison)
     total = sum(v["ead"] for v in now.values()) or 1.0
+    #: What the whole book measures this month, for an amount family. The
+    #: denominator that makes one segment's movement comparable to another's.
+    book_total = sum(v["value"] for v in now.values()) or 1.0
 
     out: list[Candidate] = []
     for segment, current in now.items():
@@ -227,14 +234,30 @@ def _candidates(session, family: Family, *, month: str,
             ead_now=current["ead"], ead_before=prior["ead"], share=share)
         movement = candidate.movement
         if family.kind == "amount":
-            scale = max(abs(candidate.before), 1e-6)
-            normalised = movement / scale
+            # An AMOUNT is measured against the BOOK, not against itself.
+            #
+            # Normalising a sector's ECL movement by that sector's own prior
+            # ECL is what put "Wholesale Trade: ECL rose to SAR 55 million"
+            # at the top of a corporate page whose Construction book carries
+            # SAR 800 million and had just added more than Wholesale holds.
+            # A small segment's small move is large in its own terms and that
+            # is exactly the reading a credit officer must not be given.
+            #
+            # So the score for an amount is its contribution to the whole
+            # book's movement, and `share` is NOT applied on top of it: the
+            # size is already in the numerator, and multiplying by it again
+            # would rank by size squared.
+            normalised = movement / book_total
+            weighted = abs(normalised) * family.weight
         else:
+            # A SHARE or RATIO is already size-free, so the segment's weight
+            # in the book is what decides whether its move matters.
             normalised = movement
+            weighted = abs(normalised) * share * family.weight
         if candidate.now <= candidate.before or abs(normalised) < MIN_MOVEMENT:
             continue
         # Material AND moving. Neither alone reaches the top.
-        candidate.score = abs(normalised) * share * family.weight
+        candidate.score = weighted
         out.append(candidate)
     return out
 

@@ -589,3 +589,61 @@ def test_a_follow_up_reads_the_same_book_as_the_question_before_it(
         assert set(keyed(case.rows, "product", "ead_sar_mn")) == set(
             oracle.retail_ead_by_product(month))
         del record
+
+
+# ---- seeded investigations carry the book with them ---------------------
+
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_a_seeded_thread_executes_in_the_book_the_card_came_from(
+        drive_domain, store_db, domain_id):
+    """§13, §14. Investigate Further opens a thread, not a question.
+
+    The seed names a segment, a period and a movement that exist in ONE
+    release. A run in that thread must reach that release and no other, and
+    the case file it is handed must describe the same book.
+    """
+    from backend.cockpit_v4 import attention_v2 as att
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    scope = resolver.scope_for(domain_id)
+    book = arun.for_domain(domain_id)
+    feed = att.compute(session=book.session, scope=scope)
+    item = feed["segments_requiring_attention"][0]
+
+    thread_id = store_db.create_thread(
+        tenant_id=lake.DEFAULT_TENANT, principal_id="u1",
+        domain_id=domain_id, release_id=scope.release_id,
+        release_fingerprint=scope.release_fingerprint)
+    store_db.set_thread_context(
+        thread_id, tenant_id=lake.DEFAULT_TENANT, kind="attention_item",
+        body={"item_id": item["item_id"], "domain_id": domain_id,
+              "release_id": scope.release_id,
+              "release_fingerprint": scope.release_fingerprint,
+              "segment": item["segment"], "metric": item["metric"],
+              "headline": item["headline"],
+              "reporting_period": item["reporting_month"],
+              "comparison_period": item["comparison_month"]})
+    record, _created = store_db.accept_run(
+        thread_id=thread_id, tenant_id=lake.DEFAULT_TENANT,
+        principal_id="u1", question="Show me what is behind this.",
+        mode="standard", release_id=scope.release_id, domain_id=domain_id,
+        release_fingerprint=scope.release_fingerprint, ui_filters={},
+        idempotency_key="", body_digest="", startup_sha="testsha",
+        deadline_at="")
+
+    _outcome, provider, _record = drive_domain(
+        domain_id, "Show me what is behind this.", [
+            ScriptedResult(tool_calls=[tool_call(
+                "finalize_response",
+                final(intent=intent(), disposition="answer",
+                      narrative="looking"))])], record=record)
+
+    sent = provider.first_input_text()
+    assert "ACTIVE INVESTIGATION" in sent
+    assert item["segment"] in sent
+    assert scope.release_id in sent
+    assert item["reporting_month"] in sent
+    other = next(d for d in dom.DOMAIN_IDS if d != domain_id)
+    assert dom.DEFAULT_RELEASES[other] not in sent
+    for relation in arun.for_domain(other).catalog.relations():
+        assert relation not in sent

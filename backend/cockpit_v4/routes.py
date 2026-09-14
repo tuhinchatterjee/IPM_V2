@@ -476,6 +476,66 @@ def _domain_feed(who: dict[str, Any], domain_id: str, *,
                 str(exc).encode("utf-8")).hexdigest()[:12]}) from exc
 
 
+def _domain_book(who: dict[str, Any], domain_id: str):
+    """This book's scope and an open session on it, or a typed refusal.
+
+    Shared by every per-domain server-computed panel, so a new panel cannot
+    accidentally reach a different release than the dashboard beside it.
+    """
+    from backend.cockpit_v4 import catalog as cat_mod
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    tenant = str(who.get("tenant") or "") or lake_mod.DEFAULT_TENANT
+    try:
+        scope = resolver.scope_for(domain_id, tenant_id=tenant)
+    except resolver.DomainUnavailable as exc:
+        raise HTTPException(503, {
+            "error_code": st.DATA_UNAVAILABLE, "message": str(exc),
+            "domain_id": domain_id,
+            "provision_command": resolver.provision_command(domain_id),
+        }) from exc
+    try:
+        session = cat_mod.open_session(
+            catalog=cat_mod.build(domain_id=scope.domain_id,
+                                  release_id=scope.release_id,
+                                  tenant_id=tenant))
+    except PermissionError as exc:
+        raise HTTPException(403, {
+            "error_code": st.SECURITY_DENIED, "message": str(exc),
+            "domain_id": domain_id}) from exc
+    return scope, session, tenant
+
+
+@router.get("/ecl")
+async def ecl_panel(domain: str = Query(""), refresh: bool = Query(False),
+                    who: dict[str, Any] = Depends(principal)
+                    ) -> dict[str, Any]:
+    """Where this book's ECL is, and what moved it. No model call.
+
+    Two server-computed statements: the stage profile, and a decomposition of
+    the month's ECL movement whose components sum to that movement exactly.
+    The residual is published rather than absorbed, so a reader can see that
+    they do.
+    """
+    from backend.cockpit_v4 import domains as dom_mod
+    from backend.cockpit_v4 import ecl as ecl_mod
+
+    try:
+        domain_id = dom_mod.parse(domain)
+    except dom_mod.UnknownDomain as exc:
+        raise HTTPException(400, {"error_code": "UNKNOWN_DOMAIN",
+                                  "message": str(exc)}) from exc
+    scope, session, tenant = _domain_book(who, domain_id)
+    try:
+        return ecl_mod.cached(session=session, scope=scope,
+                              tenant_id=tenant, refresh=refresh)
+    except ecl_mod.EclUnavailable as exc:
+        raise HTTPException(503, {
+            "error_code": st.DATA_UNAVAILABLE, "message": str(exc),
+            "component": f"{domain_id}_ecl_panel",
+            "domain_id": domain_id}) from exc
+
+
 def _feed(who: dict[str, Any], *, refresh: bool = False) -> dict[str, Any]:
     session, runtime, _scope = _attention_session(who)
     catalog = runtime.catalog
@@ -627,6 +687,16 @@ async def investigate(item_id: str,
         "headline": item["headline"],
         "segment": item["segment"],
         "segment_dimension": item["segment_dimension"],
+        # The period, under the name this book actually uses. The quarter
+        # keys are kept beside them because older readers index on those,
+        # but a monthly finding described only as a "quarter" is a finding
+        # the analyst will resolve against the wrong calendar.
+        "reporting_period": item.get("reporting_month")
+        or item["reporting_quarter"],
+        "comparison_period": item.get("comparison_month")
+        or item["comparison_quarter"],
+        "reporting_month": item.get("reporting_month", ""),
+        "comparison_month": item.get("comparison_month", ""),
         "reporting_quarter": item["reporting_quarter"],
         "comparison_quarter": item["comparison_quarter"],
         "comparison_basis": item["comparison_basis"],
