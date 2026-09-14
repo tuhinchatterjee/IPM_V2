@@ -47,17 +47,24 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.early_warning import dictionary as dic
+from backend.early_warning import domain as dom
 from backend.early_warning import executable as ex
 from backend.early_warning import signal_fields as sigf
 from backend.early_warning import v2_service as svc
 from backend.early_warning import wide
 
 #: The canonical business name of this domain. One name, used everywhere.
-DOMAIN = "Early Warning"
+#: From `backend.early_warning.domain`, which is where the domain is defined;
+#: re-exported here because the context package is where a planner meets it.
+DOMAIN = dom.DOMAIN
 
 #: The canonical identifier. What the domain lock, the validator and the
 #: context packet all compare against.
-DOMAIN_ID = "early_warning"
+DOMAIN_ID = dom.DOMAIN_ID
+
+#: Every dataset an answer may read. Stated in the context package so a
+#: planner is told the boundary rather than discovering it in a refusal.
+DATASETS: tuple[str, ...] = tuple(sorted(dom.DATASETS))
 
 #: The analytical grain. One row is one obligor at one month-end.
 GRAIN = ("customer_id", "snapshot_month")

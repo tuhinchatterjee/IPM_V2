@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.early_warning import dictionary as dic
+from backend.early_warning import domain as dom
 from backend.early_warning import executable as ex
 from backend.early_warning import grain as grain_mod
 from backend.early_warning import layers as layers_mod
@@ -55,19 +56,29 @@ from backend.early_warning.classifiers_v2 import BAND_ORDER as _BAND_ORDER
 _BANDS: tuple[str, ...] = tuple(_BAND_ORDER) + ("HIGH_PLUS",)
 from backend.early_warning.conversation import plan as plan_mod
 
-#: The one domain any step may name.
-ALLOWED_DOMAIN = grain_mod.DOMAIN_ID
+#: The one domain any step may name. From the module that defines the domain.
+ALLOWED_DOMAIN = dom.DOMAIN_ID
+
+#: The three datasets an answer may read. A step that passes this check still
+#: cannot read anything else: `v2_service._load` refuses it at the door. This
+#: check exists so the refusal happens while the plan can still be repaired,
+#: rather than half way through an execution.
+ALLOWED_DATASETS = frozenset(dom.DATASETS)
 
 #: Datasets a step may never reach, named so a refusal can say what it
 #: refused rather than only that it refused. These have already fed Early
 #: Warning upstream; reading them again at answer time would be reading the
 #: same fact twice from two places that can disagree.
+#: Named so a refusal can say what it refused and why, rather than only that
+#: it refused. NOT the rule: the rule is that `ALLOWED_DOMAIN` is the only
+#: legal value, so a domain missing from this set is refused just as firmly.
 FORBIDDEN_DOMAINS: frozenset[str] = frozenset({
     "ifrs9_staging", "customer_ratings", "facility_delinquency",
-    "collateral_register", "portfolio_facility", "corporate_borrower_360",
+    "collateral_register", "portfolio_facility",
     "cockpit", "cockpit_demo", "what_if", "scorecard_validation", "lenses",
     "transactions", "financials", "graph", "corporate_supply_chain",
-})
+    "retail", "retail_scorecards",
+}) | frozenset(dom.UPSTREAM_OF_EARLY_WARNING)
 
 #: No single step may return more than this. A bounded result is what makes
 #: the result packet something a reader can check.
@@ -472,5 +483,5 @@ def failure_packet(plan: plan_mod.Plan, result: Result,
     }
 
 
-__all__ = ["ALLOWED_DOMAIN", "FORBIDDEN_DOMAINS", "MAX_ROWS", "MAX_STEPS",
+__all__ = ["ALLOWED_DATASETS", "ALLOWED_DOMAIN", "FORBIDDEN_DOMAINS", "MAX_ROWS", "MAX_STEPS",
            "Failure", "Result", "check", "failure_packet"]

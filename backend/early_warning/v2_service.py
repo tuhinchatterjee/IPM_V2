@@ -15,11 +15,15 @@ import pandas as pd
 
 from backend.config import settings
 from backend.early_warning import catalog as ews_catalog
+from backend.early_warning import domain as dom
 from backend.early_warning import reasons
 
-BORROWER_MONTH = "early_warning_borrower_month"
-SIGNAL_OBSERVATION = "early_warning_signal_observation"
-EXTERNAL_EVENT_SYNTHETIC = "early_warning_external_event_synthetic"
+#: The three governed datasets, from the one module that defines the domain.
+#: Named here as well because half the product imports them from this module,
+#: but these are aliases, not a second definition.
+BORROWER_MONTH = dom.BORROWER_MONTH
+SIGNAL_OBSERVATION = dom.SIGNAL_OBSERVATION
+EXTERNAL_EVENT_SYNTHETIC = dom.EXTERNAL_EVENT
 
 #: layer -> ordered sub-category codes, for the drill-down tree.
 LAYER_SUBCATEGORIES: dict[str, tuple[str, ...]] = {
@@ -44,7 +48,7 @@ class EarlyWarningDataNotBuilt(RuntimeError):
 
 
 @lru_cache(maxsize=8)
-def _load(dataset: str) -> pd.DataFrame:
+def _read(dataset: str) -> pd.DataFrame:
     files = sorted(glob.glob(
         str(settings.analytics_dir / dataset / "**" / "*.parquet"), recursive=True))
     if not files:
@@ -54,8 +58,27 @@ def _load(dataset: str) -> pd.DataFrame:
     return pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
 
 
+def _load(dataset: str) -> pd.DataFrame:
+    """The single door into Early Warning data.
+
+    Every figure this product states -- a dashboard tile, a chat answer, an
+    exported row, a report table -- is read through here, which is why the
+    domain rule is enforced HERE rather than in each caller. A caller can be
+    new; the door cannot.
+
+    `dom.require` refuses anything outside the three governed datasets, so a
+    planner, an executor or a future screen cannot reach `corporate_ifrs9` by
+    naming it, however it came to name it. The read is then noted, so a turn
+    that is recording can state which datasets it actually touched instead of
+    asserting that the rule held.
+    """
+    name = dom.require(dataset)
+    dom.note_read(name)
+    return _read(name)
+
+
 def reset() -> None:
-    _load.cache_clear()
+    _read.cache_clear()
     # The wide projection and the dictionary profile are both read from these
     # frames and both cached. A rebuild that cleared one and not the others
     # would leave the product answering from two different builds at once.

@@ -44,6 +44,13 @@ class ResultPacket:
     question: str = ""
     normalized_request: str = ""
     selected_functionality: str = grain_mod.DOMAIN_ID
+
+    #: The domain this answer is from, and the datasets it actually read.
+    #: Observed at the data-access door by the pipeline, not declared here:
+    #: a packet that named its own domain would be asserting the rule rather
+    #: than evidencing it.
+    domain: str = grain_mod.DOMAIN_ID
+    datasets_read: tuple[str, ...] = ()
     plan: dict[str, Any] = field(default_factory=dict)
     output_grain: str = ""
     period: str = ""
@@ -131,6 +138,8 @@ class ResultPacket:
                 "provenance": list(self.provenance),
                 "coverage": dict(self.coverage),
                 "caveats": list(self.caveats),
+                "domain": self.domain,
+                "datasets_read": list(self.datasets_read),
             },
             "governed": {
                 "actions": list(self.governed_actions),

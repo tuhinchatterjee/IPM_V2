@@ -57,6 +57,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from backend.early_warning import alternatives as alt_mod
+from backend.early_warning import domain as dom
 from backend.early_warning import functionality as fn
 from backend.early_warning import grain as grain_mod
 from backend.early_warning.conversation import budget as budget_mod
@@ -160,6 +161,11 @@ class Turn:
     #: six calls and five served stages is then reconstructable rather than a
     #: discrepancy somebody has to guess at.
     model_attempts: list[dict[str, Any]] = field(default_factory=list)
+    #: Every dataset this turn actually read, observed at the door rather
+    #: than declared. The domain rule is enforced in `v2_service._load`; this
+    #: is the evidence that it held, which is what an audit needs and an
+    #: assertion in a docstring is not.
+    datasets_read: tuple[str, ...] = ()
 
     @property
     def stages(self) -> list[str]:
@@ -187,6 +193,8 @@ class Turn:
             "model_attempts": [dict(c) for c in self.model_attempts],
             "engines": self.engines,
             "provider_configured": seam_mod.provider_available(),
+            "domain": dom.DOMAIN_ID,
+            "datasets_read": list(self.datasets_read),
         }
 
 
@@ -257,15 +265,36 @@ def _hash(value: Any) -> str:
         json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
-def answer(question: str, *, thread_id: str = "",
-           ui_state: dict[str, Any] | None = None,
-           rolling_summary: dict[str, Any] | None = None,
-           recent: list[dict[str, Any]] | None = None,
-           mode: str = budget_mod.STANDARD,
-           permissions: dict[str, Any] | None = None,
-           compose: Callable[..., Any] | None = None,
-           on_event: Callable[[Event], None] | None = None) -> Turn:
-    """Answer one Early Warning question, or decline for a stated reason.
+def answer(question: str, **kwargs: Any) -> Turn:
+    """Answer one Early Warning question, and record what it read.
+
+    The domain rule -- Early Warning answers from the Early Warning snapshots
+    and nothing else -- is enforced at the door, in `v2_service._load`. This
+    wrapper observes it: every dataset the turn touches is collected and
+    written onto the turn and its packet, so a trace can show which datasets
+    an answer came from rather than repeating the rule back.
+
+    The recording is context-local, so two turns running at once -- which is
+    now the normal case, one thread each -- cannot be credited with each
+    other's reads.
+    """
+    with dom.recording() as seen:
+        turn = _answer(question, **kwargs)
+    turn.datasets_read = tuple(sorted(seen))
+    if turn.packet is not None:
+        turn.packet.datasets_read = turn.datasets_read
+    return turn
+
+
+def _answer(question: str, *, thread_id: str = "",
+            ui_state: dict[str, Any] | None = None,
+            rolling_summary: dict[str, Any] | None = None,
+            recent: list[dict[str, Any]] | None = None,
+            mode: str = budget_mod.STANDARD,
+            permissions: dict[str, Any] | None = None,
+            compose: Callable[..., Any] | None = None,
+            on_event: Callable[[Event], None] | None = None) -> Turn:
+    """The turn itself.
 
     `on_event` is handed every event as it is recorded, so a caller can show
     the turn happening rather than only its result. It is an observer and

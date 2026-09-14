@@ -49,11 +49,13 @@ logger = logging.getLogger(__name__)
 #: The catalogue heading the business-domain map claims for Early Warning.
 #: It must match `backend.services.data_domains`' entry exactly, or the
 #: datasets land under "unplaced" and the card stays empty for a new reason.
-CATALOGUE_DOMAIN = "Early Warning"
+from backend.early_warning import domain as dom
 
-BORROWER_MONTH = "early_warning_borrower_month"
-SIGNAL_OBSERVATION = "early_warning_signal_observation"
-EXTERNAL_EVENT = "early_warning_external_event_synthetic"
+CATALOGUE_DOMAIN = dom.DOMAIN
+
+BORROWER_MONTH = dom.BORROWER_MONTH
+SIGNAL_OBSERVATION = dom.SIGNAL_OBSERVATION
+EXTERNAL_EVENT = dom.EXTERNAL_EVENT
 
 #: The analytical grain. One row per customer per published month — the thing
 #: every Early Warning answer is ultimately about.
