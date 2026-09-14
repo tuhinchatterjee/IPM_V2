@@ -315,6 +315,12 @@ class RunRecord:
     release_id: str
     state: str
     version: int
+    #: Which BOOK this run was accepted in, and the exact bytes it was
+    #: accepted against. Read by the worker rather than re-derived, so a run
+    #: settled after the reader switched the page still reads the book it
+    #: was asked in.
+    domain_id: str = _DEFAULT_DOMAIN
+    release_fingerprint: str = ""
     error_code: str = ""
     error_id: str = ""
     operation: str = ""
@@ -559,7 +565,10 @@ class RunStore:
                    principal_id: str, question: str, mode: str,
                    release_id: str, ui_filters: dict[str, Any],
                    idempotency_key: str, body_digest: str,
-                   startup_sha: str, deadline_at: str) -> tuple[RunRecord, bool]:
+                   startup_sha: str, deadline_at: str,
+                   domain_id: str = "",
+                   release_fingerprint: str = ""
+                   ) -> tuple[RunRecord, bool]:
         """Persist the run AND its outbox row in one transaction.
 
         Returning `(record, created)`. A lost HTTP acceptance response must
@@ -585,11 +594,13 @@ class RunStore:
             now = _now()
             conn.execute(
                 "INSERT INTO runs(run_id, thread_id, tenant_id, principal_id,"
-                " question, mode, release_id, ui_filters, state, version,"
+                " question, mode, release_id, domain_id,"
+                " release_fingerprint, ui_filters, state, version,"
                 " startup_sha, created_at, updated_at, deadline_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (run_id, thread_id, tenant_id, principal_id, question, mode,
-                 release_id, json.dumps(ui_filters), "ACCEPTED", 0,
+                 release_id, domain_id or _DEFAULT_DOMAIN,
+                 release_fingerprint, json.dumps(ui_filters), "ACCEPTED", 0,
                  startup_sha, now, now, deadline_at))
             conn.execute(
                 "INSERT INTO outbox(run_id, claimed, created_at) "
@@ -613,7 +624,13 @@ class RunStore:
             run_id=row["run_id"], thread_id=row["thread_id"],
             tenant_id=row["tenant_id"], principal_id=row["principal_id"],
             question=row["question"], mode=row["mode"],
-            release_id=row["release_id"], state=row["state"],
+            release_id=row["release_id"],
+            domain_id=(row["domain_id"] if "domain_id" in row.keys()
+                       else _DEFAULT_DOMAIN) or _DEFAULT_DOMAIN,
+            release_fingerprint=(row["release_fingerprint"]
+                                 if "release_fingerprint" in row.keys()
+                                 else "") or "",
+            state=row["state"],
             version=int(row["version"]), error_code=row["error_code"],
             error_id=row["error_id"], operation=row["operation"],
             final_response=(json.loads(row["final_response"])

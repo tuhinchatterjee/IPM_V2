@@ -140,7 +140,7 @@ def test_coverage_says_that_twenty_slots_are_not_twenty_observations(
     """V4-AT-033."""
     result = catalog_service.inspect(request(detail=["coverage"]))
     assert len(result["coverage"]["reporting_quarters"]) == 20
-    assert "not twenty observations" in result["coverage"]["note"]
+    assert "are not 20 observations" in result["coverage"]["note"]
 
 
 def test_sufficient_starting_context_allows_execution_without_a_lookup(

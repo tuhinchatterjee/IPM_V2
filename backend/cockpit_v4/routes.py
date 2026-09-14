@@ -208,13 +208,18 @@ async def start_run(body: StartRun, request: Request,
     # A book that can be browsed but not yet asked is refused HERE, before a
     # model call is paid for and before a thread is left holding a question
     # nothing can answer.
-    if not resolver.analysis_supported(scope.domain_id):
-        exc = resolver.AnalysisNotWiredForDomain(scope.domain_id)
+    asked_tenant = tenant or lake_mod.DEFAULT_TENANT
+    if not resolver.analysis_supported(scope.domain_id,
+                                       tenant_id=asked_tenant):
+        exc = resolver.AnalysisNotWiredForDomain(scope.domain_id,
+                                                 tenant_id=asked_tenant)
         raise HTTPException(503, {
             "error_code": st.DATA_UNAVAILABLE,
             "message": str(exc),
             "domain_id": exc.domain_id,
-            "analysis_domains": list(resolver.ANALYSIS_DOMAINS)})
+            "provision_command": resolver.provision_command(exc.domain_id),
+            "analysis_domains": list(
+                resolver.analysis_domains(tenant_id=asked_tenant))})
 
     if not thread_id:
         thread_id = store.create_thread(
@@ -267,7 +272,13 @@ async def start_run(body: StartRun, request: Request,
             ui_filters=dict(body.ui_filters),
             idempotency_key=idempotency_key, body_digest=digest,
             startup_sha=str(_STATE.get("startup_sha") or ""),
-            deadline_at=deadline_at)
+            deadline_at=deadline_at,
+            # The book, and the exact bytes, this run was ACCEPTED against.
+            # The worker reads these rather than re-resolving, so a run that
+            # settles after the reader switched the page still reads the
+            # book it was asked in.
+            domain_id=scope.domain_id,
+            release_fingerprint=scope.release_fingerprint)
     except IdempotencyConflict as exc:
         raise HTTPException(409, {"error_code": "IDEMPOTENCY_CONFLICT",
                                   "message": str(exc)}) from exc
@@ -503,10 +514,11 @@ async def domain_list(who: dict[str, Any] = Depends(principal)
     body = resolver.availability(tenant_id=tenant).to_dict()
     # Browsable is not the same as askable, and the switch needs to know the
     # difference so it can offer the book without promising an answer.
-    body["analysis_domains"] = list(resolver.ANALYSIS_DOMAINS)
+    body["analysis_domains"] = list(
+        resolver.analysis_domains(tenant_id=tenant))
     for entry in body["domains"]:
-        entry["analysis_ready"] = resolver.analysis_supported(
-            entry["domain_id"])
+        entry["analysis_ready"] = entry["domain_id"] in \
+            body["analysis_domains"]
     return body
 
 

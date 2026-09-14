@@ -365,17 +365,24 @@ class CatalogService:
                 else _declared_joins(requested_relations or relations))
 
         if "coverage" in detail:
+            from backend.cockpit_v4 import semantics as sem
+
             calendar = getattr(self.catalog, "calendar", None)
+            noun = sem.period_noun(self.catalog)
+            slots = list(getattr(calendar, "slots", ()) or ())
             out["coverage"] = {
-                "reporting_quarters": list(getattr(calendar, "slots", ()) or ()),
-                "populated_quarters": list(
+                "reporting_frequency": sem.frequency(self.catalog),
+                f"reporting_{noun}s": slots,
+                f"populated_{noun}s": list(
                     getattr(calendar, "populated", ()) or ()),
-                "missing_quarters": list(
+                f"missing_{noun}s": list(
                     getattr(calendar, "missing", ()) or ()),
-                "note": ("Twenty calendar slots are not twenty observations "
-                         "for every facility. A facility that originated "
-                         "part-way through the window legitimately has fewer "
-                         "rows."),
+                "note": (f"{len(slots)} calendar slots are not {len(slots)} "
+                         f"observations for every row: a facility, an "
+                         f"account or a borrower that originated part-way "
+                         f"through the window legitimately has fewer "
+                         f"{noun}s, and a coverage figure read as though it "
+                         f"had all of them is wrong by exactly that gap."),
             }
 
         if "samples" in detail and request.sample_rows:
@@ -482,7 +489,7 @@ class CatalogService:
             return {"status": "unavailable",
                     "reason": ("No execution session is open, so no sample "
                                "can be read. This is not an empty table.")}
-        from backend.cockpit_agentic import sql as v3_sql
+        from backend.cockpit_v4 import sql as v4_sql
 
         out: dict[str, Any] = {"note": (
             "Masked sample rows of the requested columns only. These are "
@@ -498,7 +505,7 @@ class CatalogService:
                 available[:MAX_SAMPLE_COLUMNS]
             projection = ", ".join(f'"{c}"' for c in selected)
             try:
-                result = v3_sql.execute(
+                result = v4_sql.execute(
                     f"SELECT {projection} FROM {relation} LIMIT {rows}",
                     self.session, deadline_seconds=5.0, max_rows=rows)
                 out[relation] = {

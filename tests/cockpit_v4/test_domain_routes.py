@@ -218,26 +218,51 @@ def test_the_offered_action_really_opens_a_thread_in_the_other_book(
         dom.CORPORATE
 
 
-# ---- browsable is not the same as askable ------------------------------
+# ---- both books can be asked, and only while they can be opened --------
 
-def test_a_book_that_cannot_be_asked_yet_refuses_before_paying_for_it(
-        client):
-    """§5, §55. Fail closed rather than answer from the wrong book.
+def test_both_books_accept_a_question(client):
+    """§9. The temporary Retail refusal is gone because Retail executes.
 
-    Retail is published, its dashboard is live and its schema browses. The
-    ANALYTICAL path is still bound to the corporate release, so a retail
-    question would run its SQL against the corporate catalogue and come back
-    fluent, wrong, and silent about which book it came from.
-
-    That is the exact defect the domain model exists to prevent, so the
-    question is refused at acceptance -- before a model call is paid for and
-    before a thread is left holding a question nothing can answer -- with a
-    message saying what IS available.
+    The proof that it executes is `test_domain_execution.py`, which runs
+    retail SQL in a retail session and checks every figure against a pandas
+    oracle. This is the acceptance half: a retail question is taken, and it
+    opens a retail thread rather than a corporate one.
     """
+    for domain_id, question in (
+            (dom.CORPORATE, "What is EAD by sector for the latest month?"),
+            (dom.RETAIL, "Which products saw the largest Stage 2 increase?")):
+        accepted = client.post(f"{P}/runs", json={
+            "question": question, "mode": "standard", "domain": domain_id})
+        assert accepted.status_code == 202, accepted.text
+        thread_id = accepted.json()["thread_id"]
+        assert client.get(f"{P}/threads/{thread_id}").json()["domain_id"] == \
+            domain_id
+
+
+def test_a_book_whose_runtime_cannot_be_opened_is_refused_before_paying(
+        client, monkeypatch):
+    """§5, §9, §55. Askable is established per request, never assumed.
+
+    Retail is wired, so the refusal is no longer a statement about the
+    build. It is still a statement about the RUNTIME: a deployment where the
+    retail release cannot be opened must refuse the question at acceptance
+    -- before a model call is paid for and before a thread is left holding a
+    question nothing can answer -- rather than reach for the other book.
+
+    The failure is injected where it really happens: opening the book.
+    """
+    from backend.cockpit_v4 import analytical_runtime as arun
     from backend.cockpit_v4 import domain_resolver as resolver
 
-    if resolver.analysis_supported(dom.RETAIL):
-        pytest.skip("retail analysis is wired; this refusal no longer applies")
+    real = arun.for_domain
+
+    def refuse_retail(domain_id, **kwargs):
+        if domain_id == dom.RETAIL:
+            raise arun.AnalyticalRuntimeUnavailable(
+                "release 'v4-saudi-retail-20m-v1' is not published.")
+        return real(domain_id, **kwargs)
+
+    monkeypatch.setattr(arun, "for_domain", refuse_retail)
 
     refused = client.post(f"{P}/runs", json={
         "question": "Which products saw the largest Stage 2 increase?",
@@ -248,21 +273,21 @@ def test_a_book_that_cannot_be_asked_yet_refuses_before_paying_for_it(
     assert detail["analysis_domains"] == [dom.CORPORATE]
     assert "answer from the wrong book" in detail["message"]
     assert "Data Builder" in detail["message"]
+    assert "seed_domains.py" in detail["provision_command"]
+    assert resolver.analysis_supported(dom.CORPORATE), (
+        "one book being unopenable must not disable the other")
 
-
-def test_the_book_that_can_be_asked_still_answers(client):
-    accepted = client.post(f"{P}/runs", json={
+    # And the corporate question is still taken, in the same runtime.
+    assert client.post(f"{P}/runs", json={
         "question": "What is EAD by sector for the latest month?",
-        "mode": "standard", "domain": "corporate"})
-    assert accepted.status_code == 202, accepted.text
+        "mode": "standard", "domain": "corporate"}).status_code == 202
 
 
 def test_the_switch_is_told_which_books_can_be_asked(client):
     """A control that offers a book must not promise an answer it cannot give."""
     body = client.get(f"{P}/domains").json()
-    assert body["analysis_domains"] == [dom.CORPORATE]
+    assert body["analysis_domains"] == [dom.CORPORATE, dom.RETAIL]
     by_id = {d["domain_id"]: d for d in body["domains"]}
-    assert by_id[dom.CORPORATE]["analysis_ready"] is True
-    assert by_id[dom.RETAIL]["ready"] is True, (
-        "retail is published and browsable")
-    assert by_id[dom.RETAIL]["analysis_ready"] is False
+    for domain_id in dom.DOMAIN_IDS:
+        assert by_id[domain_id]["ready"] is True
+        assert by_id[domain_id]["analysis_ready"] is True

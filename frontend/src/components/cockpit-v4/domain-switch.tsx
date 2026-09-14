@@ -51,8 +51,9 @@ export function DomainSwitch({
             title={
               domain.ready
                 ? domain.analysis_ready === false
-                  ? "Browsable in Data Builder. Questions in this book are " +
-                    "not answerable in this build."
+                  ? "Browsable in Data Builder. This runtime cannot open " +
+                    "this book's analytical release, so a question here " +
+                    "would have nothing to run against."
                   : undefined
                 : domain.reason
             }

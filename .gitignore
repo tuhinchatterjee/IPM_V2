@@ -79,3 +79,8 @@ data/cockpit_v4/
 # parquet would version an artefact the source already determines.
 data/cockpit_v4_lake/
 .cockpit_v4_runtime/
+
+# A stray directory literally named "sqlite:" appears when a suite outside the
+# Cockpit passes a DSN where a path was expected. Ignored so a test run cannot
+# commit one; it is not produced by any Cockpit code path.
+sqlite:/

@@ -44,7 +44,7 @@ from typing import Any
 #: Every field here exists in `cockpit_facility_quarter` in the pinned
 #: release. A term whose field is absent from a release is dropped from the
 #: mapping rather than offered and then failing to bind.
-_MEASURES: tuple[tuple[str, str, str, str, str], ...] = (
+_LEGACY_MEASURES: tuple[tuple[str, str, str, str, str], ...] = (
     ("exposure at default", "cockpit_facility_quarter", "ead_reported",
      "Reported exposure at default.",
      "EAD has one recorded meaning in this domain. `ead_pit` and `ead_ttc` "
@@ -119,25 +119,320 @@ _MEASURES: tuple[tuple[str, str, str, str, str], ...] = (
      "Borrower grain. A lower rank is a stronger grade."),
 )
 
-#: Terms with more than one defensible reading in this catalogue. These are
-#: the ones worth a question, and the only ones.
-AMBIGUOUS_TERMS: dict[str, tuple[str, ...]] = {
-    "exposure": ("ead_reported", "gross_carrying_amount", "drawn_balance"),
+#: The Corporate book of the dual-domain Cockpit. Wholesale: a named obligor
+#: holds facilities, security is pledged against a facility, and a covenant
+#: tests one. "Customer" therefore means BORROWER here, and it means something
+#: else one book over -- which is exactly why this table is per domain rather
+#: than one dictionary with a domain column.
+_CORPORATE_MEASURES: tuple[tuple[str, str, str, str, str], ...] = (
+    ("exposure at default", "corp_facility_month", "ead_sar_mn",
+     "Exposure at default, in SAR million.",
+     "EAD has one recorded meaning in this book. `limit_sar_mn` is the "
+     "committed limit and `drawn_sar_mn` is the drawn balance; neither is "
+     "EAD."),
+    ("ead", "corp_facility_month", "ead_sar_mn",
+     "Exposure at default, in SAR million.", "The same field."),
+    ("ecl", "corp_facility_month", "ecl_sar_mn",
+     "Recognised expected credit loss, in SAR million.",
+     "The recognised figure. `ecl_12m_sar_mn` and `ecl_lifetime_sar_mn` are "
+     "the two stage bases; the recognised number is the one the book "
+     "carries."),
+    ("expected credit loss", "corp_facility_month", "ecl_sar_mn",
+     "Recognised expected credit loss, in SAR million.", "As for ECL."),
+    ("12-month ecl", "corp_facility_month", "ecl_12m_sar_mn",
+     "12-month ECL, in SAR million.", "Named explicitly by the question."),
+    ("lifetime ecl", "corp_facility_month", "ecl_lifetime_sar_mn",
+     "Lifetime ECL, in SAR million.", "Named explicitly by the question."),
+    ("stage", "corp_facility_month", "stage",
+     "IFRS 9 stage, recorded as 1, 2 or 3.",
+     "The recorded stage. `sicr_flag` is the trigger, not the stage."),
+    ("stage 1", "corp_facility_month", "stage", "stage = 1.",
+     "Performing, 12-month ECL."),
+    ("stage 2", "corp_facility_month", "stage", "stage = 2.",
+     "Significant increase in credit risk, lifetime ECL."),
+    ("stage 3", "corp_facility_month", "stage", "stage = 3.",
+     "Credit-impaired, lifetime ECL."),
+    ("sicr", "corp_facility_month", "sicr_flag",
+     "Significant-increase-in-credit-risk trigger, 0 or 1.",
+     "The trigger. The stage it produces is `stage`."),
+    ("default", "corp_facility_month", "default_flag",
+     "Default marker, 0 or 1.", "Recorded, not derived from DPD."),
+    ("pd", "corp_facility_month", "pd_pit_12m",
+     "Point-in-time 12-month probability of default.",
+     "`pd_lifetime` is a different measure and must be named. The borrower "
+     "relation also records `pd_ttc_12m`, which is through-the-cycle."),
+    ("lgd", "corp_facility_month", "lgd_pct",
+     "Loss given default, as a percentage.",
+     "Recorded at facility grain, in percent rather than a 0-1 fraction."),
+    ("days past due", "corp_facility_month", "dpd_days",
+     "Days past due at the reporting date.", "Recorded, not derived."),
+    ("utilisation", "corp_facility_month", "utilisation_pct",
+     "Drawn as a percentage of limit.",
+     "Recorded. Computing drawn/limit instead is the same idea but a "
+     "different number where either side is null."),
+    ("limit", "corp_facility_month", "limit_sar_mn",
+     "Committed limit, in SAR million.", "Not EAD and not drawn."),
+    ("drawn", "corp_facility_month", "drawn_sar_mn",
+     "Drawn balance, in SAR million.", "Not EAD."),
+    ("facility", "corp_facility_month", "facility_id",
+     "Facility, the grain of corp_facility_month.",
+     "One row per facility per reporting month."),
+    ("facility type", "corp_facility_month", "facility_type",
+     "Recorded facility type.", "A product-like dimension for wholesale."),
+    ("sector", "corp_borrower_month", "sector",
+     "Recorded sector. `sub_sector` is the level below it.",
+     "The primary segment dimension of this book."),
+    ("segment", "corp_borrower_month", "sector",
+     "Sector, this book's primary segment dimension.",
+     "`relationship_tier` and `region` are the other two."),
+    ("region", "corp_borrower_month", "region", "Recorded region.",
+     "Also carried on corp_facility_month for facility-grain work."),
+    ("borrower", "corp_borrower_month", "borrower_id",
+     "Borrower, identified by borrower_id with borrower_name for display.",
+     "One borrower holds several facilities: a facility-grain sum repeats "
+     "nothing, but a borrower-grain measure needs an explicit "
+     "aggregation."),
+    ("customer", "corp_borrower_month", "borrower_id",
+     "In the Corporate book a customer IS the borrower.",
+     "This is a wholesale book. There is no separate retail customer here; "
+     "that is the other book."),
+    ("obligor", "corp_borrower_month", "borrower_id", "The borrower.",
+     "One recorded counterparty."),
+    ("group", "corp_borrower_month", "group_id",
+     "Parent group, with group_name for display.",
+     "Several borrowers may share one group: a group total needs an "
+     "explicit aggregation."),
+    ("rating", "corp_borrower_month", "rating_current",
+     "Current internal rating, with rating_previous for the move.",
+     "`rating_notches_moved` is the recorded movement; do not recompute it "
+     "from the two grades unless the question asks for that."),
+    ("leverage", "corp_borrower_month", "leverage_x",
+     "Net debt to EBITDA, in times.", "Recorded, not derived."),
+    ("dscr", "corp_borrower_month", "dscr_x",
+     "Debt service coverage ratio, in times.", "Recorded."),
+    ("interest cover", "corp_borrower_month", "interest_cover_x",
+     "Interest coverage, in times.", "Recorded."),
+    ("ebitda", "corp_borrower_month", "ebitda_sar_mn",
+     "EBITDA, in SAR million.", "Borrower grain, not facility grain."),
+    ("revenue", "corp_borrower_month", "revenue_sar_mn",
+     "Revenue, in SAR million.", "Borrower grain."),
+    ("collateral", "corp_collateral_month", "allocated_value_sar_mn",
+     "Collateral value allocated to the facility, in SAR million.",
+     "`market_value_sar_mn` is before the haircut; the allocated value is "
+     "what supports the facility."),
+    ("collateral coverage", "corp_collateral_month", "coverage_pct",
+     "Recorded collateral coverage, as a percentage.",
+     "Collateral item grain: a facility with two items has two rows."),
+    ("ltv", "corp_collateral_month", "ltv_pct",
+     "Loan to value, as a percentage.", "Collateral item grain."),
+    ("covenant", "corp_covenant_month", "covenant_id",
+     "Covenant test, the grain of corp_covenant_month.",
+     "One row per covenant test per facility per month."),
+    ("covenant breach", "corp_covenant_month", "breach_flag",
+     "Breach marker, 0 or 1, with test_status in words.",
+     "`waiver_flag` records that a breach was waived; it does not undo the "
+     "breach."),
+    ("headroom", "corp_covenant_month", "headroom_pct",
+     "Covenant headroom, as a percentage.",
+     "Negative headroom is a breach."),
+)
+
+#: The Retail book. A customer holds accounts; an account has a product, a
+#: vintage and a behaviour score. Nothing here is a borrower and nothing here
+#: has a covenant.
+_RETAIL_MEASURES: tuple[tuple[str, str, str, str, str], ...] = (
+    ("exposure at default", "retail_account_month", "ead_sar_mn",
+     "Exposure at default, in SAR million.",
+     "`limit_sar_mn` is the limit and `balance_sar_mn` the balance; neither "
+     "is EAD. `retail_customer_month.total_ead_sar_mn` is the SAME exposure "
+     "already summed to the customer."),
+    ("ead", "retail_account_month", "ead_sar_mn",
+     "Exposure at default, in SAR million.", "The same field."),
+    ("ecl", "retail_account_month", "ecl_sar_mn",
+     "Recognised expected credit loss, in SAR million.",
+     "`ecl_12m_sar_mn` and `ecl_lifetime_sar_mn` are the two stage bases. "
+     "`retail_customer_month.total_ecl_sar_mn` is the same ECL summed to "
+     "the customer: adding both relations double-counts it."),
+    ("expected credit loss", "retail_account_month", "ecl_sar_mn",
+     "Recognised expected credit loss, in SAR million.", "As for ECL."),
+    ("12-month ecl", "retail_account_month", "ecl_12m_sar_mn",
+     "12-month ECL, in SAR million.", "Named explicitly by the question."),
+    ("lifetime ecl", "retail_account_month", "ecl_lifetime_sar_mn",
+     "Lifetime ECL, in SAR million.", "Named explicitly by the question."),
+    ("stage", "retail_account_month", "stage",
+     "IFRS 9 stage, recorded as 1, 2 or 3.",
+     "Account grain. `retail_customer_month.worst_stage` is the worst stage "
+     "across that customer's accounts, which is a different statement."),
+    ("stage 1", "retail_account_month", "stage", "stage = 1.",
+     "Performing, 12-month ECL."),
+    ("stage 2", "retail_account_month", "stage", "stage = 2.",
+     "Significant increase in credit risk, lifetime ECL."),
+    ("stage 3", "retail_account_month", "stage", "stage = 3.",
+     "Credit-impaired, lifetime ECL."),
+    ("sicr", "retail_account_month", "sicr_flag",
+     "Significant-increase-in-credit-risk trigger, 0 or 1.",
+     "The trigger, not the stage."),
+    ("default", "retail_account_month", "default_flag",
+     "Default marker, 0 or 1.", "Recorded."),
+    ("pd", "retail_account_month", "pd_pit_12m",
+     "Point-in-time 12-month probability of default.",
+     "`pd_lifetime` is a different measure and must be named."),
+    ("lgd", "retail_account_month", "lgd_pct",
+     "Loss given default, as a percentage.", "Account grain."),
+    ("days past due", "retail_account_month", "dpd_days",
+     "Days past due at the reporting date.",
+     "`delinquency_bucket` is the recorded banding of it."),
+    ("delinquency", "retail_account_month", "delinquency_bucket",
+     "Recorded delinquency bucket.",
+     "The banding the book uses. `dpd_days` is the underlying count."),
+    ("write-off", "retail_account_month", "write_off_sar_mn",
+     "Amount written off in the month, in SAR million.",
+     "A flow, not a balance: summing it across months is a cumulative "
+     "write-off, and summing it across accounts within one month is that "
+     "month's write-off."),
+    ("recovery", "retail_account_month", "recovery_sar_mn",
+     "Amount recovered in the month, in SAR million.", "A flow, as above."),
+    ("cure", "retail_account_month", "cure_flag",
+     "Cure marker, 0 or 1, for an account that returned to performing.",
+     "Recorded in the month the cure happened."),
+    ("utilisation", "retail_account_month", "utilisation_pct",
+     "Balance as a percentage of limit.",
+     "Recorded. `retail_behaviour_month.utilisation_change_pp` is its "
+     "movement, in percentage points."),
+    ("limit", "retail_account_month", "limit_sar_mn",
+     "Credit limit, in SAR million.", "Not EAD."),
+    ("balance", "retail_account_month", "balance_sar_mn",
+     "Outstanding balance, in SAR million.", "Not EAD."),
+    ("product", "retail_account_month", "product",
+     "Recorded product: the primary segment dimension of this book.",
+     "This book's equivalent of the Corporate sector. There is no sector "
+     "here."),
+    ("segment", "retail_account_month", "product",
+     "Product, this book's primary segment dimension.",
+     "`customer_segment`, `region`, `score_band` and `vintage_year` are the "
+     "others."),
+    ("customer segment", "retail_customer_month", "customer_segment",
+     "Recorded customer segment.",
+     "Also carried on the account relation for account-grain work."),
+    ("region", "retail_account_month", "region", "Recorded region.",
+     "Also carried on retail_customer_month."),
+    ("vintage", "retail_account_month", "vintage_year",
+     "Origination vintage year, with origination_month for the exact date.",
+     "`months_on_book` is the elapsed time since origination."),
+    ("account", "retail_account_month", "account_id",
+     "Account, the grain of retail_account_month.",
+     "One row per account per reporting month."),
+    ("customer", "retail_customer_month", "customer_id",
+     "Retail customer, the grain of retail_customer_month.",
+     "One customer holds several accounts: an account-grain sum repeats "
+     "nothing, but a customer-grain measure needs an explicit aggregation. "
+     "There is no borrower in this book."),
+    ("behaviour score", "retail_customer_month", "behaviour_score",
+     "Behaviour score, with behaviour_score_previous for the move.",
+     "`behaviour_score_change` is the recorded movement and "
+     "`score_migration` the banded description of it."),
+    ("score band", "retail_customer_month", "score_band",
+     "Recorded behaviour score band.",
+     "`score_band_previous` is last month's band."),
+    ("tenure", "retail_customer_month", "tenure_months",
+     "Months the customer has been on book.",
+     "Customer grain. `months_on_book` is the account equivalent."),
+    ("payment ratio", "retail_behaviour_month", "payment_ratio_pct",
+     "Payment as a percentage of the amount due.", "Account grain."),
+    ("missed payments", "retail_behaviour_month", "missed_payments_12m",
+     "Missed payments in the last twelve months.", "Recorded, not derived."),
+    ("collateral", "retail_collateral_month", "collateral_value_sar_mn",
+     "Collateral value, in SAR million.",
+     "SECURED accounts only. An unsecured account has no row here, so an "
+     "inner join silently drops it."),
+    ("ltv", "retail_collateral_month", "ltv_pct",
+     "Loan to value, as a percentage.", "Secured accounts only."),
+    ("collateral coverage", "retail_collateral_month",
+     "collateral_coverage_pct", "Recorded collateral coverage.",
+     "Secured accounts only."),
+)
+
+#: term -> candidate fields, per book. A term is listed only where the
+#: catalogue genuinely records two readings that produce different numbers.
+_AMBIGUOUS_BY_DOMAIN: dict[str, dict[str, tuple[str, ...]]] = {
+    "": {"exposure": ("ead_reported", "gross_carrying_amount",
+                      "drawn_balance")},
+    "corporate": {"exposure": ("ead_sar_mn", "limit_sar_mn",
+                               "drawn_sar_mn")},
+    "retail": {"exposure": ("ead_sar_mn", "limit_sar_mn",
+                            "balance_sar_mn")},
 }
 
-_PERIOD_PHRASES = {
-    "latest quarter": "latest_quarter",
-    "latest reporting quarter": "latest_quarter",
-    "most recent quarter": "latest_quarter",
-    "this quarter": "latest_quarter",
-    "current quarter": "latest_quarter",
-    "previous quarter": "prior_quarter",
-    "prior quarter": "prior_quarter",
-    "last quarter": "prior_quarter",
-    "quarter on quarter": "quarter_on_quarter",
-    "quarter-on-quarter": "quarter_on_quarter",
-    "over the latest quarter": "quarter_on_quarter",
-    "latest-quarter change": "quarter_on_quarter",
+#: Terms with more than one defensible reading in the legacy catalogue.
+AMBIGUOUS_TERMS: dict[str, tuple[str, ...]] = _AMBIGUOUS_BY_DOMAIN[""]
+
+_MEASURES_BY_DOMAIN: dict[
+    str, tuple[tuple[str, str, str, str, str], ...]] = {
+    "": _LEGACY_MEASURES,
+    "corporate": _CORPORATE_MEASURES,
+    "retail": _RETAIL_MEASURES,
+}
+
+
+def domain_of(catalog: Any) -> str:
+    """Which book this catalogue is. Empty means the legacy one.
+
+    Read off the catalogue that was handed in, never off a module constant:
+    a process serves both books at once and the answer differs per run.
+    """
+    return str(getattr(catalog, "domain_id", "") or "")
+
+
+def measure_table(catalog: Any) -> tuple[tuple[str, str, str, str, str], ...]:
+    """The canonical term table of THIS book."""
+    return _MEASURES_BY_DOMAIN.get(domain_of(catalog), _LEGACY_MEASURES)
+
+
+def ambiguous_terms(catalog: Any = None) -> dict[str, tuple[str, ...]]:
+    """The terms worth a question in THIS book."""
+    return _AMBIGUOUS_BY_DOMAIN.get(domain_of(catalog), AMBIGUOUS_TERMS)
+
+#: Period vocabulary, by the frequency the book actually reports on. A
+#: monthly book asked about "last quarter" is being asked something its
+#: calendar does not define, and answering with a month would be substituting.
+_PERIOD_PHRASES: dict[str, dict[str, str]] = {
+    "quarterly": {
+        "latest quarter": "latest_period",
+        "latest reporting quarter": "latest_period",
+        "most recent quarter": "latest_period",
+        "this quarter": "latest_period",
+        "current quarter": "latest_period",
+        "previous quarter": "prior_period",
+        "prior quarter": "prior_period",
+        "last quarter": "prior_period",
+        "quarter on quarter": "period_on_period",
+        "quarter-on-quarter": "period_on_period",
+        "over the latest quarter": "period_on_period",
+        "latest-quarter change": "period_on_period",
+    },
+    "monthly": {
+        "latest month": "latest_period",
+        "latest reporting month": "latest_period",
+        "most recent month": "latest_period",
+        "this month": "latest_period",
+        "current month": "latest_period",
+        "previous month": "prior_period",
+        "prior month": "prior_period",
+        "last month": "prior_period",
+        "month on month": "period_on_period",
+        "month-on-month": "period_on_period",
+        "over the latest month": "period_on_period",
+        "latest-month change": "period_on_period",
+    },
+}
+
+#: Phrases that mean the same thing whatever the reporting frequency.
+_COMMON_PERIOD_PHRASES: dict[str, str] = {
+    "latest period": "latest_period",
+    "latest reporting period": "latest_period",
+    "most recent period": "latest_period",
+    "previous period": "prior_period",
+    "prior period": "prior_period",
     "latest year": "year_on_year",
     "over the latest year": "year_on_year",
     "last year": "year_on_year",
@@ -150,7 +445,7 @@ _PERIOD_PHRASES = {
 def measures(catalog: Any = None) -> list[dict[str, str]]:
     """The canonical measure mappings this release can actually honour."""
     out: list[dict[str, str]] = []
-    for term, relation, field, meaning, note in _MEASURES:
+    for term, relation, field, meaning, note in measure_table(catalog):
         if catalog is not None:
             try:
                 if field not in set(catalog.columns(relation)):
@@ -162,7 +457,9 @@ def measures(catalog: Any = None) -> list[dict[str, str]]:
     return out
 
 
-#: The relation-level facts a query needs and a term mapping does not carry.
+#: Relation-level facts for the LEGACY catalogue, which does not carry them.
+#: A V4 catalogue states its own grain, period column and keys, and
+#: `_relation_facts` reads them from it rather than from this table.
 _RELATION_FACTS: dict[str, dict[str, str]] = {
     "cockpit_facility_quarter": {
         "grain": "one row per facility per reporting quarter",
@@ -231,9 +528,39 @@ def _field_facts(
         if getattr(spec, "currency_scoped", False):
             entry["currency"] = getattr(catalog, "reporting_currency", "")
             entry["amount_scale"] = getattr(catalog, "amount_scale", "")
-    facts = _RELATION_FACTS.get(relation, {})
+    facts = _relation_facts(catalog, relation)
     entry.update({k: v for k, v in facts.items() if v})
     return entry
+
+
+def _relation_facts(catalog: Any, relation: str) -> dict[str, str]:
+    """Grain, period column and keys, from the catalogue that owns them.
+
+    A catalogue that states these is asked; only one that does not falls back
+    to the static table. That is what lets one function serve two books whose
+    relations share no name.
+    """
+    getter = getattr(catalog, "spec", None)
+    if callable(getter):
+        try:
+            spec = getter(relation)
+        except Exception:  # noqa: BLE001
+            spec = None
+        if spec is not None:
+            keys = tuple(getattr(spec, "key_columns", ()) or ())
+            columns = set(getattr(spec, "columns", ()) or ())
+            owner = next((c for c in ("borrower_id", "customer_id")
+                          if c in columns), "")
+            facts = {
+                "grain": str(getattr(spec, "grain", "") or ""),
+                "period_field": str(getattr(spec, "period_column", "") or ""),
+                "key": keys[0] if keys else "",
+                "key_columns": ", ".join(keys),
+            }
+            if owner:
+                facts["counterparty_key"] = owner
+            return facts
+    return dict(_RELATION_FACTS.get(relation, {}))
 
 
 #: The fields a seeded investigation needs BEYOND the canonical measures,
@@ -303,6 +630,41 @@ SEED_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
 #: relation dump does by accident.
 MAX_SEED_FIELDS = 16
 
+#: The same idea for the dual-domain books, keyed by domain and then by the
+#: attention indicator the card was built on.
+#:
+#: Almost every V4 indicator is computed from columns of the book's own
+#: headline relation -- `ead_sar_mn`, `ecl_sar_mn`, `stage`, `dpd_days` --
+#: which `field_packet` already carries, so the honest entry is an empty
+#: tuple. The Corporate collateral card is the exception: its measure lives
+#: in `corp_collateral_month`, one relation over, and a seeded thread on it
+#: would otherwise have to ask for the whole relation to name a single field.
+SEED_FIELDS_BY_DOMAIN: dict[str, dict[str, tuple[tuple[str, str], ...]]] = {
+    "corporate": {
+        "ltv": (
+            ("corp_collateral_month", "collateral_id"),
+            ("corp_collateral_month", "facility_id"),
+            ("corp_collateral_month", "borrower_id"),
+            ("corp_collateral_month", "collateral_type"),
+            ("corp_collateral_month", "market_value_sar_mn"),
+            ("corp_collateral_month", "haircut_pct"),
+            ("corp_collateral_month", "allocated_value_sar_mn"),
+            ("corp_collateral_month", "coverage_pct"),
+            ("corp_collateral_month", "ltv_pct"),
+            ("corp_collateral_month", "valuation_age_months"),
+        ),
+        "stage2_share": (),
+        "ecl": (),
+        "ecl_coverage": (),
+        "past_due_share": (),
+    },
+    "retail": {
+        "stage2_share": (),
+        "ecl": (),
+        "dpd_share": (),
+    },
+}
+
 
 def seed_field_packet(catalog: Any, metric: str) -> list[dict[str, Any]]:
     """Schema facts for the fields THIS seeded investigation turns on.
@@ -313,7 +675,9 @@ def seed_field_packet(catalog: Any, metric: str) -> list[dict[str, Any]]:
     because "nothing extra" is the correct answer for every indicator whose
     measure the canonical packet already covers.
     """
-    wanted = SEED_FIELDS.get(str(metric or "").strip(), ())
+    book = SEED_FIELDS_BY_DOMAIN.get(domain_of(catalog))
+    table = SEED_FIELDS if book is None else book
+    wanted = table.get(str(metric or "").strip(), ())
     packet: list[dict[str, Any]] = []
     for relation, column in wanted:
         try:
@@ -364,66 +728,122 @@ def field_packet(catalog: Any) -> list[dict[str, Any]]:
     return packet
 
 
-def populated_quarters(catalog: Any) -> list[str]:
+def frequency(catalog: Any) -> str:
+    """How often this book reports. Read off its own calendar."""
+    calendar = getattr(catalog, "calendar", None)
+    value = str(getattr(calendar, "frequency", "") or "").strip().lower()
+    return value or "quarterly"
+
+
+def period_noun(catalog: Any) -> str:
+    return {"monthly": "month", "quarterly": "quarter"}.get(
+        frequency(catalog), "period")
+
+
+def populated_periods(catalog: Any) -> list[str]:
+    """The periods that actually hold rows, oldest first."""
     calendar = getattr(catalog, "calendar", None)
     return [str(q) for q in (getattr(calendar, "populated", ()) or ())]
 
 
-def periods(catalog: Any) -> dict[str, Any]:
-    """Deterministic period resolution for this release's own calendar.
+def populated_quarters(catalog: Any) -> list[str]:
+    """Kept for the quarterly legacy catalogue. Same list, older name."""
+    return populated_periods(catalog)
 
-    "Latest quarter" is the latest POPULATED quarter, not the latest slot the
-    calendar defines: a quarter with no rows is not a reporting period, and
-    silently comparing against one produces a movement that is entirely an
-    artefact of coverage.
+
+def periods(catalog: Any) -> dict[str, Any]:
+    """Deterministic period resolution against THIS book's own calendar.
+
+    "Latest" is the latest POPULATED period, not the latest slot the calendar
+    defines: a period with no rows is not a reporting period, and silently
+    comparing against one produces a movement that is entirely an artefact of
+    coverage.
+
+    The vocabulary follows the frequency. A monthly book says month, a
+    quarterly book says quarter, and the year-ago comparison steps back by
+    the right number of slots for each.
     """
-    quarters = populated_quarters(catalog)
-    if not quarters:
-        return {"populated_quarters": [], "resolution": {}}
-    latest = quarters[-1]
-    prior = quarters[-2] if len(quarters) >= 2 else ""
-    year_ago = quarters[-5] if len(quarters) >= 5 else ""
-    return {
-        "populated_quarters": quarters,
-        "latest_quarter": latest,
-        "prior_quarter": prior,
-        "same_quarter_last_year": year_ago,
+    slots = populated_periods(catalog)
+    noun = period_noun(catalog)
+    freq = frequency(catalog)
+    per_year = {"monthly": 12, "quarterly": 4}.get(freq, 4)
+    if not slots:
+        return {"reporting_frequency": freq, "period_noun": noun,
+                "populated_periods": [], "resolution": {}}
+    latest = slots[-1]
+    prior = slots[-2] if len(slots) >= 2 else ""
+    year_ago = slots[-(per_year + 1)] if len(slots) >= per_year + 1 else ""
+    body: dict[str, Any] = {
+        "reporting_frequency": freq,
+        "period_noun": noun,
+        "period_column": _period_column(catalog),
+        "populated_periods": slots,
+        "latest_period": latest,
+        "prior_period": prior,
+        f"same_{noun}_last_year": year_ago,
         "resolution": {
-            "latest quarter": latest,
-            "previous quarter": prior,
-            "quarter on quarter": (f"{latest} vs {prior}" if prior else ""),
-            "latest year (for a quarterly comparison)":
-                (f"{latest} vs {year_ago}" if year_ago else ""),
+            f"latest {noun}": latest,
+            f"previous {noun}": prior,
+            f"{noun} on {noun}": (f"{latest} vs {prior}" if prior else ""),
+            "over the latest year": (f"{latest} vs {year_ago}"
+                                     if year_ago else ""),
         },
         "rule": (
-            "'Latest quarter' is the latest POPULATED reporting quarter. A "
-            "latest-quarter CHANGE is that quarter against the previous "
-            "populated one. 'Over the latest year', for a quarterly measure, "
-            "is that quarter against the same quarter one year earlier. These "
-            "are resolutions, not assumptions to ask about."),
+            f"'Latest {noun}' is the latest POPULATED reporting {noun}. A "
+            f"latest-{noun} CHANGE is that {noun} against the previous "
+            f"populated one. 'Over the latest year' is that {noun} against "
+            f"the same {noun} one year earlier, which is {per_year} {noun}s "
+            f"back. These are resolutions, not assumptions to ask about. "
+            f"This book reports {freq}: a question asking for a period this "
+            f"calendar does not define is a question to ask back, not one to "
+            f"answer with the nearest thing."),
     }
+    if freq == "quarterly":
+        # The legacy quarterly vocabulary, for a reader and a packet that
+        # were written against it.
+        body["populated_quarters"] = slots
+        body["latest_quarter"] = latest
+        body["prior_quarter"] = prior
+    return body
 
 
-def period_phrases(question: str) -> list[str]:
+def _period_column(catalog: Any) -> str:
+    """The column carrying the reporting period in this book."""
+    getter = getattr(catalog, "spec", None)
+    if callable(getter):
+        for relation in (getattr(catalog, "relations", lambda: ())() or ()):
+            try:
+                column = str(getattr(getter(relation), "period_column", ""))
+            except Exception:  # noqa: BLE001
+                continue
+            if column:
+                return column
+    return "reporting_quarter"
+
+
+def period_phrases(question: str, catalog: Any = None) -> list[str]:
     """Which period phrases the question actually used. Deterministic."""
     text = re.sub(r"\s+", " ", (question or "").lower())
-    found = []
-    for phrase, kind in _PERIOD_PHRASES.items():
+    table = dict(_COMMON_PERIOD_PHRASES)
+    table.update(_PERIOD_PHRASES.get(frequency(catalog), {}))
+    found: list[str] = []
+    for phrase, kind in table.items():
         if phrase in text and kind not in found:
             found.append(kind)
     return found
 
 
-def ambiguous_terms_in(question: str) -> list[dict[str, Any]]:
+def ambiguous_terms_in(question: str,
+                       catalog: Any = None) -> list[dict[str, Any]]:
     """Terms that genuinely need a question, if the user used one of them.
 
     "Exposure at default" contains the word "exposure" and is NOT ambiguous,
     so the longer canonical term is checked first and wins.
     """
     text = re.sub(r"\s+", " ", (question or "").lower())
-    canonical = [term for term, *_ in _MEASURES if term in text]
+    canonical = [term for term, *_ in measure_table(catalog) if term in text]
     out = []
-    for term, options in AMBIGUOUS_TERMS.items():
+    for term, options in ambiguous_terms(catalog).items():
         if not re.search(rf"\b{re.escape(term)}\b", text):
             continue
         if any(term in longer and longer != term for longer in canonical):
@@ -437,12 +857,13 @@ def block(catalog: Any) -> dict[str, Any]:
     return {
         "canonical_measures": field_packet(catalog),
         "periods": periods(catalog),
+        "domain_id": domain_of(catalog),
         "terms_needing_a_question": {
             term: {"candidate_fields": list(options),
-                   "why": ("The catalogue records all three and they are "
+                   "why": ("The catalogue records all of these and they are "
                            "materially different figures. 'Exposure at "
                            "default' is NOT this case: it is EAD.")}
-            for term, options in AMBIGUOUS_TERMS.items()},
+            for term, options in ambiguous_terms(catalog).items()},
         "how_to_use": (
             "These are resolutions, not assumptions to ask about. Declare "
             "them in canonical_mappings or resolved_assumptions and proceed. "
@@ -456,6 +877,8 @@ def block(catalog: Any) -> dict[str, Any]:
     }
 
 
-__all__ = ["AMBIGUOUS_TERMS", "ambiguous_terms_in", "block", "field_packet",
-           "measures",
-           "period_phrases", "periods", "populated_quarters"]
+__all__ = ["AMBIGUOUS_TERMS", "MAX_SEED_FIELDS", "SEED_FIELDS",
+           "SEED_FIELDS_BY_DOMAIN", "ambiguous_terms", "ambiguous_terms_in",
+           "block", "domain_of", "field_packet", "frequency", "measure_table",
+           "measures", "period_noun", "period_phrases", "periods",
+           "populated_periods", "populated_quarters", "seed_field_packet"]

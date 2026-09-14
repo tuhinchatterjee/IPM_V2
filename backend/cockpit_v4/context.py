@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from backend.cockpit_v4 import DOMAIN, PROMPT_VERSION
+from backend.cockpit_v4 import PROMPT_VERSION
 from backend.cockpit_v4.config import Limits
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "analyst.md"
@@ -104,27 +104,50 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
           location: str = "", capability: Any = None,
           investigation: dict[str, Any] | None = None) -> Packet:
     """Assemble the packet. Never trims the instruction to hit a target."""
-    calendar = getattr(catalog, "calendar", None)
-    quarters = list(getattr(calendar, "slots", ()) or ())
-    populated = list(getattr(calendar, "populated", ()) or ())
+    from backend.cockpit_v4 import semantics as sem
 
-    pinned = {
-        "domain": DOMAIN,
-        "release_id": getattr(scope, "dataset_release_id", ""),
+    calendar = getattr(catalog, "calendar", None)
+    slots = list(getattr(calendar, "slots", ()) or ())
+    populated = list(getattr(calendar, "populated", ()) or ())
+    noun = sem.period_noun(catalog)
+
+    # WHICH BOOK, read off the catalogue this run was given. It used to be a
+    # module constant, which is exactly how a Retail thread could be handed a
+    # packet that told the analyst it was reading the corporate domain.
+    domain_id = sem.domain_of(catalog) or str(
+        release_summary.get("domain_id") or "")
+    domain_label = str(release_summary.get("domain_label") or "")
+
+    pinned: dict[str, Any] = {
+        "domain": domain_id,
+        "domain_label": domain_label,
+        "release_id": getattr(scope, "dataset_release_id", "")
+        or getattr(catalog, "dataset_release_id", ""),
+        "release_fingerprint": getattr(catalog, "release_fingerprint", ""),
         "tenant": "server-pinned; not settable from this conversation",
-        "reporting_quarters": quarters,
-        "populated_quarters": populated,
-        "latest_populated_quarter": populated[-1] if populated else "",
+        "reporting_frequency": sem.frequency(catalog),
+        f"reporting_{noun}s": slots,
+        f"populated_{noun}s": populated,
+        f"latest_populated_{noun}": populated[-1] if populated else "",
         "reporting_currency": getattr(catalog, "reporting_currency", ""),
         "amount_scale": getattr(catalog, "amount_scale", ""),
         "mode": mode,
         "ui_filters": dict(ui_filters or {}),
         "cockpit_location": location,
         "release": {k: release_summary.get(k) for k in
-                    ("dataset_release_id", "origin", "data_version",
-                     "not_client_data", "reporting_currency", "amount_scale")
+                    ("dataset_release_id", "domain_id", "domain_label",
+                     "release_fingerprint", "origin", "data_version",
+                     "not_client_data", "reporting_currency", "amount_scale",
+                     "reporting_frequency", "geography_name")
                     if k in release_summary},
     }
+    if domain_id:
+        pinned["domain_note"] = (
+            f"This thread reads the {domain_label or domain_id} book and "
+            f"nothing else. Its relations are the only ones open to it. A "
+            f"question about the other book is a question for a thread "
+            f"opened in that book: say so rather than answering it from "
+            f"here.")
 
     budget = {
         "mode": limits.mode,
@@ -150,7 +173,6 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
     } for t in turns]
 
     from backend.cockpit_v4 import product_knowledge as pk
-    from backend.cockpit_v4 import semantics as sem
 
     # Computed here, not guessed by the model: which product detail — if any
     # — this question names beyond what the synopsis below already carries.

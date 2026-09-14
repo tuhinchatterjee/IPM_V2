@@ -45,6 +45,66 @@ from backend.cockpit_v4 import schema as schema_mod
 
 MAX_CACHED_SESSIONS = 4
 
+#: How each book's relations join. Stated, because a model guessing a join
+#: key across a six-hundred-thousand-row retail book produces a cross product
+#: and a timeout rather than an error anyone can read.
+JOINS: dict[str, list[dict[str, Any]]] = {
+    dom.CORPORATE: [
+        {"left": "corp_facility_month", "right": "corp_borrower_month",
+         "on": ["borrower_id", "reporting_month"],
+         "cardinality": "many facility rows to one borrower row",
+         "note": "Every facility belongs to a borrower in the same month.",
+         "warning": ("A borrower's own figures -- revenue, EBITDA, debt, "
+                     "leverage -- repeat once per facility after this join. "
+                     "Aggregate the facility side first, or de-duplicate on "
+                     "borrower_id, before summing anything from the borrower "
+                     "side.")},
+        {"left": "corp_collateral_month", "right": "corp_facility_month",
+         "on": ["facility_id", "reporting_month"],
+         "cardinality": "many collateral items to one facility",
+         "note": "Security is held against a facility.",
+         "warning": ("A facility with three pledged assets appears three "
+                     "times. Summing ead_sar_mn across this join counts the "
+                     "same exposure once per asset. Sum the ALLOCATED "
+                     "collateral value against a de-duplicated facility "
+                     "total.")},
+        {"left": "corp_covenant_month", "right": "corp_facility_month",
+         "on": ["facility_id", "reporting_month"],
+         "cardinality": "many covenant tests to one facility",
+         "note": "A covenant tests a facility.",
+         "warning": ("A facility with four covenant tests appears four "
+                     "times. Untested is not compliant: a facility with no "
+                     "covenant row is absent from an inner join rather than "
+                     "counted as passing.")},
+    ],
+    dom.RETAIL: [
+        {"left": "retail_account_month", "right": "retail_customer_month",
+         "on": ["customer_id", "reporting_month"],
+         "cardinality": "many accounts to one customer",
+         "note": "Every account belongs to a customer in the same month.",
+         "warning": ("retail_customer_month already carries "
+                     "total_ead_sar_mn and total_ecl_sar_mn summed across "
+                     "that customer's accounts. Joining and summing them "
+                     "again counts each customer once per account held.")},
+        {"left": "retail_behaviour_month", "right": "retail_account_month",
+         "on": ["account_id", "reporting_month"],
+         "cardinality": "one behaviour row to one account",
+         "note": "Behavioural variables describe an account.",
+         "warning": ("One row each way, so this join repeats nothing. It is "
+                     "stated because the two relations share account_id and "
+                     "reporting_month and joining on account_id alone would "
+                     "cross every month with every other.")},
+        {"left": "retail_collateral_month", "right": "retail_account_month",
+         "on": ["account_id", "reporting_month"],
+         "cardinality": "one collateral row to one SECURED account",
+         "note": "Secured accounts only; unsecured accounts have no row.",
+         "warning": ("An inner join here silently drops every unsecured "
+                     "account, so a portfolio total computed across it is a "
+                     "secured-only total. Use a left join, or say that the "
+                     "figure is secured lending.")},
+    ],
+}
+
 
 class CrossDomainAccess(PermissionError):
     """A query reaching for the other book. Refused, and named as such."""
@@ -72,6 +132,21 @@ class Calendar:
     def last(self, count: int) -> tuple[str, ...]:
         return self.slots[-count:] if count > 0 else ()
 
+    # -- the shape catalogue consumers already read ----------------------
+    #
+    # A V4 release publishes only completed months, so every slot is
+    # populated and none is missing. These exist because the tools that read
+    # a calendar ask for them by name, and answering "all of them" honestly
+    # is better than each consumer discovering the attribute is absent.
+
+    @property
+    def populated(self) -> tuple[str, ...]:
+        return self.slots
+
+    @property
+    def missing(self) -> tuple[str, ...]:
+        return ()
+
 
 @dataclass(frozen=True)
 class Catalog:
@@ -84,6 +159,7 @@ class Catalog:
     tenant_id: str = lake.DEFAULT_TENANT
     reporting_currency: str = lake.CURRENCY
     amount_scale: str = lake.AMOUNT_SCALE
+    catalog_version: str = "v4.1"
 
     # -- what is here ----------------------------------------------------
 
@@ -124,6 +200,35 @@ class Catalog:
     def spec(self, relation: str) -> schema_mod.Relation:
         return schema_mod.relation(self.domain_id,
                                    self.require_relation(relation))
+
+    def outline(self) -> dict[str, Any]:
+        """This book at a glance: subject matter and size, not the dictionary.
+
+        Shaped as `{"relations": [...]}` because that is what the context
+        assembler reads. Each entry carries the relation's own name, so a
+        packet built from two books can never attribute one book's grain to
+        the other's relation.
+        """
+        return {
+            "domain_id": self.domain_id,
+            "domain_label": dom.LABELS[self.domain_id],
+            "dataset_release_id": self.dataset_release_id,
+            "reporting_frequency": self.calendar.frequency,
+            "reporting_periods": list(self.calendar.slots),
+            "latest_period": self.calendar.latest,
+            "relations": [{"relation": spec.name, "name": spec.name,
+                           "grain": spec.grain, "about": spec.description,
+                           "description": spec.description,
+                           "period_column": spec.period_column,
+                           "key_columns": list(spec.key_columns),
+                           "columns": len(spec.fields)}
+                          for spec in schema_mod.relations(self.domain_id)],
+            "joins": self.joins(),
+        }
+
+    def joins(self) -> list[dict[str, Any]]:
+        """How this book's relations connect. Facts, not suggestions."""
+        return JOINS.get(self.domain_id, [])
 
     def alternatives(self, relation: str, column: str, *,
                      limit: int = 6) -> tuple[str, ...]:

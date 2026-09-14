@@ -15,10 +15,12 @@ and the exact step, and the analyst writes the replacement. That is the only
 repair mechanism V4 has.
 
 Isolation is the actual security boundary, not the allowlists. The DuckDB
-session is built with file access enabled, then locked before any submitted
-SQL is admitted (V3's `sql.open_session` does this and V4 reuses it). Python
-runs in a separate process jail or is reported UNAVAILABLE -- it is never
-quietly evaluated in this process.
+session holds ONE domain's relations, already filtered to tenant, release and
+domain; it is built with file access enabled and then locked before any
+submitted SQL is admitted (`catalog.open_session` does this). A step naming a
+relation of the other book is refused by name, not served an empty table.
+Python runs in a separate process jail or is reported UNAVAILABLE -- it is
+never quietly evaluated in this process.
 """
 
 from __future__ import annotations
@@ -28,8 +30,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from backend.cockpit_agentic import sql as v3_sql
 from backend.cockpit_v4 import derivation as deriv
+from backend.cockpit_v4 import sql as v4_sql
 from backend.cockpit_v4.contracts import ExecutionSubmission, Rejection, Step
 from backend.cockpit_v4.provider import code_digest
 from backend.cockpit_v4.sqlbind import (BindFailure, parameter_argument,
@@ -42,6 +44,7 @@ CHECK_STRUCTURE = "sql_structure"
 CHECK_AUTHORIZATION = "relation_authorization"
 CHECK_BIND = "bind"
 CHECK_GRAIN = "join_grain"
+CHECK_DOMAIN = "domain_authorization"
 CHECK_RUNTIME = "runtime"
 CHECK_SANDBOX = "sandbox"
 
@@ -383,8 +386,8 @@ class ExecutionService:
 
     def _validate_sql(self, step: Step) -> None:
         try:
-            v3_sql.check_structure(step.code)
-        except v3_sql.SqlRejected as exc:
+            v4_sql.check_structure(step.code)
+        except v4_sql.SqlRejected as exc:
             raise Rejection(
                 SQL_VALIDATION,
                 f"step {step.step_id}: {exc}",
@@ -396,6 +399,25 @@ class ExecutionService:
                 f"step {step.step_id}: the SQL could not be parsed: {exc}",
                 field_path=f"steps.{step.step_id}.code",
                 detail={"failed_check": CHECK_STRUCTURE}) from exc
+
+        if self.session is not None:
+            try:
+                v4_sql.authorize(step.code, self.session,
+                                 also_allowed=tuple(self.artifacts))
+            except v4_sql.SqlRejected as exc:
+                # A relation of the other book is refused as exactly that,
+                # naming its owner. Reaching across is a SECURITY refusal and
+                # not a validation nit: the alternative is an answer computed
+                # from a book the reader did not ask about.
+                raise Rejection(
+                    SECURITY_DENIED if exc.category ==
+                    v4_sql.CROSS_DOMAIN_ACCESS else SQL_VALIDATION,
+                    f"step {step.step_id}: {exc}",
+                    field_path=f"steps.{step.step_id}.code",
+                    detail={"failed_check": CHECK_DOMAIN,
+                            "category": exc.category,
+                            "relation": exc.relation,
+                            "owning_domain": exc.domain_id}) from exc
 
         authorized = set(self.session.relations) if self.session else set()
         named = {m.lower() for m in _RELATION_IN_SQL.findall(step.code)}
@@ -526,8 +548,8 @@ class ExecutionService:
 
         warnings: list[str] = []
         try:
-            risk = v3_sql.multiplication_risk(step.code, self.session)
-        except v3_sql.SqlRejected as exc:
+            risk = v4_sql.multiplication_risk(step.code, self.session)
+        except v4_sql.SqlRejected as exc:
             # A demonstrable repetition trap is a refusal, not a warning. The
             # analyst is told exactly which join and why.
             raise StepFailed(SQL_VALIDATION, CHECK_GRAIN, str(exc)) from exc
@@ -540,7 +562,7 @@ class ExecutionService:
 
         try:
             result = self._execute_sql(step, deadline_seconds=deadline_seconds)
-        except v3_sql.SqlRejected as exc:
+        except v4_sql.SqlRejected as exc:
             raise StepFailed(SQL_RUNTIME, CHECK_RUNTIME, str(exc)) from exc
         except StepFailed:
             raise
@@ -553,6 +575,7 @@ class ExecutionService:
             release_id=self.release_id,
             scope={"relations": list(getattr(self.session, "relations", ())),
                    "step_id": step.step_id,
+                   "domain_id": str(getattr(self.catalog, "domain_id", "")),
                    **({"release_fingerprint":
                        self.header.release_fingerprint} if self.header
                       else {})},
@@ -586,16 +609,16 @@ class ExecutionService:
     def _execute_sql(self, step: Step, *, deadline_seconds: float):
         """Run the step exactly as submitted, with its declared parameters.
 
-        With no parameters this is V3's executor unchanged — the deadline
+        With no parameters this is the V4 executor unchanged — the deadline
         watchdog, the row limits and the error classification are all its
-        own, and that is the path V3's suite covers. With parameters it is
-        the same connection and the same deadline, with the argument DuckDB
-        needs, because a `parameters` object the engine never sees is a
-        contract the application advertised and did not honour.
+        own. With parameters it is the same connection and the same deadline,
+        with the argument DuckDB needs, because a `parameters` object the
+        engine never sees is a contract the application advertised and did
+        not honour.
         """
         argument = parameter_argument(step.code, step.parameters)
         if argument is None:
-            return v3_sql.execute(
+            return v4_sql.execute(
                 step.code, self.session, deadline_seconds=deadline_seconds,
                 max_rows=self.limits.preview_rows)
 
@@ -639,14 +662,17 @@ class ExecutionService:
                 f"{self.limits.preview_rows} are shown. This is a CLIPPED "
                 f"table, not a complete aggregate: do not read a total off "
                 f"it.")
-        return v3_sql.SqlResult(
+        return v4_sql.SqlResult(
             columns=[{"name": str(name), "type": str(dtype)}
                      for name, dtype in zip(frame.columns, frame.dtypes)],
             rows=shown.replace({float("nan"): None}).to_dict(
                 orient="records"),
             row_count=total, truncated=truncated,
             elapsed_seconds=round(time.monotonic() - started, 4),
-            warnings=warnings)
+            warnings=warnings,
+            domain_id=str(getattr(self.catalog, "domain_id", "")),
+            dataset_release_id=str(getattr(
+                self.catalog, "dataset_release_id", "")))
 
     def _run_python(self, step: Step, *, deadline_seconds: float) -> StepResult:
         if self.python_runner is None or not getattr(
@@ -673,7 +699,8 @@ class ExecutionService:
         artifact_id = self.store.put_artifact(
             run_id=self.run_id, tenant_id=self.tenant_id, kind="result",
             release_id=self.release_id,
-            scope={"step_id": step.step_id, "language": "python"},
+            scope={"step_id": step.step_id, "language": "python",
+                   "domain_id": str(getattr(self.catalog, "domain_id", ""))},
             columns=columns, rows=rows, code_digest=digest)
         self.artifacts[step.step_id] = artifact_id
         return StepResult(

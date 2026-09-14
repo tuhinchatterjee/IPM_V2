@@ -22,6 +22,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.cockpit_v4 import analytical_runtime as arun
 from backend.cockpit_v4 import context as context_mod
 from backend.cockpit_v4 import events as ev
 from backend.cockpit_v4 import states as st
@@ -38,6 +39,62 @@ from backend.cockpit_v4.run_store import LeaseLost, RunStore
 from backend.cockpit_v4.service import PreflightFailed, Runtime
 
 logger = logging.getLogger(__name__)
+
+
+class _NoBook(RuntimeError):
+    """This run's book cannot be opened. Said, never substituted."""
+
+
+@dataclass
+class _LegacyBook:
+    """The pre-domain release, presented with the same surface as a book.
+
+    It exists so `_drive` has ONE shape to consume. It carries no domain id,
+    because the release it wraps does not have one, and every message built
+    from it therefore names no book rather than naming the wrong one.
+    """
+
+    runtime: Any
+    record: Any
+    session: Any = None
+
+    def __post_init__(self) -> None:
+        self.session = self._open()
+
+    @property
+    def catalog(self) -> Any:
+        return self.runtime.catalog
+
+    @property
+    def coverage(self) -> Any:
+        return self.runtime.coverage
+
+    @property
+    def release_id(self) -> str:
+        return str(self.record.release_id)
+
+    def _open(self) -> Any:
+        try:
+            from backend.cockpit_agentic import sql as v3_sql
+
+            return v3_sql.open_session(
+                scope=self.runtime.scope_for(
+                    {"id": self.record.principal_id,
+                     "tenant": self.record.tenant_id}),
+                catalog=self.runtime.catalog)
+        except Exception as exc:  # noqa: BLE001
+            # An unopenable session does not stop help or theory: those never
+            # execute. It stops ANALYSIS, and the analyst is told so through
+            # the tool rather than by a pre-emptive refusal of the question.
+            logger.info("V4 SQL session unavailable for run %s: %s",
+                        self.record.run_id, exc)
+            return None
+
+    def release_summary(self) -> dict[str, Any]:
+        return dict(self.runtime.release_summary)
+
+    def read_scope(self, principal: dict[str, Any]) -> Any:
+        return self.runtime.scope_for(principal)
 
 
 @dataclass
@@ -98,27 +155,34 @@ class Worker:
     def _drive(self, record: Any, emitter: ev.Emitter, ledger: Ledger,
                limits: Any) -> Outcome:
         principal = {"id": record.principal_id, "tenant": record.tenant_id}
-        scope = self.runtime.scope_for(principal)
 
-        session = None
+        # WHICH BOOK. Resolved from the persisted run and its thread, and
+        # from nothing else -- not the frontend, not the Home switch as it
+        # stands now, not a startup default, and not whichever catalogue
+        # happened to be cached first. A run settled three minutes after the
+        # reader switched the page still reads the book it was asked in.
         try:
-            from backend.cockpit_agentic import sql as v3_sql
+            book = self._book_for(record)
+        except _NoBook as exc:
+            # There is no substitute book. Refusing is the whole point: the
+            # alternative is an answer computed from data the reader did not
+            # ask about, and nothing in it would say so.
+            emitter.append(ev.RUN_FAILED, stage="accepted",
+                           operation="open_domain_runtime",
+                           status=ev.STATUS_FAILED, public_message=str(exc))
+            return Outcome(st.FAILED, error_code=st.DATA_UNAVAILABLE,
+                           message=str(exc))
 
-            session = v3_sql.open_session(scope=scope,
-                                          catalog=self.runtime.catalog)
-        except Exception as exc:  # noqa: BLE001
-            # An unopenable session does not stop help or theory: those never
-            # execute. It stops ANALYSIS, and the analyst is told so through
-            # the tool rather than by a pre-emptive refusal of the question.
-            logger.info("V4 SQL session unavailable for run %s: %s",
-                        record.run_id, exc)
+        scope = book.read_scope(principal)
+        session = book.session
+        release_summary = book.release_summary()
 
         seeded = self.store.thread_context(record.thread_id,
                                            tenant_id=record.tenant_id)
         packet = context_mod.build(
             question=record.question, principal=principal, scope=scope,
-            catalog=self.runtime.catalog, limits=limits, mode=record.mode,
-            release_summary=self.runtime.release_summary,
+            catalog=book.catalog, limits=limits, mode=record.mode,
+            release_summary=release_summary,
             ui_filters=record.ui_filters,
             recent_turns=self.store.recent_turns(
                 record.thread_id, context_mod.DEFAULT_RECENT_TURNS),
@@ -152,35 +216,65 @@ class Worker:
         # The execution header: which release, which bytes, which currency.
         # Pinned once per run and stamped on everything it produces.
         header = release_mod.header(
-            release_id=record.release_id, catalog=self.runtime.catalog,
-            release_summary=self.runtime.release_summary,
+            release_id=book.release_id, catalog=book.catalog,
+            release_summary=release_summary,
             tenant_id=record.tenant_id)
 
         orchestrator = Orchestrator(
             run=record, store=self.store, ledger=ledger, analyst=analyst,
             catalog_service=CatalogService(
-                catalog=self.runtime.catalog, scope=scope,
-                coverage=self.runtime.coverage, session=session),
+                catalog=book.catalog, scope=scope,
+                coverage=getattr(book, "coverage", None), session=session),
             execution_service=ExecutionService(
-                session=session, scope=scope, catalog=self.runtime.catalog,
+                session=session, scope=scope, catalog=book.catalog,
                 store=self.store, run_id=record.run_id,
-                tenant_id=record.tenant_id, release_id=record.release_id,
+                tenant_id=record.tenant_id, release_id=book.release_id,
                 limits=limits, python_runner=pyrunner.PythonRunner(),
                 header=header),
             artifact_service=ArtifactService(
                 store=self.store, tenant_id=record.tenant_id,
-                release_id=record.release_id, limits=limits),
+                release_id=book.release_id, limits=limits),
             finalizer=Finalizer(
                 store=self.store, tenant_id=record.tenant_id,
-                release_id=record.release_id, limits=limits,
+                release_id=book.release_id, limits=limits,
                 header=header),
-            emitter=emitter, catalog=self.runtime.catalog,
+            emitter=emitter, catalog=book.catalog,
             cancel_check=lambda: bool(
                 (self.store.get_run(record.run_id) or record).cancel_requested),
             deferred_tools=full_tools if withhold else None,
             investigation=(seeded or {}).get("body") if seeded else None)
         orchestrator._version = record.version
         return orchestrator.run_to_completion()
+
+    def _book_for(self, record: Any) -> Any:
+        """The analytical book this run was accepted against.
+
+        Two shapes, and no third. A run accepted against a DOMAIN release
+        gets that domain's book, opened per run and cached by tenant, domain,
+        release AND fingerprint. A run accepted against the pre-domain
+        release gets THAT release, through the runtime this process was
+        configured with -- and only when the two release ids are the same
+        string, because a runtime configured for another release is not this
+        run's book either.
+
+        What is deliberately absent is the path that used to exist: "use
+        whatever catalogue the process has". That is how a Retail thread
+        could read corporate relations with nothing in the answer saying so.
+        """
+        try:
+            return arun.for_run(record, store=self.store)
+        except arun.LegacyRelease as legacy:
+            configured = str(getattr(self.runtime.cfg, "release_id", "") or "")
+            if legacy.release_id != configured:
+                raise _NoBook(
+                    f"This run was accepted against release "
+                    f"{legacy.release_id!r}, which is neither a domain "
+                    f"release nor the release this runtime is configured "
+                    f"for ({configured!r}). Nothing was substituted."
+                ) from legacy
+            return _LegacyBook(runtime=self.runtime, record=record)
+        except arun.AnalyticalRuntimeUnavailable as exc:
+            raise _NoBook(str(exc)) from exc
 
     def _settle(self, record: Any, outcome: Outcome, emitter: ev.Emitter,
                 ledger: Ledger) -> None:

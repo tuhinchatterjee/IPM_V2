@@ -48,10 +48,34 @@ class Field:
     unit: str
     description: str
     group: str = ""
+    #: How this column may be added up. A share cannot be summed across
+    #: segments and a stage cannot be averaged, and a tool that offers either
+    #: is offering a wrong number.
+    aggregation: str = ""
+
+    @property
+    def definition(self) -> str:
+        """The sentence a catalogue consumer reads. Same text, its name."""
+        return self.description
+
+    @property
+    def label(self) -> str:
+        return self.name.replace("_", " ").strip()
+
+    @property
+    def additive(self) -> str:
+        if self.aggregation:
+            return self.aggregation
+        if self.unit in ("rcy", "count", "days", "months"):
+            return "additive"
+        if self.unit in ("percent", "probability_0_1", "times", "index"):
+            return "not_additive"
+        return "not_additive"
 
     def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "type": self.dtype, "unit": self.unit,
-                "description": self.description, "group": self.group}
+                "description": self.description, "group": self.group,
+                "aggregation": self.additive}
 
 
 @dataclass(frozen=True)

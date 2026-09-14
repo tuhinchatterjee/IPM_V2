@@ -47,42 +47,65 @@ class DomainPinned(PermissionError):
             f"{dom.SHORT_LABELS[asked]} conversation for this question.")
 
 
-#: The books the ANALYTICAL path can currently answer questions about.
-#:
-#: Both books are published, browsable and have their own dashboards. The
-#: execution path -- the catalogue the analyst is shown, the SQL session its
-#: queries run in -- is still built from the runtime's single pinned
-#: analytical release, which serves the corporate book.
-#:
-#: This is stated as a fact and enforced rather than hidden. The alternative
-#: was to let a retail thread run its SQL against the corporate catalogue,
-#: which is the exact defect the domain model exists to prevent: the answer
-#: would be fluent, wrong, and would say nothing about which book it came
-#: from. §5 says fail closed, so a question in a book the analyst cannot yet
-#: reach is refused at acceptance -- before a model call is paid for -- with
-#: a message saying what is and is not available.
-ANALYSIS_DOMAINS: tuple[str, ...] = (dom.CORPORATE,)
+def analysis_domains(*, tenant_id: str = lake.DEFAULT_TENANT
+                     ) -> tuple[str, ...]:
+    """The books the ANALYTICAL path can answer questions about, right now.
+
+    Established, not declared. This used to be a hard-coded tuple holding
+    only Corporate, because the execution path was built from one pinned
+    analytical release and a Retail thread would have run its SQL against
+    corporate relations. That is fixed: the analytical runtime is opened per
+    run, from the book the run was accepted in.
+
+    It is still computed rather than asserted, because "the code supports
+    this book" and "this runtime can open it" are different claims. A domain
+    whose release is not published in a deployment is not askable there, and
+    saying otherwise would put the question in a thread that cannot answer
+    it.
+    """
+    ready: list[str] = []
+    for domain_id in dom.DOMAIN_IDS:
+        if analysis_supported(domain_id, tenant_id=tenant_id):
+            ready.append(domain_id)
+    return tuple(ready)
 
 
-def analysis_supported(domain_id: str) -> bool:
-    return dom.parse(domain_id) in ANALYSIS_DOMAINS
+def analysis_supported(domain_id: str, *,
+                       tenant_id: str = lake.DEFAULT_TENANT) -> bool:
+    """Whether a question in this book can actually be executed.
+
+    Opens the book. A cheaper check -- "is the release published?" -- would
+    pass for a release whose session cannot be materialized, and the run
+    would then fail after the reader had been told it was accepted.
+    """
+    from backend.cockpit_v4 import analytical_runtime as arun
+
+    try:
+        arun.for_domain(dom.parse(domain_id), tenant_id=tenant_id)
+    except (arun.AnalyticalRuntimeUnavailable, DomainUnavailable,
+            dom.UnknownDomain, cat.CrossDomainAccess, lake.ReleaseNotFound):
+        return False
+    except Exception:  # noqa: BLE001 - an unopenable book is not askable
+        return False
+    return True
 
 
 class AnalysisNotWiredForDomain(RuntimeError):
-    """This book can be browsed but not yet asked. Said, never faked."""
+    """This book cannot be asked in this runtime. Said, never faked."""
 
-    def __init__(self, domain_id: str) -> None:
+    def __init__(self, domain_id: str, *,
+                 tenant_id: str = lake.DEFAULT_TENANT) -> None:
         self.domain_id = dom.parse(domain_id)
-        supported = ", ".join(dom.LABELS[d] for d in ANALYSIS_DOMAINS)
+        ready = analysis_domains(tenant_id=tenant_id)
+        available = (", ".join(dom.LABELS[d] for d in ready) if ready
+                     else "no book in this runtime")
         super().__init__(
-            f"{dom.LABELS[self.domain_id]} questions are not answerable in "
-            f"this build. The {dom.LABELS[self.domain_id]} book is published "
-            f"and its dashboard and schema are live, but the analytical "
-            f"execution path is still bound to the "
-            f"{supported} release, and running a "
-            f"{dom.SHORT_LABELS[self.domain_id]} question against it would "
-            f"answer from the wrong book without saying so. Ask in "
-            f"{supported}, or browse "
+            f"{dom.LABELS[self.domain_id]} questions cannot be answered in "
+            f"this runtime: its analytical release could not be opened, and "
+            f"running the question against another book would answer from "
+            f"the wrong book without saying so. What can be asked here: "
+            f"{available}. Publish it with "
+            f"{provision_command(self.domain_id)}, or browse "
             f"{dom.SHORT_LABELS[self.domain_id]} in Data Builder.")
 
 
@@ -207,5 +230,6 @@ def provision_command(domain_id: str = "") -> str:
     return f"{base} --domain {domain_id}" if domain_id else base
 
 
-__all__ = ["Availability", "DomainPinned", "DomainUnavailable",
+__all__ = ["AnalysisNotWiredForDomain", "Availability", "DomainPinned",
+           "DomainUnavailable", "analysis_domains", "analysis_supported",
            "availability", "provision_command", "resolve", "scope_for"]
