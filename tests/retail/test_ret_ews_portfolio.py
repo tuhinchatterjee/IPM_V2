@@ -375,7 +375,15 @@ def test_the_story_line_is_built_from_the_customers_own_numbers(
                 + told["forward_risk"]["customers"]):
         said = row["because"]
         assert "SAR" in said, row["customer_id"]
-        assert f"{row['behavioural_score']:.0f}" in said, row["customer_id"]
+        # A facility in its first month on book has no behavioural score: the
+        # scorecard needs repayment history it does not have. The sentence
+        # leaves the score out and the row says why, which is the right
+        # behaviour and is not a missing number to assert against.
+        score = row["behavioural_score"]
+        if score is None:
+            assert row["behavioural_score_absent_because"], row["customer_id"]
+        else:
+            assert f"{score:.0f}" in said, row["customer_id"]
         assert row["primary_layer_name"].lower() in said.lower(), row["customer_id"]
 
 

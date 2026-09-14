@@ -325,6 +325,17 @@ def _one_month(month: str, frame: Any, previous: Any) -> Any:
         (spine["dpd"].fillna(0) >= 30)
         | spine["in_default"].fillna(False).astype(bool)
         | (spine["ifrs9_stage"].fillna(0) >= 3))
+    # Already bad is a fact about the CUSTOMER, not about one of their
+    # products. This spine is at customer-by-product grain, so a customer
+    # thirty days down on their card and merely high-risk on their personal
+    # finance came out already bad on one row and forward risk on the other —
+    # and the two headline cards, which count distinct customers, counted them
+    # twice. "Performing — high forward risk" was printed over somebody who
+    # was not performing. The two cards are the two halves of one story and a
+    # customer belongs to one of them, so the condition is rolled up first and
+    # forward risk is what is left after it.
+    bad_anywhere = spine.groupby("customer_id")["current_bad"].transform("any")
+    spine["current_bad"] = bad_anywhere.fillna(False).astype(bool)
     spine["forward_risk"] = (~spine["current_bad"]) & spine["severity"].isin(
         ("HIGH", "CRITICAL"))
     spine["warned"] = spine["alerts"].fillna(0) > 0

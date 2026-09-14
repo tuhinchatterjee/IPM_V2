@@ -734,6 +734,45 @@ def test_ewif_11_the_cut_totals_reconcile_to_the_population(selection) -> None:
             == pytest.approx(whole["exposure_sar"], rel=1e-6), cut["key"]
 
 
+def test_ewif_11b_every_level_the_workspace_exports_from_works(
+        latest: str) -> None:
+    """The five places §8 names, each carrying exactly its own facilities."""
+    picked = V.customers(month=latest, product="CREDIT_CARD",
+                         cohort="forward_risk", limit=1)["customers"]
+    if not picked:
+        pytest.skip("no forward-risk Credit Card customer at this month")
+    cases = {
+        "product": dict(level="product", product="CREDIT_CARD"),
+        "classification": dict(level="classification", product="CREDIT_CARD",
+                               classification="NON_SALARIED"),
+        "sub_product": dict(level="sub_product", product="CREDIT_CARD",
+                            classification="SALARIED",
+                            sub_product="CC_PLATINUM"),
+        "cohort": dict(level="cohort", product="PERSONAL_LOAN",
+                       cohort="forward_risk", severity="HIGH"),
+        "customer": dict(level="customer",
+                         customer_id=str(picked[0]["customer_id"])),
+    }
+    wider = 0.0
+    for name, kwargs in cases.items():
+        made = WS.create(month=latest, created_by="tests", **kwargs)
+        assert made.selected_facility_ids, name
+        rows = WS.whatif_rows(made)
+        assert set(rows["facility_id"].astype(str)) \
+            == set(made.selected_facility_ids), name
+        base = WS.baseline(made)
+        assert base["available"], name
+        assert base["population"]["accounts"] == made.selected_account_count
+        assert len([one for one in base["cuts"] if one.get("available")]) >= 6
+        if name == "product":
+            wider = made.selected_exposure_sar
+
+    # A product export is wider than a classification inside it.
+    inside = WS.create(month=latest, created_by="tests", level="classification",
+                       product="CREDIT_CARD", classification="NON_SALARIED")
+    assert inside.selected_exposure_sar < wider
+
+
 def test_ewif_12_both_methodologies_are_offered_and_named() -> None:
     served = WC.methodologies()["methods"]
     methods = {one["key"] for one in served}

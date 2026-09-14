@@ -319,6 +319,21 @@ exact browser journey re-run and visually inspected.
 11. **Three UAT cases asserted the old sub-product labels** and reported the
     rename as a missing sub-product. The check now reads the governed taxonomy
     instead of restating it, which is why it went stale.
+12. **The Forward Risk Signal counted a customer in both halves of one
+    story.** Its panel is at customer-by-product grain, so a customer thirty
+    days down on their card and merely high-risk on their personal finance came
+    out already bad on one row and forward risk on the other. The two headline
+    cards count distinct customers, so they counted that customer twice, and
+    "Performing — high forward risk" was printed over somebody who was not
+    performing. Latent, and uncovered by the regenerated book. Already bad is
+    now rolled up to the customer before forward risk is derived from what is
+    left — the same rule the v3 workspace already used.
+13. **The Forward Risk Signal panel was stale** against the regenerated book:
+    it reported 5,952 alerts where a fresh evaluation of the rulebook found
+    6,842. Rebuilt. (A regression asserted a behavioural score on every story
+    line; a facility in its first month on book has none, and the product
+    already says so rather than inventing one — that was the test, not the
+    product, and the test now allows the declared-absent case.)
 
 ---
 
