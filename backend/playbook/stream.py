@@ -360,7 +360,11 @@ def start(session_factory: Callable[[], Any], scope, workspace_id: int,
             writer.done({"message_id": result.get("message_id"),
                          "artifact_id": result.get("artifact_id"),
                          "version": result.get("version", 0),
-                         "notes": result.get("notes") or []})
+                         "notes": result.get("notes") or [],
+                         # §15: what changed in the dashboard, so a client
+                         # re-reads because something moved rather than on a
+                         # timer, and knows which sections lost their sign-off.
+                         "dashboard": result.get("dashboard") or {}})
         HUB.forget(job_id)
 
     thread = threading.Thread(target=work, name=f"playbook-job-{job_id}",

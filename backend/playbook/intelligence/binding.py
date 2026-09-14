@@ -74,6 +74,14 @@ HIGH, MEDIUM, LOW = "high", "medium", "low"
 CURRENT, NEW_AVAILABLE, STALE, UNKNOWN = (
     "current", "new_data_available", "stale", "unknown")
 
+FRESHNESS = (CURRENT, NEW_AVAILABLE, STALE, UNKNOWN)
+
+#: The two states that mean a reading in the document may no longer be the
+#: reading. `unknown` is deliberately NOT here: not knowing whether something
+#: moved is not evidence that it did, and putting it in would make every
+#: unclassified binding look like a reason to rewrite a section.
+NEEDS_ATTENTION = frozenset({NEW_AVAILABLE, STALE})
+
 
 def is_governed(binding: PlaybookMetricBinding) -> bool:
     """Whether this binding may be used as a governed link.

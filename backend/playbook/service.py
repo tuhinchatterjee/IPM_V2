@@ -41,6 +41,7 @@ from backend.playbook import capabilities, grounding, ingest, merge, prompts, pr
 from backend.playbook import document as D
 from backend.playbook import evidence as ev
 from backend.playbook import repository as repo
+from backend.playbook.intelligence import adopt
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,11 @@ class Outcome:
     request_ids: list[str] = field(default_factory=list)
     milestones: list[dict] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    #: What writing this version changed in the dashboard: how many sections
+    #: it now has, which changed, whose sign-off had to be reopened, how many
+    #: metric readings were frozen. §15's "the dashboard refreshes", as a fact
+    #: about what was recorded rather than a hint to a component.
+    adoption: dict = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -219,7 +225,8 @@ def ledger_for(session, scope: repo.Scope, workspace_id: int, *,
                source_ids: list[int] | None = None,
                export_revision_ids: list[int] | None = None,
                calculations: list | None = None,
-               artifact_id: int | None = None) -> ev.Ledger:
+               artifact_id: int | None = None,
+               chat_context=None) -> ev.Ledger:
     """Assemble the evidence for one request from what was explicitly chosen.
 
     Nothing is included by being nearby. An empty selection produces an empty
@@ -262,6 +269,16 @@ def ledger_for(session, scope: repo.Scope, workspace_id: int, *,
         ev.add_calculations(ledger, calculations)
     if artifact_id:
         add_current_version(session, ledger, artifact_id)
+    if chat_context is not None:
+        # The governed facts behind whatever dashboard object the user
+        # clicked. §15. Only what the context builder already established as
+        # governed arrives here: an unconfirmed suggestion produced a caveat
+        # for the person, not a fact, so it cannot become a citable figure by
+        # travelling through the composer.
+        from backend.playbook.intelligence import context as dashboard
+
+        for item in dashboard.as_items(chat_context):
+            ledger.add(item)
     return ledger
 
 
@@ -550,6 +567,15 @@ def _persist(session, scope: repo.Scope, ws, outcome: Outcome, *, title: str,
             validated=outcome.validations.get(fmt, validate.Validation(fmt)).ok,
         )
 
+    # The dashboard is brought into line here, in this transaction, because a
+    # version whose sections were never recorded is one the dashboard
+    # misdescribes — sections missing from the Pack, a sign-off still standing
+    # against text that has moved, no THEN for the paper in front of the
+    # reader. If that cannot be written, the version is not written either.
+    outcome.adoption = adopt.adopt(
+        session, ws.id, artifact.id, version_id=version.id,
+        version=version.version, doc=doc).as_dict()
+
     repo.touch(session, ws, summary=change_summary or f"{title} v{version.version}")
     outcome.artifact_id = artifact.id
     outcome.version_id = version.id
@@ -638,6 +664,8 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
                  idempotency_key: str = "",
                  task_kind: str = "",
                  task_scope: str = "",
+                 context_kind: str = "",
+                 context_target: str = "",
                  calculations: list | None = None,
                  on_milestone=None,
                  on_delta=None,
@@ -656,7 +684,8 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
     started = begin_generation(
         session, scope, workspace_id, text=text, source_ids=source_ids,
         export_revision_ids=export_revision_ids,
-        idempotency_key=idempotency_key)
+        idempotency_key=idempotency_key, context_kind=context_kind,
+        context_target=context_target)
     if started["duplicate"]:
         return started
 
@@ -665,16 +694,43 @@ def send_message(session, scope: repo.Scope, workspace_id: int, *,
         source_ids=source_ids, export_revision_ids=export_revision_ids,
         formats=formats, artifact_id=artifact_id,
         base_version_id=base_version_id, task_kind=task_kind,
-        task_scope=task_scope, calculations=calculations,
+        task_scope=task_scope, context_kind=context_kind,
+        context_target=context_target, calculations=calculations,
         on_milestone=on_milestone, on_delta=on_delta,
         is_cancelled=is_cancelled)
+
+
+def resolve_context(session, workspace_id: int, *, kind: str = "",
+                    target: str = ""):
+    """The dashboard object a turn is about, or None.
+
+    A context that can no longer be resolved — the finding was deleted, the
+    metric unlinked — is NOT an error here. The user's question still stands
+    and is still answerable; what it loses is the evidence the dashboard would
+    have supplied, and the turn proceeds without pretending otherwise. The
+    route that built the context in the first place reports the failure, where
+    there is still somebody to tell.
+    """
+    if not kind:
+        return None
+    from backend.playbook.intelligence import context as dashboard
+
+    try:
+        return dashboard.build(session, workspace_id, kind=kind,
+                               target=target)
+    except dashboard.UnknownContext as exc:
+        logger.info("playbook: dashboard context %s/%s unavailable: %s",
+                    kind, target, exc)
+        return None
 
 
 def begin_generation(session, scope: repo.Scope, workspace_id: int, *,
                      text: str,
                      source_ids: list[int] | None = None,
                      export_revision_ids: list[int] | None = None,
-                     idempotency_key: str = "") -> dict:
+                     idempotency_key: str = "",
+                     context_kind: str = "",
+                     context_target: str = "") -> dict:
     """Record the question and claim the job, before any work happens.
 
     Separate from running it because the streamed path needs the job id in the
@@ -707,9 +763,17 @@ def begin_generation(session, scope: repo.Scope, workspace_id: int, *,
     session.add(job)
     session.flush()
 
+    # What the turn refers to travels ON the message, so reopening the thread
+    # a month later still shows which finding "draft an answer to this" meant.
+    from backend.playbook.intelligence import context as dashboard
+
+    content = dashboard.attach(
+        {"text": text},
+        resolve_context(session, ws.id, kind=context_kind,
+                        target=context_target))
     user_message = repo.add_message(
         session, ws.id, role="user",
-        content={"text": text}, origin="user", author_id=scope.user_id)
+        content=content, origin="user", author_id=scope.user_id)
     for position, source_id in enumerate(source_ids or []):
         repo.attach(session, ws.id, message_id=user_message.id,
                     source_id=source_id, position=position)
@@ -736,6 +800,8 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
                    base_version_id: int | None = None,
                    task_kind: str = "",
                    task_scope: str = "",
+                   context_kind: str = "",
+                   context_target: str = "",
                    calculations: list | None = None,
                    on_milestone=None,
                    on_delta=None,
@@ -756,9 +822,15 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
     if is_cancelled is None:
         is_cancelled = cancellation_watcher(job.id)
 
+    # Rebuilt here rather than carried through the job payload: the context is
+    # a READ of the dashboard, so a generation that starts a minute later sees
+    # the state as it is now, not a copy of what a browser held.
+    chat_context = resolve_context(session, ws.id, kind=context_kind,
+                                   target=context_target)
     ledger = ledger_for(session, scope, ws.id, source_ids=source_ids,
                         export_revision_ids=export_revision_ids,
-                        calculations=calculations, artifact_id=artifact_id)
+                        calculations=calculations, artifact_id=artifact_id,
+                        chat_context=chat_context)
 
     def milestone(state: str, detail: str = "") -> None:
         job.state = state if state in {"reviewing_sources", "drafting",
@@ -814,6 +886,11 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
                                 if outcome.grounding_final else {}),
             "evidence_complete": ledger.complete,
             "evidence_gaps": list(ledger.omissions),
+            # What writing this version changed in the dashboard. §15 asks
+            # that the dashboard refresh when Claude finishes; this says what
+            # it should refresh to, so a client re-reads because something
+            # moved rather than on a timer.
+            "dashboard": dict(outcome.adoption),
         },
         origin="assistant_live", model=outcome.model_served,
         request_ids=list(outcome.request_ids), usage=outcome.usage()
@@ -822,7 +899,8 @@ def run_generation(session, scope: repo.Scope, workspace_id: int, *,
     return {"job_id": job.id, "state": "ready", "duplicate": False,
             "message_id": assistant.id, "artifact_id": outcome.artifact_id,
             "version_id": outcome.version_id,
-            "version": outcome.version, "notes": list(outcome.notes)}
+            "version": outcome.version, "notes": list(outcome.notes),
+            "dashboard": dict(outcome.adoption)}
 
 
 def mark_job_finished(session, job_id: int, *, state: str,

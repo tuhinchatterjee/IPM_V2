@@ -1249,3 +1249,97 @@ class TestGovernedObjectsOverHttp:
         # status and cannot.
         assert item["status"] == "open"
         assert item["external_status"] == ""
+
+
+class TestTheContextBridgeOverHttp:
+    """Gate 8 over HTTP. §15.
+
+    The bridge is a READ. It populates the composer and sends nothing, so a
+    dashboard click can never cost a generation, and the same kind/target then
+    travel on the message so the evidence is rebuilt from the dashboard as it
+    stands at that moment.
+    """
+
+    BASE = "/api/v1/playbook/workspaces"
+
+    def _workspace(self, client) -> int:
+        r = client.post("/api/v1/playbook/workspaces",
+                        json={"title": "IFRS 9 committee report"})
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    def _governed_metric(self, workspace_id: int) -> int:
+        from backend.db.engine import get_session
+        from backend.exports import playbook_contract as contract
+        from backend.playbook.intelligence import binding as bind
+
+        with get_session() as session:
+            [row] = bind.apply(session, workspace_id, bind.from_export(
+                [contract.Metric(metric_id="ecl.stage2",
+                                 label="Stage 2 coverage",
+                                 display_value="5.86%")]))
+            row.source_locator = "xlsx://Coverage!B12"
+            session.commit()
+            return row.id
+
+    def test_a_metric_becomes_a_populated_composer(self, client):
+        ws = self._workspace(client)
+        binding_id = self._governed_metric(ws)
+
+        r = client.get(f"{self.BASE}/{ws}/intelligence/context",
+                       params={"kind": "metric", "target": str(binding_id)})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["action"] == "ask_about_metric"
+        assert body["label"] == "Ask Claude about this"
+        assert "Stage 2 coverage" in body["prompt"]
+        assert body["references"][0]["governed"] is True
+        assert body["evidence"][0]["locator"] == "xlsx://Coverage!B12"
+
+    def test_a_finding_context_carries_the_governance_caveat(self, client):
+        from backend.db.engine import get_session
+        from backend.playbook.intelligence import governance as gov
+
+        ws = self._workspace(client)
+        with get_session() as session:
+            finding = gov.raise_finding(session, ws, origin=gov.FROM_AI,
+                                        title="Coverage may be understated")
+            session.commit()
+            finding_id = finding.id
+
+        r = client.get(f"{self.BASE}/{ws}/intelligence/context",
+                       params={"kind": "finding", "target": str(finding_id)})
+        assert r.status_code == 200, r.text
+        assert r.json()["action"] == "draft_finding_answer"
+        assert any("a person does that" in c for c in r.json()["caveats"])
+
+    def test_an_unknown_context_is_refused_with_its_reason(self, client):
+        ws = self._workspace(client)
+        r = client.get(f"{self.BASE}/{ws}/intelligence/context",
+                       params={"kind": "vibes"})
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "unknown_context"
+
+    def test_a_context_pointing_at_nothing_is_refused(self, client):
+        ws = self._workspace(client)
+        r = client.get(f"{self.BASE}/{ws}/intelligence/context",
+                       params={"kind": "finding", "target": "99999999"})
+        assert r.status_code == 422
+        assert "No finding" in r.text
+
+    def test_the_offered_actions_reflect_the_real_state(self, client):
+        """A dashboard never offers "Explain these movements" on a document
+        with nothing to compare — and says why it is withheld."""
+        ws = self._workspace(client)
+        r = client.get(f"{self.BASE}/{ws}/intelligence/context-actions")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        withheld = {w["kind"]: w["reason"] for w in body["withheld"]}
+        assert "since_last_time" in withheld and "stale_metrics" in withheld
+        per_object = {o["kind"] for o in body["offered"] if o["needs_target"]}
+        assert per_object == {"metric", "finding", "section", "decision"}
+
+    def test_a_foreign_workspace_has_no_context(self, client):
+        r = client.get(f"{self.BASE}/99999999/intelligence/context",
+                       params={"kind": "metric", "target": "1"})
+        assert r.status_code == 404

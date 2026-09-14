@@ -70,7 +70,7 @@ re-checked against them before human UAT.
 | 15 | Page count and statistics (§11) | | ✅ | | `validate` page count from PDF | `document_stats` |
 | 16 | Sections tab with status (§12) | | ✅ | | `merge.section_hash` | `playbook_document_sections` |
 | 17 | Committee experience (§13) | | | ✅ | — | profile + readiness |
-| 18 | Chat ↔ dashboard bridge (§15) | | | ✅ | composer, `task_scope` | context refs |
+| 18 | Chat ↔ dashboard bridge (§15) | ✅ | | | composer, `task_scope` | `intelligence/context.py`, `adopt.py` (Gate 8) |
 | 19 | Governed refresh (§16) | | | ✅ | change-set approval pattern | refresh proposal |
 | 20 | Freshness (§17) | | | ✅ | — | binding freshness |
 | 21 | Parser versioning / re-read (§18) | | ✅ | | immutable bytes, `retry_source` | `playbook_source_parses` |
@@ -201,3 +201,111 @@ column width is not a reason to call a thing something else.
 * `ruff check .` clean.
 
 No provider call was made by anything in this gate.
+
+## Gate 8 — the dashboard is not a separate dead screen
+
+### The gap this found first
+
+Gates 4 and 5 built section rows and metric snapshots, and gave them careful
+rules: identity that survives a retitle, a sign-off that reopens when the text
+it covered moves, a frozen reading that is never rewritten. **Nothing called
+them.** `sections.sync` and `compare.freeze` had no caller outside their own
+tests, so a document generated through the real authoring path produced no
+section rows and froze no readings. The dashboard beside it described a
+workspace nobody had written to.
+
+§15 asks that the dashboard refresh when Claude finishes. It cannot refresh
+from state that was never recorded, so that is where Gate 8 starts.
+
+`backend/playbook/intelligence/adopt.py` is the one call the authoring path
+makes, from `service._persist`, **in the generation's own transaction**. A
+version whose section rows were never written is a document the dashboard
+misdescribes — sections missing from the Pack, a sign-off still standing
+against text that has moved, no THEN for the paper in front of the reader.
+That is worse than a failed generation, which the user can simply run again.
+So it is not wrapped in a swallow: either the document and the state that
+describes it both exist, or neither does.
+
+It reports what it changed rather than leaving a caller to diff:
+
+```
+{"version": 2, "sections": 12,
+ "sections_changed": [{"key": "executive-summary-1",
+                       "heading": "1. Executive summary"}],
+ "reviews_reopened": [...], "metrics_frozen": 6}
+```
+
+That payload rides on the assistant message, on the synchronous return, and on
+the stream's `done` event — so a client re-reads because something moved,
+not on a timer, and knows which sections lost their sign-off.
+
+One defect the tests caught in the reporting itself: "reopened" was written as
+*left the human-only statuses*, and `needs_review` is itself one of those —
+which is exactly where a reopened section lands. It reported nothing, every
+time. The event is losing an approval, and it is now written that way.
+
+### The bridge
+
+`backend/playbook/intelligence/context.py` turns any dashboard object into a
+chat context. Three things travel, and they are different on purpose:
+
+* **the prompt** — what the user sees in the composer and may rewrite before
+  sending. A starting point, never a hidden instruction;
+* **the task and scope** — the existing framing machinery. "Update this
+  section" resolves to `task="edit"`, `scope=<heading>`, which is the scoped
+  merge that already refuses to touch anything else. Gate 8 adds no new
+  editing path;
+* **the references** — `{kind, id, label, value, locator, governed}` per
+  object, recorded on the user's message, so reopening the thread a month
+  later still shows which finding "draft an answer to this" meant.
+
+| Click | Action | Framing |
+|---|---|---|
+| a metric | Ask Claude about this | — |
+| a finding | Draft an answer | — |
+| a section | Update this section | `task=edit`, `scope=<heading>` |
+| Since Last Time | Explain these movements | — |
+| a decision | Draft the committee recommendation | — |
+| stale metrics | Refresh affected sections | — |
+
+### The rule that governs it
+
+A context supplies **governed facts only**. An unconfirmed metric suggestion
+produces a caveat for the person — *"a suggested link that nobody has
+confirmed"* — and contributes nothing to the evidence ledger. This is the same
+rule that keeps a suggestion out of THEN/NOW, for the same reason: a guess that
+travels far enough from where it was made stops looking like a guess. A
+suggestion must not become a citable figure by going through the composer.
+
+"Refresh affected sections" is governed the same way. Only a **governed**
+binding whose freshness is `new_data_available` or `stale` counts; `unknown` is
+deliberately excluded, because not knowing whether something moved is not
+evidence that it did. The context names the affected sections and says plainly
+that nothing is rewritten by it.
+
+The context is rebuilt at generation time rather than carried through the job
+payload, so a generation that starts a minute later sees the dashboard as it
+is, not a copy the browser held. A context that has since vanished does not
+fail the turn: the question still stands and is still answerable, and what it
+loses is the evidence the dashboard would have supplied.
+
+### Verified
+
+* `tests/playbook/test_context_bridge.py` — 29 tests: adoption writes section
+  rows from a real generation, reports changes and reopened sign-offs, freezes
+  only governed readings and never twice; a governed metric supplies its
+  reading as citable evidence while a suggestion supplies none; a section
+  context carries the existing edit framing; a stale suggestion is not a reason
+  to refresh; references survive on the message; a vanished context does not
+  fail the turn.
+* `tests/playbook/test_api.py::TestTheContextBridgeOverHttp` — 6 tests,
+  including that the offered actions reflect real state and say why one is
+  withheld.
+* `tests/playbook` — 910 passed, 8 skipped.
+* `tests/api tests/exports tests/docs tests/demo tests/services tests/llm` —
+  764 passed, 8 skipped.
+* `ruff check .` clean.
+
+No migration was needed: references live on the message's existing `content`
+JSONB, because a reference is part of what the turn said rather than metadata
+about it. No provider call was made by anything in this gate.

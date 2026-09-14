@@ -158,6 +158,12 @@ class MessageIn(BaseModel):
     #: For `edit`: which part of the document may change. Everything else must
     #: come back unchanged.
     scope: str = Field(default="", max_length=200)
+    #: §15: which dashboard object this turn is about — a metric, a finding, a
+    #: section, a decision, Since Last Time, the stale metrics. The governed
+    #: facts behind it become evidence, and the references are recorded on the
+    #: message so the thread still says what "this" meant a month later.
+    context_kind: str = Field(default="", max_length=32)
+    context_target: str = Field(default="", max_length=128)
     #: Run the generation in a worker and answer immediately with the job to
     #: watch, rather than holding the request open until the document is
     #: finished. The browser always sets this; the synchronous path remains for
@@ -411,7 +417,9 @@ def send_message(workspace_id: int, body: MessageIn,
                     text=body.text,
                     source_ids=body.source_ids or None,
                     export_revision_ids=body.export_revision_ids or None,
-                    idempotency_key=body.idempotency_key)
+                    idempotency_key=body.idempotency_key,
+                    context_kind=body.context_kind,
+                    context_target=body.context_target)
         except repo.NotFound as exc:
             raise _not_found(exc) from exc
         except repo.StorageUnavailable as exc:
@@ -433,6 +441,8 @@ def send_message(workspace_id: int, body: MessageIn,
                     "base_version_id": body.base_version_id,
                     "task_kind": body.task,
                     "task_scope": body.scope,
+                    "context_kind": body.context_kind,
+                    "context_target": body.context_target,
                 },
                 runner=service.run_generation)
         return {**started,
@@ -451,6 +461,8 @@ def send_message(workspace_id: int, body: MessageIn,
                 base_version_id=body.base_version_id,
                 idempotency_key=body.idempotency_key,
                 task_kind=body.task, task_scope=body.scope,
+                context_kind=body.context_kind,
+                context_target=body.context_target,
             )
     except repo.NotFound as exc:
         raise _not_found(exc) from exc
@@ -1757,5 +1769,70 @@ def record_action_export(workspace_id: int, action_id: int,
         raise _not_found(exc) from exc
     except (gov.NotPermitted, gov.TransitionRefused) as exc:
         raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/context")
+def chat_context(workspace_id: int, kind: str = Query(max_length=32),
+                 target: str = Query(default="", max_length=128),
+                 principal: Principal = RequireAnalyst) -> dict:
+    """Turn a dashboard object into a chat context. §15.
+
+    A read. It populates the composer — with a question the user may rewrite,
+    the §8 task framing that question belongs to, and the explicit references
+    the turn is about. Nothing is generated and nothing is sent: the user
+    still presses send, and the same `kind`/`target` then travel on the
+    message so the turn's evidence is rebuilt from the dashboard as it stands
+    at that moment rather than from a copy the browser held.
+    """
+    from backend.playbook.intelligence import context as dashboard
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return dashboard.build(session, workspace_id, kind=kind,
+                                   target=target).as_dict()
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except dashboard.UnknownContext as exc:
+        raise _refused(exc, code="unknown_context") from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/context-actions")
+def chat_context_actions(workspace_id: int,
+                         principal: Principal = RequireAnalyst) -> dict:
+    """Which context actions this document can offer right now.
+
+    Built by attempting each one that needs no target, so a dashboard never
+    offers "Explain these movements" on a document that has nothing to
+    compare. The per-object actions are always available — clicking a
+    finding that exists can always draft an answer to it.
+    """
+    from backend.playbook.intelligence import context as dashboard
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            offered, withheld = [], []
+            for kind, (needs_target, _) in dashboard.BUILDERS.items():
+                if needs_target:
+                    offered.append({"kind": kind, "needs_target": True})
+                    continue
+                try:
+                    built = dashboard.build(session, workspace_id, kind=kind)
+                except dashboard.UnknownContext as exc:
+                    withheld.append({"kind": kind, "reason": str(exc)})
+                else:
+                    offered.append({"kind": kind, "needs_target": False,
+                                    "action": built.action,
+                                    "label": built.label})
+            return {"offered": offered, "withheld": withheld}
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
     except RuntimeError as exc:
         raise _unavailable(exc) from exc

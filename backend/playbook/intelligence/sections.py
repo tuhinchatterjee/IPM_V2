@@ -93,6 +93,13 @@ def facts(doc: D.Document) -> list[SectionFacts]:
     return out
 
 
+def rows_for(session, artifact_id: int) -> list[PlaybookDocumentSection]:
+    """Every stored section of one document, in reading order."""
+    return (session.query(PlaybookDocumentSection)
+            .filter(PlaybookDocumentSection.artifact_id == artifact_id)
+            .order_by(PlaybookDocumentSection.ordinal).all())
+
+
 def sync(session, artifact_id: int, doc: D.Document, *,
          version: int) -> list[PlaybookDocumentSection]:
     """Bring stored section rows into line with a version of the document.
@@ -103,9 +110,7 @@ def sync(session, artifact_id: int, doc: D.Document, *,
     reviewer signed off on text that no longer exists, and pretending
     otherwise is how a stale approval ends up on a committee paper.
     """
-    stored = (session.query(PlaybookDocumentSection)
-              .filter(PlaybookDocumentSection.artifact_id == artifact_id)
-              .order_by(PlaybookDocumentSection.ordinal).all())
+    stored = rows_for(session, artifact_id)
     rows = {r.section_key: r for r in stored}
     by_heading = {r.heading: r for r in stored if r.heading}
     # Positional fallback, admitted only when nothing else moved — the same
