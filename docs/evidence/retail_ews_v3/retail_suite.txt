@@ -1,0 +1,254 @@
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........................................................................ [ 19%]
+....................................................................F... [ 24%]
+........................................................................ [ 29%]
+........................................................................ [ 34%]
+........................................................................ [ 38%]
+.......................FFF.FF........................................... [ 43%]
+........................................................................ [ 48%]
+........................................................................ [ 53%]
+........................................................................ [ 58%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 72%]
+........................................................................ [ 77%]
+........................................................................ [ 82%]
+........................................................................ [ 87%]
+........................................................................ [ 92%]
+........................................................................ [ 97%]
+........................................                                 [100%]
+=================================== FAILURES ===================================
+_ TestRET057To060Evidence.test_the_final_commit_carries_the_code_the_docs_describe _
+
+self = <test_ret_046_060_surface.TestRET057To060Evidence object at 0x7f3fb0ec5dc0>
+
+    def test_the_final_commit_carries_the_code_the_docs_describe(self):
+        dirty = subprocess.run(
+            ["git", "-C", str(ROOT), "status", "--porcelain",
+             "backend/retail", "tests/retail", "scripts", "launchers", "config"],
+            capture_output=True, text=True, check=True).stdout.strip()
+>       assert not dirty, (
+            "a completion claim must not depend on an earlier commit while later "
+            f"untested changes sit uncommitted:\n{dirty}"
+        )
+E       AssertionError: a completion claim must not depend on an earlier commit while later untested changes sit uncommitted:
+E         M backend/retail/ews_views.py
+E       assert not 'M backend/retail/ews_views.py'
+
+tests/retail/test_ret_046_060_surface.py:1005: AssertionError
+_ TestAPrioritisationSaysWhatOrderedIt.test_an_open_judgement_question_runs_the_governed_review _
+
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f3fb08725d0>
+
+    def test_an_open_judgement_question_runs_the_governed_review(self):
+>       said = headline(answer("What would you escalate to the board?"))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/retail/test_ret_adversarial_cockpit.py:2064: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/retail/test_ret_adversarial_cockpit.py:84: in headline
+    built = assembly.from_analysis(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+question = 'What would you escalate to the board?'
+reading = Reading(intent='ANALYSIS', objective='What would you escalate to the board?', conversation_action='', concepts=(), met...alysis, which will ask if it cannot read the question.', clarification='', alternatives=(), source='offline', model='')
+build = None, runtime = None, duration_ms = 0, mode = {}
+
+    def from_analysis(question: str, reading: cap.Reading, build: ap.AnalysisBuild,
+                      runtime: Any, *, duration_ms: int,
+                      mode: dict[str, Any]) -> Investigation:
+        """An Investigation for a question the runtime computed."""
+        scope = Scope(
+>           focus=build.summary or reading.objective,
+                  ^^^^^^^^^^^^^
+            dimension=build.dimension or None,
+            output={"aggregate": "distribution", "ranking": "ranking",
+                    "cohort": "ranking", "movement": "movement",
+                "share_movement": "ranking", "share": "distribution"}[build.shape],
+            period_requirement=("two_period" if build.shape in
+                                (ap.COHORT, ap.MOVEMENT) else "point_in_time"),
+            period_specified=bool(reading.periods),
+            from_period=build.opening or None,
+            to_period=build.closing or build.period or None,
+            period_source=("read from the question" if reading.periods
+                           else "the latest published period"),
+            filters={f: v for f, v in build.filters},
+        )
+E       AttributeError: 'NoneType' object has no attribute 'summary'
+
+backend/orchestration/assembly.py:690: AttributeError
+_ TestAPrioritisationSaysWhatOrderedIt.test_it_says_what_the_ordering_is_and_is_not _
+
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f3fb08728d0>
+
+    def test_it_says_what_the_ordering_is_and_is_not(self):
+>       said = headline(answer("What are the three numbers that matter "
+                               "most?"))
+
+tests/retail/test_ret_adversarial_cockpit.py:2068: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+question = 'What are the three numbers that matter most?', state = None
+
+    def answer(question: str, *, state: cv.ConversationState | None = None):
+        answered = orchestrator.answer(question, state=state)
+>       assert not answered.clarification, (
+            f"{question!r} was refused: "
+            f"{getattr(answered.clarification, 'question', answered.clarification)}")
+E       AssertionError: 'What are the three numbers that matter most?' was refused: Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.
+E       assert not 'Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.'
+E        +  where 'Which figure should CreditProbe measure? Name one of the governed concepts — gross carrying amount, exposure at default, credit limit, undrawn commitment — and it will compose the analysis.' = Answered(question='What are the three numbers that matter most?', reading=Reading(intent='ANALYSIS', objective='What a... settled_window=('', ''), settled_population=(), cached=None, scope=None, degraded_reason='', calls=0, duration_ms=324).clarification
+
+tests/retail/test_ret_adversarial_cockpit.py:73: AssertionError
+_ TestAPrioritisationSaysWhatOrderedIt.test_the_attention_question_reads_its_own_window _
+
+self = <test_ret_adversarial_cockpit.TestAPrioritisationSaysWhatOrderedIt object at 0x7f3fb0872bd0>
+
+    def test_the_attention_question_reads_its_own_window(self):
+        said = headline(answer("What needs my attention in the retail "
+                               "portfolio this month?"))
+>       assert "2026-07" in said and "2026-08" in said, said
+E       AssertionError: 25 customers, ranked by how many of 8 governed credit concern signals each one shows at 2026-08. RC-0003156 shows the most, at 7 of 8.
+E       assert ('2026-07' in '25 customers, ranked by how many of 8 governed credit concern signals each one shows at 2026-08. RC-0003156 shows the most, at 7 of 8.')
+
+tests/retail/test_ret_adversarial_cockpit.py:2075: AssertionError
+_ TestAReviewSettlesWhatItLedWith.test_it_inherits_the_measure_the_answer_led_with _
+
+self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7f3fb084e600>
+
+    def test_it_inherits_the_measure_the_answer_led_with(self):
+        _, state = advanced("What needs my attention in the retail portfolio "
+                            "this month?")
+>       assert state.metrics, "the review settled no measure"
+E       AssertionError: the review settled no measure
+E       assert []
+E        +  where [] = ConversationState(subject='What needs my attention in the retail portfolio this month?', intent='ANALYSIS', conversati...tion in the retail portfolio this month?', answer='', intent='ANALYSIS', run_id=None, status='succeeded')], pending='').metrics
+
+tests/retail/test_ret_adversarial_cockpit.py:2091: AssertionError
+_ TestAReviewSettlesWhatItLedWith.test_it_inherits_the_window_the_review_measured _
+
+self = <test_ret_adversarial_cockpit.TestAReviewSettlesWhatItLedWith object at 0x7f3fb084dee0>
+
+    def test_it_inherits_the_window_the_review_measured(self):
+        _, state = advanced("What needs my attention in the retail portfolio "
+                            "this month?")
+>       assert (state.opening_period, state.closing_period) \
+            == ("2026-07", "2026-08"), (state.opening_period,
+                                        state.closing_period)
+E       AssertionError: ('', '')
+E       assert ('', '') == ('2026-07', '2026-08')
+E         
+E         At index 0 diff: '' != '2026-07'
+E         Use -v to get more diff
+
+tests/retail/test_ret_adversarial_cockpit.py:2101: AssertionError
+=============================== warnings summary ===============================
+tests/retail/test_ret_adversarial_cockpit.py::TestAFollowUpIsReadAsWhatItIs::test_a_correction_replaces_rather_than_adds
+tests/retail/test_ret_adversarial_cockpit.py::TestADrillDownDrills::test_the_rows_are_facilities
+tests/retail/test_ret_adversarial_cockpit.py::TestAPeriodMeansWhatItSays::test_this_month_is_one_step
+tests/retail/test_ret_adversarial_cockpit.py::TestTwoMonthsCompared::test_a_comparison_resolves_each_month_independently
+tests/retail/test_ret_adversarial_cockpit.py::TestASeriesIsDescribedAsASeries::test_every_month_is_returned
+tests/retail/test_ret_overnight_early_warning.py::TestTheSignalFitsAndScores::test_the_panel_is_built_from_more_than_one_period
+  /home/user/IPM_V2/.venv/lib/python3.12/site-packages/_pytest/fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+tests/retail/test_ret_ews_dynamic.py::test_a_source_change_travels_the_whole_chain
+tests/retail/test_ret_ews_dynamic.py::test_a_source_change_travels_the_whole_chain
+tests/retail/test_ret_ews_dynamic.py::test_a_source_change_travels_the_whole_chain
+tests/retail/test_ret_ews_dynamic.py::test_a_source_change_travels_the_whole_chain
+tests/retail/test_ret_ews_dynamic.py::test_the_score_is_reproducible
+tests/retail/test_ret_ews_dynamic.py::test_the_score_is_reproducible
+tests/retail/test_ret_ews_dynamic.py::test_the_score_is_reproducible
+tests/retail/test_ret_ews_dynamic.py::test_the_score_is_reproducible
+  /home/user/IPM_V2/backend/retail/ews_score.py:884: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[name] = frame[column].to_numpy()
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:520: RuntimeWarning: Mean of empty slice
+    velocity = np.nanmean(stacked, axis=0)
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:525: RuntimeWarning: Mean of empty slice
+    prior = np.nanmean(np.vstack(gaps[1:]), axis=0)
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1035: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_fired"] = result.fired
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1036: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_value"] = np.round(result.value, 4)
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1037: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_comparator"] = np.round(result.comparator, 4)
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1038: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_direction"] = np.where(result.fired, action.direction, "")
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1039: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_magnitude"] = np.where(
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1041: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_velocity"] = np.where(
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1043: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_momentum"] = np.where(result.fired, action.momentum, "")
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1044: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_persistence"] = np.where(
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1046: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_recency"] = np.where(
+
+tests/retail/test_ret_ews_dynamic.py: 372 warnings
+  /home/user/IPM_V2/backend/retail/ews_score.py:1054: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    out[f"trg_{key}_contribution"] = np.round(scored, 3)
+
+tests/retail/test_ret_ews_dynamic.py: 2 warnings
+tests/retail/test_ret_ews_governance.py: 209 warnings
+tests/retail/test_ret_ews_score.py: 11 warnings
+tests/retail/test_ret_ews_wiring.py: 106 warnings
+tests/retail/test_ret_metrics_library.py: 64 warnings
+tests/retail/test_ret_overnight_access_and_methods.py: 7 warnings
+tests/retail/test_ret_overnight_completion.py: 21 warnings
+tests/retail/test_ret_overnight_concern.py: 1 warning
+tests/retail/test_ret_overnight_counts_and_signs.py: 5 warnings
+tests/retail/test_ret_overnight_dictionary.py: 1 warning
+tests/retail/test_ret_overnight_early_warning.py: 39 warnings
+tests/retail/test_ret_overnight_followups.py: 5 warnings
+tests/retail/test_ret_overnight_metric_route.py: 15 warnings
+tests/retail/test_ret_overnight_migration.py: 1 warning
+tests/retail/test_ret_overnight_scale_and_series.py: 16 warnings
+tests/retail/test_ret_overnight_scorecard.py: 210 warnings
+tests/retail/test_ret_ownership_boundaries.py: 1 warning
+tests/retail/test_ret_whatif_fidelity.py: 6 warnings
+tests/retail/test_ret_whatif_reconciliation.py: 18 warnings
+  /home/user/IPM_V2/backend/retail/ews_views.py:135: PerformanceWarning: DataFrame is highly fragmented.  This is usually the result of calling `frame.insert` many times, which has poor performance.  Consider joining all columns at once using pd.concat(axis=1) instead. To get a de-fragmented frame, use `newframe = frame.copy()`
+    joined = worst.join(totals, how="left").reset_index()
+
+tests/retail/test_ret_ews_wiring.py::test_the_early_warning_endpoints_answer_on_the_production_app
+  /home/user/IPM_V2/.venv/lib/python3.12/site-packages/starlette/testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/retail/test_ret_046_060_surface.py::TestRET057To060Evidence::test_the_final_commit_carries_the_code_the_docs_describe
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAPrioritisationSaysWhatOrderedIt::test_an_open_judgement_question_runs_the_governed_review
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAPrioritisationSaysWhatOrderedIt::test_it_says_what_the_ordering_is_and_is_not
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAPrioritisationSaysWhatOrderedIt::test_the_attention_question_reads_its_own_window
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAReviewSettlesWhatItLedWith::test_it_inherits_the_measure_the_answer_led_with
+FAILED tests/retail/test_ret_adversarial_cockpit.py::TestAReviewSettlesWhatItLedWith::test_it_inherits_the_window_the_review_measured
+terminate called without an active exception

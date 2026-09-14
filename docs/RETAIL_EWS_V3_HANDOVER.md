@@ -384,6 +384,15 @@ whenever somebody wants it.
 | Browser UAT | `scripts/retail_uat/ews_score_uat.py` EW-01…EW-60; `scripts/retail_uat/ews_v3_journey.py` for the ten v3 screens |
 | Evidence | `docs/evidence/retail_ews_v3/` — ten full-page screenshots |
 | Frontend | `npm test` — 577 pass, 0 fail |
+| Whole retail suite | `tests/retail` — **1,480 collected, 1,475 passed, 5 failed**, 0 errors, 0 skipped (`docs/evidence/retail_ews_v3/retail_suite.txt`) |
+
+All five failures are the pre-existing ones in
+`test_ret_adversarial_cockpit.py`, recorded in
+`docs/RETAIL_EWS_SCORE_HANDOVER.md` before this work began and unchanged by it.
+(The captured run shows six: the sixth is RET-060's clean-tree gate, which
+refuses to certify a build while untested changes sit uncommitted, and it fired
+because the run was started before the last commits landed. It passes on the
+committed tree.)
 
 ### Tests that were asserting the old book
 
