@@ -525,3 +525,34 @@ with where to look.
 38. 12 store-transaction tests; 9 of them fail on the code they replaced.
 39. The Data Builder's every claim is checked against the analytical path's
     own catalogue object.
+
+---
+
+## 14. Test evidence
+
+### Browser, five consecutive runs
+
+The suite was run five times in a row against a freshly started stack each
+time. §57 asks for repeated runs precisely because one green run says
+nothing about a race.
+
+```
+=== browser run 1 ===  exit=0 ok=69 fail=0
+=== browser run 2 ===  exit=0 ok=69 fail=0
+=== browser run 3 ===  exit=0 ok=69 fail=0
+=== browser run 4 ===  exit=0 ok=69 fail=0
+=== browser run 5 ===  exit=0 ok=69 fail=0
+```
+
+An earlier attempt at this matrix produced three failures on its first run.
+All three were assertions naming one calendar — "a monthly book offered a
+quarter", about a book that reports quarters — and one was the stub server
+filtering the Corporate relation on `reporting_month`, which is the only
+reason the single analytical browser test failed.
+
+### Screenshots
+
+Twenty, under `docs/cockpit_v4/evidence/`. `data_builder_sidebar.png` is the
+one this round added: `/data-builder`, the route the Mac reader opened, as
+distinct from `/cockpit/data`, which is a different page. A screenshot of the
+right page proving the wrong one works is not evidence.
