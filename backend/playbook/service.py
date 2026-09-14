@@ -769,7 +769,7 @@ def begin_generation(session, scope: repo.Scope, workspace_id: int, *,
     ws = repo.get_workspace(session, scope, workspace_id)
     key = idempotency_key or f"ws{ws.id}:{repo.next_sequence(session, ws.id)}"
 
-    existing = repo.jobs_by_key(session, key)
+    existing = repo.jobs_by_key(session, key, workspace_id=ws.id)
     if existing is not None:
         # A double-click, a refresh, or a retry after a dropped connection.
         # None of them is a second generation.
@@ -1309,21 +1309,28 @@ def retry_generation(session, scope: repo.Scope, job_id: int) -> dict:
 
     base = job.idempotency_key.split(":retry")[0]
     attempt = 2
-    while repo.jobs_by_key(session, f"{base}:retry{attempt}") is not None:
+    while repo.jobs_by_key(session, f"{base}:retry{attempt}",
+                           workspace_id=job.workspace_id) is not None:
         attempt += 1
     return {"idempotency_key": f"{base}:retry{attempt}",
             "workspace_id": job.workspace_id, "retry_of": job.id}
 
 
-def job_by_key(session, scope: repo.Scope, idempotency_key: str) -> dict:
+def job_by_key(session, scope: repo.Scope, workspace_id: int,
+               idempotency_key: str) -> dict:
     """Find the generation a client already knows the key of.
 
     The client mints the idempotency key before it sends, so this is how a
     synchronous generation becomes stoppable: the browser asks which job its own
     key resolved to and can then stop it. Without this the stop button would
     have nothing to name until the work it wants to stop had already finished.
+
+    Scoped to the workspace the caller is looking at, because that is what a
+    key means. Resolving it across workspaces once handed a client the id of a
+    generation in a different conversation.
     """
-    job = repo.jobs_by_key(session, idempotency_key)
+    ws = repo.get_workspace(session, scope, workspace_id)
+    job = repo.jobs_by_key(session, idempotency_key, workspace_id=ws.id)
     if job is None or job.tenant != scope.tenant:
         raise repo.NotFound("No generation is running under that key.")
     return job_status(session, scope, job.id)

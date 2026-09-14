@@ -792,19 +792,25 @@ def restore_artifact_version(artifact_id: int, version_number: int,
 # --------------------------------------------------------------------------
 
 
-@router.get("/jobs/by-key/{idempotency_key}")
-def job_by_key(idempotency_key: str,
+@router.get("/workspaces/{workspace_id}/jobs/by-key/{idempotency_key}")
+def job_by_key(workspace_id: int, idempotency_key: str,
                principal: Principal = RequireAnalyst) -> dict:
-    """The generation a client's own key resolved to.
+    """The generation a client's own key resolved to, in this workspace.
 
     How a synchronous generation becomes stoppable: the browser mints the key
     before it sends, so it can ask which job that key became and stop it while
     the send is still in flight.
+
+    Addressed under the workspace because that is the scope a key has. The
+    earlier form resolved a key across every workspace in the tenant, which
+    could hand a client the id of a generation in a conversation it was not
+    looking at.
     """
     scope = _scope(principal)
     try:
         with _session() as session:
-            return service.job_by_key(session, scope, idempotency_key)
+            return service.job_by_key(session, scope, workspace_id,
+                                      idempotency_key)
     except repo.NotFound as exc:
         raise _not_found(exc) from exc
     except repo.StorageUnavailable as exc:

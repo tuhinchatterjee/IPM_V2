@@ -4574,8 +4574,11 @@ export const api = {
       `/playbook/artifacts/${artifactId}/restore/${version}`,
       { method: "POST" },
     ),
-  playbookJobByKey: (key: string) =>
-    request<PbJob>(`/playbook/jobs/by-key/${encodeURIComponent(key)}`),
+  playbookJobByKey: (workspaceId: number, key: string) =>
+    request<PbJob>(
+      `/playbook/workspaces/${workspaceId}/jobs/by-key/` +
+        encodeURIComponent(key),
+    ),
   cancelPlaybookJob: (jobId: number) =>
     request<PbJob & { message: string }>(
       `/playbook/jobs/${jobId}/cancel`,

@@ -727,7 +727,12 @@ class PlaybookJob(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("idempotency_key", name="uq_playbook_job_idempotency"),
+        # Per WORKSPACE, not per deployment. A key identifies one send within
+        # one conversation; making it globally unique meant a key minted in
+        # two workspaces silently reported the second send as a duplicate of
+        # the first workspace's job. See migration 0040.
+        UniqueConstraint("workspace_id", "idempotency_key",
+                         name="uq_playbook_job_idempotency"),
         Index("ix_playbook_jobs_workspace", "workspace_id", "created_at"),
     )
 

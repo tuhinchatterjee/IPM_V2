@@ -382,8 +382,16 @@ def find_export_revision(session, scope: Scope, revision_id: int
     return revision
 
 
-def jobs_by_key(session, idempotency_key: str) -> PlaybookJob | None:
+def jobs_by_key(session, idempotency_key: str, *,
+                workspace_id: int) -> PlaybookJob | None:
+    """The generation a key stands for, WITHIN one workspace.
+
+    Scoped rather than global: a key identifies one send in one conversation.
+    Looking it up globally meant a caller that minted the same key in two
+    workspaces was handed a job belonging to a thread it was not looking at.
+    """
     return session.execute(
         select(PlaybookJob).where(
+            PlaybookJob.workspace_id == workspace_id,
             PlaybookJob.idempotency_key == idempotency_key)
     ).scalars().first()

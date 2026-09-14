@@ -75,8 +75,8 @@ re-checked against them before human UAT.
 | 20 | Freshness (§17) | ✅ | | | — | binding freshness + `reparse.summary` |
 | 21 | Parser versioning / re-read (§18) | ✅ | | | immutable bytes, `retry_source` | `ingest/version.py`, `reparse.py` (Gate 9) |
 | 22 | Save-gate regression matrix (§19) | ✅ | | | 19 defects have tests already | `SAVE_GATE_MATRIX.md` + `test_save_gate_matrix.py` (Gate 10) |
-| 23 | Soak harness (§20) | | | ✅ | scripted provider | `scripts/playbook_soak.py` |
-| 24 | Adversarial pass (§21) | | ✅ | | existing security suite | soak + adversarial tests |
+| 23 | Soak harness (§20) | ✅ | | | scripted provider | `scripts/playbook_soak.py` (Gate 11) |
+| 24 | Adversarial pass (§21) | ✅ | | | existing security suite | `test_adversarial.py` (Gate 11) |
 | 25 | Auditability of every status (§26) | ✅ | | | — | append-only `history` + `readiness` explanation |
 | 26 | AI vs human authority (§27) | ✅ | | | change-set approval | `require_person` + `SYSTEM_ACTORS` |
 
@@ -430,3 +430,109 @@ Running the nineteen named nodes directly: **38 tests** (parametrised cases
 expand), 0 failed. No new production code was needed — every class already had
 a test, which is what Gates 1–9 were for; what was missing was the thing that
 stops one of them quietly disappearing.
+
+## Gate 11 — running it again, and trying to break it
+
+### The soak harness
+
+`scripts/playbook_soak.py` runs §20's ten journeys ten times each, in their
+own workspaces, against a deterministic provider stand-in. The real provider
+is replaced for the whole run and `_stream_once` and `_client` are made to
+raise, so a journey that reached the network would fail the harness rather
+than spend money.
+
+    .venv/bin/python scripts/playbook_soak.py
+    .venv/bin/python scripts/playbook_soak.py --cycles 3 --only A,B
+
+A single pass proves a journey works once. It cannot see what only appears on
+repetition — state leaking from one run into the next, a second version
+quietly appearing, formatting drifting a little further each cycle. So each
+cycle's governed state is fingerprinted (documents and their file digests,
+section headings with status and word count, metric counts, finding counts,
+readiness, source readings, the Since Last Time rows) and compared against
+cycle 1. A journey that lands somewhere different on cycle 7 fails, and the
+report names the field that moved.
+
+**Result: 10 journeys × 10 cycles, 380 checks passed, 0 failed**, twice back
+to back. Evidence in `docs/playbook/soak_results.json`.
+
+### What the soak found
+
+**Two renders of the same document are not byte-identical — and should not
+be.** Measured rather than assumed: for DOCX every ZIP member's *content* is
+identical and only the entry timestamps move; for PDF the bytes are identical
+once reportlab's `/ID` and `/CreationDate` are normalised. Those are the
+file's own record of when it was made, and forcing them to a constant would
+make every generated document claim a fictional creation time. So the
+fingerprint excludes exactly those fields and nothing else, which makes it a
+real test of "no progressive formatting drift" rather than a test of the
+clock.
+
+**The dashboard answered differently on a workspace's first open.** The
+freshly-computed readiness payload carried `missing`, `statistics` and
+`completion_components`; every read after it carried `computed_at` and lacked
+those three. The data was in the row all along — stored inside `statistics` —
+and `_stored_readiness` never unpacked it. Those three fields are the
+explanation §26 asks for, so they were disappearing exactly when a reader
+went looking. Fixed by unpacking them, and by having the first-open path
+compute and then **read back**, so the payload has one shape produced by one
+function rather than two that have to agree.
+
+**An idempotency key was unique per deployment, not per conversation.** The
+browser namespaces its own keys by workspace (`ws7:turn3`), so this never
+showed in the UI — but the guarantee rested on a naming convention in a React
+component rather than on anything the server enforced. Any other caller that
+minted the same key in two workspaces got a silent and bad failure: the second
+send reported as a DUPLICATE of the first workspace's job, no question written
+to the second thread, and a job id handed back belonging to a conversation the
+client was not looking at. Migration `0040` makes the constraint
+`(workspace_id, idempotency_key)`, the lookup is scoped, and the by-key route
+is addressed under its workspace. The §20 guarantee — a refresh or a
+double-click never starts a second billable generation — is unchanged and is
+now enforced by the database.
+
+### The adversarial pass
+
+`tests/playbook/test_adversarial.py` — 27 tests over §21's list. The failure
+it exists to prevent is not a crash; a crash is visible and somebody fixes it.
+It is the number that looks right: two metrics bound because the words
+matched, a percentage-point move printed as a percentage, SAR against SAR
+million, a figure grounded because the same digits appeared in an unrelated
+source.
+
+Covered: the same label in two populations; a snapshot refusing to compare
+across populations, currencies or units, naming the dimension each time; two
+reporting periods kept distinct; a percentage difference expressed in
+percentage points and never in per cent; `SAR 22,770,000` not grounding
+against `22.77`; an unknown unit refused by name rather than defaulted; a
+committee report with no meeting date scored rather than crashed; a finding
+with no owner still blocking; a deleted source leaving the workspace intact; a
+restore moving forwards; a section edited after a refresh reopening its
+sign-off; a wrongly mapped metric un-bound without losing the figure; 50
+tracked metrics; 20- and 100-section documents keeping every section distinct;
+a 160-character title surviving the round trip; a long heading found in a real
+PDF; a formula with no cached value never reported as a result; a hidden sheet
+reported rather than dropped; the same file uploaded twice under two roles
+staying two sources; a re-read that improves displayed precision changing no
+approved document; and ten canonical round trips producing one hash.
+
+No defect was found by the adversarial pass that the soak had not already
+found. Six of its cases failed on first run against the author's own
+assumptions about the APIs — `Finding.figures` not `detail`, `Comparison.change`
+not `change_display`, `calc.display_dp` not `present`, a `restore_version` that
+returns a dict, sheet readings in `chunk.data` rather than `chunk.text` — and
+each was corrected in the test rather than in the code, because in each case
+the code was right.
+
+### Verified
+
+* `scripts/playbook_soak.py` — 10 × 10, 380 checks passed, 0 failed, twice.
+* `tests/playbook/test_adversarial.py` — 27 passed.
+* `tests/playbook` — 987 passed, 8 skipped.
+* `tests/api tests/exports tests/docs tests/demo tests/services tests/llm` —
+  764 passed, 8 skipped.
+* `0040` applied, downgraded to `0039`, re-upgraded. Single head.
+* `ruff check .` clean; `tsc --noEmit`, `eslint`, `npm test` (462 passed),
+  `next build` all clean.
+
+No provider call was made by anything in this gate.

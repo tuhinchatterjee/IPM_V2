@@ -268,7 +268,13 @@ def dashboard(session, workspace_id: int) -> Dashboard:
         # "nothing is ready" rather than "nobody has looked".
         from backend.playbook.intelligence import readiness as score
 
-        state.readiness = score.compute(session, workspace_id).as_dict()
+        score.compute(session, workspace_id)
+        # Read it back rather than returning the freshly computed object, so
+        # the payload has ONE shape produced by one function. Returning the
+        # computed result directly is how the first open of a workspace came
+        # to answer with different keys from every read after it.
+        state.readiness = _stored_readiness(session, workspace_id,
+                                            state.artifact_id)
 
     from backend.playbook.intelligence import compare
 
@@ -464,14 +470,27 @@ def _stored_readiness(session, workspace_id: int,
     if row is None:
         return {"computed": False, "completion_pct": 0, "readiness_pct": 0,
                 "approval_status": "pending", "components": [],
-                "blockers": []}
+                "completion_components": [], "blockers": [], "missing": [],
+                "statistics": {}, "computed_at": ""}
+
+    # `missing_sections` and `completion_components` are stored INSIDE
+    # `statistics` and have to be lifted back out. Reading them back matters:
+    # they are the explanation §26 asks for, and a payload that carried them
+    # on a workspace's first open and dropped them on every read after it is
+    # one a client cannot render the same way twice.
+    stored = dict(row.statistics or {})
+    missing = stored.pop("missing_sections", [])
+    completion_components = stored.pop("completion_components", [])
     return {
         "computed": True,
         "completion_pct": row.completion_pct,
         "readiness_pct": row.readiness_pct,
         "approval_status": row.approval_status,
         "components": list(row.components or []),
+        "completion_components": list(completion_components),
         "blockers": list(row.blockers or []),
+        "missing": list(missing),
+        "statistics": stored,
         "computed_at": row.computed_at.isoformat() if row.computed_at else "",
     }
 

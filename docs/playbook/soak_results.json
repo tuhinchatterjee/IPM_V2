@@ -1,0 +1,108 @@
+{
+  "cycles_each": 10,
+  "journeys": [
+    {
+      "journey": "A",
+      "label": "create a report",
+      "cycles": 10,
+      "passed": 41,
+      "failed": 0,
+      "seconds": 4.8,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "B",
+      "label": "scoped edit",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 2.3,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "C",
+      "label": "source re-read",
+      "cycles": 10,
+      "passed": 51,
+      "failed": 0,
+      "seconds": 0.5,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "D",
+      "label": "metric update and Since Last Time",
+      "cycles": 10,
+      "passed": 61,
+      "failed": 0,
+      "seconds": 1.6,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "E",
+      "label": "dashboard refresh",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 1.8,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "F",
+      "label": "reopen after a state change",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 1.7,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "G",
+      "label": "restart persistence",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 2.3,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "H",
+      "label": "duplicate send",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 0.4,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "I",
+      "label": "version restore",
+      "cycles": 10,
+      "passed": 41,
+      "failed": 0,
+      "seconds": 2.4,
+      "same_state_every_cycle": true,
+      "failures": []
+    },
+    {
+      "journey": "J",
+      "label": "malformed source",
+      "cycles": 10,
+      "passed": 31,
+      "failed": 0,
+      "seconds": 1.4,
+      "same_state_every_cycle": true,
+      "failures": []
+    }
+  ],
+  "checks_passed": 380,
+  "checks_failed": 0,
+  "provider": "deterministic stand-in; no paid call"
+}

@@ -468,7 +468,8 @@ class TestRestoringAndStoppingOverHTTP:
             job_id = job.id
 
         found = client.get(
-            f"/api/v1/playbook/jobs/by-key/ws{workspace_id}:turn0")
+            f"/api/v1/playbook/workspaces/{workspace_id}"
+            f"/jobs/by-key/ws{workspace_id}:turn0")
         assert found.status_code == 200, found.text
         assert found.json()["id"] == job_id
 
@@ -479,10 +480,35 @@ class TestRestoringAndStoppingOverHTTP:
         assert client.get(f"/api/v1/playbook/jobs/{job_id}").json()[
             "cancelled"] is True
 
-    def test_an_unknown_key_names_no_generation(self, client):
+    def test_an_unknown_key_names_no_generation(self, client, workspace_id):
         assert client.get(
-            "/api/v1/playbook/jobs/by-key/nothing-ran-under-this"
+            f"/api/v1/playbook/workspaces/{workspace_id}"
+            "/jobs/by-key/nothing-ran-under-this"
         ).status_code == 404
+
+    def test_a_key_resolves_only_inside_its_own_workspace(self, client):
+        """A key identifies one send in one conversation. Resolving it across
+        workspaces once handed a client the id of a generation in a thread it
+        was not looking at."""
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookJob
+
+        mine = client.post("/api/v1/playbook/workspaces",
+                           json={"title": "Mine"}).json()["id"]
+        theirs = client.post("/api/v1/playbook/workspaces",
+                             json={"title": "Theirs"}).json()["id"]
+        with get_session() as session:
+            session.add(PlaybookJob(workspace_id=theirs, tenant="default",
+                                    idempotency_key="shared-key",
+                                    state="drafting"))
+            session.commit()
+
+        assert client.get(
+            f"/api/v1/playbook/workspaces/{mine}/jobs/by-key/shared-key"
+        ).status_code == 404
+        assert client.get(
+            f"/api/v1/playbook/workspaces/{theirs}/jobs/by-key/shared-key"
+        ).status_code == 200
 
 
 class TestReadingAVersionWithoutDownloadingIt:
@@ -736,7 +762,8 @@ class TestStreamingOverHTTP:
             json={"text": "Write the report.", "stream": True,
                   "idempotency_key": f"ws{workspace_id}:nojob"})
         assert client.get(
-            f"/api/v1/playbook/jobs/by-key/ws{workspace_id}:nojob"
+            f"/api/v1/playbook/workspaces/{workspace_id}"
+            f"/jobs/by-key/ws{workspace_id}:nojob"
         ).status_code == 404
         # And the question was not recorded as asked.
         thread = client.get(
