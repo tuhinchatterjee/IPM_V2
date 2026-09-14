@@ -138,13 +138,31 @@ class TestAGovernedTrendComesFromTheMetric:
         routed = metric_route.read(f"What is ECL coverage at {LATEST}?")
         assert routed is not None and not routed.trend
 
-    def test_the_series_is_the_ratio_of_sums_not_the_mean_of_ratios(self):
+    def test_the_series_is_the_ratio_of_sums_not_the_mean_of_ratios(self, book):
+        """A quotient of sums, computed from the book rather than typed in.
+
+        Written as a literal this said nothing about WHICH arithmetic the
+        series used — it only reported that the number had moved. Both
+        candidate arithmetics are computed here, and the series must equal the
+        quotient of sums and must not equal the mean of per-facility ratios.
+        """
         got = rows("Show the ECL coverage trend.")
         latest = [r for r in got if r["label"] == LATEST]
         assert latest, "the series does not reach the latest month"
-        assert float(latest[0]["value"]) == pytest.approx(0.7658778579, abs=1e-6), (
-            "the mean of per-facility coverage ratios is 2.17%; the book's "
-            "coverage is 0.77%")
+
+        quotient = (float(book["ecl_final_sar"].sum())
+                    / float(book["gross_carrying_amount_sar"].sum()) * 100)
+        mean_of_ratios = float(
+            (book["ecl_final_sar"] / book["gross_carrying_amount_sar"])
+            .replace([float("inf"), float("-inf")], float("nan"))
+            .dropna().mean()) * 100
+
+        value = float(latest[0]["value"])
+        assert value == pytest.approx(quotient, rel=1e-6)
+        assert value != pytest.approx(mean_of_ratios, rel=1e-3), (
+            f"the series is the mean of per-facility coverage ratios "
+            f"({mean_of_ratios:.2f}%); the book's coverage is "
+            f"{quotient:.2f}%")
 
     def test_the_series_reads_in_date_order(self):
         got = rows("Show the ECL coverage trend.")

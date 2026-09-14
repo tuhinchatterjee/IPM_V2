@@ -351,11 +351,38 @@ whenever somebody wants it.
 
 | | |
 |---|---|
-| New Python regressions | `tests/retail/test_ret_ews_governance.py` (64 cases: bureau recency, segmentation, interpretation, performance, registry, report, the What-If bridge) |
+| New Python regressions | `tests/retail/test_ret_ews_governance.py` (65 cases: bureau recency, segmentation, interpretation, performance, registry, report, the What-If bridge) |
 | New reconciliation | `tests/retail/test_ret_ews_domain_reconciliation.py` (7 cases across four domains) |
 | Browser UAT | `scripts/retail_uat/ews_score_uat.py` EW-01…EW-60; `scripts/retail_uat/ews_v3_journey.py` for the ten v3 screens |
 | Evidence | `docs/evidence/retail_ews_v3/` — ten full-page screenshots |
 | Frontend | `npm test` — 577 pass, 0 fail |
+
+### Tests that were asserting the old book
+
+Regenerating the book to produce the §4 risk shape moved figures that eleven
+existing regressions had written out as literals — a subsegment name and a
+percentage, a customer's exposure to the halala, a Gini of 0.31, a coverage
+ratio that had to sit between 0.3 and 0.4. In every case the product answered
+correctly and stated its own formula; the test was reporting that the book had
+changed, which is not what any of them were written to catch.
+
+Each now computes its expectation the way the metric defines itself and asserts
+the property it exists for — that a rate is a quotient of sums and not a mean of
+ratios, that a customer's header counts each facility once, that the planner has
+not summed the days-past-due column, that putting the rounding back reintroduces
+a residual the continuous arithmetic does not have. The historical figures from
+the What-If reconciliation incident are kept in that module's docstring, where
+they describe what happened, rather than in assertions, where they only go
+stale.
+
+One seeded committee paper in `frontend/src/lib/demo.ts` quoted the book's
+facility count, customer count and final allowance. That gate is right — a
+seeded reference that does not reconcile is invented content — so the document
+was corrected to the published figures rather than the test relaxed.
+
+Five failures in `test_ret_adversarial_cockpit.py` pre-date this work and are
+unchanged: they are recorded in `docs/RETAIL_EWS_SCORE_HANDOVER.md` and in
+`docs/evidence/retail_ews_score/retail_suite.txt`.
 
 ---
 

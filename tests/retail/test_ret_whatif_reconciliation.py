@@ -38,10 +38,16 @@ from backend.retail import ecl as ecl_mod
 from backend.retail import whatif as wif
 from backend.retail.config import load_config
 
-#: The figures Revision 2 reported, kept as the thing being reconciled.
+#: The population and month Revision 2 reported on, kept as the thing being
+#: reconciled. Its FIGURES — a baseline of SAR 8,994,011.87, a residual of SAR
+#: −0.52 over |SAR 17.86| of per-row displacement — belong to the book as it
+#: stood then, and are recorded in this module's docstring. They are not
+#: asserted: the book behind them is regenerated whenever the demonstration
+#: data changes, and a literal cannot tell a regenerated book from a
+#: reappearing defect. What is asserted below is the arithmetic that produced
+#: them, which is what the reconciliation was actually about.
 REPORTED_POPULATION = "PERSONAL_LOAN"
 REPORTED_MONTH = "2026-08"
-REPORTED_BASELINE_SAR = 8_994_011.868
 
 
 @pytest.fixture(scope="module")
@@ -63,13 +69,22 @@ def _neutral(retail_book, frame, cfg, **filters):
 
 class TestTheReportedBaselineIsIdentified:
     def test_it_is_the_personal_finance_population_not_the_whole_book(self, snapshot):
-        """SAR 8.99m and SAR 15.95m are two populations, not a discrepancy."""
+        """Two populations, not a discrepancy.
+
+        The reported baseline is the personal-finance subset and the other
+        figure is the whole book. The point is that one is a proper part of
+        the other and each is the sum of its own rows — not that either is any
+        particular number.
+        """
         personal = snapshot[snapshot["product_code"] == REPORTED_POPULATION]
-        assert personal["ecl_final_sar"].sum() == pytest.approx(
-            REPORTED_BASELINE_SAR, abs=0.01)
-        whole = snapshot["ecl_final_sar"].sum()
-        assert whole > personal["ecl_final_sar"].sum()
-        assert whole == pytest.approx(15_952_108.836, abs=0.01)
+        assert len(personal), REPORTED_POPULATION
+        part = float(personal["ecl_final_sar"].sum())
+        whole = float(snapshot["ecl_final_sar"].sum())
+        assert part > 0
+        assert part < whole
+        others = snapshot[snapshot["product_code"] != REPORTED_POPULATION]
+        assert part + float(others["ecl_final_sar"].sum()) == pytest.approx(
+            whole, abs=0.01), "the two populations do not partition the book"
 
     def test_the_baseline_measure_is_the_final_allowance(self, retail_book, snapshot, cfg):
         """Not the base scenario, and not the weighted value before overlay."""
@@ -170,9 +185,21 @@ class TestANeutralRebuildReproducesThePublishedBookExactly:
             filters={"product_code": REPORTED_POPULATION})
         weights = {s: float(cfg.scenarios.weights[s]) for s in ecl_mod.SCENARIOS}
         out = wif._recompute(personal, scenario, weights)
+        published = personal["ecl_final_sar"].to_numpy()
+
+        # Continuous, as the build does it: exact.
+        assert out["ecl_final"].sum() == pytest.approx(published.sum(),
+                                                       rel=1e-9)
+        # Rounded to the halala, as Revision 2 did it: a residual returns.
+        # Its size belongs to whichever book is in front of us; that it is
+        # non-zero, and that the continuous arithmetic above is not, is the
+        # diagnosis.
         as_it_was = np.round(out["ecl_final"], 2)
-        residual = as_it_was.sum() - personal["ecl_final_sar"].sum()
-        assert residual == pytest.approx(-0.52, abs=0.01)
+        residual = as_it_was.sum() - published.sum()
+        assert abs(residual) > 1e-6, (
+            "rounding to the halala no longer displaces anything, so this no "
+            "longer reproduces the defect it was written to reproduce")
+        assert abs(residual) < 0.01 * len(personal)
 
     def test_the_net_hid_per_row_error_thirty_four_times_its_size(
             self, retail_book, snapshot, cfg):
@@ -185,8 +212,13 @@ class TestANeutralRebuildReproducesThePublishedBookExactly:
         weights = {s: float(cfg.scenarios.weights[s]) for s in ecl_mod.SCENARIOS}
         rows = (np.round(wif._recompute(personal, scenario, weights)["ecl_final"], 2)
                 - personal["ecl_final_sar"].to_numpy())
-        assert np.abs(rows).sum() == pytest.approx(17.86, abs=0.05)
-        assert abs(rows.sum()) == pytest.approx(0.52, abs=0.01)
+        # The net is far smaller than the displacement it nets, because the
+        # displacements fall on both sides and cancel. That is the whole
+        # point: a small aggregate was never evidence that the per-row
+        # arithmetic agreed. Revision 2's book netted |SAR 17.86| down to SAR
+        # −0.52, thirty-four times its size; the ratio belongs to the book, so
+        # what is asserted is that the cancellation is large.
+        assert np.abs(rows).sum() > 10 * abs(rows.sum())
         assert (rows > 0).sum() > 0 and (rows < 0).sum() > 0
         # The mechanism's own bound: half of 0.01 minus the 0.002 offset.
         assert np.abs(rows).max() == pytest.approx(0.004, abs=1e-9)

@@ -290,7 +290,7 @@ export const DOCUMENTS: DocumentRecord[] = [
     status: "in_review",
     updated: "2026-08-31",
     project: "August 2026 Retail Portfolio Review",
-    basis: "retail_facility_month · 2026-08 · 19,745 facilities held by 14,251 customers",
+    basis: "retail_facility_month · 2026-08 · 19,722 facilities held by 14,239 customers",
     sections: [
       "Executive summary",
       "The retail book by product",
@@ -326,7 +326,7 @@ export const DOCUMENTS: DocumentRecord[] = [
     status: "approved",
     updated: "2026-08-30",
     project: "Retail IFRS 9 ECL Review",
-    basis: "retail_facility_month · 2026-07 to 2026-08 bridge · SAR 15,952,108.84 final allowance at 2026-08",
+    basis: "retail_facility_month · 2026-07 to 2026-08 bridge · SAR 20,110,831.03 final allowance at 2026-08",
     sections: [
       "ECL movement, with entrants and exits kept separate",
       "Staging and SICR triggers",

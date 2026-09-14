@@ -428,10 +428,13 @@ class TestAMetricNamesOnlyThePopulationItApplied:
     """"Stage 2 Share of Exposure is 5.42% IN 2" — a phrase made out of a raw
     column value, describing a restriction that was not applied."""
 
-    def test_a_share_names_no_stray_population(self):
+    def test_a_share_names_no_stray_population(self, book):
         answered = answer("What proportion of the book is in Stage 2?")
         assert " in 2 " not in said(answered), said(answered)
-        assert "5.4" in said(answered), said(answered)
+        share = (float(book[book["ifrs9_stage"] == 2]
+                       ["gross_carrying_amount_sar"].sum())
+                 / float(book["gross_carrying_amount_sar"].sum()) * 100)
+        assert f"{share:.2f}%" in said(answered), said(answered)
 
     def test_a_real_restriction_is_still_named(self):
         answered = answer("What is the 30+ DPD rate for credit cards?")

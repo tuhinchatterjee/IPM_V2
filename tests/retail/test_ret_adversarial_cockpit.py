@@ -585,11 +585,25 @@ class TestAConstrainedFieldIsNotAMeasure:
         assert "CONSTRAINS" in said, said
         assert [m.field for m in answered.build.matches] != ["ifrs9_stage"]
 
-    def test_the_stage_rate_is_the_published_metric(self):
+    def test_the_stage_rate_is_the_published_metric(self, book):
+        """The rate is a quotient of sums over the book, not a typed figure.
+
+        This asserted the subsegment name and the percentage as literals. A
+        regenerated book moves both, and a literal cannot tell a changed book
+        from a broken metric — it only ever reports that something moved. The
+        expectation is computed here the way the metric defines itself, so the
+        gate holds whatever the demonstration book happens to contain.
+        """
         answered = answer("Which subsegment has the highest Stage 2 rate?")
         said = headline(answered)
-        assert "CARD" in said, said
-        assert "12.70%" in said, said
+
+        rate = (book[book.ifrs9_stage == 2]
+                .groupby("product_subsegment").gross_carrying_amount_sar.sum()
+                / book.groupby("product_subsegment")
+                      .gross_carrying_amount_sar.sum()).dropna()
+        worst = rate.idxmax()
+        assert str(worst) in said, said
+        assert f"{rate.max() * 100:.2f}%" in said, said
         assert "IFRS 9 stage in Stage 2" not in said
 
     def test_the_largest_group_is_named(self, book):
@@ -601,9 +615,10 @@ class TestAConstrainedFieldIsNotAMeasure:
                       .gross_carrying_amount_sar.sum())
         assert f"{truth:,.0f}" in said.replace(" SAR", ""), said
 
-    def test_a_breakdown_that_was_not_asked_to_rank_still_totals(self):
+    def test_a_breakdown_that_was_not_asked_to_rank_still_totals(self, book):
         said = headline(answer(f"What is ECL by product at {LATEST}?"))
-        assert "15,952,109" in said, said
+        total = float(book.ecl_final_sar.sum())
+        assert f"{total:,.0f}" in said.replace(" SAR", ""), said
         assert "has the largest" not in said
 
 
@@ -641,13 +656,22 @@ class TestAMetricSurvivesItsOwnFollowUp:
         assert answered.governed_metric == "retail.dpd30.rate" or \
             "dpd" in answered.governed_metric
 
-    def test_which_product_is_driving_it_stays_on_the_metric(self):
+    def test_which_product_is_driving_it_stays_on_the_metric(self, book):
         first = answer("What's happening to 30+ DPD?")
         state = orchestrator.remember(cv.ConversationState(), first)
         answered = answer("Which product is driving it?", state=state)
         said = headline(answered)
-        assert "Credit Card" in said, said
-        assert "3.70%" in said, said
+        # The product named and the rate quoted are both properties of the
+        # book, so they are computed here the way the metric defines itself
+        # rather than typed in. What this gate is for is the LAST assertion:
+        # the planner once summed the days-past-due column and reported days
+        # as a rate.
+        rate = (book[book.dpd >= 30].groupby("product_label")
+                .gross_carrying_amount_sar.sum()
+                / book.groupby("product_label")
+                      .gross_carrying_amount_sar.sum() * 100).dropna()
+        assert str(rate.idxmax()) in said, said
+        assert f"{rate.max():.2f}%" in said, said
         assert "days of days past due" not in said, (
             "the planner summed the days-past-due column")
 
@@ -1002,7 +1026,10 @@ class TestAShareAskedForByNamingTheState:
         truth = (book[book.secured_flag].gross_carrying_amount_sar.sum()
                  / book.gross_carrying_amount_sar.sum() * 100)
         assert "Secured Share" in said, said
-        assert f"{truth:.0f}" in said, said
+        # One decimal, which is how the metric renders. Rounded to a whole
+        # number this passed only while the book happened to sit near an
+        # integer: at 74.8% the test looked for "75" in "74.8%".
+        assert f"{truth:.1f}%" in said, said
 
     def test_a_plain_total_is_not_hijacked(self):
         said = headline(answer("What is total ECL?"))
@@ -1371,7 +1398,19 @@ class TestARatioIsAQuotientOfSums:
                       / stage3.gross_carrying_amount_sar.sum())
         assert float(latest["ecl_coverage_ratio"]) == pytest.approx(truth,
                                                                    rel=1e-9)
-        assert 0.3 < truth < 0.4, "the oracle itself must be the weighted ratio"
+        # The oracle must be the EXPOSURE-WEIGHTED ratio and not an average of
+        # per-facility ratios. Written as a numeric window — 0.3 to 0.4 — this
+        # said nothing about weighting and failed the moment the demonstration
+        # book moved, reporting a changed book as a broken metric. The
+        # property itself: a quotient of sums lies inside the range of the
+        # facility-level ratios and differs from their unweighted mean, which
+        # is exactly what a mean of ratios would have produced.
+        per_facility = (stage3.ecl_final_sar
+                        / stage3.gross_carrying_amount_sar).replace(
+                            [float("inf"), float("-inf")], float("nan")).dropna()
+        assert per_facility.min() <= truth <= per_facility.max()
+        assert truth != pytest.approx(float(per_facility.mean()), rel=1e-6), (
+            "the oracle is the unweighted mean of per-facility ratios")
 
     def test_the_two_halves_are_lineage(self):
         from backend.orchestration import presentation as pr
@@ -1557,9 +1596,10 @@ class TestANonAdditiveTotalIsNotStated:
         truth = float(book.groupby("region_label").dpd.max().max())
         assert f"{truth:,.0f}" in said.replace(" days", ""), said
 
-    def test_a_summed_result_still_states_its_total(self):
+    def test_a_summed_result_still_states_its_total(self, book):
         said = headline(answer(f"What is ECL by region at {LATEST}?"))
-        assert "15,952,109" in said, said
+        total = float(book.ecl_final_sar.sum())
+        assert f"{total:,.0f}" in said.replace(" SAR", ""), said
 
 
 class TestAConcentrationQuestionNamesItsDimension:
@@ -1698,7 +1738,12 @@ class TestAValidationQuestionIsNotOutOfScope:
                             "scorecard performing?")
         answered = answer("What's the Gini?", state=state)
         assert answered.result.rows[0]["test_id"] == "DISC-GINI"
-        assert "0.31" in str(answered.result.answer), answered.result.answer
+        # The measured Gini, read from the row the answer is built on. Typed
+        # in, this reported a refitted scorecard as a broken thread.
+        measured = answered.result.rows[0]
+        value = measured.get("value", measured.get("result"))
+        assert f"{float(value):.4f}" in str(answered.result.answer), (
+            answered.result.answer)
 
     def test_a_judgement_about_the_model_reaches_the_findings(self):
         _, state = advanced("How is our personal finance application "
