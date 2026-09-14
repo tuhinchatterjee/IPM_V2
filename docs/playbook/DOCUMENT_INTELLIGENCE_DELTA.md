@@ -74,7 +74,7 @@ re-checked against them before human UAT.
 | 19 | Governed refresh (§16) | | | ✅ | change-set approval pattern | refresh proposal |
 | 20 | Freshness (§17) | ✅ | | | — | binding freshness + `reparse.summary` |
 | 21 | Parser versioning / re-read (§18) | ✅ | | | immutable bytes, `retry_source` | `ingest/version.py`, `reparse.py` (Gate 9) |
-| 22 | Save-gate regression matrix (§19) | | ✅ | | 19 defects have tests already | matrix doc + suite |
+| 22 | Save-gate regression matrix (§19) | ✅ | | | 19 defects have tests already | `SAVE_GATE_MATRIX.md` + `test_save_gate_matrix.py` (Gate 10) |
 | 23 | Soak harness (§20) | | | ✅ | scripted provider | `scripts/playbook_soak.py` |
 | 24 | Adversarial pass (§21) | | ✅ | | existing security suite | soak + adversarial tests |
 | 25 | Auditability of every status (§26) | ✅ | | | — | append-only `history` + `readiness` explanation |
@@ -403,3 +403,30 @@ gone is reported and the rest are still brought up to date.
 
 No migration: `playbook_source_parses` was built in `0035` and is now used for
 what it was built for.
+
+## Gate 10 — a matrix that cannot drift from the code
+
+`docs/playbook/SAVE_GATE_MATRIX.md` carries §19's nineteen failure classes,
+each with the layer it lives in, the test that reproduces the original failure
+in its original shape, and what is expected instead.
+
+The interesting part is the check beside it. `test_save_gate_matrix.py`
+resolves every node id in the table against the **source** — file, class,
+function — and fails if any of them has been deleted, renamed, or quarantined
+with `skip`, `skipif` or `xfail`. It also pins the failure-class list
+independently of the table, so deleting a row fails the check rather than
+shrinking the requirement to fit; that the tests are spread across at least
+seven files, so the matrix cannot become one test's neighbourhood; and that
+every named test lives in `tests/playbook`, so one run exercises all nineteen.
+
+What it deliberately does **not** do is claim to verify that the tests pass.
+A check that read PASS out of a Markdown table would be exactly the document a
+reader trusts instead of counting. The status column is a claim about the last
+recorded run, stated with its counts in the matrix's own Evidence section; the
+mechanical check proves only that each row points at something real and still
+running.
+
+Running the nineteen named nodes directly: **38 tests** (parametrised cases
+expand), 0 failed. No new production code was needed — every class already had
+a test, which is what Gates 1–9 were for; what was missing was the thing that
+stops one of them quietly disappearing.
