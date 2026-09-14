@@ -536,3 +536,81 @@ the code was right.
   `next build` all clean.
 
 No provider call was made by anything in this gate.
+
+## Gate 12 (part) — demo content
+
+`backend/playbook/seed_intelligence.py` populates the dashboard for all three
+seeded workspaces. §24 asks that it not be empty; it also must not be
+populated with invented numbers, so every figure comes from
+`fixtures/ecl_oracle.py` — the same mapping the chat, the Word file, the PDF,
+the deck and the workbook read. The dashboard cannot disagree with the pack
+beside it.
+
+The IFRS 9 workspace is the committee-oriented example §24 names, and carries
+all of it on first open:
+
+| | |
+|---|---|
+| Period and meeting | Q2 2026, Credit Risk Committee, meeting in 11 days |
+| Previous pack | the Q1 2026 report, as an ingested source |
+| Metrics, then and now | 4 governed, 1 suggested; coverage 80% |
+| Since Last Time | 4 rows — ECL +1.87, coverage +0.08**pp**, Stage 2 +41.00 |
+| Findings | 4, of which 1 blocking and unanswered, 1 answered and accepted |
+| Decisions | 2 — one recorded by the chair, one still before the committee |
+| Actions | 2 from the recorded decision, 1 in progress, 1 overdue |
+| Readiness | 34% complete, 54% ready, **blocked**, with three named blockers |
+
+**Metric bindings.** Pre-confirmed, per the standing exception for seeded
+Playbooks — a demonstration that opens on a review queue demonstrates the
+queue. Each is confirmed by a named demonstration user, so a reader can tell a
+pre-confirmed demo mapping from an inferred one. One binding in each of the
+first two workspaces is left **suggested**, from a real catalogue match on a
+column header, because §8's review path is part of what is being shown, and
+the catalogue's own suggestion is left exactly as it made it — writing the
+intended id over it would turn a suggestion into an assertion.
+
+**Governance.** Findings, decisions and actions go through the same
+`governance` functions a real user goes through, attributed to named
+demonstration people. Nothing is attributed to Claude and nothing is recorded
+as a live model act.
+
+### Two defects this found
+
+**A generic committee report demanded three sections it should never have.**
+`REQUIREMENTS[COMMITTEE_REPORT]` named "Book performance", "Origination
+quality" and "Model performance" — sections specific to a retail portfolio
+committee. Every other kind of committee pack was therefore marked incomplete
+for sections it has no reason to contain. Those belong to `PORTFOLIO_REVIEW`;
+a committee report as such needs the summary, the background, the analysis,
+the findings, what is being asked of the committee and what is recommended.
+
+Separately, the IFRS 9 demo is now typed as what it is — an **IFRS 9 report,
+put to a committee**. `document_type` and `committee_report` are separate
+fields precisely so both can be true: it is measured against the sections an
+IFRS 9 pack needs, and it gets the decisions and actions a committee paper
+gets. Collapsing the two would have forced one of them to be wrong.
+
+**A document 29% written reported "ready for approval".** Nothing blocked it —
+only because nobody had looked at it yet. "Ready" has to mean there is nothing
+left for anybody to do, so completion is now part of the bar: below the same
+green threshold the panel uses everywhere else (90%), the status is *pending*
+and says so with the number. A blocker still wins over a complete document.
+
+### Verified
+
+* `tests/playbook` — 990 passed, 8 skipped.
+* Backend regression (`tests/api tests/exports tests/docs tests/demo
+  tests/services tests/llm tests/proof tests/validation`) — 1113 passed, 8
+  skipped.
+* `scripts/acceptance/playbook_browser_acceptance.py` — **105 passed, 0
+  failed** against the reseeded demonstration, which is §23's non-regression
+  list exercised in a real browser.
+* `scripts/acceptance/verify_playbook_artifacts.py` — 14 files, 62 checks, 0
+  failed.
+* `scripts/playbook_soak.py` — 10 × 10, 380 checks passed, 0 failed.
+* `ruff check .` clean.
+
+Two test-isolation defects were fixed along the way: two snapshot tests
+counted the whole `playbook_metric_snapshots` table, which worked only while
+nothing in the product ever wrote a snapshot. They are now scoped to their own
+artifact.

@@ -402,3 +402,39 @@ class TestTheDashboardCarriesIt:
         assert stats["sections"] == len(
             prof.requirements_for(prof.COMMITTEE_REPORT).sections)
         assert stats["page_count_source"] == "not rendered"
+
+
+@pytest.mark.usefixtures("db")
+class TestReadyMeansThereIsNothingLeftToDo:
+    """A document a third written, with nothing blocking only because nobody
+    has looked at it, is not ready for approval. §13."""
+
+    def test_a_document_below_the_green_bar_is_pending_not_ready(
+            self, db, workspace):
+        facts = score.Facts(profile=None, document=None, version=1,
+                            section_rows=[], bindings=[], findings=[],
+                            decisions=[], actions=[], reviews=[], sources=[],
+                            statistics={})
+        status, component = score.approval(facts, [], 29)
+        assert status == score.PENDING
+        assert "29% complete" in component.explanation
+        assert f"{score.GREEN_AT}%" in component.explanation
+
+    def test_at_the_green_bar_with_nothing_blocking_it_is_ready(
+            self, db, workspace):
+        facts = score.Facts(profile=None, document=None, version=1,
+                            section_rows=[], bindings=[], findings=[],
+                            decisions=[], actions=[], reviews=[], sources=[],
+                            statistics={})
+        status, _ = score.approval(facts, [], score.GREEN_AT)
+        assert status == score.READY
+
+    def test_a_blocker_still_wins_over_a_complete_document(self, db,
+                                                          workspace):
+        facts = score.Facts(profile=None, document=None, version=1,
+                            section_rows=[], bindings=[], findings=[],
+                            decisions=[], actions=[], reviews=[], sources=[],
+                            statistics={})
+        status, _ = score.approval(
+            facts, [{"reason": "1 blocking finding", "link": "findings"}], 100)
+        assert status == score.BLOCKED

@@ -265,7 +265,12 @@ class TestThenIsFrozenAndNeverRewritten:
         db.flush()
         compare.freeze_current(db, workspace.id)
 
-        snapshots = db.query(PlaybookMetricSnapshot).all()
+        # Scoped to this artifact. Counting the whole table only worked
+        # while nothing in the product ever wrote a snapshot; the seeded
+        # demonstration shares this database and now does.
+        snapshots = (db.query(PlaybookMetricSnapshot)
+                     .filter(PlaybookMetricSnapshot.artifact_id == artifact.id)
+                     .all())
         assert len(snapshots) == 1
         assert snapshots[0].value == "5.86"
 
@@ -274,7 +279,9 @@ class TestThenIsFrozenAndNeverRewritten:
         self._bound(db, workspace, artifact)
         compare.freeze_current(db, workspace.id)
         compare.freeze_current(db, workspace.id)
-        assert db.query(PlaybookMetricSnapshot).count() == 1
+        assert (db.query(PlaybookMetricSnapshot)
+                .filter(PlaybookMetricSnapshot.artifact_id == artifact.id)
+                .count()) == 1
 
     def test_a_suggestion_is_never_frozen(self, db, workspace):
         """A suggestion is not something the document relied on — nobody

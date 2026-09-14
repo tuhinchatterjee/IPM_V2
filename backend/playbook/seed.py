@@ -34,7 +34,16 @@ import logging
 from sqlalchemy import select
 
 from backend.models.playbook import PlaybookWorkspace
-from backend.playbook import capabilities, library, render, seed_exports, seed_threads, store, validate
+from backend.playbook import (
+    capabilities,
+    library,
+    render,
+    seed_exports,
+    seed_intelligence,
+    seed_threads,
+    store,
+    validate,
+)
 from backend.playbook import document as D
 from backend.playbook import repository as repo
 
@@ -217,12 +226,21 @@ def seed_workspace(session, scope: repo.Scope, spec: seed_threads.ThreadSpec,
             # recorded against it, because none wrote it.
             origin="user" if turn.role == "user" else "seed_fixture")
 
+    # §24: the dashboard must not be empty in the demonstration. Sections,
+    # governed metric links, findings, decisions, actions and readiness are
+    # seeded from the same oracle the documents were written from, so the
+    # dashboard cannot disagree with the pack beside it.
+    intelligence = seed_intelligence.seed(
+        session, ws.id, artifact.id, document_family=spec.document_family,
+        versions=[v1, v2], documents=[spec.v1, spec.v2])
+
     repo.touch(session, ws, summary=spec.summary)
     return {"title": spec.title, "created": True, "workspace_id": ws.id,
             "artifact_id": artifact.id, "deck_id": deck_id,
             "versions": 2, "messages": len(spec.turns),
             "sources": len(source_ids),
-            "attached_analyses": len(attached_revisions)}
+            "attached_analyses": len(attached_revisions),
+            "intelligence": intelligence}
 
 
 def reseed(session, scope: repo.Scope) -> SeedResult:

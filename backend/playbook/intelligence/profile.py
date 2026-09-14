@@ -132,10 +132,16 @@ _DEVELOPMENT_WEIGHTS = {REQUIRED_SECTIONS: 50, EVIDENCE_ATTACHED: 20,
                         FINDINGS_DISPOSITIONED: 5, HUMAN_REVIEW: 5}
 
 REQUIREMENTS: dict[str, Requirements] = {
+    # A GENERIC committee agenda. It previously named "Book performance",
+    # "Origination quality" and "Model performance" — sections specific to a
+    # retail portfolio committee, which marked every other kind of committee
+    # pack incomplete for sections it should never have had. Those belong to
+    # PORTFOLIO_REVIEW; a committee report as such needs the summary, the
+    # context, the analysis, the findings, what is being asked of the
+    # committee, and what is recommended.
     COMMITTEE_REPORT: Requirements(
-        sections=("Executive summary", "Book performance",
-                  "Origination quality", "Model performance",
-                  "Findings", "Decisions requested", "Recommendations"),
+        sections=("Executive summary", "Background", "Analysis", "Findings",
+                  "Decisions requested", "Recommendations"),
         weights=_COMMITTEE_WEIGHTS),
     BOARD_PAPER: Requirements(
         sections=("Executive summary", "Purpose", "Background", "Analysis",

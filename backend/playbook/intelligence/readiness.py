@@ -465,12 +465,24 @@ def readiness(facts: Facts) -> tuple[int, list[Component], list[dict]]:
     return overall, components, blockers
 
 
-def approval(facts: Facts, blockers: list[dict]) -> tuple[str, Component]:
-    """§13's bar. A pack with anything blocking is never "ready"."""
+def approval(facts: Facts, blockers: list[dict],
+             completion_pct: int) -> tuple[str, Component]:
+    """§13's bar. A pack with anything blocking is never "ready".
+
+    Nor is one that is not written yet. "Ready for approval" has to mean there
+    is nothing left for anybody to do; a document a third written, with
+    nothing yet blocking simply because nobody has looked at it, is not that.
+    Completion must reach the same green bar the panel uses everywhere else,
+    so the two readings cannot tell a reader opposite things.
+    """
     if blockers:
         status = BLOCKED
         explanation = (f"{len(blockers)} item(s) block approval: "
                        + "; ".join(b["reason"] for b in blockers[:2]))
+    elif completion_pct < GREEN_AT:
+        status = PENDING
+        explanation = (f"the document is {completion_pct}% complete; "
+                       f"{GREEN_AT}% is the bar for approval")
     elif facts.committee and not facts.decisions:
         status, explanation = PENDING, "no decision has been requested"
     else:
@@ -492,7 +504,7 @@ def compute(session, workspace_id: int, *, persist: bool = True) -> Result:
     facts = gather(session, workspace_id)
     completion_pct, completion_parts, missing = completion(facts)
     readiness_pct, parts, blockers = readiness(facts)
-    status, approval_component = approval(facts, blockers)
+    status, approval_component = approval(facts, blockers, completion_pct)
     parts.append(approval_component)
 
     result = Result(
