@@ -470,11 +470,14 @@ def prompts(selection: Selection) -> list[str]:
     """Scenarios worth running on THIS cohort, §13."""
     out = [
         "Increase PIT 12-month PD by 20%.",
-        "Increase LGD by 5 percentage points.",
+        "Increase LGD by 5%.",
         "Move 15% of Stage 1 exposure to Stage 2.",
     ]
     if selection.source_product == "CREDIT_CARD":
-        out.insert(0, "Move 20% of 30-60 DPD exposure to 90+.")
+        # 30-59, which is the bucket the taxonomy has. Offered as "30-60" the
+        # parser found no such bucket and refused a prompt the screen had just
+        # invited the reader to press.
+        out.insert(0, "Move 20% of 30-59 DPD exposure to 90+.")
         out.append("Increase CCF by 10 percentage points on undrawn card lines.")
         out.append("Move card utilisation up by 10 percentage points.")
     if selection.source_product in ("HOME_LOAN", "AUTO_LOAN"):

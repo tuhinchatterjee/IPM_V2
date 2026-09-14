@@ -378,7 +378,11 @@ def follow_ups(selection: sel.Selection, levels: list[dict[str, Any]]
         out.append("Stress only the forward-risk customers in this selection.")
     if selection.current_bad:
         out.append("Stress only the customers who are already bad.")
-    out.append("Add a 10% increase in loss given default.")
+    # Phrased so the parser reads it. "Add a 10% increase in loss given
+    # default" puts the number before the subject, which the reader's
+    # subject-then-number rule does not match — a follow-up the thread offered
+    # and then refused.
+    out.append("Increase LGD by 10%.")
     out.append("Combine the DPD migration with a 10% collateral haircut.")
     if not selection.source_classification:
         out.append("Compare Salaried against Non-Salaried.")

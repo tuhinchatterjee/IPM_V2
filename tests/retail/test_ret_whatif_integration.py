@@ -455,7 +455,7 @@ def test_thr_03_the_thread_reads_every_chip_it_offers(selection) -> None:
     """Every chip the composer shows has to run, or it is a broken promise."""
     chips = [
         "Increase PIT 12-month PD by 20%",
-        "Increase LGD by 5 percentage points",
+        "Increase LGD by 5%",
         "Reduce verified income by 10%",
         "Increase household expense burden by 10%",
         "Move 20% of 30-59 DPD exposure to 90+",
@@ -580,15 +580,21 @@ def test_stamp_04_a_targeted_rebuild_does_not_delete_the_other_months() -> None:
     import inspect
 
     source = inspect.getsource(S.build)
-    assert "keep = set(scored_months(analytics_dir)) | set(wanted)" in source
-    assert "if month not in keep:" in source
-    assert "if month not in wanted:" not in source, (
+    # The retention block only — `if month not in wanted` also appears in the
+    # scoring loop, where skipping a lead-in month the caller did not ask for
+    # is exactly right.
+    at = source.index("Anything older than the twenty months is removed")
+    retention = source[at:]
+    assert "keep = set(scored_months(analytics_dir)) | set(wanted)" in retention
+    assert "if month not in keep:" in retention
+    assert "if month not in wanted:" not in retention, (
         "the retention cleanup is pruning against the caller's request again")
 
 
 # ======================== PERF: faster, and the same answer ==================
 
-def test_perf_01_a_narrowed_roll_up_counts_the_same_as_a_full_one(book) -> None:
+def test_perf_01_a_narrowed_roll_up_counts_the_same_as_a_full_one(
+        month: str) -> None:
     """The roll-up carries fewer columns; it must not carry a different answer.
 
     `_counts` reads six columns off the customer roll-up, which used to carry
@@ -598,17 +604,21 @@ def test_perf_01_a_narrowed_roll_up_counts_the_same_as_a_full_one(book) -> None:
     """
     from backend.retail import ews_views as views
 
-    narrowed = views._counts(book)
+    # The SCORED panel. These read `ews_score` and `ews_severity`, which the
+    # model produces; the canonical book has neither.
+    panel = S.read(month)
+    narrowed = views._counts(panel)
     held = views.COUNT_COLUMNS
     try:
-        views.COUNT_COLUMNS = tuple(book.columns)
-        full = views._counts(book)
+        views.COUNT_COLUMNS = tuple(panel.columns)
+        full = views._counts(panel)
     finally:
         views.COUNT_COLUMNS = held
     assert narrowed == full
 
 
-def test_perf_02_the_roll_up_keeps_the_columns_it_needs_itself(book) -> None:
+def test_perf_02_the_roll_up_keeps_the_columns_it_needs_itself(
+        month: str) -> None:
     """A caller cannot be expected to know what the roll-up reads.
 
     Narrowed to the layer columns, the roll-up raised a KeyError deriving
@@ -617,27 +627,34 @@ def test_perf_02_the_roll_up_keeps_the_columns_it_needs_itself(book) -> None:
     """
     from backend.retail import ews_views as views
 
-    rolled = views._per_customer(book, columns=("customer_id",))
+    rolled = views._per_customer(S.read(month), columns=("customer_id",))
     for column in ("ews_score", "ews_severity", "current_bad_flag",
                    "forward_risk_flag", "customer_exposure_sar"):
         assert column in rolled.columns, column
 
 
-def test_perf_03_top_reasons_counts_what_it_used_to_count(book) -> None:
-    """Counted off masks rather than off a copy of the whole frame."""
-    from backend.retail import ews_views as views
+def test_perf_03_top_reasons_counts_what_it_used_to_count(month: str) -> None:
+    """Counted off masks rather than off a copy of the whole frame.
+
+    Over the SCORED panel: the trigger columns are the model's output and the
+    canonical book has none of them, so this read against the book found
+    nothing to check and passed on an empty list.
+    """
     import pandas as pd
 
-    found = views._top_reasons(book, limit=5)
-    assert found
+    from backend.retail import ews_views as views
+
+    panel = S.read(month)
+    found = views._top_reasons(panel, limit=5)
+    assert found, "no trigger fired anywhere in the panel"
     for row in found:
         column = f"trg_{row['key']}_fired"
-        mask = book[column].fillna(False).to_numpy(dtype=bool)
+        mask = panel[column].fillna(False).to_numpy(dtype=bool)
         assert row["facilities"] == int(mask.sum())
         assert row["customers"] == int(
-            pd.unique(book["customer_id"].to_numpy()[mask]).size)
+            pd.unique(panel["customer_id"].to_numpy()[mask]).size)
         assert row["exposure_sar"] == pytest.approx(round(float(pd.to_numeric(
-            book["gross_carrying_amount_sar"], errors="coerce")
+            panel["gross_carrying_amount_sar"], errors="coerce")
             .fillna(0.0).to_numpy()[mask].sum()), 2))
 
 
@@ -719,12 +736,25 @@ def test_xl_04_it_claims_nothing_it_cannot_support(selection) -> None:
     out = WC.run(selection.selection_id, shocks={"pd_relative": 0.20})
     payload, _ = book.build(out, selection=selection.to_dict())
     opened = load_workbook(io.BytesIO(payload))
+    import re
+
     text = " ".join(
         str(cell.value or "")
         for name in opened.sheetnames
         for row in opened[name].iter_rows()
         for cell in row).lower()
+
+    # The CLAIM, not the words. The disclaimer this is checking for says "not
+    # independently validated", and a substring check forbidding the phrase
+    # fires on the sentence that exists to deny it — which would have made the
+    # gate demand the disclaimer be removed.
     for forbidden in ("approved by sama", "sama approval", "anb approved",
-                      "independently validated", "auditor certified"):
-        assert forbidden not in text, forbidden
+                      "independently validated", "auditor certified",
+                      "production validated"):
+        claimed = re.search(
+            rf"(?<!not ){re.escape(forbidden)}", text)
+        assert claimed is None, (
+            f"the workbook claims {forbidden!r}: "
+            f"…{text[max(0, claimed.start() - 60):claimed.end() + 20]}…")
+    assert "not independently validated" in text
     assert "synthetic" in text

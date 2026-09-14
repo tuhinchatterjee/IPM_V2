@@ -288,7 +288,7 @@ const JOURNEYS: {
     prompts: [
       "Increase PIT 12-month PD by 20%",
       "Add 2 percentage points to PD",
-      "Increase LGD by 5 percentage points",
+      "Increase LGD by 5%",
       "Increase CCF by 10 percentage points",
       "Reduce collateral value by 15%",
       "Add six months to the recovery delay",
@@ -303,7 +303,7 @@ const JOURNEYS: {
     prompts: [
       "Increase PIT 12-month PD by 20% for credit card",
       "Increase PIT 12-month PD by 15% for platinum card",
-      "Increase LGD by 5 percentage points on home finance",
+      "Increase LGD by 5% on home finance",
       "Reduce verified income by 10% for non-salaried personal finance",
       "Increase PD by 25% for salaried auto finance",
     ],
