@@ -193,6 +193,9 @@ def _counts(frame: Any, *, book_exposure: float | None = None) -> dict[str, Any]
                                if base else 0.0,
         "ews_score": score,
         "severity_band": M.population_band_of(score),
+        # The same band, read with its distance to the next one, so a
+        # portfolio sitting just under HIGH is not reported as a flat MEDIUM.
+        "severity_reading": M.population_band_reading(score),
         "severity": severity,
         "triggers_fired": _int(frame["triggers_fired"].sum()),
         "default_entries": entries,
@@ -242,9 +245,12 @@ def _layer_means(frame: Any) -> dict[str, float]:
         for layer in M.LAYERS}
 
 
-def _where(frame: Any, *, product: str = "", sub_product: str = "") -> Any:
+def _where(frame: Any, *, product: str = "", classification: str = "",
+           sub_product: str = "") -> Any:
     if product:
         frame = frame[frame["product_code"] == str(product).upper()]
+    if classification:
+        frame = frame[frame["classification"] == str(classification).upper()]
     if sub_product:
         frame = frame[frame["sub_product"] == str(sub_product).upper()]
     return frame
@@ -256,10 +262,59 @@ def _where(frame: Any, *, product: str = "", sub_product: str = "") -> Any:
 _SERIES: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
 
 
-def _trend(months: list[str], *, product: str = "",
+def _salary_transfer_pct(rows: Any) -> float:
+    """What share of this slice routes salary through the bank.
+
+    Reported BESIDE the classification, never as it: a self-employed customer
+    can transfer income here and a salaried one can be paid elsewhere, so the
+    two facts answer different questions.
+    """
+    column = rows.get("salary_transfer_flag") if len(rows) else None
+    if column is None or not len(rows):
+        return 0.0
+    return round(float(column.fillna(False).astype(bool).mean()) * 100, 2)
+
+
+def _materiality(rows: Any, parents: dict[str, Any]) -> dict[str, Any]:
+    """What share of each parent this slice is, on all three counts.
+
+    Customers, accounts and exposure, because they answer different
+    questions: a segment can be two per cent of the customers and a fifth of
+    the money. Every card carries all three so that "small" and "immaterial"
+    cannot be confused for each other.
+    """
+    mine = {
+        "customers": _int(rows["customer_id"].nunique()) if len(rows) else 0,
+        "accounts": _int(rows["facility_id"].nunique()) if len(rows) else 0,
+        "exposure_sar": _money(rows["gross_carrying_amount_sar"].sum())
+                        if len(rows) else 0.0,
+    }
+    out: dict[str, Any] = {"of": mine}
+    for name, parent in parents.items():
+        if parent is None or not len(parent):
+            continue
+        whole = {
+            "customers": _int(parent["customer_id"].nunique()),
+            "accounts": _int(parent["facility_id"].nunique()),
+            "exposure_sar": _money(parent["gross_carrying_amount_sar"].sum()),
+        }
+        out[name] = {
+            "customers_pct": round(mine["customers"] / whole["customers"] * 100, 2)
+                             if whole["customers"] else 0.0,
+            "accounts_pct": round(mine["accounts"] / whole["accounts"] * 100, 2)
+                            if whole["accounts"] else 0.0,
+            "exposure_pct": round(
+                mine["exposure_sar"] / whole["exposure_sar"] * 100, 2)
+                if whole["exposure_sar"] else 0.0,
+            "parent": whole,
+        }
+    return out
+
+
+def _trend(months: list[str], *, product: str = "", classification: str = "",
            sub_product: str = "") -> list[dict[str, Any]]:
     """The three six-month series every card carries, one point per month."""
-    key = (tuple(months), product, sub_product)
+    key = (tuple(months), product, classification, sub_product)
     held = _SERIES.get(key)
     if held is not None:
         return held
@@ -267,6 +322,7 @@ def _trend(months: list[str], *, product: str = "",
     for month in months:
         try:
             frame = _where(S.read(month), product=product,
+                           classification=classification,
                            sub_product=sub_product)
         except FileNotFoundError:
             continue
@@ -456,10 +512,16 @@ def _held(key: tuple[Any, ...], make: Any) -> dict[str, Any]:
 
 
 def warm() -> None:
-    """Compute the landing figures before anybody asks for them."""
+    """Compute the landing figures before anybody asks for them.
+
+    Every level a reader can reach in two clicks: total retail, the four
+    products, and both classifications inside each of them.
+    """
     portfolio()
     for code in M.ALL_PRODUCTS:
         product(code)
+        for one in M.CLASSIFICATIONS:
+            classification(code, one.code)
 
 
 def portfolio(month: str = "") -> dict[str, Any]:
@@ -508,7 +570,7 @@ def _portfolio(month: str = "") -> dict[str, Any]:
         "trend": _trend(months),
         "products": [_product_card(code, at, frame, before, months)
                      for code in M.ALL_PRODUCTS],
-        # So a filter chip can say "Privilege Card" rather than CC_PRIVILEGE.
+        # So a filter chip can say "Signature Card" rather than CC_SIGNATURE.
         "sub_product_labels": dict(M.SUB_PRODUCT_LABELS),
         "definitions": {
             "current_bad": S.CURRENT_BAD_RULE,
@@ -593,6 +655,60 @@ def _product(code: str, month: str = "") -> dict[str, Any]:
     reasons = _top_reasons(frame, 5, before)
     label = _text(frame["product_label"].iloc[0])
 
+    # --- the classification cards: Salaried and Non-Salaried, §5
+    #
+    # The first cut inside a product, and the one a retail committee reads
+    # first, because the two halves of a book behave differently under the
+    # same shock. Each carries its materiality against the product and
+    # against total Retail, on customers, accounts and exposure.
+    whole_retail = S.read(at)
+    classes = []
+    for one in M.CLASSIFICATIONS:
+        rows = _where(frame, classification=one.code)
+        if not len(rows):
+            continue
+        was_rows = (_where(before, classification=one.code)
+                    if before is not None else None)
+        head_one = _counts(rows)
+        was_one = (_counts(was_rows)
+                   if was_rows is not None and len(was_rows) else None)
+        layers_one = _layer_means(rows)
+        layers_one_was = (_layer_means(was_rows)
+                          if was_rows is not None and len(was_rows) else {})
+        reasons_one = _top_reasons(rows, 5, was_rows)
+        classes.append({
+            "classification": one.code,
+            "classification_label": one.label,
+            "meaning": one.meaning,
+            "derivation": one.derivation,
+            "product_code": wanted,
+            "product_label": label,
+            "month": at,
+            **head_one,
+            "previous": was_one,
+            "movement": {
+                "ews_score": round(head_one["ews_score"]
+                                   - was_one["ews_score"], 3),
+                "customers_warned": (head_one["customers_warned"]
+                                     - was_one["customers_warned"]),
+                "current_bad": head_one["current_bad"] - was_one["current_bad"],
+                "forward_risk": (head_one["forward_risk"]
+                                 - was_one["forward_risk"]),
+                "odr_pct": round(head_one["odr_pct"] - was_one["odr_pct"], 4),
+            } if was_one else None,
+            "layers": layers_one,
+            "materiality": _materiality(
+                rows, {"product": frame, "retail": whole_retail}),
+            "salary_transfer_pct": _salary_transfer_pct(rows),
+            "trend": _trend(months, product=wanted, classification=one.code),
+            "top_reasons": reasons_one,
+            "sub_products": [s.code for s in M.sub_products_of(wanted)],
+            "commentary": commentary(f"{label} — {one.label}", head_one,
+                                     was_one, layers_one, layers_one_was,
+                                     reasons_one),
+        })
+    classes.sort(key=lambda card: -card["ews_score"])
+
     cards = []
     for sub in M.sub_products_of(wanted):
         rows = _where(frame, sub_product=sub.code)
@@ -626,6 +742,8 @@ def _product(code: str, month: str = "") -> dict[str, Any]:
             "share_of_product_exposure_pct": round(
                 sub_head["exposure_sar"] / head["exposure_sar"] * 100, 2)
                 if head["exposure_sar"] else 0.0,
+            "materiality": _materiality(
+                rows, {"product": frame, "retail": whole_retail}),
             "trend": _trend(months, product=wanted, sub_product=sub.code),
             "top_reasons": sub_reasons,
             "commentary": commentary(sub.label, sub_head, sub_was, sub_layers,
@@ -656,7 +774,11 @@ def _product(code: str, month: str = "") -> dict[str, Any]:
         "top_reasons": reasons,
         "commentary": commentary(label, head, was, layers_now, layers_was,
                                  reasons),
+        "classifications": classes,
+        "classification_labels": dict(M.CLASSIFICATION_LABELS),
         "sub_products": cards,
+        "sub_product_taxonomy_version": M.SUB_PRODUCT_TAXONOMY_VERSION,
+        "materiality": _materiality(frame, {"retail": whole_retail}),
         "definitions": {"current_bad": S.CURRENT_BAD_RULE,
                         "forward_risk": S.FORWARD_RISK_RULE,
                         "odr": S.ODR_DEFINITION},
@@ -681,7 +803,140 @@ def _cohort(people: Any, cohort: str) -> Any:
     return warned
 
 
-def customers(month: str = "", *, product: str = "", sub_product: str = "",
+def classification(product_code: str, code: str, month: str = "") -> dict[str, Any]:
+    """One classification inside one product, and the sub-products under it."""
+    return _held(("classification", str(product_code).upper(),
+                  str(code).upper(), month),
+                 lambda: _classification(product_code, code, month))
+
+
+def _classification(product_code: str, code: str,
+                    month: str = "") -> dict[str, Any]:
+    every = S.panel_months()
+    if not every:
+        return {"available": False, "because": "The domain has not been built."}
+    at = _at(month)
+    index = every.index(at)
+    earlier = every[index - 1] if index else ""
+    wanted = str(product_code).upper()
+    which = str(code).upper()
+
+    declared = next((one for one in M.CLASSIFICATIONS if one.code == which), None)
+    if declared is None:
+        return {"available": False,
+                "because": f"{which} is not a governed classification."}
+
+    whole = S.read(at)
+    whole_before = S.read(earlier) if earlier else None
+    product_rows = _where(whole, product=wanted)
+    frame = _where(product_rows, classification=which)
+    if not len(frame):
+        return {"available": False,
+                "because": f"No {declared.label} facilities in {wanted}."}
+    before = (_where(whole_before, product=wanted, classification=which)
+              if whole_before is not None else None)
+
+    head = _counts(frame)
+    was = _counts(before) if before is not None and len(before) else None
+    layers_now = _layer_means(frame)
+    layers_was = (_layer_means(before)
+                  if before is not None and len(before) else {})
+    reasons = _top_reasons(frame, 5, before)
+    months = S.window(at, S.TREND_MONTHS)
+    label = (_text(frame["product_label"].iloc[0]) if len(frame)
+             else wanted.replace("_", " ").title())
+
+    cards = []
+    for sub in M.sub_products_of(wanted):
+        rows = _where(frame, sub_product=sub.code)
+        if not len(rows):
+            continue
+        sub_before = (_where(before, sub_product=sub.code)
+                      if before is not None else None)
+        sub_head = _counts(rows)
+        sub_was = (_counts(sub_before)
+                   if sub_before is not None and len(sub_before) else None)
+        sub_layers = _layer_means(rows)
+        sub_layers_was = (_layer_means(sub_before)
+                          if sub_before is not None and len(sub_before) else {})
+        sub_reasons = _top_reasons(rows, 5, sub_before)
+        cards.append({
+            "sub_product": sub.code,
+            "sub_product_label": sub.label,
+            "meaning": sub.meaning,
+            "derivation": sub.derivation,
+            "previous_label": M.SUB_PRODUCT_PREVIOUS_LABELS.get(sub.code, ""),
+            "product_code": wanted,
+            "classification": which,
+            "classification_label": declared.label,
+            "month": at,
+            **sub_head,
+            "previous": sub_was,
+            "movement": {
+                "ews_score": round(sub_head["ews_score"]
+                                   - sub_was["ews_score"], 3),
+                "customers_warned": (sub_head["customers_warned"]
+                                     - sub_was["customers_warned"]),
+                "current_bad": sub_head["current_bad"] - sub_was["current_bad"],
+                "forward_risk": (sub_head["forward_risk"]
+                                 - sub_was["forward_risk"]),
+                "odr_pct": round(sub_head["odr_pct"] - sub_was["odr_pct"], 4),
+            } if sub_was else None,
+            "layers": sub_layers,
+            # Three parents, because §6.1 asks what share of each this is.
+            "materiality": _materiality(rows, {
+                "classification": frame, "product": product_rows,
+                "retail": whole}),
+            "salary_transfer_pct": _salary_transfer_pct(rows),
+            "trend": _trend(months, product=wanted, classification=which,
+                            sub_product=sub.code),
+            "top_reasons": sub_reasons,
+            "commentary": commentary(sub.label, sub_head, sub_was, sub_layers,
+                                     sub_layers_was, sub_reasons),
+        })
+    cards.sort(key=lambda card: -card["ews_score"])
+
+    return {
+        "available": True,
+        "month": at,
+        "previous_month": earlier,
+        "months": every,
+        "product_code": wanted,
+        "product_label": label,
+        "classification": which,
+        "classification_label": declared.label,
+        "meaning": declared.meaning,
+        "derivation": declared.derivation,
+        "headline": head,
+        "previous": was,
+        "movement": {
+            "ews_score": round(head["ews_score"] - was["ews_score"], 3),
+            "customers_warned": head["customers_warned"] - was["customers_warned"],
+            "current_bad": head["current_bad"] - was["current_bad"],
+            "forward_risk": head["forward_risk"] - was["forward_risk"],
+            "odr_pct": round(head["odr_pct"] - was["odr_pct"], 4),
+        } if was else None,
+        "layers": layers_now,
+        "weights": M.weights_for(wanted),
+        "materiality": _materiality(
+            frame, {"product": product_rows, "retail": whole}),
+        "salary_transfer_pct": _salary_transfer_pct(frame),
+        "trend": _trend(months, product=wanted, classification=which),
+        "top_reasons": reasons,
+        "commentary": commentary(f"{label} — {declared.label}", head, was,
+                                 layers_now, layers_was, reasons),
+        "sub_products": cards,
+        "sub_product_taxonomy_version": M.SUB_PRODUCT_TAXONOMY_VERSION,
+        "definitions": {"current_bad": S.CURRENT_BAD_RULE,
+                        "forward_risk": S.FORWARD_RISK_RULE,
+                        "odr": S.ODR_DEFINITION},
+        "synthetic": True,
+        "disclaimer": M.DISCLAIMER,
+    }
+
+
+def customers(month: str = "", *, product: str = "", classification: str = "",
+              sub_product: str = "",
               cohort: str = "all", reason: str = "", layer: str = "",
               dpd_bucket: str = "", stage: str = "",
               score_min: float | None = None, score_max: float | None = None,
@@ -698,7 +953,8 @@ def customers(month: str = "", *, product: str = "", sub_product: str = "",
     at = _at(month)
     whole = S.read(at)
 
-    frame = _where(whole, product=product, sub_product=sub_product)
+    frame = _where(whole, product=product, classification=classification,
+                   sub_product=sub_product)
     portfolio_exposure = _money(whole["gross_carrying_amount_sar"].sum())
     product_exposure = _money(
         _where(whole, product=product)["gross_carrying_amount_sar"].sum()
@@ -1165,7 +1421,8 @@ def _trigger_value(one: M.Trigger, rows: Any) -> dict[str, Any]:
 
 # ---------------------------------------------------------------- signals
 
-def signals(month: str = "", *, product: str = "", sub_product: str = "",
+def signals(month: str = "", *, product: str = "", classification: str = "",
+            sub_product: str = "",
             layer: str = "", severity: str = "", reason: str = "",
             limit: int = 500) -> dict[str, Any]:
     """The rules view: every trigger, what it caught, and what it means."""
@@ -1174,7 +1431,8 @@ def signals(month: str = "", *, product: str = "", sub_product: str = "",
         return {"available": False, "signals": []}
     at = _at(month)
     index = every.index(at)
-    frame = _where(S.read(at), product=product, sub_product=sub_product)
+    frame = _where(S.read(at), product=product,
+                   classification=classification, sub_product=sub_product)
     before = (_where(S.read(every[index - 1]), product=product,
                      sub_product=sub_product) if index else None)
 

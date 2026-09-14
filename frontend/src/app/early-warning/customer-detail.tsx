@@ -30,7 +30,7 @@ import {
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
-import { Kpi, Severity, money, signed } from "./parts";
+import { ExportToWhatIf, Kpi, Severity, money, signed } from "./parts";
 import { Spark } from "./spark";
 
 export function CustomerDetail({ customerId, month, onBack }: {
@@ -75,6 +75,14 @@ export function CustomerDetail({ customerId, month, onBack }: {
           : data.forward_risk
             ? <Badge variant="warning">Forward risk, performing</Badge>
             : null}
+        {/* This customer's own facilities, handed to What-If as a cohort of
+            one: §31 asks for the export here as well as on every card above,
+            and a single customer is the smallest honest selection. */}
+        <ExportToWhatIf
+          testId="ews-export-customer"
+          label="Export to What-If"
+          scope={{ month: data.month, level: "customer",
+                   customer_id: data.customer_id }} />
         {/* Embedded in Customer 360 there is nothing to open: the reader is
             already there, and the useful link is the one back to the Early
             Warning workspace, where this customer sits in a population. */}

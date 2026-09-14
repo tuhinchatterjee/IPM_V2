@@ -67,7 +67,7 @@ DOMAIN_NAME = "Early Warning Score"
 BOOK = "retail_facility_month"
 
 #: Bumped when the persisted shape changes.
-EWS_PANEL_VERSION = "2.0.0"
+EWS_PANEL_VERSION = "3.0.0"
 
 #: §23: exactly twenty monthly snapshots, ending at the latest published month.
 MONTHS_KEPT = 20
@@ -205,6 +205,11 @@ def forget() -> None:
         return
     ews_views._SERIES.clear()
     ews_views._ANSWERS.clear()
+    try:
+        from backend.retail import ews_registry
+    except ImportError:  # pragma: no cover
+        return
+    ews_registry.forget()
 
 
 def window(at: str, back: int = TREND_MONTHS,
@@ -243,28 +248,45 @@ def sub_product_of(frame: Any) -> Any:
 
     card = product == "CREDIT_CARD"
     top = segment.isin(("PRIVATE", "AFFLUENT"))
-    out[card] = "CC_SILVER"
+    out[card] = "CC_CLASSIC"
     out[card & (segment == "MASS_AFFLUENT")] = "CC_PLATINUM"
     out[card & (segment == "MASS") & (limit >= 25_000)] = "CC_PLATINUM"
-    out[card & top] = "CC_PRIVILEGE"
-    out[card & (segment == "MASS_AFFLUENT") & (limit >= 50_000)] = "CC_PRIVILEGE"
-    out[card & top & (limit >= 60_000)] = "CC_ULTRA"
+    out[card & top] = "CC_SIGNATURE"
+    out[card & (segment == "MASS_AFFLUENT") & (limit >= 50_000)] = "CC_SIGNATURE"
+    out[card & top & (limit >= 60_000)] = "CC_INFINITE"
 
     personal = product == "PERSONAL_LOAN"
-    out[personal] = "PF_NEW"
+    out[personal] = "PF_STANDARD"
     out[personal & (subsegment == "TOP_UP")] = "PF_TOPUP"
     out[personal & (subsegment == "REFINANCE_BUYOUT")] = "PF_BUYOUT"
 
     auto = product == "AUTO_LOAN"
-    out[auto] = "AL_NEW"
+    out[auto] = "AL_STANDARD"
     out[auto & (subsegment == "USED")] = "AL_USED"
 
     home = product == "HOME_LOAN"
     out[home] = "HL_FIRST"
-    out[home & (subsegment == "SECOND_PROPERTY")] = "HL_SECOND"
-    out[home & (subsegment == "REFINANCE")] = "HL_REFINANCE"
+    out[home & (subsegment == "SECOND_PROPERTY")] = "HL_STANDARD"
+    out[home & (subsegment == "REFINANCE")] = "HL_BUYOUT"
 
     return out.replace("", np.nan).fillna("UNCLASSIFIED")
+
+
+def classification_of(frame: Any) -> Any:
+    """Salaried or Non-Salaried, for every row.
+
+    Read from EMPLOYMENT, which is what the classification means. The book
+    also carries `salary_transfer_flag` and that is a different fact — where
+    the income lands, not whether it is a salary — so it is reported beside
+    this and never used as it.
+    """
+    import pandas as pd
+
+    status = frame.get("employment_status")
+    if status is None:
+        return pd.Series("UNCLASSIFIED", index=frame.index, dtype="object")
+    return status.astype(str).str.upper().map(
+        M.EMPLOYMENT_TO_CLASSIFICATION).fillna("UNCLASSIFIED")
 
 
 # ------------------------------------------------------ the bureau schedule
@@ -572,6 +594,10 @@ def _prepare(month: str, previous: Any, analytics_dir: str | Path | None
     frame["sub_product"] = sub_product_of(frame)
     frame["sub_product_label"] = frame["sub_product"].map(
         M.SUB_PRODUCT_LABELS).fillna("Unclassified")
+    frame["sub_product_taxonomy_version"] = M.SUB_PRODUCT_TAXONOMY_VERSION
+    frame["classification"] = classification_of(frame)
+    frame["classification_label"] = frame["classification"].map(
+        M.CLASSIFICATION_LABELS).fillna("Unclassified")
     frame["customer_name"] = frame["customer_id"].map(display_name)
 
     # --- prior-month comparators the book does not carry on the row.
@@ -862,7 +888,10 @@ def _score_month(frame: Any, results: dict[str, Fired],
     # --- identity and hierarchy
     for name in ("reporting_month", "customer_id", "customer_name",
                  "facility_id", "product_code", "product_label",
-                 "sub_product", "sub_product_label", "product_subsegment",
+                 "sub_product", "sub_product_label",
+                 "sub_product_taxonomy_version",
+                 "classification", "classification_label",
+                 "product_subsegment",
                  "customer_segment", "origination_channel",
                  "origination_date", "origination_vintage", "months_on_book",
                  "employment_status", "employer_sector",
@@ -1061,19 +1090,79 @@ def _score_month(frame: Any, results: dict[str, Fired],
             rows), 3)
 
     # --- the overall score, on the product's own weights, the same way
+    #
+    # The weights are per ROW, not per product, because the Bureau layer's
+    # weight depends on how old that customer's bureau observation is. A pull
+    # from two years ago cannot carry the same fifteen per cent as one from
+    # last month; what it releases goes to the layers that still have
+    # something to say this month. `M.effective_weights` does the arithmetic
+    # and guarantees the four still total one.
     overall = np.zeros(rows)
     product = out["product_code"].astype(str).to_numpy()
+    age = pd.to_numeric(out.get("bureau_recency_months"),
+                        errors="coerce").to_numpy(dtype=float)
+    observed_ever = ~np.isnan(age)
+    weight_columns = {layer.key: np.zeros(rows) for layer in M.LAYERS}
+
     for code in M.ALL_PRODUCTS:
-        weights = M.weights_for(code)
         mask = product == code
         if not mask.any():
             continue
-        heaviest = max(weights.values())
-        blended = _combine(
-            [(weights[layer.key] / heaviest,
-              out[layer.score_column].to_numpy()) for layer in M.LAYERS],
-            rows)
-        overall = np.where(mask, blended, overall)
+        base = M.weights_for(code)
+        # `_combine` divides the weights through by a reference before rolling
+        # them up, and the reference has to be FIXED for the redistribution to
+        # mean anything. Dividing by the heaviest EFFECTIVE weight scales the
+        # three dynamic layers up and then immediately back down again: their
+        # relative weights come out identical at every bureau age, and the
+        # only thing a stale pull changes is that bureau contributes less.
+        # That is a decay without a redistribution, and the model claims both.
+        # Against the heaviest BASE weight — a constant per product — the
+        # weight bureau releases genuinely lands on the layers that still have
+        # something to say. At a fresh pull the effective weights ARE the base
+        # weights, so this is the same arithmetic v2 ran.
+        #
+        # Capped at the reference, which is a governance statement and not a
+        # convenience: no layer may be handed more influence than the heaviest
+        # layer carries on a fresh pull. Without the cap the heaviest layer
+        # crosses the reference on a stale pull, its contribution saturates,
+        # and a handful of the worst customers land on exactly 100 with their
+        # ordering among themselves lost — which is the failure `_combine` was
+        # written to avoid. The layers below the reference still take up every
+        # point bureau releases.
+        heaviest = max(base.values())
+        # One set of weights per distinct age, rather than per row: the ages
+        # are whole months, so this is a handful of evaluations.
+        ages = np.where(observed_ever, np.nan_to_num(age, nan=-1.0), -1.0)
+        for one in np.unique(ages[mask]):
+            here = mask & (ages == one)
+            if not here.any():
+                continue
+            weights = M.effective_weights(
+                code, None if one < 0 else float(one))
+            blended = _combine(
+                [(min(weights[layer.key] / heaviest, 1.0),
+                  out[layer.score_column].to_numpy()) for layer in M.LAYERS],
+                rows)
+            overall = np.where(here, blended, overall)
+            for layer in M.LAYERS:
+                weight_columns[layer.key] = np.where(
+                    here, weights[layer.key], weight_columns[layer.key])
+        for layer in M.LAYERS:
+            out[f"base_weight_{layer.key}"] = np.where(
+                mask, base[layer.key], out.get(f"base_weight_{layer.key}", 0.0))
+
+    for layer in M.LAYERS:
+        out[f"effective_weight_{layer.key}"] = np.round(
+            weight_columns[layer.key], 6)
+    # Named for what a reader asks for by name.
+    out["bureau_weight_base"] = out["base_weight_bureau"]
+    out["bureau_weight_effective"] = out["effective_weight_bureau"]
+    out["bureau_weight_released"] = np.round(
+        out["base_weight_bureau"].to_numpy()
+        - out["effective_weight_bureau"].to_numpy(), 6)
+    out["effective_weight_total"] = np.round(sum(
+        out[f"effective_weight_{layer.key}"].to_numpy()
+        for layer in M.LAYERS), 6)
     out["ews_score_before_overrides"] = np.round(overall, 3)
 
     # --- hard triggers: the only place the arithmetic is overridden

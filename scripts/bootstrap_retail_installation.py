@@ -115,6 +115,28 @@ def main() -> int:
     for problem in ews_score.check():
         log.warning("  %s", problem)
 
+    # The three governed VIEWS of the book: Early Warning Data (the raw
+    # retail / IFRS 9 / bureau source the score is computed from), Credit
+    # Scorecard Data and What-If Analysis Data. Nothing built these, so a
+    # fresh install came up with the Early Warning Score domain in Data
+    # Builder and the source domain behind it missing — and the readiness
+    # check passed, because it only ever asked about the score. The
+    # generator rewrites the catalogue from the book, so registration has to
+    # happen after it, here, rather than once by hand.
+    views = retail_domains.build()
+    log.info("Governed views: %s",
+             ", ".join(f"{name} {count} period(s)"
+                       for name, count in sorted(views.written.items()))
+             or "nothing written")
+    for note in views.notes or []:
+        log.warning("  %s", note)
+    registered = retail_domains.register()
+    if registered:
+        log.info("Registered %s in the governed catalogue.",
+                 ", ".join(registered))
+    for problem in retail_domains.reconcile():
+        log.warning("  %s", problem)
+
     if "retail_facility_month" not in published:
         log.warning(
             "retail_facility_month is not published in Data Builder. The Cockpit will "
@@ -157,12 +179,18 @@ def _check(log) -> int:
     if "retail_facility_month" not in published:
         problems.append("Data Builder does not publish retail_facility_month")
     from backend.retail import ews_portfolio, ews_score, readiness
-    if ews_score.DOMAIN not in {str(d.get("name"))
-                                for d in _catalogue_datasets()}:
+    held = {str(d.get("name")) for d in _catalogue_datasets()}
+    if ews_score.DOMAIN not in held:
         problems.append(
             f"{ews_score.DOMAIN} is not registered in the governed "
             "catalogue, so the Early Warning Score domain will not appear in "
             "Data Builder")
+    from backend.retail import domains as retail_domains
+    for view in retail_domains.DERIVED:
+        if view.dataset not in held:
+            problems.append(
+                f"{view.dataset} is not registered in the governed "
+                f"catalogue, so {view.domain} will not appear in Data Builder")
 
     # Everything above is about files. None of it was ever about the thing a
     # person opens. A fresh install reported itself ready while the Early

@@ -58,7 +58,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 #: Bumped when any layer, sublayer, trigger, weight or threshold changes.
-EWS_MODEL_VERSION = "2.0.0"
+EWS_MODEL_VERSION = "3.0.0"
 
 MODEL_NAME = "Retail Early Warning Score"
 
@@ -135,6 +135,42 @@ POPULATION_BANDS: tuple[tuple[float, str], ...] = (
     (15.0, "MEDIUM"),
     (0.0, "LOW"),
 )
+
+#: How close to the next band up a population has to be before the screen says
+#: so. A portfolio at 21.4 against a HIGH band starting at 22 is not a MEDIUM
+#: in any sense a credit committee would recognise, and rounding it down to one
+#: word hides the thing they most need to see: that it is about to cross.
+#:
+#: This is a governed READING of the band table, not a fifth band. The band
+#: itself is unchanged, every threshold and test still uses it, and nothing in
+#: the UI invents a severity of its own.
+POPULATION_BAND_PROXIMITY = 2.0
+
+
+def near_next_band(score: float) -> str:
+    """The band above this score, when the score is nearly in it."""
+    value = float(score)
+    above = [(low, band) for low, band in POPULATION_BANDS if low > value]
+    if not above:
+        return ""
+    low, band = min(above, key=lambda one: one[0])
+    return band if (low - value) <= POPULATION_BAND_PROXIMITY else ""
+
+
+def population_band_reading(score: float) -> dict[str, Any]:
+    """The band, and whether it is on the edge of the next one."""
+    band = population_band_of(score)
+    close = near_next_band(score)
+    return {
+        "band": band,
+        "near": close,
+        "label": f"{band} — near {close}" if close else band,
+        "distance_to_next": (round(min(
+            low for low, _ in POPULATION_BANDS if low > float(score)) - float(score), 2)
+            if any(low > float(score) for low, _ in POPULATION_BANDS) else None),
+        "proximity_threshold": POPULATION_BAND_PROXIMITY,
+    }
+
 
 #: What a trigger's severity contributes before the action dimensions scale it.
 #:
@@ -1422,13 +1458,102 @@ class SubProduct:
 #: these are DERIVED deterministically from columns it does carry and the rule
 #: is written down beside the label. Nothing is randomised: the same facility
 #: lands in the same sub-product every time the panel is built.
+@dataclass(frozen=True)
+class Classification:
+    """Salaried or not: the first cut inside every product.
+
+    Derived from EMPLOYMENT, not from salary transfer. The book carries both
+    and they are different facts: a self-employed customer can route income
+    through the bank, and a salaried one can be paid elsewhere. Treating them
+    as the same thing would put a third of the non-salaried book in the wrong
+    card. Salary transfer is reported beside this, never as this.
+    """
+
+    code: str
+    label: str
+    meaning: str
+    derivation: str
+    employment_statuses: tuple[str, ...]
+
+
+CLASSIFICATIONS: tuple[Classification, ...] = (
+    Classification(
+        "SALARIED", "Salaried",
+        "Employed, with a monthly salary from an employer.",
+        "employment_status in (GOVERNMENT, GOVERNMENT_RELATED, PRIVATE_SECTOR)",
+        ("GOVERNMENT", "GOVERNMENT_RELATED", "PRIVATE_SECTOR")),
+    Classification(
+        "NON_SALARIED", "Non-Salaried",
+        "Income that does not arrive as an employer's payroll: self-employed "
+        "and retired customers.",
+        "employment_status in (SELF_EMPLOYED, RETIRED)",
+        ("SELF_EMPLOYED", "RETIRED")),
+)
+
+CLASSIFICATION_LABELS: dict[str, str] = {
+    one.code: one.label for one in CLASSIFICATIONS}
+
+#: employment_status -> classification code, built from the declarations above
+#: so the two cannot drift apart.
+EMPLOYMENT_TO_CLASSIFICATION: dict[str, str] = {
+    status: one.code for one in CLASSIFICATIONS
+    for status in one.employment_statuses}
+
+
+def classification_of(employment_status: str) -> str:
+    """Which side of the classification an employment status falls on.
+
+    An employment status the taxonomy does not name is NOT quietly filed as
+    salaried: it is returned as unclassified, so a new status added to the
+    book shows up as a gap rather than as a wrong answer.
+    """
+    return EMPLOYMENT_TO_CLASSIFICATION.get(
+        str(employment_status).upper(), "UNCLASSIFIED")
+
+
+#: The sub-product naming scheme. Versioned because it was replaced rather
+#: than extended: the card tiers were Ultra / Privilege / Platinum / Silver
+#: and are now the Saudi-market-style ladder below. The DERIVATIONS are
+#: unchanged — the same facility lands in the same tier — so the rename is a
+#: relabelling of a governed cut, not a re-cut of the book.
+SUB_PRODUCT_TAXONOMY_VERSION = "retail-subproduct-taxonomy-2.0.0"
+
+#: What each code was called under version 1, so an old link, an old saved
+#: What-If or an old screenshot can still be read.
+SUB_PRODUCT_PREVIOUS_LABELS: dict[str, str] = {
+    "CC_INFINITE": "Ultra Card",
+    "CC_SIGNATURE": "Privilege Card",
+    "CC_PLATINUM": "Platinum Card",
+    "CC_CLASSIC": "Silver Card",
+    "PF_STANDARD": "New Personal Finance",
+    "PF_TOPUP": "Personal Finance Top-up",
+    "PF_BUYOUT": "Personal Finance Buyout",
+    "AL_STANDARD": "New Auto Finance",
+    "AL_USED": "Used Auto Finance",
+    "HL_FIRST": "First Home",
+    "HL_STANDARD": "Second Property",
+    "HL_BUYOUT": "Home Refinance",
+}
+
+#: The code each version-1 code became, for reading an old selection back.
+SUB_PRODUCT_RENAMES: dict[str, str] = {
+    "CC_ULTRA": "CC_INFINITE",
+    "CC_PRIVILEGE": "CC_SIGNATURE",
+    "CC_SILVER": "CC_CLASSIC",
+    "PF_NEW": "PF_STANDARD",
+    "AL_NEW": "AL_STANDARD",
+    "HL_SECOND": "HL_STANDARD",
+    "HL_REFINANCE": "HL_BUYOUT",
+}
+
+
 SUB_PRODUCTS: tuple[SubProduct, ...] = (
-    SubProduct("CC_ULTRA", "Ultra Card", CREDIT_CARD,
+    SubProduct("CC_INFINITE", "Infinite Card", CREDIT_CARD,
                "The top card tier, held by private and affluent customers on "
                "the largest limits.",
                "customer_segment in (PRIVATE, AFFLUENT) and current credit "
                "limit >= SAR 60,000"),
-    SubProduct("CC_PRIVILEGE", "Privilege Card", CREDIT_CARD,
+    SubProduct("CC_SIGNATURE", "Signature Card", CREDIT_CARD,
                "The affluent tier.",
                "customer_segment in (PRIVATE, AFFLUENT), or MASS_AFFLUENT on a "
                "limit >= SAR 50,000"),
@@ -1436,30 +1561,30 @@ SUB_PRODUCTS: tuple[SubProduct, ...] = (
                "The mass-affluent tier.",
                "customer_segment == MASS_AFFLUENT, or MASS on a limit >= SAR "
                "25,000"),
-    SubProduct("CC_SILVER", "Silver Card", CREDIT_CARD,
+    SubProduct("CC_CLASSIC", "Classic Card", CREDIT_CARD,
                "The mass tier, and the largest card population.",
                "everything else on the card book"),
-    SubProduct("PF_NEW", "New Personal Finance", PERSONAL_LOAN,
+    SubProduct("PF_STANDARD", "Standard Personal Finance", PERSONAL_LOAN,
                "Personal finance written as new money.",
                "product_subsegment == NEW_FINANCE"),
-    SubProduct("PF_TOPUP", "Personal Finance Top-up", PERSONAL_LOAN,
+    SubProduct("PF_TOPUP", "Top-Up Personal Finance", PERSONAL_LOAN,
                "An existing customer borrowing more on an existing facility.",
                "product_subsegment == TOP_UP"),
-    SubProduct("PF_BUYOUT", "Personal Finance Buyout", PERSONAL_LOAN,
+    SubProduct("PF_BUYOUT", "Buyout Personal Finance", PERSONAL_LOAN,
                "A balance taken over from another lender.",
                "product_subsegment == REFINANCE_BUYOUT"),
-    SubProduct("AL_NEW", "New Auto Finance", AUTO_LOAN,
+    SubProduct("AL_STANDARD", "Standard Auto Lease", AUTO_LOAN,
                "A new vehicle.", "product_subsegment == NEW"),
-    SubProduct("AL_USED", "Used Auto Finance", AUTO_LOAN,
+    SubProduct("AL_USED", "Used Vehicle Finance", AUTO_LOAN,
                "A used vehicle, which depreciates on a different curve.",
                "product_subsegment == USED"),
-    SubProduct("HL_FIRST", "First Home", HOME_LOAN,
+    SubProduct("HL_FIRST", "First Home Finance", HOME_LOAN,
                "A first residential purchase.",
                "product_subsegment == FIRST_HOME"),
-    SubProduct("HL_SECOND", "Second Property", HOME_LOAN,
+    SubProduct("HL_STANDARD", "Standard Residential Finance", HOME_LOAN,
                "An additional property.",
                "product_subsegment == SECOND_PROPERTY"),
-    SubProduct("HL_REFINANCE", "Home Refinance", HOME_LOAN,
+    SubProduct("HL_BUYOUT", "Buyout / Refinance Home Finance", HOME_LOAN,
                "A mortgage taken over from another lender.",
                "product_subsegment == REFINANCE"),
 )
@@ -1584,6 +1709,105 @@ def population_band_of(score: float) -> str:
         if score >= floor:
             return name
     return POPULATION_BANDS[-1][1]
+
+
+@dataclass(frozen=True)
+class BureauRecency:
+    """How much a bureau observation is still worth, given its age.
+
+    A bureau pull is at its most informative the month it lands and loses
+    decision value as it ages, so a layer built on one cannot carry the same
+    weight at twenty-four months as at zero. The decay is continuous rather
+    than banded — a customer does not become less knowable in steps — and the
+    parameters live here rather than in a screen:
+
+        W(age) = W_floor + (W_max - W_floor) * exp(-ln2 * age / half_life)
+
+    At the half-life the layer has given up half the distance between its
+    maximum and its floor. The floor is what an old bureau record is still
+    worth: a score from two years ago is weak evidence, not no evidence.
+
+    The weight this releases is not discarded. The model always totals one:
+    what Bureau gives up is redistributed across the three DYNAMIC layers in
+    proportion to their own base weights, because those are the layers that
+    still have something to say this month.
+    """
+
+    w_max: float = 0.15
+    w_floor: float = 0.05
+    half_life_months: float = 6.0
+    #: A bureau record this old is treated as being at the floor.
+    floor_reached_months: float = 36.0
+    quality_floor: float = 0.7
+    quality_ceiling: float = 1.0
+    basis: str = (
+        "Demonstration parameters, bank-configurable. Not an observed decay "
+        "rate for any bureau and not a validated model assumption.")
+
+    def weight(self, age_months: float | None) -> float:
+        """The Bureau layer's effective weight at this age, as a share of one.
+
+        No observation at all is the floor: the layer keeps only what an
+        unknown external position is worth, which is not nothing and is not
+        fifteen per cent.
+        """
+        import math
+
+        if age_months is None:
+            return self.w_floor
+        age = max(float(age_months), 0.0)
+        decayed = self.w_floor + (self.w_max - self.w_floor) * math.exp(
+            -math.log(2.0) * age / self.half_life_months)
+        return max(min(decayed, self.w_max), self.w_floor)
+
+    def table(self, ages: tuple[float, ...] = (0, 3, 6, 9, 12, 18, 24, 36)
+              ) -> list[dict[str, float]]:
+        """The decay, at the ages a reader asks about."""
+        return [{"age_months": float(age),
+                 "effective_weight": round(self.weight(age), 6),
+                 "effective_weight_pct": round(self.weight(age) * 100, 2)}
+                for age in ages]
+
+
+BUREAU_RECENCY = BureauRecency()
+
+#: The layers that keep working every month, and so absorb whatever the
+#: Bureau layer releases as its observation ages.
+DYNAMIC_LAYER_KEYS: tuple[str, ...] = (
+    "behavioural", "affordability", "facility")
+
+
+def effective_weights(product: str, age_months: float | None,
+                      *, quality: float | None = None) -> dict[str, float]:
+    """This product's layer weights, adjusted for how old the bureau pull is.
+
+    The Bureau layer is set to what its observation is currently worth; the
+    difference against its base weight is handed to the dynamic layers in
+    proportion to their base weights. The four always sum to one, which is
+    asserted rather than assumed — a model whose weights quietly total 0.97
+    reports every customer as slightly safer than it means to.
+    """
+    base = weights_for(product)
+    bureau_base = float(base.get("bureau", 0.0))
+    if bureau_base <= 0:
+        return base
+
+    bureau = BUREAU_RECENCY.weight(age_months)
+    if quality is not None:
+        bureau *= max(min(float(quality), BUREAU_RECENCY.quality_ceiling),
+                      BUREAU_RECENCY.quality_floor)
+    # A product weighting Bureau below the model maximum keeps its own ceiling.
+    bureau = min(bureau, bureau_base)
+    released = bureau_base - bureau
+
+    dynamic_total = sum(float(base.get(k, 0.0)) for k in DYNAMIC_LAYER_KEYS)
+    out = dict(base)
+    out["bureau"] = bureau
+    if dynamic_total > 0 and released:
+        for key in DYNAMIC_LAYER_KEYS:
+            out[key] = float(base.get(key, 0.0)) + released * (
+                float(base.get(key, 0.0)) / dynamic_total)
+    return out
 
 
 def weights_for(product: str) -> dict[str, float]:
@@ -1819,6 +2043,50 @@ def to_dict(*, deep: bool = True) -> dict[str, Any]:
             {"code": s.code, "label": s.label, "product": s.product,
              "meaning": s.meaning, "derivation": s.derivation}
             for s in SUB_PRODUCTS],
+        # §2.6: the decay itself, so View Model and the tree can draw it
+        # rather than describe it. The table is generated from the same
+        # function the scorer uses, so a screen cannot show one curve while
+        # the model applies another.
+        "bureau_recency": {
+            "w_max": BUREAU_RECENCY.w_max,
+            "w_floor": BUREAU_RECENCY.w_floor,
+            "half_life_months": BUREAU_RECENCY.half_life_months,
+            "formula": ("W(age) = W_floor + (W_max - W_floor) "
+                        "* exp(-ln(2) * age / half_life)"),
+            "basis": BUREAU_RECENCY.basis,
+            "table": BUREAU_RECENCY.table(),
+            "curve": BUREAU_RECENCY.table(tuple(range(0, 37))),
+            "bands": [
+                {"from_months": 0, "to_months": 6,
+                 "reads": "Recent — the layer carries close to its full weight."},
+                {"from_months": 6, "to_months": 12,
+                 "reads": "Ageing — about two thirds of the way to the floor."},
+                {"from_months": 12, "to_months": 24,
+                 "reads": "Old — the layer is worth little more than the floor."},
+                {"from_months": 24, "to_months": None,
+                 "reads": "Stale — the floor, which is what an unknown "
+                          "external position is still worth."},
+            ],
+            "redistribution": (
+                "What Bureau releases is redistributed across the dynamic "
+                "layers in proportion to their base weights. The four layers "
+                "always total one hundred per cent. The redistribution reaches "
+                "the score: the roll-up measures each layer against the "
+                "heaviest base weight for the product, which does not move "
+                "with the age of the pull, so a layer that gains weight gains "
+                "influence. No layer is carried past that reference, so a "
+                "stale bureau file cannot let one layer alone decide the "
+                "score."),
+            "redistribution_bound": (
+                "A layer's effective weight is capped at the heaviest base "
+                "weight for its product when the layers are rolled up."),
+            "examples": [
+                {"product": code,
+                 "weights_at_0_months": effective_weights(code, 0),
+                 "weights_at_12_months": effective_weights(code, 12),
+                 "weights_at_24_months": effective_weights(code, 24)}
+                for code in ALL_PRODUCTS],
+        },
         "bureau_rule": {
             "statement": BUREAU_RULE.statement,
             "cadence_months": list(BUREAU_RULE.cadence_months),

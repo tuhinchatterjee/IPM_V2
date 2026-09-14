@@ -118,6 +118,69 @@ EARLY_WARNING = DomainView(
         # Who and where.
         "customer_segment", "region_label", "city", "origination_channel",
         "new_to_bank_at_origination_flag", "employment_status",
+        # ------------------------------------------------------------------
+        # The raw-source contract, §9.1. This domain is what the Early Warning
+        # Score is BUILT from and what a cohort is handed to What-If with, so
+        # it carries the IFRS 9 position of every facility as well as the
+        # behaviour. It holds no derived Early Warning field — no score, no
+        # layer, no trigger — which is the line between this domain and
+        # retail_ews_score.
+        # ------------------------------------------------------------------
+        # Identity and hierarchy.
+        "product_code", "product_label", "product_subsegment",
+        "origination_date", "origination_vintage",
+        "customer_tenure_months", "employment_tenure_months",
+        "employer_sector", "branch_id", "facility_status",
+        # IFRS 9 risk parameters, through-the-cycle and point-in-time.
+        "pd_ttc_12m", "pd_pit_12m_anchor", "pd_pit_12m_base",
+        "pd_pit_12m_upturn", "pd_pit_12m_downturn",
+        "pd_pit_lifetime_base", "pd_pit_lifetime_upturn",
+        "pd_pit_lifetime_downturn",
+        "lgd_base", "lgd_upturn", "lgd_downturn",
+        "ead_upturn_sar", "ead_downturn_sar",
+        "ccf_base", "ccf_upturn", "ccf_downturn",
+        # Staging and its reasons.
+        "sicr_quantitative_flag", "sicr_qualitative_flag",
+        "sicr_dpd_backstop_flag", "sicr_pd_ratio", "sicr_pd_absolute_change",
+        "stage_override_flag", "staging_policy_version",
+        # Expected credit loss, by scenario and weighted.
+        "ecl_base_sar", "ecl_upturn_sar", "ecl_downturn_sar",
+        "ecl_weighted_sar", "management_overlay_sar", "ecl_coverage_ratio",
+        "scenario_weight_base", "scenario_weight_upturn",
+        "scenario_weight_downturn", "scenario_set_id", "scenario_set_version",
+        "ecl_horizon_type", "ecl_horizon_months", "ecl_expected_life_months",
+        "ecl_remaining_life_months", "monthly_discount_rate",
+        "discount_method", "ecl_model_version", "pd_model_version",
+        "lgd_model_version", "ead_model_version",
+        # Recovery and collateral.
+        "recovery_rate_nominal", "recovery_delay_months",
+        "expected_sale_cost_ratio", "collateral_type",
+        "collateral_value_origination_sar", "ltv_origination_ratio",
+        # Delinquency history and cure. The prior month's DPD and stage are
+        # what the book carries; it does not carry the prior month's balance,
+        # so that is not declared rather than declared and dropped.
+        "cure_flag", "restructure_date", "stage_entry_date",
+        "previous_month_dpd", "previous_month_stage",
+        # Affordability, in full.
+        "verified_monthly_salary_sar", "verified_other_monthly_income_sar",
+        "household_expenses_sar", "monthly_external_credit_obligations_sar",
+        "monthly_own_bank_credit_obligations_sar",
+        "monthly_total_credit_obligations_sar", "income_band",
+        "indebtedness_band", "salary_verification_status",
+        "salary_credit_amount_1m_sar", "salary_credit_last_date",
+        # Turnover over the window the book actually measures: inflows and
+        # outflows over one month, the average balance over three. There is
+        # no lowest-balance series behind it, so none is claimed.
+        "account_inflows_1m_sar", "account_outflows_1m_sar",
+        "account_average_balance_3m_sar",
+        # Bureau, with its dating.
+        "bureau_score_at_origination", "bureau_score_current_date",
+        "bureau_total_exposure_sar", "bureau_score_scale_id",
+        "bureau_active_facilities_count", "bureau_data_available_flag",
+        # Facility structure.
+        "original_finance_amount_sar", "original_credit_limit_sar",
+        "original_tenor_months", "remaining_contractual_tenor_months",
+        "contractual_maturity_date", "contract_structure", "balloon_band",
     ),
     authoritative_for=("retail_early_warning_position",),
 )

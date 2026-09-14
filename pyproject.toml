@@ -134,3 +134,6 @@ python_files = ["test_*.py"]
 addopts = "-q"
 # Put the project root on sys.path so `backend`/`frontend` import under any runner.
 pythonpath = ["."]
+markers = [
+  "slow: takes tens of seconds — it builds a Word report or fits a challenger",
+]

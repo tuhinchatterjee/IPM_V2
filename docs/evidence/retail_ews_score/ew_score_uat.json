@@ -7,7 +7,7 @@
    "id": "EW-01",
    "title": "One Early Warning nav item, and it is the workspace",
    "status": "PASS",
-   "note": "9.6s",
+   "note": "20.2s",
    "checks": [
     {
      "check": "the workspace renders",
@@ -27,7 +27,7 @@
     {
      "check": "it is called Early Warning Score",
      "passed": true,
-     "saw": "['/early-warning', '/early-warning/model']"
+     "saw": "['/early-warning/model/tree', '/early-warning', '/early-warning/model-log', '/early-warning/model']"
     }
    ]
   },
@@ -73,32 +73,32 @@
     {
      "check": "ews-kpi-customers reads the served customers",
      "passed": true,
-     "saw": "screen 14251, api 14251"
+     "saw": "screen 14239, api 14239"
     },
     {
      "check": "ews-kpi-warned reads the served customers_warned",
      "passed": true,
-     "saw": "screen 3377, api 3377"
+     "saw": "screen 3748, api 3748"
     },
     {
      "check": "ews-kpi-high-critical reads the served high_or_critical",
      "passed": true,
-     "saw": "screen 1908, api 1908"
+     "saw": "screen 2275, api 2275"
     },
     {
      "check": "ews-kpi-bad reads the served current_bad",
      "passed": true,
-     "saw": "screen 391, api 391"
+     "saw": "screen 631, api 631"
     },
     {
      "check": "ews-kpi-forward reads the served forward_risk",
      "passed": true,
-     "saw": "screen 1517, api 1517"
+     "saw": "screen 1644, api 1644"
     },
     {
      "check": "exposure under warning is shown",
      "passed": true,
-     "saw": "EXPOSURE UNDER WARNING\n\nSAR 506.1mn"
+     "saw": "EXPOSURE UNDER WARNING\n\nSAR 538.2mn"
     },
     {
      "check": "% retail exposure under warning is shown",
@@ -108,12 +108,12 @@
     {
      "check": "the portfolio score is shown",
      "passed": true,
-     "saw": "PORTFOLIO EWS SCORE\n\n17.5\n\n-0.1 on 2026-07"
+     "saw": "PORTFOLIO EWS SCORE\n\n18.8\n\n-0.2 on 2026-07"
     },
     {
      "check": "its change on the prior month is shown",
      "passed": true,
-     "saw": "PORTFOLIO EWS SCORE\n\n17.5\n\n-0.1 on 2026-07"
+     "saw": "PORTFOLIO EWS SCORE\n\n18.8\n\n-0.2 on 2026-07"
     },
     {
      "check": "the severity band is shown",
@@ -146,7 +146,7 @@
     {
      "check": "CREDIT_CARD shows its score",
      "passed": true,
-     "saw": "17.1"
+     "saw": "23.2"
     },
     {
      "check": "CREDIT_CARD shows its severity",
@@ -171,7 +171,7 @@
     {
      "check": "PERSONAL_LOAN shows its score",
      "passed": true,
-     "saw": "16.1"
+     "saw": "17.9"
     },
     {
      "check": "PERSONAL_LOAN shows its severity",
@@ -196,7 +196,7 @@
     {
      "check": "AUTO_LOAN shows its score",
      "passed": true,
-     "saw": "15.6"
+     "saw": "15.8"
     },
     {
      "check": "AUTO_LOAN shows its severity",
@@ -221,7 +221,7 @@
     {
      "check": "HOME_LOAN shows its score",
      "passed": true,
-     "saw": "14.0"
+     "saw": "13.9"
     },
     {
      "check": "HOME_LOAN shows its severity",
@@ -292,7 +292,7 @@
    "id": "EW-06",
    "title": "A six-month ODR / default-entry trend",
    "status": "PASS",
-   "note": "0.5s",
+   "note": "1.7s",
    "checks": [
     {
      "check": "CREDIT_CARD has a default-entry sparkline",
@@ -302,7 +302,7 @@
     {
      "check": "CREDIT_CARD's ODR has a real denominator",
      "passed": true,
-     "saw": "15/6458 = 0.2323"
+     "saw": "34/6353 = 0.5352"
     },
     {
      "check": "PERSONAL_LOAN has a default-entry sparkline",
@@ -312,7 +312,7 @@
     {
      "check": "PERSONAL_LOAN's ODR has a real denominator",
      "passed": true,
-     "saw": "20/7707 = 0.2595"
+     "saw": "27/7689 = 0.3512"
     },
     {
      "check": "AUTO_LOAN has a default-entry sparkline",
@@ -386,9 +386,9 @@
      "saw": "5"
     },
     {
-     "check": "CREDIT_CARD shows RET-EWS-004 on screen",
+     "check": "CREDIT_CARD shows RET-EWS-024 on screen",
      "passed": true,
-     "saw": "RET-EWS-004"
+     "saw": "RET-EWS-024"
     },
     {
      "check": "CREDIT_CARD shows RET-EWS-010 on screen",
@@ -396,19 +396,19 @@
      "saw": "RET-EWS-010"
     },
     {
-     "check": "CREDIT_CARD shows RET-EWS-024 on screen",
+     "check": "CREDIT_CARD shows RET-EWS-004 on screen",
      "passed": true,
-     "saw": "RET-EWS-024"
+     "saw": "RET-EWS-004"
     },
     {
-     "check": "CREDIT_CARD shows RET-EWS-008 on screen",
+     "check": "CREDIT_CARD shows RET-EWS-013 on screen",
      "passed": true,
-     "saw": "RET-EWS-008"
+     "saw": "RET-EWS-013"
     },
     {
-     "check": "CREDIT_CARD shows RET-EWS-032 on screen",
+     "check": "CREDIT_CARD shows RET-EWS-021 on screen",
      "passed": true,
-     "saw": "RET-EWS-032"
+     "saw": "RET-EWS-021"
     },
     {
      "check": "CREDIT_CARD's reasons carry a change on the month",
@@ -426,24 +426,24 @@
      "saw": "RET-EWS-010"
     },
     {
-     "check": "PERSONAL_LOAN shows RET-EWS-008 on screen",
-     "passed": true,
-     "saw": "RET-EWS-008"
-    },
-    {
      "check": "PERSONAL_LOAN shows RET-EWS-024 on screen",
      "passed": true,
      "saw": "RET-EWS-024"
     },
     {
+     "check": "PERSONAL_LOAN shows RET-EWS-008 on screen",
+     "passed": true,
+     "saw": "RET-EWS-008"
+    },
+    {
+     "check": "PERSONAL_LOAN shows RET-EWS-013 on screen",
+     "passed": true,
+     "saw": "RET-EWS-013"
+    },
+    {
      "check": "PERSONAL_LOAN shows RET-EWS-012 on screen",
      "passed": true,
      "saw": "RET-EWS-012"
-    },
-    {
-     "check": "PERSONAL_LOAN shows RET-EWS-011 on screen",
-     "passed": true,
-     "saw": "RET-EWS-011"
     },
     {
      "check": "PERSONAL_LOAN's reasons carry a change on the month",
@@ -531,7 +531,7 @@
     {
      "check": "every product has commentary",
      "passed": true,
-     "saw": "{'CREDIT_CARD': 577, 'PERSONAL_LOAN': 585, 'AUTO_LOAN': 617, 'HOME_LOAN': 587}"
+     "saw": "{'CREDIT_CARD': 574, 'PERSONAL_LOAN': 585, 'AUTO_LOAN': 578, 'HOME_LOAN': 587}"
     },
     {
      "check": "no two products say the same thing",
@@ -541,7 +541,7 @@
     {
      "check": "CREDIT_CARD's commentary quotes its own score",
      "passed": true,
-     "saw": "Credit Card fell from 17.3 to 17.1 (Medium), a move of -0.2. Driven by affordability & cash flow intelligence "
+     "saw": "Credit Card rose from 22.8 to 23.2 (High), a move of +0.4. Driven by behavioural intelligence (+0.6) and burea"
     },
     {
      "check": "CREDIT_CARD's commentary names a layer",
@@ -551,7 +551,7 @@
     {
      "check": "PERSONAL_LOAN's commentary quotes its own score",
      "passed": true,
-     "saw": "Personal Finance rose from 15.7 to 16.1 (Medium), a move of +0.4. Driven by behavioural intelligence (+0.8) an"
+     "saw": "Personal Finance rose from 17.5 to 17.9 (Medium), a move of +0.4. Driven by behavioural intelligence (+0.8) an"
     },
     {
      "check": "PERSONAL_LOAN's commentary names a layer",
@@ -561,7 +561,7 @@
     {
      "check": "AUTO_LOAN's commentary quotes its own score",
      "passed": true,
-     "saw": "Auto Finance moved from Low to Medium, with the Early Warning Score at 15.6 against 14.9 last month. Driven by"
+     "saw": "Auto Finance rose from 15.1 to 15.8 (Medium), a move of +0.7. Driven by facility & exposure intelligence (+1.0"
     },
     {
      "check": "AUTO_LOAN's commentary names a layer",
@@ -571,7 +571,7 @@
     {
      "check": "HOME_LOAN's commentary quotes its own score",
      "passed": true,
-     "saw": "Home Finance fell from 14.7 to 14.0 (Low), a move of -0.7. Driven by affordability & cash flow intelligence (-"
+     "saw": "Home Finance fell from 14.6 to 13.9 (Low), a move of -0.7. Driven by affordability & cash flow intelligence (-"
     },
     {
      "check": "HOME_LOAN's commentary names a layer",
@@ -589,7 +589,7 @@
    "id": "EW-10",
    "title": "A product card opens the product level",
    "status": "PASS",
-   "note": "8.9s",
+   "note": "59.5s",
    "checks": [
     {
      "check": "the product view opened",
@@ -607,7 +607,7 @@
    "id": "EW-11",
    "title": "The Credit Card product page",
    "status": "PASS",
-   "note": "0.2s",
+   "note": "0.3s",
    "checks": [
     {
      "check": "the page is titled for the product",
@@ -617,7 +617,7 @@
     {
      "check": "it shows the product's own customer count",
      "passed": true,
-     "saw": "5853"
+     "saw": "5836"
     },
     {
      "check": "it shows the product's warned count",
@@ -640,37 +640,17 @@
    "id": "EW-12",
    "title": "Sub-product cards, with the governed taxonomy",
    "status": "PASS",
-   "note": "0.9s",
+   "note": "4.7s",
    "checks": [
     {
-     "check": "the four Credit Card sub-products exist",
+     "check": "every Credit Card sub-product in the taxonomy has a card",
      "passed": true,
-     "saw": "['Platinum Card', 'Privilege Card', 'Silver Card', 'Ultra Card']"
+     "saw": "[]"
     },
     {
      "check": "the sub-product deck renders",
      "passed": true,
      "saw": ""
-    },
-    {
-     "check": "CC_SILVER has a card",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "CC_SILVER states how it is derived",
-     "passed": true,
-     "saw": "everything else on the card book"
-    },
-    {
-     "check": "CC_PRIVILEGE has a card",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "CC_PRIVILEGE states how it is derived",
-     "passed": true,
-     "saw": "customer_segment in (PRIVATE, AFFLUENT), or MASS_AFFLUENT on a limit >"
     },
     {
      "check": "CC_PLATINUM has a card",
@@ -683,14 +663,34 @@
      "saw": "customer_segment == MASS_AFFLUENT, or MASS on a limit >= SAR 25,000"
     },
     {
-     "check": "CC_ULTRA has a card",
+     "check": "CC_CLASSIC has a card",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "CC_ULTRA states how it is derived",
+     "check": "CC_CLASSIC states how it is derived",
+     "passed": true,
+     "saw": "everything else on the card book"
+    },
+    {
+     "check": "CC_INFINITE has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_INFINITE states how it is derived",
      "passed": true,
      "saw": "customer_segment in (PRIVATE, AFFLUENT) and current credit limit >= SA"
+    },
+    {
+     "check": "CC_SIGNATURE has a card",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_SIGNATURE states how it is derived",
+     "passed": true,
+     "saw": "customer_segment in (PRIVATE, AFFLUENT), or MASS_AFFLUENT on a limit >"
     },
     {
      "check": "the taxonomy is in the model configuration, not the frontend",
@@ -700,7 +700,7 @@
     {
      "check": "and it is written into the domain",
      "passed": true,
-     "saw": "AL_NEW"
+     "saw": "PF_STANDARD"
     }
    ]
   },
@@ -708,28 +708,8 @@
    "id": "EW-13",
    "title": "Sub-product trends",
    "status": "PASS",
-   "note": "0.0s",
+   "note": "0.1s",
    "checks": [
-    {
-     "check": "CC_SILVER has six months of trend",
-     "passed": true,
-     "saw": "6"
-    },
-    {
-     "check": "CC_SILVER has all three sparklines on screen",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "CC_PRIVILEGE has six months of trend",
-     "passed": true,
-     "saw": "6"
-    },
-    {
-     "check": "CC_PRIVILEGE has all three sparklines on screen",
-     "passed": true,
-     "saw": ""
-    },
     {
      "check": "CC_PLATINUM has six months of trend",
      "passed": true,
@@ -741,12 +721,32 @@
      "saw": ""
     },
     {
-     "check": "CC_ULTRA has six months of trend",
+     "check": "CC_CLASSIC has six months of trend",
      "passed": true,
      "saw": "6"
     },
     {
-     "check": "CC_ULTRA has all three sparklines on screen",
+     "check": "CC_CLASSIC has all three sparklines on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_INFINITE has six months of trend",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "CC_INFINITE has all three sparklines on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_SIGNATURE has six months of trend",
+     "passed": true,
+     "saw": "6"
+    },
+    {
+     "check": "CC_SIGNATURE has all three sparklines on screen",
      "passed": true,
      "saw": ""
     }
@@ -759,29 +759,29 @@
    "note": "0.0s",
    "checks": [
     {
-     "check": "CC_SILVER's ODR reconciles",
-     "passed": true,
-     "saw": "6/3240"
-    },
-    {
-     "check": "CC_PRIVILEGE's ODR reconciles",
-     "passed": true,
-     "saw": "2/468"
-    },
-    {
      "check": "CC_PLATINUM's ODR reconciles",
      "passed": true,
-     "saw": "6/2536"
+     "saw": "16/2493"
     },
     {
-     "check": "CC_ULTRA's ODR reconciles",
+     "check": "CC_CLASSIC's ODR reconciles",
      "passed": true,
-     "saw": "1/214"
+     "saw": "13/3190"
+    },
+    {
+     "check": "CC_INFINITE's ODR reconciles",
+     "passed": true,
+     "saw": "2/211"
+    },
+    {
+     "check": "CC_SIGNATURE's ODR reconciles",
+     "passed": true,
+     "saw": "3/459"
     },
     {
      "check": "the sub-products' default entries sum to the product's",
      "passed": true,
-     "saw": "15 vs 15"
+     "saw": "34 vs 34"
     }
    ]
   },
@@ -791,26 +791,6 @@
    "status": "PASS",
    "note": "0.0s",
    "checks": [
-    {
-     "check": "CC_SILVER serves up to five signals",
-     "passed": true,
-     "saw": "5"
-    },
-    {
-     "check": "CC_SILVER renders them",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "CC_PRIVILEGE serves up to five signals",
-     "passed": true,
-     "saw": "5"
-    },
-    {
-     "check": "CC_PRIVILEGE renders them",
-     "passed": true,
-     "saw": ""
-    },
     {
      "check": "CC_PLATINUM serves up to five signals",
      "passed": true,
@@ -822,12 +802,32 @@
      "saw": ""
     },
     {
-     "check": "CC_ULTRA serves up to five signals",
+     "check": "CC_CLASSIC serves up to five signals",
      "passed": true,
      "saw": "5"
     },
     {
-     "check": "CC_ULTRA renders them",
+     "check": "CC_CLASSIC renders them",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_INFINITE serves up to five signals",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "CC_INFINITE renders them",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "CC_SIGNATURE serves up to five signals",
+     "passed": true,
+     "saw": "5"
+    },
+    {
+     "check": "CC_SIGNATURE renders them",
      "passed": true,
      "saw": ""
     }
@@ -837,7 +837,7 @@
    "id": "EW-16",
    "title": "A sub-product card opens its own level",
    "status": "PASS",
-   "note": "5.3s",
+   "note": "5.5s",
    "checks": [
     {
      "check": "the sub-product view opened",
@@ -847,7 +847,7 @@
     {
      "check": "the address names it",
      "passed": true,
-     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&sub=CC_PRIVILEGE"
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&sub=CC_SIGNATURE"
     },
     {
      "check": "it names the sub-portfolio",
@@ -860,7 +860,7 @@
    "id": "EW-17",
    "title": "The customer-list filters",
    "status": "PASS",
-   "note": "17.6s",
+   "note": "19.6s",
    "checks": [
     {
      "check": "ews-filter-layer is offered",
@@ -895,7 +895,7 @@
     {
      "check": "a filter changes the count",
      "passed": true,
-     "saw": "109 -> 5"
+     "saw": "126 -> 12"
     }
    ]
   },
@@ -903,7 +903,7 @@
    "id": "EW-18",
    "title": "The chat applies filters",
    "status": "PASS",
-   "note": "5.5s",
+   "note": "6.9s",
    "checks": [
     {
      "check": "the answer stays in scope",
@@ -913,22 +913,22 @@
     {
      "check": "it resolves a cohort filter",
      "passed": true,
-     "saw": "{'month': '2026-08', 'product': 'CREDIT_CARD', 'sub_product': 'CC_PRIVILEGE', 'cohort': 'current_bad'}"
+     "saw": "{'month': '2026-08', 'product': 'CREDIT_CARD', 'sub_product': 'CC_SIGNATURE', 'cohort': 'current_bad'}"
     },
     {
      "check": "and it names the sub-product it scoped to",
      "passed": true,
-     "saw": "{'month': '2026-08', 'product': 'CREDIT_CARD', 'sub_product': 'CC_PRIVILEGE', 'cohort': 'current_bad'}"
+     "saw": "{'month': '2026-08', 'product': 'CREDIT_CARD', 'sub_product': 'CC_SIGNATURE', 'cohort': 'current_bad'}"
     },
     {
      "check": "the chat renders its answer",
      "passed": true,
-     "saw": "You asked:Show currently bad customers.\n\nCurrently bad / delinquent in Privilege Card at 2026-08, worst first. Thirty or"
+     "saw": "You asked:Show currently bad customers.\n\nCurrently bad / delinquent in Signature Card at 2026-08, worst first. Thirty or"
     },
     {
      "check": "and the screen followed it",
      "passed": true,
-     "saw": "http://localhost:5328/early-warning?cohort=current_bad&product=CREDIT_CARD&sub=CC_PRIVILEGE"
+     "saw": "http://localhost:5328/early-warning?cohort=current_bad&product=CREDIT_CARD&sub=CC_SIGNATURE"
     }
    ]
   },
@@ -936,7 +936,7 @@
    "id": "EW-19",
    "title": "Back retains the level and its filters",
    "status": "PASS",
-   "note": "28.1s",
+   "note": "37.8s",
    "checks": [
     {
      "check": "a customer opened",
@@ -946,17 +946,17 @@
     {
      "check": "the address names them",
      "passed": true,
-     "saw": "http://localhost:5328/early-warning?cohort=forward_risk&customer=RC-0018318&product=CREDIT_CARD&sub=CC_PRIVILEGE"
+     "saw": "http://localhost:5328/early-warning?cohort=forward_risk&customer=RC-0018318&product=CREDIT_CARD&sub=CC_SIGNATURE"
     },
     {
      "check": "Back returns to the SAME filtered list",
      "passed": true,
-     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&sub=CC_PRIVILEGE&cohort=forward_risk"
+     "saw": "http://localhost:5328/early-warning?product=CREDIT_CARD&sub=CC_SIGNATURE&cohort=forward_risk"
     },
     {
      "check": "Back again keeps the sub-product",
      "passed": true,
-     "saw": "http://localhost:5328/early-warning?cohort=current_bad&product=CREDIT_CARD&sub=CC_PRIVILEGE"
+     "saw": "http://localhost:5328/early-warning?cohort=current_bad&product=CREDIT_CARD&sub=CC_SIGNATURE"
     }
    ]
   },
@@ -964,12 +964,17 @@
    "id": "EW-20",
    "title": "Customer name and id on every card",
    "status": "PASS",
-   "note": "10.4s",
+   "note": "10.8s",
    "checks": [
     {
      "check": "customers are served",
      "passed": true,
      "saw": "10"
+    },
+    {
+     "check": "RC-0011598 is named on screen",
+     "passed": true,
+     "saw": "Ghada Al-Turki RC-0011598"
     },
     {
      "check": "RC-0017858 is named on screen",
@@ -982,19 +987,14 @@
      "saw": "Waleed Al-Nasser RC-0017563"
     },
     {
-     "check": "RC-0023864 is named on screen",
+     "check": "RC-0009805 is named on screen",
      "passed": true,
-     "saw": "Faisal Al-Anzi RC-0023864"
+     "saw": "Haya Al-Juhani RC-0009805"
     },
     {
-     "check": "RC-0018318 is named on screen",
+     "check": "RC-0024364 is named on screen",
      "passed": true,
-     "saw": "Latifa Al-Yami RC-0018318"
-    },
-    {
-     "check": "RC-0017988 is named on screen",
-     "passed": true,
-     "saw": "Noura Al-Nasser RC-0017988"
+     "saw": "Amal Al-Faraj RC-0024364"
     },
     {
      "check": "the synthetic-name note is shown",
@@ -1007,8 +1007,18 @@
    "id": "EW-21",
    "title": "Every card shows the Early Warning Score",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.5s",
    "checks": [
+    {
+     "check": "RC-0011598 shows its score",
+     "passed": true,
+     "saw": "96.5"
+    },
+    {
+     "check": "RC-0011598 shows the warning cutoff",
+     "passed": true,
+     "saw": ""
+    },
     {
      "check": "RC-0017858 shows its score",
      "passed": true,
@@ -1022,7 +1032,7 @@
     {
      "check": "RC-0017563 shows its score",
      "passed": true,
-     "saw": "95.3"
+     "saw": "95.4"
     },
     {
      "check": "RC-0017563 shows the warning cutoff",
@@ -1030,32 +1040,22 @@
      "saw": ""
     },
     {
-     "check": "RC-0023864 shows its score",
+     "check": "RC-0009805 shows its score",
      "passed": true,
      "saw": "95.1"
     },
     {
-     "check": "RC-0023864 shows the warning cutoff",
+     "check": "RC-0009805 shows the warning cutoff",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RC-0018318 shows its score",
+     "check": "RC-0024364 shows its score",
      "passed": true,
-     "saw": "94.7"
+     "saw": "95.1"
     },
     {
-     "check": "RC-0018318 shows the warning cutoff",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0017988 shows its score",
-     "passed": true,
-     "saw": "93.7"
-    },
-    {
-     "check": "RC-0017988 shows the warning cutoff",
+     "check": "RC-0024364 shows the warning cutoff",
      "passed": true,
      "saw": ""
     }
@@ -1065,8 +1065,13 @@
    "id": "EW-22",
    "title": "Every card shows the severity",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.5s",
    "checks": [
+    {
+     "check": "RC-0011598 shows CRITICAL",
+     "passed": true,
+     "saw": "GHADA AL-TURKI\nRC-0011598\nCRITICAL\nEWS 96.5 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT C"
+    },
     {
      "check": "RC-0017858 shows CRITICAL",
      "passed": true,
@@ -1075,22 +1080,17 @@
     {
      "check": "RC-0017563 shows CRITICAL",
      "passed": true,
-     "saw": "WALEED AL-NASSER\nRC-0017563\nCRITICAL\nEWS 95.3 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT"
+     "saw": "WALEED AL-NASSER\nRC-0017563\nCRITICAL\nEWS 95.4 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT"
     },
     {
-     "check": "RC-0023864 shows CRITICAL",
+     "check": "RC-0009805 shows CRITICAL",
      "passed": true,
-     "saw": "FAISAL AL-ANZI\nRC-0023864\nCRITICAL\nEWS 95.1 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT C"
+     "saw": "HAYA AL-JUHANI\nRC-0009805\nCRITICAL\nEWS 95.1 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT C"
     },
     {
-     "check": "RC-0018318 shows CRITICAL",
+     "check": "RC-0024364 shows CRITICAL",
      "passed": true,
-     "saw": "LATIFA AL-YAMI\nRC-0018318\nCRITICAL\nEWS 94.7 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT C"
-    },
-    {
-     "check": "RC-0017988 shows CRITICAL",
-     "passed": true,
-     "saw": "NOURA AL-NASSER\nRC-0017988\nCRITICAL\nEWS 93.7 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT "
+     "saw": "AMAL AL-FARAJ\nRC-0024364\nCRITICAL\nEWS 95.1 / WARNED AT 20\nFORWARD RISK\n\nPRODUCT\n\nCREDIT CA"
     }
    ]
   },
@@ -1098,17 +1098,22 @@
    "id": "EW-23",
    "title": "The behavioural score is always accounted for",
    "status": "PASS",
-   "note": "10.5s",
+   "note": "11.8s",
    "checks": [
     {
      "check": "a customer without one carries the reason",
      "passed": true,
-     "saw": "['RC-0010171', 'RC-0002605', 'RC-0001332']"
+     "saw": "['RC-0010171', 'RC-0021022', 'RC-0003845']"
     },
     {
      "check": "a customer with one carries no reason",
      "passed": true,
      "saw": ""
+    },
+    {
+     "check": "RC-0011598's behavioural cell is filled",
+     "passed": true,
+     "saw": "BEHAVIOURAL\n\n540 D\n\n-47 on the month"
     },
     {
      "check": "RC-0017858's behavioural cell is filled",
@@ -1121,19 +1126,14 @@
      "saw": "BEHAVIOURAL\n\n519 E\n\n-53 on the month"
     },
     {
-     "check": "RC-0023864's behavioural cell is filled",
+     "check": "RC-0009805's behavioural cell is filled",
      "passed": true,
-     "saw": "BEHAVIOURAL\n\n531 E\n\n-46 on the month"
+     "saw": "BEHAVIOURAL\n\n643 B\n\n-21 on the month"
     },
     {
-     "check": "RC-0018318's behavioural cell is filled",
+     "check": "RC-0024364's behavioural cell is filled",
      "passed": true,
-     "saw": "BEHAVIOURAL\n\n495 E"
-    },
-    {
-     "check": "RC-0017988's behavioural cell is filled",
-     "passed": true,
-     "saw": "BEHAVIOURAL\n\n602 C\n\n-68 on the month"
+     "saw": "BEHAVIOURAL\n\n539 E"
     }
    ]
   },
@@ -1143,6 +1143,16 @@
    "status": "PASS",
    "note": "0.5s",
    "checks": [
+    {
+     "check": "RC-0011598 has an EWS sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0011598's series is up to six months",
+     "passed": true,
+     "saw": "6"
+    },
     {
      "check": "RC-0017858 has an EWS sparkline",
      "passed": true,
@@ -1164,34 +1174,24 @@
      "saw": "4"
     },
     {
-     "check": "RC-0023864 has an EWS sparkline",
+     "check": "RC-0009805 has an EWS sparkline",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RC-0023864's series is up to six months",
+     "check": "RC-0009805's series is up to six months",
      "passed": true,
-     "saw": "6"
+     "saw": "4"
     },
     {
-     "check": "RC-0018318 has an EWS sparkline",
+     "check": "RC-0024364 has an EWS sparkline",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RC-0018318's series is up to six months",
+     "check": "RC-0024364's series is up to six months",
      "passed": true,
-     "saw": "6"
-    },
-    {
-     "check": "RC-0017988 has an EWS sparkline",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0017988's series is up to six months",
-     "passed": true,
-     "saw": "5"
+     "saw": "3"
     }
    ]
   },
@@ -1201,6 +1201,11 @@
    "status": "PASS",
    "note": "0.5s",
    "checks": [
+    {
+     "check": "RC-0011598 has a DPD sparkline",
+     "passed": true,
+     "saw": ""
+    },
     {
      "check": "RC-0017858 has a DPD sparkline",
      "passed": true,
@@ -1212,17 +1217,12 @@
      "saw": ""
     },
     {
-     "check": "RC-0023864 has a DPD sparkline",
+     "check": "RC-0009805 has a DPD sparkline",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RC-0018318 has a DPD sparkline",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0017988 has a DPD sparkline",
+     "check": "RC-0024364 has a DPD sparkline",
      "passed": true,
      "saw": ""
     },
@@ -1240,6 +1240,11 @@
    "note": "0.5s",
    "checks": [
     {
+     "check": "RC-0011598 has a behavioural sparkline",
+     "passed": true,
+     "saw": ""
+    },
+    {
      "check": "RC-0017858 has a behavioural sparkline",
      "passed": true,
      "saw": ""
@@ -1250,17 +1255,12 @@
      "saw": ""
     },
     {
-     "check": "RC-0023864 has a behavioural sparkline",
+     "check": "RC-0009805 has a behavioural sparkline",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RC-0018318 has a behavioural sparkline",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0017988 has a behavioural sparkline",
+     "check": "RC-0024364 has a behavioural sparkline",
      "passed": true,
      "saw": ""
     },
@@ -1280,12 +1280,12 @@
    "id": "EW-27",
    "title": "Bureau shown as last observed plus recency",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.6s",
    "checks": [
     {
      "check": "every row carries an observation date",
      "passed": true,
-     "saw": "['2026-08', '2026-05', '2026-07']"
+     "saw": "['2026-02', '2026-08', '2026-05']"
     },
     {
      "check": "and a recency in months",
@@ -1295,12 +1295,12 @@
     {
      "check": "recency is not zero for everybody, so it is real",
      "passed": true,
-     "saw": "[0.0, 1.0, 2.0, 3.0, 4.0]"
+     "saw": "[0.0, 1.0, 2.0, 3.0, 4.0, 6.0]"
     },
     {
      "check": "it is on the card",
      "passed": true,
-     "saw": "BUREAU\n\n656 C\n\nseen 2026-08, 0mo old"
+     "saw": "BUREAU\n\n615 D\n\nseen 2026-02, 6mo old"
     }
    ]
   },
@@ -1308,8 +1308,18 @@
    "id": "EW-28",
    "title": "The top deteriorating layer on every card",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.5s",
    "checks": [
+    {
+     "check": "RC-0011598 names its worst layer",
+     "passed": true,
+     "saw": "Behavioural Intelligence"
+    },
+    {
+     "check": "RC-0011598 shows layer chips",
+     "passed": true,
+     "saw": ""
+    },
     {
      "check": "RC-0017858 names its worst layer",
      "passed": true,
@@ -1331,32 +1341,22 @@
      "saw": ""
     },
     {
-     "check": "RC-0023864 names its worst layer",
+     "check": "RC-0009805 names its worst layer",
      "passed": true,
      "saw": "Behavioural Intelligence"
     },
     {
-     "check": "RC-0023864 shows layer chips",
+     "check": "RC-0009805 shows layer chips",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RC-0018318 names its worst layer",
-     "passed": true,
-     "saw": "Affordability & Cash Flow Intelligence"
-    },
-    {
-     "check": "RC-0018318 shows layer chips",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0017988 names its worst layer",
+     "check": "RC-0024364 names its worst layer",
      "passed": true,
      "saw": "Behavioural Intelligence"
     },
     {
-     "check": "RC-0017988 shows layer chips",
+     "check": "RC-0024364 shows layer chips",
      "passed": true,
      "saw": ""
     },
@@ -1371,8 +1371,28 @@
    "id": "EW-29",
    "title": "Reason codes on every card",
    "status": "PASS",
-   "note": "0.5s",
+   "note": "0.6s",
    "checks": [
+    {
+     "check": "RC-0011598 carries up to three reason codes",
+     "passed": true,
+     "saw": "3"
+    },
+    {
+     "check": "RET-EWS-003 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-002 is on screen",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RET-EWS-013 is on screen",
+     "passed": true,
+     "saw": ""
+    },
     {
      "check": "RC-0017858 carries up to three reason codes",
      "passed": true,
@@ -1414,7 +1434,7 @@
      "saw": ""
     },
     {
-     "check": "RC-0023864 carries up to three reason codes",
+     "check": "RC-0009805 carries up to three reason codes",
      "passed": true,
      "saw": "3"
     },
@@ -1424,19 +1444,19 @@
      "saw": ""
     },
     {
-     "check": "RET-EWS-005 is on screen",
+     "check": "RET-EWS-011 is on screen",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RET-EWS-013 is on screen",
+     "check": "RET-EWS-024 is on screen",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "RC-0018318 carries up to three reason codes",
+     "check": "RC-0024364 carries up to three reason codes",
      "passed": true,
-     "saw": "3"
+     "saw": "2"
     },
     {
      "check": "RET-EWS-003 is on screen",
@@ -1444,32 +1464,7 @@
      "saw": ""
     },
     {
-     "check": "RET-EWS-008 is on screen",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RET-EWS-009 is on screen",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0017988 carries up to three reason codes",
-     "passed": true,
-     "saw": "3"
-    },
-    {
-     "check": "RET-EWS-003 is on screen",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RET-EWS-012 is on screen",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RET-EWS-013 is on screen",
+     "check": "RET-EWS-002 is on screen",
      "passed": true,
      "saw": ""
     }
@@ -1479,7 +1474,7 @@
    "id": "EW-30",
    "title": "Exposure contribution on every card",
    "status": "PASS",
-   "note": "0.4s",
+   "note": "0.5s",
    "checks": [
     {
      "check": "% OF SUB-PRODUCT is on the card",
@@ -1499,7 +1494,7 @@
     {
      "check": "the shares are ordered sub-product >= product >= retail",
      "passed": true,
-     "saw": "(0.0254, 0.0254, 0.0007)"
+     "saw": "(0.0505, 0.0505, 0.0014)"
     }
    ]
   },
@@ -1507,7 +1502,7 @@
    "id": "EW-31",
    "title": "The current-bad filter",
    "status": "PASS",
-   "note": "8.3s",
+   "note": "8.6s",
    "checks": [
     {
      "check": "the URL carries the cohort",
@@ -1522,7 +1517,7 @@
     {
      "check": "the count matches the chip",
      "passed": true,
-     "saw": "Currently bad / delinquent (175) vs 175"
+     "saw": "Currently bad / delinquent (353) vs 353"
     },
     {
      "check": "already-bad badges are rendered",
@@ -1535,7 +1530,7 @@
    "id": "EW-32",
    "title": "The forward-risk filter",
    "status": "PASS",
-   "note": "8.4s",
+   "note": "8.7s",
    "checks": [
     {
      "check": "every served row is forward risk",
@@ -1563,7 +1558,7 @@
    "id": "EW-33",
    "title": "The rule filter, from the signals view",
    "status": "PASS",
-   "note": "24.5s",
+   "note": "26.4s",
    "checks": [
     {
      "check": "the signals view opened",
@@ -1573,7 +1568,7 @@
     {
      "check": "it says how many of how many are shown",
      "passed": true,
-     "saw": "Showing 34 of 34 triggers, 16,443 facility hits at 2026-08"
+     "saw": "Showing 34 of 34 triggers, 17,937 facility hits at 2026-08"
     },
     {
      "check": "a rule opens its own detail",
@@ -1588,7 +1583,7 @@
     {
      "check": "and the list is genuinely narrowed",
      "passed": true,
-     "saw": "660 of 3377"
+     "saw": "725 of 3748"
     }
    ]
   },
@@ -1596,7 +1591,7 @@
    "id": "EW-34",
    "title": "The customer's overall Early Warning Score",
    "status": "PASS",
-   "note": "33.6s",
+   "note": "34.4s",
    "checks": [
     {
      "check": "the detail opened",
@@ -1606,7 +1601,7 @@
     {
      "check": "the score is shown",
      "passed": true,
-     "saw": "EARLY WARNING SCORE\n\n95.7\n\n+84.1 on 2026-07"
+     "saw": "EARLY WARNING SCORE\n\n96.5\n\n+22.8 on 2026-07"
     },
     {
      "check": "the severity is shown",
@@ -1641,7 +1636,7 @@
     {
      "check": "and it is the complete section, not a summary",
      "passed": true,
-     "saw": "EARLY WARNING SCORE\n\n95.7\n\n+84.1 on 2026-07"
+     "saw": "EARLY WARNING SCORE\n\n96.5\n\n+22.8 on 2026-07"
     },
     {
      "check": "Customer 360 shows the behavioural layer",
@@ -1684,7 +1679,7 @@
     {
      "check": "behavioural shows its score",
      "passed": true,
-     "saw": "91.89"
+     "saw": "96.49"
     },
     {
      "check": "behavioural shows its severity",
@@ -1709,7 +1704,7 @@
     {
      "check": "affordability shows its score",
      "passed": true,
-     "saw": "95.26"
+     "saw": "0.0"
     },
     {
      "check": "affordability shows its severity",
@@ -1865,7 +1860,7 @@
     {
      "check": "a fired trigger carries its raw value and comparator",
      "passed": true,
-     "saw": "7"
+     "saw": "6"
     },
     {
      "check": "and its threshold and contribution",
@@ -1888,7 +1883,7 @@
     {
      "check": "at least one trigger fired",
      "passed": true,
-     "saw": "7"
+     "saw": "6"
     },
     {
      "check": "early_life_failure carries an action block",
@@ -1908,7 +1903,7 @@
     {
      "check": "early_life_failure has velocity",
      "passed": true,
-     "saw": "0.33"
+     "saw": "0.67"
     },
     {
      "check": "early_life_failure has momentum",
@@ -1918,7 +1913,7 @@
     {
      "check": "early_life_failure has persistence",
      "passed": true,
-     "saw": "1.0"
+     "saw": "3.0"
     },
     {
      "check": "early_life_failure has recency",
@@ -1928,87 +1923,87 @@
     {
      "check": "early_life_failure's dimensions are on screen",
      "passed": true,
-     "saw": "Direction: DETERIORATING\nMagnitude: 1.00\nVelocity: 0.33\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: 0"
+     "saw": "Direction: DETERIORATING\nMagnitude: 1.00\nVelocity: 0.67\nMomentum: ACCELERATING\nPersistence: 3 months\nRecency: "
     },
     {
-     "check": "behavioural_fall carries an action block",
+     "check": "missed_payments carries an action block",
      "passed": true,
      "saw": ""
     },
     {
-     "check": "behavioural_fall has direction",
+     "check": "missed_payments has direction",
      "passed": true,
      "saw": "DETERIORATING"
     },
     {
-     "check": "behavioural_fall has magnitude",
+     "check": "missed_payments has magnitude",
      "passed": true,
-     "saw": "2.83"
+     "saw": "0.5"
     },
     {
-     "check": "behavioural_fall has velocity",
-     "passed": true,
-     "saw": "28.04"
-    },
-    {
-     "check": "behavioural_fall has momentum",
-     "passed": true,
-     "saw": "ACCELERATING"
-    },
-    {
-     "check": "behavioural_fall has persistence",
-     "passed": true,
-     "saw": "1.0"
-    },
-    {
-     "check": "behavioural_fall has recency",
-     "passed": true,
-     "saw": "0.0"
-    },
-    {
-     "check": "behavioural_fall's dimensions are on screen",
-     "passed": true,
-     "saw": "Direction: DETERIORATING\nMagnitude: 2.83\nVelocity: 28.04\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: "
-    },
-    {
-     "check": "band_migration carries an action block",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "band_migration has direction",
-     "passed": true,
-     "saw": "DETERIORATING"
-    },
-    {
-     "check": "band_migration has magnitude",
-     "passed": true,
-     "saw": "3.0"
-    },
-    {
-     "check": "band_migration has velocity",
+     "check": "missed_payments has velocity",
      "passed": true,
      "saw": "0.67"
     },
     {
-     "check": "band_migration has momentum",
+     "check": "missed_payments has momentum",
      "passed": true,
      "saw": "ACCELERATING"
     },
     {
-     "check": "band_migration has persistence",
+     "check": "missed_payments has persistence",
      "passed": true,
      "saw": "1.0"
     },
     {
-     "check": "band_migration has recency",
+     "check": "missed_payments has recency",
      "passed": true,
      "saw": "0.0"
     },
     {
-     "check": "band_migration's dimensions are on screen",
+     "check": "missed_payments's dimensions are on screen",
      "passed": true,
-     "saw": "Direction: DETERIORATING\nMagnitude: 3.00\nVelocity: 0.67\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: 0"
+     "saw": "Direction: DETERIORATING\nMagnitude: 0.50\nVelocity: 0.67\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: 0"
+    },
+    {
+     "check": "autopay_failure carries an action block",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "autopay_failure has direction",
+     "passed": true,
+     "saw": "DETERIORATING"
+    },
+    {
+     "check": "autopay_failure has magnitude",
+     "passed": true,
+     "saw": "0.5"
+    },
+    {
+     "check": "autopay_failure has velocity",
+     "passed": true,
+     "saw": "0.67"
+    },
+    {
+     "check": "autopay_failure has momentum",
+     "passed": true,
+     "saw": "ACCELERATING"
+    },
+    {
+     "check": "autopay_failure has persistence",
+     "passed": true,
+     "saw": "1.0"
+    },
+    {
+     "check": "autopay_failure has recency",
+     "passed": true,
+     "saw": "0.0"
+    },
+    {
+     "check": "autopay_failure's dimensions are on screen",
+     "passed": true,
+     "saw": "Direction: DETERIORATING\nMagnitude: 0.50\nVelocity: 0.67\nMomentum: ACCELERATING\nPersistence: 1 month\nRecency: 0"
     }
    ]
   },
@@ -2036,7 +2031,7 @@
     {
      "check": "the customer's share of retail is shown",
      "passed": true,
-     "saw": "SHARE OF RETAIL EXPOSURE\n\n0.004%\n\n0.15% of product \u00b7 0.32% of sub-portfolio"
+     "saw": "SHARE OF RETAIL EXPOSURE\n\n0.055%\n\n1.97% of product \u00b7 4.23% of sub-portfolio"
     },
     {
      "check": "its share of product and sub-portfolio too",
@@ -2059,7 +2054,7 @@
     {
      "check": "it covers every month the customer is in the domain",
      "passed": true,
-     "saw": "7"
+     "saw": "14"
     },
     {
      "check": "it carries reason codes",
@@ -2082,7 +2077,7 @@
    "id": "EW-41",
    "title": "View Model opens the model screen",
    "status": "PASS",
-   "note": "12.8s",
+   "note": "13.8s",
    "checks": [
     {
      "check": "a View Model control is on the workspace",
@@ -2097,7 +2092,7 @@
     {
      "check": "it states the model_version",
      "passed": true,
-     "saw": "2.0.0"
+     "saw": "3.0.0"
     },
     {
      "check": "it states the purpose",
@@ -2241,7 +2236,7 @@
    "id": "EW-44",
    "title": "Classifier and trigger separated, per sublayer",
    "status": "PASS",
-   "note": "5.9s",
+   "note": "6.1s",
    "checks": [
     {
      "check": "delinquency is rendered",
@@ -2757,7 +2752,7 @@
    "id": "EW-51",
    "title": "The Early Warning Score domain exists",
    "status": "PASS",
-   "note": "10.5s",
+   "note": "11.0s",
    "checks": [
     {
      "check": "the domain is served",
@@ -3071,8 +3066,18 @@
    "id": "EW-54",
    "title": "The Early Warning Score reproduces",
    "status": "PASS",
-   "note": "2.1s",
+   "note": "2.9s",
    "checks": [
+    {
+     "check": "RC-0015311 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.89 vs 99.89"
+    },
+    {
+     "check": "RC-0015311 bands the same way",
+     "passed": true,
+     "saw": ""
+    },
     {
      "check": "RC-0026053 scores the same in list and detail",
      "passed": true,
@@ -3080,6 +3085,26 @@
     },
     {
      "check": "RC-0026053 bands the same way",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0006583 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.85 vs 99.85"
+    },
+    {
+     "check": "RC-0006583 bands the same way",
+     "passed": true,
+     "saw": ""
+    },
+    {
+     "check": "RC-0013272 scores the same in list and detail",
+     "passed": true,
+     "saw": "99.84 vs 99.84"
+    },
+    {
+     "check": "RC-0013272 bands the same way",
      "passed": true,
      "saw": ""
     },
@@ -3092,36 +3117,6 @@
      "check": "RC-0015496 bands the same way",
      "passed": true,
      "saw": ""
-    },
-    {
-     "check": "RC-0025457 scores the same in list and detail",
-     "passed": true,
-     "saw": "99.75 vs 99.75"
-    },
-    {
-     "check": "RC-0025457 bands the same way",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0010171 scores the same in list and detail",
-     "passed": true,
-     "saw": "99.73 vs 99.73"
-    },
-    {
-     "check": "RC-0010171 bands the same way",
-     "passed": true,
-     "saw": ""
-    },
-    {
-     "check": "RC-0011707 scores the same in list and detail",
-     "passed": true,
-     "saw": "99.7 vs 99.7"
-    },
-    {
-     "check": "RC-0011707 bands the same way",
-     "passed": true,
-     "saw": ""
     }
    ]
   },
@@ -3129,8 +3124,28 @@
    "id": "EW-55",
    "title": "The layer scores reproduce",
    "status": "PASS",
-   "note": "1.9s",
+   "note": "2.3s",
    "checks": [
+    {
+     "check": "RC-0015311 / behavioural agrees",
+     "passed": true,
+     "saw": "99.09 vs 99.09"
+    },
+    {
+     "check": "RC-0015311 / affordability agrees",
+     "passed": true,
+     "saw": "94.97 vs 94.97"
+    },
+    {
+     "check": "RC-0015311 / bureau agrees",
+     "passed": true,
+     "saw": "77.77 vs 77.77"
+    },
+    {
+     "check": "RC-0015311 / facility agrees",
+     "passed": true,
+     "saw": "0.0 vs 0.0"
+    },
     {
      "check": "RC-0026053 / behavioural agrees",
      "passed": true,
@@ -3152,6 +3167,46 @@
      "saw": "79.5 vs 79.5"
     },
     {
+     "check": "RC-0006583 / behavioural agrees",
+     "passed": true,
+     "saw": "98.95 vs 98.95"
+    },
+    {
+     "check": "RC-0006583 / affordability agrees",
+     "passed": true,
+     "saw": "96.45 vs 96.45"
+    },
+    {
+     "check": "RC-0006583 / bureau agrees",
+     "passed": true,
+     "saw": "19.87 vs 19.87"
+    },
+    {
+     "check": "RC-0006583 / facility agrees",
+     "passed": true,
+     "saw": "0.0 vs 0.0"
+    },
+    {
+     "check": "RC-0013272 / behavioural agrees",
+     "passed": true,
+     "saw": "99.0 vs 99.0"
+    },
+    {
+     "check": "RC-0013272 / affordability agrees",
+     "passed": true,
+     "saw": "94.89 vs 94.89"
+    },
+    {
+     "check": "RC-0013272 / bureau agrees",
+     "passed": true,
+     "saw": "0.0 vs 0.0"
+    },
+    {
+     "check": "RC-0013272 / facility agrees",
+     "passed": true,
+     "saw": "17.08 vs 17.08"
+    },
+    {
      "check": "RC-0015496 / behavioural agrees",
      "passed": true,
      "saw": "99.1 vs 99.1"
@@ -3170,66 +3225,6 @@
      "check": "RC-0015496 / facility agrees",
      "passed": true,
      "saw": "83.95 vs 83.95"
-    },
-    {
-     "check": "RC-0025457 / behavioural agrees",
-     "passed": true,
-     "saw": "98.74 vs 98.74"
-    },
-    {
-     "check": "RC-0025457 / affordability agrees",
-     "passed": true,
-     "saw": "99.64 vs 99.64"
-    },
-    {
-     "check": "RC-0025457 / bureau agrees",
-     "passed": true,
-     "saw": "42.36 vs 42.36"
-    },
-    {
-     "check": "RC-0025457 / facility agrees",
-     "passed": true,
-     "saw": "22.24 vs 22.24"
-    },
-    {
-     "check": "RC-0010171 / behavioural agrees",
-     "passed": true,
-     "saw": "98.78 vs 98.78"
-    },
-    {
-     "check": "RC-0010171 / affordability agrees",
-     "passed": true,
-     "saw": "95.73 vs 95.73"
-    },
-    {
-     "check": "RC-0010171 / bureau agrees",
-     "passed": true,
-     "saw": "0.0 vs 0.0"
-    },
-    {
-     "check": "RC-0010171 / facility agrees",
-     "passed": true,
-     "saw": "23.26 vs 23.26"
-    },
-    {
-     "check": "RC-0011707 / behavioural agrees",
-     "passed": true,
-     "saw": "18.78 vs 18.78"
-    },
-    {
-     "check": "RC-0011707 / affordability agrees",
-     "passed": true,
-     "saw": "99.65 vs 99.65"
-    },
-    {
-     "check": "RC-0011707 / bureau agrees",
-     "passed": true,
-     "saw": "0.0 vs 0.0"
-    },
-    {
-     "check": "RC-0011707 / facility agrees",
-     "passed": true,
-     "saw": "0.0 vs 0.0"
     }
    ]
   },
@@ -3237,22 +3232,22 @@
    "id": "EW-56",
    "title": "The UI reconciles with the domain",
    "status": "PASS",
-   "note": "15.1s",
+   "note": "16.5s",
    "checks": [
     {
      "check": "the products' warned counts do not exceed the portfolio's",
      "passed": true,
-     "saw": "3893 vs 3377"
+     "saw": "4297 vs 3748"
     },
     {
      "check": "the products' exposure sums to the book's",
      "passed": true,
-     "saw": "2082852855.82"
+     "saw": "2087954318.0900002"
     },
     {
      "check": "the sub-products' facilities sum to the product's exactly",
      "passed": true,
-     "saw": "6532 vs 6532"
+     "saw": "6509 vs 6509"
     },
     {
      "check": "the sub-products' exposure sums to the product's",
@@ -3280,7 +3275,7 @@
     {
      "check": "the workspace source is present",
      "passed": true,
-     "saw": "12"
+     "saw": "16"
     },
     {
      "check": "no served figure is written into a screen",
@@ -3298,7 +3293,7 @@
    "id": "EW-58",
    "title": "The chat reads only the EWS domain",
    "status": "PASS",
-   "note": "6.1s",
+   "note": "2.0s",
    "checks": [
     {
      "check": "'Which product has the highest Early Warn' is answered in scope",
@@ -3411,7 +3406,7 @@
     {
      "check": "the overall changed",
      "passed": true,
-     "saw": "{'before': 14.656, 'after': 55.524, 'changed': True}"
+     "saw": "{'before': 14.656, 'after': 55.554, 'changed': True}"
     },
     {
      "check": "the reason changed",
@@ -3421,7 +3416,7 @@
     {
      "check": "the aggregate changed",
      "passed": true,
-     "saw": "{'product': 'CREDIT_CARD', 'before': 16.94, 'after': 17.01, 'changed': True}"
+     "saw": "{'product': 'CREDIT_CARD', 'before': 22.93, 'after': 22.99, 'changed': True}"
     }
    ]
   },
@@ -3429,7 +3424,7 @@
    "id": "EW-60",
    "title": "Cross-domain questions are refused, not answered from the wrong book",
    "status": "PASS",
-   "note": "16.3s",
+   "note": "16.9s",
    "checks": [
     {
      "check": "'What is the ECL for the credit card bo' is refused",

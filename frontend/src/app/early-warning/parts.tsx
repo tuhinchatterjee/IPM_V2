@@ -10,9 +10,16 @@
  */
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
+import { FlaskConical, Loader2, Sparkles } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import type { EwsCounts, EwsReason, EwsTrendPoint } from "@/lib/api";
+import { api } from "@/lib/api";
+import type {
+  EwsCounts, EwsInterpretation, EwsMateriality, EwsMaterialityShare,
+  EwsReason, EwsTrendPoint,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 import { Spark } from "./spark";
@@ -296,5 +303,218 @@ export function ActiveFilters({ chips, testId }: {
         )
       ))}
     </div>
+  );
+}
+
+/**
+ * What share of its parents a segment is, on all three counts.
+ *
+ * Customers, accounts and exposure together, because they answer different
+ * questions: a sub-portfolio can be two per cent of the customers and a fifth
+ * of the money, and a reader deciding where to spend a collections team's
+ * week needs to see which one they are looking at.
+ */
+export function Materiality({ materiality, testId }: {
+  materiality?: EwsMateriality;
+  testId?: string;
+}) {
+  if (!materiality) return null;
+  const rows: { key: string; label: string }[] = [
+    { key: "classification", label: "of classification" },
+    { key: "product", label: "of product" },
+    { key: "retail", label: "of total Retail" },
+  ];
+  const present = rows.filter((row) =>
+    (materiality as unknown as Record<string, unknown>)[row.key]);
+  if (!present.length) return null;
+
+  return (
+    <div className="rounded-md border border-border bg-surface-muted/30 p-2.5"
+         data-testid={testId}>
+      <p className="text-[9px] uppercase tracking-[0.08em] text-text-muted">
+        Materiality
+      </p>
+      <table className="mt-1 w-full text-[11px]">
+        <thead>
+          <tr className="text-[9px] uppercase tracking-[0.06em] text-text-muted">
+            <th className="text-left font-medium">Share</th>
+            <th className="text-right font-medium">Customers</th>
+            <th className="text-right font-medium">Accounts</th>
+            <th className="text-right font-medium">Exposure</th>
+          </tr>
+        </thead>
+        <tbody>
+          {present.map((row) => {
+            const share = (materiality as unknown as
+              Record<string, EwsMaterialityShare>)[row.key];
+            return (
+              <tr key={row.key} data-testid={testId ? `${testId}-${row.key}` : undefined}>
+                <td className="py-0.5 text-text-secondary">{row.label}</td>
+                <td className="py-0.5 text-right tabular-nums text-text-primary">
+                  {share.customers_pct.toFixed(1)}%
+                </td>
+                <td className="py-0.5 text-right tabular-nums text-text-primary">
+                  {share.accounts_pct.toFixed(1)}%
+                </td>
+                <td className="py-0.5 text-right font-medium tabular-nums text-text-primary">
+                  {share.exposure_pct.toFixed(1)}%
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="mt-1 text-[10px] text-text-muted">
+        {count(materiality.of.customers)} customers ·{" "}
+        {count(materiality.of.accounts)} accounts ·{" "}
+        {money(materiality.of.exposure_sar)}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The management reading of a level, and the framework behind its ranking.
+ *
+ * The paragraph is written by a deterministic reader from the same figures
+ * the screen is showing, so it can be checked against them. "Why this
+ * ranking?" opens the six governed criteria and each product's mark, because
+ * a ranking a reader cannot interrogate is an opinion wearing a number.
+ */
+export function Interpretation({ reading, testId }: {
+  reading?: EwsInterpretation | null;
+  testId?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  if (!reading?.available) return null;
+
+  return (
+    <Card className="border-accent/30 bg-accent-subtle/20 p-4"
+          data-testid={testId ?? "ews-interpretation"}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Sparkles className="size-4 shrink-0 text-accent" aria-hidden />
+        <p className="text-sm font-semibold text-text-primary">
+          AI Interpretation
+        </p>
+        <span className="text-[11px] text-text-muted">{reading.headline}</span>
+        <button type="button" onClick={() => setOpen((was) => !was)}
+                className="ml-auto rounded-full border border-border px-2.5 py-0.5
+                           text-[11px] text-text-secondary
+                           transition-colors hover:bg-surface-muted"
+                data-testid="ews-interpretation-why">
+          Why this ranking?
+        </button>
+      </div>
+
+      <p className="mt-2 text-[13px] leading-relaxed text-text-primary"
+         data-testid="ews-interpretation-text">
+        {reading.interpretation}
+      </p>
+
+      {open ? (
+        <div className="mt-3 space-y-2 border-t border-border pt-3"
+             data-testid="ews-interpretation-basis">
+          <p className="text-[11px] text-text-secondary">
+            {reading.ranking_basis}
+          </p>
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="text-[9px] uppercase tracking-[0.06em] text-text-muted">
+                <th className="px-1 py-1 text-left font-medium">Criterion</th>
+                <th className="px-1 py-1 text-right font-medium">Weight</th>
+                {(reading.ranking ?? []).map((one) => (
+                  <th key={one.product_code}
+                      className="px-1 py-1 text-right font-medium">
+                    {one.product_label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {reading.criteria.map((criterion) => (
+                <tr key={criterion.key} className="border-t border-border/60">
+                  <td className="px-1 py-1 text-text-secondary"
+                      title={criterion.meaning}>
+                    {criterion.name}
+                  </td>
+                  <td className="px-1 py-1 text-right tabular-nums text-text-muted">
+                    {(criterion.weight * 100).toFixed(0)}%
+                  </td>
+                  {(reading.ranking ?? []).map((one) => (
+                    <td key={one.product_code}
+                        className="px-1 py-1 text-right tabular-nums text-text-primary">
+                      {(one.marks[criterion.key] ?? 0).toFixed(2)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {reading.ranking?.length ? (
+                <tr className="border-t border-border font-semibold">
+                  <td className="px-1 py-1 text-text-primary">Concern</td>
+                  <td className="px-1 py-1" />
+                  {reading.ranking.map((one) => (
+                    <td key={one.product_code}
+                        className="px-1 py-1 text-right tabular-nums text-text-primary">
+                      {one.concern.toFixed(2)} ({one.rank})
+                    </td>
+                  ))}
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+          <p className="text-[10px] text-text-muted">{reading.provenance}</p>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+/**
+ * Export this exact cohort to What-If Analysis.
+ *
+ * It does not navigate to a blank What-If screen: it writes a selection set
+ * for the customers on this card, with the filters that produced them, and
+ * opens the thread on that cohort. What the reader was looking at is what
+ * gets stressed.
+ */
+export function ExportToWhatIf({ scope, label, testId, size = "sm" }: {
+  scope: Record<string, unknown>;
+  label?: string;
+  testId?: string;
+  size?: "sm" | "xs";
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = React.useState(false);
+  const [problem, setProblem] = React.useState("");
+
+  const go = React.useCallback(async () => {
+    setBusy(true);
+    setProblem("");
+    try {
+      const made = await api.ewsExportToWhatIf({
+        ...scope,
+        route: typeof window === "undefined" ? "" :
+          window.location.pathname + window.location.search,
+      });
+      router.push(`/early-warning/whatif/${made.selection_id}`);
+    } catch (failed) {
+      setProblem(String(failed));
+      setBusy(false);
+    }
+  }, [router, scope]);
+
+  return (
+    <span className="inline-flex flex-col items-start">
+      <Button variant="outline" size={size === "xs" ? "sm" : size}
+              onClick={() => void go()} disabled={busy}
+              data-testid={testId ?? "ews-export-whatif"}>
+        {busy ? <Loader2 className="mr-1 size-3.5 animate-spin" aria-hidden />
+              : <FlaskConical className="mr-1 size-3.5" aria-hidden />}
+        {label ?? "Export to What-If Analysis"}
+      </Button>
+      {problem ? (
+        <span className="mt-1 text-[10px] text-negative">{problem}</span>
+      ) : null}
+    </span>
   );
 }

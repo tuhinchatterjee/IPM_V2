@@ -1,6 +1,6 @@
 {
   "config_version": "1.0.0",
-  "generator_version": "retail-gen-1.0.0",
+  "generator_version": "retail-gen-1.1.0",
   "seed": 20260910,
   "disclosure": "Synthetic Saudi retail demonstration data — not ANB customer data or approved models.",
 

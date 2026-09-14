@@ -139,6 +139,13 @@ def _warm_the_early_warning_score() -> None:
 
             started = time.perf_counter()
             ews_views.warm()
+            # The Model Log measures two versions over the whole panel; that
+            # is twenty seconds a reader should not spend waiting for an
+            # answer that cannot change until the panel is rebuilt.
+            from backend.retail import ews_registry
+
+            for one in ews_registry.versions():
+                ews_registry.performance(one.model_version)
             logging.getLogger(__name__).info(
                 "early warning score warmed in %.1fs",
                 time.perf_counter() - started)

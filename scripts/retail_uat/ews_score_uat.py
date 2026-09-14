@@ -331,11 +331,15 @@ class Walk:
         c = self.case("EW-12", "Sub-product cards, with the governed taxonomy")
         served = self.api("/retail/ews/product/CREDIT_CARD")
         cards = served["sub_products"]
-        wanted = {"Privilege Card", "Platinum Card", "Silver Card",
-                  "Ultra Card"}
+        # Read from the governed taxonomy rather than restated here. Written
+        # out, this check went stale the moment the ladder was renamed onto
+        # Saudi-market names, and reported a rename as a missing sub-product.
+        served_model = self.api("/retail/ews/model")
+        wanted = {one["label"] for one in served_model["sub_products"]
+                  if one["product"] == "CREDIT_CARD"}
         labels = {card["sub_product_label"] for card in cards}
-        c.check("the four Credit Card sub-products exist",
-                wanted <= labels, sorted(labels))
+        c.check("every Credit Card sub-product in the taxonomy has a card",
+                wanted and wanted <= labels, sorted(wanted - labels))
         c.check("the sub-product deck renders",
                 self.has("ews-sub-products") == 1)
         for card in cards:
@@ -390,16 +394,16 @@ class Walk:
 
     def ew_16(self) -> None:
         c = self.case("EW-16", "A sub-product card opens its own level")
-        self.page.click('[data-testid="ews-open-sub-CC_PRIVILEGE"]')
+        self.page.click('[data-testid="ews-open-sub-CC_SIGNATURE"]')
         self.page.wait_for_selector('[data-testid="ews-sub-product-view"]',
                                     timeout=60_000)
         self.page.wait_for_timeout(5000)
         c.check("the sub-product view opened",
                 self.has("ews-sub-product-view") == 1)
-        c.check("the address names it", "sub=CC_PRIVILEGE" in self.page.url,
+        c.check("the address names it", "sub=CC_SIGNATURE" in self.page.url,
                 self.page.url)
         c.check("it names the sub-portfolio",
-                "Privilege Card" in self.text())
+                "Signature Card" in self.text())
         self.shot("EW-16-sub-product")
 
     def ew_17(self) -> None:
@@ -424,14 +428,14 @@ class Walk:
 
     def ew_18(self) -> None:
         c = self.case("EW-18", "The chat applies filters")
-        answer = self.ask("Show currently bad customers in Privilege Card.")
+        answer = self.ask("Show currently bad customers in Signature Card.")
         c.check("the answer stays in scope", answer["in_scope"])
         c.check("it resolves a cohort filter",
                 answer["filters"].get("cohort") == "current_bad",
                 answer["filters"])
         c.check("and it names the sub-product it scoped to",
-                answer["filters"].get("sub_product") == "CC_PRIVILEGE"
-                or "Privilege" in answer["answer"], answer["filters"])
+                answer["filters"].get("sub_product") == "CC_SIGNATURE"
+                or "Signature" in answer["answer"], answer["filters"])
         self.page.fill('[data-testid="ews-chat-input"]',
                        "Show currently bad customers.")
         self.page.click('[data-testid="ews-chat-send"]')
@@ -450,7 +454,7 @@ class Walk:
 
     def ew_19(self) -> None:
         c = self.case("EW-19", "Back retains the level and its filters")
-        self.go("/early-warning?product=CREDIT_CARD&sub=CC_PRIVILEGE"
+        self.go("/early-warning?product=CREDIT_CARD&sub=CC_SIGNATURE"
                 "&cohort=forward_risk", '[data-testid="ews-customer-list"]',
                 6000)
         first = self.page.locator('[data-testid^="ews-open-RC-"]').first
@@ -465,11 +469,11 @@ class Walk:
         self.page.wait_for_timeout(6000)
         c.check("Back returns to the SAME filtered list",
                 "cohort=forward_risk" in self.page.url
-                and "sub=CC_PRIVILEGE" in self.page.url, self.page.url)
+                and "sub=CC_SIGNATURE" in self.page.url, self.page.url)
         self.page.go_back()
         self.page.wait_for_timeout(6000)
         c.check("Back again keeps the sub-product",
-                "sub=CC_PRIVILEGE" in self.page.url, self.page.url)
+                "sub=CC_SIGNATURE" in self.page.url, self.page.url)
 
     # ==================================================== CUSTOMER LIST ====
 

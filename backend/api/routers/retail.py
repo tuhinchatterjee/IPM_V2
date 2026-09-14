@@ -769,10 +769,63 @@ def ews_product_view(product_code: str,
     return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
 
 
+@router.get("/ews/product/{product_code}/classification/{code}",
+            summary="Salaried or Non-Salaried inside one product")
+def ews_classification_view(product_code: str, code: str,
+                            month: str | None = Query(None)) -> dict:
+    from backend.retail import ews_views as views
+
+    found = views.classification(product_code, code, month or "")
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because") or "Not a governed "
+                                                    "classification.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
+@router.get("/ews/interpretation",
+            summary="What the Early Warning figures mean, at any level")
+def ews_interpretation_view(level: str = Query("portfolio"),
+                            product: str | None = Query(None),
+                            classification: str | None = Query(None),
+                            sub_product: str | None = Query(None),
+                            month: str | None = Query(None)) -> dict:
+    """The management reading of a level, written from its own served figures.
+
+    Deterministic: the same figures give the same paragraph, and no external
+    model is called.
+    """
+    from backend.retail import ews_interpretation as reader
+    from backend.retail import ews_views as views
+
+    at = month or ""
+    which = (level or "portfolio").lower()
+    if which == "portfolio":
+        found = reader.portfolio(views.portfolio(at))
+    elif which == "product":
+        found = reader.product(views.product(product or "", at))
+    elif which == "classification":
+        found = reader.classification(
+            views.classification(product or "", classification or "", at))
+    elif which == "sub_product":
+        found = reader.sub_product(
+            views.classification(product or "", classification or "", at)
+            if classification else views.product(product or "", at),
+            sub_product or "")
+    else:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            f"{level!r} is not a level this reads.")
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because") or "Nothing to interpret.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
 @router.get("/ews/customers", summary="The Early Warning customer list")
 def ews_customers_view(
         month: str | None = Query(None),
         product: str | None = Query(None),
+        classification: str | None = Query(None),
         sub_product: str | None = Query(None),
         cohort: str = Query("all"),
         reason: str | None = Query(None),
@@ -791,7 +844,9 @@ def ews_customers_view(
     return json_safe({
         "disclosure": SYNTHETIC_DISCLOSURE,
         **views.customers(
-            month or "", product=product or "", sub_product=sub_product or "",
+            month or "", product=product or "",
+            classification=classification or "",
+            sub_product=sub_product or "",
             cohort=cohort, reason=reason or "", layer=layer or "",
             dpd_bucket=dpd_bucket or "", stage=stage or "",
             score_min=score_min, score_max=score_max,
@@ -816,6 +871,7 @@ def ews_customer_view(customer_id: str,
 @router.get("/ews/signals", summary="Every trigger, and what it caught")
 def ews_signals_view(month: str | None = Query(None),
                      product: str | None = Query(None),
+                     classification: str | None = Query(None),
                      sub_product: str | None = Query(None),
                      layer: str | None = Query(None),
                      severity: str | None = Query(None),
@@ -826,6 +882,7 @@ def ews_signals_view(month: str | None = Query(None),
     return json_safe({
         "disclosure": SYNTHETIC_DISCLOSURE,
         **views.signals(month or "", product=product or "",
+                        classification=classification or "",
                         sub_product=sub_product or "", layer=layer or "",
                         severity=severity or "", reason=reason or "",
                         limit=limit)})
@@ -848,6 +905,206 @@ def ews_model_view(month: str | None = Query(None)) -> dict:
 
     return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
                       **views.model(month or "")})
+
+
+@router.get("/ews/model-log", summary="Every Early Warning model version")
+def ews_model_log() -> dict:
+    from backend.retail import ews_registry as registry
+
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **registry.log()})
+
+
+@router.get("/ews/model-log/{model_version}",
+            summary="One model version, in full")
+def ews_model_version(model_version: str) -> dict:
+    from backend.retail import ews_registry as registry
+
+    found = registry.record(model_version)
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because") or "Unknown model version.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
+@router.get("/ews/model-log/{model_version}/compare",
+            summary="What changed between two model versions")
+def ews_model_compare(model_version: str,
+                      against: str | None = Query(None)) -> dict:
+    from backend.retail import ews_registry as registry
+
+    # No `against` means "what changed at this version", which is this
+    # version against the one it replaced. The registry resolves that; an
+    # explicit `against` compares any two.
+    found = registry.compare(model_version, against or "")
+    if not found.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            found.get("because") or "Cannot compare.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **found})
+
+
+@router.get("/ews/model-log/{model_version}/report.docx",
+            summary="The model development report, as a Word document")
+def ews_model_report(model_version: str) -> Response:
+    """Generated on request from the published panel, not from a stored file.
+
+    A report that could disagree with the screen it was downloaded from would
+    be worse than no report, so it is computed when it is asked for.
+    """
+    from backend.retail import ews_report
+
+    try:
+        data, name = ews_report.build(model_version)
+    except ValueError as problem:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(problem)) from problem
+    return Response(
+        content=data,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".wordprocessingml.document"),
+        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+class EwsExportIn(BaseModel):
+    """What a card knows about itself when a reader exports it."""
+
+    month: str | None = None
+    level: str = "product"
+    product: str | None = None
+    classification: str | None = None
+    sub_product: str | None = None
+    customer_id: str | None = None
+    cohort: str | None = None
+    severity: str | None = None
+    reason: str | None = None
+    layer: str | None = None
+    score_min: float | None = None
+    score_max: float | None = None
+    dpd_bucket: str | None = None
+    stage: str | None = None
+    route: str | None = None
+    label: str | None = None
+
+
+class CohortScenarioIn(BaseModel):
+    selection_id: str
+    shocks: dict[str, Any] = Field(default_factory=dict)
+    name: str = ""
+    method: str = "delta"
+    staging_mode: str = "frozen_stage"
+    scenario_weights: dict[str, float] | None = None
+
+
+@router.post("/ews/export-to-whatif",
+             summary="Hand the selected Early Warning cohort to What-If")
+def ews_export_to_whatif(payload: EwsExportIn,
+                         principal: Principal = RequireAnalyst) -> dict:
+    """Write the selection set for exactly what is on screen, §7 and §8.
+
+    The canonical book is not touched: what is written is membership, with
+    the source card, the filters and the counts at the moment of export.
+    """
+    from backend.retail import whatif_selection as selection
+
+    try:
+        made = selection.create(
+            month=payload.month or "", level=payload.level,
+            product=payload.product or "",
+            classification=payload.classification or "",
+            sub_product=payload.sub_product or "",
+            customer_id=payload.customer_id or "",
+            cohort=payload.cohort or "", severity=payload.severity or "",
+            reason=payload.reason or "", layer=payload.layer or "",
+            score_min=payload.score_min, score_max=payload.score_max,
+            dpd_bucket=payload.dpd_bucket or "", stage=payload.stage or "",
+            route=payload.route or "", label=payload.label or "",
+            created_by=getattr(principal, "username", "") or "")
+    except ValueError as problem:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(problem)) from problem
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      "selection_id": made.selection_id,
+                      "selection": made.to_dict()})
+
+
+@router.get("/ews/whatif-selection/{selection_id}",
+            summary="One exported cohort, with its baseline")
+def ews_selection(selection_id: str, membership: bool = Query(False)) -> dict:
+    from backend.retail import whatif_cohort as cohort
+    from backend.retail import whatif_selection as selection
+
+    found = selection.get(selection_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{selection_id} is not a known selection.")
+    shaped = found.to_dict()
+    if not membership:
+        shaped.pop("selected_customer_ids", None)
+        shaped.pop("selected_facility_ids", None)
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        "selection": shaped,
+        "baseline": selection.baseline(found),
+        "prompts": selection.prompts(found),
+        "methodologies": cohort.methodologies(),
+    })
+
+
+@router.get("/ews/whatif-selection/{selection_id}/customers",
+            summary="The customers in an exported cohort")
+def ews_selection_customers(selection_id: str,
+                            limit: int = Query(100, ge=1, le=1000)) -> dict:
+    from backend.retail import whatif_selection as selection
+
+    found = selection.get(selection_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{selection_id} is not a known selection.")
+    rows = selection.build_rows(found.source_month, **{
+        k: v for k, v in found.source_filters.items()
+        if k in ("product", "classification", "sub_product", "customer_id",
+                 "cohort", "severity", "reason", "layer", "score_min",
+                 "score_max", "dpd_bucket", "stage")})
+    held = rows[rows["facility_id"].astype(str).isin(
+        set(found.selected_facility_ids))]
+    columns = ["customer_id", "customer_name", "facility_id", "product_label",
+               "classification_label", "sub_product_label", "ews_score",
+               "ews_severity", "dpd", "ifrs9_stage",
+               "gross_carrying_amount_sar", "current_bad_flag",
+               "forward_risk_flag"]
+    have = [one for one in columns if one in held.columns]
+    return json_safe({
+        "disclosure": SYNTHETIC_DISCLOSURE,
+        "selection_id": found.selection_id,
+        "total": int(len(held)),
+        "customers": held[have].head(limit).to_dict("records"),
+    })
+
+
+@router.post("/ews/whatif-selection/run",
+             summary="Run a scenario on an exported cohort")
+def ews_cohort_scenario(payload: CohortScenarioIn,
+                        _: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_cohort as cohort
+
+    try:
+        out = cohort.run(payload.selection_id, shocks=payload.shocks,
+                         name=payload.name, method=payload.method,
+                         staging_mode=payload.staging_mode,
+                         scenario_weights=payload.scenario_weights)
+    except wif.UnsupportedShock as problem:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(problem)) from problem
+    except ValueError as problem:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(problem)) from problem
+    if not out.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            out.get("because") or "Nothing to run.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **out})
+
+
+@router.get("/ews/whatif-selections", summary="Recent exported cohorts")
+def ews_selections(limit: int = Query(25, ge=1, le=100)) -> dict:
+    from backend.retail import whatif_selection as selection
+
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      "selections": selection.listing(limit)})
 
 
 @router.get("/ews/domain", summary="What the Early Warning Score domain holds")

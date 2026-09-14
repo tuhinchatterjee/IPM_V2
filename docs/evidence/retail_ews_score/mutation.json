@@ -28,7 +28,7 @@
  },
  "overall": {
   "before": 14.656,
-  "after": 55.524,
+  "after": 55.554,
   "changed": true
  },
  "severity": {
@@ -51,9 +51,9 @@
  },
  "aggregate": {
   "product": "CREDIT_CARD",
-  "before": 16.94,
-  "after": 17.01,
+  "before": 22.93,
+  "after": 22.99,
   "changed": true
  },
- "others_unchanged": 19743
+ "others_unchanged": 19720
 }

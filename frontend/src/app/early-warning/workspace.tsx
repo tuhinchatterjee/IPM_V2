@@ -15,7 +15,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import * as React from "react";
-import { ArrowLeft, ChevronRight, ListChecks, Network } from "lucide-react";
+import {
+  ArrowLeft, ChevronRight, GitBranch, History, ListChecks, Network,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,7 +25,9 @@ import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   api,
+  type EwsClassification,
   type EwsCustomers,
+  type EwsInterpretation,
   type EwsPortfolio,
   type EwsProduct,
   type EwsProductCard,
@@ -36,17 +40,41 @@ import { EwsChat } from "./chat";
 import { CustomerCard } from "./customer-card";
 import { CustomerDetail } from "./customer-detail";
 import {
-  ActiveFilters, CardTrends, Commentary, CountsRow, Kpi, LAYERS, Severity,
-  TopReasons, count, money, signed,
+  ActiveFilters, CardTrends, Commentary, CountsRow, ExportToWhatIf,
+  Interpretation, Kpi, LAYERS, Materiality, Severity, TopReasons, count, money,
+  signed,
 } from "./parts";
 import { EwsSignalsView } from "./signals-view";
 
-type Level = "portfolio" | "product" | "sub_product" | "customers" | "customer";
+type Level = "portfolio" | "product" | "classification" | "sub_product"
+  | "customers" | "customer";
+
+/**
+ * The management reading of whatever level is on screen.
+ *
+ * Read separately from the level's figures so a slow interpretation never
+ * holds up the numbers, and so a level that cannot be interpreted still
+ * renders everything else.
+ */
+function useInterpretation(opts: {
+  level: string; product?: string; classification?: string;
+  sub_product?: string; month?: string;
+}) {
+  const load = React.useCallback(
+    () => api.ewsInterpretation(opts),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [opts.level, opts.product, opts.classification, opts.sub_product,
+     opts.month]);
+  const { data } = useAsync<EwsInterpretation>(load, [load]);
+  return data ?? null;
+}
 
 export function EwsWorkspace() {
   const query = useSearchParams();
   const month = query.get("month") ?? "";
   const product = query.get("product") ?? "";
+  // Salaried / Non-Salaried: the first cut inside a product, §5.
+  const classification = query.get("cls") ?? "";
   const subProduct = query.get("sub") ?? "";
   const customer = query.get("customer") ?? "";
   const cohort = query.get("cohort") ?? "";
@@ -76,10 +104,10 @@ export function EwsWorkspace() {
   }, []);
 
   const state = React.useMemo(() => ({
-    month, product, sub: subProduct, customer, cohort, reason, layer,
-    dpd: dpdBucket, stage, min: scoreMin, q: search, view,
-  }), [month, product, subProduct, customer, cohort, reason, layer, dpdBucket,
-       stage, scoreMin, search, view]);
+    month, product, cls: classification, sub: subProduct, customer, cohort,
+    reason, layer, dpd: dpdBucket, stage, min: scoreMin, q: search, view,
+  }), [month, product, classification, subProduct, customer, cohort, reason,
+       layer, dpdBucket, stage, scoreMin, search, view]);
 
   const go = React.useCallback((next: Partial<typeof state>) => {
     push({ ...state, ...next } as Record<string, string>);
@@ -87,12 +115,13 @@ export function EwsWorkspace() {
 
   /** Drop everything below the level being opened, so Back means something. */
   const open = React.useCallback((next: {
-    product?: string; sub?: string; customer?: string; cohort?: string;
-    view?: string; reason?: string; layer?: string;
+    product?: string; cls?: string; sub?: string; customer?: string;
+    cohort?: string; view?: string; reason?: string; layer?: string;
   }) => {
     push({
       month,
       product: next.product ?? "",
+      cls: next.cls ?? "",
       sub: next.sub ?? "",
       customer: next.customer ?? "",
       cohort: next.cohort ?? "",
@@ -108,7 +137,9 @@ export function EwsWorkspace() {
   const level: Level = customer ? "customer"
     : cohort || reason || layer || dpdBucket || stage || scoreMin || search
       ? "customers"
-      : subProduct ? "sub_product" : product ? "product" : "portfolio";
+      : subProduct ? "sub_product"
+        : classification ? "classification"
+          : product ? "product" : "portfolio";
 
   const chatLevel = customer ? "customer"
     : product || subProduct ? "product" : "portfolio";
@@ -208,24 +239,45 @@ export function EwsWorkspace() {
               View Model
             </Link>
           </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/early-warning/model/tree"
+                  data-testid="ews-open-model-tree">
+              <GitBranch className="mr-1 size-3.5" aria-hidden />
+              View Model Tree
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/early-warning/model-log"
+                  data-testid="ews-open-model-log">
+              <History className="mr-1 size-3.5" aria-hidden />
+              Model Log
+            </Link>
+          </Button>
         </div>
       </div>
 
       {view === "signals" ? (
         <EwsSignalsView month={data.month} product={product}
                         subProduct={subProduct}
-                        onReason={(code) => open({ product, sub: subProduct,
+                        onReason={(code) => open({ product,
+                                                   cls: classification,
+                                                   sub: subProduct,
                                                    reason: code,
                                                    cohort: "all" })}
-                        onBack={() => open({ product, sub: subProduct })} />
+                        onBack={() => open({ product, cls: classification,
+                                             sub: subProduct })} />
       ) : level === "customer" ? (
         <CustomerDetail customerId={customer} month={data.month}
                         onBack={() => go({ customer: "" })} />
       ) : level === "customers" ? (
         <CustomerList state={state} data={data} go={go} open={open} />
       ) : level === "sub_product" ? (
-        <SubProductLevel product={product} subProduct={subProduct}
+        <SubProductLevel product={product} classification={classification}
+                         subProduct={subProduct}
                          month={data.month} open={open} />
+      ) : level === "classification" ? (
+        <ClassificationLevel product={product} code={classification}
+                             month={data.month} open={open} />
       ) : level === "product" ? (
         <ProductLevel product={product} month={data.month} open={open} />
       ) : (
@@ -239,11 +291,12 @@ export function EwsWorkspace() {
 
 function PortfolioLevel({ data, open }: {
   data: EwsPortfolio;
-  open: (next: { product?: string; sub?: string; cohort?: string;
-                 reason?: string }) => void;
+  open: (next: { product?: string; cls?: string; sub?: string;
+                 cohort?: string; reason?: string }) => void;
 }) {
   const head = data.headline;
   const move = data.movement;
+  const reading = useInterpretation({ level: "portfolio", month: data.month });
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
@@ -292,6 +345,9 @@ function PortfolioLevel({ data, open }: {
              sub={`${count(head.default_entries)} of ${count(head.default_eligible)} eligible`}
              testId="ews-kpi-odr" />
       </div>
+
+      <Interpretation reading={reading}
+                      testId="ews-portfolio-interpretation" />
 
       <p className="text-[11px] leading-relaxed text-text-muted"
          data-testid="ews-definitions">
@@ -354,11 +410,18 @@ function ProductCard({ card, onOpen, onReason }: {
             ) : null}
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={onOpen}
-                data-testid={`ews-open-product-${card.product_code}`}>
-          Sub-portfolios
-          <ChevronRight className="ml-1 size-3.5" aria-hidden />
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportToWhatIf
+            testId={`ews-export-product-${card.product_code}`}
+            label="Export to What-If"
+            scope={{ month: card.month, level: "product",
+                     product: card.product_code }} />
+          <Button size="sm" variant="outline" onClick={onOpen}
+                  data-testid={`ews-open-product-${card.product_code}`}>
+            Sub-portfolios
+            <ChevronRight className="ml-1 size-3.5" aria-hidden />
+          </Button>
+        </div>
       </div>
 
       <div className="mt-3"><CountsRow counts={card} /></div>
@@ -389,12 +452,13 @@ function ProductCard({ card, onOpen, onReason }: {
 
 function ProductLevel({ product, month, open }: {
   product: string; month: string;
-  open: (next: { product?: string; sub?: string; cohort?: string;
-                 reason?: string }) => void;
+  open: (next: { product?: string; cls?: string; sub?: string;
+                 cohort?: string; reason?: string }) => void;
 }) {
   const load = React.useCallback(
     () => api.ewsScoreProduct(product, month), [product, month]);
   const { data, loading, error } = useAsync<EwsProduct>(load, [load]);
+  const reading = useInterpretation({ level: "product", product, month });
 
   if (loading && !data) return <Skeleton className="h-96 w-full" />;
   if (error) return <EmptyState title="This product could not be read"
@@ -425,7 +489,13 @@ function ProductLevel({ product, month, open }: {
             </span>
           ) : null}
         </span>
+        <div className="ml-auto">
+          <ExportToWhatIf testId="ews-export-product"
+                          scope={{ month, level: "product", product }} />
+        </div>
       </div>
+
+      <Interpretation reading={reading} testId="ews-product-interpretation" />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi label="Customers" value={count(data.headline.customers)} />
@@ -447,6 +517,67 @@ function ProductLevel({ product, month, open }: {
         <Kpi label="Exposure warned"
              value={money(data.headline.exposure_warned_sar)}
              sub={`${data.headline.exposure_warned_pct.toFixed(1)}% of the product`} />
+      </div>
+
+      <div data-testid="ews-classifications">
+        <p className="mb-2 text-[10px] font-semibold uppercase
+                      tracking-[0.1em] text-text-muted">
+          Salaried and Non-Salaried
+        </p>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {(data.classifications ?? []).map((card) => (
+            <Card key={card.classification} className="p-4"
+                  data-testid={`ews-classification-${card.classification}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button"
+                        onClick={() => open({ product,
+                                              cls: card.classification })}
+                        className="text-base font-semibold text-text-primary
+                                   hover:underline"
+                        data-testid={`ews-open-classification-${card.classification}`}>
+                  {card.classification_label}
+                </button>
+                <Severity band={card.severity_band} />
+                <span className="text-[11px] tabular-nums text-text-secondary">
+                  {card.ews_score.toFixed(1)}
+                  {card.movement
+                    ? ` ${signed(card.movement.ews_score, 2)}` : ""}
+                </span>
+                <div className="ml-auto">
+                  <ExportToWhatIf
+                    testId={`ews-export-classification-${card.classification}`}
+                    label="Export to What-If"
+                    scope={{ month, level: "classification", product,
+                             classification: card.classification }} />
+                </div>
+              </div>
+              <p className="mt-1 text-[11px] text-text-muted">
+                {card.derivation}
+              </p>
+              <div className="mt-3">
+                <CountsRow counts={card} />
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <CardTrends trend={card.trend}
+                            testId={`ews-classification-trends-${card.classification}`} />
+                <Materiality
+                  materiality={card.materiality}
+                  testId={`ews-classification-materiality-${card.classification}`} />
+              </div>
+              <p className="mt-2 text-[10px] text-text-muted">
+                Default-entry rate {card.odr_pct.toFixed(2)}% ·{" "}
+                {(card.salary_transfer_pct ?? 0).toFixed(1)}% transfer salary
+              </p>
+              <div className="mt-3">
+                <TopReasons reasons={card.top_reasons}
+                            onOpen={(codeId) => open({
+                              product, cls: card.classification,
+                              reason: codeId, cohort: "all" })}
+                            testId={`ews-classification-reasons-${card.classification}`} />
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
 
       <Card className="p-4">
@@ -573,16 +704,198 @@ function SubProductCard({ card, onOpen, onReason }: {
   );
 }
 
-// ===================================================== level 3: sub-product
+// ============================================ level 2b: Salaried / Non-Salaried
 
-function SubProductLevel({ product, subProduct, month, open }: {
-  product: string; subProduct: string; month: string;
-  open: (next: { product?: string; sub?: string; cohort?: string;
-                 reason?: string }) => void;
+/**
+ * One classification inside one product, and the sub-products under it.
+ *
+ * The first cut a retail committee makes, because the two halves of a book
+ * behave differently under the same shock: a salaried customer's income
+ * arrives on a date, a non-salaried customer's does not.
+ */
+function ClassificationLevel({ product, code, month, open }: {
+  product: string; code: string; month: string;
+  open: (next: { product?: string; cls?: string; sub?: string;
+                 cohort?: string; reason?: string }) => void;
 }) {
   const load = React.useCallback(
-    () => api.ewsScoreProduct(product, month), [product, month]);
-  const { data, loading, error } = useAsync<EwsProduct>(load, [load]);
+    () => api.ewsScoreClassification(product, code, month),
+    [product, code, month]);
+  const { data, loading, error } = useAsync<EwsClassification>(load, [load]);
+  const reading = useInterpretation({
+    level: "classification", product, classification: code, month });
+
+  if (loading && !data) return <Skeleton className="h-96 w-full" />;
+  if (error) return <EmptyState title="This classification could not be read"
+                                description={String(error)} />;
+  if (!data?.available) {
+    return <EmptyState title="Not a governed classification"
+                       description={data?.because ?? ""} />;
+  }
+
+  const head = data.headline;
+  return (
+    <div className="space-y-5" data-testid="ews-classification-view">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={() => open({})}>
+          <ArrowLeft className="mr-1 size-3.5" aria-hidden /> Total retail
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => open({ product })}
+                data-testid="ews-back-to-product">
+          <ArrowLeft className="mr-1 size-3.5" aria-hidden />
+          {data.product_label}
+        </Button>
+        <h2 className="text-lg font-semibold text-text-primary">
+          {data.classification_label}
+        </h2>
+        <Severity band={head.severity_band} />
+        <span className="text-[11px] text-text-muted">{data.derivation}</span>
+        <div className="ml-auto">
+          <ExportToWhatIf
+            testId="ews-export-classification"
+            scope={{ month, level: "classification", product,
+                     classification: code }} />
+        </div>
+      </div>
+
+      <Interpretation reading={reading}
+                      testId="ews-classification-interpretation" />
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi label="EWS score" value={head.ews_score.toFixed(1)}
+             sub={data.movement
+               ? `${signed(data.movement.ews_score, 2)} on the month`
+               : undefined}
+             testId="ews-classification-score" />
+        <Kpi label="Customers" value={count(head.customers)} />
+        <Kpi label="Accounts" value={count(head.facilities)} />
+        <Kpi label="Already bad" value={count(head.current_bad)}
+             tone="negative"
+             onClick={() => open({ product, cls: code,
+                                   cohort: "current_bad" })}
+             hint="Open the list" />
+        <Kpi label="Forward risk" value={count(head.forward_risk)}
+             tone="warning"
+             onClick={() => open({ product, cls: code,
+                                   cohort: "forward_risk" })}
+             hint="Open the list" />
+        <Kpi label="Exposure warned" value={money(head.exposure_warned_sar)}
+             sub={`${head.exposure_warned_pct.toFixed(1)}% of this classification`} />
+      </div>
+
+      <Card className="p-4">
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <p className="mb-2 text-[10px] font-semibold uppercase
+                          tracking-[0.1em] text-text-muted">Six months</p>
+            <CardTrends trend={data.trend}
+                        testId="ews-classification-trends" />
+            <div className="mt-3">
+              <Materiality materiality={data.materiality}
+                           testId="ews-classification-materiality" />
+            </div>
+            <p className="mt-2 text-[10px] text-text-muted">
+              {data.salary_transfer_pct.toFixed(1)}% of this classification
+              transfers salary to the bank. Salary transfer is where income
+              lands; the classification is whether it is a salary.
+            </p>
+          </div>
+          <div>
+            <TopReasons reasons={data.top_reasons}
+                        onOpen={(codeId) => open({ product, cls: code,
+                                                   reason: codeId,
+                                                   cohort: "all" })}
+                        testId="ews-classification-reasons" />
+            <div className="mt-3">
+              <Commentary text={data.commentary}
+                          testId="ews-classification-commentary" />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <div>
+        <p className="mb-2 text-[10px] font-semibold uppercase
+                      tracking-[0.1em] text-text-muted"
+           data-testid="ews-classification-subproducts-heading">
+          Sub-products · {data.sub_product_taxonomy_version}
+        </p>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {data.sub_products.map((card) => (
+            <Card key={card.sub_product} className="p-4"
+                  data-testid={`ews-sub-${card.sub_product}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button"
+                        onClick={() => open({ product, cls: code,
+                                              sub: card.sub_product })}
+                        className="text-base font-semibold text-text-primary
+                                   hover:underline"
+                        data-testid={`ews-open-sub-${card.sub_product}`}>
+                  {card.sub_product_label}
+                </button>
+                <Severity band={card.severity_band} />
+                <span className="text-[11px] tabular-nums text-text-secondary">
+                  {card.ews_score.toFixed(1)}
+                  {card.movement
+                    ? ` ${signed(card.movement.ews_score, 2)}` : ""}
+                </span>
+                <div className="ml-auto">
+                  <ExportToWhatIf
+                    testId={`ews-export-sub-${card.sub_product}`}
+                    label="Export to What-If"
+                    scope={{ month, level: "sub_product", product,
+                             classification: code,
+                             sub_product: card.sub_product }} />
+                </div>
+              </div>
+              <p className="mt-1 text-[11px] text-text-muted">
+                {card.derivation}
+              </p>
+              <div className="mt-3">
+                <CountsRow counts={card} />
+              </div>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                <CardTrends trend={card.trend}
+                            testId={`ews-sub-trends-${card.sub_product}`} />
+                <Materiality materiality={card.materiality}
+                             testId={`ews-sub-materiality-${card.sub_product}`} />
+              </div>
+              <div className="mt-3">
+                <TopReasons reasons={card.top_reasons}
+                            onOpen={(codeId) => open({
+                              product, cls: code, sub: card.sub_product,
+                              reason: codeId, cohort: "all" })}
+                            testId={`ews-sub-reasons-${card.sub_product}`} />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ===================================================== level 3: sub-product
+
+function SubProductLevel({ product, classification, subProduct, month, open }: {
+  product: string; classification: string; subProduct: string; month: string;
+  open: (next: { product?: string; cls?: string; sub?: string;
+                 cohort?: string; reason?: string }) => void;
+}) {
+  // Inside a classification the sub-product is read from the classification,
+  // so its materiality can be measured against Salaried or Non-Salaried as
+  // well as against the product and the whole book.
+  const load = React.useCallback(
+    () => (classification
+      ? api.ewsScoreClassification(product, classification, month)
+      : api.ewsScoreProduct(product, month)),
+    [product, classification, month]);
+  const { data, loading, error } =
+    useAsync<EwsProduct | EwsClassification>(load, [load]);
+  const reading = useInterpretation({
+    level: "sub_product", product, classification, sub_product: subProduct,
+    month });
 
   if (loading && !data) return <Skeleton className="h-96 w-full" />;
   if (error) return <EmptyState title="This sub-portfolio could not be read"
@@ -605,11 +918,35 @@ function SubProductLevel({ product, subProduct, month, open }: {
           <ArrowLeft className="mr-1 size-3.5" aria-hidden />
           {data?.product_label}
         </Button>
+        {classification ? (
+          <Button variant="ghost" size="sm"
+                  onClick={() => open({ product, cls: classification })}
+                  data-testid="ews-back-to-classification">
+            <ArrowLeft className="mr-1 size-3.5" aria-hidden />
+            {card.classification_label
+             ?? (data as EwsClassification)?.classification_label}
+          </Button>
+        ) : null}
         <h2 className="text-lg font-semibold text-text-primary">
           {card.sub_product_label}
         </h2>
         <Severity band={card.severity_band} />
+        {card.severity_reading?.near ? (
+          <span className="text-[11px] text-text-muted"
+                data-testid="ews-sub-near-band">
+            {card.severity_reading.label}
+          </span>
+        ) : null}
+        <div className="ml-auto">
+          <ExportToWhatIf
+            testId="ews-export-sub-product"
+            scope={{ month, level: "sub_product", product,
+                     classification, sub_product: subProduct }} />
+        </div>
       </div>
+
+      <Interpretation reading={reading}
+                      testId="ews-sub-product-interpretation" />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <Kpi label="EWS score" value={card.ews_score.toFixed(1)}
@@ -617,17 +954,18 @@ function SubProductLevel({ product, subProduct, month, open }: {
                                 : undefined} />
         <Kpi label="Customers" value={count(card.customers)} />
         <Kpi label="Warned" value={count(card.customers_warned)}
-             onClick={() => open({ product, sub: subProduct, cohort: "all" })}
+             onClick={() => open({ product, cls: classification,
+                                   sub: subProduct, cohort: "all" })}
              hint="Open the list" />
         <Kpi label="Already bad" value={count(card.current_bad)}
              tone="negative"
-             onClick={() => open({ product, sub: subProduct,
-                                   cohort: "current_bad" })}
+             onClick={() => open({ product, cls: classification,
+                                   sub: subProduct, cohort: "current_bad" })}
              hint="Open the list" />
         <Kpi label="Forward risk" value={count(card.forward_risk)}
              tone="warning"
-             onClick={() => open({ product, sub: subProduct,
-                                   cohort: "forward_risk" })}
+             onClick={() => open({ product, cls: classification,
+                                   sub: subProduct, cohort: "forward_risk" })}
              hint="Open the list" />
         <Kpi label="Exposure warned" value={money(card.exposure_warned_sar)}
              sub={`${card.exposure_warned_pct.toFixed(1)}% of the sub-portfolio`} />
@@ -639,6 +977,10 @@ function SubProductLevel({ product, subProduct, month, open }: {
             <p className="mb-2 text-[10px] font-semibold uppercase
                           tracking-[0.1em] text-text-muted">Six months</p>
             <CardTrends trend={card.trend} testId="ews-sub-view-trends" />
+            <div className="mt-3">
+              <Materiality materiality={card.materiality}
+                           testId="ews-sub-view-materiality" />
+            </div>
             <div className="mt-3">
               <Commentary text={card.commentary}
                           testId="ews-sub-view-commentary" />
@@ -681,12 +1023,13 @@ function CustomerList({ state, data, go, open }: {
   const [shown, setShown] = React.useState(25);
   const cohort = state.cohort || "all";
   const load = React.useCallback(() => api.ewsScoreCustomers({
-    month: data.month, product: state.product, sub_product: state.sub,
+    month: data.month, product: state.product,
+    classification: state.cls, sub_product: state.sub,
     cohort, reason: state.reason, layer: state.layer,
     dpd_bucket: state.dpd, stage: state.stage, score_min: state.min,
     search: state.q, limit: 200,
-  }), [data.month, state.product, state.sub, cohort, state.reason, state.layer,
-       state.dpd, state.stage, state.min, state.q]);
+  }), [data.month, state.product, state.cls, state.sub, cohort, state.reason,
+       state.layer, state.dpd, state.stage, state.min, state.q]);
   const { data: served, loading, error } = useAsync<EwsCustomers>(load, [load]);
 
   if (loading && !served) return <Skeleton className="h-96 w-full" />;
@@ -712,6 +1055,19 @@ function CustomerList({ state, data, go, open }: {
         <span className="text-xs text-text-muted">
           {count(served.total)} match · showing {Math.min(shown, served.customers.length)}
         </span>
+        <div className="ml-auto">
+          {/* The filtered cohort, not the whole book: whatever these filters
+              currently match is what gets written into the selection. */}
+          <ExportToWhatIf
+            testId="ews-export-cohort"
+            label={`Export ${count(served.total)} customers to What-If`}
+            scope={{ month: state.month, level: "cohort",
+                     product: state.product, classification: state.cls,
+                     sub_product: state.sub, cohort: state.cohort,
+                     reason: state.reason, layer: state.layer,
+                     dpd_bucket: state.dpd, stage: state.stage,
+                     score_min: state.min ? Number(state.min) : undefined }} />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1.5" data-testid="ews-cohorts">

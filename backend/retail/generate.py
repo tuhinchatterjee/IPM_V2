@@ -62,7 +62,15 @@ HISTORY_MONTHS = 12  # ring-buffer depth for rolling features
 # for the Saudi market.
 # --------------------------------------------------------------------------
 MISS_INTERCEPT: dict[str, float] = {
-    "CREDIT_CARD": -4.15, "PERSONAL_LOAN": -4.45, "AUTO_LOAN": -4.75, "HOME_LOAN": -5.15,
+    # The demonstration book is shaped so the four portfolios differ in a way
+    # a credit committee would recognise rather than in the third decimal:
+    # the card book is the one under pressure, personal finance is the second
+    # concern, and the two secured books sit behind them. This is where that
+    # is set — in how often a synthetic customer misses a payment — so the
+    # difference travels through arrears, default entry, behavioural-score
+    # migration and every Early Warning trigger built on them. It is not a
+    # label applied to a card afterwards.
+    "CREDIT_CARD": -3.20, "PERSONAL_LOAN": -4.05, "AUTO_LOAN": -4.75, "HOME_LOAN": -5.15,
 }
 MISS_STRESS_BETA = 0.74
 MISS_DBR_BETA = 1.05

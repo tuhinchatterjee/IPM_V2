@@ -6091,6 +6091,315 @@ export interface RetailWhatIfTurn {
   disclosure?: string;
 }
 
+export interface EwsMateriality {
+  of: { customers: number; accounts: number; exposure_sar: number };
+  classification?: EwsMaterialityShare;
+  product?: EwsMaterialityShare;
+  retail?: EwsMaterialityShare;
+}
+
+export interface EwsMaterialityShare {
+  customers_pct: number;
+  accounts_pct: number;
+  exposure_pct: number;
+  parent: { customers: number; accounts: number; exposure_sar: number };
+}
+
+export interface EwsSeverityReading {
+  band: string;
+  near: string;
+  label: string;
+  distance_to_next: number | null;
+  proximity_threshold: number;
+}
+
+export interface EwsSegmentCard {
+  month: string;
+  customers: number;
+  facilities: number;
+  customers_warned: number;
+  high_or_critical: number;
+  current_bad: number;
+  forward_risk: number;
+  exposure_sar: number;
+  exposure_warned_sar: number;
+  exposure_warned_pct: number;
+  ews_score: number;
+  severity_band: string;
+  severity_reading?: EwsSeverityReading;
+  odr_pct: number;
+  dpd_30_plus_pct: number;
+  movement?: EwsMovement | null;
+  layers?: Record<string, number>;
+  materiality?: EwsMateriality;
+  salary_transfer_pct?: number;
+  trend?: EwsTrendPoint[];
+  top_reasons?: EwsReason[];
+  commentary?: string;
+}
+
+export interface EwsClassificationCard extends EwsCounts {
+  month: string;
+  previous: EwsCounts | null;
+  movement: EwsMovement | null;
+  layers: Record<string, number>;
+  trend: EwsTrendPoint[];
+  top_reasons: EwsReason[];
+  commentary: string;
+  materiality?: EwsMateriality;
+  severity_reading?: EwsSeverityReading;
+  salary_transfer_pct?: number;
+  classification: string;
+  classification_label: string;
+  meaning: string;
+  derivation: string;
+  product_code: string;
+  product_label: string;
+  sub_products: string[];
+}
+
+export interface EwsClassification {
+  available: boolean;
+  because?: string;
+  month: string;
+  months: string[];
+  product_code: string;
+  product_label: string;
+  classification: string;
+  classification_label: string;
+  meaning: string;
+  derivation: string;
+  headline: EwsSegmentCard;
+  movement?: EwsMovement | null;
+  layers: Record<string, number>;
+  materiality: EwsMateriality;
+  salary_transfer_pct: number;
+  trend: EwsTrendPoint[];
+  top_reasons: EwsReason[];
+  commentary: string;
+  sub_products: EwsSubProductCard[];
+  sub_product_taxonomy_version: string;
+}
+
+export interface EwsInterpretation {
+  available: boolean;
+  level: string;
+  month: string;
+  headline: string;
+  interpretation: string;
+  ranking?: { product_code: string; product_label: string; rank: number;
+              concern: number; months_deteriorating: number;
+              marks: Record<string, number> }[];
+  criteria: { key: string; name: string; weight: number; meaning: string;
+              reads: string }[];
+  ranking_basis: string;
+  provenance: string;
+}
+
+export interface EwsModelLogRow {
+  version_id: string;
+  model_version: string;
+  rulebook_version: string;
+  status: string;
+  effective_from: string;
+  effective_to: string;
+  development_sample: string;
+  validation_sample: string;
+  score_scale: string;
+  warning_threshold: number;
+  change_summary: string;
+  taxonomy_version: string;
+  config_hash: string;
+  performance: Record<string, number | string | null>;
+  performance_available: boolean;
+  report_path: string;
+}
+
+export interface EwsModelLog {
+  available: boolean;
+  active_version: string;
+  target_definition: string;
+  horizon_months: number;
+  calibration: string;
+  data_manifest_hash: string;
+  months: string[];
+  versions: EwsModelLogRow[];
+  cohorts: { key: string; name: string; meaning: string; caveat: string }[];
+  disclaimer: string;
+}
+
+export interface EwsModelVersion extends Omit<EwsModelLogRow, "performance"> {
+  available: boolean;
+  data_manifest_hash: string;
+  target: string;
+  horizon_months: number;
+  change_rationale: string;
+  bureau_treatment: string;
+  created_by: string;
+  notes: string[];
+  weights: Record<string, Record<string, number>>;
+  severity_bands: { from: number; band: string }[];
+  hard_triggers: { key: string; name: string; condition: string;
+                   floor_score: number; band: string; because: string }[];
+  bureau_recency: Record<string, unknown>;
+  performance: EwsPerformance;
+  performance_summary: Record<string, number | string | null>;
+}
+
+export interface EwsPerformance {
+  available: boolean;
+  because?: string;
+  model_version: string;
+  target_definition: string;
+  horizon_months: number;
+  warning_cutoff: number;
+  scored_months: string[];
+  observations: number;
+  events: number;
+  calibration: string;
+  headline: Record<string, number | null>;
+  cohorts: EwsPerformanceCohort[];
+  by_product: EwsPerformanceCut[];
+  by_classification: EwsPerformanceCut[];
+  by_sub_product: EwsPerformanceCut[];
+  stability: Record<string, unknown>;
+  lead_time: Record<string, unknown>;
+  severity_event_rates: { band: string; observations: number; events: number;
+                          event_rate: number | null }[];
+  score_distribution: { band: string; events: number; non_events: number }[];
+}
+
+export interface EwsPerformanceCohort {
+  key: string;
+  name: string;
+  meaning: string;
+  caveat: string;
+  available: boolean;
+  because?: string;
+  discrimination_meaningful: boolean;
+  discrimination_reported?: boolean;
+  why_no_discrimination?: string;
+  capture?: Record<string, number | string>;
+  observations: number;
+  events: number;
+  event_rate?: number;
+  auc?: number;
+  gini?: number;
+  ks?: number;
+  pr_auc?: number;
+  base_rate?: number;
+  roc?: { fpr: number; tpr: number }[];
+  gains?: { share: number; captured: number }[];
+  pr?: { recall: number; precision: number }[];
+  lift?: { decile: number; customers: number; events: number;
+           event_rate: number; lift: number | null;
+           score_from?: number; score_to?: number;
+           within_one_score?: boolean }[];
+  /** Present only when a decile falls inside a single score. */
+  lift_note?: string;
+  threshold?: Record<string, number>;
+}
+
+export interface EwsPerformanceCut {
+  key: string;
+  label: string;
+  observations: number;
+  events: number;
+  event_rate: number | null;
+  auc: number | null;
+  gini: number | null;
+  ks: number | null;
+  available: boolean;
+  because: string;
+}
+
+export interface EwsModelComparison {
+  available: boolean;
+  left: string;
+  right: string;
+  configuration: { what: string; left: string; right: string }[];
+  performance: { left: Record<string, unknown>;
+                 right: Record<string, unknown>;
+                 change: Record<string, number | null> };
+  population_impact: Record<string, number | string>;
+}
+
+export interface EwsSelection {
+  selection_id: string;
+  source_module: string;
+  source_route: string;
+  source_month: string;
+  source_model_version: string;
+  source_rulebook_version: string;
+  source_level: string;
+  source_product: string;
+  source_classification: string;
+  source_sub_product: string;
+  source_customer_id: string;
+  source_label: string;
+  source_filters: Record<string, unknown>;
+  selected_customer_count: number;
+  selected_account_count: number;
+  selected_exposure_sar: number;
+  ews_score: number;
+  ews_severity: string;
+  high_or_critical: number;
+  current_bad: number;
+  forward_risk: number;
+  materiality: EwsMateriality;
+  created_by: string;
+  created_at: string;
+  taxonomy_version: string;
+}
+
+export interface EwsSelectionView {
+  selection: EwsSelection;
+  baseline: {
+    available: boolean;
+    because?: string;
+    population: Record<string, number | null>;
+    ifrs9: Record<string, number | null | Record<string, number | null>>;
+    cuts: { key: string; label: string; available: boolean; because?: string;
+            rows?: { value: string; label: string; customers: number;
+                     accounts: number; exposure_sar: number;
+                     pd_pit_12m: number | null; lgd: number | null;
+                     ead_sar: number; ecl_weighted_sar: number }[] }[];
+  };
+  prompts: string[];
+  methodologies: {
+    methods: { key: string; name: string; version: string; what: string;
+               authority: string }[];
+    default: string;
+    question: string;
+    note: string;
+  };
+}
+
+export interface EwsCohortLevel {
+  level: string;
+  label: string;
+  before: Record<string, number | null | Record<string, number>>;
+  after: Record<string, number | null | Record<string, number>>;
+  delta: Record<string, number | null>;
+}
+
+export interface EwsCohortResult {
+  available: boolean;
+  because?: string;
+  selection_id: string;
+  selection: EwsSelection;
+  month: string;
+  methodology: { key: string; name: string; what: string; authority: string };
+  shocks: Record<string, unknown>;
+  shocks_described: string;
+  levels: EwsCohortLevel[];
+  challenger?: Record<string, unknown>;
+  interpretation: string;
+  follow_ups: string[];
+  limitations: string[];
+  assumptions: string[];
+}
+
 export const api = {
   // ---- authentication ----
   /**
@@ -7080,13 +7389,15 @@ export const api = {
       `/retail/ews/product/${encodeURIComponent(product)}` + qs({ month }),
       { timeoutMs: LAKE_TIMEOUT_MS }),
   ewsScoreCustomers: (opts: {
-    month?: string; product?: string; sub_product?: string; cohort?: string;
+    month?: string; product?: string; classification?: string;
+    sub_product?: string; cohort?: string;
     reason?: string; layer?: string; dpd_bucket?: string; stage?: string;
     score_min?: string; score_max?: string; behavioural_min?: string;
     behavioural_max?: string; search?: string; limit?: number; offset?: number;
   }) =>
     request<EwsCustomers>("/retail/ews/customers" + qs({
       month: opts.month ?? "", product: opts.product ?? "",
+      classification: opts.classification ?? "",
       sub_product: opts.sub_product ?? "", cohort: opts.cohort ?? "all",
       reason: opts.reason ?? "", layer: opts.layer ?? "",
       dpd_bucket: opts.dpd_bucket ?? "", stage: opts.stage ?? "",
@@ -7124,6 +7435,55 @@ export const api = {
     request<EwsAnswer>("/retail/ews/ask", {
       method: "POST", body: JSON.stringify(body),
       timeoutMs: LAKE_TIMEOUT_MS }),
+  // ---------------------------------------------------------------- v3
+  ewsScoreClassification: (product: string, code: string, month = "") =>
+    request<EwsClassification>(
+      `/retail/ews/product/${encodeURIComponent(product)}`
+      + `/classification/${encodeURIComponent(code)}` + qs({ month }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsInterpretation: (opts: {
+    level?: string; product?: string; classification?: string;
+    sub_product?: string; month?: string }) =>
+    request<EwsInterpretation>(
+      "/retail/ews/interpretation" + qs({
+        level: opts.level ?? "portfolio", product: opts.product,
+        classification: opts.classification, sub_product: opts.sub_product,
+        month: opts.month }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsModelLog: () =>
+    request<EwsModelLog>("/retail/ews/model-log",
+                         { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsModelVersion: (version: string) =>
+    request<EwsModelVersion>(
+      `/retail/ews/model-log/${encodeURIComponent(version)}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsModelCompare: (version: string, against = "") =>
+    request<EwsModelComparison>(
+      `/retail/ews/model-log/${encodeURIComponent(version)}/compare`
+      + qs({ against }), { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsModelReportUrl: (version: string) =>
+    `${API_BASE_URL}${API_PREFIX}/retail/ews/model-log/`
+    + `${encodeURIComponent(version)}/report.docx`,
+  ewsExportToWhatIf: (body: Record<string, unknown>) =>
+    request<{ selection_id: string; selection: EwsSelection }>(
+      "/retail/ews/export-to-whatif",
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsSelection: (selectionId: string) =>
+    request<EwsSelectionView>(
+      `/retail/ews/whatif-selection/${encodeURIComponent(selectionId)}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsSelectionCustomers: (selectionId: string, limit = 100) =>
+    request<{ selection_id: string; total: number;
+              customers: Record<string, unknown>[] }>(
+      `/retail/ews/whatif-selection/${encodeURIComponent(selectionId)}/customers`
+      + qs({ limit: String(limit) }), { timeoutMs: LAKE_TIMEOUT_MS }),
+  ewsSelectionRun: (body: { selection_id: string;
+                            shocks: Record<string, unknown>;
+                            name?: string; method?: string }) =>
+    request<EwsCohortResult>("/retail/ews/whatif-selection/run",
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: LAKE_TIMEOUT_MS }),
   ewsScorePrompts: (level = "portfolio") =>
     request<{ level: string; prompts: string[]; scope: string[];
               scope_note: string }>(
@@ -13406,6 +13766,14 @@ export interface EwsSubProductCard extends EwsCounts {
   trend: EwsTrendPoint[];
   top_reasons: EwsReason[];
   commentary: string;
+  // v3: every card says what share of each parent it is, and a sub-product
+  // renamed by the taxonomy carries what it used to be called.
+  materiality?: EwsMateriality;
+  severity_reading?: EwsSeverityReading;
+  previous_label?: string;
+  classification?: string;
+  classification_label?: string;
+  salary_transfer_pct?: number;
 }
 
 export interface EwsDefinitions {
@@ -13454,7 +13822,11 @@ export interface EwsProduct {
   trend: EwsTrendPoint[];
   top_reasons: EwsReason[];
   commentary: string;
+  classifications: EwsClassificationCard[];
+  classification_labels: Record<string, string>;
   sub_products: EwsSubProductCard[];
+  sub_product_taxonomy_version: string;
+  materiality: EwsMateriality;
   definitions: EwsDefinitions;
 }
 
@@ -13815,6 +14187,7 @@ export interface EwsModel {
   flow: { step: string; detail: string }[];
   lineage: Record<string, unknown>;
   disclaimer: string;
+  bureau_recency: Record<string, unknown>;
 }
 
 export interface EwsDomainContract {
