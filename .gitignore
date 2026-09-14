@@ -73,4 +73,9 @@ data/analytics/retail_application_scorecard_*/
 data/analytics/retail_behavioral_scorecard_*/
 data/scorecard/
 data/cockpit_v4/
+# The V4 analytical lake. Generated, deterministic and large: both Saudi
+# domain releases are rebuilt byte-identically from their seeded generators
+# by scripts/cockpit_v4/seed_domains.py, so committing sixty thousand rows of
+# parquet would version an artefact the source already determines.
+data/cockpit_v4_lake/
 .cockpit_v4_runtime/

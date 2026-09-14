@@ -295,6 +295,11 @@ CREATE INDEX IF NOT EXISTS notifications_by_tenant
 """
 
 
+#: The book a row belongs to when it predates domains. Every such row IS
+#: corporate: that is the only book the runtime had when it was written.
+_DEFAULT_DOMAIN = "corporate"
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
@@ -408,7 +413,21 @@ class RunStore:
     #: Columns added after a table shipped. `CREATE TABLE IF NOT EXISTS` does
     #: not alter an existing table, so a database written by an earlier build
     #: keeps its old shape and every query naming the new column fails.
-    _ADDED_COLUMNS = (("threads", "title", "TEXT NOT NULL DEFAULT ''"),)
+    _ADDED_COLUMNS = (
+        ("threads", "title", "TEXT NOT NULL DEFAULT ''"),
+        # A conversation belongs to ONE book, decided when it is created and
+        # never afterwards. Stored here rather than resolved per request,
+        # because a follow-up asked six turns later must reach the same
+        # evidence as the question that opened the thread -- and a domain
+        # re-derived from whatever the home page currently shows is not the
+        # same thing as the domain this conversation was held in.
+        ("threads", "domain_id", "TEXT NOT NULL DEFAULT 'corporate'"),
+        ("threads", "release_id", "TEXT NOT NULL DEFAULT ''"),
+        ("threads", "release_fingerprint", "TEXT NOT NULL DEFAULT ''"),
+        ("runs", "domain_id", "TEXT NOT NULL DEFAULT 'corporate'"),
+        ("runs", "release_fingerprint", "TEXT NOT NULL DEFAULT ''"),
+        ("artifacts", "domain_id", "TEXT NOT NULL DEFAULT 'corporate'"),
+    )
 
     def _migrate(self) -> None:
         conn = self._connect()
@@ -435,19 +454,43 @@ class RunStore:
 
     # -- threads --------------------------------------------------------
 
-    def create_thread(self, *, tenant_id: str, principal_id: str) -> str:
-        """A server-generated conversation id. Never a global constant.
+    def create_thread(self, *, tenant_id: str, principal_id: str,
+                      domain_id: str = "", release_id: str = "",
+                      release_fingerprint: str = "") -> str:
+        """A server-generated conversation id, pinned to one book.
 
         V3 shipped a hard-coded `cockpit-web` thread, which is one history
-        shared by every user and every tab.
+        shared by every user and every tab. This one also carries the domain
+        it was opened in, which is what makes a follow-up reach the same
+        evidence as the question before it.
         """
         thread_id = f"th-{uuid.uuid4().hex}"
         with self._tx() as conn:
             conn.execute(
                 "INSERT INTO threads(thread_id, tenant_id, principal_id, "
-                "created_at) VALUES (?,?,?,?)",
-                (thread_id, tenant_id, principal_id, _now()))
+                "domain_id, release_id, release_fingerprint, created_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (thread_id, tenant_id, principal_id,
+                 domain_id or _DEFAULT_DOMAIN, release_id,
+                 release_fingerprint, _now()))
         return thread_id
+
+    def thread_domain(self, thread_id: str) -> dict[str, str] | None:
+        """The book this conversation is pinned to. None when it does not exist.
+
+        There is no setter. A thread's domain is decided when it is created,
+        because changing it would leave the turns already in the transcript
+        pointing at evidence from a different book -- and nothing on the
+        screen would say which turn came from where.
+        """
+        row = self._connect().execute(
+            "SELECT domain_id, release_id, release_fingerprint "
+            "FROM threads WHERE thread_id=?", (thread_id,)).fetchone()
+        if row is None:
+            return None
+        return {"domain_id": str(row["domain_id"] or _DEFAULT_DOMAIN),
+                "release_id": str(row["release_id"] or ""),
+                "release_fingerprint": str(row["release_fingerprint"] or "")}
 
     def run_for_key(self, principal_id: str, key: str
                     ) -> tuple[RunRecord | None, str]:

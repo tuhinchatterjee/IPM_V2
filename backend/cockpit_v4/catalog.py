@@ -1,0 +1,297 @@
+"""
+One domain's authorized catalogue, and the SQL session that can read it.
+
+Two things live here because they are one argument
+--------------------------------------------------
+The catalogue says what a domain contains. The session materialises exactly
+that and then shuts the door. Splitting them across modules would let the two
+lists drift, and the whole isolation claim is that they cannot.
+
+Why not V3's
+------------
+V3's catalogue is a module of constants reached through static methods, bound
+to the corporate book, and its session builder writes
+`domain_id = 'corporate_cockpit'` into every predicate. Both are correct for
+one book. Neither can describe a second one, and teaching them to would mean
+editing V3.
+
+The isolation argument, in order
+--------------------------------
+1. A Catalog is constructed FOR a domain and holds that domain's relations.
+   `require_relation` refuses anything else by name -- including, explicitly,
+   a relation that exists in the other domain, which is refused with a
+   sentence saying so rather than an unhelpful "unknown".
+2. The session materialises only the catalogue's relations, filtered on
+   tenant, release AND domain, while file access still works.
+3. File access is then disabled and the configuration locked, BEFORE any
+   model-authored SQL is admitted. From there the connection can reach
+   nothing but those tables.
+
+The order is the security argument. A check that runs after the door is open
+is a check that can be skipped.
+"""
+
+from __future__ import annotations
+
+import difflib
+import threading
+import time
+from dataclasses import dataclass
+from typing import Any
+
+from backend.cockpit_v4 import domains as dom
+from backend.cockpit_v4 import lake
+from backend.cockpit_v4 import schema as schema_mod
+
+MAX_CACHED_SESSIONS = 4
+
+
+class CrossDomainAccess(PermissionError):
+    """A query reaching for the other book. Refused, and named as such."""
+
+
+@dataclass(frozen=True)
+class Calendar:
+    """The release's own months. `slots` for the shape V4 already reads."""
+
+    slots: tuple[str, ...]
+    frequency: str = lake.FREQUENCY
+
+    @property
+    def latest(self) -> str:
+        return self.slots[-1] if self.slots else ""
+
+    @property
+    def previous(self) -> str:
+        return self.slots[-2] if len(self.slots) > 1 else ""
+
+    @property
+    def year_ago(self) -> str:
+        return self.slots[-13] if len(self.slots) > 12 else ""
+
+    def last(self, count: int) -> tuple[str, ...]:
+        return self.slots[-count:] if count > 0 else ()
+
+
+@dataclass(frozen=True)
+class Catalog:
+    """What one domain's release contains, and nothing another one does."""
+
+    domain_id: str
+    dataset_release_id: str
+    release_fingerprint: str
+    calendar: Calendar
+    tenant_id: str = lake.DEFAULT_TENANT
+    reporting_currency: str = lake.CURRENCY
+    amount_scale: str = lake.AMOUNT_SCALE
+
+    # -- what is here ----------------------------------------------------
+
+    def relations(self) -> tuple[str, ...]:
+        return schema_mod.relation_names(self.domain_id)
+
+    def require_relation(self, relation: str) -> str:
+        name = str(relation or "").strip().lower()
+        if name in self.relations():
+            return name
+        # A relation that belongs to the OTHER book is refused with the
+        # reason, because "unknown relation" would send an analyst hunting
+        # for a typo in a name that is spelled perfectly.
+        try:
+            owner = schema_mod.domain_of_relation(name)
+        except schema_mod.UnknownRelation:
+            owner = ""
+        if owner and owner != self.domain_id:
+            raise CrossDomainAccess(
+                f"{name!r} is a relation of the {dom.LABELS[owner]} domain "
+                f"and this analysis is pinned to {dom.LABELS[self.domain_id]}."
+                f" A question about the other book is a question for a "
+                f"thread in that book. The relations here are: "
+                f"{', '.join(self.relations())}.")
+        raise schema_mod.UnknownRelation(
+            f"{relation!r} is not a relation of the "
+            f"{dom.LABELS[self.domain_id]} domain. Its relations are: "
+            f"{', '.join(self.relations())}.")
+
+    def resolve(self, relation: str, column: str) -> schema_mod.Field:
+        return schema_mod.relation(
+            self.domain_id, self.require_relation(relation)).field(column)
+
+    def columns(self, relation: str) -> tuple[str, ...]:
+        return schema_mod.relation(
+            self.domain_id, self.require_relation(relation)).columns
+
+    def spec(self, relation: str) -> schema_mod.Relation:
+        return schema_mod.relation(self.domain_id,
+                                   self.require_relation(relation))
+
+    def alternatives(self, relation: str, column: str, *,
+                     limit: int = 6) -> tuple[str, ...]:
+        """Columns that DO exist and are near the one that did not.
+
+        Facts, not a rewrite. CreditProbe does not choose among them; the
+        analyst reads them and authors its own repair.
+        """
+        names = list(self.columns(relation))
+        wanted = str(column or "").strip().lower()
+        tokens = {t for t in wanted.replace("-", "_").split("_") if t}
+        scored: list[tuple[float, str]] = []
+        for name in names:
+            low = name.lower()
+            ratio = difflib.SequenceMatcher(None, wanted, low).ratio()
+            shared = tokens & set(low.split("_"))
+            bonus = 0.22 * len(shared)
+            if wanted and (wanted in low or low in wanted):
+                bonus += 0.2
+            scored.append((ratio + bonus, name))
+        scored.sort(key=lambda pair: (-pair[0], pair[1]))
+        return tuple(name for score, name in scored[:limit] if score > 0.25)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "domain_id": self.domain_id,
+            "domain_label": dom.LABELS[self.domain_id],
+            "dataset_release_id": self.dataset_release_id,
+            "release_fingerprint": self.release_fingerprint,
+            "reporting_currency": self.reporting_currency,
+            "amount_scale": self.amount_scale,
+            "reporting_frequency": self.calendar.frequency,
+            "reporting_periods": list(self.calendar.slots),
+            "latest_period": self.calendar.latest,
+            "relations": [spec.to_dict()
+                          for spec in schema_mod.relations(self.domain_id)],
+        }
+
+
+def build(*, domain_id: str, release_id: str = "",
+          tenant_id: str = lake.DEFAULT_TENANT) -> Catalog:
+    """Open a domain's published release, read-only."""
+    domain_id = dom.parse(domain_id)
+    release_id = release_id or dom.DEFAULT_RELEASES[domain_id]
+    manifest = lake.read_manifest(release_id)
+    published = str(manifest.get("domain_id") or "")
+    if published != domain_id:
+        # A release built for one book cannot serve another, whatever it is
+        # named. Substituting it would answer a Retail question with
+        # Corporate numbers and say nothing about having done so.
+        raise CrossDomainAccess(
+            f"Release {release_id!r} was published for the "
+            f"{dom.LABELS.get(published, published)} domain and was asked "
+            f"for as {dom.LABELS[domain_id]}. Nothing was substituted.")
+    return Catalog(
+        domain_id=domain_id,
+        dataset_release_id=release_id,
+        release_fingerprint=str(manifest.get("release_fingerprint") or ""),
+        calendar=Calendar(tuple(manifest.get("reporting_periods") or ()),
+                          str(manifest.get("reporting_frequency")
+                              or lake.FREQUENCY)),
+        tenant_id=tenant_id,
+        reporting_currency=str(manifest.get("reporting_currency")
+                               or lake.CURRENCY),
+        amount_scale=str(manifest.get("amount_scale") or lake.AMOUNT_SCALE))
+
+
+# ---- the session -------------------------------------------------------
+
+@dataclass
+class Session:
+    connection: Any
+    catalog: Catalog
+    relations: tuple[str, ...]
+    built_seconds: float = 0.0
+
+    @property
+    def domain_id(self) -> str:
+        return self.catalog.domain_id
+
+    @property
+    def tenant_id(self) -> str:
+        return self.catalog.tenant_id
+
+    @property
+    def dataset_release_id(self) -> str:
+        return self.catalog.dataset_release_id
+
+    def close(self) -> None:
+        try:
+            self.connection.close()
+        except Exception:  # noqa: BLE001 - closing twice is not an error
+            pass
+
+
+_SESSIONS: dict[tuple[str, ...], Session] = {}
+_SESSIONS_LOCK = threading.RLock()
+
+
+def open_session(*, catalog: Catalog, reuse: bool = True) -> Session:
+    """A session for this tenant, domain and release, built or reused.
+
+    The cache key carries all three. A key that carried only the tenant and
+    the release would let a Corporate session serve a Retail question the
+    moment two releases shared an id -- and the fingerprint is in it because
+    two builds of one id hold different numbers.
+    """
+    key = (catalog.tenant_id, catalog.domain_id, catalog.dataset_release_id,
+           catalog.release_fingerprint)
+    if not reuse:
+        return _build_session(catalog)
+    with _SESSIONS_LOCK:
+        cached = _SESSIONS.get(key)
+        if cached is not None:
+            return cached
+    session = _build_session(catalog)
+    with _SESSIONS_LOCK:
+        _SESSIONS[key] = session
+        while len(_SESSIONS) > MAX_CACHED_SESSIONS:
+            _, evicted = _SESSIONS.popitem()
+            evicted.close()
+    return session
+
+
+def _build_session(catalog: Catalog) -> Session:
+    import duckdb
+
+    started = time.monotonic()
+    manifest = lake.read_manifest(catalog.dataset_release_id)
+    tenants = manifest.get("tenants") or []
+    if tenants and catalog.tenant_id not in tenants:
+        raise PermissionError(
+            f"Release {catalog.dataset_release_id!r} holds no data for "
+            f"tenant {catalog.tenant_id!r}. This is an access or "
+            f"configuration mismatch, not an empty portfolio.")
+
+    connection = duckdb.connect(database=":memory:")
+    connection.execute("SET threads TO 2")
+    connection.execute("SET memory_limit = '512MB'")
+
+    built: list[str] = []
+    for relation in catalog.relations():
+        path = lake.relation_path(catalog.dataset_release_id, relation)
+        columns = ", ".join(f'"{c}"' for c in catalog.columns(relation))
+        # The tenant, release and DOMAIN filters are part of the table, not
+        # something the analyst has to remember to write.
+        connection.execute(
+            f'CREATE TABLE "{relation}" AS SELECT {columns} '
+            f"FROM read_parquet('{path}') "
+            f"WHERE tenant_id = '{catalog.tenant_id}'"
+            f"  AND dataset_release_id = '{catalog.dataset_release_id}'"
+            f"  AND domain_id = '{catalog.domain_id}'")
+        built.append(relation)
+
+    # From here the session can reach nothing but those tables.
+    connection.execute("SET enable_external_access = false")
+    connection.execute("SET lock_configuration = true")
+    return Session(connection=connection, catalog=catalog,
+                   relations=tuple(built),
+                   built_seconds=round(time.monotonic() - started, 3))
+
+
+def reset_sessions() -> None:
+    with _SESSIONS_LOCK:
+        for session in _SESSIONS.values():
+            session.close()
+        _SESSIONS.clear()
+
+
+__all__ = ["Calendar", "Catalog", "CrossDomainAccess", "MAX_CACHED_SESSIONS",
+           "Session", "build", "open_session", "reset_sessions"]
