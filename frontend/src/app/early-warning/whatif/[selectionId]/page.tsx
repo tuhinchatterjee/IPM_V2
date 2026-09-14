@@ -2,30 +2,46 @@
 
 /**
  * The What-If thread a cohort arrives in, having been exported from Early
- * Warning.
+ * Warning Score.
  *
- * The point of the handoff is that the customers a reader was looking at are
- * the customers that get stressed. So the first thing this screen does is say
- * exactly what arrived — how many customers, how many accounts, how much
- * exposure, from which card, at which month, under which model version — and
- * offer the way back to where it came from.
+ * A thread, and not a form
+ * -----------------------
+ * This page used to hold one result and replace it every time somebody ran
+ * something. That is the wrong shape for the work: a scenario is rarely the
+ * end of a question, it is the middle of one — you stress the cohort, see
+ * where it landed, narrow to the part that moved, run it again, and compare.
+ * Replacing the answer each time threw away the comparison the reader was
+ * building, and left them retyping what they had already asked.
  *
- * Then the baseline, before any scenario: the cohort's IFRS 9 position and
- * how it distributes across days past due, score band, stage, sub-product and
- * the Early Warning cuts. A scenario result means nothing without the
- * position it moved from.
+ * So it is a conversation. What you asked and what came back stack downwards
+ * in the order they happened, the composer stays at the bottom where your
+ * hands are, and nothing that has been answered is taken away.
  *
- * Then a methodology, chosen rather than assumed, and a result reported at
- * every level above the selection — because a shock that halves a cohort's
- * expected loss and moves total Retail by four basis points is two facts and a
- * reader needs both.
+ * The reading is done by the engine, not here
+ * -------------------------------------------
+ * Typed sentences go to the governed parser in
+ * `backend.retail.whatif_language`, which is the reader the rest of What-If
+ * uses. This page briefly carried its own — six regular expressions — and the
+ * result was a thread that understood less than the composer on the next
+ * screen. A sentence the parser cannot read comes back as a QUESTION in the
+ * thread, which is an answer and not an error: the engine refuses to guess a
+ * unit or a cohort, and saying so is the honest form of that refusal.
+ *
+ * What the cohort carries
+ * -----------------------
+ * The selection carries an exact list of customers and facilities, so the
+ * scenario runs on precisely the people the card named. A sentence may NARROW
+ * it — "stress only the forward-risk customers in this selection" — and never
+ * widens it. Every result is then reported at five widths, because the same
+ * riyal movement is alarming inside a sub-product and immaterial across the
+ * book, and a reader needs both to decide anything.
  */
 
 import Link from "next/link";
-import * as React from "react";
 import { useParams } from "next/navigation";
+import * as React from "react";
 import {
-  ArrowLeft, FlaskConical, Loader2, Sparkles, Users,
+  ArrowLeft, FlaskConical, Loader2, Send, Sparkles, Users,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -34,47 +50,69 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  api, type EwsCohortResult, type EwsSelectionView,
-} from "@/lib/api";
+import { api, type EwsSelectionView } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 
-import { money } from "../../parts";
+import { ColourKey, CutChart, Panel, count, money } from "../charts";
+import { ResultBlock } from "../result";
 
-/** The scenarios the chat box understands, mapped to governed shocks. */
-const SHOCKS: { match: RegExp; build: (m: RegExpMatchArray) =>
-  Record<string, number>; }[] = [
-  { match: /pd.*?([-+]?\d+(?:\.\d+)?)\s*%/i,
-    build: (m) => ({ pd_relative: Number(m[1]) / 100 }) },
-  { match: /lgd.*?([-+]?\d+(?:\.\d+)?)\s*(?:percentage points|pp|%)/i,
-    build: (m) => ({ lgd_relative: Number(m[1]) / 100 }) },
-  { match: /collateral.*?([-+]?\d+(?:\.\d+)?)\s*%/i,
-    build: (m) => ({ collateral_value_pct: -Math.abs(Number(m[1])) / 100 }) },
-  { match: /utilisation.*?([-+]?\d+(?:\.\d+)?)\s*(?:percentage points|pp|%)/i,
-    build: (m) => ({ utilisation_pp: Number(m[1]) }) },
-  { match: /ccf.*?([-+]?\d+(?:\.\d+)?)/i,
-    build: (m) => ({ ccf_absolute: Number(m[1]) / 100 }) },
-  { match: /income.*?([-+]?\d+(?:\.\d+)?)\s*%/i,
-    build: (m) => ({ income_pct: -Math.abs(Number(m[1])) / 100 }) },
+type Loose = Record<string, unknown>;
+
+/**
+ * `Omit` over a union collapses it to the keys they share, which for these
+ * four is only `kind` — so `Omit<Turn, "id">` rejected every field. Mapping
+ * over the members keeps them apart.
+ */
+type WithoutId<T> = T extends unknown ? Omit<T, "id"> : never;
+
+type Turn =
+  | { id: number; kind: "said"; text: string }
+  | { id: number; kind: "result"; said: string; result: Loose }
+  | { id: number; kind: "asked"; question: string; readAs: string[] }
+  | { id: number; kind: "note"; text: string; tone: "warn" | "note" };
+
+/**
+ * The scenarios offered beside the composer.
+ *
+ * Chips, rather than a menu of parameters, because the engine reads sentences
+ * and the fastest way to show somebody that is to hand them one to press. Each
+ * is a complete instruction the parser resolves — nothing here is a keyword
+ * the page translates.
+ */
+const CHIPS: string[] = [
+  "Increase PIT 12-month PD by 20%",
+  "Increase LGD by 5 percentage points",
+  "Reduce verified income by 10%",
+  "Increase household expense burden by 10%",
+  "Move 20% of 30-59 DPD exposure to 90+",
+  "Move 15% of Stage 1 exposure to Stage 2",
+  "Move 20% of behavioural score band B to C band",
+  "Increase card utilisation by 10 percentage points",
+  "Increase CCF by 10 percentage points",
+  "Reduce collateral value by 15%",
+  "Stress only the forward-risk customers in this selection",
+  "Stress only the customers who are already bad",
 ];
 
-function readScenario(said: string): Record<string, number> | null {
-  for (const one of SHOCKS) {
-    const found = said.match(one.match);
-    if (found) return one.build(found);
-  }
-  return null;
-}
+const METHODS: { key: string; label: string; hint: string }[] = [
+  { key: "delta", label: "Delta method",
+    hint: "Deterministic recalculation of the IFRS 9 identity. The "
+        + "calculation of record." },
+  { key: "xgboost", label: "XGBoost challenger",
+    hint: "A gradient-boosted estimator fitted on this book. Shown for "
+        + "comparison, never substituted." },
+  { key: "both", label: "Run both",
+    hint: "Calculates the scenario twice and compares them. Where they "
+        + "disagree, the Delta method stands." },
+];
 
 function pct(value: unknown, places = 2): string {
-  if (value === null || value === undefined) return "—";
   const n = Number(value);
   return Number.isFinite(n) ? `${(n * 100).toFixed(places)}%` : "—";
 }
 
 function num(value: unknown, places = 4): string {
-  if (value === null || value === undefined) return "—";
   const n = Number(value);
   return Number.isFinite(n) ? n.toFixed(places) : "—";
 }
@@ -89,32 +127,71 @@ export default function ImportedWhatIfPage() {
   const [method, setMethod] = React.useState("delta");
   const [typed, setTyped] = React.useState("");
   const [busy, setBusy] = React.useState(false);
-  const [result, setResult] = React.useState<EwsCohortResult | null>(null);
-  const [problem, setProblem] = React.useState("");
+  const [downloading, setDownloading] = React.useState("");
+  const [turns, setTurns] = React.useState<Turn[]>([]);
   const [showCustomers, setShowCustomers] = React.useState(false);
   const [customers, setCustomers] =
     React.useState<Record<string, unknown>[]>([]);
+  const foot = React.useRef<HTMLDivElement>(null);
+  const nextId = React.useRef(1);
 
-  const runScenario = React.useCallback(async (said: string) => {
-    const shocks = readScenario(said);
-    if (!shocks) {
-      setProblem(
-        `This thread could not read a governed shock out of "${said}". `
-        + "Try a scenario naming a parameter and a size, such as "
-        + "'Increase PIT 12-month PD by 20%'.");
-      return;
+  const add = React.useCallback((turn: WithoutId<Turn>) => {
+    setTurns((was) => [...was, { ...turn, id: nextId.current++ } as Turn]);
+  }, []);
+
+  // The thread grows downwards and the newest turn is the one being read, so
+  // the page follows it. Only when a turn is ADDED — scrolling on every render
+  // would fight a reader who has scrolled back to compare two results, which
+  // is the main reason the thread keeps them.
+  React.useEffect(() => {
+    if (turns.length) {
+      foot.current?.scrollIntoView({ behavior: "smooth", block: "end" });
     }
+  }, [turns.length]);
+
+  const run = React.useCallback(async (said: string) => {
+    const sentence = said.trim();
+    if (!sentence || busy) return;
+    setTyped("");
+    add({ kind: "said", text: sentence });
     setBusy(true);
-    setProblem("");
     try {
-      setResult(await api.ewsSelectionRun({
-        selection_id: selectionId, shocks, name: said, method }));
+      const got = await api.ewsSelectionRun({
+        selection_id: selectionId, said: sentence, method });
+      if (got.needs_clarification) {
+        add({ kind: "asked", question: String(got.question ?? ""),
+              readAs: (got.read_as as string[]) ?? [] });
+      } else {
+        add({ kind: "result", said: sentence,
+              result: got as unknown as Loose });
+      }
     } catch (failed) {
-      setProblem(String(failed));
+      add({ kind: "note", tone: "warn", text: String(failed) });
     } finally {
       setBusy(false);
     }
-  }, [method, selectionId]);
+  }, [add, busy, method, selectionId]);
+
+  const download = React.useCallback(async (said: string) => {
+    setDownloading(said);
+    try {
+      const { blob, filename } = await api.ewsSelectionWorkbook({
+        selection_id: selectionId, said, method });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (failed) {
+      add({ kind: "note", tone: "warn",
+            text: `The workbook could not be built: ${String(failed)}` });
+    } finally {
+      setDownloading("");
+    }
+  }, [add, method, selectionId]);
 
   const openCustomers = React.useCallback(async () => {
     setShowCustomers((was) => !was);
@@ -123,9 +200,9 @@ export default function ImportedWhatIfPage() {
       const got = await api.ewsSelectionCustomers(selectionId, 200);
       setCustomers(got.customers);
     } catch (failed) {
-      setProblem(String(failed));
+      add({ kind: "note", tone: "warn", text: String(failed) });
     }
-  }, [customers.length, selectionId]);
+  }, [add, customers.length, selectionId]);
 
   if (loading && !data) return <Skeleton className="h-96 w-full" />;
   if (error) {
@@ -139,7 +216,7 @@ export default function ImportedWhatIfPage() {
   const backTo = selection.source_route || "/early-warning";
 
   return (
-    <div className="space-y-6" data-testid="ews-whatif-thread">
+    <div className="space-y-4 pb-2" data-testid="ews-whatif-thread">
       <PageHeader
         eyebrow="What-If Analysis"
         title="Imported from Early Warning Score"
@@ -172,8 +249,7 @@ export default function ImportedWhatIfPage() {
           <Badge variant="outline">{selection.selection_id}</Badge>
           <span className="text-[11px] text-text-muted">
             model {selection.source_model_version} · rulebook{" "}
-            {selection.source_rulebook_version} · exported{" "}
-            {selection.created_at}
+            {selection.source_rulebook_version} · exported {selection.created_at}
           </span>
         </div>
         <dl className="mt-3 grid gap-3 text-[12px] sm:grid-cols-3 lg:grid-cols-6">
@@ -183,8 +259,8 @@ export default function ImportedWhatIfPage() {
             ["Classification", selection.source_classification || "—"],
             ["Sub-product", selection.source_sub_product || "—"],
             ["Selection",
-             `${selection.selected_customer_count.toLocaleString()} customers `
-             + `/ ${selection.selected_account_count.toLocaleString()} accounts`],
+             `${count(selection.selected_customer_count)} customers / `
+             + `${count(selection.selected_account_count)} accounts`],
             ["Exposure", money(selection.selected_exposure_sar)],
           ].map(([label, value]) => (
             <div key={label}>
@@ -197,16 +273,13 @@ export default function ImportedWhatIfPage() {
         </dl>
         <p className="mt-2 text-[12px] text-text-secondary"
            data-testid="ews-whatif-profile">
-          Early Warning profile: {selection.high_or_critical.toLocaleString()}{" "}
-          High or Critical, {selection.current_bad.toLocaleString()} already
-          bad, {selection.forward_risk.toLocaleString()} forward risk. Source
-          Early Warning Score {selection.ews_score.toFixed(1)}{" "}
-          {selection.ews_severity}.
+          Early Warning profile: {count(selection.high_or_critical)} High or
+          Critical, {count(selection.current_bad)} already bad,{" "}
+          {count(selection.forward_risk)} forward risk. Source Early Warning
+          Score {selection.ews_score.toFixed(1)} {selection.ews_severity}.
         </p>
 
-        {/* §32: what share of each parent this cohort is. */}
-        <div className="mt-3 rounded-md border border-border
-                        bg-surface-muted/30 p-3"
+        <div className="mt-3 rounded-md border border-border bg-surface-muted/30 p-3"
              data-testid="ews-whatif-materiality">
           <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
             This selected cohort represents
@@ -228,7 +301,7 @@ export default function ImportedWhatIfPage() {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => void openCustomers()}
                   data-testid="ews-whatif-view-customers">
             <Users className="mr-1 size-3.5" aria-hidden />
@@ -236,8 +309,8 @@ export default function ImportedWhatIfPage() {
                            : "View selected customers"}
           </Button>
           <details className="text-[11px] text-text-secondary">
-            <summary className="cursor-pointer rounded-full border
-                                border-border px-2.5 py-1"
+            <summary className="cursor-pointer rounded-full border border-border
+                                px-2.5 py-1"
                      data-testid="ews-whatif-definition">
               View selection definition
             </summary>
@@ -257,8 +330,7 @@ export default function ImportedWhatIfPage() {
         </div>
 
         {showCustomers ? (
-          <div className="mt-3 max-h-72 overflow-auto rounded border
-                          border-border"
+          <div className="mt-3 max-h-72 overflow-auto rounded border border-border"
                data-testid="ews-whatif-customer-list">
             <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-surface">
@@ -284,9 +356,7 @@ export default function ImportedWhatIfPage() {
                     <td className="px-2 py-1 tabular-nums">
                       {Number(row.ews_score ?? 0).toFixed(1)}
                     </td>
-                    <td className="px-2 py-1">
-                      {String(row.ews_severity ?? "")}
-                    </td>
+                    <td className="px-2 py-1">{String(row.ews_severity ?? "")}</td>
                     <td className="px-2 py-1 tabular-nums">
                       {String(row.dpd ?? "")}
                     </td>
@@ -306,339 +376,251 @@ export default function ImportedWhatIfPage() {
 
       {/* ------------------------------------------------ the baseline */}
       {baseline?.available ? (
-        <Card className="p-4" data-testid="ews-whatif-baseline">
-          <p className="text-sm font-semibold text-text-primary">
-            Baseline, before any scenario
-          </p>
-          <dl className="mt-3 grid gap-3 text-[12px] sm:grid-cols-4 lg:grid-cols-6">
-            {[
-              ["TTC PD", pct(baseline.ifrs9.pd_ttc_12m)],
-              ["PIT 12m PD", pct(baseline.ifrs9.pd_pit_12m)],
-              ["Lifetime PD", pct(baseline.ifrs9.pd_pit_lifetime)],
-              ["LGD", pct(baseline.ifrs9.lgd)],
-              ["CCF", num(baseline.ifrs9.ccf, 3)],
-              ["EAD", money(Number(baseline.ifrs9.ead_sar ?? 0))],
-              ["Collateral",
-               money(Number(baseline.ifrs9.collateral_value_sar ?? 0))],
-              ["Base ECL", money(Number(baseline.ifrs9.ecl_base_sar ?? 0))],
-              ["Upturn ECL", money(Number(baseline.ifrs9.ecl_upturn_sar ?? 0))],
-              ["Downturn ECL",
-               money(Number(baseline.ifrs9.ecl_downturn_sar ?? 0))],
-              ["Weighted ECL",
-               money(Number(baseline.ifrs9.ecl_weighted_sar ?? 0))],
-              ["Coverage", `${num(baseline.ifrs9.ecl_coverage_pct, 2)}%`],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <dt className="text-[9px] uppercase tracking-[0.08em] text-text-muted">
-                  {label}
-                </dt>
-                <dd className="tabular-nums text-text-primary">{value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <div className="mt-4 space-y-4">
-            {baseline.cuts.filter((cut) => cut.available && cut.rows?.length)
-              .map((cut) => (
-              <div key={cut.key}
-                   data-testid={`ews-whatif-cut-${cut.key}`}>
-                <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
-                  {cut.label}
-                </p>
-                <div className="overflow-x-auto">
-                  <table className="mt-1 w-full min-w-[640px] text-[11px]">
-                    <thead>
-                      <tr className="text-[9px] uppercase tracking-[0.06em] text-text-muted">
-                        {["Band", "Customers", "Accounts", "Exposure", "PD",
-                          "LGD", "EAD", "Weighted ECL"].map((one) => (
-                          <th key={one} className="px-2 py-1 text-left">
-                            {one}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cut.rows!.map((row) => (
-                        <tr key={row.value}
-                            className="border-t border-border/60">
-                          <td className="px-2 py-1 text-text-primary">
-                            {row.label}
-                          </td>
-                          <td className="px-2 py-1 tabular-nums">
-                            {row.customers.toLocaleString()}
-                          </td>
-                          <td className="px-2 py-1 tabular-nums">
-                            {row.accounts.toLocaleString()}
-                          </td>
-                          <td className="px-2 py-1 tabular-nums">
-                            {money(row.exposure_sar)}
-                          </td>
-                          <td className="px-2 py-1 tabular-nums">
-                            {pct(row.pd_pit_12m)}
-                          </td>
-                          <td className="px-2 py-1 tabular-nums">
-                            {pct(row.lgd)}
-                          </td>
-                          <td className="px-2 py-1 tabular-nums">
-                            {money(row.ead_sar)}
-                          </td>
-                          <td className="px-2 py-1 tabular-nums">
-                            {money(row.ecl_weighted_sar)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+        <>
+          <Card className="p-4" data-testid="ews-whatif-baseline">
+            <p className="text-sm font-semibold text-text-primary">
+              Baseline, before any scenario
+            </p>
+            <dl className="mt-3 grid gap-3 text-[12px] sm:grid-cols-4 lg:grid-cols-6">
+              {[
+                ["TTC PD", pct(baseline.ifrs9.pd_ttc_12m)],
+                ["PIT 12m PD", pct(baseline.ifrs9.pd_pit_12m)],
+                ["Lifetime PD", pct(baseline.ifrs9.pd_pit_lifetime)],
+                ["LGD", pct(baseline.ifrs9.lgd)],
+                ["CCF", num(baseline.ifrs9.ccf, 3)],
+                ["EAD", money(Number(baseline.ifrs9.ead_sar ?? 0))],
+                ["Collateral",
+                 money(Number(baseline.ifrs9.collateral_value_sar ?? 0))],
+                ["Base ECL", money(Number(baseline.ifrs9.ecl_base_sar ?? 0))],
+                ["Upturn ECL", money(Number(baseline.ifrs9.ecl_upturn_sar ?? 0))],
+                ["Downturn ECL",
+                 money(Number(baseline.ifrs9.ecl_downturn_sar ?? 0))],
+                ["Weighted ECL",
+                 money(Number(baseline.ifrs9.ecl_weighted_sar ?? 0))],
+                ["Coverage", `${num(baseline.ifrs9.ecl_coverage_pct, 2)}%`],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-[9px] uppercase tracking-[0.08em] text-text-muted">
+                    {label}
+                  </dt>
+                  <dd className="tabular-nums text-text-primary">{value}</dd>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+              ))}
+            </dl>
+          </Card>
+
+          {/* The same cuts, drawn. The tables below hold the figures; these
+              hold the shape, which is what a reader is looking for when they
+              ask where the risk sits. */}
+          <Panel title="The cohort, drawn"
+                 note="Every cut of the selection as it stands before any scenario runs."
+                 testId="ews-whatif-cohort-charts">
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+              {baseline.cuts.filter((cut) => cut.available && cut.rows?.length)
+                .map((cut) => (
+                <div key={cut.key} data-testid={`ews-whatif-chart-${cut.key}`}>
+                  <p className="mb-1 text-[10px] uppercase tracking-[0.08em]
+                                text-text-muted">
+                    {cut.label}
+                  </p>
+                  <CutChart cut={cut as never} height={190} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-3"><ColourKey /></div>
+          </Panel>
+
+          <details className="rounded-lg border border-border px-4 py-2"
+                   data-testid="ews-whatif-cut-tables">
+            <summary className="cursor-pointer text-[12px] text-text-secondary">
+              The same cuts, as figures
+            </summary>
+            <div className="mt-3 space-y-4">
+              {baseline.cuts.filter((cut) => cut.available && cut.rows?.length)
+                .map((cut) => (
+                <div key={cut.key} data-testid={`ews-whatif-cut-${cut.key}`}>
+                  <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
+                    {cut.label}
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="mt-1 w-full min-w-[640px] text-[11px]">
+                      <thead>
+                        <tr className="text-[9px] uppercase tracking-[0.06em] text-text-muted">
+                          {["Band", "Customers", "Accounts", "Exposure", "PD",
+                            "LGD", "EAD", "Weighted ECL"].map((one) => (
+                            <th key={one} className="px-2 py-1 text-left">{one}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cut.rows!.map((row) => (
+                          <tr key={row.value} className="border-t border-border/60">
+                            <td className="px-2 py-1 text-text-primary">
+                              {row.label}
+                            </td>
+                            <td className="px-2 py-1 tabular-nums">
+                              {count(row.customers)}
+                            </td>
+                            <td className="px-2 py-1 tabular-nums">
+                              {count(row.accounts)}
+                            </td>
+                            <td className="px-2 py-1 tabular-nums">
+                              {money(row.exposure_sar)}
+                            </td>
+                            <td className="px-2 py-1 tabular-nums">
+                              {pct(row.pd_pit_12m)}
+                            </td>
+                            <td className="px-2 py-1 tabular-nums">
+                              {pct(row.lgd)}
+                            </td>
+                            <td className="px-2 py-1 tabular-nums">
+                              {money(row.ead_sar)}
+                            </td>
+                            <td className="px-2 py-1 tabular-nums">
+                              {money(row.ecl_weighted_sar)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        </>
       ) : (
         <Card className="p-4 text-sm text-text-secondary">
           The baseline could not be read: {baseline?.because}
         </Card>
       )}
 
-      {/* ------------------------------------------------ the scenario */}
-      <Card className="p-4" data-testid="ews-whatif-composer">
-        <p className="text-sm font-semibold text-text-primary">
-          Run a scenario on this cohort
-        </p>
-        <p className="mt-1 text-[11px] text-text-muted">
-          {data.methodologies.question} {data.methodologies.note}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-1.5"
-             data-testid="ews-whatif-methods">
-          {[...data.methodologies.methods,
-            { key: "both", name: "Run both", what: "", version: "",
-              authority: "" }].map((one) => (
+      {/* ------------------------------------------------------ the thread */}
+      <div className="space-y-3" data-testid="ews-whatif-turns">
+        {turns.map((turn) => {
+          if (turn.kind === "said") {
+            return (
+              <div key={turn.id} className="flex justify-end"
+                   data-testid="whatif-turn-said">
+                <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-accent
+                                px-3.5 py-2 text-[13px] text-accent-contrast">
+                  {turn.text}
+                </div>
+              </div>
+            );
+          }
+          if (turn.kind === "asked") {
+            return (
+              <Card key={turn.id}
+                    className="border-warning/40 bg-warning-subtle/30 p-4"
+                    data-testid="whatif-turn-asked">
+                <p className="text-[13px] text-text-primary">{turn.question}</p>
+                {turn.readAs.length ? (
+                  <p className="mt-1 text-[11px] text-text-muted">
+                    What was understood: {turn.readAs.join("; ")}.
+                  </p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {CHIPS.slice(0, 4).map((one) => (
+                    <button key={one} type="button" onClick={() => void run(one)}
+                            className="rounded-full border border-border px-2.5
+                                       py-1 text-[11px] text-text-secondary
+                                       hover:bg-surface-muted">
+                      {one}
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            );
+          }
+          if (turn.kind === "note") {
+            return (
+              <Card key={turn.id}
+                    className={cn("p-3 text-[12px]",
+                                  turn.tone === "warn"
+                                    ? "border-negative/40 text-negative"
+                                    : "text-text-secondary")}
+                    data-testid="whatif-turn-note">
+                {turn.text}
+              </Card>
+            );
+          }
+          return (
+            <ResultBlock key={turn.id} result={turn.result}
+                         onFollowUp={(said) => void run(said)}
+                         onDownload={() => void download(turn.said)}
+                         downloading={downloading === turn.said} />
+          );
+        })}
+        <div ref={foot} />
+      </div>
+
+      {/* ---------------------------------------------- the composer, below */}
+      <Card className="sticky bottom-3 z-10 border-border/80 bg-surface/95 p-4
+                       shadow-lg backdrop-blur"
+            data-testid="ews-whatif-composer">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[11px] uppercase tracking-[0.08em] text-text-muted">
+            Methodology
+          </p>
+          {METHODS.map((one) => (
             <button key={one.key} type="button" onClick={() => setMethod(one.key)}
-                    title={one.what}
-                    data-testid={`ews-whatif-method-${one.key}`}
+                    title={one.hint}
                     className={cn(
-                      "rounded-full border px-3 py-1 text-xs transition-colors",
+                      "rounded-full border px-2.5 py-1 text-[11px] transition-colors",
                       method === one.key
-                        ? "border-accent bg-accent-subtle text-accent"
-                        : "border-border text-text-secondary hover:bg-surface-muted")}>
-              {one.name}
+                        ? "border-accent bg-accent-muted/40 text-text-primary"
+                        : "border-border text-text-secondary hover:bg-surface-muted")}
+                    data-testid={`ews-whatif-method-${one.key}`}>
+              {one.label}
             </button>
           ))}
+          <span className="text-[11px] text-text-muted">
+            {METHODS.find((one) => one.key === method)?.hint}
+          </span>
         </div>
 
-        <div className="mt-3 flex items-end gap-2">
+        <div className="mt-2 flex items-end gap-2">
           <textarea
             value={typed}
             onChange={(event) => setTyped(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
-                void runScenario(typed);
+                void run(typed);
               }
             }}
             rows={2}
-            aria-label="Describe a scenario for this cohort"
-            data-testid="ews-whatif-input"
-            placeholder="Increase PIT 12-month PD by 20%"
-            className="min-h-[52px] flex-1 resize-none rounded-md border
-                       border-border bg-surface px-3 py-2 text-sm
-                       text-text-primary placeholder:text-text-muted"
-          />
-          <Button size="sm" onClick={() => void runScenario(typed)}
-                  disabled={busy} data-testid="ews-whatif-run">
-            {busy ? <Loader2 className="mr-1 size-3.5 animate-spin" aria-hidden />
-                  : null}
-            Run
+            placeholder="Describe a change to this cohort — or ask to narrow it."
+            className="min-h-[46px] flex-1 resize-y rounded-lg border border-border
+                       bg-surface px-3 py-2 text-[13px] text-text-primary
+                       outline-none focus:border-accent"
+            data-testid="ews-whatif-input" />
+          <Button onClick={() => void run(typed)} disabled={busy || !typed.trim()}
+                  data-testid="ews-whatif-run">
+            {busy ? <Loader2 className="size-4 animate-spin" aria-hidden />
+                  : <Send className="size-4" aria-hidden />}
+            <span className="ml-1">Run</span>
           </Button>
         </div>
+        <p className="mt-1 text-[10px] text-text-muted">
+          Enter to run · Shift+Enter for a new line
+        </p>
 
         <div className="mt-2 flex flex-wrap gap-1.5"
-             data-testid="ews-whatif-prompts">
-          {data.prompts.map((one) => (
-            <button key={one} type="button" onClick={() => void runScenario(one)}
+             data-testid="ews-whatif-chips">
+          {CHIPS.map((one) => (
+            <button key={one} type="button" onClick={() => void run(one)}
+                    disabled={busy}
                     className="rounded-full border border-border px-2.5 py-1
-                               text-[11px] text-text-secondary
-                               transition-colors hover:bg-surface-muted">
+                               text-[11px] text-text-secondary transition-colors
+                               hover:bg-surface-muted disabled:opacity-50"
+                    data-testid="ews-whatif-chip">
               {one}
             </button>
           ))}
         </div>
-
-        {problem ? (
-          <p className="mt-2 text-[12px] text-negative"
-             data-testid="ews-whatif-problem">{problem}</p>
-        ) : null}
       </Card>
-
-      {result ? <Result result={result} onFollowUp={runScenario} /> : null}
-    </div>
-  );
-}
-
-/** The result, at every level the selection sits inside. */
-function Result({ result, onFollowUp }: {
-  result: EwsCohortResult;
-  onFollowUp: (said: string) => void;
-}) {
-  const challenger = result.challenger as Record<string, unknown> | undefined;
-  return (
-    <div className="space-y-4" data-testid="ews-whatif-result">
-      <Card className="p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-text-primary">
-            {result.shocks_described}
-          </p>
-          <Badge variant="outline">{result.methodology.name}</Badge>
-        </div>
-        <p className="mt-1 text-[11px] text-text-muted">
-          {result.methodology.authority}
-        </p>
-
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[760px] text-[12px]"
-                 data-testid="ews-whatif-levels">
-            <thead>
-              <tr className="text-[9px] uppercase tracking-[0.08em] text-text-muted">
-                {["Level", "Customers", "Accounts", "Exposure",
-                  "Weighted ECL before", "Weighted ECL after", "Change",
-                  "Change %"].map((one) => (
-                  <th key={one} className="px-2 py-1 text-left">{one}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {result.levels.map((level) => (
-                <tr key={level.level} className="border-t border-border/60"
-                    data-testid={`ews-whatif-level-${level.level}`}>
-                  <td className="px-2 py-1 font-medium text-text-primary">
-                    {level.label}
-                  </td>
-                  <td className="px-2 py-1 tabular-nums">
-                    {Number(level.before.customers ?? 0).toLocaleString()}
-                  </td>
-                  <td className="px-2 py-1 tabular-nums">
-                    {Number(level.before.accounts ?? 0).toLocaleString()}
-                  </td>
-                  <td className="px-2 py-1 tabular-nums">
-                    {money(Number(level.before.exposure_sar ?? 0))}
-                  </td>
-                  <td className="px-2 py-1 tabular-nums">
-                    {money(Number(level.before.ecl_weighted_sar ?? 0))}
-                  </td>
-                  <td className="px-2 py-1 tabular-nums">
-                    {money(Number(level.after.ecl_weighted_sar ?? 0))}
-                  </td>
-                  <td className={cn("px-2 py-1 tabular-nums",
-                                    Number(level.delta.ecl_weighted_sar ?? 0) > 0
-                                      ? "text-negative" : "text-positive")}>
-                    {money(Number(level.delta.ecl_weighted_sar ?? 0))}
-                  </td>
-                  <td className={cn("px-2 py-1 tabular-nums",
-                                    Number(level.delta.ecl_weighted_sar_pct ?? 0) > 0
-                                      ? "text-negative" : "text-positive")}>
-                    {level.delta.ecl_weighted_sar_pct === null
-                     || level.delta.ecl_weighted_sar_pct === undefined
-                      ? "—"
-                      : `${Number(level.delta.ecl_weighted_sar_pct).toFixed(2)}%`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {challenger ? (
-        <Card className="p-4" data-testid="ews-whatif-challenger">
-          <div className="flex flex-wrap items-baseline gap-2">
-            <p className="text-sm font-semibold text-text-primary">
-              {String(challenger.name ?? "Challenger")}
-            </p>
-            {/* Which library actually fitted it. The method is keyed
-                "xgboost"; where an installation does not have XGBoost the
-                fallback runs instead, and a reader comparing two
-                methodologies has to see which model produced the number. */}
-            {challenger.estimator ? (
-              <span className="text-[11px] text-text-muted"
-                    data-testid="ews-whatif-challenger-estimator">
-                fitted with {String(challenger.estimator)}
-                {challenger.fitted_on
-                  ? ` on ${Number(challenger.fitted_on).toLocaleString()} rows`
-                  : ""}
-              </span>
-            ) : null}
-          </div>
-          {challenger.available ? (
-            <>
-              <dl className="mt-2 grid gap-3 text-[12px] sm:grid-cols-4">
-                {[
-                  ["Challenger before",
-                   money(Number(challenger.estimated_ecl_before_sar ?? 0))],
-                  ["Challenger after",
-                   money(Number(challenger.estimated_ecl_after_sar ?? 0))],
-                  ["Challenger change",
-                   money(Number(challenger.estimated_delta_sar ?? 0))],
-                  ["Delta method change",
-                   money(Number(challenger.delta_method_delta_sar ?? 0))],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-[9px] uppercase tracking-[0.08em] text-text-muted">
-                      {label}
-                    </dt>
-                    <dd className="tabular-nums text-text-primary">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-2 text-[12px] text-text-secondary">
-                {String(challenger.agreement ?? "")} {String(challenger.note ?? "")}
-              </p>
-            </>
-          ) : (
-            <p className="mt-1 text-[12px] text-text-secondary">
-              Not run: {String(challenger.because ?? "")}
-            </p>
-          )}
-        </Card>
-      ) : null}
-
-      <Card className="border-accent/30 bg-accent-subtle/20 p-4"
-            data-testid="ews-whatif-interpretation">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-accent" aria-hidden />
-          <p className="text-sm font-semibold text-text-primary">
-            AI Interpretation
-          </p>
-        </div>
-        <p className="mt-2 text-[13px] leading-relaxed text-text-primary">
-          {result.interpretation}
-        </p>
-        {result.limitations?.length ? (
-          <ul className="mt-2 space-y-0.5">
-            {result.limitations.map((one) => (
-              <li key={one} className="text-[11px] text-text-muted">• {one}</li>
-            ))}
-          </ul>
-        ) : null}
-      </Card>
-
-      {result.follow_ups?.length ? (
-        <Card className="p-4" data-testid="ews-whatif-follow-ups">
-          <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
-            What to test next
-          </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {result.follow_ups.map((one) => (
-              <button key={one} type="button" onClick={() => onFollowUp(one)}
-                      className="rounded-full border border-accent/40
-                                 bg-accent-subtle/50 px-2.5 py-1 text-[11px]
-                                 text-accent transition-colors
-                                 hover:bg-accent-subtle">
-                {one}
-              </button>
-            ))}
-          </div>
-        </Card>
-      ) : null}
     </div>
   );
 }

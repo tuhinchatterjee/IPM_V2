@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -58,6 +58,66 @@ SUPPORTED_METHODOLOGIES: dict[str, str] = {
     "behavioural_score_points": "Shift the behavioural score, which reaches PD through the versioned score-to-PD mapping.",
     "staging_mode": "frozen_stage keeps each facility's published stage; reevaluate_stage re-runs the staging policy.",
     "cutoff_replay": "Replay a different application-score cutoff over the BOOKED originations only.",
+    "dpd_migration": (
+        "Move a share of one delinquency bucket into another. The facilities "
+        "that move are the worst in the source bucket, and they take the "
+        "median days past due and the median PD anchor their own product "
+        "shows in the TARGET bucket in this book — read from the data, never "
+        "assumed."),
+    "score_band_migration": (
+        "Move a share of one behavioural or application score band into "
+        "another. The scores that move are the weakest in the source band and "
+        "they land on the target band's midpoint; the change reaches PD "
+        "through the versioned score-to-PD mapping, as a score change always "
+        "does."),
+    "stage_migration": (
+        "Move a share of one IFRS 9 stage into another. Stage decides the "
+        "loss horizon — twelve months against lifetime — so this is applied "
+        "to the staging directly and nothing else is inferred from it."),
+    "expense_pct": (
+        "Move household expenses, which lands on the same affordability path "
+        "as an income move: disposable income and the debt burden ratio, and "
+        "from there the behavioural evidence and PD."),
+}
+
+#: The order shocks are applied in when a run is decomposed into a waterfall.
+#:
+#: A waterfall has to be a sequence of real recomputations, not an allocation
+#: of the total across the shocks that were asked for: the IFRS 9 identity is
+#: not additive in its inputs, and splitting a number that was never a sum
+#: produces steps that do not exist. So the engine runs the scenario once per
+#: prefix of this order and reports what each addition actually moved. The
+#: order is the causal one — what the borrower's position does first, then
+#: what that does to the score, then to staging, then to the parameters.
+WATERFALL_ORDER: tuple[str, ...] = (
+    "income_pct", "expense_pct",
+    "score_band_migration", "behavioural_score_points",
+    "dpd_migration",
+    "staging_mode", "stage_migration",
+    "utilisation_pp", "ccf_absolute",
+    "pd_relative", "pd_absolute_pp",
+    "lgd_relative", "collateral_value_pct", "recovery_delay_months",
+    "scenario_weights", "cutoff_replay",
+)
+
+#: What each step is called on the waterfall, in a reader's words.
+WATERFALL_LABELS: dict[str, str] = {
+    "income_pct": "Income moved",
+    "expense_pct": "Household expenses moved",
+    "score_band_migration": "Score bands migrated",
+    "behavioural_score_points": "Behavioural score shifted",
+    "dpd_migration": "Delinquency buckets migrated",
+    "staging_mode": "Staging re-evaluated",
+    "stage_migration": "Stages migrated",
+    "utilisation_pp": "Card utilisation moved",
+    "ccf_absolute": "Credit conversion factor set",
+    "pd_relative": "PD scaled",
+    "pd_absolute_pp": "PD shifted in points",
+    "lgd_relative": "Loss given default scaled",
+    "collateral_value_pct": "Collateral revalued",
+    "recovery_delay_months": "Recovery delayed",
+    "scenario_weights": "Scenario weights changed",
+    "cutoff_replay": "Application cutoff replayed",
 }
 
 #: What a NEUTRAL scenario — no shocks, published weights — must reproduce.
@@ -153,10 +213,76 @@ class Scenario:
         }
 
 
+#: Dimensions a reader names that the canonical book does not carry.
+#:
+#: Salaried against non-salaried, the sub-product ladder, the Early Warning
+#: severity band and the already-bad / forward-risk split are all DERIVED —
+#: they are computed by the Early Warning model over the book, and they live in
+#: the scoring domain. A person asking to "stress non-salaried Platinum Card
+#: customers" is naming three of them, and answering "the canonical dataset has
+#: no such column" would be true and useless: the cohort exists, it is just not
+#: a column of the table being filtered.
+#:
+#: So these are resolved through the scoring domain for the same month, which
+#: turns them into a set of facilities, and the book is then filtered on that.
+#: The engine still runs on the canonical book and nothing is joined into it.
+EARLY_WARNING_DIMENSIONS: tuple[str, ...] = (
+    "classification", "sub_product", "ews_severity", "ews_severity_band",
+    "current_bad_flag", "forward_risk_flag", "high_or_critical",
+)
+
+
+def _early_warning_facilities(frame: pd.DataFrame,
+                              wanted: dict[str, Any]) -> set[str] | None:
+    """The facilities matching Early Warning dimensions, or None if unreadable."""
+    from backend.retail import ews_score as scored
+
+    month = ""
+    for column in ("reporting_month", "snapshot_date"):
+        if column in frame.columns and len(frame):
+            month = str(frame[column].iloc[0])[:7]
+            break
+    if not month:
+        return None
+    try:
+        panel = scored.read(month)
+    except Exception:  # noqa: BLE001 - the domain may not be built
+        return None
+    if panel is None or not len(panel):
+        return None
+
+    for column, value in wanted.items():
+        name = "ews_severity" if column == "ews_severity_band" else column
+        if name not in panel.columns:
+            return None
+        values = value if isinstance(value, (list, tuple, set)) else [value]
+        if name.endswith("_flag") or name == "high_or_critical":
+            panel = panel[panel[name].fillna(False).astype(bool)
+                          == bool(list(values)[0])]
+        else:
+            panel = panel[panel[name].astype(str).isin(
+                [str(one) for one in values])]
+    return set(panel["facility_id"].astype(str))
+
+
 def select(frame: pd.DataFrame, filters: dict[str, Any]) -> pd.DataFrame:
     """The scenario population. An empty result is an honest empty result."""
     out = frame
-    for column, wanted in (filters or {}).items():
+    asked = dict(filters or {})
+
+    derived = {k: asked.pop(k) for k in list(asked)
+               if k in EARLY_WARNING_DIMENSIONS}
+    if derived:
+        held = _early_warning_facilities(frame, derived)
+        if held is None:
+            raise KeyError(
+                "cannot filter on "
+                + ", ".join(f"'{one}'" for one in sorted(derived))
+                + ": these are Early Warning dimensions and the Early Warning "
+                  "Score domain for this month could not be read")
+        out = out.loc[out["facility_id"].astype(str).isin(held)]
+
+    for column, wanted in asked.items():
         if column not in out.columns:
             raise KeyError(
                 f"cannot filter on '{column}': the canonical dataset has no such column"
@@ -164,6 +290,147 @@ def select(frame: pd.DataFrame, filters: dict[str, Any]) -> pd.DataFrame:
         values = wanted if isinstance(wanted, (list, tuple, set)) else [wanted]
         out = out.loc[out[column].isin(list(values))]
     return out
+
+
+def waterfall(frame: pd.DataFrame, scenario: Scenario,
+              weights: dict[str, float]) -> dict[str, Any]:
+    """What each shock in a scenario actually moved, step by step.
+
+    Computed, not allocated. The IFRS 9 identity is not additive in its
+    inputs — a PD rise and an LGD rise together are worth more than the sum of
+    each alone, because both multiply the same exposure — so splitting the
+    total across the shocks that were asked for invents steps that do not
+    exist. This instead RUNS the scenario once per prefix of `WATERFALL_ORDER`
+    and reports the difference each addition made, in the order it was added.
+
+    Two consequences a reader should know, and both are stated on the result:
+
+    * the steps sum exactly to the total, because the last prefix is the whole
+      scenario and each step is a difference between consecutive prefixes;
+    * a step's size depends on where it sits in the order, because it is
+      measured on top of everything before it. The order is causal — what the
+      borrower's position does first, then the score, then staging, then the
+      parameters — and it is published so the reading can be checked.
+    """
+    active = [one for one in WATERFALL_ORDER if one in scenario.shocks]
+    running = _recompute(frame, replace(scenario, shocks={}), weights)
+    start = float(running["ecl_final"].sum())
+
+    steps: list[dict[str, Any]] = []
+    previous = start
+    for at in range(1, len(active) + 1):
+        prefix = {one: scenario.shocks[one] for one in active[:at]}
+        here = _recompute(frame, replace(scenario, shocks=prefix), weights)
+        now = float(here["ecl_final"].sum())
+        key = active[at - 1]
+        mask = (here.get("moved") or {}).get(key)
+        steps.append({
+            "key": key,
+            "label": WATERFALL_LABELS.get(key, key.replace("_", " ")),
+            "shock": scenario.shocks[key],
+            "from_sar": round(previous, 2),
+            "to_sar": round(now, 2),
+            "change_sar": round(now - previous, 2),
+            "change_pct": _pct_change(now, previous),
+            "facilities_moved": int(mask.sum()) if mask is not None else None,
+        })
+        previous = now
+
+    final = _recompute(frame, scenario, weights)
+    end = float(final["ecl_final"].sum())
+    return {
+        "available": True,
+        "baseline_sar": round(start, 2),
+        "final_sar": round(end, 2),
+        "total_change_sar": round(end - start, 2),
+        "total_change_pct": _pct_change(end, start),
+        "steps": steps,
+        "order": list(WATERFALL_ORDER),
+        "basis": (
+            "Each step is the scenario re-run with one more shock applied, in "
+            "the published order, and reported as the difference it made on "
+            "top of everything before it. The steps therefore sum exactly to "
+            "the total. They are not independent: a shock measured first is "
+            "not the same size as the same shock measured last, because the "
+            "IFRS 9 identity multiplies its inputs rather than adding them."),
+    }
+
+
+def _chosen(frame: pd.DataFrame, eligible: np.ndarray, share: float,
+            worst_by: np.ndarray, basis: str) -> np.ndarray:
+    """Which of the eligible facilities move, for a migration of `share`.
+
+    Worst first. A migration that picked at random would give a different
+    answer every run and could not be reconciled to a customer list, and one
+    that picked the best would understate every deterioration scenario. The
+    facilities that deteriorate first are the ones already closest to the edge,
+    so the eligible population is ordered by the measure that defines the edge
+    and taken from the top until the share is met.
+
+    `basis` is what the share is a share OF: "exposure" reaches the share of
+    money, "accounts" the share of facilities. They are different populations
+    and the caller says which it meant.
+    """
+    picked = np.zeros(len(frame), dtype=bool)
+    index = np.flatnonzero(eligible)
+    if not len(index) or share <= 0:
+        return picked
+    order = index[np.argsort(-np.nan_to_num(worst_by[index], nan=-np.inf),
+                             kind="mergesort")]
+    if basis == "accounts":
+        take = int(round(min(float(share), 1.0) * len(order)))
+        picked[order[:take]] = True
+        return picked
+
+    weight = np.nan_to_num(pd.to_numeric(
+        frame["gross_carrying_amount_sar"], errors="coerce").to_numpy(
+            dtype="float64"), nan=0.0)
+    wanted = min(float(share), 1.0) * float(weight[index].sum())
+    if wanted <= 0:
+        return picked
+    running = np.cumsum(weight[order])
+    # The facility that crosses the line is included, so the share asked for is
+    # reached rather than approached: a 20% ask that stopped short would report
+    # a smaller scenario than the one that was run.
+    crossed = int(np.searchsorted(running, wanted, side="left"))
+    picked[order[:min(crossed + 1, len(order))]] = True
+    return picked
+
+
+def _bucket_profile(frame: pd.DataFrame) -> dict[tuple[str, str], tuple[float, float]]:
+    """What each (product, delinquency bucket) looks like in THIS book.
+
+    A facility moved from 30-59 days to 90+ has to land somewhere, and the
+    honest place is where the book already says facilities in that bucket sit:
+    the median days past due and the median PD anchor of its own product in the
+    target bucket. Both are read from the frame in front of us on every run, so
+    a migration cannot drift away from the data it claims to be moving within.
+    """
+    out: dict[tuple[str, str], tuple[float, float]] = {}
+    if "dpd_bucket" not in frame.columns:
+        return out
+    grouped = frame.groupby(["product_code", "dpd_bucket"], observed=True)
+    for (product, bucket), block in grouped:
+        dpd = pd.to_numeric(block["dpd"], errors="coerce").median()
+        anchor = pd.to_numeric(block["pd_pit_12m_anchor"],
+                               errors="coerce").median()
+        if pd.notna(dpd) and pd.notna(anchor):
+            out[(str(product), str(bucket))] = (float(dpd), float(anchor))
+    return out
+
+
+def _band_midpoint(band: str) -> float | None:
+    """The middle of a score band, from the scorecard's own edges."""
+    from backend.retail.scorecards import SCORE_BAND_EDGES, SCORE_BAND_LABELS
+
+    labels = list(SCORE_BAND_LABELS)
+    if str(band).upper() not in labels:
+        return None
+    at = labels.index(str(band).upper())
+    edges = list(SCORE_BAND_EDGES)
+    low = edges[at - 1] if at else edges[0] - 40.0
+    high = edges[at] if at < len(edges) else edges[-1] + 40.0
+    return float((low + high) / 2.0)
 
 
 def _recompute(
@@ -187,6 +454,65 @@ def _recompute(
     delay = num("recovery_delay_months")
     pd_anchor = num("pd_pit_12m_anchor")
 
+    dpd_now = num("dpd")
+    behavioural = (num("behavioural_score")
+                   if "behavioural_score" in frame.columns else np.full(n, np.nan))
+    moved: dict[str, np.ndarray] = {}
+
+    # --- Delinquency migration: the position first, then what it implies ----
+    if "dpd_migration" in shocks:
+        ask = shocks["dpd_migration"] or {}
+        source, target = str(ask.get("from", "")), str(ask.get("to", ""))
+        share = float(ask.get("share", 0.0))
+        basis = str(ask.get("basis", "exposure"))
+        buckets = frame["dpd_bucket"].astype(str).to_numpy()
+        product = frame["product_code"].astype(str).to_numpy()
+        profile = _bucket_profile(frame)
+        eligible = buckets == source
+        picked = _chosen(frame, eligible, share, dpd_now, basis)
+        moved["dpd_migration"] = picked
+        if picked.any():
+            landed_dpd = np.array(
+                [profile.get((product[i], target), (np.nan, np.nan))[0]
+                 for i in range(n)])
+            landed_pd = np.array(
+                [profile.get((product[i], target), (np.nan, np.nan))[1]
+                 for i in range(n)])
+            # Where this product has nobody in the target bucket there is
+            # nothing in the book to land on, so the facility keeps what it
+            # had rather than being given a number from another product.
+            take = picked & ~np.isnan(landed_dpd)
+            dpd_now = np.where(take, landed_dpd, dpd_now)
+            pd_anchor = np.where(take & ~np.isnan(landed_pd), landed_pd, pd_anchor)
+
+    # --- Score-band migration reaches PD the way any score change does -----
+    if "score_band_migration" in shocks:
+        ask = shocks["score_band_migration"] or {}
+        column = str(ask.get("column", "behavioural_score_band"))
+        source, target = str(ask.get("from", "")), str(ask.get("to", ""))
+        share = float(ask.get("share", 0.0))
+        basis = str(ask.get("basis", "accounts"))
+        landing = _band_midpoint(target)
+        if column in frame.columns and landing is not None:
+            bands = frame[column].astype(str).to_numpy()
+            eligible = bands == source.upper()
+            # Weakest first inside the band: the lowest score is the closest to
+            # the band below it.
+            picked = _chosen(frame, eligible, share, -np.nan_to_num(
+                behavioural, nan=1e9), basis)
+            moved["score_band_migration"] = picked
+            if picked.any() and not np.all(np.isnan(behavioural)):
+                points = np.where(picked, landing - behavioural, 0.0)
+                points = np.nan_to_num(points, nan=0.0)
+                from backend.retail.generate import IFRS9_PD_MAP_B
+                from backend.retail.scorecards import FACTOR
+
+                delta_logit = -points / FACTOR * IFRS9_PD_MAP_B
+                safe = np.clip(pd_anchor, 1e-9, 1 - 1e-9)
+                logit = np.log(safe / (1 - safe))
+                pd_anchor = 1.0 / (1.0 + np.exp(-(logit + delta_logit)))
+                behavioural = np.where(picked, landing, behavioural)
+
     # --- PD shocks. Relative and absolute are different operations. --------
     if "pd_relative" in shocks:
         pd_anchor = pd_anchor * (1.0 + float(shocks["pd_relative"]))
@@ -206,10 +532,18 @@ def _recompute(
 
     # --- Income shock: affordability first, then the score, then PD --------
     income_effect = np.zeros(n)
-    if "income_pct" in shocks:
-        pct = float(shocks["income_pct"])
+    if "income_pct" in shocks or "expense_pct" in shocks:
+        pct = float(shocks.get("income_pct", 0.0))
         income = num("verified_total_monthly_income_sar") * (1.0 + pct)
         obligations = num("monthly_total_credit_obligations_sar")
+        # Expenses are not obligations, but they consume the same salary. A
+        # rise in the cost of living leaves less to service the same debt, so
+        # it lands on the debt burden ratio the way a salary cut does: through
+        # what is left, not through what is owed.
+        if "expense_pct" in shocks and "household_expenses_sar" in frame.columns:
+            expenses = num("household_expenses_sar")
+            income = income - np.nan_to_num(
+                expenses * float(shocks["expense_pct"]), nan=0.0)
         new_dbr = np.where(income > 0, obligations / np.where(income > 0, income, 1.0), np.nan)
         old_dbr = num("debt_burden_ratio")
         # Only the dependency the configured model actually carries: a worse
@@ -270,11 +604,35 @@ def _recompute(
         ratio = np.where(reference > 0, pd_life / np.where(reference > 0, reference, 1.0), np.nan)
         quant = ((~np.isnan(ratio)) & (ratio >= STAGING_POLICY.sicr_pd_ratio_threshold)) | (
             (pd_life - reference) >= STAGING_POLICY.sicr_pd_absolute_threshold)
-        backstop = num("dpd") >= STAGING_POLICY.stage2_dpd_backstop
+        # The MIGRATED days past due, not the published ones. Moving a
+        # facility into 90+ and then staging it on the delinquency it used to
+        # have would report a scenario nobody asked for.
+        backstop = dpd_now >= STAGING_POLICY.stage2_dpd_backstop
         defaulted = (frame["current_default_flag"].fillna(False).to_numpy(dtype=bool)
                      if "current_default_flag" in frame.columns
                      else np.zeros(len(frame), dtype=bool))
         stage = np.where(defaulted, 3, np.where(quant | backstop, 2, 1)).astype("int64")
+
+    # --- Stage migration: the loss horizon, moved directly ------------------
+    #
+    # Applied last among the staging steps, so an explicit migration is what
+    # the reader asked for and not something a re-evaluation can undo. Stage
+    # decides twelve months against lifetime and nothing else is inferred from
+    # it: a facility moved to Stage 2 keeps its own PD, its own exposure and
+    # its own loss given default, and only the horizon changes.
+    if "stage_migration" in shocks:
+        ask = shocks["stage_migration"] or {}
+        try:
+            source, target = int(ask.get("from", 0)), int(ask.get("to", 0))
+        except (TypeError, ValueError):
+            source = target = 0
+        share = float(ask.get("share", 0.0))
+        basis = str(ask.get("basis", "exposure"))
+        if source and target:
+            eligible = stage == source
+            picked = _chosen(frame, eligible, share, pd_anchor, basis)
+            moved["stage_migration"] = picked
+            stage = np.where(picked, target, stage).astype("int64")
 
     scenario_ecl: dict[str, np.ndarray] = {}
     from backend.retail.config import load_config
@@ -316,6 +674,15 @@ def _recompute(
         "ecl_downturn": scenario_ecl["downturn"],
         "ecl_weighted": weighted,
         "ecl_final": ecl_mod.final_ecl(weighted, overlay),
+        # What each migration actually moved, as a mask per facility. A
+        # scenario that says it moved twenty per cent of a bucket has to be
+        # able to name which facilities, or the share is a claim rather than
+        # a calculation.
+        "dpd": dpd_now,
+        "pd_anchor": pd_anchor,
+        "lgd": base_lgd,
+        "behavioural_score": behavioural,
+        "moved": moved,
     }
 
 
@@ -326,7 +693,18 @@ def _pct_change(new: float, old: float) -> float | None:
     return (new - old) / old
 
 
-def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig) -> dict[str, Any]:
+#: Above this many facilities the waterfall is not computed inline.
+#:
+#: It is N+1 full recomputations of the IFRS 9 identity, which is the price of
+#: a decomposition that is measured rather than allocated. On a cohort that is
+#: cheap and on the whole book it is not, so a reader asking a book-wide
+#: question gets their answer and a note saying the decomposition is available
+#: on a narrower population — rather than waiting for it.
+WATERFALL_MAX_FACILITIES = 25_000
+
+
+def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig,
+        *, decompose: bool = True) -> dict[str, Any]:
     """Run a scenario and return baseline, scenario, deltas, drivers and limits."""
     scenario.validate()
     population = select(frame, scenario.filters)
@@ -388,7 +766,24 @@ def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig) -> dict[
 
     limitations = _limitations(population, scenario)
     neutral = not scenario.shocks and scenario.scenario_weights is None
+
+    steps: dict[str, Any] | None = None
+    if decompose and scenario.shocks:
+        if len(population) > WATERFALL_MAX_FACILITIES:
+            steps = {
+                "available": False,
+                "because": (
+                    f"The decomposition re-runs the scenario once per shock, "
+                    f"and this population is {len(population):,} facilities. "
+                    f"Narrow it to {WATERFALL_MAX_FACILITIES:,} or fewer — a "
+                    f"product, a classification, a sub-product or an exported "
+                    f"cohort — and every step is computed."),
+            }
+        else:
+            steps = waterfall(population, scenario, weights)
+
     return {
+        "waterfall": steps,
         "scenario": scenario.to_dict(),
         "parity": _parity(population, result) if neutral else None,
         "population_empty": False,

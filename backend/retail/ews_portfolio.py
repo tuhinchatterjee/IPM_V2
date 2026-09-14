@@ -401,6 +401,18 @@ def build(*, analytics_dir: str | Path | None = None,
         return out
 
     target = root / PANEL
+
+    # See `backend.retail.source_stamp`: the period names survive a
+    # regeneration and the marker files with them, so a rebuilt book is
+    # skipped month by month unless something compares the books themselves.
+    from backend.retail import source_stamp
+
+    if source_stamp.stale(root, PANEL):
+        replace = True
+        out.notes.append(
+            "the book was rebuilt since this panel was, so every month is "
+            "recomputed rather than skipped")
+
     previous_frame = None
     previous_month = ""
     for month in every:
@@ -419,6 +431,7 @@ def build(*, analytics_dir: str | Path | None = None,
         out.months += 1
         out.rows += int(len(panel))
         previous_frame, previous_month = frame, month
+    source_stamp.record(root, PANEL)
     return out
 
 

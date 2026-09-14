@@ -134,8 +134,28 @@ def main() -> int:
     if registered:
         log.info("Registered %s in the governed catalogue.",
                  ", ".join(registered))
-    for problem in retail_domains.reconcile():
-        log.warning("  %s", problem)
+
+    # A view builds only the periods it is missing, which is right while the
+    # book underneath is the same book. Regenerating the book changes every
+    # period without changing their names, so the incremental build has
+    # nothing to do and the views keep serving the old one — reconciled
+    # against a canonical total they no longer match. Here, the reconciliation
+    # is not a report, it is the trigger: if the views disagree with the book,
+    # they are rebuilt from it and checked again.
+    problems = retail_domains.reconcile()
+    if problems:
+        log.warning("The governed views disagree with the book, so they are "
+                    "being rebuilt from it:")
+        for problem in problems:
+            log.warning("  %s", problem)
+        again = retail_domains.build(replace=True)
+        log.info("Rebuilt: %s", ", ".join(
+            f"{name} {rows} period(s)"
+            for name, rows in sorted(again.written.items())) or "nothing")
+        retail_domains.register()
+        problems = retail_domains.reconcile()
+    for problem in problems:
+        log.warning("  STILL UNRECONCILED: %s", problem)
 
     if "retail_facility_month" not in published:
         log.warning(

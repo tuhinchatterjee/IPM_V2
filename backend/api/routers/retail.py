@@ -987,9 +987,15 @@ class EwsExportIn(BaseModel):
 class CohortScenarioIn(BaseModel):
     selection_id: str
     shocks: dict[str, Any] = Field(default_factory=dict)
+    #: A typed sentence, read by the governed parser. Given this, `shocks` is
+    #: what the parser produced rather than what the caller assembled — the
+    #: browser held its own short reader and understood five shocks where the
+    #: parser understands the whole vocabulary.
+    said: str = ""
     name: str = ""
     method: str = "delta"
     staging_mode: str = "frozen_stage"
+    within: dict[str, Any] = Field(default_factory=dict)
     scenario_weights: dict[str, float] | None = None
 
 
@@ -1084,11 +1090,37 @@ def ews_cohort_scenario(payload: CohortScenarioIn,
                         _: Principal = RequireAnalyst) -> dict:
     from backend.retail import whatif_cohort as cohort
 
+    from backend.retail import whatif_selection as selection_store
+
+    shocks = dict(payload.shocks)
+    within = dict(payload.within)
+    staging = payload.staging_mode
+    weights = payload.scenario_weights
+    reading: dict[str, Any] = {}
+
+    if payload.said and not shocks:
+        found = selection_store.get(payload.selection_id)
+        if found is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND,
+                                f"{payload.selection_id} is not a known selection.")
+        reading = cohort.read(payload.said, found)
+        if not reading.get("understood"):
+            # Not an error: the thread asks the reader a question back, which
+            # is the whole point of refusing to guess a unit or a cohort.
+            return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                              "available": False, "needs_clarification": True,
+                              **reading})
+        shocks = reading["shocks"]
+        within = {**reading.get("within", {}), **within}
+        staging = reading.get("staging_mode") or staging
+        weights = reading.get("scenario_weights") or weights
+
     try:
-        out = cohort.run(payload.selection_id, shocks=payload.shocks,
-                         name=payload.name, method=payload.method,
-                         staging_mode=payload.staging_mode,
-                         scenario_weights=payload.scenario_weights)
+        out = cohort.run(payload.selection_id, shocks=shocks,
+                         name=payload.name or payload.said,
+                         method=payload.method,
+                         staging_mode=staging, within=within,
+                         scenario_weights=weights)
     except wif.UnsupportedShock as problem:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(problem)) from problem
     except ValueError as problem:
@@ -1096,7 +1128,132 @@ def ews_cohort_scenario(payload: CohortScenarioIn,
     if not out.get("available"):
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             out.get("because") or "Nothing to run.")
-    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE, **out})
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      "reading": reading or None, **out})
+
+
+class CohortWorkbookIn(BaseModel):
+    selection_id: str
+    shocks: dict[str, Any] = Field(default_factory=dict)
+    said: str = ""
+    method: str = "delta"
+    staging_mode: str = "frozen_stage"
+    within: dict[str, Any] = Field(default_factory=dict)
+    scenario_weights: dict[str, float] | None = None
+
+
+@router.post("/ews/whatif-selection/workbook.xlsx",
+             summary="The scenario result, as a workbook")
+def ews_cohort_workbook(payload: CohortWorkbookIn,
+                        _: Principal = RequireAnalyst) -> Response:
+    """Built from the result the screen showed, never recomputed differently.
+
+    The scenario is re-run here because a browser cannot post a megabyte of
+    result back, but it is the SAME call with the same inputs, so the figures
+    in the workbook are the figures on the page.
+    """
+    from backend.retail import whatif_cohort as cohort
+    from backend.retail import whatif_selection as selection_store
+    from backend.retail import whatif_workbook as book
+
+    found = selection_store.get(payload.selection_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{payload.selection_id} is not a known selection.")
+
+    shocks, within = dict(payload.shocks), dict(payload.within)
+    staging, weights = payload.staging_mode, payload.scenario_weights
+    if payload.said and not shocks:
+        reading = cohort.read(payload.said, found)
+        if not reading.get("understood"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                reading.get("question") or "Unreadable scenario.")
+        shocks = reading["shocks"]
+        within = {**reading.get("within", {}), **within}
+        staging = reading.get("staging_mode") or staging
+        weights = reading.get("scenario_weights") or weights
+
+    try:
+        out = cohort.run(payload.selection_id, shocks=shocks,
+                         name=payload.said, method=payload.method,
+                         staging_mode=staging, within=within,
+                         scenario_weights=weights)
+    except (wif.UnsupportedShock, ValueError) as problem:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(problem)) from problem
+    if not out.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            out.get("because") or "Nothing to run.")
+
+    rows = selection_store.build_rows(found)
+    customers = (rows.to_dict("records")[:5000]
+                 if rows is not None and len(rows) else [])
+    facilities = _cohort_facility_detail(found, shocks, staging, weights)
+    payload_bytes, filename = book.build(
+        out, selection=found.to_dict(), customers=customers,
+        facilities=facilities)
+    return Response(
+        content=payload_bytes,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".spreadsheetml.sheet"),
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def _cohort_facility_detail(selection: Any, shocks: dict[str, Any],
+                            staging: str,
+                            weights: dict[str, float] | None) -> list[dict]:
+    """Facility by facility, as the engine scored it before and after.
+
+    Read off the same recomputation the result came from, so the workbook's
+    rows add up to the workbook's totals.
+    """
+    import pandas as pd
+
+    from backend.retail import ecl as ecl_mod
+    from backend.retail import ews_score as scored
+    from backend.retail import whatif_cohort as cohort
+    from backend.retail.config import load_config
+
+    try:
+        book = scored._read_book(selection.source_month)
+        stressed, _ = cohort.narrow(selection, {})
+        rows = book[book["facility_id"].astype(str).isin(set(stressed))]
+        if not len(rows):
+            return []
+        config = load_config()
+        share = {s: float((weights or config.scenarios.weights)[s])
+                 for s in ecl_mod.SCENARIOS}
+        scenario = wif.Scenario(
+            name="workbook", dataset_version="",
+            snapshot_date=str(rows["snapshot_date"].iloc[0]),
+            filters={}, shocks=dict(shocks), staging_mode=staging,
+            scenario_weights=weights)
+        after = wif._recompute(rows, scenario, share)
+        out = pd.DataFrame({
+            "customer_id": rows["customer_id"].to_numpy(),
+            "facility_id": rows["facility_id"].to_numpy(),
+            "product_code": rows["product_code"].to_numpy(),
+            "dpd_before": pd.to_numeric(rows["dpd"], errors="coerce").to_numpy(),
+            "dpd_after": after["dpd"],
+            "stage_before": rows["ifrs9_stage"].to_numpy(),
+            "stage_after": after["stage"],
+            "pd_pit_12m_before": pd.to_numeric(
+                rows["pd_pit_12m_base"], errors="coerce").to_numpy(),
+            "pd_pit_12m_after": after["pd_anchor"],
+            "lgd_before": pd.to_numeric(
+                rows["lgd_base"], errors="coerce").to_numpy(),
+            "lgd_after": after["lgd"],
+            "exposure_sar": pd.to_numeric(
+                rows["gross_carrying_amount_sar"], errors="coerce").to_numpy(),
+            "ecl_weighted_sar_before": pd.to_numeric(
+                rows["ecl_weighted_sar"], errors="coerce").to_numpy(),
+            "ecl_weighted_sar_after": after["ecl_weighted"],
+        })
+        out["ecl_change_sar"] = (out["ecl_weighted_sar_after"]
+                                 - out["ecl_weighted_sar_before"]).round(2)
+        return out.sort_values("ecl_change_sar",
+                               ascending=False).head(5000).to_dict("records")
+    except Exception:  # noqa: BLE001 - the workbook still ships without it
+        return []
 
 
 @router.get("/ews/whatif-selections", summary="Recent exported cohorts")

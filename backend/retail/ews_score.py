@@ -784,6 +784,17 @@ def build(*, analytics_dir: str | Path | None = None,
     target = root / DOMAIN
     triggers = M.evaluated_triggers()
 
+    # A regenerated book keeps its period names, so every marker this build
+    # looks for is still on disk and it skips all of them — leaving the domain
+    # serving a book that no longer exists. The stamp is what notices.
+    from backend.retail import source_stamp
+
+    if source_stamp.stale(root, DOMAIN):
+        replace = True
+        out.notes.append(
+            "the book was rebuilt since this domain was, so every month is "
+            "rescored rather than skipped")
+
     # Two months of lead-in, so the first SCORED month already has the prior
     # month its comparators need. Scoring twenty months from a twenty-five
     # month book costs nothing; scoring the first of them with no history
@@ -864,6 +875,7 @@ def build(*, analytics_dir: str | Path | None = None,
                     f"{month} removed: the domain holds the latest "
                     f"{MONTHS_KEPT} months only")
     forget()
+    source_stamp.record(root, DOMAIN)
     del np
     return out
 

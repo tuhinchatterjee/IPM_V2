@@ -52,6 +52,80 @@ PRODUCTS: dict[str, str] = {
     "cards": "CREDIT_CARD",
 }
 
+def _sub_products() -> dict[str, str]:
+    """Every governed sub-product, by every phrase a person would type for it.
+
+    Read from the Early Warning model's taxonomy rather than restated, because
+    the two have to agree: a cohort exported from an Early Warning card names
+    its sub-product by code, and a sentence typed into the composer names the
+    same thing in words. A list written out here would be a second taxonomy,
+    and the first thing it would do is fall behind the first one.
+    """
+    from backend.retail import ews_model as M
+
+    out: dict[str, str] = {}
+    for code, label in M.SUB_PRODUCT_LABELS.items():
+        out[label.lower()] = code
+        out[code.lower()] = code
+        # "platinum card" reads as naturally as "platinum credit card", and
+        # "platinum" alone is unambiguous across the twelve.
+        short = label.lower()
+        for drop in (" card", " personal finance", " finance", " lease",
+                     " home finance", " residential finance"):
+            if short.endswith(drop) and len(short) > len(drop) + 2:
+                out.setdefault(short[: -len(drop)].strip(), code)
+    for was, now in M.SUB_PRODUCT_RENAMES.items():
+        out.setdefault(was.lower(), now)
+        previous = M.SUB_PRODUCT_PREVIOUS_LABELS.get(now)
+        if previous:
+            out.setdefault(previous.lower(), now)
+    return {k: v for k, v in out.items() if k}
+
+
+#: How a person says "salaried" and "non-salaried". Order matters: the negative
+#: is checked first, because "non-salaried" contains "salaried".
+CLASSIFICATIONS: tuple[tuple[str, str], ...] = (
+    (r"\bnon[-\s]?salar(?:ied|y)\b", "NON_SALARIED"),
+    (r"\bself[-\s]?employed\b", "NON_SALARIED"),
+    (r"\bretired\b", "NON_SALARIED"),
+    (r"\bsalaried\b", "SALARIED"),
+    (r"\bsalary[-\s]earner", "SALARIED"),
+    (r"\bgovernment\s+employ", "SALARIED"),
+)
+
+#: Delinquency buckets, by how they are written rather than how they are keyed.
+#: "90+" and "90 plus" both mean everything from ninety days, which is two
+#: buckets, so they resolve to a LIST and the filter takes any of them.
+DPD_PHRASES: tuple[tuple[str, list[str]], ...] = (
+    (r"\b(?:current|up[-\s]to[-\s]date|performing)\s+(?:accounts?|"
+     r"facilities|exposure|customers?)\b", ["CURRENT"]),
+    (r"\b0\s*dpd\b|\bzero\s+days?\s+past\s+due\b", ["CURRENT"]),
+    (r"\b1\s*[-–—to]+\s*29\b", ["1-29"]),
+    (r"\b30\s*[-–—to]+\s*59\b", ["30-59"]),
+    (r"\b60\s*[-–—to]+\s*89\b", ["60-89"]),
+    (r"\b90\s*[-–—to]+\s*179\b", ["90-179"]),
+    (r"\b180\s*\+|\b180\s+plus\b", ["180+"]),
+    (r"\b90\s*\+|\b90\s+plus\b|\b90\s+days?\s+or\s+more\b",
+     ["90-179", "180+"]),
+    (r"\b30\s*\+|\b30\s+plus\b|\b30\s+days?\s+or\s+more\b",
+     ["30-59", "60-89", "90-179", "180+"]),
+)
+
+#: The Early Warning severity bands, and the two cohort splits beside them.
+SEVERITIES: tuple[tuple[str, list[str]], ...] = (
+    (r"\bcritical\s+and\s+high\b|\bhigh\s+and\s+critical\b",
+     ["HIGH", "CRITICAL"]),
+    (r"\bcritical\b", ["CRITICAL"]),
+    (r"\bhigh[-\s]risk\b|\bhigh\s+severity\b|\bhigh\s+ews\b",
+     ["HIGH"]),
+    (r"\bmedium\s+ews\b|\bmedium\s+severity\b", ["MEDIUM"]),
+    (r"\blow\s+ews\b|\blow\s+severity\b", ["LOW"]),
+)
+
+#: Score bands, for "band D and below" style asks as well as a single band.
+_BAND = r"(?:\bband\s+)?([A-E]\+?)\b"
+
+
 #: Populations a scenario is commonly narrowed to, beyond the product.
 POPULATIONS: tuple[tuple[str, str, Any], ...] = (
     (r"\bsalary[- ]transfer(?:red)?\b", "salary_transfer_flag", True),
@@ -143,6 +217,133 @@ def _month(text: str, months: list[str]) -> str:
     return named[-1] if named else ""
 
 
+#: "20% of", "a fifth of", "half the", "all of".
+_SHARE_WORDS: dict[str, float] = {
+    "all": 1.0, "every": 1.0, "the whole": 1.0,
+    "half": 0.5, "a half": 0.5, "a third": 1 / 3, "a quarter": 0.25,
+    "a fifth": 0.2, "a tenth": 0.1,
+}
+
+
+def _share(said: str, at: int) -> tuple[float | None, str]:
+    """The share named just before position `at`, and how it was written."""
+    head = said[:at]
+    found = re.search(rf"{_NUMBER}\s*{_PERCENT}\s*(?:of\s+)?$", head)
+    if found:
+        return float(found.group(1)) / 100.0, f"{found.group(1)}%"
+    for word, value in sorted(_SHARE_WORDS.items(), key=lambda kv: -len(kv[0])):
+        if re.search(rf"\b{re.escape(word)}\s+(?:of\s+|the\s+)?$", head):
+            return value, word
+    return None, ""
+
+
+def _basis(said: str) -> str:
+    """Whether a share is a share of money or a share of facilities."""
+    if re.search(r"\bexposure\b|\bbalance[s]?\b|\bgca\b|\bamount\b", said):
+        return "exposure"
+    if re.search(r"\baccounts?\b|\bfacilit(?:y|ies)\b|\bcustomers?\b|"
+                 r"\bborrowers?\b", said):
+        return "accounts"
+    return "exposure"
+
+
+def _one_bucket(text: str) -> str:
+    """A single delinquency bucket named in `text`, or ""."""
+    for pattern, buckets in DPD_PHRASES:
+        if len(buckets) == 1 and re.search(pattern, text):
+            return buckets[0]
+    # "90+" as a destination means the first bucket at ninety days: a facility
+    # lands somewhere, and "90-179 or 180+" is not a place.
+    if re.search(r"\b90\s*\+|\b90\s+plus\b", text):
+        return "90-179"
+    if re.search(r"\b30\s*\+|\b30\s+plus\b", text):
+        return "30-59"
+    return ""
+
+
+def _migrations(said: str, ask: Ask) -> None:
+    """Read "move X% of A to B" for delinquency, score band and stage."""
+    # "Cure" and "upgrade" move a share the same way "move" does; a migration
+    # that only understood deterioration could not express a recovery.
+    move = re.search(
+        r"\b(?:move|migrate|shift|push|roll|cure|upgrade|downgrade)\b", said)
+    if not move:
+        return
+    split = re.search(r"\b(?:back\s+to|to|into)\b", said[move.end():])
+    if not split:
+        return
+    cut = move.end() + split.start()
+    source_text, target_text = said[move.end():cut], said[cut:]
+    share, written = _share(said, move.end() + (
+        re.search(r"\S", said[move.end():]).start()
+        if re.search(r"\S", said[move.end():]) else 0))
+    # The share is written after "move", so read it out of the source clause.
+    if share is None:
+        found = re.search(rf"{_NUMBER}\s*{_PERCENT}", source_text)
+        if found:
+            share, written = float(found.group(1)) / 100.0, f"{found.group(1)}%"
+        else:
+            for word, value in sorted(_SHARE_WORDS.items(),
+                                      key=lambda kv: -len(kv[0])):
+                if re.search(rf"\b{re.escape(word)}\b", source_text):
+                    share, written = value, word
+                    break
+    if share is None:
+        # `_spelled` has already turned "half" into "50" and "a hundred" into
+        # "100" by the time this reads the sentence, so a share written in
+        # words arrives here as a bare number with no percent sign. Read it as
+        # a percentage only where the clause says it is a share OF something —
+        # "50 the stage 1 exposure", from "half the" — and only in range. A
+        # bare number anywhere else stays ambiguous and is refused, which is
+        # what "a unit is never guessed" means.
+        bare = re.search(rf"{_NUMBER}\s+(?:of|the)\b", source_text)
+        if bare and 0 < float(bare.group(1)) <= 100:
+            share = float(bare.group(1)) / 100.0
+            written = f"{bare.group(1)}%"
+    if share is None:
+        return
+
+    basis = _basis(source_text)
+
+    # Stage first: "stage 1" is unambiguous and would otherwise be read as a
+    # population filter and silently dropped from the migration.
+    from_stage = re.search(r"\bstage\s*([123])\b", source_text)
+    to_stage = re.search(r"\bstage\s*([123])\b", target_text)
+    if from_stage and to_stage:
+        ask.shocks["stage_migration"] = {
+            "from": int(from_stage.group(1)), "to": int(to_stage.group(1)),
+            "share": share, "basis": basis}
+        ask.filters.pop("ifrs9_stage", None)
+        ask.read_as.append(
+            f"{written} of Stage {from_stage.group(1)} by {basis} moved to "
+            f"Stage {to_stage.group(1)}")
+        return
+
+    source, target = _one_bucket(source_text), _one_bucket(target_text)
+    if source and target and source != target:
+        ask.shocks["dpd_migration"] = {
+            "from": source, "to": target, "share": share, "basis": basis}
+        ask.filters.pop("dpd_bucket", None)
+        ask.read_as.append(
+            f"{written} of {source} days past due by {basis} moved to {target}")
+        return
+
+    from_band = re.search(r"\b(?:band\s+)?([a-e]\+?)\s*(?:band)?\b",
+                          source_text)
+    to_band = re.search(r"\b(?:band\s+)?([a-e]\+?)\s*(?:band)?\b",
+                        target_text)
+    if from_band and to_band:
+        column = ("application_score_band"
+                  if "application" in said else "behavioural_score_band")
+        ask.shocks["score_band_migration"] = {
+            "from": from_band.group(1).upper(), "to": to_band.group(1).upper(),
+            "share": share, "basis": basis, "column": column}
+        ask.filters.pop(column, None)
+        ask.read_as.append(
+            f"{written} of {column.replace('_', ' ')} "
+            f"{from_band.group(1).upper()} moved to {to_band.group(1).upper()}")
+
+
 def read(question: str, months: list[str] | None = None,
          carried: dict[str, Any] | None = None) -> Ask:
     """Read one sentence into a scenario, or into the question to ask back."""
@@ -162,6 +363,79 @@ def read(question: str, months: list[str] | None = None,
             ask.read_as.append(f"{phrase} only")
             named_population = True
             break
+    # Sub-product, before the generic populations: "stress platinum card" names
+    # a sub-product and, through it, its product.
+    for phrase, code in sorted(_sub_products().items(), key=lambda kv: -len(kv[0])):
+        if re.search(rf"\b{re.escape(phrase)}\b", said):
+            from backend.retail import ews_model as M
+
+            ask.filters["sub_product"] = code
+            ask.read_as.append(
+                f"{M.SUB_PRODUCT_LABELS.get(code, code)} only")
+            owner = next((one.product for one in M.SUB_PRODUCTS
+                          if one.code == code), "")
+            if owner:
+                ask.filters.setdefault("product_code", owner)
+            named_population = True
+            break
+
+    # Salaried / non-salaried, the classification every product is cut by.
+    for pattern, code in CLASSIFICATIONS:
+        if re.search(pattern, said):
+            ask.filters["classification"] = code
+            ask.read_as.append(
+                "salaried only" if code == "SALARIED" else "non-salaried only")
+            named_population = True
+            break
+
+    # Delinquency. Longest phrase first so "90-179" is not read as "90+".
+    for pattern, buckets in DPD_PHRASES:
+        if re.search(pattern, said):
+            ask.filters["dpd_bucket"] = list(buckets)
+            ask.read_as.append("days past due in " + ", ".join(buckets))
+            named_population = True
+            break
+
+    # Early Warning severity, and the two cohort splits beside it.
+    for pattern, bands in SEVERITIES:
+        if re.search(pattern, said):
+            ask.filters["ews_severity"] = list(bands)
+            ask.read_as.append(
+                "Early Warning severity " + " or ".join(bands))
+            named_population = True
+            break
+    if re.search(r"\bforward[-\s]risk\b|\bstill\s+paying\b|"
+                 r"\bstill\s+performing\b", said):
+        ask.filters["forward_risk_flag"] = True
+        ask.read_as.append("forward-risk customers, still paying")
+        named_population = True
+    if re.search(r"\balready\s+bad\b|\bcurrently\s+bad\b|"
+                 r"\balready\s+delinquent\b", said):
+        ask.filters["current_bad_flag"] = True
+        ask.read_as.append("customers already bad")
+        named_population = True
+
+    # A score band, with or without "and below".
+    # Lower case, because the sentence was lower-cased before it got here: a
+    # band written [A-E] never matched the "d" a reader typed.
+    band = re.search(
+        r"\b(behavioural|behavioral|application)\s+score\s+band\s+"
+        r"([a-e]\+?)(\s+(?:and|or)\s+below)?\b", said)
+    if band:
+        from backend.retail.scorecards import SCORE_BAND_LABELS
+
+        column = ("application_score_band" if band.group(1) == "application"
+                  else "behavioural_score_band")
+        labels = list(SCORE_BAND_LABELS)          # A+ best .. E worst
+        named = band.group(2).upper()
+        if named in labels:
+            at = labels.index(named)
+            wanted = labels[:at + 1] if band.group(3) else [named]
+            ask.filters[column] = wanted
+            ask.read_as.append(
+                f"{column.replace('_', ' ')} " + " or ".join(wanted))
+            named_population = True
+
     for pattern, column, value in POPULATIONS:
         if re.search(pattern, said):
             ask.filters[column] = value
@@ -183,6 +457,14 @@ def read(question: str, months: list[str] | None = None,
     else:
         for column, value in (carried.get("filters") or {}).items():
             ask.filters.setdefault(column, value)
+
+    # ---- migrations: move a share of one band into another ------------
+    #
+    # "Move 20% of 30-59 DPD exposure to 90+" is one instruction with four
+    # parts — how much, of what, measured how, to where — and all four have to
+    # be read or the sentence is refused. A migration read as a shock on the
+    # whole population would move the entire bucket.
+    _migrations(said, ask)
 
     # ---- staging ------------------------------------------------------
     if re.search(r"\bre-?evaluat\w*\s+(?:the\s+)?stag\w+|\ballow\w*\s+migration|"
@@ -563,6 +845,14 @@ def _shocks(said: str, ask: Ask) -> None:
                 f"a {abs(amount):g}% haircut on collateral values")
     _simple(said, ask, r"\b(?:income|salar(?:y|ies))\b", "income_pct",
             percent_scale=0.01, label="verified income")
+    # Expenses are read separately from income and land on the same
+    # affordability path. "Increase the household expense burden by 10%" is a
+    # cost-of-living scenario, not a pay cut, and the two can be asked for
+    # together.
+    _simple(said, ask,
+            r"\b(?:household\s+)?(?:expense|expenses|cost\s+of\s+living|"
+            r"living\s+cost)s?\b(?:\s+burden)?", "expense_pct",
+            percent_scale=0.01, label="household expenses")
 
     match = re.search(rf"\b(?:utilisation|utilization)\b[^.;]{{0,30}}?{_NUMBER}"
                       rf"\s*(?:{_POINTS}|{_PERCENT})?", said)

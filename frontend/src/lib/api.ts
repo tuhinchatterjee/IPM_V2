@@ -7478,12 +7478,49 @@ export const api = {
               customers: Record<string, unknown>[] }>(
       `/retail/ews/whatif-selection/${encodeURIComponent(selectionId)}/customers`
       + qs({ limit: String(limit) }), { timeoutMs: LAKE_TIMEOUT_MS }),
+  /**
+   * Run a scenario on an exported cohort.
+   *
+   * Pass `said` and the GOVERNED parser reads it — the one the rest of
+   * What-If runs on, which understands the whole retail cohort vocabulary.
+   * The browser used to carry its own reader; it knew six shocks, and a
+   * thread that understood less than the composer on the next screen was
+   * never going to catch up.
+   *
+   * A sentence it cannot read comes back with `needs_clarification` and a
+   * question, which is an answer and not an error.
+   */
   ewsSelectionRun: (body: { selection_id: string;
-                            shocks: Record<string, unknown>;
-                            name?: string; method?: string }) =>
-    request<EwsCohortResult>("/retail/ews/whatif-selection/run",
+                            shocks?: Record<string, unknown>;
+                            said?: string;
+                            within?: Record<string, unknown>;
+                            name?: string; method?: string;
+                            staging_mode?: string }) =>
+    request<EwsCohortResult & { needs_clarification?: boolean;
+                                question?: string; read_as?: string[];
+                                available?: boolean }>(
+      "/retail/ews/whatif-selection/run",
       { method: "POST", body: JSON.stringify(body),
         timeoutMs: LAKE_TIMEOUT_MS }),
+  /** The same scenario, as a workbook. Returns the bytes to save. */
+  ewsSelectionWorkbook: async (body: { selection_id: string;
+                                       shocks?: Record<string, unknown>;
+                                       said?: string;
+                                       within?: Record<string, unknown>;
+                                       method?: string }) => {
+    const response = await fetch(
+      `${API_BASE_URL}${API_PREFIX}/retail/ews/whatif-selection/workbook.xlsx`,
+      { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body) });
+    if (!response.ok) {
+      throw new Error(await response.text() || "The workbook could not be built.");
+    }
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const named = /filename="([^"]+)"/.exec(disposition);
+    return { blob: await response.blob(),
+             filename: named?.[1] ?? "retail-whatif.xlsx" };
+  },
   ewsScorePrompts: (level = "portfolio") =>
     request<{ level: string; prompts: string[]; scope: string[];
               scope_note: string }>(

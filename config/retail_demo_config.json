@@ -1,15 +1,13 @@
 {
   "config_version": "1.0.0",
-  "generator_version": "retail-gen-1.1.0",
+  "generator_version": "retail-gen-1.2.0",
   "seed": 20260910,
-  "disclosure": "Synthetic Saudi retail demonstration data — not ANB customer data or approved models.",
-
+  "disclosure": "Synthetic Saudi retail demonstration data \u2014 not ANB customer data or approved models.",
   "demo_as_of_month": "2026-08",
   "months": 25,
   "warmup_months": 12,
-
   "portfolio": {
-    "target_active_facilities_latest_month": 20000,
+    "target_active_facilities_latest_month": 60000,
     "facilities_per_customer_mean": 1.35,
     "product_mix_latest_month": {
       "CREDIT_CARD": 0.34,
@@ -20,20 +18,37 @@
     "monthly_origination_rate": 0.021,
     "monthly_voluntary_closure_rate": 0.004
   },
-
   "currency": "SAR",
   "portfolio_country": "SA",
-
   "scenarios": {
     "scenario_set_id": "RETAIL_DEMO_SCEN",
     "scenario_set_version": "1.0.0",
-    "weights": { "base": 0.60, "upturn": 0.20, "downturn": 0.20 },
-    "hazard_multiplier": { "base": 1.0, "upturn": 0.72, "downturn": 1.55 },
-    "lgd_multiplier": { "base": 1.0, "upturn": 0.90, "downturn": 1.18 },
-    "ead_multiplier": { "base": 1.0, "upturn": 0.985, "downturn": 1.045 },
-    "recovery_delay_add_months": { "base": 0, "upturn": -2, "downturn": 6 }
+    "weights": {
+      "base": 0.6,
+      "upturn": 0.2,
+      "downturn": 0.2
+    },
+    "hazard_multiplier": {
+      "base": 1.0,
+      "upturn": 0.72,
+      "downturn": 1.55
+    },
+    "lgd_multiplier": {
+      "base": 1.0,
+      "upturn": 0.9,
+      "downturn": 1.18
+    },
+    "ead_multiplier": {
+      "base": 1.0,
+      "upturn": 0.985,
+      "downturn": 1.045
+    },
+    "recovery_delay_add_months": {
+      "base": 0,
+      "upturn": -2,
+      "downturn": 6
+    }
   },
-
   "ecl": {
     "ecl_model_version": "retail-ecl-1.0.0",
     "discount_method": "monthly_eir",
@@ -41,7 +56,6 @@
     "revolving_behavioural_life_months": 30,
     "money_precision": 2
   },
-
   "notes": [
     "Every number produced from this configuration is synthetic.",
     "Scenario weights, hazard multipliers and policy thresholds are demo assumptions, not SAMA rules or ANB policy.",

@@ -387,15 +387,120 @@ def follow_ups(selection: sel.Selection, levels: list[dict[str, Any]]
     return out[:7]
 
 
+def narrow(selection: sel.Selection,
+           within: dict[str, Any]) -> tuple[list[str], str]:
+    """The facilities inside a selection that also match `within`.
+
+    "Stress only the forward-risk customers in this selection" narrows what
+    was exported; it does not replace it. A sentence read as a fresh filter
+    would quietly widen the scenario to every forward-risk customer in the
+    book, report a number four times the size, and be wrong in the direction
+    nobody checks.
+
+    Returns the facilities and a sentence saying what the narrowing did, so
+    the thread can show the reader the population it actually ran on.
+    """
+    from backend.retail import ews_score as scored
+
+    held = list(selection.selected_facility_ids)
+    if not within:
+        return held, ""
+    try:
+        panel = scored.read(selection.source_month)
+    except Exception:  # noqa: BLE001 - the domain may not be built
+        return held, ""
+    if panel is None or not len(panel):
+        return held, ""
+
+    inside = panel[panel["facility_id"].astype(str).isin(set(held))]
+    for column, value in within.items():
+        if column not in inside.columns:
+            continue
+        values = value if isinstance(value, (list, tuple, set)) else [value]
+        if column.endswith("_flag"):
+            inside = inside[inside[column].fillna(False).astype(bool)
+                            == bool(list(values)[0])]
+        else:
+            inside = inside[inside[column].astype(str).isin(
+                [str(one) for one in values])]
+
+    kept = [str(one) for one in inside["facility_id"].astype(str)]
+    if len(kept) == len(held):
+        return held, ""
+    said = ", ".join(f"{k.replace('_', ' ')} "
+                     + (", ".join(str(one) for one in v)
+                        if isinstance(v, (list, tuple)) else str(v))
+                     for k, v in within.items())
+    return kept, (
+        f"Narrowed to {said}: {len(kept):,} of the selection's "
+        f"{len(held):,} facilities.")
+
+
+def read(said: str, selection: sel.Selection) -> dict[str, Any]:
+    """Read a typed sentence against one selection, with the governed parser.
+
+    The thread used to carry its own reader in the browser — a short list of
+    patterns that knew about five shocks. It could not be right for long: the
+    parser that the rest of What-If runs on lives in
+    `backend.retail.whatif_language`, understands the whole retail cohort
+    vocabulary, and is the thing that gets improved. Two readers meant the
+    thread understood less than the composer on the next screen did, and no
+    amount of keeping them in step would have survived the next shock.
+    """
+    from backend.retail import ews_score as scored
+    from backend.retail import whatif_language as language
+
+    ask = language.read(said, months=scored.panel_months())
+    if ask.needs_clarification:
+        return {"understood": False, "question": ask.question,
+                "options": ask.options, "read_as": ask.read_as}
+    if not ask.shocks and not ask.scenario_weights:
+        return {
+            "understood": False,
+            "question": (
+                f'This thread could not read a governed change out of "{said}". '
+                "Name a parameter and a size — \u201cincrease PIT 12-month PD "
+                "by 20%\u201d — or a migration — \u201cmove 15% of Stage 1 "
+                "exposure to Stage 2\u201d."),
+            "options": [],
+            "read_as": ask.read_as,
+            "unsupported": ask.unsupported,
+        }
+
+    # Anything the sentence says about WHO narrows the selection. What it says
+    # about the month and the product it was already exported for is dropped:
+    # the selection decides those.
+    within = {k: v for k, v in ask.filters.items()
+              if k not in ("product_code", "facility_id", "customer_id")}
+    return {
+        "understood": True,
+        "shocks": dict(ask.shocks),
+        "staging_mode": ask.staging_mode,
+        "scenario_weights": ask.scenario_weights,
+        "within": within,
+        "read_as": list(ask.read_as),
+        "unsupported": list(ask.unsupported),
+    }
+
+
 def run(selection_id: str, *, shocks: dict[str, Any],
         name: str = "", method: str = DELTA,
         staging_mode: str = wif.FROZEN_STAGE,
+        within: dict[str, Any] | None = None,
         scenario_weights: dict[str, float] | None = None) -> dict[str, Any]:
     """One scenario, on one selection, reported at every level above it."""
     selection = sel.get(selection_id)
     if selection is None:
         return {"available": False,
                 "because": f"{selection_id} is not a known selection."}
+
+    # A sentence may narrow the selection. It never widens it: the population
+    # a scenario runs on is the one that was exported, or a part of it.
+    stressed, narrowing = narrow(selection, within or {})
+    if not stressed:
+        return {"available": False,
+                "because": ("Nothing in this selection matches that "
+                            "narrowing, so there is nothing to stress.")}
 
     book = S._read_book(selection.source_month)
     config = load_config()
@@ -418,10 +523,15 @@ def run(selection_id: str, *, shocks: dict[str, Any],
                                          [""])[0]) if "dataset_version" in book
                             else "",
             snapshot_date=str(rows["snapshot_date"].iloc[0]),
-            filters={"facility_id": list(selection.selected_facility_ids)},
+            filters={"facility_id": list(stressed)},
             shocks=dict(shocks), staging_mode=staging_mode,
             scenario_weights=scenario_weights)
-        result = wif.run(rows, scenario, config)
+        # Decompose only at the selection level. The wider levels differ from
+        # it by the population that is NOT shocked, so a step-by-step reading
+        # of them would be the same steps against a larger denominator — the
+        # same decomposition, told less clearly, four more times.
+        result = wif.run(rows, scenario, config,
+                         decompose=level["level"] == "selection")
 
         before = _aggregate(rows)
         shocked = result.get("scenario_result") or {}
@@ -429,7 +539,7 @@ def run(selection_id: str, *, shocks: dict[str, Any],
         # unchanged, so the level's after-figure is the level's before-figure
         # with the shocked part swapped in.
         touched = rows[rows["facility_id"].astype(str).isin(
-            set(selection.selected_facility_ids))]
+            set(stressed))]
         untouched_ecl = (float(rows["ecl_weighted_sar"].sum())
                          - float(touched["ecl_weighted_sar"].sum()))
         after = dict(before)
@@ -476,6 +586,13 @@ def run(selection_id: str, *, shocks: dict[str, Any],
         "shocks": dict(shocks),
         "shocks_described": _describe(shocks),
         "levels": levels,
+        "stressed_facilities": len(stressed),
+        "narrowing": narrowing,
+        # The cohort as it stood, carried on the result rather than left on the
+        # page that opened the thread. A result downloaded into a workbook, or
+        # reopened from a saved thread, has to be able to say what it ran on.
+        "baseline": sel.baseline(selection),
+        "waterfall": (cohort.get("engine") or {}).get("waterfall"),
         "scenario": (cohort.get("engine") or {}).get("scenario"),
         "limitations": (cohort.get("engine") or {}).get("limitations") or [],
         "assumptions": (cohort.get("engine") or {}).get("assumptions") or [],
@@ -485,7 +602,7 @@ def run(selection_id: str, *, shocks: dict[str, Any],
 
     if which in (CHALLENGER, "both"):
         touched = book[book["facility_id"].astype(str).isin(
-            set(selection.selected_facility_ids))]
+            set(stressed))]
         out["challenger"] = _challenger(
             book, touched, dict(shocks), cohort.get("engine") or {})
     out["interpretation"] = _interpretation(

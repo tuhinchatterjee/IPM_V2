@@ -396,6 +396,18 @@ def build(*, analytics_dir: str | Path | None = None,
         out.notes.append("the canonical book holds no months")
         return out
 
+    # See `backend.retail.source_stamp`: a regenerated book keeps its period
+    # names, so an incremental build skips every month of it and the views
+    # keep serving a book that is gone. The bootstrap caught this once by
+    # reconciling afterwards; the stamp catches it before the build.
+    from backend.retail import source_stamp
+
+    if any(source_stamp.stale(root, view.dataset) for view in DERIVED):
+        replace = True
+        out.notes.append(
+            "the book was rebuilt since these views were, so every period is "
+            "rewritten rather than skipped")
+
     # The column list is checked once, against the first month, so a view that
     # names a column the book has stopped holding says so rather than failing
     # twenty-five times.
@@ -423,6 +435,7 @@ def build(*, analytics_dir: str | Path | None = None,
             written += 1
         if written:
             out.written[view.dataset] = written
+            source_stamp.record(root, view.dataset)
         else:
             out.skipped.append(view.dataset)
     return out

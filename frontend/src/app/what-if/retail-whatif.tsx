@@ -218,6 +218,186 @@ export function RetailWhatIf() {
     }
   }, []);
 
+/**
+ * The guided scenarios, as retail actually cuts.
+ *
+ * The corporate What-If offers six journeys and they are the right SHAPE —
+ * pick the kind of change, see what that kind looks like, press one. Three of
+ * the six are corporate objects, though, and a retail reader does not have
+ * them. There is no rating to move, and the concentration that matters is not
+ * a sector.
+ *
+ * So: rating movement becomes the two things a retail book actually migrates
+ * on — days past due, and the behavioural score band. Sector stress becomes
+ * product and sub-product stress, on the same taxonomy the Early Warning
+ * Score uses, because a reader who has just been looking at Platinum Card
+ * should be able to stress Platinum Card. PD and LGD stop being separate
+ * journeys and become one Risk Parameter Adjustment, because nobody thinks
+ * "I would like to change a loss given default" — they think "I want the
+ * parameters worse". Stage migration, macro and borrower stress carry over
+ * unchanged, because those are the same question in either book.
+ *
+ * Every prompt below is a complete sentence the governed parser resolves.
+ * None is a keyword this file translates.
+ */
+const JOURNEYS: {
+  key: string; title: string; blurb: string; prompts: string[];
+}[] = [
+  {
+    key: "dpd",
+    title: "DPD Bucket Movement",
+    blurb: "Move exposure or accounts between delinquency buckets. The "
+         + "facilities that move are the worst in the bucket they leave, and "
+         + "they land on what this book shows for the bucket they enter.",
+    prompts: [
+      "Move 20% of 1-29 DPD exposure to 30-59",
+      "Move 15% of 30-59 DPD exposure to 60-89",
+      "Move 10% of 60-89 DPD accounts to 90+",
+      "Move 20% of 30-59 DPD exposure to 90+ for personal finance",
+    ],
+  },
+  {
+    key: "behavioural",
+    title: "Behavioural Score Movement",
+    blurb: "Worsen or improve score bands. A band change reaches PD through "
+         + "the versioned score-to-PD mapping, the way any score change does.",
+    prompts: [
+      "Move 20% of behavioural score band B to C band",
+      "Move 10% of behavioural score band A exposure to B band",
+      "Reduce behavioural score by 30 points for non-salaried credit card customers",
+      "Reduce behavioural score by 25 points for personal finance",
+    ],
+  },
+  {
+    key: "stage",
+    title: "Stage Migration",
+    blurb: "Move a share of one IFRS 9 stage into another. Stage decides "
+         + "twelve months against lifetime, and nothing else is inferred.",
+    prompts: [
+      "Move 15% of Stage 1 exposure to Stage 2",
+      "Move 10% of Stage 2 accounts to Stage 3",
+      "Cure 20% of Stage 2 back to Stage 1",
+      "Re-evaluate staging under worsened delinquency",
+    ],
+  },
+  {
+    key: "parameters",
+    title: "Risk Parameter Adjustment",
+    blurb: "PD, LGD, CCF, collateral and recovery in one place — the "
+         + "parameters of the IFRS 9 identity, moved directly.",
+    prompts: [
+      "Increase PIT 12-month PD by 20%",
+      "Add 2 percentage points to PD",
+      "Increase LGD by 5 percentage points",
+      "Increase CCF by 10 percentage points",
+      "Reduce collateral value by 15%",
+      "Add six months to the recovery delay",
+    ],
+  },
+  {
+    key: "product",
+    title: "Product & Sub-product Stress",
+    blurb: "The same products and sub-products the Early Warning Score uses, "
+         + "so a cohort you were just reading about is a cohort you can "
+         + "stress by name.",
+    prompts: [
+      "Increase PIT 12-month PD by 20% for credit card",
+      "Increase PIT 12-month PD by 15% for platinum card",
+      "Increase LGD by 5 percentage points on home finance",
+      "Reduce verified income by 10% for non-salaried personal finance",
+      "Increase PD by 25% for salaried auto finance",
+    ],
+  },
+  {
+    key: "macro",
+    title: "Macroeconomic Stress",
+    blurb: "The scenario weights, and the borrower-level proxies a retail "
+         + "book carries for a downturn.",
+    prompts: [
+      "Change scenario weights to base 50%, upturn 10%, downturn 40%",
+      "Reduce verified income by 15%",
+      "Increase household expense burden by 10%",
+      "Reduce collateral value by 20% and add six months to recovery",
+    ],
+  },
+  {
+    key: "borrower",
+    title: "Borrower Stress",
+    blurb: "One customer, or a cohort exported from Early Warning Score. "
+         + "Open the cohort from its card and the thread arrives with the "
+         + "exact customers already selected.",
+    prompts: [
+      "Stress only the customers who are already bad",
+      "Stress only the forward-risk customers",
+      "Stress high and critical Early Warning customers only",
+      "Apply the shock to customers with behavioural score band D and below",
+    ],
+  },
+];
+
+function Journeys({ onChoose }: { onChoose: (said: string) => void }) {
+  const [open, setOpen] = React.useState<string>("");
+  return (
+    <Card data-testid="retail-whatif-journeys">
+      <CardHeader>
+        <CardTitle className="text-[18px]">Guided scenarios</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {JOURNEYS.map((one) => (
+            <button
+              key={one.key}
+              type="button"
+              onClick={() => setOpen(open === one.key ? "" : one.key)}
+              className={
+                "rounded-lg border p-3 text-left transition-colors "
+                + (open === one.key
+                  ? "border-accent bg-accent-muted/30"
+                  : "border-border hover:bg-surface-muted")
+              }
+              data-testid={`retail-whatif-journey-${one.key}`}
+            >
+              <p className="text-[13px] font-semibold text-text-primary">
+                {one.title}
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-text-secondary">
+                {one.blurb}
+              </p>
+            </button>
+          ))}
+        </div>
+
+        {open ? (
+          <div className="mt-3 rounded-lg border border-border p-3"
+               data-testid={`retail-whatif-prompts-${open}`}>
+            <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
+              {JOURNEYS.find((one) => one.key === open)?.title} — press one, or
+              type your own
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {(JOURNEYS.find((one) => one.key === open)?.prompts ?? []).map(
+                (prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => onChoose(prompt)}
+                    className="rounded-full border border-border px-2.5 py-1
+                               text-[11px] text-text-secondary
+                               transition-colors hover:bg-surface-muted"
+                    data-testid="retail-whatif-journey-prompt"
+                  >
+                    {prompt}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
   const data = landing.data;
 
   return (
@@ -268,6 +448,8 @@ export function RetailWhatIf() {
               <p className="text-[11px] text-text-muted">{data.disclosure}</p>
             </CardContent>
           </Card>
+
+          <Journeys onChoose={(said) => void send(said)} />
 
           {error ? (
             <Card className="border-negative/40 p-4 text-sm text-negative"
