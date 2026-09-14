@@ -109,8 +109,15 @@ and `effective_weight_total`, which is 1.0 on every row.
 
 | Domain | What it is | Months | Grain |
 |---|---|---|---|
-| **Early Warning Data** (`retail_early_warning`) | The raw retail / IFRS 9 / bureau source, 170 fields | 25 periods | customer × facility × month |
+| **Early Warning Data** (`retail_early_warning`) | The raw retail / IFRS 9 / bureau source, 170 fields | 25 periods, 2024-08…2026-08 | customer × facility × month |
 | **Early Warning Score** (`retail_ews_score`) | The derived scoring domain, 498 fields | 20 months, 2025-01…2026-08 | customer × facility × month |
+
+The source domain runs 25 periods rather than 20 because the score needs
+history the scored months do not contain: two months of lead-in so the first
+scored month already has the prior month its comparators need, and the months
+before that which the book carries anyway. It covers every one of the twenty
+scored months and five more. Cutting it back to twenty to make the two numbers
+match would remove data a reader can legitimately look at.
 
 Both reconcile to the canonical book exactly: same facility set, one row per
 facility, identical exposure, DPD and IFRS 9 stage, identical totals
