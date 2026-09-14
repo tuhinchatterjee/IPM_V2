@@ -128,7 +128,13 @@ def _ramp(index: int, total: int) -> float:
     if total <= 1:
         return 1.0
     x = index / (total - 1)
-    return x * x * (3 - 2 * x)
+    # Eases in and keeps going. Smoothstep was the first shape here and its
+    # slope falls to zero at BOTH ends, so the last few months of the window
+    # barely moved -- which made every month-on-month attention card tiny and
+    # left the feed with two findings on a book that had plainly changed. A
+    # book whose story stops before its last month is a book nobody can ask
+    # "what moved this month".
+    return x ** 1.55
 
 
 def _clamp(value: float, low: float, high: float) -> float:
