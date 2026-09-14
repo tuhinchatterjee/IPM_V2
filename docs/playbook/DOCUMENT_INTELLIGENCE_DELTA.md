@@ -72,8 +72,8 @@ re-checked against them before human UAT.
 | 17 | Committee experience (§13) | | | ✅ | — | profile + readiness |
 | 18 | Chat ↔ dashboard bridge (§15) | ✅ | | | composer, `task_scope` | `intelligence/context.py`, `adopt.py` (Gate 8) |
 | 19 | Governed refresh (§16) | | | ✅ | change-set approval pattern | refresh proposal |
-| 20 | Freshness (§17) | | | ✅ | — | binding freshness |
-| 21 | Parser versioning / re-read (§18) | | ✅ | | immutable bytes, `retry_source` | `playbook_source_parses` |
+| 20 | Freshness (§17) | ✅ | | | — | binding freshness + `reparse.summary` |
+| 21 | Parser versioning / re-read (§18) | ✅ | | | immutable bytes, `retry_source` | `ingest/version.py`, `reparse.py` (Gate 9) |
 | 22 | Save-gate regression matrix (§19) | | ✅ | | 19 defects have tests already | matrix doc + suite |
 | 23 | Soak harness (§20) | | | ✅ | scripted provider | `scripts/playbook_soak.py` |
 | 24 | Adversarial pass (§21) | | ✅ | | existing security suite | soak + adversarial tests |
@@ -309,3 +309,97 @@ loses is the evidence the dashboard would have supplied.
 No migration was needed: references live on the message's existing `content`
 JSONB, because a reference is part of what the turn said rather than metadata
 about it. No provider call was made by anything in this gate.
+
+## Gate 9 — a better reader is a reason to read again, never to re-upload
+
+### The state before
+
+`playbook_source_parses` existed from Gate 1 and had never been written to.
+There was no parser version anywhere in the codebase, so "this file was read
+by an older reader" was not a statement the system could make — only a
+suspicion somebody might have. `retry_source` re-read stored bytes, but only
+as recovery from a failure; nothing knew that a successful old reading might
+now be a worse one.
+
+### What a version means, and when to bump it
+
+`backend/playbook/ingest/version.py` declares a reader version per format and
+one `SCHEMA_VERSION` spanning all of them. The rules are written into the
+module because a version nobody maintains is decoration:
+
+* **bump when the OUTPUT can differ** — different chunks, locators, `data`, or
+  manifest. A refactor that cannot change what comes out is not a version
+  change, and pretending otherwise asks every user to re-read every file for
+  nothing;
+* **never re-use a number** — it is recorded on parses that already exist and
+  cannot be corrected retrospectively;
+* **`SCHEMA_VERSION` is separate** — it moves when the SHAPE of a chunk
+  changes, not when one reader gets better. A parse is stale if either is
+  behind.
+
+The one real bump today is XLSX/CSV → 2: spreadsheet cells are read three ways
+(as displayed, as stored, by address). That is the change that made a report
+stop printing seventeen significant digits to survive grounding, and
+`CHANGES` says so in words a user can act on, shown beside the stale source so
+"re-read" is a decision rather than a leap.
+
+Only **behind** counts as stale. A parse recorded by a newer version than this
+code knows about — a database restored from a later deployment — is left
+alone rather than re-read backwards into a worse reading. An unparseable
+version counts as stale, because the alternative is silently trusting a
+reading whose provenance cannot be established.
+
+### Staleness is computed, not stored
+
+A source is stale when its latest parse names a version behind the one in
+force. That comparison is made when asked, so deploying a better reader marks
+the affected sources without a migration and without a background job
+rewriting rows.
+
+A source with **no** parse revision is stale too, with its own reason. Its
+reading exists, but nothing records which reader produced it, and a reading
+whose provenance cannot be established is not one to keep quoting. Re-reading
+it is free and settles the question.
+
+### A stale source cannot be used silently — §19 item 13
+
+A source read by an older reader is evidence read **worse than it can be**:
+not missing, but not a complete reading either. `ledger_for` records it as an
+evidence gap, so `evidence_complete` is False and the thread says so, until
+the source is re-read. The source is still read — a worse reading is still a
+reading, and withholding it would replace a stated caveat with a silent
+absence, which is the worse failure.
+
+### What a re-read is not
+
+No upload, no provider call, nothing billable. It replaces the CHUNKS the next
+generation will draw on, and nothing else. **A report already written is not
+rewritten because its source was read again** — §16's governed refresh is
+where that decision belongs, and it is a person's. Every earlier revision is
+kept and marked superseded, so a document generated three months ago can still
+be traced to the reading it was actually written from.
+
+`RE-READ ALL STALE SOURCES` re-reads each in turn; one file whose bytes are
+gone is reported and the rest are still brought up to date.
+
+### Verified
+
+* `tests/playbook/test_reparse.py` — 31 tests: every readable format declares
+  a version; same is not stale, older is, newer is left alone, unparseable
+  counts as stale; upload, retry and re-read each record a revision; a partial
+  read is recorded as partial and a failed one as failed; a source with no
+  revision is stale for its own reason; a re-read uses stored bytes, makes a
+  new revision, supersedes rather than deletes, reaches no provider (asserted
+  by making `provider.author` raise) and creates no document version; missing
+  bytes and a foreign tenant are both refused; the workspace count is the line
+  the dashboard shows; a stale source is an evidence gap, is still read, and
+  re-reading closes the gap.
+* `tests/playbook/test_api.py::TestReReadingSourcesOverHttp` — 8 tests,
+  including lineage over HTTP and the dashboard's source line.
+* `tests/playbook` — 949 passed, 8 skipped.
+* `tests/api tests/exports tests/docs tests/demo tests/services tests/llm` —
+  764 passed, 8 skipped.
+* `ruff check .` clean.
+
+No migration: `playbook_source_parses` was built in `0035` and is now used for
+what it was built for.

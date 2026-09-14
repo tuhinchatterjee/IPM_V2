@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy import select
 
-from backend.playbook import capabilities, grounding, ingest, merge, prompts, provider, render, store, validate
+from backend.playbook import capabilities, grounding, ingest, merge, prompts, provider, render, reparse, store, validate
 from backend.playbook import document as D
 from backend.playbook import evidence as ev
 from backend.playbook import repository as repo
@@ -132,12 +132,17 @@ def add_source(session, scope: repo.Scope, workspace_id: int, *,
         source.failure_reason = str(exc)
         source.manifest = {"format": accepted.kind, "complete": False,
                            "read": [], "skipped": [], "warnings": [str(exc)]}
+        reparse.record(session, source, kind=accepted.kind, failure=str(exc))
         session.flush()
         return source
 
     repo.set_chunks(session, source, result.chunks)
     source.manifest = result.manifest.as_dict()
     source.status = "parsed" if result.manifest.complete else "partial"
+    # Which reader produced this reading, against which chunk schema. §18: a
+    # reading whose provenance is not recorded is one nobody can later tell
+    # apart from a better one.
+    reparse.record(session, source, kind=accepted.kind, result=result)
     session.flush()
     return source
 
@@ -200,18 +205,21 @@ def retry_source(session, scope: repo.Scope, source_id: int):
     source.failure_reason = ""
     session.flush()
     try:
-        _, result = ingest.read(source.filename, content)
+        accepted, result = ingest.read(source.filename, content)
     except ingest.UnreadableSource as exc:
         source.status = "failed"
         source.failure_reason = str(exc)
         source.manifest = {"complete": False, "read": [], "skipped": [],
                            "warnings": [str(exc)]}
+        reparse.record(session, source, kind=reparse._format_of(source),
+                       failure=str(exc))
         session.flush()
         return source
 
     repo.set_chunks(session, source, result.chunks)
     source.manifest = result.manifest.as_dict()
     source.status = "parsed" if result.manifest.complete else "partial"
+    reparse.record(session, source, kind=accepted.kind, result=result)
     session.flush()
     return source
 
@@ -259,6 +267,18 @@ def ledger_for(session, scope: repo.Scope, workspace_id: int, *,
         for gap in (source.manifest or {}).get("skipped", []):
             ledger.omit(f"{source.filename}: {gap.get('what', '')}",
                         gap.get("why", ""))
+
+        # §18, §19(13): a source read by an older reader is evidence read
+        # WORSE than it can be — not evidence that is missing, but not a
+        # complete reading either. Recorded as a gap so a generation cannot
+        # quietly rest on it: the thread says so, and `evidence_complete` is
+        # False until the source is re-read, which costs nothing.
+        reading = reparse.state(session, source)
+        if reading.stale:
+            ledger.omit(
+                f"{source.filename}: {reading.reason_label.lower()}",
+                "; ".join(reading.improvements)
+                or "re-read this source to bring its reading up to date")
 
     for revision_id in export_revision_ids or []:
         revision = repo.find_export_revision(session, scope, revision_id)

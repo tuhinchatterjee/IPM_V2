@@ -1343,3 +1343,106 @@ class TestTheContextBridgeOverHttp:
         r = client.get(f"{self.BASE}/99999999/intelligence/context",
                        params={"kind": "metric", "target": "1"})
         assert r.status_code == 404
+
+
+class TestReReadingSourcesOverHttp:
+    """Gate 9 over HTTP. §18.
+
+    Every route here reads stored bytes locally. No upload, no provider call,
+    nothing billable — which is the point: a user should never have to
+    recreate a whole Playbook because the parser improved.
+    """
+
+    BASE = "/api/v1/playbook"
+
+    @pytest.fixture
+    def uploaded(self, client, workspace_id, results_workbook_xlsx):
+        r = client.post(f"{self.BASE}/workspaces/{workspace_id}/sources",
+                        files={"file": ("results.xlsx", results_workbook_xlsx,
+                                        "application/vnd.openxmlformats-"
+                                        "officedocument.spreadsheetml.sheet")},
+                        data={"source_role": "results"})
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    @staticmethod
+    def _stale(source_id: int):
+        from backend.db.engine import get_session
+        from backend.playbook import reparse
+
+        with get_session() as session:
+            reparse.latest(session, source_id).parser_version = "0"
+            session.commit()
+
+    def test_a_fresh_upload_is_current(self, client, workspace_id, uploaded):
+        r = client.get(f"{self.BASE}/workspaces/{workspace_id}/sources/parses")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["sources"] == 1 and body["needs_reread"] == 0
+        assert body["message"] == "1 source current"
+
+    def test_a_stale_source_says_why_and_what_changed(
+            self, client, workspace_id, uploaded):
+        self._stale(uploaded)
+        r = client.get(f"{self.BASE}/workspaces/{workspace_id}/sources/parses")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["needs_reread"] == 1
+        assert body["message"] == "1 source needs re-read"
+        [item] = [i for i in body["items"] if i["stale"]]
+        assert item["reason_label"] == "Read with an older version of the reader"
+        assert any("as displayed" in i for i in item["improvements"])
+
+    def test_re_reading_one_source_brings_it_up_to_date(
+            self, client, workspace_id, uploaded):
+        self._stale(uploaded)
+        r = client.post(f"{self.BASE}/sources/{uploaded}/reread")
+        assert r.status_code == 200, r.text
+        assert r.json()["stale"] is False
+        assert r.json()["revision"] == 2
+
+    def test_the_lineage_survives_the_re_read(self, client, uploaded):
+        self._stale(uploaded)
+        client.post(f"{self.BASE}/sources/{uploaded}/reread")
+
+        r = client.get(f"{self.BASE}/sources/{uploaded}/parses")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert [v["revision"] for v in body["revisions"]] == [1, 2]
+        assert body["revisions"][0]["superseded"] is True
+        assert body["revisions"][0]["parser_version"] == "0"
+        assert body["current"]["stale"] is False
+
+    def test_the_workspace_action_re_reads_every_stale_source(
+            self, client, workspace_id, uploaded):
+        self._stale(uploaded)
+        r = client.post(f"{self.BASE}/workspaces/{workspace_id}/sources/reread")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert [x["source_id"] for x in body["reread"]] == [uploaded]
+        assert body["failed"] == [] and body["needs_reread"] == 0
+
+    def test_the_dashboard_carries_the_source_line(
+            self, client, workspace_id, uploaded):
+        self._stale(uploaded)
+        r = client.get(f"{self.BASE}/workspaces/{workspace_id}/intelligence")
+        assert r.status_code == 200, r.text
+        assert r.json()["sources"]["message"] == "1 source needs re-read"
+
+    def test_a_source_whose_bytes_are_gone_is_refused_not_crashed(
+            self, client, workspace_id, uploaded):
+        from backend.db.engine import get_session
+        from backend.models.playbook import PlaybookSource
+
+        with get_session() as session:
+            session.get(PlaybookSource, uploaded).bytes_path = "playbook/gone"
+            session.commit()
+
+        r = client.post(f"{self.BASE}/sources/{uploaded}/reread")
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "bytes_gone"
+        assert "Upload it once more" in r.text
+
+    def test_a_source_that_does_not_exist_is_not_found(self, client):
+        r = client.post(f"{self.BASE}/sources/99999999/reread")
+        assert r.status_code == 404

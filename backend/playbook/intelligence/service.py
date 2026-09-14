@@ -159,6 +159,10 @@ class Dashboard:
     reviews: dict = field(default_factory=dict)
     readiness: dict = field(default_factory=dict)
     since_last_time: dict = field(default_factory=dict)
+    #: §17: "12 metrics current, 1 source needs re-read". The source half —
+    #: which readings are behind the reader in force, and what a re-read
+    #: would now find.
+    sources: dict = field(default_factory=dict)
     #: Whether there is enough here to be worth showing. §14: a brand-new
     #: empty thread does not get a status badge it cannot fill.
     available: bool = False
@@ -191,6 +195,7 @@ class Dashboard:
             "reviews": dict(self.reviews),
             "readiness": dict(self.readiness),
             "since_last_time": dict(self.since_last_time),
+            "sources": dict(self.sources),
             "available": self.available,
         }
 
@@ -268,6 +273,10 @@ def dashboard(session, workspace_id: int) -> Dashboard:
     from backend.playbook.intelligence import compare
 
     state.since_last_time = compare.since_last_time(session, workspace_id)
+
+    from backend.playbook import reparse
+
+    state.sources = reparse.summary(session, workspace_id)
     return state
 
 

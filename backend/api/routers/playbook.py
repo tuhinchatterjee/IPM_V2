@@ -1836,3 +1836,115 @@ def chat_context_actions(workspace_id: int,
         raise _not_found(exc) from exc
     except RuntimeError as exc:
         raise _unavailable(exc) from exc
+
+
+# ==========================================================================
+# Stale sources and re-reading. §18
+# ==========================================================================
+#
+# The bytes are immutable, so a better reader is a reason to read again and
+# never a reason to ask for the file a second time. Every route here reads
+# stored bytes locally: no upload, no provider call, nothing billable.
+
+
+@router.get("/workspaces/{workspace_id}/sources/parses")
+def source_readings(workspace_id: int,
+                    principal: Principal = RequireAnalyst) -> dict:
+    """Where every source's reading stands, and which need re-reading."""
+    from backend.playbook import reparse
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return reparse.summary(session, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/sources/{source_id}/parses")
+def source_parse_history(source_id: int,
+                         principal: Principal = RequireAnalyst) -> dict:
+    """Every reading this source has had. Lineage, preserved.
+
+    A document generated three months ago can be traced to the reading it was
+    actually written from, which is why superseded revisions are kept rather
+    than replaced.
+    """
+    from backend.playbook import reparse
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            source = service.get_source(session, scope, source_id)
+            return {
+                "source_id": source.id,
+                "filename": source.filename,
+                "current": reparse.state(session, source).as_dict(),
+                "revisions": [{
+                    "revision": r.revision,
+                    "parser_version": r.parser_version,
+                    "schema_version": r.schema_version,
+                    "status": r.status,
+                    "chunk_count": r.chunk_count,
+                    "failure_reason": r.failure_reason,
+                    "superseded": r.superseded,
+                    "manifest": dict(r.manifest or {}),
+                    "created_at": (r.created_at.isoformat()
+                                   if r.created_at else ""),
+                } for r in reparse.history(session, source.id)],
+            }
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/sources/{source_id}/reread")
+def reread_source(source_id: int,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """Read this source's stored bytes again with the reader in force now.
+
+    Replaces the chunks the next generation will draw on. It does NOT rewrite
+    any document: a report already written is not revised because its source
+    was read again — §16's governed refresh is where that decision belongs,
+    and it is a person's.
+    """
+    from backend.playbook import reparse
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            result = reparse.reread(session, scope, source_id)
+            session.commit()
+            return result.as_dict()
+    except reparse.BytesGone as exc:
+        raise _refused(exc, code="bytes_gone") from exc
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/sources/reread")
+def reread_stale_sources(workspace_id: int,
+                         principal: Principal = RequireAnalyst) -> dict:
+    """Re-read every stale source in this workspace.
+
+    One failure does not stop the rest: a file whose bytes are gone is
+    reported and the others are still brought up to date.
+    """
+    from backend.playbook import reparse
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            result = reparse.reread_stale(session, scope, workspace_id)
+            session.commit()
+            return result
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
