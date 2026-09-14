@@ -550,9 +550,24 @@ function Result({ result, onFollowUp }: {
 
       {challenger ? (
         <Card className="p-4" data-testid="ews-whatif-challenger">
-          <p className="text-sm font-semibold text-text-primary">
-            {String(challenger.name ?? "Challenger")}
-          </p>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <p className="text-sm font-semibold text-text-primary">
+              {String(challenger.name ?? "Challenger")}
+            </p>
+            {/* Which library actually fitted it. The method is keyed
+                "xgboost"; where an installation does not have XGBoost the
+                fallback runs instead, and a reader comparing two
+                methodologies has to see which model produced the number. */}
+            {challenger.estimator ? (
+              <span className="text-[11px] text-text-muted"
+                    data-testid="ews-whatif-challenger-estimator">
+                fitted with {String(challenger.estimator)}
+                {challenger.fitted_on
+                  ? ` on ${Number(challenger.fitted_on).toLocaleString()} rows`
+                  : ""}
+              </span>
+            ) : null}
+          </div>
           {challenger.available ? (
             <>
               <dl className="mt-2 grid gap-3 text-[12px] sm:grid-cols-4">

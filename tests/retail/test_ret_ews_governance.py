@@ -831,6 +831,10 @@ def test_ewif_15_the_challenger_is_compared_and_never_substituted(
     assert challenger and challenger.get("available")
     assert challenger["agreement"], "the two methods were not compared"
     assert challenger["delta_method_delta_sar"] is not None
+    # Which library fitted it, said rather than implied. The method is keyed
+    # "xgboost"; it fitted a scikit-learn estimator and reported neither.
+    assert challenger["estimator"], "the challenger does not name its estimator"
+    assert challenger["fitted_on"] > 0
     assert "calculation of record" in challenger["note"]
     assert "calculation of record" in result["methodology"]["authority"]
     # The engine's own answer, not the challenger's, is what the levels carry.

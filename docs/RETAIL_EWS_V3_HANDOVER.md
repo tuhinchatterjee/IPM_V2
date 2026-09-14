@@ -278,10 +278,18 @@ Card, 2,047 customers, 2,235 accounts, SAR 23.8mn:
 | Total Retail | 20,110,831 | 20,317,191 | +1.03% |
 
 The same absolute SAR 206,360 at every level, because stressing a cohort cannot
-change anything outside it — held as a test. The gradient-boosted challenger is
-run beside the Delta method and compared; the Delta method remains the
-calculation of record and the challenger is never substituted for it. The result
-carries an AI interpretation and nine follow-up scenarios.
+change anything outside it — held as a test. The XGBoost challenger is run
+beside the Delta method and compared: on this scenario it estimates SAR 200,454
+against the engine's SAR 206,360 and the two agree on direction. The Delta
+method remains the calculation of record and the challenger is never
+substituted for it. The result carries an AI interpretation and nine follow-up
+scenarios.
+
+The challenger fits XGBoost 3.1.2 on the book's own relationship between risk
+parameters and loss — 6,509 rows, eight features — and the result names the
+library that fitted it. It previously carried the key `xgboost` while fitting a
+scikit-learn estimator and reported neither; where an installation has no
+XGBoost the scikit-learn fallback runs and says so on the page.
 
 ---
 

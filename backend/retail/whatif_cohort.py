@@ -43,11 +43,12 @@ METHODS: dict[str, dict[str, str]] = {
     },
     CHALLENGER: {
         "key": CHALLENGER,
-        "name": "Gradient-boosted challenger",
-        "version": "retail-whatif-challenger-1.0.0",
-        "what": ("A scenario estimator fitted on the book's own relationship "
-                 "between risk parameters and loss. It answers the same "
-                 "question by a different route."),
+        "name": "XGBoost challenger",
+        "version": "retail-whatif-challenger-1.1.0",
+        "what": ("A gradient-boosted scenario estimator fitted on the book's "
+                 "own relationship between risk parameters and loss. It "
+                 "answers the same question by a different route. The result "
+                 "names the library that actually fitted it."),
         "authority": ("A challenger, not the IFRS 9 engine. It is shown for "
                       "comparison and its numbers are never the calculation "
                       "of record."),
@@ -185,13 +186,34 @@ def _challenger(book: Any, population: Any, shocks: dict[str, Any],
     asked what it would say about the shocked one. It is a different route to
     the same question, which is the only reason to show it.
     """
+    # XGBoost where the installation has it, scikit-learn's gradient boosting
+    # where it does not. Which one actually ran is reported on the result: the
+    # method was keyed "xgboost" while it fitted a scikit-learn estimator, and
+    # a reader comparing two methodologies has to be able to see which model
+    # produced the number in front of them.
+    estimator, library = None, ""
     try:
-        from sklearn.ensemble import HistGradientBoostingRegressor
+        from xgboost import XGBRegressor
+
+        estimator = XGBRegressor(
+            n_estimators=120, max_depth=6, learning_rate=0.1,
+            tree_method="hist", random_state=20260914, n_jobs=2)
+        library = f"XGBoost {__import__('xgboost').__version__}"
     except ImportError:
-        return {"available": False,
-                "because": ("the challenger estimator needs scikit-learn, "
-                            "which this installation does not have"),
-                **METHODS[CHALLENGER]}
+        try:
+            from sklearn.ensemble import HistGradientBoostingRegressor
+
+            estimator = HistGradientBoostingRegressor(
+                max_iter=120, max_depth=6, learning_rate=0.1,
+                random_state=20260914)
+            library = ("scikit-learn HistGradientBoostingRegressor — XGBoost "
+                       "is not installed here")
+        except ImportError:
+            return {"available": False,
+                    "because": ("the challenger estimator needs XGBoost or "
+                                "scikit-learn, and this installation has "
+                                "neither"),
+                    **METHODS[CHALLENGER]}
 
     import numpy as np
     import pandas as pd
@@ -211,8 +233,7 @@ def _challenger(book: Any, population: Any, shocks: dict[str, Any],
                 "because": "too few complete rows to fit a challenger",
                 **METHODS[CHALLENGER]}
 
-    model = HistGradientBoostingRegressor(
-        max_iter=120, max_depth=6, learning_rate=0.1, random_state=20260914)
+    model = estimator
     model.fit(train[have].to_numpy(dtype=float),
               train["ecl_weighted_sar"].to_numpy(dtype=float))
 
@@ -244,6 +265,7 @@ def _challenger(book: Any, population: Any, shocks: dict[str, Any],
     return {
         "available": True,
         **METHODS[CHALLENGER],
+        "estimator": library,
         "fitted_on": int(len(train)),
         "features": have,
         "estimated_ecl_before_sar": round(base, 2),
