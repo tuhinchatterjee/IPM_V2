@@ -4,9 +4,9 @@ Branch `claude/early-warning-rebuild-v2-3lnttn`. Not merged to main.
 
 **Starting commit** `e7c42974` — the certified baseline (8/8 certified,
 VERDICT: CERTIFIED, live provider).
-**Final commit** `66d788c`.
+**Final commit** `ad38bef`.
 
-Six commits, 38 files, +6,150 / −284.
+Seven commits, 42 files, +6,930 / −287.
 
 ---
 
@@ -17,7 +17,8 @@ to". The last commit of the live-provider certification round: 8/8 certified.
 
 ## 2. Final commit
 
-`66d788c` "Give a thread an address, so Back returns to the conversation".
+`ad38bef` "Register a domain without letting it answer other domains'
+questions".
 
 ## 3. Commits, in order
 
@@ -29,6 +30,7 @@ to". The last commit of the live-provider certification round: 8/8 certified.
 | `6df5d93` | Filtering the book rather than the page; every measure from one scope; the Excel export; the scope into the chat |
 | `cd41eae` | A dataset counted twice because it is in two lists |
 | `66d788c` | A thread with an address, so Back returns to the conversation |
+| `ad38bef` | Three regressions the full sweep found from putting a new domain in the general catalogue |
 
 ## 4. Files changed
 
