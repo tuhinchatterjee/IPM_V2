@@ -586,6 +586,61 @@ def test_stamp_04_a_targeted_rebuild_does_not_delete_the_other_months() -> None:
         "the retention cleanup is pruning against the caller's request again")
 
 
+# ======================== PERF: faster, and the same answer ==================
+
+def test_perf_01_a_narrowed_roll_up_counts_the_same_as_a_full_one(book) -> None:
+    """The roll-up carries fewer columns; it must not carry a different answer.
+
+    `_counts` reads six columns off the customer roll-up, which used to carry
+    all four hundred and ninety-eight, forty times per portfolio screen. It
+    now takes a column list. That is a change to what is COPIED and must be no
+    change at all to what is COUNTED, so both are computed and compared.
+    """
+    from backend.retail import ews_views as views
+
+    narrowed = views._counts(book)
+    held = views.COUNT_COLUMNS
+    try:
+        views.COUNT_COLUMNS = tuple(book.columns)
+        full = views._counts(book)
+    finally:
+        views.COUNT_COLUMNS = held
+    assert narrowed == full
+
+
+def test_perf_02_the_roll_up_keeps_the_columns_it_needs_itself(book) -> None:
+    """A caller cannot be expected to know what the roll-up reads.
+
+    Narrowed to the layer columns, the roll-up raised a KeyError deriving
+    forward risk from `ews_severity` — a column the caller had no reason to
+    ask for and every reason to expect.
+    """
+    from backend.retail import ews_views as views
+
+    rolled = views._per_customer(book, columns=("customer_id",))
+    for column in ("ews_score", "ews_severity", "current_bad_flag",
+                   "forward_risk_flag", "customer_exposure_sar"):
+        assert column in rolled.columns, column
+
+
+def test_perf_03_top_reasons_counts_what_it_used_to_count(book) -> None:
+    """Counted off masks rather than off a copy of the whole frame."""
+    from backend.retail import ews_views as views
+    import pandas as pd
+
+    found = views._top_reasons(book, limit=5)
+    assert found
+    for row in found:
+        column = f"trg_{row['key']}_fired"
+        mask = book[column].fillna(False).to_numpy(dtype=bool)
+        assert row["facilities"] == int(mask.sum())
+        assert row["customers"] == int(
+            pd.unique(book["customer_id"].to_numpy()[mask]).size)
+        assert row["exposure_sar"] == pytest.approx(round(float(pd.to_numeric(
+            book["gross_carrying_amount_sar"], errors="coerce")
+            .fillna(0.0).to_numpy()[mask].sum()), 2))
+
+
 # ===================================================== XL: the workbook ======
 
 @pytest.mark.slow

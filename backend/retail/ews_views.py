@@ -139,8 +139,14 @@ def _per_customer(frame: Any, *, columns: tuple[str, ...] | None = None) -> Any:
     # taking a head without sorting would silently read as a different answer.
     grouped = frame.groupby("customer_id")
     picked = grouped["ews_score"].idxmax()
-    keep = ([one for one in columns if one in frame.columns] if columns
-            else list(frame.columns))
+    # Whatever the caller asked for, plus what this function itself reads to
+    # derive the flags below. A narrowed roll-up that dropped `ews_severity`
+    # raised a KeyError deriving forward risk from it — the caller cannot be
+    # expected to know which columns the roll-up depends on, so the roll-up
+    # keeps them.
+    needed = ("customer_id", "ews_score", "ews_severity")
+    keep = ([one for one in dict.fromkeys(tuple(columns) + needed)
+             if one in frame.columns] if columns else list(frame.columns))
     worst = frame.loc[picked, keep].set_index("customer_id")
     totals = grouped.agg(
         customer_exposure_sar=("gross_carrying_amount_sar", "sum"),
@@ -275,7 +281,11 @@ def _layer_means(frame: Any) -> dict[str, float]:
     """Each layer's exposure-weighted score across the whole population."""
     if not len(frame):
         return {layer.key: 0.0 for layer in M.LAYERS}
-    people = _per_customer(frame)
+    # The layer scores come off the roll-up's own aggregate columns, so the
+    # worst facility's row needs to carry only its identifier.
+    people = _per_customer(
+        frame, columns=("customer_id",) + tuple(
+            layer.score_column for layer in M.LAYERS))
     weight = people["customer_exposure_sar"].fillna(0.0)
     total = float(weight.sum()) or 1.0
     return {layer.key: round(
@@ -386,21 +396,40 @@ def _trend(months: list[str], *, product: str = "", classification: str = "",
 def _top_reasons(frame: Any, limit: int = 5,
                  before: Any = None) -> list[dict[str, Any]]:
     """The triggers behind a population, most customers first."""
+    import pandas as pd
+
     out: list[dict[str, Any]] = []
     if not len(frame):
         return out
+
+    # The three columns this reads, taken once.
+    #
+    # Every trigger used to select the whole frame under its own mask —
+    # `frame[frame[column]]` — which copies four hundred and ninety-eight
+    # columns to count customers and add up exposure in three of them. Thirty
+    # one triggers, twice over where there is a previous month, four times per
+    # portfolio screen: two hundred and forty-eight full-width copies to
+    # answer questions about three columns.
+    ids = frame["customer_id"].to_numpy()
+    money = pd.to_numeric(frame["gross_carrying_amount_sar"],
+                          errors="coerce").fillna(0.0).to_numpy()
+    earlier_ids = (before["customer_id"].to_numpy()
+                   if before is not None and len(before) else None)
+
     for trigger in M.evaluated_triggers():
         column = f"trg_{trigger.key}_fired"
         if column not in frame.columns:
             continue
-        hit = frame[frame[column].fillna(False)]
-        if not len(hit):
+        mask = frame[column].fillna(False).to_numpy(dtype=bool)
+        facilities = int(mask.sum())
+        if not facilities:
             continue
         was = 0
-        if before is not None and len(before) and column in before.columns:
-            was = _int(before[before[column].fillna(False)]["customer_id"]
-                       .nunique())
-        customers = _int(hit["customer_id"].nunique())
+        if earlier_ids is not None and column in before.columns:
+            older = before[column].fillna(False).to_numpy(dtype=bool)
+            if older.any():
+                was = _int(pd.unique(earlier_ids[older]).size)
+        customers = _int(pd.unique(ids[mask]).size)
         layer = M.layer_of_trigger(trigger.key)
         sub = M.sublayer_of_trigger(trigger.key)
         out.append({
@@ -413,8 +442,8 @@ def _top_reasons(frame: Any, limit: int = 5,
             "sublayer": sub.key if sub else "",
             "sublayer_name": sub.name if sub else "",
             "customers": customers,
-            "facilities": _int(len(hit)),
-            "exposure_sar": _money(hit["gross_carrying_amount_sar"].sum()),
+            "facilities": _int(facilities),
+            "exposure_sar": _money(money[mask].sum()),
             "previous_customers": was,
             "change": customers - was,
         })
