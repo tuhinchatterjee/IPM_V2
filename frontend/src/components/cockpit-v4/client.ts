@@ -522,6 +522,16 @@ export type ThreadTranscript = {
   turn_count: number;
   created_at: string;
   context: { kind?: string; body?: Record<string, unknown> };
+  /**
+   * What to ask, before anybody has asked anything.
+   *
+   * Served only while the thread is empty. A thread seeded from an attention
+   * card carries that card's own five questions; any other thread carries
+   * the book's deterministic openers. Both are computed server-side from the
+   * release, so neither costs a model call and neither can name a field the
+   * book does not hold.
+   */
+  opening_questions?: { question: string; kind: string }[];
   /** What the numbers in this conversation mean. */
   release?: Record<string, unknown>;
 };

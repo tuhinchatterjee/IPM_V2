@@ -38,7 +38,7 @@ def _refresh_evidence(args, target, store, profile, saudi) -> int:
     evidence.mkdir(parents=True, exist_ok=True)
     summary = {
         "dataset_release_id": args.release,
-        "reporting_quarters": manifest["calendar"]["reporting_slots"],
+        "reporting_periods": manifest["calendar"]["reporting_slots"],
         "rows": {name: int(len(f)) for name, f in frames.items()},
         "columns": {name: int(f.shape[1]) for name, f in frames.items()},
         "not_client_data": manifest.get("not_client_data"),

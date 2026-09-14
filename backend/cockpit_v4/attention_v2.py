@@ -547,34 +547,79 @@ def _drilldown(candidate: Candidate, scope: dom.DomainScope,
     }
 
 
+#: What the second axis is, per book: the dimension a reader cuts a finding
+#: by when they want to know WHO inside it moved. Read from the release's own
+#: relations, so a question offered here is a question the book can answer.
+_CROSS: dict[str, tuple[tuple[str, str], ...]] = {
+    dom.CORPORATE: (("facility_type", "facility type"),
+                    ("region", "region"),
+                    ("relationship_tier", "relationship tier")),
+    dom.RETAIL: (("product", "product"), ("region", "region"),
+                 ("customer_segment", "customer segment")),
+}
+
+
 def _questions(candidate: Candidate, scope: dom.DomainScope,
                month: str) -> list[dict[str, Any]]:
-    """What to ask next about THIS finding. Deterministic; no model call."""
+    """What to ask next about THIS finding. Deterministic; no model call.
+
+    Five of them, and every one names a field or a period this release
+    actually holds -- §31. A seeded thread shows these before its first
+    message, so the reader opening a card is looking at five questions the
+    book can answer rather than an empty box and a headline.
+
+    Schema-aware means two things here. The DRILL-DOWN is offered only where
+    the book has a level below the segment (`FINER`), because offering
+    "break it down further" against a dimension with nothing under it is how
+    an analyst ends up asking for a subsegment that does not exist. And the
+    CROSS-CUT names a real second dimension of the same relation.
+    """
     family = candidate.family
     segment = candidate.segment
-    if scope.domain_id == dom.CORPORATE:
-        return [
-            {"question": f"Show the borrowers behind {segment} in {month}.",
-             "required_fields": [], "required_quarters": [month],
-             "kind": "drilldown"},
-            {"question": f"Which {segment} facilities moved to Stage 2?",
-             "required_fields": [], "required_quarters": [month],
-             "kind": "drilldown"},
-            {"question": f"How has {segment} ECL changed over the latest "
-                         f"year?", "required_fields": [],
-             "required_quarters": [], "kind": "trend"},
-        ]
-    return [
-        {"question": f"Show the accounts behind {segment} in {month}.",
-         "required_fields": [], "required_quarters": [month],
+    measure = family.measure_label or family.measure
+    counterparty = COUNTERPARTY.get(family.relation, "")
+    noun = COUNTERPARTY_LABEL.get(counterparty, "rows")
+    finer = FINER.get(family.dimension, "")
+    cross = [(field, label) for field, label in _CROSS.get(scope.domain_id, ())
+             if field != family.dimension]
+
+    out: list[dict[str, Any]] = [
+        {"question": f"Show the {noun} behind {segment} in {month}.",
+         "required_fields": [counterparty] if counterparty else [],
+         "required_periods": [month], "required_quarters": [month],
          "kind": "drilldown"},
-        {"question": f"Which behaviour score bands drove {segment}?",
-         "required_fields": [], "required_quarters": [month],
-         "kind": "drilldown"},
-        {"question": f"Is delinquency or utilisation driving {segment}?",
-         "required_fields": [], "required_quarters": [month],
+        {"question": (f"What drove the change in {measure} for {segment} "
+                      f"in {month}?"),
+         "required_fields": [family.measure],
+         "required_periods": [month], "required_quarters": [month],
          "kind": "diagnostic"},
     ]
+    if finer:
+        out.append({
+            "question": f"Break {segment} down by {finer.replace('_', ' ')}.",
+            "required_fields": [finer],
+            "required_periods": [month], "required_quarters": [month],
+            "kind": "drilldown"})
+    if cross:
+        field, label = cross[0]
+        out.append({
+            "question": f"Split {segment} by {label}.",
+            "required_fields": [field],
+            "required_periods": [month], "required_quarters": [month],
+            "kind": "crosscut"})
+    out.append({
+        "question": f"How has {measure} moved for {segment} over the last "
+                    f"twelve months?",
+        "required_fields": [family.measure],
+        "required_periods": [], "required_quarters": [], "kind": "trend"})
+    if len(out) < 5 and len(cross) > 1:
+        field, label = cross[1]
+        out.insert(-1, {
+            "question": f"Split {segment} by {label}.",
+            "required_fields": [field],
+            "required_periods": [month], "required_quarters": [month],
+            "kind": "crosscut"})
+    return out[:5]
 
 
 def _highlights(session, *, scope: dom.DomainScope, month: str,
@@ -678,15 +723,38 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
                                  else "customers"),
                 "entity_count": 0, "borrower_count": 0,
                 "available": [], "unavailable": ["subsegment"],
+                # §31: five, and every one names a field or a period this
+                # release holds. A thread seeded from an ECL highlight opens
+                # on these, before anybody has typed anything into it.
                 "suggested_questions": [
                 {"question": (f"What drove {subject} ECL in {month}?"
                               if segment else
                               f"Which segments drove ECL in {month}?"),
-                 "required_fields": [], "required_quarters": [month],
+                 "required_fields": ["ecl_sar_mn", dimension],
+                 "required_periods": [month], "required_quarters": [month],
                  "kind": "drilldown"},
-                {"question": f"How has {subject} ECL moved over the latest "
-                             f"year?",
-                 "required_fields": [], "required_quarters": [],
+                {"question": (f"What is {subject} ECL coverage in {month}?"
+                              if segment else
+                              f"What is the book's ECL coverage in {month}?"),
+                 "required_fields": ["ecl_sar_mn", "ead_sar_mn"],
+                 "required_periods": [month], "required_quarters": [month],
+                 "kind": "diagnostic"},
+                {"question": (f"How does {subject} ECL split by stage in "
+                              f"{month}?"),
+                 "required_fields": ["ecl_sar_mn", "stage"],
+                 "required_periods": [month], "required_quarters": [month],
+                 "kind": "drilldown"},
+                {"question": (f"Which {'borrowers' if scope.domain_id == dom.CORPORATE else 'customers'} "
+                              f"carry the most of {subject} ECL in {month}?"),
+                 "required_fields": [
+                     "borrower_id" if scope.domain_id == dom.CORPORATE
+                     else "customer_id", "ecl_sar_mn"],
+                 "required_periods": [month], "required_quarters": [month],
+                 "kind": "drilldown"},
+                {"question": f"How has {subject} ECL moved over the last "
+                             f"twelve months?",
+                 "required_fields": ["ecl_sar_mn"],
+                 "required_periods": [], "required_quarters": [],
                  "kind": "trend"},
             ]},
             "severity": "medium",

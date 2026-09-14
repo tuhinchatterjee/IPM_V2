@@ -6,16 +6,16 @@
       "model": "mock-analyst",
       "max_tokens": 4096,
       "system_blocks": 3,
-      "system_bytes": 32532,
+      "system_bytes": 33389,
       "message_bytes": 221,
       "tools": [
         {
           "name": "inspect_catalog",
-          "schema_bytes": 3956
+          "schema_bytes": 4012
         },
         {
           "name": "execute_analysis",
-          "schema_bytes": 4724
+          "schema_bytes": 4722
         },
         {
           "name": "read_artifact",
@@ -23,7 +23,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10497
+          "schema_bytes": 10495
         }
       ],
       "unsupported_schema_keywords": []
@@ -33,12 +33,12 @@
       "model": "mock-analyst",
       "max_tokens": 4096,
       "system_blocks": 3,
-      "system_bytes": 32528,
+      "system_bytes": 33384,
       "message_bytes": 167,
       "tools": [
         {
           "name": "inspect_catalog",
-          "schema_bytes": 3956
+          "schema_bytes": 4012
         },
         {
           "name": "inspect_product_knowledge",
@@ -46,7 +46,7 @@
         },
         {
           "name": "execute_analysis",
-          "schema_bytes": 4724
+          "schema_bytes": 4722
         },
         {
           "name": "read_artifact",
@@ -54,7 +54,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10497
+          "schema_bytes": 10495
         }
       ],
       "unsupported_schema_keywords": []
@@ -64,16 +64,16 @@
       "model": "mock-analyst",
       "max_tokens": 4096,
       "system_blocks": 3,
-      "system_bytes": 32532,
+      "system_bytes": 33388,
       "message_bytes": 167,
       "tools": [
         {
           "name": "inspect_catalog",
-          "schema_bytes": 3956
+          "schema_bytes": 4012
         },
         {
           "name": "execute_analysis",
-          "schema_bytes": 4724
+          "schema_bytes": 4722
         },
         {
           "name": "read_artifact",
@@ -81,7 +81,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10497
+          "schema_bytes": 10495
         }
       ],
       "unsupported_schema_keywords": []

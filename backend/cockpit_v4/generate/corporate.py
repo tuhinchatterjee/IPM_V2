@@ -76,71 +76,123 @@ _TAIL_PREFIXES: tuple[str, ...] = (
     "Al Faisaliah", "Najd", "Hijaz", "Tuwaiq", "Dhahran", "Qassim",
     "Al Khobar", "Unayzah", "Al Jouf", "Wadi Hanifah", "Rabigh", "Al Ahsa",
     "Sudair", "Al Kharj", "Buraydah", "Taif", "Najran", "Jazan",
+    "Yanbu", "Khamis Mushait", "Al Bahah", "Arar", "Sakaka", "Turaif",
+)
+
+#: The middle of a corporate name. Empty is included deliberately -- plenty
+#: of real companies are two words -- and the rest are the ordinary
+#: descriptors a trading name carries. Prefix x middle x trade word is what
+#: makes a few thousand distinct, reproducible names out of three short
+#: tables, instead of a numbered suffix on the same fifty.
+_TAIL_MIDDLES: tuple[str, ...] = (
+    "", "National", "Arabian", "United", "First", "Modern", "Advanced",
+    "Prime", "Gulf", "Central", "Peninsula", "Integrated", "Premier",
+    "Continental",
 )
 
 #: sector -> (sub-sectors, trade words, home regions)
 _TAIL_SECTORS: dict[str, tuple[tuple[str, ...], tuple[str, ...],
                                tuple[str, ...]]] = {
     "Construction": (("Civil Infrastructure", "Building Contracting",
-                      "Roads and Bridges", "Marine Works"),
+                      "Roads and Bridges", "Marine Works", "Electromechanical",
+                      "Site Preparation"),
                      ("Contracting", "Engineering", "Civil Works"),
                      ("Riyadh", "Makkah", "Eastern Province", "Qassim")),
     "Real Estate": (("Commercial Property", "Mixed Use", "Residential",
-                     "Industrial Parks"),
+                     "Industrial Parks", "Retail Property", "Land Development"),
                     ("Properties", "Estates", "Development"),
                     ("Riyadh", "Makkah", "Madinah", "Eastern Province")),
-    "Hospitality": (("Hotels", "Serviced Apartments", "Catering"),
+    "Hospitality": (("Hotels", "Serviced Apartments", "Catering",
+                     "Resorts", "Travel Services"),
                     ("Hospitality", "Hotels", "Resorts"),
                     ("Makkah", "Madinah", "Riyadh", "Tabuk")),
-    "Retail Trade": (("Department Stores", "Grocery", "Specialty Retail"),
+    "Retail Trade": (("Department Stores", "Grocery", "Specialty Retail",
+                      "Electronics Retail", "Fashion Retail"),
                      ("Retail", "Stores", "Markets"),
                      ("Riyadh", "Hail", "Asir", "Eastern Province")),
     "Transport and Logistics": (("Freight", "Land Transport", "Warehousing",
-                                 "Port Services"),
+                                 "Port Services", "Cold Chain", "Courier"),
                                 ("Logistics", "Transport", "Shipping"),
                                 ("Makkah", "Madinah", "Eastern Province",
                                  "Riyadh")),
     "Manufacturing": (("Industrial Products", "Metal Fabrication",
-                       "Packaging", "Building Materials"),
+                       "Packaging", "Building Materials", "Plastics",
+                       "Machinery"),
                       ("Industries", "Manufacturing", "Works"),
                       ("Qassim", "Eastern Province", "Riyadh", "Asir")),
     "Wholesale Trade": (("General Trading", "Food Distribution",
-                         "Equipment Distribution"),
+                         "Equipment Distribution", "Pharma Distribution",
+                         "Building Supplies"),
                         ("Trading", "Distribution", "Supplies"),
                         ("Riyadh", "Eastern Province", "Makkah")),
     "Agriculture and Agri-processing": (("Food Processing", "Dairy",
-                                         "Poultry", "Grain Handling"),
+                                         "Poultry", "Grain Handling",
+                                         "Aquaculture", "Greenhouse"),
                                         ("Agri", "Farms", "Foods"),
                                         ("Asir", "Qassim", "Hail",
                                          "Northern Borders")),
-    "Metals and Mining": (("Mining", "Smelting", "Aggregates"),
+    "Metals and Mining": (("Mining", "Smelting", "Aggregates",
+                          "Steel Products", "Industrial Minerals"),
                           ("Minerals", "Metals", "Mining"),
                           ("Northern Borders", "Eastern Province", "Hail")),
-    "Healthcare": (("Hospitals", "Clinics", "Pharmaceuticals"),
+    "Healthcare": (("Hospitals", "Clinics", "Pharmaceuticals",
+                   "Diagnostics", "Medical Devices"),
                    ("Medical", "Healthcare", "Care"),
                    ("Riyadh", "Makkah", "Eastern Province")),
-    "Chemicals": (("Petrochemicals", "Specialty Chemicals", "Fertilisers"),
+    "Chemicals": (("Petrochemicals", "Specialty Chemicals", "Fertilisers",
+                  "Industrial Gases", "Polymers"),
                   ("Chemicals", "Petrochemicals", "Industries"),
                   ("Eastern Province", "Madinah", "Riyadh")),
-    "Information Technology": (("IT Services", "Software", "Data Centres"),
+    "Information Technology": (("IT Services", "Software", "Data Centres",
+                               "Systems Integration", "Managed Services"),
                                ("Technologies", "Digital", "Systems"),
                                ("Riyadh", "Eastern Province", "Makkah")),
-    "Power and Utilities": (("Generation", "Renewables", "Water"),
+    "Power and Utilities": (("Generation", "Renewables", "Water",
+                            "Transmission", "Waste to Energy"),
                             ("Energy", "Power", "Utilities"),
                             ("Madinah", "Tabuk", "Eastern Province",
                              "Najran")),
 }
 
-#: Extra names per sector. Weighted so the sectors with an authored story
-#: carry enough obligors for that story to be a SECTOR finding rather than
-#: one company's news.
+#: Extra names per sector, at wholesale scale.
+#:
+#: The book was ninety-seven names. That is not a corporate book; it is a
+#: relationship team's page, and it showed: "EAD by sub-sector" returned
+#: rows holding one obligor each, the largest twenty exposures WERE a fifth
+#: of the book, and every performance figure was measured against a database
+#: small enough to fit in a cache line. A reader cannot tell whether an
+#: answer is fast because the engine is good or because there is nothing in
+#: the table.
+#:
+#: So the tail is now a few thousand. The weights are the same shape as
+#: before -- the sectors carrying an authored story carry more obligors, so
+#: a sector finding is a finding about a sector and not about one company --
+#: multiplied up.
 _TAIL_COUNTS: dict[str, int] = {
-    "Construction": 9, "Real Estate": 8, "Hospitality": 6,
-    "Retail Trade": 6, "Transport and Logistics": 6, "Manufacturing": 7,
-    "Wholesale Trade": 5, "Agriculture and Agri-processing": 5,
-    "Metals and Mining": 4, "Healthcare": 5, "Chemicals": 6,
-    "Information Technology": 5, "Power and Utilities": 5,
+    "Construction": 380, "Real Estate": 340, "Hospitality": 250,
+    "Retail Trade": 250, "Transport and Logistics": 250,
+    "Manufacturing": 300, "Wholesale Trade": 210,
+    "Agriculture and Agri-processing": 210, "Metals and Mining": 170,
+    "Healthcare": 210, "Chemicals": 250, "Information Technology": 210,
+    "Power and Utilities": 210,
 }
+
+
+def _combinations(words: tuple[str, ...]) -> list[str]:
+    """Every name this sector's tables can spell, in a fixed order.
+
+    Enumerated rather than sampled. Sampling needed a collision loop, and a
+    collision loop over a few thousand names is both slow and -- because the
+    bump depended on how many earlier names happened to collide -- a thing
+    that changes when a count changes. Enumeration gives the same name for
+    the same (sector, index) whatever else the book does.
+    """
+    out: list[str] = []
+    for word in words:
+        for middle in _TAIL_MIDDLES:
+            for prefix in _TAIL_PREFIXES:
+                out.append(" ".join(p for p in (prefix, middle, word) if p))
+    return out
 
 
 def _tail() -> tuple[tuple[str, str, str, str], ...]:
@@ -149,21 +201,20 @@ def _tail() -> tuple[tuple[str, str, str, str], ...]:
     out: list[tuple[str, str, str, str]] = []
     for sector in sorted(_TAIL_COUNTS):
         subs, words, regions = _TAIL_SECTORS[sector]
+        names = _combinations(words)
+        cursor = 0
         for index in range(_TAIL_COUNTS[sector]):
+            while True:
+                candidate = names[cursor % len(names)]
+                if cursor >= len(names):
+                    candidate = f"{candidate} {cursor // len(names) + 1}"
+                cursor += 1
+                if candidate not in taken:
+                    break
+            taken.add(candidate)
             seed = _stable(f"{sector}|{index}", 10_000)
-            prefix = _TAIL_PREFIXES[(seed + index) % len(_TAIL_PREFIXES)]
-            word = words[(seed // 7 + index) % len(words)]
-            name = f"{prefix} {word}"
-            bump = 0
-            while name in taken:
-                bump += 1
-                prefix = _TAIL_PREFIXES[(seed + index + bump)
-                                        % len(_TAIL_PREFIXES)]
-                name = f"{prefix} {word}"
-                if bump > len(_TAIL_PREFIXES):
-                    name = f"{prefix} {word} {bump}"
-            taken.add(name)
-            out.append((name, sector, subs[(seed // 3 + index) % len(subs)],
+            out.append((candidate, sector,
+                        subs[(seed // 3 + index) % len(subs)],
                         regions[(seed // 11 + index) % len(regions)]))
     return tuple(out)
 
@@ -237,8 +288,17 @@ def grade_pd(grade: int) -> float:
     """Twelve-month PD for a rating grade, from the master scale."""
     return _clamp(PD_ANCHOR * math.exp(grade / PD_DECAY), 0.0001, 0.40)
 
-FACILITY_TYPES = ("Term Loan", "Revolving Credit", "Working Capital",
-                  "Trade Finance", "Project Finance")
+#: Facility types, as the book's own identifiers.
+#:
+#: `snake_case`, because these are governed values of a governed field and a
+#: governed value that is sometimes "Project Finance" and sometimes "project
+#: finance" is two values. The reader never has to type them this way --
+#: `values.resolve` reads "project finance", "Project-Finance" and "prject
+#: finance" as this one identifier -- and the export, the chart label and
+#: the table header all show the reader's form.
+FACILITY_TYPES = ("term_loan", "revolving_credit", "working_capital",
+                  "trade_finance", "project_finance", "overdraft",
+                  "guarantee", "asset_finance")
 COLLATERAL_TYPES = ("Real Estate", "Plant and Equipment", "Receivables",
                     "Cash Deposit", "Corporate Guarantee")
 COVENANT_TYPES = ("Leverage", "DSCR", "Interest Cover", "Current Ratio",
@@ -271,6 +331,88 @@ COLLATERAL_DRIFT: dict[str, float] = {
     "Receivables": -0.04, "Cash Deposit": 0.0,
     "Corporate Guarantee": -0.02,
 }
+
+
+#: What happens to a name over the twenty months, beyond what its sector
+#: does.
+#:
+#: A book whose only story is "these three sectors got worse" answers one
+#: question. A credit reader asks others: which names improved while their
+#: sector deteriorated, which were already weak and stayed weak, which went
+#: late and then recovered, which defaulted. None of those had an answer in
+#: a book where every obligor simply tracked its sector's ramp multiplied by
+#: a fixed quality number -- the trajectory was monotone for all 97 names,
+#: so nothing ever got better and nothing ever cured.
+#:
+#: Each name is assigned one of these, deterministically from its own name,
+#: and the shape below is added to the sector's stress. The weights are a
+#: portfolio, not a uniform draw: most of a book is stable.
+COHORTS: tuple[str, ...] = ("stable", "improver", "early_deterioration",
+                            "severe_deterioration", "cure", "default")
+COHORT_WEIGHTS: tuple[int, ...] = (60, 15, 13, 6, 4, 2)
+
+#: How hard the per-name stories push, against the sector's own stress.
+#: Tuned, like `STRESS_SCALE`, against the book it produces rather than
+#: chosen: at 1.0 the last month of the window had a ninth of the book
+#: credit-impaired and an ECL coverage ratio near eight per cent, which is a
+#: portfolio in workout and not one a credit committee would be reading
+#: monthly.
+COHORT_SCALE = 0.55
+
+
+def cohort_of(name: str) -> str:
+    """Which story this name is in. A pure function of the name."""
+    draw = _stable(f"cohort|{name}", sum(COHORT_WEIGHTS))
+    running = 0
+    for cohort, weight in zip(COHORTS, COHORT_WEIGHTS):
+        running += weight
+        if draw < running:
+            return cohort
+    return COHORTS[0]
+
+
+def cohort_shape(cohort: str, ramp: float) -> float:
+    """How much stress this cohort's own story adds at this point.
+
+    Zero at the start of the window for every cohort: a book where a name is
+    already mid-story on the first month has no "when did this begin?".
+    """
+    if cohort == "improver":
+        return -0.70 * ramp
+    if cohort == "early_deterioration":
+        # Nothing for the first half, then it turns. This is the cohort the
+        # attention feed is FOR: a name that was fine until recently.
+        return 0.70 * _clamp((ramp - 0.45) / 0.55, 0.0, 1.0)
+    if cohort == "severe_deterioration":
+        return 0.65 * ramp
+    if cohort == "default":
+        return 1.20 * ramp
+    if cohort == "cure":
+        # Up to a peak around two thirds of the way through, then back. The
+        # arrears and the stage follow it down, which is what a cure is.
+        return 2.00 * math.sin(math.pi * _clamp(ramp * 1.45, 0.0, 1.0))
+    return 0.0
+
+
+def cohort_drift(cohort: str, ramp: float) -> float:
+    """The cohort's story, with the book's average story taken out.
+
+    Cohorts REDISTRIBUTE risk; they do not add it. Adding them raw made the
+    whole book worse -- forty-two per cent of the names were in a cohort that
+    only ever pushes upward, so the portfolio's ECL coverage went from three
+    and a half per cent to nearly eight without any sector having a new
+    story. The mean is subtracted so the aggregate stays the book it was and
+    the DISPERSION is what changed: the improvers really improve, the severe
+    names really go, and "which names moved against their sector?" finally
+    has an answer.
+    """
+    return cohort_shape(cohort, ramp) - _cohort_mean(ramp)
+
+
+def _cohort_mean(ramp: float) -> float:
+    total = sum(COHORT_WEIGHTS)
+    return sum(cohort_shape(c, ramp) * w
+               for c, w in zip(COHORTS, COHORT_WEIGHTS)) / total
 
 
 def _jitter(key: str, month: str, spread: float) -> float:
@@ -316,11 +458,31 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+#: Releases this generator no longer produces.
+#:
+#: `v4-saudi-corporate-20m-v1` is a published, fingerprinted release of a
+#: ninety-seven-name book. This generator now writes a three-thousand-name
+#: one, so asking it for v1 would hand back different bytes under a name that
+#: already means something else -- which is the one thing an immutable
+#: release id exists to prevent. Refused by name rather than silently
+#: obliged.
+FROZEN_RELEASES: frozenset[str] = frozenset({"v4-saudi-corporate-20m-v1"})
+
+
+class FrozenRelease(ValueError):
+    """A published release this generator must not rebuild."""
+
+
 def build(release_id: str = "",
           tenant_id: str = lake.DEFAULT_TENANT) -> lake.Build:
     import pandas as pd
 
     release_id = release_id or dom.DEFAULT_RELEASES[dom.CORPORATE]
+    if release_id in FROZEN_RELEASES:
+        raise FrozenRelease(
+            f"{release_id} is published and immutable, and this generator no "
+            f"longer produces it. The current Corporate release is "
+            f"{dom.DEFAULT_RELEASES[dom.CORPORATE]}.")
     months = month_range()
     rng = random.Random(SEED)
 
@@ -341,6 +503,7 @@ def build(release_id: str = "",
             "base_margin": rng.uniform(0.09, 0.28),
             "base_leverage": rng.uniform(1.4, 4.2),
             "quality": rng.uniform(0.0, 1.0),
+            "cohort": cohort_of(name),
         })
         for slot in range(2 + index % 3):
             facilities.append({
@@ -393,6 +556,10 @@ def build(release_id: str = "",
                       * STRESS_SCALE)
             # A borrower's own quality softens or sharpens its sector's story.
             personal = stress * (0.55 + 0.9 * (1 - borrower["quality"]))
+            # And its own story runs on top of its sector's. An improver in
+            # Construction improves; a name in a quiet sector can still be
+            # the one that defaults.
+            personal += cohort_drift(borrower["cohort"], ramp) * COHORT_SCALE
 
             revenue = borrower["base_revenue"] * (
                 1 + 0.035 * season - 0.16 * personal + 0.012 * m_index / 12)
@@ -646,15 +813,26 @@ def build(release_id: str = "",
         frames=frames,
         counts={"borrowers": len(borrowers), "facilities": len(facilities),
                 "groups": len({b["group_name"] for b in borrowers}),
-                "sectors": len({b["sector"] for b in borrowers})},
+                "sectors": len({b["sector"] for b in borrowers}),
+                "sub_sectors": len({b["sub_sector"] for b in borrowers}),
+                "facility_types": len(FACILITY_TYPES),
+                "regions": len({b["region"] for b in borrowers})},
         notes={"rating_scale": list(RATINGS) + [DEFAULT_GRADE],
                "stressed_sectors": [s for s, v in SECTOR_STRESS.items()
                                     if v > 0.3],
                "improving_sectors": [s for s, v in SECTOR_STRESS.items()
-                                     if v < 0]})
+                                     if v < 0],
+               "facility_types": list(FACILITY_TYPES),
+               # The stories the book was written with. Here rather than in
+               # a column, because a real book does not publish a field
+               # saying which of its borrowers were authored to default.
+               "cohorts": {c: sum(1 for b in borrowers if b["cohort"] == c)
+                           for c in COHORTS}})
 
 
-__all__ = ["BORROWERS", "RATINGS", "SECTOR_STRESS", "build",
+__all__ = ["BORROWERS", "COHORTS", "FACILITY_TYPES", "FROZEN_RELEASES",
+           "FrozenRelease", "RATINGS",
+           "SECTOR_STRESS", "build", "cohort_drift", "cohort_of", "cohort_shape",
            "grade_pd", "obligors"]
 
 

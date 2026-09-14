@@ -41,7 +41,12 @@ SHORT_LABELS: dict[str, str] = {CORPORATE: "Corporate", RETAIL: "Retail"}
 #: The release each domain is published as. A domain outlives its releases;
 #: this names the one this build of CreditProbe is written against.
 DEFAULT_RELEASES: dict[str, str] = {
-    CORPORATE: "v4-saudi-corporate-20m-v1",
+    # v2 is the three-thousand-borrower book. v1 was ninety-seven names,
+    # which is a relationship team's page rather than a corporate portfolio:
+    # every sub-sector held one obligor, so a sector movement was one
+    # company's news and nothing measured against it was a measurement. v1
+    # stays published and readable; nothing points at it.
+    CORPORATE: "v4-saudi-corporate-20m-v2",
     RETAIL: "v4-saudi-retail-20m-v1",
 }
 

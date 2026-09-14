@@ -263,6 +263,34 @@ function SeedCard({
 }
 
 /**
+ * What to offer when an answer offered nothing.
+ *
+ * §32. A validated answer may legitimately carry no suggestions -- the
+ * analyst is not required to invent them, and validation drops any that name
+ * a field the release does not hold. The reader then reached the end of a
+ * good answer and had nowhere to go, which is the state the strip exists to
+ * prevent. These are deterministic, book-specific, and cost no model call.
+ */
+const FALLBACK_FOLLOW_UPS: Record<string, string[]> = {
+  corporate: [
+    "Break this down by sector.",
+    "Which borrowers drove this?",
+    "How has this moved over the last twelve months?",
+    "Show the same figure by facility type.",
+  ],
+  retail: [
+    "Break this down by product.",
+    "Which customer segments drove this?",
+    "How has this moved over the last twelve months?",
+    "Show the same figure by region.",
+  ],
+};
+
+function fallbackFollowUps(domainId: string): string[] {
+  return FALLBACK_FOLLOW_UPS[domainId] ?? [];
+}
+
+/**
  * What to ask next, where the next question gets typed.
  *
  * §24: the chips belong between the answer and the composer, not buried in
@@ -282,27 +310,40 @@ function FollowUps({
   onAsk: (question: string) => void;
 }) {
   if (!questions.length) return null;
+  // §34. An OPAQUE band, with the label on its own line.
+  //
+  // The strip used to sit in the transparent top of the composer's gradient
+  // with `items-center`, so a chip that wrapped to two lines overlapped the
+  // transcript showing through behind it, and the "Ask next" label collided
+  // with the first chip at narrow widths. Three fixes, all of them the same
+  // fix: give the strip its own background so nothing shows through it,
+  // break the label onto its own row so it can never share a line with a
+  // chip, and align the chips to the TOP of the row so a chip that wraps
+  // grows downward into the band's own padding rather than over its
+  // neighbour.
   return (
     <div
       data-testid="v4-followups"
-      className="flex flex-wrap items-center gap-2 pt-2"
+      className="mb-3 rounded-xl border border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_-4px_12px_-8px_rgba(15,23,42,0.25)] backdrop-blur-sm"
     >
-      <span className="text-xs uppercase tracking-wide text-slate-400">
+      <span className="mb-1.5 block text-[11px] uppercase tracking-wide text-slate-400">
         Ask next
       </span>
-      {questions.map((question) => (
-        <button
-          key={question}
-          type="button"
-          data-testid="v4-followup-chip"
-          disabled={busy}
-          dir="auto"
-          onClick={() => onAsk(question)}
-          className="rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {question}
-        </button>
-      ))}
+      <div className="flex flex-wrap items-start gap-x-2 gap-y-2">
+        {questions.map((question) => (
+          <button
+            key={question}
+            type="button"
+            data-testid="v4-followup-chip"
+            disabled={busy}
+            dir="auto"
+            onClick={() => onAsk(question)}
+            className="max-w-full rounded-full border border-slate-300 bg-white px-3 py-1.5 text-left text-xs leading-5 text-slate-700 hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {question}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -867,12 +908,29 @@ export function CockpitV4Thread({
     : turns.length
       ? turns[turns.length - 1].answer
       : null;
+  // §31/§32. Three sources, in order of authority, and never two at once.
+  //
+  //  1. the newest ANSWER's own follow-ups, when it offered any;
+  //  2. the book's deterministic fallbacks, when it did not -- a turn that
+  //     ends with an answer and no next question leaves the reader at a
+  //     dead end, and the follow-ups are the whole reason the strip exists;
+  //  3. the thread's OPENING questions, while it is still empty. A thread
+  //     seeded from a card opens on that card's five.
+  const answered = Boolean(latest);
+  const offered = (latest?.suggested_questions ?? [])
+    .map((s) => s.question)
+    .filter(Boolean);
+  const opening = (transcript?.opening_questions ?? [])
+    .map((s) => s.question)
+    .filter(Boolean);
   const followUps = busy
     ? []
-    : (latest?.suggested_questions ?? [])
-        .map((s) => s.question)
-        .filter(Boolean)
-        .slice(0, 4);
+    : answered
+      ? (offered.length
+          ? offered
+          : fallbackFollowUps(transcript?.domain_id ?? "")
+        ).slice(0, 4)
+      : opening.slice(0, 5);
 
   if (loadError) {
     return (

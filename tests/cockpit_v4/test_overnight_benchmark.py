@@ -250,7 +250,7 @@ def _execute_call(question_id: str, period: dict) -> dict:
                          rationale="read the published measures directly"),
         "objective": question["text"],
         "subquestions": [question["text"]],
-        "scope": {"reporting_quarters": _quarters_for(question, period),
+        "scope": {"reporting_periods": _quarters_for(question, period),
                   "filters": question.get("filters", {})},
         "metadata_receipt_ids": [],
         "fields_required": _fields_for(question),

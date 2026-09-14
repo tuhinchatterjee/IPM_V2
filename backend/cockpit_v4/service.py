@@ -446,6 +446,22 @@ def diagnostics(cfg: V4Config | None = None, *,
         "standard": config_mod.STANDARD_LIMITS.__dict__,
         "deep": config_mod.DEEP_LIMITS.__dict__,
     }
+    # §12. The whole allowance ladder, by name, so an operator reading a run
+    # that stopped on time can see which family it was in and what that
+    # family allows -- without reading the source, and without inferring it
+    # from the number of seconds in an error message.
+    from backend.cockpit_v4 import envelope as envelope_mod
+
+    report["budget_policy"] = {
+        "families": envelope_mod.policy(),
+        "how_it_is_chosen": (
+            "Before the first provider call, from the question, the mode and "
+            "the thread: a conversation opened from an attention card, or "
+            "one whose earlier turn ran an analysis, starts on the analysis "
+            "allowance. The allowance only ever widens afterwards -- an "
+            "analyst declaring DATA_ANALYSIS, or calling execute_analysis, "
+            "still widens a turn that started on the product-help clock."),
+    }
     askable = [d["domain_id"] for d in checks["domains"]["books"]
                if d["analysis_ready"]]
     report["analysis_domains"] = askable

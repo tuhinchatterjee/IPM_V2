@@ -37,7 +37,7 @@ def _submission(sql: str, *, blocking=(), resolved=(), mappings=(),
         "intent": intent("DATA_ANALYSIS", "COCKPIT", ambiguities=list(blocking),
                          resolved=list(resolved), mappings=list(mappings)),
         "objective": "o", "subquestions": ["a"],
-        "scope": {"reporting_quarters": [], "filters": {}},
+        "scope": {"reporting_periods": [], "filters": {}},
         "metadata_receipt_ids": [], "fields_required": ["f"],
         "expected_output_grain": "sector", "expected_units": "SAR million",
         "steps": [{"step_id": step_id, "language": "sql", "code": sql,
@@ -367,23 +367,41 @@ def test_question_d_ecl_faster_than_exposure_matches_the_oracle(service,
 
 # ---- 5. budgets, deadlines and the answer reserve ----------------------
 
-def test_a_declared_analysis_widens_the_time_and_cost_allowance(drive,
-                                                                store_db):
-    """The mode is not knowable at intake, so the run widens when it is."""
-    def submit(_messages):
-        return ScriptedResult(tool_calls=[tool_call(
-            "finalize_response",
-            final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
-                  disposition="partial_answer",
-                  narrative="Nothing to report yet."))])
+def _declares_analysis(_messages):
+    return ScriptedResult(tool_calls=[tool_call(
+        "finalize_response",
+        final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
+              disposition="partial_answer",
+              narrative="Nothing to report yet."))])
 
-    _outcome, _provider, record = drive("EAD by sector", [submit])
+
+def test_an_analytical_question_runs_on_the_analysis_allowance(drive,
+                                                               store_db):
+    """§9. A question that names a measure is on the analysis clock from its
+    first second, not once the analyst has spent a generation saying so."""
+    _outcome, _provider, record = drive("EAD by sector", [_declares_analysis])
     budget = store_db.get_run(record.run_id).budget
     assert budget["deadline_seconds"] == 120.0
     assert budget["spend_ceiling_usd"] == 1.50
     messages = [e.public_message
                 for e in store_db.events_since(record.run_id)]
-    assert any("Analysis allowance: 120s, $1.50" in m for m in messages)
+    assert any("Allowance: 120s, $1.50" in m for m in messages), messages
+
+
+def test_a_declared_analysis_still_widens_a_run_that_started_narrow(
+        drive, store_db):
+    """The widening path is the fallback, and it is still load-bearing: a
+    question the envelope could not read as analytical, whose analyst then
+    declares one, gets the analysis allowance on the declaration."""
+    _outcome, _provider, record = drive("Tell me more", [_declares_analysis])
+    budget = store_db.get_run(record.run_id).budget
+    assert budget["deadline_seconds"] == 120.0
+    assert budget["spend_ceiling_usd"] == 1.50
+    events = store_db.events_since(record.run_id)
+    messages = [e.public_message for e in events]
+    assert any("Analysis allowance: 120s, $1.50" in m for m in messages), (
+        f"the run must widen on the declaration; messages were {messages}")
+    assert "budget" in [e.operation for e in events]
 
 
 def test_a_product_question_keeps_the_tight_allowance(drive, store_db):
@@ -458,7 +476,7 @@ def test_the_first_analytical_failure_survives_a_later_terminal_stop(
         return ScriptedResult(tool_calls=[tool_call("execute_analysis", {
             "intent": intent("DATA_ANALYSIS", "COCKPIT"),
             "objective": "o", "subquestions": ["a"],
-            "scope": {"reporting_quarters": [], "filters": {}},
+            "scope": {"reporting_periods": [], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": ["f"],
             "expected_output_grain": "sector", "expected_units": "u",
             "steps": [{"step_id": "s1", "language": "sql", "code": broken,

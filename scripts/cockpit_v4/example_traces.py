@@ -109,7 +109,7 @@ def _exec_call(sql: str, call_id="tu-1", step_id="s1"):
                          understood="reported EAD by sector, latest quarter"),
         "objective": "Reported EAD by sector for the latest quarter",
         "subquestions": ["EAD by sector for the latest quarter"],
-        "scope": {"reporting_quarters": [quarter], "filters": {}},
+        "scope": {"reporting_periods": [quarter], "filters": {}},
         "metadata_receipt_ids": [],
         "fields_required": ["cockpit_facility_quarter.ead_reported",
                             "cockpit_facility_quarter.sector_name"],
@@ -227,7 +227,7 @@ def main() -> int:
                 "inspect_catalog",
                 {"intent": intent("DATA_ANALYSIS", "COCKPIT"),
                  "query": "exposure", "relation_ids": [], "field_ids": [],
-                 "detail": ["discovery"], "reporting_quarters": [],
+                 "detail": ["discovery"], "reporting_periods": [],
                  "sample_rows": 0, "cursor": ""}, f"tu-{i}")])
             for i in range(20)])
         thread_id = store.create_thread(tenant_id="demo-tenant",

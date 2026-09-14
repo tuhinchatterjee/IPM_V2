@@ -62,7 +62,7 @@ def _execute_call(question_id: str, period: dict) -> dict:
                          rationale="read the published measures directly"),
         "objective": question["text"],
         "subquestions": [question["text"]],
-        "scope": {"reporting_quarters": sorted(
+        "scope": {"reporting_periods": sorted(
             {v for k, v in _params(question_id, period).items()
              if k != "sector"}), "filters": {}},
         "metadata_receipt_ids": [],

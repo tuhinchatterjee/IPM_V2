@@ -201,7 +201,7 @@ def test_asking_for_the_covenant_relation_returns_all_of_it(runtime,
     result = service.inspect(parse_catalog({
         "intent": intent("DATA_ANALYSIS", "COCKPIT"), "query": "",
         "relation_ids": [COVENANT], "field_ids": [], "detail": ["fields"],
-        "reporting_quarters": [], "sample_rows": 0, "cursor": ""}))
+        "reporting_periods": [], "sample_rows": 0, "cursor": ""}))
 
     delivered = len(result["fields"]) + int(
         (result.get("omitted") or {}).get("remaining_fields", 0))

@@ -829,6 +829,81 @@ def _period_column(catalog: Any) -> str:
     return "reporting_quarter"
 
 
+#: The tokens a prompt or a tool schema may carry, so that neither has to
+#: hard-code a calendar. Substituted from the book the RUN is reading.
+VOCABULARY_TOKENS = ("PERIOD", "PERIODS", "PERIOD_COLUMN", "PERIOD_FIELD",
+                     "LATEST_PERIOD", "PRIOR_PERIOD", "FREQUENCY",
+                     "PERIOD_EXAMPLE", "MAPPED_TERM_EXAMPLE")
+
+#: What to say when there is no book to ask. Neutral, and deliberately not a
+#: calendar: a prompt with no release open must not name one.
+NEUTRAL_VOCABULARY: dict[str, str] = {
+    "PERIOD": "period", "PERIODS": "periods",
+    "PERIOD_COLUMN": "the reporting period column",
+    "PERIOD_FIELD": "reporting_periods",
+    "LATEST_PERIOD": "the latest populated period",
+    "PRIOR_PERIOD": "the one before it",
+    "FREQUENCY": "as this release reports",
+    "PERIOD_EXAMPLE": ("period not specified: using the latest populated "
+                       "period against the one before it"),
+    "MAPPED_TERM_EXAMPLE": "EAD by segment for the latest period",
+}
+
+
+def vocabulary(catalog: Any = None) -> dict[str, str]:
+    """The period words for THIS book, for a prompt or a tool schema.
+
+    The defect this exists for
+    --------------------------
+    The analyst instruction and EVERY tool schema hard-coded a quarterly
+    worked example -- "period not specified: using the latest populated
+    quarter 2026Q2 against 2026Q1" -- and the execution schema named its
+    field `reporting_quarters`. A live Corporate run against the MONTHLY book
+    was therefore handed a catalogue that said monthly and a contract that
+    said quarterly, and it believed the contract, because the contract is the
+    thing it has to fill in. It replied "this book is recorded quarterly, not
+    monthly" and offered 2026Q2.
+
+    So the vocabulary comes from the book. There is no default calendar
+    anywhere in the prompt or the schema.
+    """
+    if catalog is None:
+        return dict(NEUTRAL_VOCABULARY)
+    noun = period_noun(catalog)
+    slots = populated_periods(catalog)
+    latest = slots[-1] if slots else ""
+    prior = slots[-2] if len(slots) >= 2 else ""
+    column = _period_column(catalog)
+    segment = ""
+    for mapping in measures(catalog):
+        if mapping["term"] == "segment":
+            segment = mapping["field"]
+            break
+    return {
+        "PERIOD": noun,
+        "PERIODS": f"{noun}s",
+        "PERIOD_COLUMN": column,
+        "PERIOD_FIELD": f"reporting_{noun}s",
+        "LATEST_PERIOD": latest or f"the latest populated {noun}",
+        "PRIOR_PERIOD": prior or f"the {noun} before it",
+        "FREQUENCY": frequency(catalog),
+        "PERIOD_EXAMPLE": (
+            f"period not specified: using the latest populated {noun} "
+            f"{latest} against {prior}" if latest and prior else
+            f"period not specified: using the latest populated {noun}"),
+        "MAPPED_TERM_EXAMPLE": (
+            f"EAD by {segment or 'segment'} for the latest {noun}"),
+    }
+
+
+def substitute(text: str, catalog: Any = None) -> str:
+    """Replace every `{{TOKEN}}` with this book's word for it."""
+    words = vocabulary(catalog)
+    for token, value in words.items():
+        text = text.replace("{{" + token + "}}", str(value))
+    return text
+
+
 def period_phrases(question: str, catalog: Any = None) -> list[str]:
     """Which period phrases the question actually used. Deterministic."""
     text = re.sub(r"\s+", " ", (question or "").lower())
@@ -889,4 +964,6 @@ __all__ = ["AMBIGUOUS_TERMS", "MAX_SEED_FIELDS", "SEED_FIELDS",
            "SEED_FIELDS_BY_DOMAIN", "ambiguous_terms", "ambiguous_terms_in",
            "block", "domain_of", "field_packet", "frequency", "measure_table",
            "measures", "period_noun", "period_phrases", "periods",
-           "populated_periods", "populated_quarters", "seed_field_packet"]
+           "NEUTRAL_VOCABULARY", "VOCABULARY_TOKENS", "populated_periods",
+           "populated_quarters", "seed_field_packet", "substitute",
+           "vocabulary"]

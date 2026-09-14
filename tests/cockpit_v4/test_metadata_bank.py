@@ -66,7 +66,7 @@ def ask(service, **over):
                        "canonical_mappings": [], "excluded_parts": [],
                        "public_rationale": "metadata"},
             "query": "", "relation_ids": [], "field_ids": [],
-            "detail": ["discovery"], "reporting_quarters": [],
+            "detail": ["discovery"], "reporting_periods": [],
             "sample_rows": 0, "cursor": ""}
     body.update(over)
     return service.inspect(parse_catalog(body))

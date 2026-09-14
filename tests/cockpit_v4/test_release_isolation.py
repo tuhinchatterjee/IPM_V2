@@ -390,7 +390,7 @@ def test_an_executed_result_carries_its_own_releases_money_unit(
                    "resolved_assumptions": [], "canonical_mappings": [],
                    "excluded_parts": [], "public_rationale": "direct"},
         "objective": "o", "subquestions": ["a"],
-        "scope": {"reporting_quarters": [], "filters": {}},
+        "scope": {"reporting_periods": [], "filters": {}},
         "metadata_receipt_ids": [],
         "fields_required": ["cockpit_facility_quarter.ead_reported"],
         "expected_output_grain": "sector", "expected_units": "amount",

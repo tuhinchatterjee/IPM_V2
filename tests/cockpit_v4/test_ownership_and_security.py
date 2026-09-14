@@ -25,7 +25,7 @@ def _exec_args(sql: str, mode="DATA_ANALYSIS", owner="COCKPIT",
                ambiguities=()):
     return {"intent": intent(mode, owner, ambiguities=list(ambiguities)),
             "objective": "o", "subquestions": ["a"],
-            "scope": {"reporting_quarters": [], "filters": {}},
+            "scope": {"reporting_periods": [], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": ["f"],
             "expected_output_grain": "g", "expected_units": "u",
             "steps": [{"step_id": "s1", "language": "sql", "code": sql,
@@ -109,7 +109,7 @@ def test_samples_are_refused_outside_a_data_analysis():
         parse_catalog({"intent": intent("PRODUCT_HELP", "COCKPIT"),
                        "query": "", "relation_ids": ["cockpit_facility_quarter"],
                        "field_ids": [], "detail": ["samples"],
-                       "reporting_quarters": [], "sample_rows": 5,
+                       "reporting_periods": [], "sample_rows": 5,
                        "cursor": ""})
     assert excinfo.value.code == st.SECURITY_DENIED
 

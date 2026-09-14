@@ -53,7 +53,7 @@
             "type": "string"
           },
           "minItems": 0,
-          "description": "Choices you made and are declaring, e.g. 'period not specified: using the latest populated quarter 2026Q2 against 2026Q1'. Shown in the trace and in your answer. Does not stop execution. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+          "description": "Choices you made and are declaring, e.g. '{{PERIOD_EXAMPLE}}'. Shown in the trace and in your answer. Does not stop execution. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
         },
         "canonical_mappings": {
           "type": [
@@ -98,7 +98,7 @@
     "Scope": {
       "type": "object",
       "properties": {
-        "reporting_quarters": {
+        "reporting_periods": {
           "type": "array",
           "items": {
             "type": "string"
@@ -127,7 +127,7 @@
         }
       },
       "required": [
-        "reporting_quarters",
+        "reporting_periods",
         "filters"
       ],
       "additionalProperties": false
@@ -278,7 +278,7 @@
           },
           "minItems": 0
         },
-        "required_quarters": {
+        "required_periods": {
           "type": "array",
           "items": {
             "type": "string"
@@ -297,7 +297,7 @@
       "required": [
         "question",
         "required_fields",
-        "required_quarters",
+        "required_periods",
         "kind"
       ],
       "additionalProperties": false

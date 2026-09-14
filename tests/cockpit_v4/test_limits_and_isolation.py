@@ -73,7 +73,7 @@ def test_a_partial_output_is_never_executed(drive, release_id):
         ScriptedResult(tool_calls=[tool_call("execute_analysis", {
             "intent": intent("DATA_ANALYSIS", "COCKPIT"), "objective": "o",
             "subquestions": ["a"],
-            "scope": {"reporting_quarters": [quarter], "filters": {}},
+            "scope": {"reporting_periods": [quarter], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": [],
             "expected_output_grain": "g", "expected_units": "u",
             "steps": [{"step_id": "s1", "language": "sql",

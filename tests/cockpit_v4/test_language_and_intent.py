@@ -205,7 +205,7 @@ def _ead_script(quarter: str, top_sector: str):
                          understood="reported EAD by sector, latest quarter"),
         "objective": "Reported EAD by sector for the latest quarter",
         "subquestions": ["EAD by sector"],
-        "scope": {"reporting_quarters": [quarter], "filters": {}},
+        "scope": {"reporting_periods": [quarter], "filters": {}},
         "metadata_receipt_ids": [],
         "fields_required": ["cockpit_facility_quarter.ead_reported",
                             "cockpit_facility_quarter.sector_name"],

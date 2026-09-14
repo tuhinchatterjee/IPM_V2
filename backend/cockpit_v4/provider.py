@@ -148,6 +148,17 @@ class Analyst:
                 INVALID_MODEL_OUTPUT,
                 f"{len(self._pending)} tool call(s) are unanswered; a user "
                 f"turn cannot be appended before their tool results.")
+        # Appended to the turn that is already there when the last message is
+        # the reader's side. A run that answers a tool call and then has
+        # something more to say -- "there is no time for another action,
+        # write the answer" -- is still ONE user turn, and sending two in a
+        # row is a malformed conversation on some providers and a silently
+        # merged one on others.
+        if (self.messages and self.messages[-1]["role"] == "user"
+                and isinstance(self.messages[-1].get("content"), list)):
+            self.messages[-1]["content"].append(
+                {"type": "text", "text": text})
+            return
         self.messages.append({"role": "user", "content": text})
 
     def tool_result(self, tool_use_id: str, payload: Any, *,

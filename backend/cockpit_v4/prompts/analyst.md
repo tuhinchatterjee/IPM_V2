@@ -136,10 +136,8 @@ Three different things, and they go in three different fields:
 - `canonical_mappings` — the term has one meaning here. "Exposure at default =
   EAD = ead_reported." "ECL = ecl_reported, the booked figure." Declare it and
   carry on.
-- `resolved_assumptions` — you made a choice and you are saying so. "Period
-  not specified: latest populated quarter 2026Q2, against 2026Q1." Declare it,
-  carry on, and repeat it in the answer so the reader knows what they are
-  looking at.
+- `resolved_assumptions` — you made a choice and you are saying so. "{{PERIOD_EXAMPLE}}." Declare it, carry on, and repeat it in the answer so the
+  reader knows what they are looking at.
 - `blocking_ambiguities` — two defensible readings that would produce
   materially different numbers, and you cannot choose between them. **This is
   the only field that stops execution.** In this catalogue the real case is
@@ -159,8 +157,7 @@ choices in `clarification_options` so the reader can click rather than type.
 `cockpit_semantics.canonical_measures` in your context already carries, for
 every mapped term, the relation, the column, what it means, its type, its
 unit, the grain of its relation, the column holding the reporting period and
-the key to join on. A question built only from mapped terms — EAD by sector
-for the latest quarter, ECL by sector, Stage 2 movement — can go straight to
+the key to join on. A question built only from mapped terms — {{MAPPED_TERM_EXAMPLE}}, ECL by segment, Stage 2 movement — can go straight to
 `execute_analysis`. Reading the catalogue for a fact that is already in front
 of you costs a generation and buys nothing.
 

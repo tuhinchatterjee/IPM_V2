@@ -36,6 +36,21 @@ from backend.cockpit_v4 import states as st
 
 TOLERANCE = 1e-6
 
+#: How many rows a "which are the biggest" question asks for.
+#:
+#: The Corporate book holds three thousand borrowers and sixteen hundred
+#: groups. A query with no LIMIT against it returns a result whose PREVIEW is
+#: capped, and comparing a capped preview against a complete oracle finds a
+#: difference that is the cap and calls it an error. A top-N question asks
+#: for a top N.
+TOP_N = 25
+
+
+def top_n(values: dict[str, float], n: int = TOP_N) -> dict[str, float]:
+    """The oracle, sliced exactly as the query slices it."""
+    return dict(sorted(values.items(),
+                       key=lambda kv: (-float(kv[1]), kv[0]))[:n])
+
 
 @pytest.fixture(scope="module", autouse=True)
 def _both_books_published():
@@ -268,14 +283,19 @@ def test_c05_corporate_exposure_by_borrower_does_not_multiply(drive_domain,
             f"SELECT b.borrower_name, t.ead_sar_mn FROM by_borrower t "
             f"JOIN corp_borrower_month b ON b.borrower_id = t.borrower_id "
             f"AND b.reporting_month = '{month}' "
-            f"ORDER BY t.ead_sar_mn DESC",
+            # "The MOST exposure" is a top-N question, and this book holds
+            # three thousand borrowers. Asking for all of them and reading
+            # the first hundred rows of the preview would compare a truncated
+            # answer against a complete oracle and call the difference a
+            # defect. The query says what it wants.
+            f"ORDER BY t.ead_sar_mn DESC, b.borrower_name LIMIT {TOP_N}",
         fields=["corp_facility_month.ead_sar_mn",
                 "corp_borrower_month.borrower_name"],
         purpose="EAD by borrower", grain="borrower", units="SAR million",
         month=month)
     produced = keyed(case.rows, "borrower_name",
                      "ead_sar_mn")
-    expected = oracle.corp_ead_by_borrower(month)
+    expected = top_n(oracle.corp_ead_by_borrower(month))
     assert set(produced) == set(expected)
     for name, value in expected.items():
         assert produced[name] == pytest.approx(value, abs=TOLERANCE)
@@ -678,7 +698,7 @@ def test_c07_corporate_downgrades_this_month(drive_domain, store_db):
         sql=f"SELECT borrower_name, -rating_notches_moved AS notches_down, "
             f"rating_previous, rating_current FROM corp_borrower_month "
             f"WHERE reporting_month = '{month}' AND rating_notches_moved < 0 "
-            f"ORDER BY notches_down DESC, borrower_name",
+            f"ORDER BY notches_down DESC, borrower_name LIMIT {TOP_N}",
         fields=["corp_borrower_month.borrower_name",
                 "corp_borrower_month.rating_notches_moved",
                 "corp_borrower_month.rating_current"],
@@ -686,7 +706,11 @@ def test_c07_corporate_downgrades_this_month(drive_domain, store_db):
         units="notches", month=month)
     produced = {str(r["borrower_name"]): int(r["notches_down"])
                 for r in case.rows["rows"]}
-    assert produced == oracle.corp_downgrades(month)
+    every = oracle.corp_downgrades(month)
+    assert produced == dict(sorted(every.items(),
+                                   key=lambda kv: (-kv[1], kv[0]))[:TOP_N])
+    # And the book really does have downgrades to find.
+    assert len(every) >= 1
 
 
 def test_c08_corporate_covenant_breaches_and_the_exposure_behind_them(
@@ -793,13 +817,14 @@ def test_c11_corporate_group_concentration(drive_domain, store_db):
             f"JOIN corp_borrower_month b ON b.borrower_id = f.borrower_id "
             f"AND b.reporting_month = f.reporting_month "
             f"WHERE f.reporting_month = '{month}' "
-            f"GROUP BY b.group_name ORDER BY ead_sar_mn DESC",
+            f"GROUP BY b.group_name "
+            f"ORDER BY ead_sar_mn DESC, b.group_name LIMIT {TOP_N}",
         fields=["corp_facility_month.ead_sar_mn",
                 "corp_borrower_month.group_name"],
         purpose="Group exposure concentration", grain="group",
         units="SAR million", month=month)
     produced = keyed(case.rows, "group_name", "ead_sar_mn")
-    expected = oracle.corp_ead_by_group(month)
+    expected = top_n(oracle.corp_ead_by_group(month))
     assert set(produced) == set(expected)
     for name, value in expected.items():
         assert produced[name] == pytest.approx(value, abs=1e-4)

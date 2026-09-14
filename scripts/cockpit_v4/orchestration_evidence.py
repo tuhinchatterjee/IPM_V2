@@ -126,7 +126,7 @@ def _case_file_vs_relation_dump(runtime, sem) -> dict:  # noqa: ANN001
                          rationale=("no covenant column is a canonical "
                                     "measure")),
         "query": "", "relation_ids": ["cockpit_covenant_quarter"],
-        "field_ids": [], "detail": ["fields"], "reporting_quarters": [],
+        "field_ids": [], "detail": ["fields"], "reporting_periods": [],
         "sample_rows": 0, "cursor": ""}))
     case = sem.seed_field_packet(runtime.catalog, "covenant_breach_share")
 

@@ -186,6 +186,24 @@ class Ledger:
                 f"({self.limits.finalization_reserve_seconds:.0f}s is held "
                 f"back to write one).")
 
+    def action_window_closed(self) -> bool:
+        """Is there still time for another ACTION, or only for an answer?
+
+        The same arithmetic as `check_call_window`, asked rather than
+        enforced. The reserve exists so a run can write up what it has; a
+        reserve that is only ever discovered by an exception is a reserve
+        that expires unspent, which is what it was created to prevent.
+        """
+        if self.counters.generation_attempts < 1:
+            return False
+        floor = (self.limits.min_call_seconds
+                 + self.limits.finalization_reserve_seconds)
+        return self.remaining_seconds < floor
+
+    def answer_window_open(self) -> bool:
+        """Is there still time to write an answer at all?"""
+        return self.remaining_seconds >= self.limits.min_call_seconds
+
     def check_deadline(self) -> None:
         if self.remaining_seconds <= 0:
             raise BudgetExceeded(

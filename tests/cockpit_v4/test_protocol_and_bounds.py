@@ -19,7 +19,7 @@ from backend.cockpit_v4.contracts import Rejection, parse_steps
 def _exec(sql: str, call_id="tu-1", step_id="s1", **over):
     body = {"intent": intent("DATA_ANALYSIS", "COCKPIT"),
             "objective": "o", "subquestions": ["a"],
-            "scope": {"reporting_quarters": [], "filters": {}},
+            "scope": {"reporting_periods": [], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": ["f"],
             "expected_output_grain": "sector", "expected_units": "SAR million",
             "steps": [{"step_id": step_id, "language": "sql", "code": sql,
@@ -89,7 +89,7 @@ def test_batched_reads_are_allowed_and_bounded(drive):
     """V4-AT-015 (the permitted half). Independent reads may batch."""
     catalog_args = {"intent": intent("DATA_ANALYSIS", "COCKPIT"),
                     "query": "exposure", "relation_ids": [], "field_ids": [],
-                    "detail": ["discovery"], "reporting_quarters": [],
+                    "detail": ["discovery"], "reporting_periods": [],
                     "sample_rows": 0, "cursor": ""}
     outcome, provider, _ = drive(
         "what is exposure",
@@ -290,7 +290,7 @@ def test_the_run_deadline_stops_the_loop(drive, store_db, make_run,
         "inspect_catalog",
         {"intent": intent("DATA_ANALYSIS", "COCKPIT"), "query": "x",
          "relation_ids": [], "field_ids": [], "detail": ["discovery"],
-         "reporting_quarters": [], "sample_rows": 0, "cursor": ""},
+         "reporting_periods": [], "sample_rows": 0, "cursor": ""},
         f"tu-{i}")]) for i in range(30)])
     runtime.provider = provider
     worker = Worker(store=store_db, runtime=runtime)

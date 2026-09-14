@@ -585,9 +585,32 @@ class CatalogRequest:
     relation_ids: tuple[str, ...]
     field_ids: tuple[str, ...]
     detail: tuple[str, ...]
-    reporting_quarters: tuple[str, ...]
+    #: Reporting periods, under whichever name the analyst used. A book that
+    #: reports monthly is asked about months; one that reports quarterly is
+    #: asked about quarters; the request means the same thing either way and
+    #: refusing one spelling would be refusing a valid tool call.
+    reporting_periods: tuple[str, ...]
     sample_rows: int
     cursor: str
+
+    @property
+    def reporting_quarters(self) -> tuple[str, ...]:
+        """The name this field had before the Cockpit had a monthly book."""
+        return self.reporting_periods
+
+
+#: Every spelling of "which periods" an analyst may send. The tool schema
+#: offers `reporting_periods`; a book that reports monthly may prompt the
+#: word "months" in its own description, and a run carried over from the
+#: quarterly release may still say quarters. All three are the same request.
+PERIOD_KEYS = ("reporting_periods", "reporting_months", "reporting_quarters")
+
+
+def _periods(payload: dict[str, Any], tool: str) -> tuple[str, ...]:
+    for key in PERIOD_KEYS:
+        if payload.get(key) is not None:
+            return _optional_str_list(payload, key, tool)
+    return ()
 
 
 def parse_catalog(payload: Any, *,
@@ -639,8 +662,7 @@ def parse_catalog(payload: Any, *,
                                         "inspect_catalog"),
         field_ids=_optional_str_list(payload, "field_ids", "inspect_catalog"),
         detail=detail,
-        reporting_quarters=_optional_str_list(payload, "reporting_quarters",
-                                              "inspect_catalog"),
+        reporting_periods=_periods(payload, "inspect_catalog"),
         sample_rows=rows,
         cursor=_optional_text(payload, "cursor", "inspect_catalog"))
 
@@ -1096,7 +1118,7 @@ _DESCRIPTIONS = {
     TOOL_INSPECT: ("Read exact catalog metadata for the authorized "
                    "corporate_cockpit release: relation names and grains, "
                    "field definitions, units, valid joins, coverage by "
-                   "reporting quarter and missingness. Returns what is "
+                   "reporting {{PERIOD}} and missingness. Returns what is "
                    "there; an empty search is an empty search."),
     TOOL_EXECUTE: ("Submit your own exact SQL or Python. CreditProbe "
                    "validates and executes it unchanged, or rejects it with "
@@ -1117,8 +1139,20 @@ _DESCRIPTIONS = {
 }
 
 
-def provider_tools(*, withhold: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+def provider_tools(*, withhold: tuple[str, ...] = (),
+                   catalog: Any = None) -> list[dict[str, Any]]:
     """The tool definitions, in the provider's wire shape.
+
+    `catalog` supplies the PERIOD VOCABULARY. Every schema description that
+    needs to name a period carries a token rather than a calendar, because
+    the alternative was what shipped: a worked example reading "period not
+    specified: using the latest populated quarter 2026Q2 against 2026Q1" on
+    every tool, handed to a run reading a monthly book. The analyst believed
+    the contract over the catalogue -- correctly, since the contract is what
+    it has to fill in -- and answered that the book was quarterly.
+
+    With no catalogue the tokens resolve to neutral words and NO calendar is
+    named, which is the only safe thing to say when there is no book open.
 
     `withhold` removes a tool from THIS request only. It exists for exactly
     one thing: a broad product question whose answer is already covered by
@@ -1145,9 +1179,23 @@ def provider_tools(*, withhold: tuple[str, ...] = ()) -> list[dict[str, Any]]:
         if name in blocked:
             continue
         schema = _intent_optional(_inline(_load(files[name]), defs))
-        tools.append({"name": name, "description": _DESCRIPTIONS[name],
-                      "input_schema": schema})
+        tools.append({"name": name,
+                      "description": _speak(_DESCRIPTIONS[name], catalog),
+                      "input_schema": _speak(schema, catalog)})
     return tools
+
+
+def _speak(value: Any, catalog: Any) -> Any:
+    """Resolve every `{{TOKEN}}` in a schema or a description."""
+    from backend.cockpit_v4 import semantics as sem
+
+    if isinstance(value, str):
+        return sem.substitute(value, catalog) if "{{" in value else value
+    if isinstance(value, dict):
+        return {k: _speak(v, catalog) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_speak(v, catalog) for v in value]
+    return value
 
 
 def application_schema(tool: str) -> dict[str, Any]:

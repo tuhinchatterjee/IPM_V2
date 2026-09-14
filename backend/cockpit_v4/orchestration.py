@@ -17,6 +17,7 @@ something finite. There is no `continue` in this file that does not.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import time
 import uuid
@@ -124,8 +125,16 @@ class Orchestrator:
     deferred_tools: list[dict[str, Any]] | None = None
     #: The attention item this conversation was opened from, if any.
     investigation: dict[str, Any] | None = None
+    #: What the QUESTION'S OWN WORDS were resolved to against the values this
+    #: release holds, computed by `context.build` before any provider call.
+    #: Merged into the declared intent so the resolution is in the run's
+    #: semantics whether or not the analyst thought to repeat it.
+    value_resolution: dict[str, Any] = field(default_factory=dict)
     #: Set once the analyst has been told to correct only its answer.
     answer_only: bool = False
+    #: Set once the finalization reserve has been handed over. Once per run:
+    #: see `_demand_an_answer_if_time_is_short`.
+    _answer_demanded: bool = False
     executed: bool = False
     _analysis_preserved: bool = False
     #: What the NEXT provider generation is for. Recorded on the ledger and
@@ -406,6 +415,7 @@ class Orchestrator:
 
         while True:
             self._guard()
+            self._demand_an_answer_if_time_is_short()
             self._advance(st.MODEL_RUNNING, operation="generation")
             turn = self._generate()
             if turn is None:
@@ -415,6 +425,66 @@ class Orchestrator:
             outcome = self._handle_turn(turn)
             if outcome is not None:
                 return outcome
+
+    def _demand_an_answer_if_time_is_short(self) -> None:
+        """Spend the last seconds WRITING, not discovering there is nothing.
+
+        The reserve was always there and always held back. What was missing
+        is the turn it was held back FOR: when the action window closed, the
+        run raised DEADLINE_EXPIRED on its next call and published nothing --
+        so twenty seconds were reserved to write an answer and then no answer
+        was written.
+
+        This is not a fabricated answer and it does not invent a number. It
+        is one bounded turn, with only `finalize_response` on it, telling the
+        analyst what it has and what time it has left. A concise answer from
+        verified evidence, or an honest statement of what was established and
+        what was not, both beat a bare deadline notice -- and if the analyst
+        has nothing worth publishing it says so, in its own words, which is
+        still more than the reader was getting.
+
+        Once only. A run that has already been asked for its answer and came
+        back with another action is out of moves, and the deadline takes it.
+        """
+        if self._answer_demanded or self.answer_only:
+            return
+        if not self.ledger.action_window_closed():
+            return
+        if not self.ledger.answer_window_open():
+            return
+        self._answer_demanded = True
+        self.answer_only = True
+        self.purpose = "FINAL_ANSWER"
+        remaining = self.ledger.remaining_seconds
+        self.emitter.append(
+            ev.CONTEXT_READY, stage="publishing", operation="answer_reserve",
+            status=ev.STATUS_OK,
+            public_message=(
+                f"{remaining:.0f}s remain — writing the answer from what has "
+                f"been established."),
+            detail_ref=self._detail({
+                "reserve_seconds":
+                    self.ledger.limits.finalization_reserve_seconds,
+                "remaining_seconds": round(remaining, 2),
+                "executed": self.executed}))
+        self.analyst.user(
+            f"There is no time left for another action: about "
+            f"{remaining:.0f} seconds remain of this run's "
+            f"{self.ledger.limits.deadline_seconds:.0f}-second allowance, "
+            f"and they are reserved for writing the answer. Send "
+            f"finalize_response now and send nothing else.\n\n"
+            + ("Answer the question from the evidence you have already "
+               "executed. Keep it short. Every number must still be bound to "
+               "a real row of a stored result — state fewer figures rather "
+               "than any unbound one. If what you executed only partly "
+               "answers the question, say so in `limitations` and use the "
+               "`partial_answer` disposition."
+               if self.executed else
+               "No analysis was executed in this run, so there is no figure "
+               "to state. Do not invent one and do not describe a query you "
+               "did not run. Say what the question was understood to mean, "
+               "what would answer it, and that this run stopped before it "
+               "could be answered. Use the `cannot_answer` disposition."))
 
     # -- generation ------------------------------------------------------
 
@@ -1166,6 +1236,7 @@ class Orchestrator:
             detail_ref=self._detail({"budget_adopted": report}))
 
     def _record_intent(self, intent) -> None:
+        intent = self._with_value_resolution(intent)
         if self.intent is not None and intent.to_dict() == self.intent.to_dict():
             return
         self.intent = intent
@@ -1192,6 +1263,29 @@ class Orchestrator:
                 ev.INTENT_VALIDATED, stage="understanding",
                 operation="ambiguity", status=ev.STATUS_REJECTED,
                 public_message=f"Needs a decision: {line}")
+
+
+    def _with_value_resolution(self, intent):
+        """The declared intent, plus what the reader's own words were taken
+        to mean.
+
+        The resolver ran before the first generation and is not an opinion:
+        "prject finance" IS `facility_type = 'Project Finance'` in this
+        release, or it is nothing. Recording it here means the trace and the
+        answer carry the reading whether or not the analyst repeated it --
+        and a reader who disagrees can see exactly what to disagree with.
+        """
+        recognised = list((self.value_resolution or {}).get("recognised") or [])
+        if not recognised:
+            return intent
+        exact = tuple(dict.fromkeys(
+            [*intent.canonical_mappings]
+            + [e["say"] for e in recognised if e.get("exact")]))
+        assumed = tuple(dict.fromkeys(
+            [*intent.resolved_assumptions]
+            + [e["say"] for e in recognised if not e.get("exact")]))
+        return dataclasses.replace(intent, canonical_mappings=exact,
+                                   resolved_assumptions=assumed)
 
 
 #: Product-knowledge reads a single run may make. Generous, because each is

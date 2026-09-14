@@ -118,7 +118,7 @@ def build_app(release_id: str, runtime_dir: Path, port: int):
                                  understood="EAD by sector, latest quarter"),
                 "objective": "Reported EAD by sector",
                 "subquestions": ["EAD by sector for the latest quarter"],
-                "scope": {"reporting_quarters": [quarter], "filters": {}},
+                "scope": {"reporting_periods": [quarter], "filters": {}},
                 "metadata_receipt_ids": [],
                 "fields_required": ["cockpit_facility_quarter.ead_reported"],
                 "expected_output_grain": "sector",
@@ -295,7 +295,7 @@ def main() -> int:
                         "canonical_mappings": [], "excluded_parts": [],
                         "public_rationale": "r"},
              "query": "exposure", "relation_ids": [], "field_ids": [],
-             "detail": ["discovery"], "reporting_quarters": [],
+             "detail": ["discovery"], "reporting_periods": [],
              "sample_rows": 0, "cursor": ""}, "tu-8")]),
         ScriptedResult(tool_calls=[tool_call(
             "finalize_response", final(), "tu-9")])]

@@ -31,7 +31,7 @@ def catalog_call(call_id="tu-c", **body):
     payload = {
         "intent": intent("DATA_ANALYSIS", "COCKPIT"),
         "query": None, "relation_ids": None, "field_ids": None,
-        "detail": None, "reporting_quarters": None, "sample_rows": None,
+        "detail": None, "reporting_periods": None, "sample_rows": None,
         "cursor": None,
     }
     payload.update(body)
@@ -42,7 +42,7 @@ def request(**body):
     payload = {
         "intent": intent("DATA_ANALYSIS", "COCKPIT"),
         "query": None, "relation_ids": None, "field_ids": None,
-        "detail": None, "reporting_quarters": None, "sample_rows": None,
+        "detail": None, "reporting_periods": None, "sample_rows": None,
         "cursor": None,
     }
     payload.update(body)
@@ -58,7 +58,7 @@ def execute_call(sql, parameters, call_id="tu-e"):
     return tool_call("execute_analysis", {
         "intent": intent("DATA_ANALYSIS", "COCKPIT"),
         "objective": "o", "subquestions": ["a"],
-        "scope": {"reporting_quarters": [], "filters": {}},
+        "scope": {"reporting_periods": [], "filters": {}},
         "metadata_receipt_ids": [], "fields_required": ["f"],
         "expected_output_grain": "sector", "expected_units": "SAR million",
         "steps": [{"step_id": "s1", "language": "sql", "code": sql,

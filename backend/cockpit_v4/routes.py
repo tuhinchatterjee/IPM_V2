@@ -31,6 +31,7 @@ from backend.cockpit_v4 import attention
 from backend.cockpit_v4 import lake as lake_mod
 from backend.cockpit_v4 import collaboration as collab
 from backend.cockpit_v4 import config as config_mod
+from backend.cockpit_v4 import envelope
 from backend.cockpit_v4.intake import normalize_question
 from backend.cockpit_v4 import events as ev
 from backend.cockpit_v4 import states as st
@@ -209,6 +210,21 @@ async def start_run(body: StartRun, request: Request,
     # A book that can be browsed but not yet asked is refused HERE, before a
     # model call is paid for and before a thread is left holding a question
     # nothing can answer.
+    # A request that names a release is refused, not obeyed. The release
+    # belongs to the book and the book belongs to the thread; letting a
+    # caller pick one would reintroduce, from the outside, exactly the
+    # substitution the domain model exists to prevent.
+    if body.release_id and body.release_id != scope.release_id:
+        raise HTTPException(409, {
+            "error_code": "RELEASE_NOT_SETTABLE",
+            "message": (f"This request named release {body.release_id!r}. "
+                        f"The {dom_mod.LABELS[scope.domain_id]} book reads "
+                        f"{scope.release_id!r}, and a release is not "
+                        f"settable from a request. Nothing was "
+                        f"substituted."),
+            "domain_id": scope.domain_id,
+            "release_id": scope.release_id})
+
     asked_tenant = tenant or lake_mod.DEFAULT_TENANT
     if not resolver.analysis_supported(scope.domain_id,
                                        tenant_id=asked_tenant):
@@ -235,7 +251,14 @@ async def start_run(body: StartRun, request: Request,
     # the title is the question.
     store.title_thread_from_question(thread_id, body.question)
 
-    limits = config_mod.limits_for(mode)
+    # WHICH ALLOWANCE, decided before anything is spent. A thread opened
+    # from an attention card, or one whose last turn ran an analysis, is a
+    # conversation about the book's numbers: it gets the analysis clock from
+    # its first second rather than sixty seconds later, once the analyst has
+    # spent a generation saying so. See `envelope.classify`.
+    verdict = envelope.for_request(
+        store=store, thread_id=thread_id, question=body.question, mode=mode)
+    limits = verdict.limits
 
     # An idempotent retry is the SAME run. It is resolved before the
     # concurrency check, or a dropped 202 would come back as a 409 the
@@ -269,7 +292,22 @@ async def start_run(body: StartRun, request: Request,
         record, created = store.accept_run(
             thread_id=thread_id, tenant_id=str(who.get("tenant") or ""),
             principal_id=str(who.get("id") or ""), question=normalized.text,
-            mode=mode, release_id=body.release_id or cfg.release_id,
+            # THE RELEASE IS THE BOOK'S, and it is not negotiable.
+            #
+            # This read `body.release_id or cfg.release_id`: the request, or
+            # else whatever release the PROCESS was configured for. On a Mac
+            # configured for the pre-domain quarterly release, every run --
+            # Corporate or Retail, typed or seeded from an attention card --
+            # was accepted against `v4-saudi-20q-v1` while being labelled
+            # with the right domain. The worker then found a release that
+            # belongs to no book, fell back to the configured one, and
+            # answered from the quarterly corporate data. That is the whole
+            # of "this book is recorded quarterly, not monthly" and the whole
+            # of a Retail card opening a thread that reads Corporate.
+            #
+            # A release is a server decision derived from the book. A request
+            # naming a different one is refused above, not obeyed here.
+            mode=mode, release_id=scope.release_id,
             ui_filters=dict(body.ui_filters),
             idempotency_key=idempotency_key, body_digest=digest,
             startup_sha=str(_STATE.get("startup_sha") or ""),
@@ -1033,7 +1071,79 @@ async def read_thread(thread_id: str,
             "turn_count": len(turns),
             "created_at": store.thread_created_at(thread_id),
             "context": context or {},
+            # §31. What to ask, BEFORE anybody has asked anything.
+            #
+            # A thread opened from an attention card arrived on screen as a
+            # headline and an empty box: the reader had just clicked a
+            # finding and was then asked to compose a question about it from
+            # scratch. The card already carries five questions this release
+            # can answer, computed when the card was, so they travel with the
+            # transcript and the thread opens on them.
+            "opening_questions": _opening_questions(context, turns,
+                                                    domain_id),
             "release": _release_header()}
+
+
+#: Deterministic openers for a thread that was not seeded from a card, and
+#: for one whose seed carried nothing. No model call: a suggestion that costs
+#: a generation is a suggestion that arrives after the reader has given up
+#: waiting for it. `{period}` is filled from the book's own latest month.
+_GENERIC_OPENERS: dict[str, tuple[str, ...]] = {
+    "corporate": (
+        "What is total exposure at default by sector in {period}?",
+        "Which sectors carry the most ECL in {period}?",
+        "Which borrowers moved to Stage 2 in {period}?",
+        "How has ECL coverage moved over the last twelve months?",
+        "Which covenants are in breach in {period}?",
+    ),
+    "retail": (
+        "What is total exposure at default by product in {period}?",
+        "Which products carry the most ECL in {period}?",
+        "How has delinquency moved over the last twelve months?",
+        "Which regions deteriorated most in {period}?",
+        "What is ECL coverage by score band in {period}?",
+    ),
+}
+
+
+def _opening_questions(context: dict[str, Any] | None,
+                       turns: list[dict[str, Any]],
+                       domain_id: str) -> list[dict[str, Any]]:
+    """Three to five questions this thread can open on.
+
+    Empty once the conversation has started: after the first answer the
+    follow-ups belong to that answer, and offering the opening set again is
+    offering to ask the question that has just been answered.
+    """
+    if turns:
+        return []
+    seeded = ((context or {}).get("body") or {}) if context else {}
+    offered = list((seeded.get("drilldown") or {})
+                   .get("suggested_questions") or [])
+    shaped = [{"question": str(q.get("question") or ""),
+               "kind": str(q.get("kind") or "opening")}
+              for q in offered if isinstance(q, dict) and q.get("question")]
+    if shaped:
+        return shaped[:5]
+    period = str(seeded.get("reporting_month") or "")
+    if not period:
+        period = _latest_month(domain_id)
+    return [{"question": text.format(period=period or "the latest month"),
+             "kind": "opening"}
+            for text in _GENERIC_OPENERS.get(domain_id, ())][:5]
+
+
+def _latest_month(domain_id: str) -> str:
+    """The latest populated month of this book, or nothing. Never a guess."""
+    try:
+        from backend.cockpit_v4 import analytical_runtime as arun_mod
+        from backend.cockpit_v4 import semantics as sem_mod
+
+        runtime = arun_mod.for_domain(domain_id)
+        populated = sem_mod.populated_periods(runtime.catalog)
+        return str(populated[-1]) if populated else ""
+    except Exception:  # noqa: BLE001 - an unopenable book offers no period
+        return ""
 
 
 def _release_header() -> dict[str, Any]:

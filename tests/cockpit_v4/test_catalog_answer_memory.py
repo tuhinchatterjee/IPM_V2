@@ -33,7 +33,7 @@ def catalog_service(runtime, release_id):
 def request(**over):
     body = {"intent": intent("DATA_ANALYSIS", "COCKPIT"), "query": "",
             "relation_ids": [], "field_ids": [], "detail": ["discovery"],
-            "reporting_quarters": [], "sample_rows": 0, "cursor": ""}
+            "reporting_periods": [], "sample_rows": 0, "cursor": ""}
     body.update(over)
     return parse_catalog(body)
 
@@ -169,7 +169,7 @@ def test_sufficient_starting_context_allows_execution_without_a_lookup(
         ScriptedResult(tool_calls=[tool_call("execute_analysis", {
             "intent": intent("DATA_ANALYSIS", "COCKPIT"),
             "objective": "count rows", "subquestions": ["how many"],
-            "scope": {"reporting_quarters": [quarter], "filters": {}},
+            "scope": {"reporting_periods": [quarter], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": [],
             "expected_output_grain": "release", "expected_units": "rows",
             "steps": [{"step_id": "s1", "language": "sql", "code": sql,
@@ -352,7 +352,7 @@ def test_no_new_execution_is_possible_during_an_answer_correction(
     execute = tool_call("execute_analysis", {
         "intent": intent("DATA_ANALYSIS", "COCKPIT"), "objective": "o",
         "subquestions": ["a"],
-        "scope": {"reporting_quarters": [quarter], "filters": {}},
+        "scope": {"reporting_periods": [quarter], "filters": {}},
         "metadata_receipt_ids": [], "fields_required": [],
         "expected_output_grain": "g", "expected_units": "u",
         "steps": [{"step_id": "s1", "language": "sql",

@@ -280,7 +280,7 @@ This environment uses synthetic demonstration data rather than a real bank portf
             {"intent": intent("DATA_ANALYSIS", "COCKPIT",
                               understood="looking for the right fields"),
              "query": "exposure", "relation_ids": [], "field_ids": [],
-             "detail": ["discovery"], "reporting_quarters": [],
+             "detail": ["discovery"], "reporting_periods": [],
              "sample_rows": 0, "cursor": ""},
             "tu-slow")])
 

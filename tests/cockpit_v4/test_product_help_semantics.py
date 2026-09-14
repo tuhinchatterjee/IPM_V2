@@ -198,7 +198,7 @@ def test_a_withheld_tool_comes_back_for_the_second_action(drive):
     script = [ScriptedResult(tool_calls=[tool_call("inspect_catalog", {
         **intent(mode="DATA_ANALYSIS", owner="COCKPIT"),
         "query": "exposure", "relation_ids": [], "field_ids": [],
-        "detail": ["discovery"], "reporting_quarters": [], "sample_rows": 0,
+        "detail": ["discovery"], "reporting_periods": [], "sample_rows": 0,
         "cursor": ""})]), second, third]
 
     outcome, provider, _record = drive("Who are you?", script)

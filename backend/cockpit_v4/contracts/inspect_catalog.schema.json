@@ -51,7 +51,7 @@
       "minItems": 1,
       "description": "Which metadata categories to return. 'samples' may be given alone or implied by a non-zero sample_rows; the two mean the same thing and neither form is rejected. Absent, null and empty all mean the same thing; the server stores one canonical form."
     },
-    "reporting_quarters": {
+    "reporting_periods": {
       "type": [
         "array",
         "null"
@@ -60,7 +60,7 @@
         "type": "string"
       },
       "minItems": 0,
-      "description": "Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
+      "description": "Reporting {{PERIODS}} to describe coverage for, e.g. {{LATEST_PERIOD}}. Absent, null and empty all mean the same thing. Send whichever is natural; the server stores one canonical form."
     },
     "sample_rows": {
       "type": [
@@ -84,7 +84,7 @@
     "relation_ids",
     "field_ids",
     "detail",
-    "reporting_quarters",
+    "reporting_periods",
     "sample_rows",
     "cursor"
   ],

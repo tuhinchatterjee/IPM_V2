@@ -19,6 +19,7 @@ import logging
 import threading
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,7 +30,7 @@ from backend.cockpit_v4 import states as st
 from backend.cockpit_v4.artifacts import ArtifactService
 from backend.cockpit_v4.budgets import Ledger
 from backend.cockpit_v4.catalog_tool import CatalogService
-from backend.cockpit_v4.config import limits_for
+from backend.cockpit_v4 import envelope
 from backend.cockpit_v4.contracts import TOOL_PRODUCT, provider_tools
 from backend.cockpit_v4.execute_tool import ExecutionService
 from backend.cockpit_v4.finalization import Finalizer
@@ -131,7 +132,14 @@ class Worker:
         started = time.monotonic()
         emitter = ev.Emitter(self.store, record.run_id,
                              started_monotonic=started)
-        limits = limits_for(record.mode)
+        # The SAME verdict the route stamped the deadline with, recomputed
+        # from the same durable inputs. It is not persisted: a value in two
+        # places is a value that can disagree with itself, and the question,
+        # the mode and the thread are all already on the record.
+        verdict = envelope.for_request(
+            store=self.store, thread_id=record.thread_id,
+            question=record.question, mode=record.mode)
+        limits = verdict.limits
         ledger = Ledger(limits=limits, capability=self.runtime.capability,
                         store=self.store, run_id=record.run_id,
                         started_monotonic=started)
@@ -139,7 +147,28 @@ class Worker:
         beat = _Heartbeat(self.store, record.run_id, self.worker_id)
         beat.start()
         try:
-            outcome = self._drive(record, emitter, ledger, limits)
+            # The watchdog reads `deadline_at`, and it must agree with the
+            # allowance this run is actually on from the first second. The
+            # route stamps it at accept; this is the belt to that brace, and
+            # it is what makes the guarantee unconditional for a run created
+            # by any other path. `extend_deadline` only ever pushes out.
+            try:
+                self.store.extend_deadline(
+                    record.run_id,
+                    (datetime.now(timezone.utc) + timedelta(
+                        seconds=limits.deadline_seconds)
+                     ).isoformat(timespec="milliseconds"))
+            except Exception:  # noqa: BLE001 - a stale watchdog is not fatal
+                pass
+            emitter.append(
+                ev.CONTEXT_READY, stage="accepted", operation="allowance",
+                status=ev.STATUS_OK,
+                public_message=(
+                    f"Allowance: {limits.deadline_seconds:.0f}s, "
+                    f"${limits.spend_ceiling_usd:.2f}."),
+                detail_ref=self.store.put_detail(
+                    record.run_id, {"envelope": verdict.to_dict()}))
+            outcome = self._drive(record, emitter, ledger, limits, verdict)
         except PreflightFailed as exc:
             outcome = Outcome(st.FAILED, error_code=exc.code,
                               message=str(exc))
@@ -153,7 +182,7 @@ class Worker:
         return outcome
 
     def _drive(self, record: Any, emitter: ev.Emitter, ledger: Ledger,
-               limits: Any) -> Outcome:
+               limits: Any, verdict: Any = None) -> Outcome:
         principal = {"id": record.principal_id, "tenant": record.tenant_id}
 
         # WHICH BOOK. Resolved from the persisted run and its thread, and
@@ -188,7 +217,8 @@ class Worker:
                 record.thread_id, context_mod.DEFAULT_RECENT_TURNS),
             summary=self.store.get_summary(record.thread_id),
             capability=self.runtime.capability,
-            investigation=(seeded or {}).get("body") if seeded else None)
+            investigation=(seeded or {}).get("body") if seeded else None,
+            session=session)
 
         # One-generation broad Product Help. When the question names no
         # product detail beyond the synopsis the packet already carries,
@@ -199,15 +229,32 @@ class Worker:
         # costs nothing that it does not cost today.
         from backend.cockpit_v4 import product_knowledge as pk
 
-        verdict = pk.coverage(record.question)
+        coverage = pk.coverage(record.question)
+        # §13. A data-analysis turn does not open with a product lookup.
+        #
+        # The live turn that died at sixty seconds was a follow-up in an
+        # analytical thread, and `inspect_product_knowledge` was on the
+        # table for its first action. Every tool on a call is a thing the
+        # model must consider, and the one that cannot contribute to this
+        # answer is the one worth taking off. It comes back for the second
+        # action like any withheld tool, so nothing is lost if the reader
+        # really did want to know how ECL is defined.
         withhold = ((TOOL_PRODUCT,)
-                    if verdict["level"] == pk.COVERAGE_SYNOPSIS else ())
-        full_tools = provider_tools()
+                    if (coverage["level"] == pk.COVERAGE_SYNOPSIS
+                        or (verdict is not None and verdict.analytical))
+                    else ())
+        # The tool contract speaks THIS book's period language. Handing a
+        # monthly run a schema whose worked example is "the latest populated
+        # quarter 2026Q2 against 2026Q1" is how a live Corporate thread came
+        # back saying the book was quarterly: the analyst believed the
+        # contract over the catalogue, because the contract is the thing it
+        # has to fill in.
+        full_tools = provider_tools(catalog=book.catalog)
         analyst = Analyst(
             provider=self.runtime.provider,
             capability=self.runtime.capability, ledger=ledger,
             system=packet.system_blocks,
-            tools=provider_tools(withhold=withhold))
+            tools=provider_tools(withhold=withhold, catalog=book.catalog))
         analyst.user(packet.first_user_message)
 
         from backend.cockpit_v4 import pyrunner
@@ -242,7 +289,8 @@ class Worker:
             cancel_check=lambda: bool(
                 (self.store.get_run(record.run_id) or record).cancel_requested),
             deferred_tools=full_tools if withhold else None,
-            investigation=(seeded or {}).get("body") if seeded else None)
+            investigation=(seeded or {}).get("body") if seeded else None,
+            value_resolution=packet.payload.get("value_resolution") or {})
         orchestrator._version = record.version
         return orchestrator.run_to_completion()
 

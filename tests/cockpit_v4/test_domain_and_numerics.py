@@ -46,7 +46,7 @@ def service(session, store_db, runtime, release_id):
 def submit(service, sql: str, *, step_id="s1", language="sql"):
     body = {"intent": intent("DATA_ANALYSIS", "COCKPIT"),
             "objective": "o", "subquestions": ["a"],
-            "scope": {"reporting_quarters": [], "filters": {}},
+            "scope": {"reporting_periods": [], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": ["f"],
             "expected_output_grain": "g", "expected_units": "u",
             "steps": [{"step_id": step_id, "language": language, "code": sql,
@@ -99,7 +99,7 @@ def test_borrower_financials_are_not_multiplied_by_facilities(
     submission = parse_execution(
         {"intent": intent("DATA_ANALYSIS", "COCKPIT"), "objective": "o",
          "subquestions": ["a"],
-         "scope": {"reporting_quarters": [], "filters": {}},
+         "scope": {"reporting_periods": [], "filters": {}},
          "metadata_receipt_ids": [], "fields_required": ["f"],
          "expected_output_grain": "g", "expected_units": "u",
          "steps": [{"step_id": "s2", "language": "sql", "code": wrong,
@@ -349,7 +349,7 @@ def test_a_failed_step_stops_its_dependents_and_preserves_the_rest(
     quarter = oracles.latest_quarter(release_id)
     body = {"intent": intent("DATA_ANALYSIS", "COCKPIT"), "objective": "o",
             "subquestions": ["a"],
-            "scope": {"reporting_quarters": [], "filters": {}},
+            "scope": {"reporting_periods": [], "filters": {}},
             "metadata_receipt_ids": [], "fields_required": ["f"],
             "expected_output_grain": "g", "expected_units": "u",
             "steps": [

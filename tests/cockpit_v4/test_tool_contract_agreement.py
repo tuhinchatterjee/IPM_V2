@@ -123,7 +123,7 @@ def test_the_validator_accepts_every_absence_the_schema_advertises():
     ("inspect_catalog", "inspect_catalog.schema.json", {
         "intent": LIVE_FINALIZE_PAYLOAD["intent"], "query": None,
         "relation_ids": None, "field_ids": None, "detail": None,
-        "reporting_quarters": None, "sample_rows": None, "cursor": None}),
+        "reporting_periods": None, "sample_rows": None, "cursor": None}),
     ("read_artifact", "read_artifact.schema.json", {
         "intent": LIVE_FINALIZE_PAYLOAD["intent"], "artifact_id": "art-1",
         "artifact_kind": "result", "columns": None, "offset": None,
@@ -275,7 +275,7 @@ def _catalog_payload(**body):
                    "canonical_mappings": None, "excluded_parts": None,
                    "public_rationale": "r"},
         "query": None, "relation_ids": None, "field_ids": None,
-        "detail": None, "reporting_quarters": None, "sample_rows": None,
+        "detail": None, "reporting_periods": None, "sample_rows": None,
         "cursor": None,
     }
     payload.update(body)

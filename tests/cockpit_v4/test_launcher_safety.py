@@ -165,10 +165,16 @@ def test_the_launcher_stops_before_starting_anything_without_a_release():
 
     The gate has to come BEFORE the processes are launched, which is a fact
     about where it sits in the file, so that is what this reads.
+
+    What the gate is ABOUT changed with the dual-domain rollout: a runtime
+    with no BOOK cannot answer anything, and the pre-domain quarterly release
+    being absent is no longer a reason to refuse to start -- no new thread
+    reads it.
     """
     source = (ROOT / "scripts" / "cockpit_v4" / "start.py").read_text()
 
-    gate = source.index('if not release_check.get("ok"):')
+    gate = source.index('print(bad("This runtime has no analytical book '
+                        'published."))')
     launch = source.index('"backend.cockpit_v4.app:create_app"')
     assert gate < launch, (
         "the release gate runs after uvicorn is launched, which is the "
@@ -180,6 +186,37 @@ def test_the_launcher_stops_before_starting_anything_without_a_release():
     assert "return 1" in tail
     assert 'print("Action:")' in tail, (
         "a refusal that does not name the fix makes the operator guess")
+    assert "seed_domains.py" in tail, (
+        "the fix for 'no book' is the domain seeder, not the legacy one")
+
+
+def test_the_launcher_refuses_when_no_book_can_answer_a_question():
+    source = (ROOT / "scripts" / "cockpit_v4" / "start.py").read_text()
+    gate = source.index('print(bad("No book in this runtime can answer a '
+                        'question."))')
+    launch = source.index('"backend.cockpit_v4.app:create_app"')
+    assert gate < launch
+
+
+def test_the_launcher_prints_the_books_before_the_legacy_release():
+    """§3. An operator reading the startup must not think this is quarterly.
+
+    It printed one release -- the pre-domain quarterly one -- under the
+    heading "release", with "latest quarter 2026Q2", while both monthly books
+    were open and serving.
+    """
+    source = (ROOT / "scripts" / "cockpit_v4" / "start.py").read_text()
+    books = source.index('heading("Cockpit V4 · books")')
+    legacy = source.index(
+        'heading("Cockpit V4 · legacy compatibility release")')
+    launch = source.index('"backend.cockpit_v4.app:create_app"')
+    assert books < legacy < launch, (
+        "the books come first; the pre-domain release is named for what it "
+        "is and comes last")
+    tail = source[legacy:launch]
+    assert "historical threads" in tail
+    assert "New Cockpit threads never read this release." in tail
+    assert "DEFAULT DOMAIN" in source[books:legacy]
 
 
 def test_the_launcher_refuses_when_analysis_is_not_ready():

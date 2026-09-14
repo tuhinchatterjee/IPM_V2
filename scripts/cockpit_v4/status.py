@@ -51,11 +51,40 @@ def main() -> int:
     table([("route", report.get("route", "")),
            ("startup sha", report.get("startup_sha", "")),
            ("credential", report.get("credential", "")),
-           ("release", str(report.get("checks", {}).get("release", {})
-                           .get("release", {}).get("dataset_release_id", "—"))),
            ("product help", str(report.get("ready_for_product_help"))),
            ("sql analysis", str(report.get("ready_for_sql_analysis"))),
-           ("python analysis", str(report.get("ready_for_python_analysis")))])
+           ("python analysis", str(report.get("ready_for_python_analysis"))),
+           ("askable books",
+            ", ".join(report.get("analysis_domains", [])) or "none")])
+
+    # The BOOKS, not "the release". Reporting one pre-domain quarterly
+    # release here was how an operator came to believe this Cockpit was
+    # quarterly while both monthly books were open and serving.
+    books = (report.get("checks", {}).get("domains", {}) or {}).get(
+        "books", []) or []
+    for book in books:
+        print()
+        print(f"  {book.get('domain_label', book.get('domain_id', '')).upper()}")
+        if not book.get("browse_ready"):
+            print(bad(f"    not published: {book.get('reason') or 'unknown'}"))
+            print(f"    remedy: {book.get('provision_command', '')}")
+            continue
+        table([("release", book.get("release_id", "—")),
+               ("fingerprint",
+                str(book.get("release_fingerprint", ""))[:16] or "—"),
+               ("frequency", book.get("reporting_frequency", "—")),
+               ("latest period", book.get("latest_period", "—")),
+               ("questions", "ready" if book.get("analysis_ready")
+                else "browse only")])
+
+    legacy = (report.get("checks", {}).get("release", {}) or {})
+    if legacy.get("ok"):
+        print()
+        print("  LEGACY COMPATIBILITY RELEASE")
+        table([("release", str((legacy.get("release") or {})
+                               .get("dataset_release_id", "—"))),
+               ("used for",
+                "historical threads and /attention-legacy only")])
     runner = report.get("checks", {}).get("python_runner", {})
     if not runner.get("available"):
         print(f"  python runner unavailable: {runner.get('reason', '')}")

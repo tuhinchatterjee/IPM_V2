@@ -189,7 +189,7 @@ def test_an_analysis_publishes_when_only_the_first_call_declares_intent(
             "inspect_catalog",
             {"intent": intent("DATA_ANALYSIS", "COCKPIT"),
              "query": "ead by sector", "relation_ids": [], "field_ids": [],
-             "detail": [], "reporting_quarters": [], "sample_rows": 0,
+             "detail": [], "reporting_periods": [], "sample_rows": 0,
              "cursor": ""})]),
         without_intent, answer_without_intent])
 
@@ -245,18 +245,25 @@ def test_the_allowance_widens_before_the_query_runs(drive, store_db,
     outcome, _, record = drive(QUESTION, _analysis_turns(quarter))
     assert outcome.state == st.COMPLETED, outcome.message
 
-    order = [e.operation for e in store_db.events_since(record.run_id)]
-    assert "budget" in order, (
-        f"no allowance was ever adopted; operations were {sorted(set(order))}")
-    budget_at = order.index("budget")
+    events = store_db.events_since(record.run_id)
+    order = [e.operation for e in events]
+    # The allowance is in force BEFORE the query is even requested. It used
+    # to be adopted from the parsed `intent` -- steps later, and never at all
+    # when that field came back malformed -- and is now decided at intake by
+    # `envelope.classify`, with the declaration path left as the fallback for
+    # a question that reads as neither.
+    assert "allowance" in order, (
+        f"no allowance was ever stated; operations were {sorted(set(order))}")
+    allowance_at = order.index("allowance")
     requested_at = order.index("execute_analysis")
-    # The LAST execute_analysis event reports the query as finished.
-    finished_at = len(order) - 1 - order[::-1].index("execute_analysis")
-    assert requested_at < budget_at < finished_at, (
-        f"requested at {requested_at}, allowance at {budget_at}, query "
-        f"finished at {finished_at}. Operations: {order}")
-    # And none of that waited on a parsed intent.
-    assert budget_at < order.index("intent"), (
+    assert allowance_at < requested_at, (
+        f"allowance at {allowance_at}, execution requested at "
+        f"{requested_at}. Operations: {order}")
+    stated = events[allowance_at].public_message
+    assert "120s" in stated and "$1.50" in stated, stated
+    assert store_db.get_run(record.run_id).budget["deadline_seconds"] == 120.0
+    # And none of it waited on a parsed intent.
+    assert allowance_at < order.index("intent"), (
         "the allowance still waits on a parsed intent")
 
 

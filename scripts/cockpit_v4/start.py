@@ -147,6 +147,23 @@ def already_running(runtime_dir: Path) -> list[Owned]:
     return live
 
 
+def _period_word(book: dict) -> str:
+    """"month" for a monthly book, "quarter" for a quarterly one."""
+    return {"monthly": "month", "quarterly": "quarter"}.get(
+        str(book.get("reporting_frequency", "")), "period")
+
+
+def dual_default(books: list[dict]) -> str:
+    """Which book the Cockpit opens on. The configured one if it is ready."""
+    from backend.cockpit_v4 import domains as dom_mod
+
+    ready = [b for b in books if b.get("browse_ready")]
+    for book in ready:
+        if book["domain_id"] == dom_mod.DEFAULT_DOMAIN:
+            return book["domain_label"]
+    return ready[0]["domain_label"] if ready else "none"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--api-port", type=int, default=DEFAULT_API_PORT)
@@ -278,55 +295,74 @@ def main() -> int:
         f"python runner: {'available' if runner.get('available') else 'unavailable'}"
         + (f" — {runner.get('reason')}" if not runner.get("available") else "")))
 
-    # Which release, from which bytes, in which currency. Printed every
-    # start, never inferred afterwards from the figures on the screen.
-    release_check = checks.get("release", {}) or {}
-    header = release_check.get("header") or {}
-
-    # FAIL CLOSED.
+    # WHICH BOOKS, printed every start.
     #
-    # This used to print the failure and start anyway. The result on a live
-    # Mac: uvicorn came up, /health answered 200, the browser posted a run,
-    # the API answered 202, and the run sat at "Request accepted" for the
-    # rest of the afternoon, because the worker had never been started. A
-    # half-started Cockpit costs an operator more than a refusal does --
-    # a refusal names one command.
-    if not release_check.get("ok"):
-        heading("Cockpit V4 · release")
-        print(bad(f"{release_check.get('code', 'DATA_UNAVAILABLE')}"))
-        print(f"  release {header.get('release_id', args.release)} is not "
-              f"available in this runtime.")
-        reason = str(release_check.get("reason") or "").strip()
-        if reason:
-            print(f"  {reason.splitlines()[0]}")
-        remedy = str(release_check.get("remedy") or "").strip()
-        if remedy:
-            print()
-            print("Action:")
-            print(f"  {remedy}")
+    # This block used to print one release — the pre-domain quarterly one —
+    # under the heading "release", with "latest quarter 2026Q2", while both
+    # monthly books were open and serving. An operator reading it had every
+    # reason to believe the Cockpit was quarterly, and so, it turned out, did
+    # the analyst.
+    #
+    # So the books come first and the pre-domain release comes last, under a
+    # heading that says exactly what it is.
+    books = (checks.get("domains", {}) or {}).get("books", []) or []
+    if not books:
+        heading("Cockpit V4 · books")
+        print(bad("This runtime has no analytical book published."))
+        print()
+        print("Action:")
+        print("  python3 scripts/cockpit_v4/seed_domains.py")
         print()
         print(bad("Nothing else started."))
         return 1
 
-    if header:
-        heading("Cockpit V4 · release")
+    heading("Cockpit V4 · books")
+    print(f"  DEFAULT DOMAIN  {dual_default(books)}")
+    unopenable = []
+    for book in books:
+        print()
+        print(f"  {book['domain_label'].upper()}")
+        if not book.get("browse_ready"):
+            print(bad(f"    not published: {book.get('reason') or 'unknown'}"))
+            print(f"    remedy: {book.get('provision_command', '')}")
+            unopenable.append(book["domain_id"])
+            continue
+        table([("release", book["release_id"]),
+               ("fingerprint", str(book.get("release_fingerprint", ""))[:16]),
+               ("currency", f"{book.get('reporting_currency', '')} "
+                            f"{book.get('amount_scale', '')}".strip()),
+               ("frequency", book.get("reporting_frequency", "")),
+               (f"latest {_period_word(book)}",
+                book.get("latest_period", "—")),
+               ("periods", str(book.get("reporting_periods", "—"))),
+               ("relations", str(book.get("relations", "—"))),
+               ("questions", "ready" if book.get("analysis_ready")
+                else "browse only")])
+
+    askable = [b for b in books if b.get("analysis_ready")]
+    if not askable:
+        print()
+        print(bad("No book in this runtime can answer a question."))
+        print()
+        print(bad("Nothing else started."))
+        return 1
+
+    # The pre-domain release, if it is still on disk. Named for what it is,
+    # and NEVER the runtime's analytical default.
+    release_check = checks.get("release", {}) or {}
+    header = release_check.get("header") or {}
+    heading("Cockpit V4 · legacy compatibility release")
+    if release_check.get("ok") and header:
         table([("release", header.get("release_id", "—")),
-              ("fingerprint", str(header.get("release_fingerprint", ""))[:16]
-               or "—"),
-              ("country", header.get("country") or "not declared"),
-              ("currency", header.get("reporting_currency")
-               or "not declared"),
-              ("amount scale", header.get("amount_scale") or "not declared"),
-              ("latest quarter",
-               header.get("latest_populated_quarter", "—")),
-              ("synthetic", "yes" if header.get("not_client_data")
-               else "NO — this is client data")])
-        if header.get("unverified"):
-            print(bad(
-                "this release does not declare "
-                + ", ".join(header["unverified"])
-                + ". Denominated figures will not be published from it."))
-            return 1
+               ("fingerprint",
+                str(header.get("release_fingerprint", ""))[:16] or "—"),
+               ("latest quarter",
+                header.get("latest_populated_quarter", "—")),
+               ("used for", "historical threads and /attention-legacy only")])
+        print(warn("  New Cockpit threads never read this release."))
+    else:
+        print(f"  {header.get('release_id', args.release)} is not present. "
+              f"That is not a problem: no new thread reads it.")
 
     if not report.get("ready_for_product_help"):
         print()
@@ -336,6 +372,11 @@ def main() -> int:
         print()
         print(bad("V4 cannot run an analysis. Fix the checks above."))
         return 1
+    if unopenable:
+        print()
+        print(warn(f"{', '.join(unopenable)} cannot be opened in this "
+                   f"runtime. Its questions are refused; nothing is "
+                   f"substituted for it."))
 
     heading("Cockpit V4 · starting")
     logs = runtime_dir / "logs"
