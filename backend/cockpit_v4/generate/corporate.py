@@ -370,6 +370,8 @@ def build(release_id: str = "",
     covenant_rows: list[dict[str, Any]] = []
     previous_rating: dict[str, int] = {}
     stage_since: dict[str, tuple[int, int]] = {}
+    #: Each borrower's financial position in the first month of the window.
+    origination: dict[str, dict[str, float]] = {}
     #: Days past due carried forward per facility, driven by the borrower's
     #: own debt service coverage rather than by a threshold on a stress
     #: index. "Why is this facility in arrears?" is then a question the book
@@ -431,8 +433,15 @@ def build(release_id: str = "",
 
             state[bid] = {
                 "personal": personal, "grade": grade, "dscr": dscr,
+                "leverage": leverage, "interest_cover": interest_cover,
+                "current_ratio": _clamp(1.65 - 0.5 * personal, 0.55, 3.1),
+                "ebitda": ebitda,
                 "notches_from_origination": grade - borrower["base_rating"],
             }
+            # The book as it was WRITTEN. Covenant thresholds are set against
+            # it, because a covenant is a promise made at origination about
+            # how far a borrower may drift from where it started.
+            origination.setdefault(bid, dict(state[bid]))
 
             borrower_rows.append({
                 **gov,
@@ -574,24 +583,35 @@ def build(release_id: str = "",
             })
 
             kind = facility["covenant_type"]
+            # A covenant tests the figure the book PUBLISHES, against a
+            # threshold set from where the borrower started.
+            #
+            # It used to test its own privately recomputed ratio against a
+            # constant that was the same for every borrower in the book. Two
+            # things followed. A reader comparing `dscr_x` on the borrower
+            # row with `observed_value` on its DSCR covenant found two
+            # different numbers for one ratio. And because the constants sat
+            # where they did, the leverage ceiling was breached by half the
+            # book from the first month while the four floors could not be
+            # breached by ANY borrower at any point in the window -- so
+            # "which covenants are in breach?" had exactly one answer and it
+            # was not a story.
+            start = origination[bid]
             observed, threshold = {
-                "Leverage": (round(
-                    (net_debt := max(0.0, borrower["base_revenue"]
-                                     * borrower["base_leverage"] * 0.38
-                                     * (1 + 0.10 * personal))) /
-                    max(borrower["base_revenue"] * borrower["base_margin"], 1.0),
-                    3), 4.00),
-                "DSCR": (round(_clamp(2.35 - 0.95 * personal, 0.55, 4.2), 3),
-                         1.25),
-                "Interest Cover": (round(_clamp(5.4 - 2.2 * personal, 0.7,
-                                                12.0), 3), 2.50),
-                "Current Ratio": (round(_clamp(1.65 - 0.5 * personal, 0.55,
-                                               3.1), 3), 1.10),
-                "Minimum EBITDA": (round(borrower["base_revenue"]
-                                         * borrower["base_margin"]
-                                         * (1 - 0.30 * personal), 2),
-                                   round(borrower["base_revenue"]
-                                         * borrower["base_margin"] * 0.70, 2)),
+                "Leverage": (round(here["leverage"], 3),
+                             round(max(3.0, start["leverage"] * 1.35), 3)),
+                "DSCR": (round(here["dscr"], 3),
+                         round(max(1.05, start["dscr"] * 0.72), 3)),
+                "Interest Cover": (round(here["interest_cover"], 3),
+                                   round(max(1.75,
+                                             start["interest_cover"] * 0.62),
+                                         3)),
+                "Current Ratio": (round(here["current_ratio"], 3),
+                                  round(max(0.95,
+                                            start["current_ratio"] * 0.82),
+                                        3)),
+                "Minimum EBITDA": (round(here["ebitda"], 2),
+                                   round(start["ebitda"] * 0.78, 2)),
             }[kind]
             # Leverage is a ceiling; everything else here is a floor.
             if kind == "Leverage":

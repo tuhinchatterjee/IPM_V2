@@ -22,7 +22,8 @@ import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import (JSONResponse, Response,
+                               StreamingResponse)
 from pydantic import BaseModel, Field
 
 from backend.cockpit_v4 import DEEP, MODES, STANDARD
@@ -392,6 +393,250 @@ async def read_artifact(run_id: str, artifact_id: str,
             "rows": rows,
             "omitted_rows": max(0, record["row_count"] - (offset + len(rows))),
             "executed_code_digest": record["code_digest"]}
+
+
+# ---- the schema, browsable per book -------------------------------------
+
+@router.get("/schema")
+async def schema_browser(domain: str = Query(""), relation: str = Query(""),
+                         who: dict[str, Any] = Depends(principal)
+                         ) -> dict[str, Any]:
+    """What one book contains, as DATA rather than as a document.
+
+    Two depths. Without a relation: every relation, its grain, its keys, its
+    column count and its row count. With one: every column, with its type,
+    unit, aggregation and definition.
+
+    A relation belonging to the OTHER book is refused by name. Browsing is
+    not analysis, but a schema browser that quietly showed the other book's
+    columns would be teaching the reader the wrong thing about what their
+    thread can reach.
+    """
+    from backend.cockpit_v4 import catalog as cat_mod
+    from backend.cockpit_v4 import domains as dom_mod
+    from backend.cockpit_v4 import schema as schema_mod
+
+    try:
+        domain_id = dom_mod.parse(domain)
+    except dom_mod.UnknownDomain as exc:
+        raise HTTPException(400, {"error_code": "UNKNOWN_DOMAIN",
+                                  "message": str(exc)}) from exc
+    scope, _session, tenant = _domain_book(who, domain_id)
+    catalog = cat_mod.build(domain_id=domain_id,
+                            release_id=scope.release_id, tenant_id=tenant)
+    manifest = lake_mod.read_manifest(scope.release_id)
+    counts = dict(manifest.get("row_counts") or {})
+
+    common = {
+        "domain_id": domain_id,
+        "domain_label": dom_mod.LABELS[domain_id],
+        "release_id": scope.release_id,
+        "release_fingerprint": scope.release_fingerprint,
+        "reporting_currency": scope.currency,
+        "amount_scale": scope.amount_scale,
+        "reporting_frequency": scope.reporting_frequency,
+        "reporting_periods": list(scope.periods),
+        "latest_period": scope.latest_period,
+        "not_client_data": manifest.get("not_client_data"),
+        "geography_name": manifest.get("geography_name"),
+    }
+
+    if not relation:
+        outline = catalog.outline()
+        return {
+            **common,
+            "relations": [{**entry, "rows": int(counts.get(entry["relation"],
+                                                           0))}
+                          for entry in outline["relations"]],
+            "joins": catalog.joins(),
+            "total_rows": sum(int(v) for v in counts.values()),
+            "note": ("These are the relations this book publishes. A "
+                     "question asked in this book reads these and nothing "
+                     "else."),
+        }
+
+    try:
+        name = catalog.require_relation(relation)
+    except cat_mod.CrossDomainAccess as exc:
+        raise HTTPException(403, {
+            "error_code": st.SECURITY_DENIED, "message": str(exc),
+            "domain_id": domain_id, "relation": relation}) from exc
+    except schema_mod.UnknownRelation as exc:
+        raise HTTPException(404, {
+            "error_code": "NOT_FOUND", "message": str(exc),
+            "domain_id": domain_id, "relation": relation}) from exc
+
+    spec = catalog.spec(name)
+    return {
+        **common,
+        "relation": spec.name,
+        "grain": spec.grain,
+        "description": spec.description,
+        "period_column": spec.period_column,
+        "key_columns": list(spec.key_columns),
+        "rows": int(counts.get(spec.name, 0)),
+        "joins": [j for j in catalog.joins()
+                  if j["left"] == spec.name or j["right"] == spec.name],
+        "fields": [{"name": f.name, "dtype": f.dtype, "unit": f.unit,
+                    "aggregation": f.additive, "group": f.group,
+                    "definition": f.description}
+                   for f in spec.fields],
+    }
+
+
+# ---- export ------------------------------------------------------------
+
+def _export_context(run_id: str, who: dict[str, Any]):
+    """The run, its answer and its artifacts, or a typed refusal.
+
+    An export of a run that has not finished would be an export of nothing,
+    and an export of a FAILED run would be an export of a question with no
+    answer. Both are refused by name rather than served as an empty file.
+    """
+    from backend.cockpit_v4 import export as export_mod
+
+    record = _authorize(run_id, who)
+    if not st.is_terminal(record.state):
+        raise HTTPException(409, {
+            "error_code": "RUN_NOT_FINISHED",
+            "message": ("This run has not finished, so there is nothing to "
+                        "export yet."),
+            "state": record.state})
+    answer = record.final_response or {}
+    if not answer:
+        raise HTTPException(409, {
+            "error_code": st.DATA_UNAVAILABLE,
+            "message": (f"This run ended {record.state} and published no "
+                        f"answer, so there is nothing to export. Nothing "
+                        f"was substituted for it."),
+            "state": record.state,
+            "error_code_detail": record.error_code})
+    del export_mod
+    return record, answer
+
+
+def _run_artifacts(record: Any, answer: dict[str, Any]
+                   ) -> dict[str, dict[str, Any]]:
+    store = _store()
+    found: dict[str, dict[str, Any]] = {}
+    ids = {str(t.get("artifact_id") or "")
+           for t in (answer.get("tables") or [])}
+    ids |= {str(c.get("artifact_id") or "")
+            for c in (answer.get("charts") or [])}
+    ids |= {str((claim.get("evidence") or {}).get("artifact_id") or "")
+            for claim in (answer.get("numeric_claims") or [])}
+    for artifact_id in sorted(i for i in ids if i):
+        stored = store.get_artifact(artifact_id,
+                                    tenant_id=record.tenant_id)
+        if stored is not None and stored["run_id"] == record.run_id:
+            found[artifact_id] = stored
+    return found
+
+
+def _attach(body: str, *, media: str, name: str) -> Response:
+    return Response(
+        content=body, media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{name}"',
+                 "X-CreditProbe-Export": "1"})
+
+
+@router.get("/runs/{run_id}/export")
+async def export_analysis(run_id: str,
+                          who: dict[str, Any] = Depends(principal)
+                          ) -> Response:
+    """The whole analysis as one document: answer, figures, tables, lineage."""
+    from backend.cockpit_v4 import export as export_mod
+
+    record, answer = _export_context(run_id, who)
+    artifacts = _run_artifacts(record, answer)
+    rows = sum(len(a.get("rows") or []) for a in artifacts.values())
+    lineage = export_mod.lineage_for(record=record, row_count=rows)
+    lineage = export_mod.Lineage(
+        **{**lineage.__dict__,
+           "artifact_ids": tuple(sorted(artifacts)),
+           "code_digests": tuple(
+               sorted({str(a.get("code_digest") or "")
+                       for a in artifacts.values()
+                       if a.get("code_digest")}))})
+    body = export_mod.analysis_markdown(
+        record=record, answer=answer, artifacts=artifacts, lineage=lineage)
+    return _attach(body, media=export_mod.MEDIA_TYPES[
+        export_mod.FORMAT_MARKDOWN],
+        name=export_mod.filename(kind="analysis", run_id=run_id,
+                                 suffix="md"))
+
+
+@router.get("/runs/{run_id}/artifacts/{artifact_id}/export")
+async def export_table(run_id: str, artifact_id: str,
+                       rows: str = Query("all"),
+                       who: dict[str, Any] = Depends(principal)) -> Response:
+    """One result as CSV. Every row by default, and it says which."""
+    from backend.cockpit_v4 import export as export_mod
+
+    record, answer = _export_context(run_id, who)
+    if rows not in export_mod.ROW_MODES:
+        raise HTTPException(400, {
+            "error_code": "INVALID_ROW_SCOPE",
+            "message": (f"rows must be one of "
+                        f"{', '.join(export_mod.ROW_MODES)}.")})
+    stored = _store().get_artifact(artifact_id, tenant_id=record.tenant_id)
+    if stored is None or stored["run_id"] != run_id:
+        raise HTTPException(404, {"error_code": "NOT_FOUND",
+                                  "message": "No such artifact."})
+    table = next((t for t in (answer.get("tables") or [])
+                  if str(t.get("artifact_id") or "") == artifact_id), {})
+    units = dict(table.get("column_units") or {})
+    columns = [str(c) for c in (table.get("columns")
+                                or stored.get("columns") or [])]
+    body_rows = list(stored.get("rows") or [])
+    total = int(stored.get("row_count") or len(body_rows))
+    if rows == export_mod.DISPLAYED_ROWS:
+        # What the reader actually saw: the rendered table's own rows.
+        shown = len(table.get("rows") or []) or len(body_rows)
+        body_rows = body_rows[:shown]
+    payload = dict(stored, rows=body_rows)
+    lineage = export_mod.lineage_for(
+        record=record, artifact=stored, row_scope=rows,
+        row_count=len(body_rows), total_rows=total,
+        complete=len(body_rows) >= total)
+    try:
+        body = export_mod.table_csv(artifact=payload, lineage=lineage,
+                                    columns=columns, units=units)
+    except export_mod.ExportUnavailable as exc:
+        raise HTTPException(409, {"error_code": st.DATA_UNAVAILABLE,
+                                  "message": str(exc)}) from exc
+    return _attach(body, media=export_mod.MEDIA_TYPES[export_mod.FORMAT_CSV],
+                   name=export_mod.filename(kind="table", run_id=run_id,
+                                            suffix="csv"))
+
+
+@router.get("/runs/{run_id}/charts/{index}/export")
+async def export_chart(run_id: str, index: int,
+                       who: dict[str, Any] = Depends(principal)) -> Response:
+    """One published chart as SVG, drawn from the points the server supplied."""
+    from backend.cockpit_v4 import export as export_mod
+
+    record, answer = _export_context(run_id, who)
+    charts = list(answer.get("charts") or [])
+    if index < 0 or index >= len(charts):
+        raise HTTPException(404, {
+            "error_code": "NOT_FOUND",
+            "message": (f"This answer published {len(charts)} chart(s); "
+                        f"there is no chart {index}.")})
+    artifacts = _run_artifacts(record, answer)
+    chart = charts[index]
+    stored = artifacts.get(str(chart.get("artifact_id") or ""))
+    lineage = export_mod.lineage_for(
+        record=record, artifact=stored,
+        row_count=len(chart.get("points") or []))
+    try:
+        body = export_mod.chart_svg(chart=chart, lineage=lineage)
+    except export_mod.ExportUnavailable as exc:
+        raise HTTPException(409, {"error_code": st.DATA_UNAVAILABLE,
+                                  "message": str(exc)}) from exc
+    return _attach(body, media=export_mod.MEDIA_TYPES[export_mod.FORMAT_SVG],
+                   name=export_mod.filename(kind="chart", run_id=run_id,
+                                            suffix="svg"))
 
 
 # ---- the Cockpit home feed ---------------------------------------------

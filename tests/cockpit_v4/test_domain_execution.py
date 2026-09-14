@@ -647,3 +647,362 @@ def test_a_seeded_thread_executes_in_the_book_the_card_came_from(
     assert dom.DEFAULT_RELEASES[other] not in sent
     for relation in arun.for_domain(other).catalog.relations():
         assert relation not in sent
+
+
+# ---- C06-C12: the rest of the Corporate bank ---------------------------
+
+def test_c06_corporate_ecl_coverage_by_sector(drive_domain, store_db):
+    month = oracle.latest_month(dom.CORPORATE)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.CORPORATE,
+        question="What is ECL coverage by sector?",
+        sql=f"SELECT sector, SUM(ecl_sar_mn) / NULLIF(SUM(ead_sar_mn), 0) "
+            f"AS ecl_coverage FROM corp_facility_month "
+            f"WHERE reporting_month = '{month}' GROUP BY sector "
+            f"ORDER BY ecl_coverage DESC",
+        fields=["corp_facility_month.ecl_sar_mn",
+                "corp_facility_month.ead_sar_mn",
+                "corp_facility_month.sector"],
+        purpose="ECL coverage by sector", grain="sector", units="percent",
+        month=month)
+    produced = keyed(case.rows, "sector", "ecl_coverage")
+    for sector, value in oracle.corp_coverage_by_sector(month).items():
+        assert produced[sector] == pytest.approx(value, abs=TOLERANCE)
+
+
+def test_c07_corporate_downgrades_this_month(drive_domain, store_db):
+    month = oracle.latest_month(dom.CORPORATE)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.CORPORATE,
+        question="Which borrowers were downgraded this month?",
+        sql=f"SELECT borrower_name, -rating_notches_moved AS notches_down, "
+            f"rating_previous, rating_current FROM corp_borrower_month "
+            f"WHERE reporting_month = '{month}' AND rating_notches_moved < 0 "
+            f"ORDER BY notches_down DESC, borrower_name",
+        fields=["corp_borrower_month.borrower_name",
+                "corp_borrower_month.rating_notches_moved",
+                "corp_borrower_month.rating_current"],
+        purpose="Borrowers downgraded this month", grain="borrower",
+        units="notches", month=month)
+    produced = {str(r["borrower_name"]): int(r["notches_down"])
+                for r in case.rows["rows"]}
+    assert produced == oracle.corp_downgrades(month)
+
+
+def test_c08_corporate_covenant_breaches_and_the_exposure_behind_them(
+        drive_domain, store_db):
+    """The de-duplication case. Three breaches on one facility are one
+    exposure, and summing across the join would count it three times."""
+    month = oracle.latest_month(dom.CORPORATE)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.CORPORATE,
+        question="Which covenants are in breach, and how much exposure sits "
+                 "behind them?",
+        sql=f"WITH breached AS ("
+            f"  SELECT DISTINCT facility_id FROM corp_covenant_month"
+            f"  WHERE reporting_month = '{month}' AND breach_flag = 1) "
+            f"SELECT COUNT(*) AS facilities, "
+            f"SUM(f.ead_sar_mn) AS ead_sar_mn "
+            f"FROM corp_facility_month f JOIN breached b "
+            f"ON b.facility_id = f.facility_id "
+            f"WHERE f.reporting_month = '{month}'",
+        fields=["corp_covenant_month.breach_flag",
+                "corp_covenant_month.facility_id",
+                "corp_facility_month.ead_sar_mn"],
+        purpose="Exposure behind breached covenants", grain="portfolio",
+        units="SAR million", month=month)
+    row = case.rows["rows"][0]
+    assert float(row["ead_sar_mn"]) == pytest.approx(
+        oracle.corp_exposure_behind_breaches(month), abs=1e-4)
+    assert sum(oracle.corp_breaches_by_type(month).values()) >= int(
+        row["facilities"]), (
+        "a facility may carry more than one breached covenant")
+
+
+def test_c09_corporate_collateral_cover_by_type(drive_domain, store_db):
+    month = oracle.latest_month(dom.CORPORATE)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.CORPORATE,
+        question="How well is each collateral type covering its exposure?",
+        # The de-duplication is DECLARED. A facility pledging two assets of
+        # the same type is one exposure, so the exposure side counts each
+        # facility once per type; the grain diagnostic stands down because
+        # the author said so in the query rather than in a comment.
+        sql=f"WITH pledged AS ("
+            f"  SELECT collateral_type,"
+            f"         SUM(allocated_value_sar_mn) AS allocated"
+            f"  FROM corp_collateral_month"
+            f"  WHERE reporting_month = '{month}' GROUP BY collateral_type), "
+            f"secured AS ("
+            f"  SELECT d.collateral_type, SUM(f.ead_sar_mn) AS ead"
+            f"  FROM (SELECT DISTINCT collateral_type, facility_id"
+            f"        FROM corp_collateral_month"
+            f"        WHERE reporting_month = '{month}') d"
+            f"  JOIN corp_facility_month f ON f.facility_id = d.facility_id"
+            f"  AND f.reporting_month = '{month}'"
+            f"  GROUP BY d.collateral_type) "
+            f"SELECT p.collateral_type, "
+            f"p.allocated / NULLIF(s.ead, 0) AS cover "
+            f"FROM pledged p JOIN secured s "
+            f"ON s.collateral_type = p.collateral_type ORDER BY cover",
+        fields=["corp_collateral_month.allocated_value_sar_mn",
+                "corp_collateral_month.collateral_type",
+                "corp_facility_month.ead_sar_mn"],
+        purpose="Collateral cover by type", grain="collateral type",
+        units="percent", month=month)
+    produced = keyed(case.rows, "collateral_type", "cover")
+    for kind, value in oracle.corp_collateral_cover_by_type(month).items():
+        assert produced[kind] == pytest.approx(value, abs=1e-6)
+
+
+def test_c10_corporate_stage_migration_between_two_months(drive_domain,
+                                                          store_db):
+    latest = oracle.latest_month(dom.CORPORATE)
+    previous = oracle.previous_month(dom.CORPORATE)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.CORPORATE,
+        question="How much exposure moved to a worse stage this month?",
+        sql=f"WITH now AS (SELECT facility_id, stage, ead_sar_mn "
+            f"FROM corp_facility_month WHERE reporting_month = '{latest}'), "
+            f"before AS (SELECT facility_id, stage FROM corp_facility_month "
+            f"WHERE reporting_month = '{previous}') "
+            f"SELECT SUM(CASE WHEN n.stage > b.stage THEN n.ead_sar_mn "
+            f"ELSE 0 END) AS deteriorated, "
+            f"SUM(CASE WHEN n.stage < b.stage THEN n.ead_sar_mn "
+            f"ELSE 0 END) AS improved "
+            f"FROM now n JOIN before b ON b.facility_id = n.facility_id",
+        fields=["corp_facility_month.stage",
+                "corp_facility_month.ead_sar_mn"],
+        purpose="Stage migration over the latest month", grain="portfolio",
+        units="SAR million", month=latest)
+    row = case.rows["rows"][0]
+    expected = oracle.corp_stage_migration(latest, previous)
+    assert float(row["deteriorated"]) == pytest.approx(
+        expected["deteriorated"], abs=1e-4)
+    assert float(row["improved"]) == pytest.approx(expected["improved"],
+                                                   abs=1e-4)
+
+
+def test_c11_corporate_group_concentration(drive_domain, store_db):
+    month = oracle.latest_month(dom.CORPORATE)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.CORPORATE,
+        question="Which parent groups hold the most exposure?",
+        sql=f"SELECT b.group_name, SUM(f.ead_sar_mn) AS ead_sar_mn "
+            f"FROM corp_facility_month f "
+            f"JOIN corp_borrower_month b ON b.borrower_id = f.borrower_id "
+            f"AND b.reporting_month = f.reporting_month "
+            f"WHERE f.reporting_month = '{month}' "
+            f"GROUP BY b.group_name ORDER BY ead_sar_mn DESC",
+        fields=["corp_facility_month.ead_sar_mn",
+                "corp_borrower_month.group_name"],
+        purpose="Group exposure concentration", grain="group",
+        units="SAR million", month=month)
+    produced = keyed(case.rows, "group_name", "ead_sar_mn")
+    expected = oracle.corp_ead_by_group(month)
+    assert set(produced) == set(expected)
+    for name, value in expected.items():
+        assert produced[name] == pytest.approx(value, abs=1e-4)
+
+
+def test_c12_corporate_utilisation_by_facility_type(drive_domain, store_db):
+    month = oracle.latest_month(dom.CORPORATE)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.CORPORATE,
+        question="How drawn is each facility type?",
+        sql=f"SELECT facility_type, "
+            f"SUM(drawn_sar_mn) / NULLIF(SUM(limit_sar_mn), 0) AS utilisation "
+            f"FROM corp_facility_month WHERE reporting_month = '{month}' "
+            f"GROUP BY facility_type ORDER BY utilisation DESC",
+        fields=["corp_facility_month.drawn_sar_mn",
+                "corp_facility_month.limit_sar_mn",
+                "corp_facility_month.facility_type"],
+        purpose="Utilisation by facility type", grain="facility type",
+        units="percent", month=month)
+    produced = keyed(case.rows, "facility_type", "utilisation")
+    for kind, value in oracle.corp_utilisation_by_type(month).items():
+        assert produced[kind] == pytest.approx(value, abs=TOLERANCE)
+
+
+# ---- R07-R12: the rest of the Retail bank ------------------------------
+
+def test_r07_retail_exposure_by_delinquency_bucket(drive_domain, store_db):
+    month = oracle.latest_month(dom.RETAIL)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.RETAIL,
+        question="How is exposure spread across delinquency buckets?",
+        sql=f"SELECT delinquency_bucket, SUM(ead_sar_mn) AS ead_sar_mn "
+            f"FROM retail_account_month WHERE reporting_month = '{month}' "
+            f"GROUP BY delinquency_bucket ORDER BY delinquency_bucket",
+        fields=["retail_account_month.ead_sar_mn",
+                "retail_account_month.delinquency_bucket"],
+        purpose="EAD by delinquency bucket", grain="bucket",
+        units="SAR million", month=month)
+    produced = keyed(case.rows, "delinquency_bucket", "ead_sar_mn")
+    expected = oracle.retail_ead_by_bucket(month)
+    assert set(produced) == set(expected)
+    for bucket, value in expected.items():
+        assert produced[bucket] == pytest.approx(value, abs=1e-4)
+    assert "90+" in produced and produced["90+"] > 0, (
+        "a retail book with no ninety-day population answers every arrears "
+        "question with approximately nothing")
+
+
+def test_r08_retail_cures_by_product(drive_domain, store_db):
+    month = oracle.latest_month(dom.RETAIL)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.RETAIL,
+        question="How many accounts cured this month, by product?",
+        sql=f"SELECT product, SUM(cure_flag) AS cures "
+            f"FROM retail_account_month WHERE reporting_month = '{month}' "
+            f"GROUP BY product ORDER BY cures DESC",
+        fields=["retail_account_month.cure_flag",
+                "retail_account_month.product"],
+        purpose="Cures by product", grain="product", units="count",
+        month=month)
+    produced = {str(r["product"]): int(r["cures"]) for r in case.rows["rows"]}
+    expected = oracle.retail_cures_by_product(month)
+    for product, value in expected.items():
+        assert produced[product] == value
+
+
+def test_r09_retail_behaviour_score_migration(drive_domain, store_db):
+    month = oracle.latest_month(dom.RETAIL)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.RETAIL,
+        question="How many customers moved score band this month?",
+        sql=f"SELECT score_migration, COUNT(*) AS customers "
+            f"FROM retail_customer_month WHERE reporting_month = '{month}' "
+            f"GROUP BY score_migration ORDER BY customers DESC",
+        fields=["retail_customer_month.score_migration",
+                "retail_customer_month.customer_id"],
+        purpose="Behaviour score migration", grain="migration",
+        units="count", month=month)
+    produced = {str(r["score_migration"]): int(r["customers"])
+                for r in case.rows["rows"]}
+    assert produced == oracle.retail_band_migration(month)
+
+
+def test_r10_retail_customer_concentration(drive_domain, store_db):
+    """The roll-up is READ, not recomputed across the join."""
+    month = oracle.latest_month(dom.RETAIL)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.RETAIL,
+        question="Which customers hold the most exposure?",
+        sql=f"SELECT customer_id, total_ead_sar_mn "
+            f"FROM retail_customer_month WHERE reporting_month = '{month}' "
+            f"ORDER BY total_ead_sar_mn DESC LIMIT 25",
+        fields=["retail_customer_month.total_ead_sar_mn",
+                "retail_customer_month.customer_id"],
+        purpose="Largest retail customers", grain="customer",
+        units="SAR million", month=month)
+    produced = keyed(case.rows, "customer_id", "total_ead_sar_mn")
+    expected = oracle.retail_ead_by_customer(month)
+    top = sorted(expected, key=lambda k: -expected[k])[:25]
+    assert set(produced) == set(top)
+    for customer in top:
+        assert produced[customer] == pytest.approx(expected[customer],
+                                                   abs=1e-6)
+
+
+def test_r11_retail_secured_and_unsecured(drive_domain, store_db):
+    month = oracle.latest_month(dom.RETAIL)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.RETAIL,
+        question="How does secured lending compare with unsecured?",
+        sql=f"SELECT CASE WHEN secured_flag = 1 THEN 'secured' "
+            f"ELSE 'unsecured' END AS security, "
+            f"SUM(ead_sar_mn) AS ead_sar_mn, SUM(ecl_sar_mn) AS ecl_sar_mn, "
+            f"SUM(ecl_sar_mn) / NULLIF(SUM(ead_sar_mn), 0) AS coverage, "
+            f"COUNT(*) AS accounts "
+            f"FROM retail_account_month WHERE reporting_month = '{month}' "
+            f"GROUP BY security ORDER BY security",
+        fields=["retail_account_month.secured_flag",
+                "retail_account_month.ead_sar_mn",
+                "retail_account_month.ecl_sar_mn"],
+        purpose="Secured against unsecured", grain="security",
+        units="SAR million", month=month)
+    produced = {str(r["security"]): r for r in case.rows["rows"]}
+    expected = oracle.retail_secured_split(month)
+    assert set(produced) == set(expected)
+    for key, values in expected.items():
+        assert float(produced[key]["ead_sar_mn"]) == pytest.approx(
+            values["ead"], abs=1e-4)
+        assert float(produced[key]["coverage"]) == pytest.approx(
+            values["coverage"], abs=TOLERANCE)
+        assert int(produced[key]["accounts"]) == int(values["accounts"])
+    assert expected["secured"]["coverage"] < expected["unsecured"]["coverage"], (
+        "security that does not reduce loss given default is not security")
+
+
+def test_r12_retail_seasoning_curve(drive_domain, store_db):
+    month = oracle.latest_month(dom.RETAIL)
+    case = run_case(
+        drive_domain, store_db, domain_id=dom.RETAIL,
+        question="Does Stage 2 exposure rise with months on book?",
+        sql=f"SELECT CASE WHEN months_on_book < 12 THEN '0-11' "
+            f"WHEN months_on_book < 24 THEN '12-23' "
+            f"WHEN months_on_book < 36 THEN '24-35' ELSE '36+' END "
+            f"AS seasoning, "
+            f"SUM(CASE WHEN stage >= 2 THEN ead_sar_mn ELSE 0 END) "
+            f"/ NULLIF(SUM(ead_sar_mn), 0) AS stage2_share "
+            f"FROM retail_account_month WHERE reporting_month = '{month}' "
+            f"GROUP BY seasoning ORDER BY seasoning",
+        fields=["retail_account_month.months_on_book",
+                "retail_account_month.stage",
+                "retail_account_month.ead_sar_mn"],
+        purpose="Stage 2 share by seasoning", grain="seasoning band",
+        units="percent", month=month)
+    produced = keyed(case.rows, "seasoning", "stage2_share")
+    expected = oracle.retail_stage2_by_months_on_book(month)
+    assert set(produced) == set(expected)
+    for band, value in expected.items():
+        assert produced[band] == pytest.approx(value, abs=TOLERANCE)
+
+
+def test_the_grain_diagnostic_refuses_an_undeclared_repetition(drive_domain,
+                                                               store_db):
+    """§7. A demonstrable repetition trap is a refusal, in the right book.
+
+    C09 above passes because its de-duplication is declared. This is the same
+    question written the way that silently double-counts, and it must not
+    return a number. The refusal has to name THIS book's relations and THIS
+    book's join, which is exactly what V3's diagnostic could not do -- it
+    read a hard-coded list of corporate quarterly join pairs and would have
+    found nothing here at all.
+    """
+    month = oracle.latest_month(dom.CORPORATE)
+    outcome, provider, _record = drive_domain(
+        dom.CORPORATE, "How well is collateral covering exposure?", [
+            ScriptedResult(tool_calls=[execute_call(
+                f"SELECT c.collateral_type, "
+                f"SUM(c.allocated_value_sar_mn) / "
+                f"NULLIF(SUM(f.ead_sar_mn), 0) AS cover "
+                f"FROM corp_collateral_month c "
+                f"JOIN corp_facility_month f ON f.facility_id = c.facility_id "
+                f"AND f.reporting_month = c.reporting_month "
+                f"WHERE c.reporting_month = '{month}' "
+                f"GROUP BY c.collateral_type",
+                purpose="Collateral cover", grain="collateral type",
+                units="percent", subquestions=["Collateral cover"],
+                fields=["corp_collateral_month.allocated_value_sar_mn",
+                        "corp_facility_month.ead_sar_mn"],
+                month=month)]),
+            ScriptedResult(tool_calls=[tool_call(
+                "finalize_response",
+                final(intent=intent("DATA_ANALYSIS", "COCKPIT"),
+                      disposition="unsupported",
+                      narrative=("That join repeats the exposure, so no "
+                                 "figure was published.")),
+                "tu-2")])])
+
+    assert not outcome.response.get("executed")
+    # What the ANALYST was told, read out of the bytes that would have gone
+    # to the provider. The refusal is a fact about this book's join, so it
+    # has to name this book's relations and say why.
+    told = provider.last_input_text()
+    assert "corp_collateral_month" in told and "corp_facility_month" in told
+    assert "count the same amount more than once" in told
+    assert "Security is held against a facility" in told
+    assert "retail_" not in told, (
+        "a refusal in the Corporate book must not name a Retail relation")

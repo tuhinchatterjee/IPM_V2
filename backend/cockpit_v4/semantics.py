@@ -709,14 +709,21 @@ def field_packet(catalog: Any) -> list[dict[str, Any]]:
     server had already resolved. It knew the fields and did not say what type
     they were.
     """
-    seen: set[str] = set()
+    seen: dict[str, dict[str, Any]] = {}
     packet: list[dict[str, Any]] = []
     for mapping in measures(catalog):
         relation, column = mapping["relation"], mapping["field"]
         field_id = f"{relation}.{column}"
         if field_id in seen:
+            # A second term for the SAME column is an alias, and dropping it
+            # silently lost real information: "segment" resolves to `sector`
+            # in one book and `product` in the other, and an analyst reading
+            # a packet that names only `sector` has not been told that.
+            entry = seen[field_id]
+            entry.setdefault("also_known_as", []).append(mapping["term"])
+            if mapping["note"] not in entry.get("alias_notes", []):
+                entry.setdefault("alias_notes", []).append(mapping["note"])
             continue
-        seen.add(field_id)
         try:
             spec = catalog.resolve(relation, column)
         except Exception:  # noqa: BLE001
@@ -724,6 +731,7 @@ def field_packet(catalog: Any) -> list[dict[str, Any]]:
         entry: dict[str, Any] = {"term": mapping["term"]}
         entry.update(_field_facts(relation, column, spec, catalog))
         entry["means"] = mapping["means"]
+        seen[field_id] = entry
         packet.append(entry)
     return packet
 

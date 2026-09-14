@@ -20,13 +20,14 @@ import {
   addComment,
   createInvestigation,
   deliveryWording,
+  exportLinks,
   saveAnalysis,
   shareItem,
   type Notification,
   type SavedAnalysis,
 } from "./client";
 
-type Panel = "" | "save" | "investigate" | "comment" | "share";
+type Panel = "" | "save" | "investigate" | "comment" | "share" | "export";
 
 function Button({
   id,
@@ -65,10 +66,16 @@ export function AnswerActions({
   runId,
   question,
   threadId,
+  tables = [],
+  charts = [],
 }: {
   runId: string;
   question: string;
   threadId?: string;
+  /** Published tables, for the per-table CSV links. */
+  tables?: { artifact_id?: string; title?: string; row_count?: number }[];
+  /** Published charts, for the per-chart SVG links. */
+  charts?: { title?: string }[];
 }) {
   const [panel, setPanel] = useState<Panel>("");
   const [saved, setSaved] = useState<SavedAnalysis | null>(null);
@@ -142,7 +149,64 @@ export function AnswerActions({
           active={panel === "share"}
           onClick={() => setPanel(panel === "share" ? "" : "share")}
         />
+        <Button
+          id="export"
+          label="Export"
+          active={panel === "export"}
+          onClick={() => setPanel(panel === "export" ? "" : "export")}
+        />
       </div>
+
+      {panel === "export" ? (
+        <div className="mt-3 space-y-2" data-testid="v4-panel-export">
+          <p className="text-xs text-slate-600">
+            Every document below carries the book, the release and the
+            fingerprint of the bytes it was computed from, so a figure pasted
+            into a memo can still be traced back to the query that produced
+            it.
+          </p>
+          <ul className="space-y-1.5 text-sm">
+            <li>
+              <a
+                data-testid="v4-export-analysis"
+                href={exportLinks(runId).analysis}
+                className="text-slate-900 underline underline-offset-2"
+              >
+                This analysis (Markdown)
+              </a>
+            </li>
+            {tables.map((table, index) =>
+              table.artifact_id ? (
+                <li key={table.artifact_id}>
+                  <a
+                    data-testid={`v4-export-table-${index}`}
+                    href={exportLinks(runId).table(table.artifact_id)}
+                    className="text-slate-900 underline underline-offset-2"
+                  >
+                    {table.title || "Result"} — every row as CSV
+                  </a>
+                  {typeof table.row_count === "number" ? (
+                    <span className="ml-1.5 text-xs text-slate-500">
+                      ({table.row_count} rows)
+                    </span>
+                  ) : null}
+                </li>
+              ) : null,
+            )}
+            {charts.map((chart, index) => (
+              <li key={`chart-${index}`}>
+                <a
+                  data-testid={`v4-export-chart-${index}`}
+                  href={exportLinks(runId).chart(index)}
+                  className="text-slate-900 underline underline-offset-2"
+                >
+                  {chart.title || "Chart"} — as SVG
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {panel === "save" ? (
         <div className="mt-3 space-y-2" data-testid="v4-panel-save">

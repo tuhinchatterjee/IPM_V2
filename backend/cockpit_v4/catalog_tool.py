@@ -107,7 +107,12 @@ class CatalogService:
             "definition": spec.definition,
             "dtype": spec.dtype,
             "unit": getattr(spec, "unit", ""),
-            "aggregation": getattr(spec, "aggregation", "not_additive"),
+            # A V4 field states its aggregation as a DERIVED property, from
+            # its unit, rather than repeating it on every one of its eighty
+            # column definitions. An empty string here would tell the analyst
+            # "not stated" about a column the catalogue knows is additive.
+            "aggregation": (getattr(spec, "aggregation", "")
+                            or getattr(spec, "additive", "not_additive")),
             "nullable": bool(getattr(spec, "nullable", True)),
             "value_origin": getattr(spec, "value_origin", ""),
             "availability": getattr(spec, "availability", ""),

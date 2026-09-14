@@ -157,3 +157,163 @@ __all__ = ["corp_ead_by_borrower", "corp_ead_by_sector",
            "retail_ecl_by_score_band", "retail_ecl_coverage",
            "retail_stage2_share_by_product", "retail_write_off_by_product",
            "share_by", "sum_by", "total"]
+
+
+# ---- corporate, the second six -----------------------------------------
+
+def corp_coverage_by_sector(month: str) -> dict[str, float]:
+    rows = _month(dom.CORPORATE, "corp_facility_month", month)
+    out: dict[str, float] = {}
+    for key, group in rows.groupby("sector", observed=True):
+        ead = float(group["ead_sar_mn"].sum())
+        if ead > 0:
+            out[str(key)] = float(group["ecl_sar_mn"].sum()) / ead
+    return out
+
+
+def corp_downgrades(month: str) -> dict[str, int]:
+    """Borrowers whose rating moved DOWN this month, by how many notches.
+
+    `rating_notches_moved` is recorded as negative for a downgrade, so the
+    oracle reads the sign off the column rather than recomputing it from the
+    two grades -- which is a different figure the moment either is null.
+    """
+    rows = _month(dom.CORPORATE, "corp_borrower_month", month)
+    moved = rows[rows["rating_notches_moved"] < 0]
+    return {str(r["borrower_name"]): int(-r["rating_notches_moved"])
+            for _i, r in moved.iterrows()}
+
+
+def corp_breaches_by_type(month: str) -> dict[str, int]:
+    rows = _month(dom.CORPORATE, "corp_covenant_month", month)
+    breached = rows[rows["breach_flag"] == 1]
+    return {str(k): int(len(g)) for k, g in
+            breached.groupby("covenant_type", observed=True)}
+
+
+def corp_exposure_behind_breaches(month: str) -> float:
+    """EAD of the facilities with at least one breached covenant.
+
+    De-duplicated on purpose: a facility with three breached covenants is one
+    exposure, and summing across the join would count it three times.
+    """
+    covenants = _month(dom.CORPORATE, "corp_covenant_month", month)
+    breached = set(covenants.loc[covenants["breach_flag"] == 1,
+                                 "facility_id"])
+    facilities = _month(dom.CORPORATE, "corp_facility_month", month)
+    return float(facilities[facilities["facility_id"].isin(breached)]
+                 ["ead_sar_mn"].sum())
+
+
+def corp_collateral_cover_by_type(month: str) -> dict[str, float]:
+    """Allocated collateral over the EAD of the facility it stands against."""
+    collateral = _month(dom.CORPORATE, "corp_collateral_month", month)
+    facilities = _month(dom.CORPORATE, "corp_facility_month", month)
+    ead = dict(zip(facilities["facility_id"], facilities["ead_sar_mn"]))
+    out: dict[str, float] = {}
+    for key, group in collateral.groupby("collateral_type", observed=True):
+        secured = sum(float(ead.get(f, 0.0))
+                      for f in group["facility_id"].unique())
+        if secured > 0:
+            out[str(key)] = float(
+                group["allocated_value_sar_mn"].sum()) / secured
+    return out
+
+
+def corp_stage_migration(latest: str, previous: str) -> dict[str, float]:
+    """EAD that crossed a stage boundary between the two months."""
+    now = _month(dom.CORPORATE, "corp_facility_month", latest).set_index(
+        "facility_id")
+    before = _month(dom.CORPORATE, "corp_facility_month",
+                    previous).set_index("facility_id")
+    kept = now.index.intersection(before.index)
+    worse = [k for k in kept if now.loc[k, "stage"] > before.loc[k, "stage"]]
+    better = [k for k in kept if now.loc[k, "stage"] < before.loc[k, "stage"]]
+    return {"deteriorated": float(now.loc[worse, "ead_sar_mn"].sum()),
+            "improved": float(now.loc[better, "ead_sar_mn"].sum())}
+
+
+def corp_ead_by_group(month: str) -> dict[str, float]:
+    facilities = _month(dom.CORPORATE, "corp_facility_month", month)
+    borrowers = _month(dom.CORPORATE, "corp_borrower_month", month)
+    group = dict(zip(borrowers["borrower_id"], borrowers["group_name"]))
+    out: dict[str, float] = {}
+    for _i, row in facilities.iterrows():
+        name = str(group.get(row["borrower_id"], ""))
+        out[name] = out.get(name, 0.0) + float(row["ead_sar_mn"])
+    return out
+
+
+def corp_utilisation_by_type(month: str) -> dict[str, float]:
+    """Drawn over limit, at the TYPE level rather than an average of ratios."""
+    rows = _month(dom.CORPORATE, "corp_facility_month", month)
+    out: dict[str, float] = {}
+    for key, group in rows.groupby("facility_type", observed=True):
+        limit = float(group["limit_sar_mn"].sum())
+        if limit > 0:
+            out[str(key)] = float(group["drawn_sar_mn"].sum()) / limit
+    return out
+
+
+# ---- retail, the second six --------------------------------------------
+
+def retail_ead_by_bucket(month: str) -> dict[str, float]:
+    return sum_by(dom.RETAIL, "retail_account_month", month,
+                  "delinquency_bucket", "ead_sar_mn")
+
+
+def retail_cures_by_product(month: str) -> dict[str, int]:
+    rows = _month(dom.RETAIL, "retail_account_month", month)
+    cured = rows[rows["cure_flag"] == 1]
+    return {str(k): int(len(g))
+            for k, g in cured.groupby("product", observed=True)}
+
+
+def retail_band_migration(month: str) -> dict[str, int]:
+    rows = _month(dom.RETAIL, "retail_customer_month", month)
+    return {str(k): int(len(g))
+            for k, g in rows.groupby("score_migration", observed=True)}
+
+
+def retail_ead_by_customer(month: str) -> dict[str, float]:
+    """Customer exposure, read from the customer relation's own roll-up."""
+    rows = _month(dom.RETAIL, "retail_customer_month", month)
+    return {str(r["customer_id"]): float(r["total_ead_sar_mn"])
+            for _i, r in rows.iterrows()}
+
+
+def retail_secured_split(month: str) -> dict[str, dict[str, float]]:
+    rows = _month(dom.RETAIL, "retail_account_month", month)
+    out: dict[str, dict[str, float]] = {}
+    for flag, group in rows.groupby("secured_flag", observed=True):
+        ead = float(group["ead_sar_mn"].sum())
+        out["secured" if int(flag) == 1 else "unsecured"] = {
+            "ead": ead, "ecl": float(group["ecl_sar_mn"].sum()),
+            "coverage": (float(group["ecl_sar_mn"].sum()) / ead
+                         if ead else 0.0),
+            "accounts": float(len(group)),
+        }
+    return out
+
+
+def retail_stage2_by_months_on_book(month: str) -> dict[str, float]:
+    """Stage 2+ share of EAD by seasoning band."""
+    rows = _month(dom.RETAIL, "retail_account_month", month).copy()
+
+    def band(value: int) -> str:
+        if value < 12:
+            return "0-11"
+        if value < 24:
+            return "12-23"
+        if value < 36:
+            return "24-35"
+        return "36+"
+
+    rows["seasoning"] = rows["months_on_book"].map(band)
+    out: dict[str, float] = {}
+    for key, group in rows.groupby("seasoning", observed=True):
+        ead = float(group["ead_sar_mn"].sum())
+        if ead > 0:
+            out[str(key)] = float(
+                group.loc[group["stage"] >= 2, "ead_sar_mn"].sum()) / ead
+    return out

@@ -292,6 +292,8 @@ export function ResponsePanel({
           runId={view.runId}
           question={question ?? ""}
           threadId={threadId}
+          tables={response.tables ?? []}
+          charts={response.charts ?? []}
         />
       ) : null}
     </section>

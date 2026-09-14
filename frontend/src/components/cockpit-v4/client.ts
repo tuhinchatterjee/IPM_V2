@@ -729,6 +729,104 @@ export async function readAttention(
   );
 }
 
+export type SchemaField = {
+  name: string;
+  dtype: string;
+  unit: string;
+  aggregation: string;
+  group: string;
+  definition: string;
+};
+
+export type SchemaRelation = {
+  relation: string;
+  name: string;
+  grain: string;
+  about: string;
+  description: string;
+  period_column: string;
+  key_columns: string[];
+  columns: number;
+  rows: number;
+};
+
+export type SchemaJoin = {
+  left: string;
+  right: string;
+  on: string[];
+  cardinality?: string;
+  note?: string;
+  warning?: string;
+};
+
+export type BookSchema = {
+  domain_id: DomainId;
+  domain_label: string;
+  release_id: string;
+  release_fingerprint: string;
+  reporting_currency: string;
+  amount_scale: string;
+  reporting_frequency: string;
+  reporting_periods: string[];
+  latest_period: string;
+  not_client_data?: string;
+  geography_name?: string;
+  relations?: SchemaRelation[];
+  joins?: SchemaJoin[];
+  total_rows?: number;
+  note?: string;
+  /** Present only when one relation was asked for. */
+  relation?: string;
+  grain?: string;
+  description?: string;
+  period_column?: string;
+  key_columns?: string[];
+  rows?: number;
+  fields?: SchemaField[];
+};
+
+/** What one book contains. Without a relation, the shape; with one, the
+ * columns.
+ *
+ * The domain is a query, not a filter: each book publishes a different
+ * release with different relations, and asking for the other book's relation
+ * is refused rather than answered from this one.
+ */
+export async function readSchema(
+  domain: DomainId,
+  relation?: string,
+): Promise<BookSchema> {
+  const query = relation
+    ? `?domain=${encodeURIComponent(domain)}&relation=${encodeURIComponent(relation)}`
+    : `?domain=${encodeURIComponent(domain)}`;
+  return json(
+    await fetch(`${base()}${API_PREFIX}/schema${query}`, {
+      credentials: "include",
+    }),
+  );
+}
+
+/** Where an export of this run can be fetched from.
+ *
+ * Links rather than fetch-and-blob: the browser downloads the document
+ * straight from the API with the session cookie it already has, so nothing
+ * about the file passes through this code and nothing here can reformat a
+ * figure on its way out.
+ */
+export function exportLinks(runId: string): {
+  analysis: string;
+  table: (artifactId: string, rows?: "all" | "displayed") => string;
+  chart: (index: number) => string;
+} {
+  const root = `${base()}${API_PREFIX}/runs/${encodeURIComponent(runId)}`;
+  return {
+    analysis: `${root}/export`,
+    table: (artifactId, rows = "all") =>
+      `${root}/artifacts/${encodeURIComponent(artifactId)}/export?rows=${rows}`,
+    chart: (index) => `${root}/charts/${index}/export`,
+  };
+}
+
 export type EclStage = {
   stage: number;
   label: string;

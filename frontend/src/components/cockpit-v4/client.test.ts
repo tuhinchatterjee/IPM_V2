@@ -13,6 +13,7 @@ import {
   CockpitV4NotConfigured,
   apiOrigin,
   cockpitV4Enabled,
+  exportLinks,
   forgetRun,
   recallRun,
   rememberRun,
@@ -168,4 +169,28 @@ test("the remembered run keeps the question it is answering", () => {
     question: "What is total EAD by sector?",
   });
   assert.equal(recallRun()?.question, "What is total EAD by sector?");
+});
+
+test("export links name the run, the artifact and the row scope", () => {
+  setEnv("http://127.0.0.1:8414", undefined);
+  const links = exportLinks("run-abc123");
+  assert.ok(links.analysis.endsWith("/runs/run-abc123/export"));
+  assert.ok(
+    links
+      .table("art-9")
+      .endsWith("/runs/run-abc123/artifacts/art-9/export?rows=all"),
+  );
+  assert.ok(
+    links
+      .table("art-9", "displayed")
+      .endsWith("/runs/run-abc123/artifacts/art-9/export?rows=displayed"),
+  );
+  assert.ok(links.chart(2).endsWith("/runs/run-abc123/charts/2/export"));
+});
+
+test("an export link escapes a run id rather than pasting it into a path", () => {
+  setEnv("http://127.0.0.1:8414", undefined);
+  const links = exportLinks("run/../../etc");
+  assert.ok(!links.analysis.includes("/../"));
+  assert.ok(links.analysis.includes("run%2F..%2F..%2Fetc"));
 });
