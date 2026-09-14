@@ -642,8 +642,8 @@ def test_a_seeded_thread_executes_in_the_book_the_card_came_from(
               "release_fingerprint": scope.release_fingerprint,
               "segment": item["segment"], "metric": item["metric"],
               "headline": item["headline"],
-              "reporting_period": item["reporting_month"],
-              "comparison_period": item["comparison_month"]})
+              "reporting_period": item["reporting_period"],
+              "comparison_period": item["comparison_period"]})
     record, _created = store_db.accept_run(
         thread_id=thread_id, tenant_id=lake.DEFAULT_TENANT,
         principal_id="u1", question="Show me what is behind this.",
@@ -663,7 +663,7 @@ def test_a_seeded_thread_executes_in_the_book_the_card_came_from(
     assert "ACTIVE INVESTIGATION" in sent
     assert item["segment"] in sent
     assert scope.release_id in sent
-    assert item["reporting_month"] in sent
+    assert item["reporting_period"] in sent
     other = next(d for d in dom.DOMAIN_IDS if d != domain_id)
     assert dom.DEFAULT_RELEASES[other] not in sent
     for relation in arun.for_domain(other).catalog.relations():

@@ -380,12 +380,24 @@ def parse_intent(payload: Any, *, path: str = "intent",
             return fallback
         return _optional_str_list(payload, key, path)
 
+    # The MODE and the OWNER are the run's, not the answer's. A model cannot
+    # talk a Retail run into being a Corporate one, or a data analysis into
+    # being product help, by restating a field.
+    #
+    # One movement is allowed, and only one: a run may WIDEN into a data
+    # analysis. The budget classifier decides the mode from the question's
+    # words before anything is spent and can read an analytical turn as
+    # product help -- "tell me more", in an analytical thread, names no
+    # measure at all. An analyst that then declares an analysis is telling
+    # us something the classifier could not know, and refusing the
+    # declaration would leave a real analysis running on the sixty-second
+    # product-help clock. It can never narrow: a run that has already read
+    # the book does not get moved onto the cheaper clock by saying so.
+    widened = (carried is not None and mode == DATA_ANALYSIS
+               and base.query_mode != DATA_ANALYSIS)
     return Intent(
-        # The MODE and the OWNER are the run's, not the answer's. A model
-        # cannot talk a Retail run into being a Corporate one, or a data
-        # analysis into being product help, by restating a field.
-        query_mode=(mode if mode in QUERY_MODES and carried is None
-                    else base.query_mode),
+        query_mode=(mode if (mode in QUERY_MODES and carried is None)
+                    or widened else base.query_mode),
         owner=(owner if owner in OWNERS and carried is None
                else base.owner),
         understood_request=text_or("understood_request",

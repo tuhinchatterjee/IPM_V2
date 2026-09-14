@@ -49,13 +49,15 @@ def books():
 
 
 def _months(domain_id: str) -> tuple[str, str]:
-    return oracle.latest_month(domain_id), oracle.previous_month(domain_id)
+    """This book's two latest periods: quarters in Corporate, months in
+    Retail. The name is historical; the values are the book's own."""
+    return oracle.latest_period(domain_id), oracle.previous_period(domain_id)
 
 
 def _frame(domain_id: str, month: str):
     relation, _key = EXPOSURE[domain_id]
     data = oracle.frame(domain_id, relation)
-    return data[data["reporting_month"] == month]
+    return data[data[oracle.period_column(domain_id)] == month]
 
 
 # ---- §23: the stage profile --------------------------------------------
@@ -164,8 +166,10 @@ def test_the_movement_is_the_two_months_it_names(books, domain_id):
     book, scope = books[domain_id]
     month, comparison = _months(domain_id)
     body = ecl_mod.decompose(session=book.session, scope=scope).to_dict()
-    assert body["reporting_month"] == month
-    assert body["comparison_month"] == comparison
+    assert body["reporting_period"] == month
+    assert body["comparison_period"] == comparison
+    assert body["period_noun"] == ("quarter" if domain_id == dom.CORPORATE
+                                   else "month")
     assert body["opening"] == pytest.approx(
         float(_frame(domain_id, comparison)["ecl_sar_mn"].sum()), abs=1e-4)
     assert body["closing"] == pytest.approx(

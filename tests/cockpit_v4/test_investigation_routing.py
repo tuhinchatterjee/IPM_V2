@@ -83,7 +83,7 @@ def test_every_card_opens_a_thread_in_its_own_book(client, store_db,
         assert seed["release_id"] == dom.DEFAULT_RELEASES[domain_id]
         assert seed["release_fingerprint"] == feed["release_fingerprint"]
         assert seed["item_id"] == item["item_id"]
-        assert seed["reporting_period"] == feed["reporting_month"]
+        assert seed["reporting_period"] == feed["reporting_period"]
 
         # The THREAD, as persisted, before anything is asked in it.
         thread_id = body["thread_id"]

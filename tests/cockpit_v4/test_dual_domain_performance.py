@@ -196,7 +196,8 @@ def test_one_analytical_run_end_to_end(store_db, runtime, domain_id):
         ("corp_facility_quarter", "sector") if domain_id == dom.CORPORATE
         else ("retail_account_month", "product"))
     sql = (f"SELECT {dimension}, SUM(ead_sar_mn) AS ead_sar_mn "
-           f"FROM {relation} WHERE reporting_month = '{month}' "
+           f"FROM {relation} "
+           f"WHERE {oracle.period_column(domain_id)} = '{month}' "
            f"GROUP BY {dimension} ORDER BY ead_sar_mn DESC")
 
     def answer(messages):

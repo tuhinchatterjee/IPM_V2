@@ -32,6 +32,12 @@ SCHEMAS = Path(c.CONTRACTS_DIR)
 #: generation. Kept whole rather than reduced to the one field, because the
 #: point is that a model filling in "nothing" everywhere is behaving
 #: correctly.
+#:
+#: It still carries the OLD nested `intent`, deliberately. That field is no
+#: longer a property of any tool schema (§24), but a payload that sends one
+#: anyway is a live model behaving the way a live model has behaved, and the
+#: parser must keep taking it rather than refusing a finished answer over a
+#: field it stopped asking for.
 LIVE_FINALIZE_PAYLOAD = {
     "intent": {
         "query_mode": "PRODUCT_HELP",
@@ -64,6 +70,25 @@ def _schema(name: str) -> dict:
     return json.loads((SCHEMAS / name).read_text(encoding="utf-8"))
 
 
+#: What the RUN owns before any tool is called. §24: the server authors this
+#: once, so every parse below has one to merge into -- which is exactly the
+#: state the orchestrator is in from its first second.
+CARRIED = c.Intent(
+    query_mode="PRODUCT_HELP", owner="COCKPIT", understood_request="",
+    response_language="en", blocking_ambiguities=(), resolved_assumptions=(),
+    canonical_mappings=(), excluded_parts=(), public_rationale="")
+
+
+#: The same, for a run whose turn IS analytical. Masked sample rows are only
+#: available to one of these, which is a property of the RUN and not of the
+#: request -- so it is the carried envelope that decides, not a field the
+#: caller fills in.
+ANALYSIS = c.Intent(
+    query_mode="DATA_ANALYSIS", owner="COCKPIT", understood_request="",
+    response_language="en", blocking_ambiguities=(), resolved_assumptions=(),
+    canonical_mappings=(), excluded_parts=(), public_rationale="")
+
+
 def _accepts_null(node: dict) -> bool:
     declared = node.get("type")
     if isinstance(declared, list):
@@ -74,7 +99,7 @@ def _accepts_null(node: dict) -> bool:
 # ---- the recorded defect ------------------------------------------------
 
 def test_the_payload_that_cost_a_generation_is_accepted():
-    final = c.parse_final(LIVE_FINALIZE_PAYLOAD)
+    final = c.parse_final(LIVE_FINALIZE_PAYLOAD, carried=CARRIED)
     assert final.disposition == "answer"
     assert final.clarification_question == ""
     assert final.clarification_options == ()
@@ -94,7 +119,7 @@ def test_the_three_spellings_of_absence_store_identically(spelling):
         payload.pop("clarification_question")
     else:
         payload["clarification_question"] = spelling
-    assert c.parse_final(payload).clarification_question == ""
+    assert c.parse_final(payload, carried=CARRIED).clarification_question == ""
 
 
 def test_the_schema_advertises_every_absence_the_validator_accepts():
@@ -116,25 +141,31 @@ def test_the_validator_accepts_every_absence_the_schema_advertises():
     assert nullable, "this test is meaningless if nothing is nullable"
     for field in nullable:
         payload = {**LIVE_FINALIZE_PAYLOAD, field: None}
-        c.parse_final(payload)  # must not raise
+        c.parse_final(payload, carried=CARRIED)  # must not raise
 
 
 @pytest.mark.parametrize("tool,schema_name,payload", [
     ("inspect_catalog", "inspect_catalog.schema.json", {
-        "intent": LIVE_FINALIZE_PAYLOAD["intent"], "query": None,
-        "relation_ids": None, "field_ids": None, "detail": None,
-        "reporting_periods": None, "sample_rows": None, "cursor": None}),
+        "query": None, "relation_ids": None, "field_ids": None,
+        "detail": None, "reporting_periods": None, "sample_rows": None,
+        "cursor": None}),
     ("read_artifact", "read_artifact.schema.json", {
-        "intent": LIVE_FINALIZE_PAYLOAD["intent"], "artifact_id": "art-1",
-        "artifact_kind": "result", "columns": None, "offset": None,
-        "limit": None, "cursor": None}),
+        "artifact_id": "art-1", "artifact_kind": "result", "columns": None,
+        "offset": None, "limit": None, "cursor": None}),
 ])
 def test_the_other_tools_accept_absence_too(tool, schema_name, payload):
-    """The same mismatch would cost the same on any tool."""
+    """The same mismatch would cost the same on any tool.
+
+    No `intent` in these payloads: §24 removed it from every tool schema, so
+    a payload carrying one would now fail the schema it is being checked
+    against. The run's intent is carried instead.
+    """
     parse = {"inspect_catalog": c.parse_catalog,
              "read_artifact": c.parse_artifact}[tool]
-    parse(payload)
+    parse(payload, carried=CARRIED)
     schema = _schema(schema_name)["properties"]
+    assert "intent" not in schema, (
+        f"{tool} must not ask the analyst to restate the run's intent")
     for field, value in payload.items():
         if value is None:
             assert _accepts_null(schema[field]), (
@@ -143,10 +174,6 @@ def test_the_other_tools_accept_absence_too(tool, schema_name, payload):
 
 def test_an_execution_submission_accepts_its_optional_absences():
     payload = {
-        "intent": {**LIVE_FINALIZE_PAYLOAD["intent"],
-                   "query_mode": "DATA_ANALYSIS", "blocking_ambiguities": None,
-                   "resolved_assumptions": None,
-                   "canonical_mappings": None},
         "objective": "count rows", "subquestions": ["how many"],
         "scope": None, "metadata_receipt_ids": None, "fields_required": None,
         "expected_output_grain": "release",
@@ -156,7 +183,13 @@ def test_an_execution_submission_accepts_its_optional_absences():
                    "input_artifact_ids": None, "depends_on_step_ids": None}],
         "repair_of_submission_id": None,
     }
-    submission = c.parse_execution(payload, max_steps=6)
+    submission = c.parse_execution(
+        payload, max_steps=6,
+        carried=c.Intent(query_mode="DATA_ANALYSIS", owner="COCKPIT",
+                         understood_request="", response_language="en",
+                         blocking_ambiguities=(), resolved_assumptions=(),
+                         canonical_mappings=(), excluded_parts=(),
+                         public_rationale=""))
     assert submission.scope == {}
     assert submission.steps[0].parameters == {}
     assert submission.repair_of_submission_id == ""
@@ -194,7 +227,7 @@ def test_a_mandatory_field_is_not_weakened(field):
     for absent in (None, "", ):
         payload = {**LIVE_FINALIZE_PAYLOAD, field: absent}
         with pytest.raises(c.Rejection):
-            c.parse_final(payload)
+            c.parse_final(payload, carried=CARRIED)
 
 
 def test_the_mandatory_fields_are_not_nullable_in_the_schema():
@@ -208,7 +241,6 @@ def test_a_genuinely_malformed_response_still_fails_closed():
     """Normalization is representation only. Substance is still checked."""
     cases = [
         ({"disposition": "invented_disposition"}, "disposition"),
-        ({"intent": None}, "intent"),
         ({"narrative": 42}, "narrative"),
         ({"coverage": [{"subquestion": "q", "status": "made_up",
                         "evidence_refs": []}]}, "status"),
@@ -224,7 +256,7 @@ def test_a_genuinely_malformed_response_still_fails_closed():
     for override, expected_field in cases:
         payload = {**LIVE_FINALIZE_PAYLOAD, **override}
         with pytest.raises(c.Rejection) as excinfo:
-            c.parse_final(payload)
+            c.parse_final(payload, carried=CARRIED)
         assert expected_field in (excinfo.value.field_path
                                   or excinfo.value.message), (
             f"{override} should be refused because of {expected_field}")
@@ -233,7 +265,7 @@ def test_a_genuinely_malformed_response_still_fails_closed():
 def test_a_clarification_must_still_carry_its_question():
     payload = {**LIVE_FINALIZE_PAYLOAD, "disposition": "clarification"}
     with pytest.raises(c.Rejection) as excinfo:
-        c.parse_final(payload)
+        c.parse_final(payload, carried=CARRIED)
     assert excinfo.value.field_path == "clarification_question"
 
 
@@ -242,7 +274,7 @@ def test_a_referral_must_still_name_a_real_owner():
         payload = {**LIVE_FINALIZE_PAYLOAD, "disposition": "referral",
                    "referral_owner": owner}
         with pytest.raises(c.Rejection) as excinfo:
-            c.parse_final(payload)
+            c.parse_final(payload, carried=CARRIED)
         assert excinfo.value.field_path == "referral_owner"
 
 
@@ -250,7 +282,7 @@ def test_a_scalar_is_still_never_expanded_into_characters():
     """Accepting absence is not the same as accepting a wrong shape."""
     payload = {**LIVE_FINALIZE_PAYLOAD, "limitations": "a single limitation"}
     with pytest.raises(c.Rejection) as excinfo:
-        c.parse_final(payload)
+        c.parse_final(payload, carried=CARRIED)
     assert "array of strings" in excinfo.value.message
     assert "A single string is not an array" in excinfo.value.message
 
@@ -262,18 +294,19 @@ def test_every_nullable_field_still_rejects_a_wrong_type():
                          ("numeric_claims", 7)):
         payload = {**LIVE_FINALIZE_PAYLOAD, field: wrong}
         with pytest.raises(c.Rejection):
-            c.parse_final(payload)
+            c.parse_final(payload, carried=CARRIED)
 
 
 # ---- inspect_catalog: sample_rows and detail cannot disagree -----------
 
 def _catalog_payload(**body):
+    """A catalogue request exactly as the published schema allows one.
+
+    No `intent`: §24 took it off every tool, and this payload is validated
+    against that schema, so carrying one would make the test assert the
+    opposite of the contract.
+    """
     payload = {
-        "intent": {"query_mode": "DATA_ANALYSIS", "owner": "COCKPIT",
-                   "understood_request": "x", "response_language": "en",
-                   "blocking_ambiguities": None, "resolved_assumptions": None,
-                   "canonical_mappings": None, "excluded_parts": None,
-                   "public_rationale": "r"},
         "query": None, "relation_ids": None, "field_ids": None,
         "detail": None, "reporting_periods": None, "sample_rows": None,
         "cursor": None,
@@ -302,7 +335,7 @@ def test_every_sample_request_the_schema_allows_is_accepted(body):
     published = next(tool["input_schema"] for tool in c.provider_tools()
                      if tool["name"] == "inspect_catalog")
     jsonschema.validate(payload, published)
-    parsed = parse_catalog(payload)
+    parsed = parse_catalog(payload, carried=ANALYSIS)
     assert "samples" in parsed.detail
     assert parsed.sample_rows >= 1
 

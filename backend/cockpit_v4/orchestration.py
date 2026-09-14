@@ -1280,8 +1280,22 @@ class Orchestrator:
         intent = self._with_value_resolution(intent)
         if self.envelope is not None:
             # The answer refines the reader-facing half. It does not get to
-            # restate which book this is, which release, or what kind of
-            # turn it was: those are facts about a run that already happened.
+            # restate which book this is or which release: those are facts
+            # about a run that already happened.
+            #
+            # The mode is the one server decision that still moves, and only
+            # UPWARD. The budget classifier reads the question's words
+            # before anything is spent and can read an analytical turn as
+            # product help; an analyst that then declares an analysis is
+            # telling us something we did not know, and the run widens on
+            # the declaration wherever it arrives. It can never narrow: a
+            # run that has already read the book does not get moved onto the
+            # cheaper clock by saying so at the end.
+            if (intent.query_mode == contracts_mod.DATA_ANALYSIS
+                    and self.envelope.query_mode
+                    != contracts_mod.DATA_ANALYSIS):
+                self.envelope = self.envelope.escalate_to_analysis()
+                self._adopt_analytical_limits_for_tool(TOOL_EXECUTE)
             self.envelope = self.envelope.with_intent(intent)
             intent = self.envelope.as_intent()
         if self.intent is not None and intent.to_dict() == self.intent.to_dict():

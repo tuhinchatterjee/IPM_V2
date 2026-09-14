@@ -12,7 +12,7 @@
       "operator_reference": false,
       "operator_class": false,
       "events": [
-        "context.ready",
+        "intent.validated",
         "model.requested",
         "run.failed"
       ]
@@ -26,7 +26,7 @@
       "operator_reference": true,
       "operator_class": true,
       "events": [
-        "context.ready",
+        "intent.validated",
         "model.requested",
         "run.failed"
       ]
@@ -40,7 +40,7 @@
       "operator_reference": true,
       "operator_class": true,
       "events": [
-        "context.ready",
+        "intent.validated",
         "model.requested",
         "run.failed"
       ]
@@ -54,7 +54,7 @@
       "operator_reference": false,
       "operator_class": false,
       "events": [
-        "context.ready",
+        "intent.validated",
         "model.requested",
         "run.failed"
       ]
@@ -114,14 +114,14 @@
     {
       "case": "the run never finalizes",
       "terminal_state": "FAILED",
-      "error_code": "CALL_LIMIT",
+      "error_code": "NO_PROGRESS",
       "expected_error_code": "NO_PROGRESS",
       "published_an_answer": false,
       "operator_reference": false,
       "operator_class": false,
       "events": [
-        "tool.failed",
-        "model.requested",
+        "model.parsed",
+        "tool.requested",
         "run.failed"
       ]
     },

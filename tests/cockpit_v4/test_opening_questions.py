@@ -23,6 +23,7 @@ from backend.cockpit_v4 import attention_v2 as att
 from backend.cockpit_v4 import domains as dom
 from backend.cockpit_v4 import lake
 from backend.cockpit_v4 import routes
+from backend.cockpit_v4 import schema as schema_mod
 
 P = "/api/v1/cockpit-v4"
 
@@ -82,18 +83,32 @@ def test_every_question_names_a_field_this_release_actually_holds(
 
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
-def test_a_period_a_question_names_is_a_month_of_this_book(client, domain_id):
-    """§38. Never a quarter, and never a month the release does not hold."""
+def test_a_period_a_question_names_belongs_to_this_book(client, domain_id):
+    """§2, §3, §38. A question offered in the Corporate book names a
+    quarter; one offered in the Retail book names a month; and neither ever
+    names a period its release does not hold.
+
+    This used to read "never a quarter", which was true of both books when
+    both reported months. It would now fail every correct Corporate
+    question and pass a Retail question written in quarters.
+    """
     import re
+
+    from backend.cockpit_v4 import schema as schema_mod
 
     runtime = arun.for_domain(domain_id)
     populated = set(getattr(runtime.catalog.calendar, "populated", ()) or ())
+    foreign = (re.compile(r"\b20\d\d-(0[1-9]|1[0-2])\b(?![-\d])")
+               if schema_mod.period_noun(domain_id) == "quarter"
+               else re.compile(r"20\d\dQ[1-4]"))
+    seen = 0
     for card in every_card(feed(client, domain_id)):
         for entry in card["drilldown"]["suggested_questions"]:
             for period in entry.get("required_periods", []):
                 assert period in populated, (card["item_id"], period)
-            assert not re.search(r"20\d\dQ[1-4]", entry["question"]), (
-                entry["question"])
+                seen += 1
+            assert not foreign.search(entry["question"]), entry["question"]
+    assert seen, "no offered question pinned a period, so nothing was checked"
 
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
@@ -150,9 +165,15 @@ def test_a_thread_nobody_seeded_still_opens_on_something(client, domain_id):
 
     populated = list(getattr(runtime.catalog.calendar, "populated", ()) or ())
     latest = populated[-1] if populated else ""
+    # Any period an opener names is the latest one of THIS book's calendar,
+    # and never a period shaped like the other book's.
+    quarterly = schema_mod.period_noun(domain_id) == "quarter"
+    foreign = (re.compile(r"\b20\d\d-(0[1-9]|1[0-2])\b(?![-\d])") if quarterly
+               else re.compile(r"20\d\dQ[1-4]"))
+    mine = re.compile(r"20\d\dQ[1-4]" if quarterly else r"20\d\d-\d\d")
     for question in offered:
-        assert not re.search(r"20\d\dQ[1-4]", question), question
-        for period in re.findall(r"20\d\d-\d\d", question):
+        assert not foreign.search(question), question
+        for period in mine.findall(question):
             assert period == latest, (question, latest)
 
 

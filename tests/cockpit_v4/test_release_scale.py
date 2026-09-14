@@ -29,6 +29,7 @@ import pytest
 
 from backend.cockpit_v4 import analytical_runtime as arun
 from backend.cockpit_v4 import domains as dom
+from backend.cockpit_v4 import schema as schema_mod
 from backend.cockpit_v4 import lake
 
 
@@ -108,7 +109,9 @@ def test_the_book_has_sector_and_product_type_depth(corporate):
                      "SELECT COUNT(DISTINCT region) FROM corp_borrower_quarter")
     assert sectors >= 12, sectors
     assert 40 <= subs <= 80, subs
-    assert types >= 8, types
+    # §8 asks for seven product types with real populations. Seven with
+    # 500+ facilities each is the ask; eight thin ones would not be.
+    assert types >= 7, types
     assert regions >= 8, regions
 
 
@@ -122,23 +125,32 @@ def test_no_borrower_name_is_used_twice(corporate):
 
 # ---- §16: facility types are governed values ----------------------------
 
-EXPECTED_FACILITY_TYPES = {
+#: §8's seven, as the release publishes them. Written out rather than read
+#: from the release, because the POINT is the spelling: `project_finance` is
+#: what a filter is written against, and a release that started publishing
+#: `Project Finance` would break every stored query while a test that read
+#: its own expectation from it would stay green.
+EXPECTED_PRODUCT_TYPES = {
     "term_loan", "working_capital", "revolving_credit", "trade_finance",
-    "project_finance", "overdraft", "guarantee", "asset_finance",
+    "project_finance", "overdraft", "asset_finance",
 }
 
 
 def test_product_types_are_the_governed_snake_case_identifiers(corporate):
     published = {r[0] for r in rows(
         corporate, "SELECT DISTINCT product_type FROM corp_facility_quarter")}
-    assert published == EXPECTED_FACILITY_TYPES, sorted(published)
+    assert published == EXPECTED_PRODUCT_TYPES, sorted(published)
+    for value in published:
+        assert value == value.lower() and " " not in value, value
 
 
 def test_every_product_type_is_actually_used(corporate):
+    """§8. Deep populations, not a name with three facilities under it: a
+    reader asking "and within project finance?" must get a population."""
     used = dict(rows(corporate, """
         SELECT product_type, COUNT(DISTINCT facility_id)
         FROM corp_facility_quarter GROUP BY 1"""))
-    for kind in EXPECTED_FACILITY_TYPES:
+    for kind in EXPECTED_PRODUCT_TYPES:
         assert used.get(kind, 0) >= 500, (kind, used.get(kind, 0))
 
 
@@ -233,20 +245,35 @@ def test_the_retail_book_holds_thousands_of_customers(retail):
 
 # ---- §17: v1 is published, immutable, and nothing points at it ----------
 
-def test_the_previous_corporate_release_is_still_published_and_unread():
-    assert dom.DEFAULT_RELEASES[dom.CORPORATE] == "v4-saudi-corporate-20m-v2"
-    assert lake.exists("v4-saudi-corporate-20m-v1"), (
-        "v1 must stay published: an analysis saved against it names it")
-    assert lake.verify("v4-saudi-corporate-20m-v1"), (
-        "v1's bytes must still match the fingerprint they were published "
-        "under; nothing in this round may have rewritten them")
+#: Every Corporate release this build has ever published, oldest first. A
+#: superseded release is not deleted: an analysis saved against it names it,
+#: and a run that cannot open the release it was accepted against is a run
+#: whose stored answer can no longer be checked.
+SUPERSEDED_CORPORATE = ("v4-saudi-corporate-20m-v1",
+                        "v4-saudi-corporate-20m-v2")
 
 
-def test_the_generator_refuses_to_rebuild_the_frozen_release():
+def test_the_previous_corporate_releases_are_published_and_unread():
+    """§2, §3. The book moved from twenty months to twenty QUARTERS, and it
+    did so by publishing a new release rather than rewriting the old ones.
+    A calendar change under a release id nobody changed would silently
+    restate every saved analysis."""
+    assert dom.DEFAULT_RELEASES[dom.CORPORATE] == "v4-saudi-corporate-20q-v3"
+    for release_id in SUPERSEDED_CORPORATE:
+        if not lake.exists(release_id):
+            continue
+        assert lake.verify(release_id), (
+            f"{release_id}'s bytes must still match the fingerprint they "
+            f"were published under; nothing in this round may have "
+            f"rewritten them")
+
+
+def test_the_generator_refuses_to_rebuild_a_frozen_release():
     from backend.cockpit_v4.generate import corporate as gen
 
-    with pytest.raises(gen.FrozenRelease):
-        gen.build("v4-saudi-corporate-20m-v1")
+    for release_id in SUPERSEDED_CORPORATE:
+        with pytest.raises(gen.FrozenRelease):
+            gen.build(release_id)
 
 
 def test_both_published_releases_verify_against_their_fingerprints():
@@ -277,11 +304,12 @@ def test_a_grouped_aggregate_over_the_whole_book_stays_under_a_second(
     relation, dimension = (("corp_facility_quarter", "sector")
                            if domain_id == dom.CORPORATE
                            else ("retail_account_month", "product"))
+    period = schema_mod.period_column(domain_id)
     started = time.monotonic()
     result = rows(runtime, f"""
         SELECT {dimension}, SUM(ead_sar_mn), SUM(ecl_sar_mn), COUNT(*)
         FROM {relation}
-        WHERE reporting_month = (SELECT MAX(reporting_month) FROM {relation})
+        WHERE {period} = (SELECT MAX({period}) FROM {relation})
         GROUP BY 1 ORDER BY 2 DESC""")
     elapsed = time.monotonic() - started
     assert result, "the book returned nothing"

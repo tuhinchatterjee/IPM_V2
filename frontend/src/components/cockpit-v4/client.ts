@@ -787,11 +787,31 @@ export async function readAttention(
 
 export type SchemaField = {
   name: string;
+  /** What a person calls this column. The `name` is what SQL filters on. */
+  label?: string;
   dtype: string;
   unit: string;
   aggregation: string;
   group: string;
   definition: string;
+  /** A CLOSED set: the column may hold these values and no others, so a
+   *  reader may filter on any of them. Present only for category columns. */
+  governed_values?: string[];
+  /** The same values written for a reader: `project_finance` → `Project
+   *  Finance`. Keyed by the governed value. */
+  value_labels?: Record<string, string>;
+  distinct_values?: number;
+  /** A handful of real values from a column that is NOT a closed set --
+   *  shown so the shape is visible, never to be read as the whole list. */
+  sample_values?: string[];
+  distinct_values_at_least?: number;
+};
+
+/** A heading this book's columns are organised under. */
+export type SubjectArea = {
+  area: string;
+  columns: number;
+  relations: string[];
 };
 
 export type SchemaRelation = {
@@ -820,22 +840,35 @@ export type BookSchema = {
   domain_label: string;
   release_id: string;
   release_fingerprint: string;
+  country?: string;
+  country_name?: string;
   reporting_currency: string;
   amount_scale: string;
   reporting_frequency: string;
+  /** "quarter" or "month". This book's, never assumed. */
+  period_noun?: string;
+  period_column?: string;
   reporting_periods: string[];
+  earliest_period?: string;
   latest_period: string;
+  previous_period?: string;
+  period_count?: number;
+  /** Borrowers and facilities, or customers and accounts. */
+  entity_counts?: Record<string, number>;
+  status?: string;
   not_client_data?: string;
   geography_name?: string;
+  subject_areas?: SubjectArea[];
   relations?: SchemaRelation[];
   joins?: SchemaJoin[];
   total_rows?: number;
   note?: string;
-  /** Present only when one relation was asked for. */
+  /** Present only when one relation was asked for. Note that
+   *  `period_column` above is the BOOK's period column and is the same
+   *  value, which is why it is not repeated here. */
   relation?: string;
   grain?: string;
   description?: string;
-  period_column?: string;
   key_columns?: string[];
   rows?: number;
   fields?: SchemaField[];

@@ -118,14 +118,33 @@ def test_something_that_is_not_an_intent_is_still_refused():
 # ---- 2. the schema and the parser agree --------------------------------
 
 def test_every_tool_schema_says_exactly_what_the_parser_requires():
-    """§5. What is advertised is what is enforced, tool by tool."""
+    """§5, and then §24. What is advertised is what is enforced.
+
+    The earlier round made `intent` optional rather than required, which
+    stopped it being demanded and left it being sent -- and a field that is
+    still sent can still arrive as a string. It did, twice, on live Mac
+    runs. So the field is gone from every tool: the run owns an intent
+    envelope from its first second and nothing asks the analyst to restate
+    it. The parser still ACCEPTS one (see the tolerance tests above),
+    because tolerating what a model sends is not the same as asking for it.
+    """
     for tool in c.provider_tools():
         schema = tool["input_schema"]
-        required = schema.get("required", [])
-        assert "intent" not in required, (
+        assert "intent" not in schema.get("required", []), (
             f"{tool['name']} still demands a restated intent")
-        assert "intent" in schema["properties"], (
-            f"{tool['name']} dropped intent from its schema entirely")
+        assert "intent" not in schema["properties"], (
+            f"{tool['name']} still offers an intent to restate")
+        # Nor anywhere inside it, which is where it would reappear if
+        # somebody "kept it for compatibility".
+        assert "intent" not in json.dumps(schema), tool["name"]
+
+    by_name = {t["name"]: t["input_schema"] for t in c.provider_tools()}
+    finalize = by_name["finalize_response"]
+    for field in c.FLAT_INTENT_FIELDS:
+        assert field in finalize["properties"], (
+            f"the answer must still be able to state {field}")
+        assert field not in finalize["required"], (
+            f"{field} is answer content, not a precondition")
 
 
 #: NOT narrowed, and deliberately.

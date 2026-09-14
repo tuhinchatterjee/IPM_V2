@@ -148,6 +148,43 @@ def test_a_model_cannot_restate_the_servers_half(domain_id):
     assert merged.understood_request == "something else"
 
 
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_a_declaration_may_widen_the_mode_and_never_narrow_it(domain_id):
+    """§13, §25, at the PARSER.
+
+    The two directions are not symmetric. A run the classifier read as
+    product help -- "tell me more", in an analytical thread, names no
+    measure at all -- that then declares an analysis is telling us something
+    the classifier could not know, and refusing it would leave a real
+    analysis on the sixty-second clock. A run that has already read the book
+    does not get moved onto the cheaper clock by saying so at the end.
+    """
+    helpful = contracts_mod.Intent(
+        query_mode=contracts_mod.PRODUCT_HELP, owner=contracts_mod.COCKPIT,
+        understood_request="", response_language="en",
+        blocking_ambiguities=(), resolved_assumptions=(),
+        canonical_mappings=(), excluded_parts=(), public_rationale="")
+
+    widened = contracts_mod.parse_intent(
+        {"query_mode": contracts_mod.DATA_ANALYSIS}, carried=helpful)
+    assert widened.query_mode == contracts_mod.DATA_ANALYSIS
+    assert widened.owner == helpful.owner, "the OWNER never moves"
+
+    analytical = envelope_for(domain_id).as_intent()
+    assert analytical.query_mode == contracts_mod.DATA_ANALYSIS
+    narrowed = contracts_mod.parse_intent(
+        {"query_mode": contracts_mod.PRODUCT_HELP}, carried=analytical)
+    assert narrowed.query_mode == contracts_mod.DATA_ANALYSIS
+
+    # And every other mode is simply not the answer's to declare.
+    for mode in (contracts_mod.THEORY_CONCEPT,
+                 contracts_mod.OTHER_FUNCTIONALITY,
+                 contracts_mod.UNSUPPORTED):
+        assert contracts_mod.parse_intent(
+            {"query_mode": mode}, carried=analytical
+        ).query_mode == contracts_mod.DATA_ANALYSIS
+
+
 # ---- 3: the envelope is what the server already knew --------------------
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))

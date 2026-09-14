@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { DataBooks } from "@/components/cockpit-v4/data-books";
 import {
   ControlPlanePanel,
   MetadataAssistant,
@@ -178,6 +179,30 @@ export default function DataBuilderPage() {
       />
 
       {!canEdit && <ReadOnlyNotice action="create, edit or publish datasets" />}
+
+      {/*
+        §12-§16. The analytical books come FIRST.
+
+        A reader who opens Data Builder to find out what CreditProbe can
+        actually answer questions about was being shown the onboarding estate
+        -- domains, dataset families, quality position -- and had to know to
+        look somewhere else for the two published books the Cockpit reads.
+        Those books are the answer to "what data is there", so they are the
+        first thing on the page.
+
+        This panel reads `/schema`, the SAME governed catalogue the
+        analytical path reads. There is no second description of the data
+        anywhere: a Data Builder that described the books from its own store
+        would eventually describe a book no question could be asked of, and
+        nothing on either screen would say which of the two was wrong.
+
+        The estate below is unchanged and is not a duplicate of this: it is
+        how new data is brought IN, which is a different job from what has
+        already been published.
+      */}
+      <section data-testid="data-builder-analytical-books">
+        <DataBooks />
+      </section>
 
       {domains.error ? (
         <Card className="border-negative/40 p-4 text-sm text-negative">{domains.error}</Card>

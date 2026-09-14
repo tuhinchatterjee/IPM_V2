@@ -482,7 +482,7 @@ async def schema_browser(domain: str = Query(""), relation: str = Query(""),
     except dom_mod.UnknownDomain as exc:
         raise HTTPException(400, {"error_code": "UNKNOWN_DOMAIN",
                                   "message": str(exc)}) from exc
-    scope, _session, tenant = _domain_book(who, domain_id)
+    scope, session, tenant = _domain_book(who, domain_id)
     catalog = cat_mod.build(domain_id=domain_id,
                             release_id=scope.release_id, tenant_id=tenant)
     manifest = lake_mod.read_manifest(scope.release_id)
@@ -493,11 +493,24 @@ async def schema_browser(domain: str = Query(""), relation: str = Query(""),
         "domain_label": dom_mod.LABELS[domain_id],
         "release_id": scope.release_id,
         "release_fingerprint": scope.release_fingerprint,
+        "country": manifest.get("geography") or "",
+        "country_name": manifest.get("geography_name") or "",
         "reporting_currency": scope.currency,
         "amount_scale": scope.amount_scale,
         "reporting_frequency": scope.reporting_frequency,
+        # §13. What a period IS here, so a reader looking at the Corporate
+        # book is not left to infer from `2026Q2` that it might be a month.
+        "period_noun": scope.period_noun,
+        "period_column": scope.period_column,
         "reporting_periods": list(scope.periods),
+        "earliest_period": scope.periods[0] if scope.periods else "",
         "latest_period": scope.latest_period,
+        "previous_period": scope.previous_period,
+        "period_count": len(scope.periods),
+        # §13. The size of the book in things a credit officer counts:
+        # borrowers and facilities, or customers and accounts.
+        "entity_counts": dict(manifest.get("entity_counts") or {}),
+        "status": "published",
         "not_client_data": manifest.get("not_client_data"),
         "geography_name": manifest.get("geography_name"),
     }
@@ -509,6 +522,13 @@ async def schema_browser(domain: str = Query(""), relation: str = Query(""),
             "relations": [{**entry, "rows": int(counts.get(entry["relation"],
                                                            0))}
                           for entry in outline["relations"]],
+            # §14. The SUBJECT AREAS this book is organised into -- identity,
+            # exposure, IFRS 9, rating, financials, collateral, covenants --
+            # with the relations and the column count behind each one. A
+            # ninety-column relation listed as ninety columns is a list; the
+            # same ninety columns under seven headings is a book someone can
+            # find their way around.
+            "subject_areas": _subject_areas(catalog, domain_id),
             "joins": catalog.joins(),
             "total_rows": sum(int(v) for v in counts.values()),
             "note": ("These are the relations this book publishes. A "
@@ -538,11 +558,87 @@ async def schema_browser(domain: str = Query(""), relation: str = Query(""),
         "rows": int(counts.get(spec.name, 0)),
         "joins": [j for j in catalog.joins()
                   if j["left"] == spec.name or j["right"] == spec.name],
-        "fields": [{"name": f.name, "dtype": f.dtype, "unit": f.unit,
-                    "aggregation": f.additive, "group": f.group,
-                    "definition": f.description}
+        "subject_areas": _subject_areas(catalog, domain_id, relation=name),
+        # §15, §16, §41. Each column with the label a person reads, the
+        # identifier SQL filters on, and -- where the column is a governed
+        # category -- the values it may actually hold. A field inspector that
+        # says "string" and stops has not told the reader the one thing they
+        # came for, which is what they are allowed to type.
+        "fields": [{"name": f.name, "label": f.label, "dtype": f.dtype,
+                    "unit": f.unit, "aggregation": f.additive,
+                    "group": f.group, "definition": f.description,
+                    **_field_values(session, name, f)}
                    for f in spec.fields],
     }
+
+
+#: How many distinct values a field inspector shows before it stops. A
+#: bounded sample is a sample; an unbounded one is a data export, and this
+#: page does not export data.
+_SAMPLE_LIMIT = 12
+
+
+def _subject_areas(catalog: Any, domain_id: str,
+                   relation: str = "") -> list[dict[str, Any]]:
+    """This book's columns grouped by what they are ABOUT.
+
+    The grouping is the governed schema's own `group`, so it is the same
+    grouping the analyst is shown. A second, page-only taxonomy here would
+    be a second answer to "what does this book cover".
+    """
+    from backend.cockpit_v4 import schema as schema_mod
+
+    specs = ([catalog.spec(relation)] if relation
+             else list(schema_mod.relations(domain_id)))
+    areas: dict[str, dict[str, Any]] = {}
+    for spec in specs:
+        for column in spec.fields:
+            name = (column.group or "Other").strip() or "Other"
+            area = areas.setdefault(name, {"area": name, "columns": 0,
+                                           "relations": []})
+            area["columns"] += 1
+            if spec.name not in area["relations"]:
+                area["relations"].append(spec.name)
+    return sorted(areas.values(), key=lambda a: (-a["columns"], a["area"]))
+
+
+def _field_values(session: Any, relation: str, field: Any) -> dict[str, Any]:
+    """The values this column actually holds, bounded.
+
+    Two different things, deliberately named differently. `governed_values`
+    is the CLOSED set a category column may hold -- the reader may filter on
+    any of them and on nothing else. `sample_values` is a handful of real
+    values from a column that is not a closed set, shown so the reader knows
+    what the shape of one looks like. Calling a sample a governed list would
+    invite somebody to treat twelve borrower names as the whole book.
+    """
+    from backend.cockpit_v4 import values as val_mod
+
+    if str(getattr(field, "dtype", "")) != "string":
+        return {}
+    try:
+        rows = session.connection.execute(
+            f'SELECT DISTINCT "{field.name}" AS v FROM "{relation}" '
+            f'WHERE "{field.name}" IS NOT NULL AND "{field.name}" <> \'\' '
+            f'ORDER BY 1 LIMIT {val_mod.MAX_CARDINALITY + 1}').fetchall()
+    except Exception:  # noqa: BLE001 - an unreadable column is not a failure
+        return {}
+    seen = [str(row[0]) for row in rows]
+    if len(seen) <= val_mod.MAX_CARDINALITY and not _looks_like_a_period(
+            field.name):
+        return {"governed_values": seen,
+                "value_labels": {v: val_mod.pretty(v) for v in seen},
+                "distinct_values": len(seen)}
+    return {"sample_values": seen[:_SAMPLE_LIMIT],
+            "distinct_values_at_least": len(seen)}
+
+
+def _looks_like_a_period(name: str) -> bool:
+    """A calendar is not a category, in any book."""
+    from backend.cockpit_v4 import schema as schema_mod
+
+    return any(str(name).endswith(f"_{noun}")
+               for noun in schema_mod.PERIOD_NOUNS.values())
 
 
 # ---- export ------------------------------------------------------------

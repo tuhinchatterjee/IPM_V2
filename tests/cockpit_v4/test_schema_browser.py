@@ -47,7 +47,7 @@ def test_each_book_lists_its_own_relations_with_their_sizes(client,
     assert len(body["release_fingerprint"]) == 64
     assert body["reporting_currency"] == "SAR"
     assert body["amount_scale"] == "million"
-    assert body["reporting_frequency"] == "monthly"
+    assert body["reporting_frequency"] == schema_mod.frequency(domain_id)
     assert len(body["reporting_periods"]) == 20
 
     named = {r["relation"] for r in body["relations"]}
@@ -80,7 +80,7 @@ def test_a_relation_drills_into_its_columns(client, domain_id):
                               "relation": relation}).json()
     assert body["relation"] == relation
     assert body["grain"] and body["description"]
-    assert body["period_column"] == "reporting_month"
+    assert body["period_column"] == schema_mod.period_column(domain_id)
     assert body["key_columns"]
     spec = schema_mod.relation(domain_id, relation)
     assert [f["name"] for f in body["fields"]] == list(spec.columns)

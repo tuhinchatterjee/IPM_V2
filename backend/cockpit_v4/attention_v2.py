@@ -722,6 +722,15 @@ def _drilldown(candidate: Candidate, scope: dom.DomainScope,
         "borrower_count": candidate.counterparties,
         "available": ([finer] if finer else []) + [noun],
         "unavailable": [] if finer else ["subsegment"],
+        # §19-§21. Which relation this finding was COMPUTED from, and which
+        # of its columns the measure is computed out of. A thread seeded
+        # from this card is handed both, so its first action can be the
+        # query rather than a search for the table the card came from.
+        "relation": family.relation,
+        "period_column": family.period_column,
+        "measure_fields": _measure_fields(family),
+        "counterparty_column": counterparty,
+        "finer_dimension": finer,
         "suggested_questions": _questions(candidate, scope, month),
     }
 
@@ -785,8 +794,16 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
     counterparty = COUNTERPARTY.get(family.relation, "")
     noun = COUNTERPARTY_LABEL.get(counterparty, "rows")
     finer = FINER.get(family.dimension, "")
+    # A cross-cut has to be a column of THIS finding's relation. The
+    # per-book list is the book's second axes in general, and the collateral
+    # and covenant relations do not carry `product_type` or `region` -- so a
+    # covenant-breach card was offering "Split Leverage by region", a chip
+    # that could not be executed and that told the reader the book held
+    # something it does not.
+    mine = {f.name for f in schema_mod.relation(
+        scope.domain_id, family.relation).fields}
     cross = [(field, label) for field, label in _CROSS.get(scope.domain_id, ())
-             if field != family.dimension]
+             if field != family.dimension and field in mine]
 
     out: list[dict[str, Any]] = [
         {"question": f"Show the {noun} behind {segment} in {month}.",
@@ -799,7 +816,7 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
          "required_periods": [month], "required_quarters": [month],
          "kind": "diagnostic"},
     ]
-    if finer:
+    if finer and finer in mine:
         out.append({
             "question": f"Break {segment} down by {finer.replace('_', ' ')}.",
             "required_fields": [finer],
@@ -812,11 +829,18 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
             "required_fields": [field],
             "required_periods": [month], "required_quarters": [month],
             "kind": "crosscut"})
+    # §4. A trend question written in the book's OWN periods. "Over the last
+    # twelve months" asked of a quarterly book is a question about three
+    # years, and the reader who clicks it gets an answer to a question they
+    # did not ask.
+    noun_word = schema_mod.period_noun(scope.domain_id)
+    span = 8 if noun_word == "quarter" else 12
     out.append({
-        "question": f"How has {measure} moved for {segment} over the last "
-                    f"twelve months?",
+        "question": (f"How has {measure} moved for {segment} over the last "
+                     f"{span} {noun_word}s?"),
         "required_fields": _measure_fields(family),
-        "required_periods": [], "required_quarters": [], "kind": "trend"})
+        "required_periods": list(scope.last_periods(span)),
+        "required_quarters": [], "kind": "trend"})
     if len(out) < 5 and len(cross) > 1:
         field, label = cross[1]
         out.insert(-1, {
@@ -824,7 +848,31 @@ def _questions(candidate: Candidate, scope: dom.DomainScope,
             "required_fields": [field],
             "required_periods": [month], "required_quarters": [month],
             "kind": "crosscut"})
+    # Every question names the relation it would be asked of, the segment it
+    # is about and the column that segment lives in. §22 requires each one to
+    # be checkably executable before it is offered, and a question carrying
+    # only prose cannot be checked against anything.
+    stamp(out, relation=family.relation, dimension=family.dimension,
+          segment=candidate.segment, period_column=family.period_column)
     return out[:5]
+
+
+def stamp(questions: list[dict[str, Any]], *, relation: str, dimension: str,
+          segment: str, period_column: str) -> None:
+    """Give every suggested question the facts that make it CHECKABLE.
+
+    §22 requires each offered question to be executable before it is
+    offered, and a question carrying only prose cannot be checked against
+    anything. So each one names the relation it would be asked of, the
+    column its subject lives in, the value of that subject and the column
+    the periods are kept in -- and `investigation.executable` binds all four
+    against the release before the chip is shown.
+    """
+    for entry in questions:
+        entry.setdefault("relation", relation)
+        entry.setdefault("segment_dimension", dimension)
+        entry.setdefault("segment", segment)
+        entry.setdefault("period_column", period_column)
 
 
 def _highlights(session, *, scope: dom.DomainScope, month: str,
@@ -864,7 +912,7 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
         FROM {relation} WHERE {period} = '{month}'
     """)[0]
 
-    def card(key: str, headline: str, one_line: str, shown: str, *,
+    def _card(key: str, headline: str, one_line: str, shown: str, *,
              segment: str = "", before: str = "",
              measure: str = "Recognised ECL",
              extra: tuple[dict[str, str], ...] = ()) -> dict:
@@ -956,15 +1004,44 @@ def _highlights(session, *, scope: dom.DomainScope, month: str,
                      else "customer_id", "ecl_sar_mn"],
                  "required_periods": [month], "required_quarters": [month],
                  "kind": "drilldown"},
-                {"question": f"How has {subject} ECL moved over the last "
-                             f"twelve months?",
+                {"question": (
+                    f"How has {subject} ECL moved over the last "
+                    f"{8 if scope.domain_id == dom.CORPORATE else 12} "
+                    f"{schema_mod.period_noun(scope.domain_id)}s?"),
                  "required_fields": ["ecl_sar_mn"],
-                 "required_periods": [], "required_quarters": [],
+                 "required_periods": list(scope.last_periods(
+                     8 if scope.domain_id == dom.CORPORATE else 12)),
+                 "required_quarters": [],
                  "kind": "trend"},
-            ]},
+            ],
+                # §19-§21. The same facts a segment card carries, so a
+                # thread seeded from a highlight opens with the relation it
+                # came from rather than having to look for it.
+                "relation": relation,
+                "period_column": schema_mod.period_column(scope.domain_id),
+                "measure_fields": ["ecl_sar_mn", "ead_sar_mn"],
+                "counterparty_column": (
+                    "borrower_id" if scope.domain_id == dom.CORPORATE
+                    else "customer_id"),
+                "finer_dimension": "",
+            },
             "severity": "medium",
             "score": 0.0,
         }
+
+    def card(*args: Any, **kwargs: Any) -> dict:  # noqa: F811
+        body = _card(*args, **kwargs)
+        drill = body["drilldown"]
+        stamp(drill["suggested_questions"], relation=drill["relation"],
+              dimension=body["segment_dimension"],
+              # A book-level highlight is about the whole book, so it pins
+              # no segment: `executable` then checks the columns and the
+              # periods and skips the subject check, which is right -- there
+              # is no subject to check.
+              segment=("" if body["scope"] == "portfolio"
+                       else body["segment"]),
+              period_column=drill["period_column"])
+        return body
 
     increase = float(moved["ecl"] or 0.0) - prior.get(moved["segment"], 0.0)
     return [

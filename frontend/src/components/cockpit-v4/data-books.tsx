@@ -3,14 +3,24 @@
 /**
  * The two books, and what is inside each one.
  *
- * A card per book with its release, its fingerprint, its period range and its
- * size, then a drill into any relation for its columns, their types, their
- * units and what each one means.
+ * §12-§16. This IS the Data Builder for Cockpit V4: a card per book with its
+ * country, its denomination, its calendar, its release and fingerprint, how
+ * many of each thing it holds and how its relations join; then the subject
+ * areas its columns are organised under; then a drill into any relation for
+ * every column with the label a person reads, the identifier SQL filters on,
+ * what it means, and -- where the column is a governed category -- the exact
+ * set of values it may hold.
  *
  * The two cards are NOT two views of one dataset. Each names a different
  * release with a different fingerprint and a different set of relations, and
  * asking one card for the other's relation is refused by the server rather
  * than answered from the book in front of you.
+ *
+ * ONE SOURCE OF TRUTH. Everything here comes from `/schema`, which reads the
+ * same governed catalogue the analytical path reads. A Data Builder that
+ * described the data from a second place would eventually describe a book
+ * that no question could be asked of, and nothing on either screen would say
+ * which of the two was wrong.
  *
  * Nothing here writes. There is no button on this page that changes a
  * published release, because a published release is immutable by design and
@@ -26,7 +36,9 @@ import type {
   DomainAvailability,
   DomainId,
   DomainStatus,
+  SchemaField,
 } from "./client";
+import { periodLabel } from "./period";
 
 export function DataBooks() {
   const [availability, setAvailability] =
@@ -59,11 +71,15 @@ export function DataBooks() {
   return (
     <div data-testid="v4-data-books" className="space-y-8">
       <header>
-        <h1 className="text-xl font-semibold text-slate-900">Data</h1>
+        <h1 className="text-xl font-semibold text-slate-900">
+          Analytical books
+        </h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-600">
           Two books, each its own published release. Switching between them
-          opens different bytes, not a filter over one dataset. A release is
-          immutable once published, so nothing on this page changes one.
+          opens different bytes, not a filter over one dataset. This is the
+          same governed catalogue the Cockpit answers from — what you can see
+          here is exactly what a question can reach. A release is immutable
+          once published, so nothing on this page changes one.
         </p>
       </header>
       {availability.domains.map((domain) => (
@@ -128,11 +144,19 @@ function BookCard({ domain }: { domain: DomainStatus }) {
     );
   }
 
+  const noun = schema?.period_noun || "period";
+  const span =
+    schema && schema.earliest_period
+      ? `${periodLabel(schema.earliest_period)} – ${periodLabel(schema.latest_period)}`
+      : periodLabel(schema?.latest_period ?? "");
+
   return (
     <section
       data-testid={`v4-book-${domain.domain_id}`}
       data-state={schema ? "ready" : "loading"}
       data-release={schema?.release_id ?? ""}
+      data-frequency={schema?.reporting_frequency ?? ""}
+      data-period-noun={schema?.period_noun ?? ""}
       className="rounded-xl border border-slate-200 bg-white p-5"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -146,29 +170,78 @@ function BookCard({ domain }: { domain: DomainStatus }) {
         ) : null}
       </div>
 
-      {error ? (
-        <p className="mt-2 text-sm text-rose-700">{error}</p>
-      ) : null}
+      {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
 
       {schema ? (
         <>
-          <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+          <dl
+            data-testid={`v4-book-facts-${domain.domain_id}`}
+            className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"
+          >
+            <Fact term="Country">
+              {schema.country_name || schema.geography_name || "—"}
+            </Fact>
             <Fact term="Denomination">
               {schema.reporting_currency} {schema.amount_scale}
             </Fact>
             <Fact term="Frequency">{schema.reporting_frequency}</Fact>
-            <Fact term="Periods">
-              {schema.reporting_periods.length} to {schema.latest_period}
+            <Fact term={`${noun}s`}>
+              {schema.period_count ?? schema.reporting_periods.length}
+            </Fact>
+            <Fact term="Covering">{span}</Fact>
+            <Fact term={`Latest ${noun}`}>
+              {periodLabel(schema.latest_period)}
             </Fact>
             <Fact term="Relations">{schema.relations?.length ?? 0}</Fact>
             <Fact term="Rows">
               {(schema.total_rows ?? 0).toLocaleString("en")}
             </Fact>
+            <Fact term="Status">{schema.status || "published"}</Fact>
           </dl>
+
+          {schema.entity_counts &&
+          Object.keys(schema.entity_counts).length > 0 ? (
+            <dl
+              data-testid={`v4-book-entities-${domain.domain_id}`}
+              className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"
+            >
+              {Object.entries(schema.entity_counts).map(([what, many]) => (
+                <Fact key={what} term={humanise(what)}>
+                  {many.toLocaleString("en")}
+                </Fact>
+              ))}
+            </dl>
+          ) : null}
+
           {schema.not_client_data ? (
             <p className="mt-2 text-xs text-slate-500">
               {schema.not_client_data}
             </p>
+          ) : null}
+
+          {schema.subject_areas?.length ? (
+            <div className="mt-4">
+              <h3 className="text-xs uppercase tracking-wide text-slate-500">
+                Subject areas
+              </h3>
+              <ul
+                data-testid={`v4-subject-areas-${domain.domain_id}`}
+                className="mt-2 flex flex-wrap gap-1.5"
+              >
+                {schema.subject_areas.map((area) => (
+                  <li
+                    key={area.area}
+                    data-testid={`v4-subject-area-${area.area}`}
+                    className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                  >
+                    {area.area}
+                    <span className="ml-1.5 text-slate-500">
+                      {area.columns}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
 
           <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
@@ -240,34 +313,105 @@ function RelationDetail({ detail }: { detail: BookSchema | null }) {
         Key: {(detail.key_columns ?? []).join(", ")} · period column{" "}
         {detail.period_column}
       </p>
-      <table className="mt-2 w-full min-w-[34rem] text-left text-xs">
+      <table className="mt-2 w-full min-w-[42rem] text-left text-xs">
         <thead className="text-slate-500">
           <tr>
             <th className="py-1 pr-3 font-medium">Column</th>
             <th className="py-1 pr-3 font-medium">Type</th>
             <th className="py-1 pr-3 font-medium">Unit</th>
             <th className="py-1 pr-3 font-medium">Adds up</th>
-            <th className="py-1 font-medium">Means</th>
+            <th className="py-1 pr-3 font-medium">Means</th>
+            <th className="py-1 font-medium">Holds</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
           {(detail.fields ?? []).map((field) => (
-            <tr key={field.name}>
-              <td className="py-1 pr-3 font-mono text-slate-900">
-                {field.name}
+            <tr key={field.name} data-testid={`v4-field-${field.name}`}>
+              <td className="py-1 pr-3 align-top">
+                {/* The label is what a person calls it; the identifier under
+                    it is what a filter is written against. Both, because
+                    showing only one of them makes the other unguessable. */}
+                <span className="block text-slate-900">
+                  {field.label || field.name}
+                </span>
+                <span className="block font-mono text-[11px] text-slate-500">
+                  {field.name}
+                </span>
               </td>
-              <td className="py-1 pr-3 text-slate-600">{field.dtype}</td>
-              <td className="py-1 pr-3 text-slate-600">{field.unit || "—"}</td>
-              <td className="py-1 pr-3 text-slate-600">
+              <td className="py-1 pr-3 align-top text-slate-600">
+                {field.dtype}
+              </td>
+              <td className="py-1 pr-3 align-top text-slate-600">
+                {field.unit || "—"}
+              </td>
+              <td className="py-1 pr-3 align-top text-slate-600">
                 {field.aggregation === "additive" ? "yes" : "no"}
               </td>
-              <td className="py-1 text-slate-600">{field.definition}</td>
+              <td className="py-1 pr-3 align-top text-slate-600">
+                {field.definition}
+              </td>
+              <td className="py-1 align-top">
+                <FieldValues field={field} />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
+}
+
+/**
+ * What a column may hold.
+ *
+ * Two different things, labelled differently on purpose. A GOVERNED set is
+ * closed: those values and no others, so a reader can filter on any of them.
+ * A SAMPLE is a handful out of many, shown so the shape of a value is
+ * visible. Presenting a sample as a governed list would invite somebody to
+ * read twelve borrower names as the whole book.
+ */
+function FieldValues({ field }: { field: SchemaField }) {
+  if (field.governed_values?.length) {
+    return (
+      <div data-testid={`v4-field-values-${field.name}`} data-kind="governed">
+        <ul className="flex flex-wrap gap-1">
+          {field.governed_values.slice(0, 8).map((value) => (
+            <li
+              key={value}
+              title={value}
+              className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] text-slate-700"
+            >
+              {field.value_labels?.[value] || value}
+            </li>
+          ))}
+        </ul>
+        <span className="mt-0.5 block text-[11px] text-slate-500">
+          {field.distinct_values} governed value
+          {field.distinct_values === 1 ? "" : "s"}
+          {(field.distinct_values ?? 0) > 8 ? ", 8 shown" : ""}
+        </span>
+      </div>
+    );
+  }
+  if (field.sample_values?.length) {
+    return (
+      <div data-testid={`v4-field-values-${field.name}`} data-kind="sample">
+        <span className="font-mono text-[11px] text-slate-600">
+          {field.sample_values.slice(0, 3).join(", ")}
+        </span>
+        <span className="mt-0.5 block text-[11px] text-slate-500">
+          a sample, not the whole set
+        </span>
+      </div>
+    );
+  }
+  return <span className="text-[11px] text-slate-400">—</span>;
+}
+
+/** `sub_sectors` reads as `Sub sectors` on a fact line. */
+function humanise(key: string): string {
+  const words = key.replace(/_/g, " ").trim();
+  return words ? words[0].toUpperCase() + words.slice(1) : key;
 }
 
 function Fact({

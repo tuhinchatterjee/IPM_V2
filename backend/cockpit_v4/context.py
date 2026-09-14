@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.cockpit_v4 import PROMPT_VERSION
+from backend.cockpit_v4 import investigation as inv_mod
 from backend.cockpit_v4.config import Limits
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "analyst.md"
@@ -275,6 +276,7 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
     ]
 
     parts = [f"USER REQUEST (original wording, unmodified):\n{question}"]
+    analysis: dict[str, Any] = {}
     if investigation:
         # Seeded by Investigate Further, from a dashboard item the user
         # clicked. These are recorded facts already computed and shown to
@@ -290,15 +292,33 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
             "the dashboard already showed them, so re-derive any number you "
             "state from your own executed query):\n"
             + json.dumps(investigation, ensure_ascii=False, default=str))
-        # The case file. A seeded thread is about ONE indicator, and the
-        # schema that indicator turns on is already known -- CreditProbe
-        # computed the card from it. Handing it over costs a few hundred
-        # tokens and removes the only reason this thread would have to ask
-        # `inspect_catalog` for a relation it cannot name a field in. The
-        # covenant case is the live one: asking for the relation returned all
-        # fifty-nine of its columns and spent the run.
-        case_fields = sem.seed_field_packet(
-            catalog, str(investigation.get("metric") or ""))
+        # §19-§21. The ANALYSIS PACKET. A seeded thread is about ONE finding
+        # that CreditProbe itself computed, so the relation it came from, the
+        # column the segment lives in, the governed value of that segment,
+        # the measure's own columns and the two periods are all already
+        # known. Handing them over costs a few hundred tokens and removes
+        # every reason this thread would have to search for them.
+        #
+        # The live failure: a Construction card opened a thread that read the
+        # catalogue, read it again, read product knowledge, and died with
+        # CALL_LIMIT without answering anything. Not one of those calls could
+        # have returned something it had not been given.
+        analysis = inv_mod.analysis_packet(
+            catalog=catalog, session=session, seed=investigation)
+        if analysis:
+            parts.append(
+                "ANALYSIS PACKET FOR THIS INVESTIGATION (everything behind "
+                "the card, already resolved. These are FACTS, not a method: "
+                "which columns the answer needs, how to aggregate them and "
+                "which periods to compare are yours to decide. You should "
+                "not need inspect_catalog for this conversation; it remains "
+                "available if the question turns on a column that is not "
+                "here):\n"
+                + json.dumps(analysis, ensure_ascii=False, default=str))
+        # The older case file: the schema behind the card's own measure,
+        # kept for indicators the analysis packet has no relation for.
+        case_fields = ([] if analysis else sem.seed_field_packet(
+            catalog, str(investigation.get("metric") or "")))
         if case_fields:
             parts.append(
                 "CASE FILE FOR THIS INVESTIGATION (the schema behind the "
@@ -332,6 +352,7 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
                  "value_resolution": _value_resolution(resolved, asked),
                  "recent_turns": history,
                  "investigation": investigation or {},
+                 "investigation_packet": analysis,
                  "principal": {"id": principal.get("id", ""),
                                "tenant": principal.get("tenant", "")}})
 
