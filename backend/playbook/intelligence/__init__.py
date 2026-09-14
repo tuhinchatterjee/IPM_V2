@@ -9,6 +9,7 @@ a percentage an LLM felt was right is exactly what §4 forbids.
 from backend.playbook.intelligence import (
     binding,
     compare,
+    governance,
     profile,
     readiness,
     sections,
@@ -25,7 +26,7 @@ from backend.playbook.intelligence.service import (
 )
 
 __all__ = ["Dashboard", "NotPermitted", "binding", "classify", "compare",
-           "dashboard",
+           "dashboard", "governance",
            "ensure_profile", "get_profile", "profile", "readiness", "sections",
            "service",
            "UnknownDocumentType"]

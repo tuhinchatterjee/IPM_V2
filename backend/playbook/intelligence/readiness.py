@@ -47,6 +47,7 @@ from backend.models.playbook import (
 from backend.playbook import document as D
 from backend.playbook import repository as repo
 from backend.playbook.intelligence import binding as bind
+from backend.playbook.intelligence import governance as gov
 from backend.playbook.intelligence import profile as prof
 from backend.playbook.intelligence import sections as sect
 from backend.playbook.intelligence import service as svc
@@ -382,8 +383,8 @@ def readiness(facts: Facts) -> tuple[int, list[Component], list[dict]]:
         link="sections"))
 
     # --- Findings resolved / answered --------------------------------------
-    open_findings = [f for f in facts.findings if f.status == "open"]
-    unanswered_blocking = [f for f in open_findings if f.blocking]
+    open_findings = gov.unresolved(facts.findings)
+    unanswered_blocking = gov.blocking_unresolved(facts.findings)
     findings_score = (round(100 * (len(facts.findings) - len(open_findings))
                             / len(facts.findings)) if facts.findings else 100)
     components.append(Component(
@@ -398,7 +399,9 @@ def readiness(facts: Facts) -> tuple[int, list[Component], list[dict]]:
         link="findings"))
 
     # --- Decisions framed (committee only) ---------------------------------
-    outstanding = [d for d in facts.decisions if d.status == "outstanding"]
+    # A decision still owed: anything short of decided, other than withdrawn.
+    outstanding = [d for d in facts.decisions
+                   if d.status not in (gov.DECIDED, gov.WITHDRAWN)]
     unframed = [d for d in outstanding if not d.recommendation]
     if facts.committee:
         framed = len(facts.decisions) - len(unframed)
@@ -419,8 +422,7 @@ def readiness(facts: Facts) -> tuple[int, list[Component], list[dict]]:
 
     # --- Actions updated ---------------------------------------------------
     today = datetime.now(UTC).date()
-    overdue = [a for a in facts.actions if a.due_date and a.due_date < today
-               and a.status not in ("complete", "closed")]
+    overdue = gov.overdue(facts.actions, today=today)
     if facts.actions:
         updated = [a for a in facts.actions if a.last_update_at is not None]
         score = round(100 * len(updated) / len(facts.actions))

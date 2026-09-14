@@ -21,6 +21,7 @@ Two refusals are load-bearing rather than defensive:
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 from fastapi import (
     APIRouter,
@@ -1240,5 +1241,521 @@ def since_last_time(workspace_id: int, version: int | None = None,
                                            version=version)
     except repo.NotFound as exc:
         raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+# ==========================================================================
+# Findings, decisions and actions — §6B, §6C, §27
+# ==========================================================================
+#
+# The complete state and API contract for governed objects, ahead of the
+# visual dashboard. Every route here is a thin shell over
+# `backend.playbook.intelligence.governance`, which is where the rules live:
+# the router never decides who may do what, it passes the caller's identity
+# down and lets the one guard refuse. That is deliberate. A rule enforced in
+# a router is a rule a worker, a test harness or a future surface can walk
+# past; a rule enforced in the service is enforced everywhere.
+#
+# What is NOT here, on purpose:
+#
+# * **Claude drafting.** `gov.draft_answer` and `gov.propose_decision(
+#   drafted_by_claude=True)` are reached from the authoring path, not from a
+#   person's REST call. There is no route by which a client can ask the API
+#   to attribute something to the model, and none by which the model can ask
+#   the API to attribute something to a person.
+# * **Recording a decision without a person.** `record` refuses an unnamed or
+#   system actor, and `_actor()` yields "" for an unauthenticated caller, so
+#   the refusal arrives as 422 rather than as a row nobody can be held to.
+# * **Moving our status from an external system.** `read_back` writes
+#   `external_status` and nothing else; a planner saying "done" is evidence.
+
+
+class FindingIn(BaseModel):
+    """Raise a finding by hand. Rule- and import-raised findings arrive
+    through the analysis path, not through here."""
+
+    title: str = Field(max_length=400)
+    severity: str = Field(default="information", max_length=16)
+    rationale: str = Field(default="", max_length=4000)
+    section_key: str = Field(default="", max_length=128)
+    metric_id: str = Field(default="", max_length=160)
+    blocking: bool = False
+
+
+class FindingMoveIn(BaseModel):
+    status: str = Field(max_length=16)
+    reason: str = Field(default="", max_length=2000)
+    #: Supplied when a person answers in the same act as moving the finding.
+    answer: str = Field(default="", max_length=8000)
+    resolution: str = Field(default="", max_length=4000)
+
+
+class OwnerIn(BaseModel):
+    owner: str = Field(max_length=160)
+
+
+class BlockingIn(BaseModel):
+    blocking: bool
+    reason: str = Field(default="", max_length=2000)
+
+
+class EvidenceIn(BaseModel):
+    locator: str = Field(default="", max_length=400)
+    metric_id: str = Field(default="", max_length=160)
+    previous_value: str = Field(default="", max_length=64)
+    current_value: str = Field(default="", max_length=64)
+    delta: str = Field(default="", max_length=64)
+    note: str = Field(default="", max_length=2000)
+
+
+class DecisionProposeIn(BaseModel):
+    question: str = Field(max_length=2000)
+    recommendation: str = Field(default="", max_length=4000)
+    options: list[str] = Field(default_factory=list)
+    current_position: str = Field(default="", max_length=240)
+    proposed_position: str = Field(default="", max_length=240)
+    reporting_period: str = Field(default="", max_length=48)
+    related_finding_ids: list[int] = Field(default_factory=list)
+
+
+class DecisionMoveIn(BaseModel):
+    status: str = Field(max_length=32)
+    reason: str = Field(default="", max_length=2000)
+
+
+class DecisionRecordIn(BaseModel):
+    outcome: str = Field(max_length=16)
+    rationale: str = Field(default="", max_length=4000)
+    meeting: str = Field(default="", max_length=160)
+
+
+class ActionSpec(BaseModel):
+    title: str = Field(max_length=400)
+    description: str = Field(default="", max_length=4000)
+    owner: str = Field(default="", max_length=160)
+    due_date: date | None = None
+
+
+class ActionsFromDecisionIn(BaseModel):
+    actions: list[ActionSpec] = Field(default_factory=list)
+
+
+class ActionMoveIn(BaseModel):
+    status: str = Field(max_length=24)
+    #: Why it moved. Recorded on the audit entry; on a completion it is the
+    #: only place the owner says what was actually done.
+    reason: str = Field(default="", max_length=2000)
+
+
+class ActionUpdateIn(BaseModel):
+    note: str = Field(max_length=4000)
+
+
+class ActionExportIn(BaseModel):
+    system: str = Field(default="project_planner", max_length=48)
+    external_ref: str = Field(max_length=160)
+
+
+def _governed(session, model, workspace_id: int, row_id: int):
+    """Load one governed row, refusing one that belongs to another workspace.
+
+    The workspace itself has already been resolved against the caller's
+    tenant; this closes the second door, so a valid id from a workspace the
+    caller can see cannot be acted on through a workspace they can see.
+    """
+    row = session.get(model, row_id)
+    if row is None or row.workspace_id != workspace_id:
+        raise repo.NotFound(f"No such record here: {row_id}.")
+    return row
+
+
+def _governance_error(exc: Exception) -> HTTPException:
+    """Both refusals are the caller's to fix, and both say what to do."""
+    from backend.playbook.intelligence import governance as gov
+
+    code = ("not_permitted" if isinstance(exc, gov.NotPermitted)
+            else "transition_refused")
+    return _refused(exc, code=code)
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/findings",
+             status_code=status.HTTP_201_CREATED)
+def raise_finding(workspace_id: int, body: FindingIn,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """A person raises a finding. Origin is recorded as human, always.
+
+    A client cannot claim a different origin. Presenting a person's opinion
+    as a threshold rule's output is exactly the misattribution §6B exists to
+    prevent, so the origin here is not a parameter.
+    """
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            gov.raise_finding(
+                session, workspace_id, title=body.title,
+                origin=gov.FROM_HUMAN, severity=body.severity,
+                actor=_actor(principal), blocking=body.blocking,
+                rationale=body.rationale, section_key=body.section_key,
+                metric_id=body.metric_id)
+            session.commit()
+            return intelligence.service._findings_payload(session,
+                                                          workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/findings/{finding_id}/status")
+def move_finding(workspace_id: int, finding_id: int, body: FindingMoveIn,
+                 principal: Principal = RequireAnalyst) -> dict:
+    """Answer, accept, close, defer or reopen. A named person, every time."""
+    from backend.models.playbook import PlaybookFinding
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookFinding, workspace_id, finding_id)
+            gov.move_finding(session, row, to=body.status,
+                             actor=_actor(principal), reason=body.reason,
+                             answer=body.answer, resolution=body.resolution)
+            session.commit()
+            return intelligence.service._findings_payload(session,
+                                                          workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/findings/{finding_id}/owner")
+def assign_finding(workspace_id: int, finding_id: int, body: OwnerIn,
+                   principal: Principal = RequireAnalyst) -> dict:
+    """Put a named person on a finding."""
+    from backend.models.playbook import PlaybookFinding
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookFinding, workspace_id, finding_id)
+            gov.assign_finding(session, row, owner=body.owner,
+                               actor=_actor(principal))
+            session.commit()
+            return intelligence.service._findings_payload(session,
+                                                          workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/findings/{finding_id}/blocking")
+def set_finding_blocking(workspace_id: int, finding_id: int, body: BlockingIn,
+                         principal: Principal = RequireAnalyst) -> dict:
+    """Make a finding block approval, or stop it blocking.
+
+    The only way a model-suggested finding ever becomes a formal blocker, and
+    it requires a person to say so on the record.
+    """
+    from backend.models.playbook import PlaybookFinding
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookFinding, workspace_id, finding_id)
+            gov.set_blocking(session, row, blocking=body.blocking,
+                             actor=_actor(principal), reason=body.reason)
+            session.commit()
+            return intelligence.service._findings_payload(session,
+                                                          workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/findings/{finding_id}/evidence")
+def attach_finding_evidence(workspace_id: int, finding_id: int,
+                            body: EvidenceIn,
+                            principal: Principal = RequireAnalyst) -> dict:
+    """Record what a finding rests on, as the caller read it."""
+    from backend.models.playbook import PlaybookFinding
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookFinding, workspace_id, finding_id)
+            gov.attach_evidence(
+                session, row, actor=_actor(principal), locator=body.locator,
+                metric_id=body.metric_id, previous_value=body.previous_value,
+                current_value=body.current_value, delta=body.delta,
+                note=body.note)
+            session.commit()
+            return intelligence.service._findings_payload(session,
+                                                          workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/decisions",
+             status_code=status.HTTP_201_CREATED)
+def propose_decision(workspace_id: int, body: DecisionProposeIn,
+                     principal: Principal = RequireAnalyst) -> dict:
+    """Put a decision on the paper. It arrives PROPOSED, never decided."""
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            gov.propose_decision(
+                session, workspace_id, question=body.question,
+                recommendation=body.recommendation,
+                options=body.options or None, actor=_actor(principal),
+                current_position=body.current_position,
+                proposed_position=body.proposed_position,
+                reporting_period=body.reporting_period,
+                related_finding_ids=body.related_finding_ids)
+            session.commit()
+            return intelligence.service._decisions_payload(session,
+                                                           workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/decisions/{decision_id}/status")
+def move_decision(workspace_id: int, decision_id: int, body: DecisionMoveIn,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """Move a decision short of deciding it.
+
+    `decided` is refused here even for a person: recording an outcome is a
+    separate act with its own route, because it needs the outcome and the
+    rationale, and a status change that quietly implies one is how a pack
+    ends up asserting a decision nobody took.
+    """
+    from backend.models.playbook import PlaybookDecision
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookDecision, workspace_id,
+                            decision_id)
+            gov.move_decision(session, row, to=body.status,
+                              actor=_actor(principal), reason=body.reason)
+            session.commit()
+            return intelligence.service._decisions_payload(session,
+                                                           workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/decisions/{decision_id}/record")
+def record_decision(workspace_id: int, decision_id: int,
+                    body: DecisionRecordIn,
+                    principal: Principal = RequireAnalyst) -> dict:
+    """A person records what the committee decided."""
+    from backend.models.playbook import PlaybookDecision
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookDecision, workspace_id,
+                            decision_id)
+            gov.record(session, row, outcome=body.outcome,
+                       actor=_actor(principal), rationale=body.rationale,
+                       meeting=body.meeting)
+            session.commit()
+            return intelligence.service._decisions_payload(session,
+                                                           workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/decisions/{decision_id}/actions",
+             status_code=status.HTTP_201_CREATED)
+def create_decision_actions(workspace_id: int, decision_id: int,
+                            body: ActionsFromDecisionIn,
+                            principal: Principal = RequireAnalyst) -> dict:
+    """Create the work a recorded decision implies. Refused before it is."""
+    from backend.models.playbook import PlaybookDecision
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookDecision, workspace_id,
+                            decision_id)
+            gov.actions_from_decision(
+                session, row, actor=_actor(principal),
+                actions=[spec.model_dump() for spec in body.actions])
+            session.commit()
+            return intelligence.service._actions_payload(session, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/actions",
+             status_code=status.HTTP_201_CREATED)
+def create_action(workspace_id: int, body: ActionSpec,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """Raise an action directly, for work that follows from no decision."""
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            gov.create_action(session, workspace_id, title=body.title,
+                              actor=_actor(principal),
+                              description=body.description, owner=body.owner,
+                              due_date=body.due_date)
+            session.commit()
+            return intelligence.service._actions_payload(session, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/actions/{action_id}/status")
+def move_action(workspace_id: int, action_id: int, body: ActionMoveIn,
+                principal: Principal = RequireAnalyst) -> dict:
+    """Move an action. Completing one records who said it was done."""
+    from backend.models.playbook import PlaybookAction
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookAction, workspace_id, action_id)
+            gov.move_action(session, row, to=body.status,
+                            actor=_actor(principal), note=body.reason)
+            session.commit()
+            return intelligence.service._actions_payload(session, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/actions/{action_id}/update")
+def update_action(workspace_id: int, action_id: int, body: ActionUpdateIn,
+                  principal: Principal = RequireAnalyst) -> dict:
+    """An owner says where an action stands, without moving it."""
+    from backend.models.playbook import PlaybookAction
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookAction, workspace_id, action_id)
+            gov.update_action(session, row, note=body.note,
+                              actor=_actor(principal))
+            session.commit()
+            return intelligence.service._actions_payload(session, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/actions/{action_id}/export")
+def action_export_payload(workspace_id: int, action_id: int,
+                          principal: Principal = RequireAnalyst) -> dict:
+    """What a planner would need to take this action on. Changes nothing.
+
+    The seam §7 asks for: Playbook works completely without a Project
+    Planner, and hands one everything it needs if the user has it.
+    """
+    from backend.models.playbook import PlaybookAction
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookAction, workspace_id, action_id)
+            return gov.export_payload(row)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/actions/{action_id}/export")
+def record_action_export(workspace_id: int, action_id: int,
+                         body: ActionExportIn,
+                         principal: Principal = RequireAnalyst) -> dict:
+    """Note that an action now lives in an external system too."""
+    from backend.models.playbook import PlaybookAction
+    from backend.playbook.intelligence import governance as gov
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            row = _governed(session, PlaybookAction, workspace_id, action_id)
+            gov.record_export(session, row, system=body.system,
+                              external_ref=body.external_ref,
+                              actor=_actor(principal))
+            session.commit()
+            return intelligence.service._actions_payload(session, workspace_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except (gov.NotPermitted, gov.TransitionRefused) as exc:
+        raise _governance_error(exc) from exc
     except RuntimeError as exc:
         raise _unavailable(exc) from exc

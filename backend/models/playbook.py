@@ -1046,6 +1046,17 @@ class PlaybookFinding(Base):
     answered_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
     resolution: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Answering and standing behind an answer are different acts. Claude may
+    #: draft the first; only a person performs the second.
+    resolved_by: Mapped[str] = mapped_column(String(160), nullable=False,
+                                             default="")
+    resolved_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    #: The movement that raised it, kept beside the finding so "5.86% to
+    #: 6.47%, +0.61pp" survives data that has since moved on.
+    delta: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    version_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    history: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     blocking: Mapped[bool] = mapped_column(Boolean, nullable=False,
                                            default=False)
     evidence: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
@@ -1085,8 +1096,8 @@ class PlaybookDecision(Base):
     proposed_position: Mapped[str] = mapped_column(String(240), nullable=False,
                                                    default="")
     effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    status: Mapped[str] = mapped_column(String(16), nullable=False,
-                                        default="outstanding")
+    status: Mapped[str] = mapped_column(String(32), nullable=False,
+                                        default="proposed")
     outcome: Mapped[str] = mapped_column(String(32), nullable=False,
                                          default="")
     decided_by: Mapped[str] = mapped_column(String(160), nullable=False,
@@ -1095,8 +1106,13 @@ class PlaybookDecision(Base):
         DateTime(timezone=True), nullable=True)
     meeting: Mapped[str] = mapped_column(String(160), nullable=False,
                                          default="")
+    reporting_period: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                  default="")
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
     evidence: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    related_finding_ids: Mapped[list] = mapped_column(JSONB, nullable=False,
+                                                      default=list)
+    history: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
@@ -1127,6 +1143,7 @@ class PlaybookAction(Base):
     reference: Mapped[str] = mapped_column(String(32), nullable=False,
                                            default="")
     title: Mapped[str] = mapped_column(String(400), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     owner: Mapped[str] = mapped_column(String(160), nullable=False, default="")
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(24), nullable=False,
@@ -1134,10 +1151,22 @@ class PlaybookAction(Base):
     last_update: Mapped[str] = mapped_column(Text, nullable=False, default="")
     last_update_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True)
+    completed_by: Mapped[str] = mapped_column(String(160), nullable=False,
+                                              default="")
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    notes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    history: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     external_system: Mapped[str] = mapped_column(String(48), nullable=False,
                                                  default="")
     external_ref: Mapped[str] = mapped_column(String(160), nullable=False,
                                               default="")
+    #: What the external system last said, and when we last heard it. Status
+    #: is read BACK from a planner; it is never assumed from having exported.
+    external_status: Mapped[str] = mapped_column(String(48), nullable=False,
+                                                 default="")
+    external_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

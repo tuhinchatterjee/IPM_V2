@@ -255,7 +255,11 @@ class TestTheRowsHoldWhatTheyPromise:
             current_position="580", proposed_position="600")
         db.add(decision)
         db.flush()
-        assert decision.status == "outstanding"
+        # "proposed", not "outstanding": §6C replaced the word, and `0039`
+        # moved the column default with it. A decision that arrives in a
+        # status the transition table does not know is one nobody can ever
+        # record.
+        assert decision.status == "proposed"
         assert decision.outcome == "" and decision.decided_by == ""
         assert decision.decided_at is None
 

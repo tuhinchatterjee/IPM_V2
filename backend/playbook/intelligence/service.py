@@ -336,10 +336,12 @@ def _metrics_payload(bindings: list[PlaybookMetricBinding]) -> dict:
 
 
 def _findings_payload(session, workspace_id: int) -> dict:
+    from backend.playbook.intelligence import governance as gov
+
     rows = (session.query(PlaybookFinding)
             .filter(PlaybookFinding.workspace_id == workspace_id).all())
-    open_rows = [r for r in rows if r.status == "open"]
-    blocking = [r for r in open_rows if r.blocking]
+    open_rows = gov.unresolved(rows)
+    blocking = gov.blocking_unresolved(rows)
     return {
         "total": len(rows),
         "open": len(open_rows),
@@ -354,7 +356,15 @@ def _findings_payload(session, workspace_id: int) -> dict:
             "previous_value": r.previous_value,
             "current_value": r.current_value, "owner": r.owner,
             "answer": r.answer, "answered_by": r.answered_by,
-            "blocking": r.blocking, "section_key": r.section_key,
+            "answered_at": r.answered_at.isoformat() if r.answered_at else "",
+            "resolution": r.resolution, "resolved_by": r.resolved_by,
+            "resolved_at": r.resolved_at.isoformat() if r.resolved_at else "",
+            "origin": r.raised_by,
+            "origin_label": gov.ORIGIN_LABELS.get(r.raised_by, r.raised_by),
+            "delta": r.delta, "blocking": r.blocking,
+            "unresolved": (r.status or gov.OPEN) not in gov.RESOLVED,
+            "history": list(r.history or []),
+            "section_key": r.section_key,
         } for r in rows],
     }
 
@@ -362,9 +372,13 @@ def _findings_payload(session, workspace_id: int) -> dict:
 def _decisions_payload(session, workspace_id: int) -> dict:
     rows = (session.query(PlaybookDecision)
             .filter(PlaybookDecision.workspace_id == workspace_id).all())
+    from backend.playbook.intelligence import governance as gov
+
     return {
         "total": len(rows),
-        "outstanding": sum(1 for r in rows if r.status == "outstanding"),
+        "outstanding": sum(1 for r in rows if r.status
+                           not in (gov.DECIDED, gov.WITHDRAWN)),
+        "decided": sum(1 for r in rows if r.status == gov.DECIDED),
         "items": [{
             "id": r.id, "reference": r.reference, "question": r.question,
             "recommendation": r.recommendation, "options": r.options,
@@ -375,7 +389,10 @@ def _decisions_payload(session, workspace_id: int) -> dict:
             "status": r.status, "outcome": r.outcome,
             "decided_by": r.decided_by,
             "decided_at": r.decided_at.isoformat() if r.decided_at else "",
-            "meeting": r.meeting, "rationale": r.rationale,
+            "meeting": r.meeting, "reporting_period": r.reporting_period,
+            "rationale": r.rationale,
+            "related_finding_ids": list(r.related_finding_ids or []),
+            "history": list(r.history or []),
         } for r in rows],
     }
 
@@ -383,14 +400,17 @@ def _decisions_payload(session, workspace_id: int) -> dict:
 def _actions_payload(session, workspace_id: int) -> dict:
     from datetime import UTC, datetime
 
+    from backend.playbook.intelligence import governance as gov
+
     rows = (session.query(PlaybookAction)
             .filter(PlaybookAction.workspace_id == workspace_id).all())
     today = datetime.now(UTC).date()
-    overdue = [r for r in rows if r.due_date and r.due_date < today
-               and r.status not in ("complete", "closed")]
+    overdue = gov.overdue(rows, today=today)
     return {
         "total": len(rows),
-        "open": sum(1 for r in rows if r.status == "open"),
+        "open": sum(1 for r in rows
+                    if r.status in gov.ACTION_OUTSTANDING),
+        "completed": sum(1 for r in rows if r.status == gov.COMPLETED),
         "overdue": len(overdue),
         "items": [{
             "id": r.id, "reference": r.reference, "title": r.title,
@@ -398,8 +418,14 @@ def _actions_payload(session, workspace_id: int) -> dict:
             "due_date": r.due_date.isoformat() if r.due_date else "",
             "status": r.status, "last_update": r.last_update,
             "decision_id": r.decision_id, "finding_id": r.finding_id,
+            "description": r.description,
+            "completed_by": r.completed_by,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else "",
+            "notes": list(r.notes or []),
+            "history": list(r.history or []),
             "external_system": r.external_system,
             "external_ref": r.external_ref,
+            "external_status": r.external_status,
         } for r in rows],
     }
 

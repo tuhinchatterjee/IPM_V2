@@ -176,8 +176,11 @@ class TestReadinessAsksWhetherItMayLeave:
         assert any("F-02" in b["reason"] for b in result.blockers)
         assert any(b["link"] == "findings" for b in result.blockers)
 
-    def test_an_answered_finding_stops_blocking(self, db, workspace,
-                                                committee):
+    def test_an_answer_alone_does_not_stop_a_finding_blocking(
+            self, db, workspace, committee):
+        """A drafted answer nobody stood behind has disposed of nothing.
+        §6B turns on exactly this distinction, so it is asserted here as well
+        as in the governance suite."""
         finding = PlaybookFinding(workspace_id=workspace.id, reference="F-03",
                                   title="X", severity="high", blocking=True)
         db.add(finding)
@@ -188,10 +191,23 @@ class TestReadinessAsksWhetherItMayLeave:
         finding.answer = "Explained by the seasonal cohort mix."
         finding.answered_by = ACTOR
         db.flush()
+        assert any("F-03" in b["reason"]
+                   for b in score.compute(db, workspace.id).blockers)
+
+    def test_accepting_a_finding_stops_it_blocking(self, db, workspace,
+                                                   committee):
+        finding = PlaybookFinding(workspace_id=workspace.id, reference="F-03",
+                                  title="X", severity="high", blocking=True,
+                                  answer="Seasonal cohort mix.")
+        db.add(finding)
+        db.flush()
+        finding.status = "accepted"
+        finding.resolved_by = ACTOR
+        db.flush()
         # The pack may still be blocked for other reasons — a missing meeting
         # date, no decision requested. What must be gone is THIS blocker.
-        blockers = score.compute(db, workspace.id).blockers
-        assert not any("F-03" in b["reason"] for b in blockers)
+        assert not any("F-03" in b["reason"]
+                       for b in score.compute(db, workspace.id).blockers)
 
     def test_a_committee_pack_with_no_decision_is_not_ready(self, db,
                                                             workspace,

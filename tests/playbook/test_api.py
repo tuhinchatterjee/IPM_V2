@@ -936,3 +936,316 @@ class TestDocumentIntelligenceOverHttp:
             json={"document_type": "committee_report"})
         assert r.status_code == 422
         assert "person" in r.text
+
+
+class TestGovernedObjectsOverHttp:
+    """Gates 6 and 7 over HTTP. §6B, §6C, §27.
+
+    The service-layer rules are proven in `test_governance.py`. What is under
+    test here is that the ROUTES do not create a way around them: that no
+    request body can name a different actor, claim a different origin, or
+    reach `decided` without going through the act that demands an outcome and
+    a rationale.
+    """
+
+    BASE = "/api/v1/playbook/workspaces"
+
+    @pytest.fixture
+    def signed_in(self, client):
+        client.headers.update({"X-IPM-User-Id": "1"})
+        yield client
+        client.headers.pop("X-IPM-User-Id", None)
+
+    def _workspace(self, client) -> int:
+        r = client.post("/api/v1/playbook/workspaces",
+                        json={"title": "IFRS 9 committee report"})
+        assert r.status_code == 201, r.text
+        return r.json()["id"]
+
+    def _finding(self, client, ws, **over) -> dict:
+        body = {"title": "Stage 2 coverage fell below the threshold",
+                "severity": "high", "rationale": "Coverage 5.86% vs 6.50%"}
+        body.update(over)
+        r = client.post(f"{self.BASE}/{ws}/intelligence/findings", json=body)
+        assert r.status_code == 201, r.text
+        return r.json()["items"][-1]
+
+    def _decision(self, client, ws, **over) -> dict:
+        body = {"question": "Do we hold the Stage 2 overlay at SAR 41.00m?",
+                "recommendation": "Hold"}
+        body.update(over)
+        r = client.post(f"{self.BASE}/{ws}/intelligence/decisions", json=body)
+        assert r.status_code == 201, r.text
+        return r.json()["items"][-1]
+
+    # -- findings ---------------------------------------------------------
+
+    def test_a_person_raises_a_finding(self, signed_in):
+        ws = self._workspace(signed_in)
+        item = self._finding(signed_in, ws)
+        assert item["status"] == "open"
+        assert item["origin"] == "human"
+        assert item["origin_label"] == "Raised by a person"
+        assert item["unresolved"] is True
+
+    def test_a_finding_cannot_be_raised_without_a_person(self, client):
+        """`origin` is not a request field, so a client cannot raise a finding
+        as though a threshold rule had computed it — and a human-origin
+        finding needs a human."""
+        ws = self._workspace(client)
+        r = client.post(f"{self.BASE}/{ws}/intelligence/findings",
+                        json={"title": "Coverage fell"})
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "not_permitted"
+        assert "person" in r.text
+
+    def test_the_origin_is_recorded_as_human_whatever_the_body_says(
+            self, signed_in):
+        ws = self._workspace(signed_in)
+        r = signed_in.post(f"{self.BASE}/{ws}/intelligence/findings",
+                           json={"title": "Coverage fell", "origin": "rule",
+                                 "raised_by": "rule"})
+        assert r.status_code == 201, r.text
+        assert r.json()["items"][-1]["origin"] == "human"
+
+    def test_answering_does_not_resolve_and_accepting_does(self, signed_in):
+        ws = self._workspace(signed_in)
+        fid = self._finding(signed_in, ws)["id"]
+
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/findings/{fid}/status",
+            json={"status": "answered", "answer": "The overlay covers it."})
+        assert r.status_code == 200, r.text
+        answered = r.json()["items"][-1]
+        assert answered["status"] == "answered"
+        assert answered["unresolved"] is True
+        assert r.json()["open"] == 1
+
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/findings/{fid}/status",
+            json={"status": "accepted", "reason": "Committee satisfied"})
+        assert r.status_code == 200, r.text
+        assert r.json()["items"][-1]["unresolved"] is False
+        assert r.json()["open"] == 0
+
+    def test_closing_a_finding_needs_a_person(self, client, signed_in):
+        ws = self._workspace(signed_in)
+        fid = self._finding(signed_in, ws)["id"]
+        signed_in.headers.pop("X-IPM-User-Id", None)
+
+        r = client.post(f"{self.BASE}/{ws}/intelligence/findings/{fid}/status",
+                        json={"status": "closed"})
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "not_permitted"
+
+    def test_a_finding_records_who_did_what(self, signed_in):
+        """§26: the audit trail is what makes the rest of this meaningful."""
+        ws = self._workspace(signed_in)
+        fid = self._finding(signed_in, ws)["id"]
+        signed_in.post(f"{self.BASE}/{ws}/intelligence/findings/{fid}/owner",
+                       json={"owner": "Head of Credit Risk"})
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/findings/{fid}/status",
+            json={"status": "deferred", "reason": "Next quarter"})
+        history = r.json()["items"][-1]["history"]
+        assert [e["act"] for e in history] == ["raised", "assigned",
+                                               "deferred"]
+        assert all(e["actor"] == "user:1" for e in history[1:])
+        assert history[-1]["reason"] == "Next quarter"
+
+    def test_a_person_makes_a_finding_blocking(self, signed_in):
+        ws = self._workspace(signed_in)
+        fid = self._finding(signed_in, ws)["id"]
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/findings/{fid}/blocking",
+            json={"blocking": True, "reason": "Committee cannot approve"})
+        assert r.status_code == 200, r.text
+        assert r.json()["blocking"] == 1
+
+    def test_evidence_is_attached_as_read_not_recomputed(self, signed_in):
+        ws = self._workspace(signed_in)
+        fid = self._finding(signed_in, ws)["id"]
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/findings/{fid}/evidence",
+            json={"locator": "xlsx://Coverage!B12", "previous_value": "6.50%",
+                  "current_value": "5.86%", "delta": "-0.64pp"})
+        assert r.status_code == 200, r.text
+        item = r.json()["items"][-1]
+        assert item["previous_value"] == "6.50%"
+        assert item["delta"] == "-0.64pp"
+        assert item["history"][-1]["act"] == "evidence_attached"
+
+    def test_evidence_with_nothing_in_it_is_refused(self, signed_in):
+        ws = self._workspace(signed_in)
+        fid = self._finding(signed_in, ws)["id"]
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/findings/{fid}/evidence", json={})
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "transition_refused"
+
+    def test_a_finding_from_another_workspace_is_not_reachable(
+            self, signed_in):
+        """A valid id from a workspace the caller can see is still refused
+        through a workspace it does not belong to."""
+        mine = self._workspace(signed_in)
+        theirs = self._workspace(signed_in)
+        fid = self._finding(signed_in, theirs)["id"]
+
+        r = signed_in.post(
+            f"{self.BASE}/{mine}/intelligence/findings/{fid}/status",
+            json={"status": "closed"})
+        assert r.status_code == 404
+
+    # -- decisions --------------------------------------------------------
+
+    def test_a_decision_arrives_proposed(self, signed_in):
+        ws = self._workspace(signed_in)
+        item = self._decision(signed_in, ws)
+        assert item["status"] == "proposed"
+        assert item["outcome"] == ""
+        assert item["decided_by"] == ""
+
+    def test_the_status_route_cannot_reach_decided(self, signed_in):
+        """Recording an outcome is its own act. A status change that quietly
+        implied one would let a pack assert a decision with no outcome, no
+        rationale and nobody's name on it."""
+        ws = self._workspace(signed_in)
+        did = self._decision(signed_in, ws)["id"]
+        signed_in.post(f"{self.BASE}/{ws}/intelligence/decisions/{did}/status",
+                       json={"status": "ready_for_decision"})
+
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/decisions/{did}/status",
+            json={"status": "decided"})
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "transition_refused"
+
+    def test_a_person_records_the_outcome(self, signed_in):
+        ws = self._workspace(signed_in)
+        did = self._decision(signed_in, ws)["id"]
+        signed_in.post(f"{self.BASE}/{ws}/intelligence/decisions/{did}/status",
+                       json={"status": "ready_for_decision"})
+
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/decisions/{did}/record",
+            json={"outcome": "approve", "rationale": "Overlay held",
+                  "meeting": "CRC, 12 August 2026"})
+        assert r.status_code == 200, r.text
+        item = r.json()["items"][-1]
+        assert item["status"] == "decided"
+        assert item["outcome"] == "approve"
+        assert item["decided_by"] == "user:1"
+        assert item["meeting"] == "CRC, 12 August 2026"
+        assert r.json()["outstanding"] == 0 and r.json()["decided"] == 1
+
+    def test_recording_a_decision_needs_a_person(self, client, signed_in):
+        ws = self._workspace(signed_in)
+        did = self._decision(signed_in, ws)["id"]
+        signed_in.post(f"{self.BASE}/{ws}/intelligence/decisions/{did}/status",
+                       json={"status": "ready_for_decision"})
+        signed_in.headers.pop("X-IPM-User-Id", None)
+
+        r = client.post(f"{self.BASE}/{ws}/intelligence/decisions/{did}/record",
+                        json={"outcome": "approve"})
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "not_permitted"
+
+    def test_a_decision_not_ready_cannot_be_recorded(self, signed_in):
+        ws = self._workspace(signed_in)
+        did = self._decision(signed_in, ws)["id"]
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/decisions/{did}/record",
+            json={"outcome": "approve"})
+        assert r.status_code == 422
+        assert "ready_for_decision" in r.text
+
+    # -- actions ----------------------------------------------------------
+
+    def test_actions_follow_a_recorded_decision(self, signed_in):
+        ws = self._workspace(signed_in)
+        did = self._decision(signed_in, ws)["id"]
+        signed_in.post(f"{self.BASE}/{ws}/intelligence/decisions/{did}/status",
+                       json={"status": "ready_for_decision"})
+        signed_in.post(f"{self.BASE}/{ws}/intelligence/decisions/{did}/record",
+                       json={"outcome": "approve"})
+
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/decisions/{did}/actions",
+            json={"actions": [
+                {"title": "Re-run the overlay at Q4", "owner": "Modelling",
+                 "due_date": "2026-12-31"}]})
+        assert r.status_code == 201, r.text
+        item = r.json()["items"][-1]
+        assert item["status"] == "open"
+        assert item["decision_id"] == did
+        assert item["due_date"] == "2026-12-31"
+
+    def test_actions_cannot_precede_the_decision(self, signed_in):
+        ws = self._workspace(signed_in)
+        did = self._decision(signed_in, ws)["id"]
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/decisions/{did}/actions",
+            json={"actions": [{"title": "Re-run the overlay"}]})
+        assert r.status_code == 422
+        assert r.json()["detail"]["error"] == "transition_refused"
+
+    def test_completing_an_action_records_who_said_so(self, signed_in):
+        ws = self._workspace(signed_in)
+        r = signed_in.post(f"{self.BASE}/{ws}/intelligence/actions",
+                           json={"title": "Refresh the coverage workbook"})
+        assert r.status_code == 201, r.text
+        aid = r.json()["items"][-1]["id"]
+
+        signed_in.post(f"{self.BASE}/{ws}/intelligence/actions/{aid}/status",
+                       json={"status": "in_progress"})
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/actions/{aid}/status",
+            json={"status": "completed", "reason": "Workbook refreshed"})
+        assert r.status_code == 200, r.text
+        item = r.json()["items"][-1]
+        assert item["status"] == "completed"
+        assert item["completed_by"] == "user:1"
+        assert item["completed_at"]
+        assert r.json()["completed"] == 1
+
+    def test_an_update_says_where_an_action_stands_without_moving_it(
+            self, signed_in):
+        ws = self._workspace(signed_in)
+        r = signed_in.post(f"{self.BASE}/{ws}/intelligence/actions",
+                           json={"title": "Refresh the coverage workbook"})
+        aid = r.json()["items"][-1]["id"]
+
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/actions/{aid}/update",
+            json={"note": "Waiting on the Q3 extract"})
+        assert r.status_code == 200, r.text
+        item = r.json()["items"][-1]
+        assert item["status"] == "open"
+        assert item["last_update"] == "Waiting on the Q3 extract"
+        assert item["notes"][-1]["actor"] == "user:1"
+
+    def test_the_planner_seam_hands_over_without_depending_on_one(
+            self, signed_in):
+        """§7: Playbook works completely without a Project Planner, and hands
+        one everything it needs if the user has it."""
+        ws = self._workspace(signed_in)
+        r = signed_in.post(f"{self.BASE}/{ws}/intelligence/actions",
+                           json={"title": "Refresh the coverage workbook",
+                                 "owner": "Modelling"})
+        aid = r.json()["items"][-1]["id"]
+
+        r = signed_in.get(f"{self.BASE}/{ws}/intelligence/actions/{aid}/export")
+        assert r.status_code == 200, r.text
+        assert r.json()["source"] == "playbook"
+        assert r.json()["title"] == "Refresh the coverage workbook"
+
+        r = signed_in.post(
+            f"{self.BASE}/{ws}/intelligence/actions/{aid}/export",
+            json={"system": "project_planner", "external_ref": "PP-4417"})
+        assert r.status_code == 200, r.text
+        item = r.json()["items"][-1]
+        assert item["external_ref"] == "PP-4417"
+        # Exported, and still ours: the external system has not moved our
+        # status and cannot.
+        assert item["status"] == "open"
+        assert item["external_status"] == ""
