@@ -138,11 +138,26 @@ def test_the_whole_sequence(probe_namespace, store_db, v4_config):
     assert caps[ready_mod.SQL_ANALYSIS_READY] is False
     assert caps[ready_mod.ATTENTION_READY] is False
 
-    # attention is typed, not a traceback
-    attention = client.get(f"{P}/attention")
-    assert attention.status_code == 503
-    assert "AttributeError" not in attention.text
-    assert attention.json()["detail"]["error_code"] == st.DATA_UNAVAILABLE
+    # attention is typed, not a traceback.
+    #
+    # The dashboard reads its own DOMAIN release rather than the runtime's
+    # pinned one, so an unprovisioned RUNTIME no longer makes it unavailable:
+    # a published corporate book can be looked at while the runtime that
+    # would ANSWER questions about it is not ready. The refusal being tested
+    # is the domain's own, so the domain is the thing to unpublish.
+    from backend.cockpit_v4 import domains as dom_mod
+
+    published = dict(dom_mod.DEFAULT_RELEASES)
+    dom_mod.DEFAULT_RELEASES[dom_mod.CORPORATE] = "v4-corporate-absent"
+    try:
+        attention = client.get(f"{P}/attention")
+        assert attention.status_code == 503
+        assert "AttributeError" not in attention.text
+        assert attention.json()["detail"]["error_code"] == st.DATA_UNAVAILABLE
+        assert "seed_domains.py" in (
+            attention.json()["detail"]["provision_command"])
+    finally:
+        dom_mod.DEFAULT_RELEASES.update(published)
 
     # a run is refused, and nothing is left behind to wait forever
     run = client.post(f"{P}/runs", json={"question": "Total EAD by sector?"})
@@ -186,9 +201,16 @@ def test_the_whole_sequence(probe_namespace, store_db, v4_config):
         assert header.amount_scale == "million"
         assert len(header.release_fingerprint) == 64
 
+        # The dashboard answers from the DOMAIN release, which is a
+        # different thing from the runtime's pinned analytical release --
+        # provisioning the latter is what this sequence is about, and the
+        # former is provisioned by seed_domains.py.
+        from backend.cockpit_v4 import domains as dom_mod
+
         attention = client.get(f"{P}/attention")
         assert attention.status_code == 200, attention.text
-        assert attention.json()["release_id"] == PROBE_RELEASE
+        assert attention.json()["release_id"] == (
+            dom_mod.DEFAULT_RELEASES[dom_mod.DEFAULT_DOMAIN])
 
 
 @pytest.mark.slow

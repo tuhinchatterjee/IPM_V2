@@ -578,6 +578,8 @@ function ThreadHeader({
   turnCount,
   latestRunId,
   threadId,
+  domainId,
+  domainLabel,
   onRename,
   onHome,
 }: {
@@ -585,6 +587,8 @@ function ThreadHeader({
   turnCount: number;
   latestRunId: string;
   threadId: string;
+  domainId: string;
+  domainLabel: string;
   onRename: (title: string) => void;
   onHome: () => void;
 }) {
@@ -650,8 +654,24 @@ function ThreadHeader({
             {title || "New conversation"}
           </h1>
         )}
-        <p className="mt-1 text-xs text-slate-500" data-testid="v4-thread-turns">
-          {turnCount} message{turnCount === 1 ? "" : "s"}
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {/*
+            §35: which book this conversation is held in, stated rather than
+            inferred. A reader with a corporate and a retail thread open
+            should not have to read the answers to tell them apart.
+          */}
+          {domainLabel ? (
+            <span
+              data-testid="v4-thread-domain"
+              data-domain={domainId}
+              className="rounded-full border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-700"
+            >
+              {domainLabel}
+            </span>
+          ) : null}
+          <span data-testid="v4-thread-turns">
+            {turnCount} message{turnCount === 1 ? "" : "s"}
+          </span>
         </p>
         <ThreadActions
           runId={latestRunId}
@@ -878,6 +898,8 @@ export function CockpitV4Thread({
       <ThreadHeader
         title={transcript?.title ?? ""}
         turnCount={turns.length + (live ? 1 : 0)}
+        domainId={transcript?.domain_id ?? ""}
+        domainLabel={transcript?.domain_short_label ?? ""}
         latestRunId={
           // The newest ANSWERED run: the live one once it has settled,
           // otherwise the last turn already in the transcript. A run still

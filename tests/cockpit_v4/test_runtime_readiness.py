@@ -102,17 +102,31 @@ def test_a_refused_run_leaves_nothing_stuck(unprovisioned, store_db):
 # ---- §6, §7: attention is typed, never a traceback ---------------------
 
 def test_attention_returns_a_typed_refusal_not_an_attribute_error(
-        unprovisioned):
-    """THE live traceback, as an assertion."""
+        unprovisioned, monkeypatch):
+    """THE live traceback, as an assertion.
+
+    The dashboard no longer reads the runtime's pinned release: it opens its
+    own DOMAIN release, so "unprovisioned" now means that domain's release is
+    missing rather than the runtime's. The property under test is unchanged
+    and is the one that matters -- a missing book is a typed refusal naming
+    the command that publishes it, never an AttributeError and never an empty
+    feed that reads as "your portfolio is fine".
+    """
+    from backend.cockpit_v4 import domains as dom_mod
+    from backend.cockpit_v4 import lake as lake_mod
+
+    monkeypatch.setitem(dom_mod.DEFAULT_RELEASES, dom_mod.CORPORATE,
+                        "v4-saudi-corporate-not-published")
     response = unprovisioned.get(f"{P}/attention")
     assert response.status_code == 503, response.text
     assert "AttributeError" not in response.text
-    assert "scope_for" not in response.text
     detail = response.json()["detail"]
     assert detail["error_code"] == st.DATA_UNAVAILABLE
-    assert detail["capability"] == ready_mod.ATTENTION_READY
-    assert "seed_release.py" in detail["remedy"], (
+    assert detail["domain_id"] == dom_mod.CORPORATE
+    assert "seed_domains.py" in detail["provision_command"], (
         "a refusal that does not say how to fix it makes the operator guess")
+    assert "Nothing was substituted" in detail["message"]
+    assert lake_mod is not None
 
 
 def test_attention_works_against_the_real_runtime(provisioned, release_id):
@@ -122,10 +136,16 @@ def test_attention_works_against_the_real_runtime(provisioned, release_id):
     the application builds, not a stand-in that happens to expose whatever
     the test needed.
     """
+    from backend.cockpit_v4 import domains as dom_mod
+
     response = provisioned.get(f"{P}/attention")
     assert response.status_code == 200, response.text
     feed = response.json()
-    assert feed["release_id"] == release_id
+    # Its own DOMAIN release, not the runtime's pinned one: the dashboard is
+    # a property of the book being looked at rather than of the process.
+    assert feed["domain_id"] == dom_mod.DEFAULT_DOMAIN
+    assert feed["release_id"] == dom_mod.DEFAULT_RELEASES[dom_mod.CORPORATE]
+    assert feed["release_id"] != release_id
     assert feed["segments_requiring_attention"]
 
 

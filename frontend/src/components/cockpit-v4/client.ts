@@ -416,6 +416,10 @@ export async function startRun(input: {
   question: string;
   threadId?: string;
   mode?: RunMode;
+  /** Which book. Read only when OPENING a conversation: a thread that
+   *  already exists decides for itself, and a request naming the other book
+   *  is refused with 409 rather than obeyed or ignored. */
+  domain?: DomainId;
   filters?: Record<string, unknown>;
   idempotencyKey?: string;
 }): Promise<{ run_id: string; thread_id: string; duplicate: boolean }> {
@@ -433,6 +437,7 @@ export async function startRun(input: {
         question: input.question,
         thread_id: input.threadId ?? "",
         mode: input.mode ?? "standard",
+        domain: input.domain ?? "",
         ui_filters: input.filters ?? {},
       }),
     }),
@@ -507,6 +512,9 @@ export type ThreadTurn = {
 };
 
 export type ThreadTranscript = {
+  domain_id: DomainId;
+  domain_label: string;
+  domain_short_label: string;
   thread_id: string;
   title: string;
   /** EVERY turn, oldest first. Not a window onto the last few. */
@@ -629,7 +637,12 @@ export type AttentionItem = {
 };
 
 export type AttentionFeed = {
+  domain_id: DomainId;
+  domain_label: string;
+  attention_label: string;
+  highlights_label: string;
   release_id: string;
+  release_fingerprint: string;
   reporting_quarter: string;
   prior_quarter: string;
   prior_year_quarter: string;
@@ -656,10 +669,57 @@ export type InvestigationSeed = {
   drilldown?: AttentionDrilldown;
 };
 
-/** The two home sections. Deterministic, cached server-side, no model call. */
-export async function readAttention(): Promise<AttentionFeed> {
+/** Which analytical book a question is about. Closed set, server-checked. */
+export type DomainId = "corporate" | "retail";
+
+export type DomainStatus = {
+  domain_id: DomainId;
+  domain_label: string;
+  release_id: string;
+  ready: boolean;
+  reason?: string;
+  latest_period?: string;
+  periods?: string[];
+  reporting_currency?: string;
+  amount_scale?: string;
+  reporting_frequency?: string;
+  relation_count?: number;
+  field_count?: number;
+  row_counts?: Record<string, number>;
+  entity_counts?: Record<string, number>;
+  release_fingerprint?: string;
+  provision_command?: string;
+};
+
+export type DomainAvailability = {
+  domains: DomainStatus[];
+  default_domain: DomainId;
+  ready: DomainId[];
+};
+
+/** The books this runtime serves, and whether each can be asked anything.
+ *
+ * Read once when the page opens. One book being unpublished disables its
+ * control and says why; it never makes the other stand in for it.
+ */
+export async function readDomains(): Promise<DomainAvailability> {
   return json(
-    await fetch(`${base()}${API_PREFIX}/attention`, {
+    await fetch(`${base()}${API_PREFIX}/domains`, { credentials: "include" }),
+  );
+}
+
+/** One book's home sections. Deterministic, cached server-side, no model call.
+ *
+ * The domain is a QUERY, not a filter applied to a shared answer: the server
+ * opens that book's release and computes its own dashboard, so switching
+ * changes the numbers rather than the labels over them.
+ */
+export async function readAttention(
+  domain?: DomainId,
+): Promise<AttentionFeed> {
+  const query = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+  return json(
+    await fetch(`${base()}${API_PREFIX}/attention${query}`, {
       credentials: "include",
     }),
   );

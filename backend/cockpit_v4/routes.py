@@ -427,10 +427,19 @@ def _domain_feed(who: dict[str, Any], domain_id: str, *,
             "domain_id": domain_id,
             "provision_command": resolver.provision_command(domain_id),
         }) from exc
-    session = cat_mod.open_session(
-        catalog=cat_mod.build(domain_id=scope.domain_id,
-                              release_id=scope.release_id,
-                              tenant_id=tenant))
+    try:
+        session = cat_mod.open_session(
+            catalog=cat_mod.build(domain_id=scope.domain_id,
+                                  release_id=scope.release_id,
+                                  tenant_id=tenant))
+    except PermissionError as exc:
+        # A tenant this release holds nothing for. Refused with the reason
+        # and a typed code -- not an unhandled 500, and emphatically not an
+        # empty feed, which would read as "your portfolio is fine".
+        raise HTTPException(403, {
+            "error_code": st.SECURITY_DENIED, "message": str(exc),
+            "component": f"{domain_id}_attention_feed",
+            "domain_id": domain_id}) from exc
     try:
         return attention_v2.cached(session=session, scope=scope,
                                    tenant_id=tenant, refresh=refresh)
@@ -519,23 +528,43 @@ async def attention_feed_legacy(refresh: bool = Query(False),
     return public
 
 
+def _find_across_domains(who: dict[str, Any], item_id: str
+                         ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The item, and the feed it belongs to, whichever book that is.
+
+    An item id carries its domain in the seed it was hashed from, so looking
+    in both books cannot confuse them: at most one can hold this id, and the
+    feed returned is the one that does.
+    """
+    from backend.cockpit_v4 import attention_v2
+    from backend.cockpit_v4 import domains as dom_mod
+
+    for domain_id in dom_mod.DOMAIN_IDS:
+        try:
+            feed = _domain_feed(who, domain_id)
+        except HTTPException:
+            continue  # a book that is not published holds no items
+        item = attention_v2.find_item(feed, item_id)
+        if item is not None:
+            return item, feed
+    raise HTTPException(404, {"error_code": "NOT_FOUND",
+                              "message": "No such attention item."})
+
+
 @router.get("/attention/{item_id}")
 async def attention_item(item_id: str,
                          who: dict[str, Any] = Depends(principal)
                          ) -> dict[str, Any]:
     """One item with its full technical evidence, for Trace / operator view."""
-    feed = _feed(who)
-    item = attention.find_item(feed, item_id)
-    if item is None:
-        raise HTTPException(404, {"error_code": "NOT_FOUND",
-                                  "message": "No such attention item."})
+    item, feed = _find_across_domains(who, item_id)
     return {"item": item,
-            "method": feed["method"],
+            "domain_id": feed["domain_id"],
+            "method": feed["method_summary"],
+            "method_summary": feed["method_summary"],
             "release_id": feed["release_id"],
-            "reporting_quarter": feed["reporting_quarter"],
-            "dropped_for_this_segment": [
-                d for d in feed["dropped"]
-                if d.get("sector") == item.get("segment")]}
+            "release_fingerprint": feed["release_fingerprint"],
+            "reporting_quarter": feed["reporting_month"],
+            "reporting_month": feed["reporting_month"]}
 
 
 @router.post("/attention/{item_id}/investigate", status_code=201)
@@ -549,19 +578,22 @@ async def investigate(item_id: str,
     is what lets the next question be "show me the customers behind this"
     rather than the whole sentence again.
     """
-    feed = _feed(who)
-    item = attention.find_item(feed, item_id)
-    if item is None:
-        raise HTTPException(404, {"error_code": "NOT_FOUND",
-                                  "message": "No such attention item."})
+    item, feed = _find_across_domains(who, item_id)
     store = _store()
     tenant = str(who.get("tenant") or "")
-    thread_id = store.create_thread(tenant_id=tenant,
-                                    principal_id=str(who.get("id") or ""))
+    # §53: the thread is opened in the book the finding came FROM. A
+    # corporate card cannot seed a retail conversation, because the evidence
+    # the seed names lives in one release and nowhere else.
+    thread_id = store.create_thread(
+        tenant_id=tenant, principal_id=str(who.get("id") or ""),
+        domain_id=feed["domain_id"], release_id=feed["release_id"],
+        release_fingerprint=feed["release_fingerprint"])
     seed = {
         "item_id": item["item_id"],
         "origin": item["section"],
+        "domain_id": feed["domain_id"],
         "release_id": feed["release_id"],
+        "release_fingerprint": feed["release_fingerprint"],
         "headline": item["headline"],
         "segment": item["segment"],
         "segment_dimension": item["segment_dimension"],

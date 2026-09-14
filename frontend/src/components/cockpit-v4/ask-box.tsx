@@ -15,15 +15,37 @@
 
 import * as React from "react";
 
-import type { RunMode } from "./client";
+import type { DomainId, RunMode } from "./client";
 
-export const PROMPTS: readonly string[] = [
-  "Where is risk building across the book?",
-  "Which exposures deteriorated this quarter?",
-  "What is driving Stage 2 and ECL growth?",
-  "Show latest-quarter EAD by sector.",
-  "Which sectors deteriorated most this year?",
-];
+/**
+ * What each book is worth asking.
+ *
+ * Per domain, because a retail book has no sectors and a corporate one has
+ * no behaviour score bands -- a chip offering either to the wrong book is a
+ * question that cannot be answered, and a reader who clicks one learns that
+ * the suggestions are decoration.
+ *
+ * Deterministic. Rendering these costs no model call.
+ */
+export const DOMAIN_PROMPTS: Record<DomainId, readonly string[]> = {
+  corporate: [
+    "What is driving Stage 2 and ECL growth?",
+    "Which sectors deteriorated most this month?",
+    "Show EAD by sector for the latest month.",
+    "Which borrowers were downgraded this month?",
+    "Why is risk building across the corporate book?",
+  ],
+  retail: [
+    "Which products saw the largest Stage 2 increase?",
+    "What is driving retail ECL growth?",
+    "Which behavioural score bands deteriorated most?",
+    "Where is delinquency building?",
+    "Show retail EAD by product for the latest month.",
+  ],
+};
+
+/** The corporate set, kept as the default for callers naming no book. */
+export const PROMPTS: readonly string[] = DOMAIN_PROMPTS.corporate;
 
 const MODES: { id: RunMode; label: string; hint: string }[] = [
   {
@@ -47,7 +69,9 @@ export function AskBox({
   busy,
   showPrompts,
   onDismissPrompts,
+  domain,
 }: {
+  domain?: DomainId;
   question: string;
   onQuestionChange: (value: string) => void;
   mode: RunMode;
@@ -99,7 +123,7 @@ export function AskBox({
           data-testid="cockpit-v4-prompts"
           className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-5 py-3"
         >
-          {PROMPTS.map((prompt) => (
+          {(DOMAIN_PROMPTS[domain ?? "corporate"] ?? PROMPTS).map((prompt) => (
             <button
               key={prompt}
               type="button"

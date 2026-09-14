@@ -18,6 +18,7 @@ import * as React from "react";
 
 import {
   readAttention,
+  type DomainId,
   type AttentionFeed,
   type AttentionItem,
 } from "./client";
@@ -89,8 +90,12 @@ function Card({
 
 export function AttentionPanel({
   onOpen,
+  domain,
 }: {
   onOpen: (item: AttentionItem) => void;
+  /** Which book. Refetched when it changes, because the server computes a
+   *  different dashboard rather than filtering a shared one. */
+  domain?: DomainId;
 }) {
   const [feed, setFeed] = React.useState<AttentionFeed | null>(null);
   const [failure, setFailure] = React.useState<{
@@ -100,9 +105,11 @@ export function AttentionPanel({
 
   React.useEffect(() => {
     let live = true;
+    setFeed(null);
+    setFailure(null);
     void (async () => {
       try {
-        const loaded = await readAttention();
+        const loaded = await readAttention(domain);
         if (live) setFeed(loaded);
       } catch (caught) {
         if (!live) return;
@@ -121,7 +128,7 @@ export function AttentionPanel({
     return () => {
       live = false;
     };
-  }, []);
+  }, [domain]);
 
   if (failure) {
     return (
@@ -161,8 +168,13 @@ export function AttentionPanel({
     <div className="space-y-10" data-testid="attention-panel">
       <section data-testid="segments-requiring-attention" className="space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Segments requiring attention
+          {/* The server names its own section: a corporate book watches
+              segments and a retail book watches its portfolio, and a
+              hard-coded heading over retail data would be the label lying
+              about the numbers under it. */}
+          <h2 className="text-lg font-semibold text-slate-900"
+              data-testid="attention-heading">
+            {feed.attention_label || "Segments requiring attention"}
           </h2>
           <span
             data-testid="attention-reporting-period"
@@ -202,8 +214,9 @@ export function AttentionPanel({
 
       <section data-testid="ecl-highlights" className="space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Latest-quarter ECL highlights
+          <h2 className="text-lg font-semibold text-slate-900"
+              data-testid="ecl-heading">
+            {feed.highlights_label || "Latest-month ECL highlights"}
           </h2>
           <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
             {quarter} vs {quarterLabel(feed.prior_quarter)}

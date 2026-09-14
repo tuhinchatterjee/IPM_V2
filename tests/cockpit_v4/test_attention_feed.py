@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 import attention_oracle as oracle
 from backend.cockpit_agentic import sql as v3_sql
-from backend.cockpit_v4 import attention, routes
+from backend.cockpit_v4 import attention, attention_v2, routes
 
 P = "/api/v1/cockpit-v4"
 
@@ -335,6 +335,10 @@ def test_the_feed_endpoint_serves_both_sections(client):
 
 
 def test_the_second_request_is_served_from_the_release_cache(client):
+    # The domain-aware engine keeps its own cache, keyed by tenant, domain,
+    # release AND fingerprint. Clearing the superseded module's cache leaves
+    # this one warm from an earlier test in the same process.
+    attention_v2.clear_cache()
     assert client.get(f"{P}/attention").json()["cached"] is False
     assert client.get(f"{P}/attention").json()["cached"] is True
     assert client.get(f"{P}/attention?refresh=true").json()["cached"] is False
@@ -344,10 +348,15 @@ def test_one_tenant_never_reads_another_tenants_feed(client):
     attention.clear_cache()
     assert client.get(f"{P}/attention").status_code == 200
     other = client.get(f"{P}/attention", headers={"X-Test-Tenant": "other"})
-    # A different tenant gets its own computation, never the cached one.
-    assert other.status_code in (200, 503)
+    # A different tenant gets its own computation, never the cached one --
+    # and a tenant the release holds nothing for is refused with a typed
+    # code rather than handed an empty feed, which would read as "your
+    # portfolio is fine".
+    assert other.status_code in (200, 403, 503)
     if other.status_code == 200:
         assert other.json()["cached"] is False
+    if other.status_code == 403:
+        assert other.json()["detail"]["error_code"] == "SECURITY_DENIED"
 
 
 def test_the_item_endpoint_carries_the_full_technical_evidence(client):
@@ -357,9 +366,16 @@ def test_the_item_endpoint_carries_the_full_technical_evidence(client):
     assert detail.status_code == 200
     body = detail.json()
     assert body["item"]["headline"] == item["headline"]
-    assert body["method"]["formula"]
-    assert body["method"]["sql"]["facility"].strip().startswith("SELECT")
-    assert isinstance(body["dropped_for_this_segment"], list)
+    # The method the domain-aware engine publishes: how many candidates it
+    # weighed, which families it watched, and the rule that ordered them.
+    # The superseded engine published an SQL bundle here; this one names the
+    # ranking instead, because the SQL is now per family rather than one
+    # query a reader could usefully be shown.
+    assert body["method"]["ranking"]
+    assert body["method"]["candidates_considered"] > 0
+    assert body["method"]["families"]
+    assert body["domain_id"] in ("corporate", "retail")
+    assert body["release_fingerprint"]
 
 
 def test_an_unknown_item_is_a_plain_404(client):
@@ -432,22 +448,22 @@ def test_a_feed_failure_is_a_component_failure_with_a_reference(
     def resolver(request: Request):
         return {"id": "u1", "tenant": "demo-tenant"}
 
-    attention.clear_cache()
+    attention_v2.clear_cache()
     routes.install(store=store_db, runtime=runtime,
                    principal_resolver=resolver, startup_sha="testsha")
     app.include_router(routes.router)
     local = TestClient(app)
 
     def boom(**_kwargs):
-        raise attention.AttentionUnavailable(
-            "ATTENTION_UNAVAILABLE", "the aggregate query did not return.")
+        raise attention_v2.AttentionUnavailable(
+            "the aggregate query did not return.")
 
-    monkeypatch.setattr(attention, "cached", boom)
+    monkeypatch.setattr(attention_v2, "cached", boom)
     failure = local.get(f"{P}/attention")
     assert failure.status_code == 503
     detail = failure.json()["detail"]
-    assert detail["error_code"] == "ATTENTION_UNAVAILABLE"
-    assert detail["component"] == "segment_attention_feed"
+    assert detail["error_code"] == "DATA_UNAVAILABLE"
+    assert detail["component"] == "corporate_attention_feed"
     assert detail["error_reference"].startswith("att-")
 
     # And Ask is untouched: a dashboard that cannot compute is not a backend

@@ -28,6 +28,7 @@ import { useWideContent } from "@/components/layout/content-width";
 
 import { AttentionDrawer } from "./attention-drawer";
 import { AttentionPanel } from "./attention-panel";
+import { DomainSwitch, recallDomain, rememberDomain } from "./domain-switch";
 import {
   rememberInvestigation,
   type AttentionItem,
@@ -35,9 +36,11 @@ import {
 } from "./client";
 import { AskBox } from "./ask-box";
 import {
-  createThread,
   rememberRun,
   startRun,
+  readDomains,
+  type DomainAvailability,
+  type DomainId,
   type RunMode,
 } from "./client";
 import {
@@ -63,6 +66,39 @@ export function CockpitV4Home() {
   const [askError, setAskError] = React.useState("");
   const [showPrompts, setShowPrompts] = React.useState(true);
   const [traceHelp, setTraceHelp] = React.useState(false);
+  // Which book Home is showing. Read once from the server, so a runtime with
+  // one domain unpublished disables that control and says why rather than
+  // offering a switch that cannot work.
+  const [domains, setDomains] =
+    React.useState<DomainAvailability | null>(null);
+  const [domain, setDomain] = React.useState<DomainId>("corporate");
+
+  React.useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const available = await readDomains();
+        if (!live) return;
+        setDomains(available);
+        const remembered = recallDomain();
+        const usable = remembered && available.ready.includes(remembered)
+          ? remembered
+          : available.default_domain;
+        setDomain(usable);
+      } catch {
+        // A runtime that cannot answer which books it has still answers
+        // questions about the default one.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const chooseDomain = React.useCallback((next: DomainId) => {
+    setDomain(next);
+    rememberDomain(next);
+  }, []);
 
   /**
    * Asking from the home page opens a CONVERSATION.
@@ -90,20 +126,26 @@ export function CockpitV4Home() {
       setOpening(true);
       setAskError("");
       try {
-        const { thread_id } = await createThread();
-        // The run STARTS here, before the navigation. The question never
-        // reaches the URL, so a reload cannot ask it a second time -- the
-        // thread finds a run already going and follows it. A question
-        // carried in a query string is a question one refresh away from
-        // being paid for twice.
+        // The run creates its own thread, pinned to the selected book.
+        //
+        // It used to create the thread first and then start a run in it,
+        // which quietly discarded the domain: `startRun` reads it only when
+        // OPENING a conversation, so a retail question would have opened a
+        // corporate thread and read corporate relations. Asking the run to
+        // make the thread is what keeps the selection and the evidence the
+        // same decision.
+        //
+        // The run also STARTS here, before the navigation, so the question
+        // never reaches the URL and a reload cannot ask it a second time --
+        // the thread finds a run already going and follows it.
         const started = await startRun({
-          question: asked, mode, threadId: thread_id,
+          question: asked, mode, domain,
         });
         rememberRun({
-          runId: started.run_id, threadId: thread_id, cursor: 0,
+          runId: started.run_id, threadId: started.thread_id, cursor: 0,
           question: asked,
         });
-        openThread(thread_id);
+        openThread(started.thread_id);
       } catch (cause) {
         setOpening(false);
         setAskError(
@@ -113,7 +155,7 @@ export function CockpitV4Home() {
         );
       }
     },
-    [opening, openThread],
+    [opening, openThread, domain, mode],
   );
   /** Reopen a real persisted thread: its own page, with its own transcript. */
   const reopen = React.useCallback(
@@ -158,6 +200,21 @@ export function CockpitV4Home() {
       </header>
 
       <div className="mt-6">
+        {/*
+          §24: beside the Ask box, because choosing a book is part of asking
+          the question rather than a setting somewhere else. It changes which
+          release the server opens, not which rows a shared answer shows.
+        */}
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <DomainSwitch
+            availability={domains}
+            value={domain}
+            onChange={chooseDomain}
+          />
+          <span className="text-xs text-slate-500">
+            Saudi Arabia · SAR million · monthly
+          </span>
+        </div>
         <AskBox
           question={question}
           onQuestionChange={setQuestion}
@@ -167,6 +224,7 @@ export function CockpitV4Home() {
           busy={opening}
           showPrompts={showPrompts}
           onDismissPrompts={() => setShowPrompts(false)}
+          domain={domain}
         />
         {/*
           §2A: the landing page says what an answer will carry, before one
@@ -211,7 +269,7 @@ export function CockpitV4Home() {
       </div>
 
       <div className="mt-12">
-        <AttentionPanel onOpen={(item) => setOpen(item)} />
+        <AttentionPanel onOpen={(item) => setOpen(item)} domain={domain} />
       </div>
 
       <div className="mt-12">
