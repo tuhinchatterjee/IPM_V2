@@ -138,11 +138,18 @@ def build_app(port: int, runtime_dir: Path, ui_port: int = 0):
                     "dimension": "sector_name", "amount": "ead_sar_mn",
                     "period_column": "reporting_quarter", "period": quarter}
         import domain_oracles
+        from backend.cockpit_v4 import schema as schema_mod
 
+        # The CALENDAR comes from the book too. This hard-coded
+        # `reporting_month` for both books, which was right while both
+        # reported months and became a binder error the day the Corporate
+        # book started reporting quarters -- so the only browser test that
+        # runs an analysis failed, on the one path the suite exists to
+        # cover, for a reason that had nothing to do with the UI.
         book = dict(BOOKS[chosen])
         book.update({"domain_id": chosen,
-                     "period_column": "reporting_month",
-                     "period": domain_oracles.latest_month(chosen)})
+                     "period_column": schema_mod.period_column(chosen),
+                     "period": domain_oracles.latest_period(chosen)})
         return book
 
     def ead_sql_for(book: dict) -> str:
@@ -217,7 +224,7 @@ This environment uses synthetic demonstration data rather than a real bank portf
                              understood=f"exposure at default by {grain}"),
             "objective": f"Exposure at default by {grain}",
             "subquestions": [f"EAD by {grain}"],
-            "scope": {"reporting_months": [book["period"]], "filters": {}},
+            "scope": {"reporting_periods": [book["period"]], "filters": {}},
             "metadata_receipt_ids": [],
             "fields_required": [f"{book['relation']}.{book['amount']}"],
             "expected_output_grain": grain,

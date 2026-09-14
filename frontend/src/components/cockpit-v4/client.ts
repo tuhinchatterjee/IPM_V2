@@ -1010,6 +1010,15 @@ export type EclDecomposition = {
 };
 
 export type EclPanel = {
+  /** Which book this panel is about, at the top level. A caller that has
+   *  to reach into `profile.domain_id` to find out is a caller that
+   *  eventually does not. */
+  domain_id?: DomainId;
+  domain_label?: string;
+  release_id?: string;
+  release_fingerprint?: string;
+  reporting_frequency?: string;
+  period_noun?: string;
   profile: EclProfile;
   decomposition: EclDecomposition;
 };

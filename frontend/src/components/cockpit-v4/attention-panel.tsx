@@ -22,6 +22,7 @@ import {
   type AttentionFeed,
   type AttentionItem,
 } from "./client";
+import { belongsTo } from "./domain-guard";
 import {
   comparisonPeriod,
   periodLabel,
@@ -116,7 +117,10 @@ export function AttentionPanel({
     void (async () => {
       try {
         const loaded = await readAttention(domain);
-        if (live) setFeed(loaded);
+        // §17, last mile. Two fetches in flight and the slower one landing
+        // last would put one book's dashboard under the other's heading,
+        // and every number on the screen would look correct.
+        if (live && belongsTo(loaded, domain)) setFeed(loaded);
       } catch (caught) {
         if (!live) return;
         const detail = (caught as { detail?: { detail?: Record<string, string> } })

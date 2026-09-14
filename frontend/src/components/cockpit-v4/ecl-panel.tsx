@@ -18,6 +18,7 @@ import * as React from "react";
 
 import { readEcl } from "./client";
 import type { DomainId, EclPanel as EclPanelBody } from "./client";
+import { belongsTo } from "./domain-guard";
 import { comparisonPeriod, periodLabel, reportingPeriod } from "./period";
 
 export function EclPanel({ domain }: { domain: DomainId }) {
@@ -30,7 +31,10 @@ export function EclPanel({ domain }: { domain: DomainId }) {
     setError("");
     readEcl(domain)
       .then((next) => {
-        if (live) setBody(next);
+        // §17, last mile. See `domain-guard`: the effect's cleanup catches
+        // a response for a component that moved on, and cannot catch one
+        // for the right component and the wrong book.
+        if (live && belongsTo(next, domain)) setBody(next);
       })
       .catch((exc: unknown) => {
         // A panel that cannot be computed says so and leaves the rest of the

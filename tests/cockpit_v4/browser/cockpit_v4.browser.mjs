@@ -74,7 +74,12 @@ async function openCockpit(browser, { path = "/" } = {}) {
   const requests = [];
   const sse = [];
   const problems = [];
-  page.on("request", (request) => requests.push(request.url()));
+  // METHOD and URL. A reload legitimately re-READS the run it is
+  // restoring; what it must never do is POST a second one. Recording only
+  // the URL made those two indistinguishable, so the assertion below could
+  // only count calls and hope.
+  page.on("request", (request) =>
+    requests.push(`${request.method()} ${request.url()}`));
   page.on("console", (message) => {
     if (message.type() === "error") problems.push(`console: ${message.text()}`);
   });
@@ -101,7 +106,14 @@ async function openPage(browser, path) {
 }
 
 function calls(requests, fragment) {
-  return requests.filter((url) => url.includes(fragment));
+  return requests.filter((entry) => entry.includes(fragment));
+}
+
+/** Only the calls that ASK a question: a POST to the runs collection. */
+function asks(requests) {
+  return requests.filter((entry) =>
+    /^POST .*\/api\/v1\/cockpit-v4\/runs(\?|$)/.test(entry),
+  );
 }
 
 function assertNoLegacyCalls(requests, where) {
@@ -212,11 +224,8 @@ await test(
 
       await waitForAnswer(page);
 
-      const runPosts = calls(requests, "/api/v1/cockpit-v4/runs").filter(
-        (url) => !url.includes("/events") && !url.includes("/cancel"),
-      );
       assert.ok(
-        runPosts.length >= 1,
+        asks(requests).length >= 1,
         "submitting must POST /api/v1/cockpit-v4/runs",
       );
       assertNoLegacyCalls(requests, "after submitting");
@@ -891,21 +900,24 @@ await test("a refresh restores the transcript without asking again",
       await ask(page, "Who are you?");
       await waitForAnswer(page);
       const threadId = threadIdFrom(page);
-      const before = calls(requests, "/api/v1/cockpit-v4/runs").filter(
-        (url) => !url.includes("/events") && !url.includes("/cancel"),
-      ).length;
+      const before = asks(requests).length;
 
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(page, '[data-testid="cockpit-v4-thread"]', 30_000, problems);
       await waitForAnswer(page, 30_000);
 
       assert.equal(threadIdFrom(page), threadId);
-      const after = calls(requests, "/api/v1/cockpit-v4/runs").filter(
-        (url) => !url.includes("/events") && !url.includes("/cancel"),
-      ).length;
-      assert.equal(after, before,
+      assert.equal(asks(requests).length, before,
         "a reload must not re-ask: it spends the analysis twice and tells "
         + "the reader nothing about the first one");
+      // And it DID restore rather than render from nothing: the transcript
+      // was read back from the server.
+      assert.ok(
+        calls(requests, `/threads/${threadId}`).some((entry) =>
+          entry.startsWith("GET "),
+        ),
+        "the reload did not read the thread back",
+      );
     } finally {
       await context.close();
     }
