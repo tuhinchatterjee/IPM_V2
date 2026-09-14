@@ -16,7 +16,7 @@ regressions that fail on the old code. The Corporate book has been rebuilt at
 a scale that makes its answers worth measuring. Every figure and every period
 is written one way on every surface, including the export. The full matrix is
 in §24 and the caveats — what a scripted analyst still cannot prove — are in
-§28.
+§30.
 
 ## 2. What a scripted suite could not see
 
@@ -360,13 +360,20 @@ when it was published.
 
 | Layer | Result |
 | --- | --- |
-| Python, `tests/cockpit_v4` | **1,638 passed, 2 skipped**, of 1,640 collected |
+| Python, `tests/cockpit_v4` | **1,646 passed, 2 skipped**, 405s |
 | Frontend, `npm test` | **513 passed**, 39 suites, 0 failed |
-| Browser, real Chromium against the real UI | see `docs/cockpit_v4/evidence/browser.json` |
-| Flake matrix, 13 flows × 5 runs | see `docs/cockpit_v4/evidence/flake_matrix.json` |
+| Browser, real Chromium against the real UI | **69 passed, 0 failed** (`evidence/browser.json`) |
+| Flake matrix, 13 flows × 5 runs | **13/13 flows stable over 65 runs**, 219s (`evidence/flake_matrix.json`) |
 
 The two skips are the pre-domain release cases, which require a release this
 runtime does not publish and say so rather than passing vacuously.
+
+The browser suite is the first honest green of this round: the three harness
+defects in §26 had to be fixed before it could say anything, and the one
+product failure it then found is in §27. The flake matrix includes the two
+new UX flows, `opening-questions` and `ask-next-overlap`, because both are
+rendering races by nature — one depends on a transcript fetch, the other on
+a layout pass.
 
 New files this round:
 
@@ -377,7 +384,7 @@ New files this round:
 | `test_budget_envelope.py` | 37 | the allowance ladder, and which family a turn starts in |
 | `test_value_resolution.py` | 85 | one category, however the reader spells it |
 | `test_release_scale.py` | 24 | the shape of both published books, and their speed |
-| `test_opening_questions.py` | 17 | five schema-aware questions, on every card and every empty thread |
+| `test_opening_questions.py` | 25 | five schema-aware questions on every card and every empty thread; five cards naming five different segments, in the reader's words |
 | `test_money_and_period_format.py` | 15 | one figure and one period, on every surface including the export |
 | `test_live_uat_replay.py` | 13 | the four Mac failures, as the reader performed them |
 | `follow-ups.test.ts` | 11 | which set of chips is shown, and when |
@@ -399,7 +406,55 @@ Twenty-three distinct failures across the five reverts, every one of them a
 test written this round. Each revert was applied alone and undone before the
 next.
 
-## 26. What is deliberately NOT in this round
+## 26. Three harness defects, and what they were hiding
+
+The browser suite failed ten times before it failed honestly once. None of
+the ten was a product defect, and each one is recorded here because a harness
+that reports failures the product does not have is a harness nobody reads.
+
+**One state database for every stack that ever ran.** `stub_server.py`
+defaulted to `/tmp/cockpit_v4_browser` for everybody. Two stub servers left
+running from an earlier session were still polling that SQLite file: their
+workers claimed the runs the live UI was watching and settled them with their
+own older code against the old release, and every assertion waiting for an
+answer timed out against a run a server nobody knew was up had already
+finished. Each server now gets `/tmp/cockpit_v4_browser_<port>`.
+
+**A stub that grepped escaped JSON.** `book_of` claimed to read the pinned
+book out of the packet and searched the serialised system blocks for the
+literal `"domain": "corporate"`. Each block's `text` is itself a JSON string,
+so what it had to match was `\"domain\": \"corporate\"`. It never matched.
+The stub took its pre-domain fallback every time and analysed
+`cockpit_facility_quarter` — which existed in the legacy release, so it
+passed. **The browser suite had never once exercised an analysis against
+either domain book.** It parses the blocks now, and the analysis flows run
+against `v4-saudi-corporate-20m-v2`.
+
+**A cold bundler inside a timed assertion.** `next dev` compiles a route on
+its first request; the readiness check warmed `/` and nothing else, so the
+first navigation to the transcript page paid for compiling it inside a
+sixty-second wait. Both harnesses pre-compile every route the suite navigates
+to and print how long each took.
+
+## 27. And then it found a real one
+
+With the harness honest, 68 of 69 passed and the one failure was the product:
+**five cards must be five different segments**, and four were.
+
+`_spread` diversified across DIMENSIONS. That is not enough — two families on
+the same dimension, Stage 2 share and recognised ECL, both top out on the
+same sector in a book where that sector is genuinely the story, so the reader
+got five cards about four places. The ninety-seven-name book never did it;
+the three-thousand-name one does. One card per SEGMENT while segments remain,
+and a segment repeats only to fill the section when there is no alternative.
+
+The same run surfaced a card headlining itself `asset_finance: Stage 2
+exposure rose to 35.82%`. The governed value is what the seed filters on and
+what the drill-down query needs, so `segment` stays exactly as the release
+spells it; `segment_label` carries the reader's form, and the headline, the
+drawer and every suggested question use that.
+
+## 28. What is deliberately NOT in this round
 
 - **Retail was not rebuilt.** §22 asks for at least 3,000 customers and
   prefers keeping at least 9,000. It has 9,000 and 12,000 accounts.
@@ -414,7 +469,7 @@ next.
   produce a named question; one produces nothing, and schema resolution
   handles it.
 
-## 27. What a Mac retest should exercise first
+## 29. What a Mac retest should exercise first
 
 1. A NEW Corporate thread: "What is total ECL by sector for the latest
    month?" — the answer must name `2026-08`, never a quarter, and never the
@@ -430,7 +485,7 @@ next.
 6. Any answer → Export. The document must name the month and carry the
    release's real fingerprint.
 
-## 28. What this round still cannot prove
+## 30. What this round still cannot prove
 
 Every regression here is about what CreditProbe sends, opens, starts and
 resolves. None of them is about what Opus replies, because no paid call was
@@ -439,16 +494,19 @@ and all four are now held shut by tests that drive the real path — but
 "the analyst reads its instruction correctly" is a claim only a live Mac run
 can make, which is why this verdict is READY FOR MAC RETEST and not READY.
 
-## 29. Commits
+## 31. Commits
 
 | | |
 | --- | --- |
 | `4e1f674` | the four live defects, and a corporate book worth measuring against |
 | `76ed3e6` | what to ask next, what a figure looks like, and which month it is |
+| `5416eda` | the hardening report, first twenty-three sections |
+| `b80573c` | pre-compile the routes the browser suite navigates to |
+| `94f4dc6` | three harness defects, and a dashboard that names five places |
 
 Branch `claude/cockpit-single-agent-v4-h8fsbq`, pushed. Not merged.
 
-## 30. The verdict
+## 32. The verdict
 
 **COCKPIT V4 LIVE-UAT HARDENING:
 READY FOR MAC RETEST**
