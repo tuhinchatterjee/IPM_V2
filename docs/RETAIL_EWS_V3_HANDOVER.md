@@ -337,6 +337,16 @@ exact browser journey re-run and visually inspected.
 
 ---
 
+## 9b. Found and deliberately left alone
+
+Customer 360 renders a facility count as "1 facilities". It is a one-word
+pluralisation defect in a module unrelated to this build, and the brief is not
+to change unrelated stable modules outside the Early Warning ↔ What-If
+integration, so it is reported here rather than fixed. It is a two-line change
+whenever somebody wants it.
+
+---
+
 ## 10. Tests and verification
 
 | | |

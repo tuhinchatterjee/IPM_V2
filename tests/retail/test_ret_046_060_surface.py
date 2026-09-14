@@ -672,6 +672,19 @@ class TestRET048LayoutPreserved:
             "backend/services/data_domains.py",
             # The landing figures are warmed at startup.
             "backend/api/main.py",
+            # ---------------------------------------------------------------
+            # v3: model governance and the What-If bridge. The model drawn as
+            # the tree it actually is, the version log and one version's full
+            # record, and the What-If thread a cohort exported from the
+            # workspace opens in. All four are new retail screens under the
+            # same navigation item, not changes to a shared one.
+            "frontend/src/app/early-warning/model/tree/page.tsx",
+            "frontend/src/app/early-warning/model-log/page.tsx",
+            "frontend/src/app/early-warning/model-log/[version]/page.tsx",
+            "frontend/src/app/early-warning/whatif/[selectionId]/page.tsx",
+            # The `slow` marker, for the tests that build a Word report or fit
+            # a challenger. Registering it is the only change here.
+            "pyproject.toml",
         }
         # The browser harness this closeout runs on. Test equipment, not
         # product code: it ships under scripts/ beside the other retail
