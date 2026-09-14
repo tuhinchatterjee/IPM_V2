@@ -160,7 +160,14 @@ def test_health_reports_capability_state_not_a_green_badge(unprovisioned):
     assert caps[ready_mod.PROCESS_ALIVE] is True
     assert caps[ready_mod.RELEASE_READY] is False
     assert caps[ready_mod.SQL_ANALYSIS_READY] is False
-    assert caps[ready_mod.ATTENTION_READY] is False
+    # The dashboard is computed from a BOOK, not from the release preflight
+    # failed on, and it costs no provider call -- so a runtime that cannot
+    # accept a question can still serve every card on the Cockpit. This is
+    # true when a domain book is published and false when none is.
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    assert caps[ready_mod.ATTENTION_READY] is bool(
+        resolver.availability().ready_domains)
 
 
 def test_health_reports_everything_ready_when_it_is(provisioned):
@@ -188,7 +195,14 @@ def test_diagnostics_say_which_release_and_why_it_will_not_open(v4_config):
         "a runtime configured for one release must never serve another")
     assert "seed_release.py --release v4-not-published" in release["remedy"]
     assert report["capabilities"][ready_mod.SQL_ANALYSIS_READY] is False
-    assert report["capabilities"][ready_mod.ATTENTION_READY] is False
+    # The dashboard is computed from a BOOK, not from the release preflight
+    # failed on, and it costs no provider call -- so a runtime that cannot
+    # accept a question can still serve every card on the Cockpit. This is
+    # true when a domain book is published and false when none is.
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    assert report["capabilities"][ready_mod.ATTENTION_READY] is bool(
+        resolver.availability().ready_domains)
 
 
 def test_diagnostics_state_the_saudi_release_when_it_is_there(v4_config,
@@ -265,14 +279,24 @@ def test_the_readiness_contract_covers_the_real_runtime_interface(runtime):
 
 
 def test_an_absent_runtime_is_assessed_as_absent(v4_config):
+    """No runtime means no analysis. It does not mean no dashboard.
+
+    Four of the five capabilities need a runtime: they need a model, a
+    price, a session or a Python jail. The dashboard needs a published book
+    and nothing else, and reporting it unavailable over a page that is
+    rendering it is how a reader learns to stop reading the header.
+    """
+    from backend.cockpit_v4 import domain_resolver as resolver
+
     state = ready_mod.assess(None, cfg=v4_config,
                              preflight_error="DATA_UNAVAILABLE: nope")
     assert state[ready_mod.PROCESS_ALIVE] is True
     for capability in (ready_mod.RELEASE_READY, ready_mod.PRODUCT_HELP_READY,
                        ready_mod.SQL_ANALYSIS_READY,
-                       ready_mod.ATTENTION_READY,
                        ready_mod.PYTHON_ANALYSIS_READY):
         assert state[capability] is False, capability
+    assert state[ready_mod.ATTENTION_READY] is bool(
+        resolver.availability().ready_domains)
     assert state.error_code == st.DATA_UNAVAILABLE
     assert "seed_release.py" in state.remedy
 

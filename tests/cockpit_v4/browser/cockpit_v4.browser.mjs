@@ -92,6 +92,14 @@ async function openCockpit(browser, { path = "/" } = {}) {
   return { context, page, requests, sse, problems };
 }
 
+/** A page that is not the Cockpit home: the Data browser, for instance. */
+async function openPage(browser, path) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(`${UI}${path}`, { waitUntil: "domcontentloaded" });
+  return { context, page };
+}
+
 function calls(requests, fragment) {
   return requests.filter((url) => url.includes(fragment));
 }
@@ -674,6 +682,91 @@ if (process.env.V4_THREAD_SHOTS) {
         "Show the borrowers behind this covenant breach.");
       await waitForAnswer(page, 90_000);
       await shot(page, "thread_investigation");
+    } finally {
+      await context.close();
+    }
+  }
+
+  // E. the two books: home, dashboard, ECL panel and drawer, for each.
+  {
+    const { context, page } = await openCockpit(browser);
+    try {
+      for (const domain of ["corporate", "retail"]) {
+        await switchTo(page, domain);
+        await shot(page, `home_${domain}`);
+        await page.waitForSelector('[data-testid="v4-ecl-panel"][data-state="ready"]',
+          { timeout: 60_000 });
+        await page.$eval('[data-testid="v4-ecl-panel"]', (node) =>
+          node.scrollIntoView());
+        await shot(page, `ecl_panel_${domain}`);
+        await openDrawer(page);
+        await shot(page, `drawer_segment_${domain}`);
+        await page.click('[data-testid="attention-drawer-close"]');
+        await openDrawer(page, "ecl-highlights");
+        await shot(page, `drawer_ecl_${domain}`);
+        await page.click('[data-testid="attention-drawer-close"]');
+      }
+    } finally {
+      await context.close();
+    }
+  }
+
+  // F. the Data page: both books, and one relation opened.
+  {
+    const { context, page } = await openPage(browser, "/cockpit/data");
+    try {
+      await page.waitForSelector('[data-testid="v4-book-corporate"][data-state="ready"]',
+        { timeout: 60_000 });
+      await page.waitForSelector('[data-testid="v4-book-retail"][data-state="ready"]',
+        { timeout: 60_000 });
+      await shot(page, "data_books");
+      await page.click('[data-testid="v4-relation-retail_account_month"]');
+      await page.waitForSelector(
+        '[data-testid="v4-relation-detail-retail_account_month"]',
+        { timeout: 30_000 });
+      await shot(page, "data_relation_detail");
+    } finally {
+      await context.close();
+    }
+  }
+
+  // G. the export panel, on a finished analytical answer.
+  {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await ask(page, "What is exposure at default this month?");
+      await waitForAnswer(page, 90_000);
+      await page.click('[data-testid="v4-action-export"]');
+      await page.waitForSelector('[data-testid="v4-panel-export"]',
+        { timeout: 30_000 });
+      await shot(page, "answer_export");
+    } finally {
+      await context.close();
+    }
+  }
+
+  // H. a retail thread, badged.
+  {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await switchTo(page, "retail");
+      await ask(page, "What is exposure at default this month?");
+      await waitForAnswer(page, 90_000);
+      await shot(page, "thread_retail");
+    } finally {
+      await context.close();
+    }
+  }
+
+  // I. the landing page on a phone.
+  {
+    const { context, page } = await openCockpit(browser);
+    try {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${dir}/landing_phone.png`,
+        fullPage: true });
+      console.log(`  screenshot ${dir}/landing_phone.png`);
     } finally {
       await context.close();
     }

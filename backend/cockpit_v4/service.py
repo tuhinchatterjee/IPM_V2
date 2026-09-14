@@ -416,7 +416,14 @@ def diagnostics(cfg: V4Config | None = None, *,
     report["ready_for_product_help"] = bool(base_ok)
     report["ready_for_sql_analysis"] = bool(
         base_ok and checks["release"].get("ok"))
-    report["ready_for_attention"] = bool(checks["release"].get("ok"))
+    # The dashboard reads a BOOK, not the runtime's configured release, and
+    # costs no provider call. A deployment whose configured release is
+    # missing can still serve every card on the Cockpit if a book is
+    # published, and saying otherwise over a dashboard that is on screen is
+    # how a reader learns to ignore the header.
+    report["ready_for_attention"] = bool(
+        checks["release"].get("ok")
+        or any(b["browse_ready"] for b in checks["domains"]["books"]))
     report["ready_for_python_analysis"] = bool(
         base_ok and checks["release"].get("ok") and runner.get("available"))
     # The same six flags the health document serves, named identically, so a

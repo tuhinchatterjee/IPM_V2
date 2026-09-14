@@ -112,6 +112,16 @@ class Readiness:
         raise HTTPException(503, detail)
 
 
+def _books_open() -> bool:
+    """Whether at least one domain book can be browsed in this runtime."""
+    try:
+        from backend.cockpit_v4 import domain_resolver as resolver
+
+        return bool(resolver.availability().ready_domains)
+    except Exception:  # noqa: BLE001 - an unanswerable question is a no
+        return False
+
+
 def assess(runtime: Any, *, cfg: Any = None, preflight_error: str = "",
            python_runner_available: bool | None = None) -> Readiness:
     """What this runtime can do. Derived, never declared.
@@ -121,12 +131,23 @@ def assess(runtime: Any, *, cfg: Any = None, preflight_error: str = "",
     -- and therefore no analysis, no dashboard and no product help. Saying so
     is the fix.
     """
+    # The dashboard needs a BOOK, not a model. A runtime with no verified
+    # price card cannot accept a question and can still compute every card on
+    # the Cockpit, because nothing on that page costs a provider call. The
+    # header used to read "dashboard service not in this runtime" over a
+    # dashboard that was on screen, which teaches a reader to ignore it.
+    books_open = _books_open()
+
     if runtime is None:
         code, reason = _split(preflight_error)
         return Readiness(
             flags={PROCESS_ALIVE: True, RELEASE_READY: False,
                    PRODUCT_HELP_READY: False, SQL_ANALYSIS_READY: False,
-                   ATTENTION_READY: False, PYTHON_ANALYSIS_READY: False},
+                   # The one capability a failed preflight does NOT take
+                   # away, when a book is published: the dashboard is
+                   # computed from the release and costs no provider call.
+                   ATTENTION_READY: books_open,
+                   PYTHON_ANALYSIS_READY: False},
             reason=reason or ("This runtime did not complete preflight, so "
                               "it has no authorized release open."),
             error_code=code or st.DATA_UNAVAILABLE,
@@ -145,7 +166,7 @@ def assess(runtime: Any, *, cfg: Any = None, preflight_error: str = "",
             # a model; it does not need a portfolio.
             PRODUCT_HELP_READY: has_model,
             SQL_ANALYSIS_READY: has_model and release_open,
-            ATTENTION_READY: release_open,
+            ATTENTION_READY: release_open or books_open,
             PYTHON_ANALYSIS_READY: (has_model and release_open
                                     and bool(python_runner_available)),
         },

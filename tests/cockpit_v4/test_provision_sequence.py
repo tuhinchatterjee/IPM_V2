@@ -136,7 +136,14 @@ def test_the_whole_sequence(probe_namespace, store_db, v4_config):
     assert caps[ready_mod.PROCESS_ALIVE] is True
     assert caps[ready_mod.RELEASE_READY] is False
     assert caps[ready_mod.SQL_ANALYSIS_READY] is False
-    assert caps[ready_mod.ATTENTION_READY] is False
+    # The dashboard is computed from a BOOK, not from the release preflight
+    # failed on, and it costs no provider call -- so a runtime that cannot
+    # accept a question can still serve every card on the Cockpit. This is
+    # true when a domain book is published and false when none is.
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    assert caps[ready_mod.ATTENTION_READY] is bool(
+        resolver.availability().ready_domains)
 
     # attention is typed, not a traceback.
     #
