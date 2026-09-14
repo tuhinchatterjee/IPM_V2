@@ -250,11 +250,18 @@ def dashboard(session, workspace_id: int) -> Dashboard:
     state.decisions = _decisions_payload(session, workspace_id)
     state.actions = _actions_payload(session, workspace_id)
     state.reviews = _reviews_payload(session, workspace_id)
-    state.readiness = _stored_readiness(session, workspace_id, state.artifact_id)
-
     # §14: worth showing once the document has something to say about itself.
     state.available = bool(state.artifact_id or bindings
                            or state.findings.get("total"))
+
+    state.readiness = _stored_readiness(session, workspace_id, state.artifact_id)
+    if not state.readiness["computed"] and state.available:
+        # First open. Score it now rather than showing zeros: a document that
+        # has never been scored has no readiness, and showing 0% would read as
+        # "nothing is ready" rather than "nobody has looked".
+        from backend.playbook.intelligence import readiness as score
+
+        state.readiness = score.compute(session, workspace_id).as_dict()
     return state
 
 

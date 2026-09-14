@@ -1101,3 +1101,26 @@ def confirm_metric_bindings(workspace_id: int, body: ConfirmManyIn,
         raise _refused(exc, code="not_confirmable") from exc
     except RuntimeError as exc:
         raise _unavailable(exc) from exc
+
+
+@router.post("/workspaces/{workspace_id}/intelligence/readiness")
+def recompute_readiness(workspace_id: int,
+                        principal: Principal = RequireAnalyst) -> dict:
+    """Score the document again from current rows.
+
+    A read, in effect — it writes only the computed score and its working —
+    so it needs no human actor: nothing here is a governance act.
+    """
+    from backend.playbook.intelligence import readiness as score
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            result = score.compute(session, workspace_id)
+            session.commit()
+            return result.as_dict()
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc

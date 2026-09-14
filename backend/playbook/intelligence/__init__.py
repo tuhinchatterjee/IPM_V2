@@ -6,7 +6,13 @@ lives in a frontend component, and nothing in this package calls a provider —
 a percentage an LLM felt was right is exactly what §4 forbids.
 """
 
-from backend.playbook.intelligence import binding, profile, sections, service
+from backend.playbook.intelligence import (
+    binding,
+    profile,
+    readiness,
+    sections,
+    service,
+)
 from backend.playbook.intelligence.service import (
     Dashboard,
     NotPermitted,
@@ -18,5 +24,6 @@ from backend.playbook.intelligence.service import (
 )
 
 __all__ = ["Dashboard", "NotPermitted", "binding", "classify", "dashboard",
-           "ensure_profile", "get_profile", "profile", "sections", "service",
+           "ensure_profile", "get_profile", "profile", "readiness", "sections",
+           "service",
            "UnknownDocumentType"]
