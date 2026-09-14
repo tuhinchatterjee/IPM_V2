@@ -23,13 +23,38 @@ from backend.cockpit_v4 import domains as dom
 from backend.cockpit_v4 import invariants, lake
 from backend.cockpit_v4 import schema as schema_mod
 from backend.cockpit_v4.generate import corporate, retail
-from backend.cockpit_v4.generate import month_range
+from backend.cockpit_v4.generate import month_range, quarter_range
 
+#: §4. The Retail calendar: twenty completed months.
 EXPECTED_MONTHS = (
     "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06",
     "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12",
     "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06",
     "2026-07", "2026-08")
+
+#: §3. The Corporate calendar: twenty completed QUARTERS. A corporate credit
+#: file is reviewed on the cycle its obligors report on, and that cycle is
+#: quarterly.
+EXPECTED_QUARTERS = (
+    "2021Q3", "2021Q4", "2022Q1", "2022Q2", "2022Q3", "2022Q4",
+    "2023Q1", "2023Q2", "2023Q3", "2023Q4", "2024Q1", "2024Q2",
+    "2024Q3", "2024Q4", "2025Q1", "2025Q2", "2025Q3", "2025Q4",
+    "2026Q1", "2026Q2")
+
+#: What each book's calendar is, so a test can say "this book" rather than
+#: "the calendar".
+CALENDAR: dict[str, dict[str, object]] = {
+    dom.CORPORATE: {"periods": EXPECTED_QUARTERS, "frequency": "quarterly",
+                    "latest": "2026Q2", "previous": "2026Q1",
+                    "year_ago": "2025Q2",
+                    "last3": ("2025Q4", "2026Q1", "2026Q2"),
+                    "beyond": "2026Q3"},
+    dom.RETAIL: {"periods": EXPECTED_MONTHS, "frequency": "monthly",
+                 "latest": "2026-08", "previous": "2026-07",
+                 "year_ago": "2025-08",
+                 "last3": ("2026-06", "2026-07", "2026-08"),
+                 "beyond": "2026-09"},
+}
 
 
 @pytest.fixture(scope="module")
@@ -46,28 +71,50 @@ def published():
 # ---- 1. the calendar, pinned -------------------------------------------
 
 def test_the_twenty_months_are_exactly_the_ones_specified():
-    """§7. Twenty COMPLETED months. Pinned, not derived at read time."""
+    """§4. Twenty COMPLETED months. Pinned, not derived at read time."""
     assert month_range() == EXPECTED_MONTHS
     assert len(EXPECTED_MONTHS) == 20
 
 
+def test_the_twenty_quarters_are_exactly_the_ones_specified():
+    """§3. Twenty COMPLETED quarters, 2021Q3 through 2026Q2."""
+    assert quarter_range() == EXPECTED_QUARTERS
+    assert len(EXPECTED_QUARTERS) == 20
+    assert EXPECTED_QUARTERS[0] == "2021Q3"
+    assert EXPECTED_QUARTERS[-1] == "2026Q2"
+
+
+def test_the_two_books_do_not_share_a_calendar():
+    """§2. Deliberate: corporate credit is reviewed quarterly and retail
+    behaviour is monitored monthly. One calendar for both is what made a
+    quarterly book answer in months."""
+    assert set(EXPECTED_QUARTERS) & set(EXPECTED_MONTHS) == set()
+    assert (schema_mod.frequency(dom.CORPORATE)
+            != schema_mod.frequency(dom.RETAIL))
+    assert (schema_mod.period_column(dom.CORPORATE)
+            != schema_mod.period_column(dom.RETAIL))
+
+
 @pytest.mark.parametrize("domain_id", dom.DOMAIN_IDS)
-def test_each_release_publishes_those_months_and_no_others(published,
-                                                           domain_id):
+def test_each_release_publishes_those_periods_and_no_others(published,
+                                                            domain_id):
+    want = CALENDAR[domain_id]
     calendar = published[domain_id].calendar
-    assert tuple(calendar.slots) == EXPECTED_MONTHS
-    assert calendar.latest == "2026-08"
-    assert calendar.previous == "2026-07"
-    assert calendar.year_ago == "2025-08", (
-        "the year-ago comparison must be the same month twelve months back")
-    assert calendar.last(3) == ("2026-06", "2026-07", "2026-08")
-    assert calendar.frequency == "monthly"
+    assert tuple(calendar.slots) == want["periods"]
+    assert calendar.latest == want["latest"]
+    assert calendar.previous == want["previous"]
+    assert calendar.year_ago == want["year_ago"], (
+        "the year-ago comparison must be the same period one year back, "
+        "which is four slots in a quarterly book and twelve in a monthly one")
+    assert calendar.last(3) == want["last3"]
+    assert calendar.frequency == want["frequency"]
 
 
 @pytest.mark.parametrize("domain_id", dom.DOMAIN_IDS)
-def test_no_partial_month_is_published(published, domain_id):
-    """A part-month reads as a collapse in every comparison drawn to it."""
-    assert "2026-09" not in published[domain_id].calendar.slots
+def test_no_partial_period_is_published(published, domain_id):
+    """A part-period reads as a collapse in every comparison drawn to it."""
+    assert CALENDAR[domain_id]["beyond"] not in \
+        published[domain_id].calendar.slots
 
 
 # ---- 2. both books are Saudi -------------------------------------------
@@ -79,7 +126,9 @@ def test_both_books_are_saudi_native(published, domain_id):
     assert manifest["geography_name"] == "Saudi Arabia"
     assert manifest["reporting_currency"] == "SAR"
     assert manifest["amount_scale"] == "million"
-    assert manifest["reporting_frequency"] == "monthly"
+    # Same country, same currency, same scale -- and each book's OWN
+    # calendar, because that is the one thing they do not share.
+    assert manifest["reporting_frequency"] == CALENDAR[domain_id]["frequency"]
     assert manifest["not_client_data"]
 
 
@@ -112,12 +161,12 @@ def test_a_corporate_catalogue_refuses_a_retail_relation(published):
 
 def test_a_retail_catalogue_refuses_a_corporate_relation(published):
     with pytest.raises(cat.CrossDomainAccess):
-        published[dom.RETAIL].require_relation("corp_facility_month")
+        published[dom.RETAIL].require_relation("corp_facility_quarter")
 
 
 @pytest.mark.parametrize("domain_id,foreign", [
     (dom.CORPORATE, "retail_account_month"),
-    (dom.RETAIL, "corp_facility_month"),
+    (dom.RETAIL, "corp_facility_quarter"),
 ])
 def test_a_session_cannot_query_the_other_book(published, domain_id,
                                                foreign):
@@ -214,7 +263,7 @@ def test_retail_is_not_a_renamed_corporate_table(published):
 
 
 @pytest.mark.parametrize("domain_id,relation,key", [
-    (dom.CORPORATE, "corp_facility_month", ("facility_id", "reporting_month")),
+    (dom.CORPORATE, "corp_facility_quarter", ("facility_id", "reporting_quarter")),
     (dom.RETAIL, "retail_account_month", ("account_id", "reporting_month")),
 ])
 def test_each_book_has_its_own_grain(published, domain_id, relation, key):
@@ -321,6 +370,11 @@ def test_a_resolved_scope_carries_its_whole_book(published):
     assert scope.latest_period == "2026-08"
     assert scope.previous_period == "2026-07"
     assert scope.year_ago_period == "2025-08"
+    corporate = resolver.resolve(requested=dom.CORPORATE)
+    assert corporate.reporting_frequency == "quarterly"
+    assert corporate.latest_period == "2026Q2"
+    assert corporate.previous_period == "2026Q1"
+    assert corporate.year_ago_period == "2025Q2"
     assert set(scope.relations) == set(
         schema_mod.relation_names(dom.RETAIL))
 
@@ -336,7 +390,8 @@ def test_both_domains_report_their_own_readiness(published):
         status = available[domain_id]
         assert status.ready
         assert status.release_id == dom.DEFAULT_RELEASES[domain_id]
-        assert status.to_dict()["latest_period"] == "2026-08"
+        assert status.to_dict()["latest_period"] == \
+            CALENDAR[domain_id]["latest"]
         assert status.detail["relation_count"] == 4
         assert status.detail["field_count"] > 50
 

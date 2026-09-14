@@ -146,6 +146,13 @@ class Orchestrator:
     #: Product-knowledge reads are cheap and bounded separately from the
     #: catalog: they touch no borrower data and open no analysis round.
     product_calls: int = 0
+    #: §24-§27. What this run IS, settled by the server before the first
+    #: provider call: the book, the release, the kind of turn, the calendar
+    #: and the category values the question named. The analyst is never
+    #: asked to restate any of it -- `intent` is not a field on any tool
+    #: schema -- so the run must OWN one from the start or the first tool
+    #: call has no carried intent to merge into.
+    envelope: Any = None
     intent: Any = None
     #: Set once the analytical allowance has been adopted, so it happens
     #: exactly once however many times the intent is re-declared.
@@ -401,6 +408,8 @@ class Orchestrator:
             ev.CONTEXT_READY, stage="accepted", operation="context",
             status=ev.STATUS_OK,
             public_message="Authorized context assembled.")
+        # §24. The run owns its intent before it spends anything.
+        self._seed_intent()
         if self.investigation:
             # A real step, so it appears in the trace. Seeding is a context
             # load, not a hidden model action, and the panel says which.
@@ -409,8 +418,8 @@ class Orchestrator:
                 operation="investigation_context", status=ev.STATUS_OK,
                 public_message=(
                     "Investigation context loaded · "
-                    f"{self.investigation.get('segment', '')} · "
-                    f"{self.investigation.get('reporting_quarter', '')}"
+                    f"{self.investigation.get('segment_label') or self.investigation.get('segment', '')} · "
+                    f"{self.investigation.get('reporting_period') or self.investigation.get('reporting_quarter') or self.investigation.get('reporting_month', '')}"
                     ).strip(" ·"))
 
         while True:
@@ -885,6 +894,14 @@ class Orchestrator:
         # Asking to execute analysis IS the declaration. Nothing about the
         # budget needs the model to also say it in a field.
         self._adopt_analytical_limits_for_tool(TOOL_EXECUTE)
+        # The same declaration, in the run's settled intent. The budget
+        # classifier reads the question's words before the first call and
+        # can read an analytical question as product help; submitting SQL
+        # says otherwise, and the run widens rather than refusing over a
+        # classification the reader was never shown.
+        if self.envelope is not None:
+            self.envelope = self.envelope.escalate_to_analysis()
+            self.intent = self.envelope.as_intent()
         # Counted BEFORE validation. A fully received execute_analysis
         # request cost a generation and a validation pass whether or not it
         # was well formed; free invalid submissions are an unbounded loop.
@@ -1235,8 +1252,38 @@ class Orchestrator:
                 f"${after['spend_ceiling_usd']:.2f}."),
             detail_ref=self._detail({"budget_adopted": report}))
 
+    def _seed_intent(self) -> None:
+        """Adopt the server's envelope as this run's intent, before the
+        first provider call.
+
+        Without this the first tool call has nothing to merge into: the tool
+        schemas no longer offer `intent`, so every payload arrives without
+        one and `parse_intent` has only the carried value to fall back on.
+        The envelope IS that carried value, and it is authored by the server
+        rather than asked for, which is the whole point of §24.
+        """
+        if self.envelope is None or self.intent is not None:
+            return
+        self.intent = self.envelope.as_intent()
+        self._adopt_analytical_limits(self.intent)
+        self.emitter.append(
+            ev.INTENT_VALIDATED, stage="understanding", operation="intent",
+            status=ev.STATUS_OK,
+            public_message=(
+                f"{_mode_label(self.intent.query_mode)} · "
+                f"{self.envelope.domain_label} · "
+                f"latest {self.envelope.period.noun} "
+                f"{self.envelope.period.latest}"),
+            detail_ref=self._detail(self.envelope.to_dict()))
+
     def _record_intent(self, intent) -> None:
         intent = self._with_value_resolution(intent)
+        if self.envelope is not None:
+            # The answer refines the reader-facing half. It does not get to
+            # restate which book this is, which release, or what kind of
+            # turn it was: those are facts about a run that already happened.
+            self.envelope = self.envelope.with_intent(intent)
+            intent = self.envelope.as_intent()
         if self.intent is not None and intent.to_dict() == self.intent.to_dict():
             return
         self.intent = intent

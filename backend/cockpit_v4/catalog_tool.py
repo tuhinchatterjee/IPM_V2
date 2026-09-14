@@ -377,6 +377,12 @@ class CatalogService:
             slots = list(getattr(calendar, "slots", ()) or ())
             out["coverage"] = {
                 "reporting_frequency": sem.frequency(self.catalog),
+                "period_noun": noun,
+                # The neutral key is always present so a reader that does
+                # not know which book it is holding still finds the periods;
+                # the noun-specific key is what the analyst's own book calls
+                # them, and only THIS book's noun appears.
+                "reporting_periods": slots,
                 f"reporting_{noun}s": slots,
                 f"populated_{noun}s": list(
                     getattr(calendar, "populated", ()) or ()),

@@ -22,25 +22,62 @@ def frame(domain_id: str, relation: str) -> pd.DataFrame:
         lake.relation_path(dom.DEFAULT_RELEASES[domain_id], relation))
 
 
-def months(domain_id: str, relation: str) -> list[str]:
-    return sorted(frame(domain_id, relation)["reporting_month"].unique())
+#: What each book calls its period column, and what one exposure row IS.
+#: Read here rather than imported from the product, because an oracle that
+#: asks the code under test which column to read is not independent of it.
+PERIOD_COLUMN: dict[str, str] = {dom.CORPORATE: "reporting_quarter",
+                                 dom.RETAIL: "reporting_month"}
+EXPOSURE: dict[str, str] = {dom.CORPORATE: "corp_facility_quarter",
+                            dom.RETAIL: "retail_account_month"}
+
+
+def period_column(domain_id: str) -> str:
+    return PERIOD_COLUMN[domain_id]
+
+
+def periods(domain_id: str, relation: str = "") -> list[str]:
+    """Every period this book publishes, read from the parquet itself.
+
+    The relation defaults to the book's exposure table -- the one every
+    period appears in -- so a caller that only wants "the calendar" does not
+    have to know which table to ask.
+    """
+    return sorted(
+        frame(domain_id, relation or EXPOSURE[domain_id])[
+            PERIOD_COLUMN[domain_id]].unique())
+
+
+def months(domain_id: str, relation: str = "") -> list[str]:
+    """The older name. Same list; the Corporate book's are quarters."""
+    return periods(domain_id, relation)
 
 
 def latest_month(domain_id: str) -> str:
-    relation = ("corp_facility_month" if domain_id == dom.CORPORATE
-                else "retail_account_month")
-    return months(domain_id, relation)[-1]
+    return periods(domain_id, EXPOSURE[domain_id])[-1]
 
 
 def previous_month(domain_id: str) -> str:
-    relation = ("corp_facility_month" if domain_id == dom.CORPORATE
-                else "retail_account_month")
-    return months(domain_id, relation)[-2]
+    return periods(domain_id, EXPOSURE[domain_id])[-2]
+
+
+def latest_period(domain_id: str) -> str:
+    return latest_month(domain_id)
+
+
+def previous_period(domain_id: str) -> str:
+    return previous_month(domain_id)
+
+
+def year_ago(domain_id: str) -> str:
+    """The same period a year earlier: four quarters or twelve months."""
+    slots = periods(domain_id, EXPOSURE[domain_id])
+    step = 4 if domain_id == dom.CORPORATE else 12
+    return slots[-(step + 1)]
 
 
 def _month(domain_id: str, relation: str, month: str) -> pd.DataFrame:
     data = frame(domain_id, relation)
-    return data[data["reporting_month"] == month]
+    return data[data[PERIOD_COLUMN[domain_id]] == month]
 
 
 # ---- shared shapes -----------------------------------------------------
@@ -74,23 +111,23 @@ def share_by(domain_id: str, relation: str, month: str, dimension: str, *,
 # ---- corporate ---------------------------------------------------------
 
 def corp_ead_by_sector(month: str) -> dict[str, float]:
-    return sum_by(dom.CORPORATE, "corp_facility_month", month, "sector",
+    return sum_by(dom.CORPORATE, "corp_facility_quarter", month, "sector",
                   "ead_sar_mn")
 
 
 def corp_stage2_share_by_sector(month: str) -> dict[str, float]:
-    return share_by(dom.CORPORATE, "corp_facility_month", month, "sector",
+    return share_by(dom.CORPORATE, "corp_facility_quarter", month, "sector",
                     measure="ead_sar_mn", condition=lambda g: g["stage"] >= 2)
 
 
-def corp_ecl_by_facility_type(month: str) -> dict[str, float]:
-    return sum_by(dom.CORPORATE, "corp_facility_month", month,
-                  "facility_type", "ecl_sar_mn")
+def corp_ecl_by_product_type(month: str) -> dict[str, float]:
+    return sum_by(dom.CORPORATE, "corp_facility_quarter", month,
+                  "product_type", "ecl_sar_mn")
 
 
 def corp_ead_movement(latest: str, previous: str) -> float:
-    return (total(dom.CORPORATE, "corp_facility_month", latest, "ead_sar_mn")
-            - total(dom.CORPORATE, "corp_facility_month", previous,
+    return (total(dom.CORPORATE, "corp_facility_quarter", latest, "ead_sar_mn")
+            - total(dom.CORPORATE, "corp_facility_quarter", previous,
                     "ead_sar_mn"))
 
 
@@ -101,8 +138,8 @@ def corp_ead_by_borrower(month: str) -> dict[str, float]:
     are never summed across this join: one borrower holds several facilities,
     so revenue would be counted once per facility.
     """
-    facilities = _month(dom.CORPORATE, "corp_facility_month", month)
-    borrowers = _month(dom.CORPORATE, "corp_borrower_month", month)
+    facilities = _month(dom.CORPORATE, "corp_facility_quarter", month)
+    borrowers = _month(dom.CORPORATE, "corp_borrower_quarter", month)
     names = dict(zip(borrowers["borrower_id"], borrowers["borrower_name"]))
     summed = facilities.groupby("borrower_id", observed=True)[
         "ead_sar_mn"].sum()
@@ -149,9 +186,13 @@ def retail_ecl_coverage(month: str) -> float:
     return float(rows["ecl_sar_mn"].sum()) / float(rows["ead_sar_mn"].sum())
 
 
-__all__ = ["corp_ead_by_borrower", "corp_ead_by_sector",
-           "corp_ead_movement", "corp_ecl_by_facility_type",
-           "corp_stage2_share_by_sector", "frame", "latest_month", "months",
+__all__ = ["EXPOSURE", "PERIOD_COLUMN", "corp_ead_by_borrower",
+           "corp_ead_by_sector",
+           "corp_ead_movement",
+           "corp_ecl_by_product_type",
+           "corp_stage2_share_by_sector", "frame", "latest_month",
+           "latest_period", "months", "period_column", "periods",
+           "previous_period", "year_ago",
            "previous_month", "retail_delinquent_share_by_product",
            "retail_ead_by_product", "retail_ead_by_vintage",
            "retail_ecl_by_score_band", "retail_ecl_coverage",
@@ -162,7 +203,7 @@ __all__ = ["corp_ead_by_borrower", "corp_ead_by_sector",
 # ---- corporate, the second six -----------------------------------------
 
 def corp_coverage_by_sector(month: str) -> dict[str, float]:
-    rows = _month(dom.CORPORATE, "corp_facility_month", month)
+    rows = _month(dom.CORPORATE, "corp_facility_quarter", month)
     out: dict[str, float] = {}
     for key, group in rows.groupby("sector", observed=True):
         ead = float(group["ead_sar_mn"].sum())
@@ -178,14 +219,14 @@ def corp_downgrades(month: str) -> dict[str, int]:
     oracle reads the sign off the column rather than recomputing it from the
     two grades -- which is a different figure the moment either is null.
     """
-    rows = _month(dom.CORPORATE, "corp_borrower_month", month)
+    rows = _month(dom.CORPORATE, "corp_borrower_quarter", month)
     moved = rows[rows["rating_notches_moved"] < 0]
     return {str(r["borrower_name"]): int(-r["rating_notches_moved"])
             for _i, r in moved.iterrows()}
 
 
 def corp_breaches_by_type(month: str) -> dict[str, int]:
-    rows = _month(dom.CORPORATE, "corp_covenant_month", month)
+    rows = _month(dom.CORPORATE, "corp_covenant_quarter", month)
     breached = rows[rows["breach_flag"] == 1]
     return {str(k): int(len(g)) for k, g in
             breached.groupby("covenant_type", observed=True)}
@@ -197,18 +238,18 @@ def corp_exposure_behind_breaches(month: str) -> float:
     De-duplicated on purpose: a facility with three breached covenants is one
     exposure, and summing across the join would count it three times.
     """
-    covenants = _month(dom.CORPORATE, "corp_covenant_month", month)
+    covenants = _month(dom.CORPORATE, "corp_covenant_quarter", month)
     breached = set(covenants.loc[covenants["breach_flag"] == 1,
                                  "facility_id"])
-    facilities = _month(dom.CORPORATE, "corp_facility_month", month)
+    facilities = _month(dom.CORPORATE, "corp_facility_quarter", month)
     return float(facilities[facilities["facility_id"].isin(breached)]
                  ["ead_sar_mn"].sum())
 
 
 def corp_collateral_cover_by_type(month: str) -> dict[str, float]:
     """Allocated collateral over the EAD of the facility it stands against."""
-    collateral = _month(dom.CORPORATE, "corp_collateral_month", month)
-    facilities = _month(dom.CORPORATE, "corp_facility_month", month)
+    collateral = _month(dom.CORPORATE, "corp_collateral_quarter", month)
+    facilities = _month(dom.CORPORATE, "corp_facility_quarter", month)
     ead = dict(zip(facilities["facility_id"], facilities["ead_sar_mn"]))
     out: dict[str, float] = {}
     for key, group in collateral.groupby("collateral_type", observed=True):
@@ -222,9 +263,9 @@ def corp_collateral_cover_by_type(month: str) -> dict[str, float]:
 
 def corp_stage_migration(latest: str, previous: str) -> dict[str, float]:
     """EAD that crossed a stage boundary between the two months."""
-    now = _month(dom.CORPORATE, "corp_facility_month", latest).set_index(
+    now = _month(dom.CORPORATE, "corp_facility_quarter", latest).set_index(
         "facility_id")
-    before = _month(dom.CORPORATE, "corp_facility_month",
+    before = _month(dom.CORPORATE, "corp_facility_quarter",
                     previous).set_index("facility_id")
     kept = now.index.intersection(before.index)
     worse = [k for k in kept if now.loc[k, "stage"] > before.loc[k, "stage"]]
@@ -234,8 +275,8 @@ def corp_stage_migration(latest: str, previous: str) -> dict[str, float]:
 
 
 def corp_ead_by_group(month: str) -> dict[str, float]:
-    facilities = _month(dom.CORPORATE, "corp_facility_month", month)
-    borrowers = _month(dom.CORPORATE, "corp_borrower_month", month)
+    facilities = _month(dom.CORPORATE, "corp_facility_quarter", month)
+    borrowers = _month(dom.CORPORATE, "corp_borrower_quarter", month)
     group = dict(zip(borrowers["borrower_id"], borrowers["group_name"]))
     out: dict[str, float] = {}
     for _i, row in facilities.iterrows():
@@ -245,10 +286,11 @@ def corp_ead_by_group(month: str) -> dict[str, float]:
 
 
 def corp_utilisation_by_type(month: str) -> dict[str, float]:
-    """Drawn over limit, at the TYPE level rather than an average of ratios."""
-    rows = _month(dom.CORPORATE, "corp_facility_month", month)
+    """Drawn over limit, at the PRODUCT level rather than an average of
+    ratios."""
+    rows = _month(dom.CORPORATE, "corp_facility_quarter", month)
     out: dict[str, float] = {}
-    for key, group in rows.groupby("facility_type", observed=True):
+    for key, group in rows.groupby("product_type", observed=True):
         limit = float(group["limit_sar_mn"].sum())
         if limit > 0:
             out[str(key)] = float(group["drawn_sar_mn"].sum()) / limit

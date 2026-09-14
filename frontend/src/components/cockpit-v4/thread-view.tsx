@@ -35,6 +35,8 @@
 
 import * as React from "react";
 
+import { comparisonPeriod, periodLabel, reportingPeriod } from "./period";
+
 import {
   acknowledge,
   cancelRun,
@@ -226,7 +228,10 @@ function SeedCard({
   if (context?.kind !== "attention_item") return null;
   const rows: [string, string][] = [
     ["Segment", String(body.segment ?? "")],
-    ["Period", [body.reporting_quarter, body.comparison_quarter]
+    // A seed carries whichever calendar its book keeps, so read the
+    // neutral field and fall back to whichever legacy key is filled.
+    ["Period", [periodLabel(reportingPeriod(body as never)),
+                periodLabel(comparisonPeriod(body as never))]
       .filter(Boolean).join(" vs ")],
     ["Measure", String(body.metric_label ?? body.metric ?? "")],
   ].filter(([, value]) => Boolean(value)) as [string, string][];

@@ -18,6 +18,9 @@ from fastapi.testclient import TestClient
 
 from backend.cockpit_v4 import attention_v2, lake, routes
 from backend.cockpit_v4 import domains as dom
+from backend.cockpit_v4 import schema as schema_mod
+
+from . import domain_oracles as oracle
 
 P = "/api/v1/cockpit-v4"
 
@@ -47,8 +50,13 @@ def test_both_domains_are_listed_with_their_own_readiness(client):
     for entry in body["domains"]:
         assert entry["ready"] is True
         assert entry["release_id"] == dom.DEFAULT_RELEASES[entry["domain_id"]]
-        assert entry["latest_period"] == "2026-08"
+        # Each book publishes 20 periods of ITS OWN kind: the Corporate
+        # book 20 quarters, the Retail book 20 months. §2, §3.
+        assert entry["latest_period"] == oracle.latest_period(
+            entry["domain_id"])
         assert len(entry["periods"]) == 20
+        assert entry["reporting_frequency"] == schema_mod.frequency(
+            entry["domain_id"])
         assert entry["reporting_currency"] == "SAR"
         assert entry["amount_scale"] == "million"
 
@@ -355,7 +363,7 @@ def test_every_card_on_the_page_can_be_investigated(client, domain_id):
         assert seed["domain_id"] == domain_id
         assert seed["release_id"] == feed["release_id"]
         assert seed["release_fingerprint"] == feed["release_fingerprint"]
-        assert seed["reporting_period"] == feed["reporting_month"]
+        assert seed["reporting_period"] == feed["reporting_period"]
         assert body["suggested_questions"], (
             "a seeded thread with nothing to ask next is a dead end")
         thread = client.get(f"{P}/threads/{body['thread_id']}").json()

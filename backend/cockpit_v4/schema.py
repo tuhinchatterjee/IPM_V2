@@ -164,6 +164,48 @@ def frequency(domain_id: str) -> str:
     return FREQUENCIES[dom.parse(domain_id)]
 
 
+#: What a period IS in each book, for the words a payload writes.
+PERIOD_NOUNS: dict[str, str] = {
+    dom.CORPORATE: "quarter",
+    dom.RETAIL: "month",
+}
+
+
+def period_noun(domain_id: str) -> str:
+    return PERIOD_NOUNS[dom.parse(domain_id)]
+
+
+def period_keys(domain_id: str, reporting: str,
+                comparison: str = "") -> dict[str, str]:
+    """The period fields any payload from this book carries.
+
+    `reporting_period` is the truth and `period_noun` says what kind of
+    period it is. The older `reporting_quarter` / `reporting_month` pair is
+    still served for readers that predate the two calendars, but ONLY the
+    one this book actually reports in is filled: a payload that fills both
+    says the Corporate book has months, and a reader that indexes the wrong
+    key then gets a value that looks right. An empty string is a visible
+    mistake; a quarter under a month's name is an invisible one.
+
+    This lives in `schema` because the calendar does: one place decides
+    which column a book keeps its periods in, what to call a period, and
+    what keys a payload spells it under.
+    """
+    domain_id = dom.parse(domain_id)
+    noun = PERIOD_NOUNS[domain_id]
+    body = {
+        "reporting_period": reporting,
+        "comparison_period": comparison,
+        "period_noun": noun,
+        "comparison_basis": f"previous {noun}",
+        "reporting_quarter": "", "comparison_quarter": "",
+        "reporting_month": "", "comparison_month": "",
+    }
+    body[f"reporting_{noun}"] = reporting
+    body[f"comparison_{noun}"] = comparison
+    return body
+
+
 _CORP_BORROWER = Relation(
     name="corp_borrower_quarter",
     grain="one row per borrower per reporting quarter",
@@ -700,6 +742,8 @@ def domain_of_relation(name: str) -> str:
     raise UnknownRelation(f"{name!r} is not a relation of any domain.")
 
 
-__all__ = ["Field", "GOVERNANCE_FIELDS", "RELATIONS", "Relation",
-           "UnknownField", "UnknownRelation", "domain_of_relation", "field",
-           "relation", "relation_names", "relations"]
+__all__ = ["FREQUENCIES", "Field", "GOVERNANCE_FIELDS", "PERIOD_COLUMNS",
+           "PERIOD_NOUNS", "RELATIONS", "Relation", "UnknownField",
+           "UnknownRelation", "domain_of_relation", "field", "frequency",
+           "period_column", "period_keys", "period_noun", "relation",
+           "relation_names", "relations"]

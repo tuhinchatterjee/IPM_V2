@@ -257,6 +257,7 @@ class Worker:
             tools=provider_tools(withhold=withhold, catalog=book.catalog))
         analyst.user(packet.first_user_message)
 
+        from backend.cockpit_v4 import intent_envelope as intent_env
         from backend.cockpit_v4 import pyrunner
         from backend.cockpit_v4 import release as release_mod
 
@@ -290,7 +291,17 @@ class Worker:
                 (self.store.get_run(record.run_id) or record).cancel_requested),
             deferred_tools=full_tools if withhold else None,
             investigation=(seeded or {}).get("body") if seeded else None,
-            value_resolution=packet.payload.get("value_resolution") or {})
+            value_resolution=packet.payload.get("value_resolution") or {},
+            # §24-§27. The run's intent is SETTLED before the first provider
+            # call, and no tool asks the analyst to restate it. Which book,
+            # which release, what kind of turn this is and what a period
+            # means here are facts the server already holds -- and a nested
+            # `intent` object retyped on every call is how a live Mac run
+            # got `intent must be an object` twice in two rounds.
+            envelope=intent_env.for_run(
+                scope=scope, catalog=book.catalog, verdict=verdict,
+                value_resolution=packet.payload.get("value_resolution") or {},
+                seeded=(seeded or {}).get("body") if seeded else None))
         orchestrator._version = record.version
         return orchestrator.run_to_completion()
 

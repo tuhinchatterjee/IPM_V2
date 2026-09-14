@@ -17,8 +17,22 @@ from backend.cockpit_v4 import catalog as cat
 from backend.cockpit_v4 import domain_resolver as resolver
 from backend.cockpit_v4 import domains as dom
 from backend.cockpit_v4 import lake
+from backend.cockpit_v4 import schema as schema_mod
 
-LATEST, PREVIOUS = "2026-08", "2026-07"
+from . import domain_oracles as oracle
+
+
+def _period_column(domain_id: str) -> str:
+    """Each book keeps its periods in its own column. §2, §3."""
+    return schema_mod.period_column(domain_id)
+
+
+def _latest(domain_id: str) -> str:
+    return oracle.latest_period(domain_id)
+
+
+def _previous(domain_id: str) -> str:
+    return oracle.previous_period(domain_id)
 
 
 def _frame(domain_id: str, relation: str):
@@ -51,7 +65,8 @@ def test_each_book_gets_its_own_section_titles(feeds):
     retail, _, _ = feeds[dom.RETAIL]
     assert corporate["attention_label"] == "Segments requiring attention"
     assert retail["attention_label"] == "Retail portfolio requiring attention"
-    assert corporate["highlights_label"] == "Latest-month ECL highlights"
+    assert corporate["highlights_label"] == (
+        "Latest-quarter ECL highlights")
     assert retail["highlights_label"] == (
         "Latest-month retail ECL highlights")
 
@@ -71,20 +86,42 @@ def test_the_two_feeds_share_no_card(feeds):
 
 
 def test_each_feed_watches_its_own_dimensions(feeds):
-    """§27, §28. A retail page does not talk about sectors it does not have."""
+    """§17, §18, §27, §28. A retail page does not talk about sectors it does
+    not have, and a corporate page does not talk about score bands.
+
+    The permitted set is READ FROM THE GOVERNED SCHEMA rather than listed
+    here. A hand-written list turns every new lens into a test edit, which
+    is how a list stops being a check: the lens that matters is the one
+    nobody thought to add to it. What is actually being asserted is that a
+    book's dashboard groups by columns THAT BOOK HAS -- so the columns come
+    from the book.
+    """
+    for domain_id in dom.DOMAIN_IDS:
+        feed, _, _ = feeds[domain_id]
+        mine = {column for relation in schema_mod.relations(domain_id)
+                for column in (f.name for f in relation.fields)}
+        mine |= set(att.SYNTHETIC_DIMENSIONS)
+        theirs = {column
+                  for other in dom.DOMAIN_IDS if other != domain_id
+                  for relation in schema_mod.relations(other)
+                  for column in (f.name for f in relation.fields)}
+        exclusive = theirs - mine
+        used = {i["segment_dimension"]
+                for i in feed["segments_requiring_attention"]}
+        used |= {i["segment_dimension"] for i in feed["ecl_highlights"]
+                 if i.get("segment_dimension")}
+        assert used <= mine, (domain_id, used - mine)
+        assert not (used & exclusive), (domain_id, used & exclusive)
+
     corporate, _, _ = feeds[dom.CORPORATE]
     retail, _, _ = feeds[dom.RETAIL]
     corporate_dimensions = {i["segment_dimension"]
                             for i in corporate["segments_requiring_attention"]}
     retail_dimensions = {i["segment_dimension"]
                          for i in retail["segments_requiring_attention"]}
-    assert corporate_dimensions <= {"sector", "facility_type", "region",
-                                    "collateral_type"}
-    assert retail_dimensions <= {"product", "score_band", "vintage_year",
-                                 "customer_segment"}
     assert "sector" not in retail_dimensions
-    assert "product" not in corporate_dimensions
     assert "score_band" not in corporate_dimensions
+    assert "vintage_year" not in corporate_dimensions
 
 
 @pytest.mark.parametrize("domain_id", dom.DOMAIN_IDS)
@@ -105,19 +142,27 @@ def test_the_feed_costs_no_model_call(feeds, domain_id):
 
 
 @pytest.mark.parametrize("domain_id", dom.DOMAIN_IDS)
-def test_the_feed_compares_the_latest_month_to_the_one_before(feeds,
-                                                              domain_id):
-    """§23. Monthly, and the months are the ones the release publishes."""
+def test_the_feed_compares_the_latest_period_to_the_one_before(feeds,
+                                                               domain_id):
+    """§2, §3. Each book steps by its OWN period, and the periods are the
+    ones its release publishes: quarters for Corporate, months for Retail."""
     feed, _, _ = feeds[domain_id]
-    assert feed["reporting_month"] == LATEST
-    assert feed["comparison_month"] == PREVIOUS
-    assert feed["comparison_basis"] if "comparison_basis" in feed else True
+    noun = att.PERIOD_NOUNS[domain_id]
+    assert feed["period_noun"] == noun
+    assert feed["reporting_period"] == _latest(domain_id)
+    assert feed["comparison_period"] == _previous(domain_id)
+    assert feed[f"reporting_{noun}"] == _latest(domain_id)
+    assert feed[f"comparison_{noun}"] == _previous(domain_id)
+    assert feed["comparison_basis"] == f"previous {noun}"
+    other = "month" if noun == "quarter" else "quarter"
+    assert feed[f"reporting_{other}"] == "", (
+        "a book must not fill the other calendar's key")
 
 
 # ---- the oracle -------------------------------------------------------
 
 @pytest.mark.parametrize("domain_id,relation,dimension", [
-    (dom.CORPORATE, "corp_facility_month", "sector"),
+    (dom.CORPORATE, "corp_facility_quarter", "sector"),
     (dom.RETAIL, "retail_account_month", "product"),
 ])
 def test_every_ecl_card_matches_an_independent_pandas_oracle(
@@ -125,7 +170,7 @@ def test_every_ecl_card_matches_an_independent_pandas_oracle(
     """The figure on the card is the figure in the parquet. Recomputed."""
     feed, _, _ = feeds[domain_id]
     frame = _frame(domain_id, relation)
-    latest = frame[frame["reporting_month"] == LATEST]
+    latest = frame[frame[_period_column(domain_id)] == _latest(domain_id)]
     expected = latest.groupby(dimension)["ecl_sar_mn"].sum().round(4)
 
     checked = 0
@@ -142,14 +187,14 @@ def test_every_ecl_card_matches_an_independent_pandas_oracle(
 
 
 @pytest.mark.parametrize("domain_id,relation,dimension", [
-    (dom.CORPORATE, "corp_facility_month", "sector"),
+    (dom.CORPORATE, "corp_facility_quarter", "sector"),
     (dom.RETAIL, "retail_account_month", "product"),
 ])
 def test_every_stage_two_card_matches_the_oracle(feeds, domain_id, relation,
                                                  dimension):
     feed, _, _ = feeds[domain_id]
     frame = _frame(domain_id, relation)
-    latest = frame[frame["reporting_month"] == LATEST]
+    latest = frame[frame[_period_column(domain_id)] == _latest(domain_id)]
 
     for item in feed["segments_requiring_attention"]:
         if item["metric"] != "stage2_share":
@@ -164,15 +209,16 @@ def test_every_stage_two_card_matches_the_oracle(feeds, domain_id, relation,
 
 
 @pytest.mark.parametrize("domain_id,relation", [
-    (dom.CORPORATE, "corp_facility_month"),
+    (dom.CORPORATE, "corp_facility_quarter"),
     (dom.RETAIL, "retail_account_month"),
 ])
 def test_the_total_ecl_highlight_matches_the_oracle(feeds, domain_id,
                                                     relation):
     feed, _, _ = feeds[domain_id]
     frame = _frame(domain_id, relation)
-    total = frame.loc[frame["reporting_month"] == LATEST,
-                      "ecl_sar_mn"].sum()
+    total = frame.loc[
+        frame[_period_column(domain_id)] == _latest(domain_id),
+        "ecl_sar_mn"].sum()
     from decimal import Decimal
 
     from backend.cockpit_v4 import display as disp
@@ -293,7 +339,9 @@ def test_the_retail_book_surfaces_its_worst_vintage_or_band(feeds):
 #: the key.
 PANEL_KEYS = (
     "domain_id", "domain_label", "release_id", "release_fingerprint",
-    "reporting_month", "comparison_month", "reporting_currency",
+    "reporting_period", "comparison_period", "period_noun",
+    "reporting_month", "comparison_month",
+    "reporting_quarter", "comparison_quarter", "reporting_currency",
     "amount_scale", "attention_label", "highlights_label",
     "segments_requiring_attention", "ecl_highlights", "model_calls",
     "computed_ms", "ownership",
@@ -310,7 +358,8 @@ PANEL_KEYS = (
 CARD_KEYS = (
     "item_id", "section", "headline", "segment", "segment_dimension",
     "metric", "metric_label", "what_changed", "why_it_appeared", "movement",
-    "key_numbers", "evidence", "evidence_url", "reporting_month",
+    "key_numbers", "evidence", "evidence_url", "reporting_period",
+    "comparison_period", "period_noun", "reporting_month",
     "comparison_month", "reporting_quarter", "comparison_quarter",
     "possible_drivers", "what_to_review_next", "drilldown",
 )

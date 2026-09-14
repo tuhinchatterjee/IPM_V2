@@ -106,33 +106,21 @@ class Family:
             schema_mod.domain_of_relation(self.relation))
 
 
-#: What a period IS in each book, for the words a card writes.
-PERIOD_NOUNS: dict[str, str] = {dom.CORPORATE: "quarter",
-                                dom.RETAIL: "month"}
+#: What a period IS in each book. `schema` owns the calendar; this is the
+#: name the cards use for it, re-exported so callers keep importing one name.
+PERIOD_NOUNS: dict[str, str] = dict(schema_mod.PERIOD_NOUNS)
+
+#: Dimensions that are not columns. `portfolio` is the whole book taken at
+#: once -- the highlight that answers "and overall?" -- and it is named here
+#: so that "every dimension is a column of this book" stays checkable
+#: without the check having to special-case it in three places.
+SYNTHETIC_DIMENSIONS: frozenset[str] = frozenset({"portfolio"})
 
 
 def _period_keys(domain_id: str, reporting: str,
                  comparison: str) -> dict[str, str]:
-    """The period fields a card carries.
-
-    `reporting_period` is the truth and `period_noun` says what kind of
-    period it is. The older `reporting_quarter` and `reporting_month` keys
-    are still served, but ONLY the one this book actually reports in: a card
-    that fills both says the Corporate book has months, and a reader who
-    indexes on the wrong one then gets a value that looks right.
-    """
-    noun = PERIOD_NOUNS[domain_id]
-    body = {
-        "reporting_period": reporting,
-        "comparison_period": comparison,
-        "period_noun": noun,
-        "comparison_basis": f"previous {noun}",
-        "reporting_quarter": "", "comparison_quarter": "",
-        "reporting_month": "", "comparison_month": "",
-    }
-    body[f"reporting_{noun}"] = reporting
-    body[f"comparison_{noun}"] = comparison
-    return body
+    """The period fields a card carries. See `schema.period_keys`."""
+    return schema_mod.period_keys(domain_id, reporting, comparison)
 
 
 def _corporate_families() -> tuple[Family, ...]:
@@ -252,8 +240,12 @@ def _retail_families() -> tuple[Family, ...]:
                rel, "utilisation", "Average utilisation", "share", "percent",
                "SUM(utilisation_pct) / NULLIF(COUNT(*) * 100.0, 0)",
                weight=1.05),
-        Family("product_score_decline", "Behavioural score deterioration",
-               "product", "Product", "retail_customer_month",
+        # Customer grain, so the lens has to be a CUSTOMER attribute: a
+        # customer holds several products and `retail_customer_month` has no
+        # product column to group by.
+        Family("segment_score_decline", "Behavioural score deterioration",
+               "customer_segment", "Customer segment",
+               "retail_customer_month",
                "deteriorated_share",
                "Share of customers whose score deteriorated", "share",
                "percent",
@@ -271,6 +263,51 @@ FAMILIES: dict[str, tuple[Family, ...]] = {
     dom.CORPORATE: _corporate_families(),
     dom.RETAIL: _retail_families(),
 }
+
+
+def _check_families() -> None:
+    """Every family must name columns its relation actually has.
+
+    A family whose dimension is not a column of its relation does not fail
+    when it is written, when it is reviewed, or when the module is imported
+    -- it fails inside DuckDB the first time the dashboard is computed, with
+    a binder error, on the home page, for that book only. `product_score_
+    decline` shipped grouping a CUSTOMER-grain relation by `product`, which
+    a customer does not have, and the entire retail Attention feed raised.
+
+    So the families are checked against the governed schema at import. A
+    typo is then a failure to start, which is the cheapest kind.
+    """
+    for domain_id, families in FAMILIES.items():
+        for family in families:
+            if schema_mod.domain_of_relation(family.relation) != domain_id:
+                raise ValueError(
+                    f"attention family {family.key!r} is registered under "
+                    f"{domain_id!r} but reads {family.relation!r}, which "
+                    f"belongs to another book")
+            relation = schema_mod.relation(domain_id, family.relation)
+            columns = {f.name for f in relation.fields}
+            if family.dimension not in columns:
+                raise ValueError(
+                    f"attention family {family.key!r} groups "
+                    f"{family.relation!r} by {family.dimension!r}, which is "
+                    f"not a column of it")
+            referenced = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*",
+                                        family.expression))
+            if family.size_expression:
+                referenced |= set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*",
+                                             family.size_expression))
+            unknown = {name for name in referenced
+                       if name.islower() and "_" in name
+                       and name not in columns and not name.startswith("null")}
+            if unknown:
+                raise ValueError(
+                    f"attention family {family.key!r} references "
+                    f"{sorted(unknown)} which {family.relation!r} does not "
+                    f"have")
+
+
+_check_families()
 
 SECTION_LABELS: dict[str, str] = {
     dom.CORPORATE: "Segments requiring attention",
@@ -1023,8 +1060,7 @@ def compute(*, session, scope: dom.DomainScope) -> dict[str, Any]:
         "domain_label": scope.label,
         "release_id": scope.release_id,
         "release_fingerprint": scope.release_fingerprint,
-        "reporting_quarter": month, "reporting_month": month,
-        "comparison_quarter": comparison, "comparison_month": comparison,
+        **_period_keys(scope.domain_id, month, comparison),
         "reporting_currency": scope.currency,
         "amount_scale": scope.amount_scale,
         "attention_label": SECTION_LABELS[scope.domain_id],
@@ -1046,9 +1082,11 @@ def compute(*, session, scope: dom.DomainScope) -> dict[str, Any]:
         "ownership": {
             "functionality": "cockpit",
             "basis": "recorded_book",
-            "note": (f"Movements in the recorded {scope.label} book between "
-                     f"two reporting months. Not Early Warning: no live "
-                     f"signal and no prediction is used here."),
+            "note": (f"Movements in the recorded {scope.label} book "
+                     f"between two reporting "
+                     f"{schema_mod.period_noun(scope.domain_id)}s. Not "
+                     f"Early Warning: no live signal and no prediction is "
+                     f"used here."),
         },
         "method_summary": {
             "candidates_considered": len(candidates),

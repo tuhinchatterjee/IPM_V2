@@ -16,7 +16,15 @@ labels, the same `display` map the tooltip reads, and the markdown export --
 against two rules:
 
     an amount shows NO decimal places, anywhere;
-    a period is written `2026-08` or `Aug 2026`, never `2026Q3`.
+    a period is written in THIS BOOK'S calendar and never the other's --
+    `2026Q2` or `Q2 2026` in the Corporate book, `2026-08` or `Aug 2026`
+    in the Retail book.
+
+The second rule used to read "never a quarter", which was right while both
+books reported months and became wrong the moment the Corporate book started
+reporting quarters: it would then have failed every correct Corporate answer
+and passed a Retail answer written in quarters. What a reader must never see
+is a period from a calendar their book does not keep.
 """
 
 from __future__ import annotations
@@ -40,15 +48,28 @@ MONEY_WITH_DECIMALS = re.compile(r"\bSAR\s[\d,]+\.\d+\b")
 ANY_MONEY = re.compile(r"\bSAR\s[\d,]+(?:\.\d+)?\s?(?:million|billion)?\b")
 #: A quarter label, in any of the spellings a book might produce.
 QUARTER = re.compile(r"\b20\d\d\s?[Qq][1-4]\b|\b[Qq][1-4]\s?20\d\d\b")
-#: The two period forms this build publishes.
-MONTH_ISO = re.compile(r"\b20\d\d-(?:0[1-9]|1[0-2])\b")
+#: A month label, in either spelling. The ISO form excludes the leading two
+#: thirds of a `YYYY-MM-DD` build date, which is not a reporting period.
+MONTH_ISO = re.compile(r"\b20\d\d-(?:0[1-9]|1[0-2])\b(?![-\d])")
 MONTH_WORD = re.compile(
     r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s20\d\d\b")
+MONTH_ANY = re.compile(f"{MONTH_ISO.pattern}|{MONTH_WORD.pattern}")
+
+#: The period shapes each book may write, and the one it must never write.
+FOREIGN_PERIOD = {dom.CORPORATE: MONTH_ANY, dom.RETAIL: QUARTER}
+OWN_PERIOD = {dom.CORPORATE: QUARTER, dom.RETAIL: MONTH_ANY}
 
 BOOKS = {
-    dom.CORPORATE: ("corp_facility_month", "sector", "corporate"),
+    dom.CORPORATE: ("corp_facility_quarter", "sector", "corporate"),
     dom.RETAIL: ("retail_account_month", "product", "retail"),
 }
+
+
+def period_column(domain_id: str) -> str:
+    """This book's period column, read from the governed schema."""
+    from backend.cockpit_v4 import schema as schema_mod
+
+    return schema_mod.period_column(domain_id)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -61,7 +82,7 @@ def _published():
     arun.reset()
 
 
-def latest_month(domain_id: str) -> str:
+def latest_period(domain_id: str) -> str:
     runtime = arun.for_domain(domain_id)
     populated = list(getattr(runtime.catalog.calendar, "populated", ()) or ())
     return str(populated[-1])
@@ -95,9 +116,10 @@ def published(drive_domain):  # noqa: F811
     """A real published answer in one book, with money on every surface."""
     def _published(domain_id: str):
         relation, dimension, _label = BOOKS[domain_id]
-        month = latest_month(domain_id)
+        month = latest_period(domain_id)
         sql = (f"SELECT {dimension}, SUM(ead_sar_mn) AS ead_sar_mn "
-               f"FROM {relation} WHERE reporting_month = '{month}' "
+               f"FROM {relation} "
+               f"WHERE {period_column(domain_id)} = '{month}' "
                f"GROUP BY 1 ORDER BY 2 DESC")
         outcome, _provider, record = drive_domain(
             domain_id, "What is exposure at default by segment this month?",
@@ -184,15 +206,18 @@ def test_the_export_shows_the_same_amounts_the_screen_does(
 
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
-def test_the_export_names_a_month_and_never_a_quarter(
+def test_the_export_names_this_books_period_and_never_the_others(
         published, domain_id, store_db, runtime):
-    """§38. Including the lineage footer, which is what a reader checks
+    """§38, §55. Including the lineage footer, which is what a reader checks
     months later when they are no longer sure what they are looking at."""
-    _body, record, month = published(domain_id)
+    _body, record, period = published(domain_id)
     document = exported(store_db, runtime, record.run_id)
-    assert not QUARTER.search(document), QUARTER.search(document).group(0)
-    assert month in document, (
-        f"the export does not say which month {month!r} it is")
+    foreign = FOREIGN_PERIOD[domain_id].search(document)
+    assert not foreign, (
+        f"the {domain_id} export writes {foreign.group(0)!r}, which is not "
+        f"a period this book has")
+    assert period in document, (
+        f"the export does not say which period {period!r} it is")
 
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
@@ -224,24 +249,30 @@ def test_the_figure_in_the_prose_is_the_figure_in_the_table(
 # ---- §38: a period is a month, never a quarter --------------------------
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
-def test_no_surface_of_an_answer_names_a_quarter(published, domain_id):
-    body, _record, _month = published(domain_id)
+def test_no_surface_of_an_answer_names_the_other_books_calendar(
+        published, domain_id):
+    body, _record, _period = published(domain_id)
     blob = json.dumps(body, default=str)
-    assert not QUARTER.search(blob), QUARTER.search(blob).group(0)
+    foreign = FOREIGN_PERIOD[domain_id].search(blob)
+    assert not foreign, foreign.group(0)
 
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
-def test_the_release_header_names_the_book_in_months(published, domain_id):
-    body, _record, month = published(domain_id)
+def test_the_release_header_names_the_books_own_frequency(published,
+                                                          domain_id):
+    from backend.cockpit_v4 import schema as schema_mod
+
+    body, _record, _period = published(domain_id)
     header = body.get("release") or {}
     blob = json.dumps(header, default=str)
-    assert not QUARTER.search(blob), blob
-    assert str(header.get("reporting_frequency", "")).lower() == "monthly", (
-        header)
+    foreign = FOREIGN_PERIOD[domain_id].search(blob)
+    assert not foreign, (blob, foreign.group(0))
+    assert str(header.get("reporting_frequency", "")).lower() == (
+        schema_mod.frequency(domain_id)), header
 
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
-def test_the_attention_feed_names_months_and_shows_whole_amounts(
+def test_the_attention_feed_names_this_books_periods_and_whole_amounts(
         domain_id, store_db, runtime):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -265,9 +296,10 @@ def test_the_attention_feed_names_months_and_shows_whole_amounts(
     assert cards
     for card in cards:
         blob = json.dumps(card, default=str)
-        assert not QUARTER.search(blob), (card["item_id"],
-                                          QUARTER.search(blob).group(0))
-        assert MONTH_ISO.fullmatch(str(card["reporting_month"])), card
+        foreign = FOREIGN_PERIOD[domain_id].search(blob)
+        assert not foreign, (card["item_id"], foreign.group(0))
+        assert OWN_PERIOD[domain_id].fullmatch(
+            str(card["reporting_period"])), card
         for shown in [n["display"] for n in card["key_numbers"]]:
             assert not MONEY_WITH_DECIMALS.search(str(shown)), shown
     # And the feed really did carry amounts.
@@ -276,23 +308,40 @@ def test_the_attention_feed_names_months_and_shows_whole_amounts(
 
 
 @pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
-def test_the_period_the_book_offers_is_a_month_this_release_holds(domain_id):
+def test_the_period_the_book_offers_is_one_this_release_holds(domain_id):
+    from backend.cockpit_v4 import schema as schema_mod
     from backend.cockpit_v4 import semantics as sem
 
     runtime = arun.for_domain(domain_id)
     vocabulary = sem.vocabulary(runtime.catalog)
-    assert vocabulary["PERIOD"] == "month", vocabulary
-    assert vocabulary["FREQUENCY"] == "monthly", vocabulary
-    assert MONTH_ISO.fullmatch(vocabulary["LATEST_PERIOD"]), vocabulary
+    assert vocabulary["PERIOD"] == schema_mod.period_noun(domain_id), (
+        vocabulary)
+    assert vocabulary["FREQUENCY"] == schema_mod.frequency(domain_id), (
+        vocabulary)
+    assert OWN_PERIOD[domain_id].fullmatch(
+        vocabulary["LATEST_PERIOD"]), vocabulary
     for value in vocabulary.values():
-        assert not QUARTER.search(str(value)), value
+        foreign = FOREIGN_PERIOD[domain_id].search(str(value))
+        assert not foreign, (value, foreign.group(0))
 
 
-def test_both_period_spellings_are_the_same_month():
-    """§38 allows `2026-08` and `Aug 2026`. They must be one month written
-    two ways, not two months."""
+def test_the_period_spellings_recognise_each_calendar_and_not_the_other():
+    """§38 allows `2026-08` and `Aug 2026` for a month, `2026Q2` and
+    `Q2 2026` for a quarter. Each pattern must accept both spellings of its
+    own calendar and neither spelling of the other -- otherwise the rule
+    above is only asserting that a string is a string."""
     assert MONTH_ISO.fullmatch("2026-08")
     assert MONTH_WORD.fullmatch("Aug 2026")
+    assert MONTH_ANY.fullmatch("2026-08") and MONTH_ANY.fullmatch("Aug 2026")
     assert not MONTH_ISO.fullmatch("2026-13")
-    assert not MONTH_ISO.fullmatch("2026Q3")
-    assert QUARTER.search("the latest quarter 2026Q2 against 2026Q1")
+    assert not MONTH_ANY.fullmatch("2026Q3")
+    assert not MONTH_ISO.search("released 2026-09-11")
+
+    assert QUARTER.fullmatch("2026Q2") and QUARTER.fullmatch("Q2 2026")
+    assert not QUARTER.fullmatch("2026-08")
+    assert not QUARTER.fullmatch("2026Q5")
+
+    assert FOREIGN_PERIOD[dom.CORPORATE].search("as at 2026-08")
+    assert not FOREIGN_PERIOD[dom.CORPORATE].search("as at 2026Q2")
+    assert FOREIGN_PERIOD[dom.RETAIL].search("as at 2026Q2")
+    assert not FOREIGN_PERIOD[dom.RETAIL].search("as at 2026-08")

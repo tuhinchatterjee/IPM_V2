@@ -22,11 +22,17 @@ import {
   type AttentionFeed,
   type AttentionItem,
 } from "./client";
+import {
+  comparisonPeriod,
+  periodLabel,
+  periodNoun,
+  reportingPeriod,
+} from "./period";
 
-/** "2026Q2" reads as "Q2 2026" on a cover line, which is how it is spoken. */
+/** Kept for callers that already have a quarter in hand. New code should
+ *  use `periodLabel`, which also knows what a month looks like. */
 export function quarterLabel(quarter: string): string {
-  const match = /^(\d{4})(Q[1-4])$/.exec((quarter ?? "").trim());
-  return match ? `${match[2]} ${match[1]}` : (quarter ?? "");
+  return periodLabel(quarter);
 }
 
 const DOT: Record<string, string> = {
@@ -155,12 +161,17 @@ export function AttentionPanel({
   if (!feed) {
     return (
       <p className="text-xs text-slate-400" data-testid="attention-loading">
-        Reading the latest quarter…
+        Reading the latest period…
       </p>
     );
   }
 
-  const quarter = quarterLabel(feed.reporting_quarter);
+  // The book supplies its own calendar. Corporate reports quarters and
+  // Retail reports months, and this line is the only place that has to know
+  // the difference -- everything below writes `period`.
+  const period = periodLabel(reportingPeriod(feed));
+  const against = periodLabel(comparisonPeriod(feed));
+  const noun = periodNoun(feed);
   const segments = feed.segments_requiring_attention;
   const highlights = feed.ecl_highlights;
 
@@ -180,13 +191,11 @@ export function AttentionPanel({
             data-testid="attention-reporting-period"
             className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400"
           >
-            Reporting period {quarter}
+            Reporting {noun} {period}
           </span>
         </div>
         <p className="text-sm text-slate-600" data-testid="attention-summary">
-          CreditProbe reviewed {quarter} against{" "}
-          {quarterLabel(feed.prior_quarter)} and{" "}
-          {quarterLabel(feed.prior_year_quarter)} and identified{" "}
+          CreditProbe reviewed {period} against {against} and identified{" "}
           {segments.length}{" "}
           {segments.length === 1 ? "segment issue" : "segment issues"}.
         </p>
@@ -198,7 +207,8 @@ export function AttentionPanel({
             ))
           ) : (
             <p className="px-5 py-6 text-sm text-slate-500">
-              No segment movement cleared the materiality floor for {quarter}.
+              No segment movement cleared the materiality floor for{" "}
+              {period}.
             </p>
           )}
         </div>
@@ -216,10 +226,10 @@ export function AttentionPanel({
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="text-lg font-semibold text-slate-900"
               data-testid="ecl-heading">
-            {feed.highlights_label || "Latest-month ECL highlights"}
+            {feed.highlights_label || `Latest-${noun} ECL highlights`}
           </h2>
           <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-            {quarter} vs {quarterLabel(feed.prior_quarter)}
+            {period} vs {against}
           </span>
         </div>
         <p className="text-sm text-slate-600">

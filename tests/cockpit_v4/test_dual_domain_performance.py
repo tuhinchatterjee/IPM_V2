@@ -193,7 +193,7 @@ def test_one_analytical_run_end_to_end(store_db, runtime, domain_id):
 
     month = oracle.latest_month(domain_id)
     relation, dimension = (
-        ("corp_facility_month", "sector") if domain_id == dom.CORPORATE
+        ("corp_facility_quarter", "sector") if domain_id == dom.CORPORATE
         else ("retail_account_month", "product"))
     sql = (f"SELECT {dimension}, SUM(ead_sar_mn) AS ead_sar_mn "
            f"FROM {relation} WHERE reporting_month = '{month}' "

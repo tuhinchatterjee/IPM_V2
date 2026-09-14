@@ -21,6 +21,8 @@ from backend.cockpit_v4 import catalog as cat
 from backend.cockpit_v4 import domains as dom
 from backend.cockpit_v4 import lake
 from backend.cockpit_v4 import schema as schema_mod
+
+from . import domain_oracles as oracle
 from backend.cockpit_v4 import semantics as sem
 from backend.cockpit_v4.catalog_tool import CatalogService
 from backend.cockpit_v4.contracts import parse_catalog
@@ -28,7 +30,7 @@ from backend.cockpit_v4.contracts import parse_catalog
 #: The dimension each book segments by, and the measure each is denominated
 #: in. D06 and D07 turn on the two being DIFFERENT between the books.
 PRIMARY = {
-    dom.CORPORATE: {"relation": "corp_facility_month", "segment": "sector",
+    dom.CORPORATE: {"relation": "corp_facility_quarter", "segment": "sector",
                     "counterparty": "borrower_id", "amount": "ead_sar_mn"},
     dom.RETAIL: {"relation": "retail_account_month", "segment": "product",
                  "counterparty": "customer_id", "amount": "ead_sar_mn"},
@@ -141,12 +143,21 @@ def test_d04_how_do_these_tables_join(services, domain_id):
 def test_d05_what_period_does_this_book_cover(services, domain_id):
     result = ask(services[domain_id], detail=["coverage"])
     coverage = result["coverage"]
-    assert coverage["reporting_frequency"] == "monthly"
-    assert len(coverage["reporting_months"]) == 20
-    assert coverage["reporting_months"][0] == "2025-01"
-    assert coverage["reporting_months"][-1] == "2026-08"
-    assert "reporting_quarters" not in coverage, (
-        "a monthly book must not describe its periods as quarters")
+    noun = schema_mod.period_noun(domain_id)
+    other = "month" if noun == "quarter" else "quarter"
+
+    assert coverage["reporting_frequency"] == schema_mod.frequency(domain_id)
+    assert coverage["period_noun"] == noun
+    # Both the neutral key and this book's own noun, and NEVER the other
+    # book's noun: §3. A Corporate coverage block that lists
+    # `reporting_months` invites a monthly answer over quarterly data.
+    assert coverage["reporting_periods"] == list(oracle.periods(domain_id))
+    assert len(coverage[f"reporting_{noun}s"]) == 20
+    assert coverage[f"reporting_{noun}s"][-1] == oracle.latest_period(
+        domain_id)
+    assert f"reporting_{other}s" not in coverage, (
+        f"a {schema_mod.frequency(domain_id)} book must not describe its "
+        f"periods as {other}s")
 
 
 # ---- D06: what does this book segment BY --------------------------------

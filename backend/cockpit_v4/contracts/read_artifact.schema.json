@@ -1,9 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "intent": {
-      "$ref": "#/$defs/Intent"
-    },
     "artifact_id": {
       "type": "string"
     },
@@ -50,13 +47,7 @@
     }
   },
   "required": [
-    "intent",
-    "artifact_id",
-    "artifact_kind",
-    "columns",
-    "offset",
-    "limit",
-    "cursor"
+    "artifact_id"
   ],
   "additionalProperties": false
 }

@@ -63,13 +63,13 @@ def retail(books):
 
 def test_the_corporate_book_holds_thousands_of_borrowers(corporate):
     count = scalar(corporate,
-                   "SELECT COUNT(DISTINCT borrower_id) FROM corp_borrower_month")
+                   "SELECT COUNT(DISTINCT borrower_id) FROM corp_borrower_quarter")
     assert 3_000 <= count <= 5_000, count
 
 
 def test_the_corporate_book_holds_thousands_of_facilities(corporate):
     count = scalar(corporate,
-                   "SELECT COUNT(DISTINCT facility_id) FROM corp_facility_month")
+                   "SELECT COUNT(DISTINCT facility_id) FROM corp_facility_quarter")
     assert 8_000 <= count <= 15_000, count
 
 
@@ -77,7 +77,7 @@ def test_every_borrower_has_at_least_two_facilities(corporate):
     worst = scalar(corporate, """
         SELECT MIN(n) FROM (
           SELECT borrower_id, COUNT(DISTINCT facility_id) AS n
-          FROM corp_facility_month GROUP BY 1)""")
+          FROM corp_facility_quarter GROUP BY 1)""")
     assert worst >= 2, worst
 
 
@@ -86,26 +86,26 @@ def test_no_sector_is_one_company_wearing_a_sector_name(corporate):
     sector, which needs more than one name in it."""
     smallest = rows(corporate, """
         SELECT sector, COUNT(DISTINCT borrower_id) AS n
-        FROM corp_borrower_month GROUP BY 1 ORDER BY 2 LIMIT 3""")
+        FROM corp_borrower_quarter GROUP BY 1 ORDER BY 2 LIMIT 3""")
     assert smallest[0][1] >= 100, smallest
 
 
 def test_no_sub_sector_is_one_company_either(corporate):
     smallest = rows(corporate, """
         SELECT sub_sector, COUNT(DISTINCT borrower_id) AS n
-        FROM corp_borrower_month GROUP BY 1 ORDER BY 2 LIMIT 3""")
+        FROM corp_borrower_quarter GROUP BY 1 ORDER BY 2 LIMIT 3""")
     assert smallest[0][1] >= 10, smallest
 
 
-def test_the_book_has_sector_and_facility_type_depth(corporate):
+def test_the_book_has_sector_and_product_type_depth(corporate):
     sectors = scalar(corporate,
-                     "SELECT COUNT(DISTINCT sector) FROM corp_borrower_month")
+                     "SELECT COUNT(DISTINCT sector) FROM corp_borrower_quarter")
     subs = scalar(corporate,
-                  "SELECT COUNT(DISTINCT sub_sector) FROM corp_borrower_month")
+                  "SELECT COUNT(DISTINCT sub_sector) FROM corp_borrower_quarter")
     types = scalar(corporate,
-                   "SELECT COUNT(DISTINCT facility_type) FROM corp_facility_month")
+                   "SELECT COUNT(DISTINCT product_type) FROM corp_facility_quarter")
     regions = scalar(corporate,
-                     "SELECT COUNT(DISTINCT region) FROM corp_borrower_month")
+                     "SELECT COUNT(DISTINCT region) FROM corp_borrower_quarter")
     assert sectors >= 12, sectors
     assert 40 <= subs <= 80, subs
     assert types >= 8, types
@@ -115,7 +115,7 @@ def test_the_book_has_sector_and_facility_type_depth(corporate):
 def test_no_borrower_name_is_used_twice(corporate):
     pairs = scalar(corporate, """
         SELECT COUNT(*) FROM (
-          SELECT borrower_name FROM corp_borrower_month
+          SELECT borrower_name FROM corp_borrower_quarter
           GROUP BY 1 HAVING COUNT(DISTINCT borrower_id) > 1)""")
     assert pairs == 0, f"{pairs} name(s) belong to more than one borrower"
 
@@ -128,16 +128,16 @@ EXPECTED_FACILITY_TYPES = {
 }
 
 
-def test_facility_types_are_the_governed_snake_case_identifiers(corporate):
+def test_product_types_are_the_governed_snake_case_identifiers(corporate):
     published = {r[0] for r in rows(
-        corporate, "SELECT DISTINCT facility_type FROM corp_facility_month")}
+        corporate, "SELECT DISTINCT product_type FROM corp_facility_quarter")}
     assert published == EXPECTED_FACILITY_TYPES, sorted(published)
 
 
-def test_every_facility_type_is_actually_used(corporate):
+def test_every_product_type_is_actually_used(corporate):
     used = dict(rows(corporate, """
-        SELECT facility_type, COUNT(DISTINCT facility_id)
-        FROM corp_facility_month GROUP BY 1"""))
+        SELECT product_type, COUNT(DISTINCT facility_id)
+        FROM corp_facility_quarter GROUP BY 1"""))
     for kind in EXPECTED_FACILITY_TYPES:
         assert used.get(kind, 0) >= 500, (kind, used.get(kind, 0))
 
@@ -149,12 +149,12 @@ def test_the_book_has_names_that_improved_and_names_that_got_worse(
     """A book where everything moves one way answers one question."""
     moved = rows(corporate, """
         WITH edge AS (
-          SELECT MIN(reporting_month) AS first, MAX(reporting_month) AS last
-          FROM corp_borrower_month),
-        a AS (SELECT borrower_id, pd_ttc_12m FROM corp_borrower_month, edge
-              WHERE reporting_month = edge.first),
-        b AS (SELECT borrower_id, pd_ttc_12m FROM corp_borrower_month, edge
-              WHERE reporting_month = edge.last)
+          SELECT MIN(reporting_quarter) AS first, MAX(reporting_quarter) AS last
+          FROM corp_borrower_quarter),
+        a AS (SELECT borrower_id, pd_ttc_12m FROM corp_borrower_quarter, edge
+              WHERE reporting_quarter = edge.first),
+        b AS (SELECT borrower_id, pd_ttc_12m FROM corp_borrower_quarter, edge
+              WHERE reporting_quarter = edge.last)
         SELECT
           SUM(CASE WHEN b.pd_ttc_12m < a.pd_ttc_12m * 0.9 THEN 1 ELSE 0 END),
           SUM(CASE WHEN b.pd_ttc_12m > a.pd_ttc_12m * 1.5 THEN 1 ELSE 0 END)
@@ -166,7 +166,7 @@ def test_the_book_has_names_that_improved_and_names_that_got_worse(
 
 def test_the_book_has_defaults(corporate):
     defaulted = scalar(corporate, """
-        SELECT COUNT(DISTINCT facility_id) FROM corp_facility_month
+        SELECT COUNT(DISTINCT facility_id) FROM corp_facility_quarter
         WHERE default_flag = 1""")
     assert defaulted >= 100, defaulted
 
@@ -175,11 +175,11 @@ def test_the_book_has_cures_and_not_only_defaults(corporate):
     """A facility that went ninety days past due and came back. Without one,
     "did anything recover?" has no answer and the book is a ratchet."""
     cured = scalar(corporate, """
-        WITH last AS (SELECT MAX(reporting_month) AS m FROM corp_facility_month),
-        ever AS (SELECT facility_id FROM corp_facility_month
+        WITH last AS (SELECT MAX(reporting_quarter) AS m FROM corp_facility_quarter),
+        ever AS (SELECT facility_id FROM corp_facility_quarter
                  GROUP BY 1 HAVING MAX(dpd_days) >= 90),
-        now AS (SELECT facility_id FROM corp_facility_month, last
-                WHERE reporting_month = last.m AND dpd_days = 0)
+        now AS (SELECT facility_id FROM corp_facility_quarter, last
+                WHERE reporting_quarter = last.m AND dpd_days = 0)
         SELECT COUNT(*) FROM ever JOIN now USING (facility_id)""")
     assert cured >= 25, f"only {cured} facilities cured"
 
@@ -190,9 +190,9 @@ def test_deterioration_starts_somewhere_rather_than_everywhere_at_once(
     A book where every deterioration began in month one has no "what changed
     this month" to find."""
     started = rows(corporate, """
-        SELECT reporting_month, COUNT(*) AS n FROM (
-          SELECT facility_id, MIN(reporting_month) AS reporting_month
-          FROM corp_facility_month WHERE stage >= 2 GROUP BY 1)
+        SELECT reporting_quarter, COUNT(*) AS n FROM (
+          SELECT facility_id, MIN(reporting_quarter) AS reporting_quarter
+          FROM corp_facility_quarter WHERE stage >= 2 GROUP BY 1)
         GROUP BY 1 ORDER BY 1""")
     months = [m for m, _n in started]
     late = [n for m, n in started if m >= months[len(months) // 2]]
@@ -204,9 +204,9 @@ def test_the_book_is_a_performing_book_under_pressure(corporate):
     """Not a portfolio in workout. A generated book whose last month is a
     third impaired teaches a reader to ignore the stage column."""
     stage = dict(rows(corporate, """
-        WITH last AS (SELECT MAX(reporting_month) AS m FROM corp_facility_month)
-        SELECT stage, SUM(ead_sar_mn) FROM corp_facility_month, last
-        WHERE reporting_month = last.m GROUP BY 1"""))
+        WITH last AS (SELECT MAX(reporting_quarter) AS m FROM corp_facility_quarter)
+        SELECT stage, SUM(ead_sar_mn) FROM corp_facility_quarter, last
+        WHERE reporting_quarter = last.m GROUP BY 1"""))
     total = sum(stage.values())
     assert stage.get(1, 0) / total >= 0.55, stage
     assert stage.get(3, 0) / total <= 0.12, stage
@@ -214,9 +214,9 @@ def test_the_book_is_a_performing_book_under_pressure(corporate):
 
 def test_ecl_coverage_is_a_number_a_credit_reader_would_accept(corporate):
     coverage = scalar(corporate, """
-        WITH last AS (SELECT MAX(reporting_month) AS m FROM corp_facility_month)
+        WITH last AS (SELECT MAX(reporting_quarter) AS m FROM corp_facility_quarter)
         SELECT SUM(ecl_sar_mn) / SUM(ead_sar_mn) * 100
-        FROM corp_facility_month, last WHERE reporting_month = last.m""")
+        FROM corp_facility_quarter, last WHERE reporting_quarter = last.m""")
     assert 0.5 <= float(coverage) <= 8.0, coverage
 
 
@@ -274,7 +274,7 @@ def test_the_corporate_build_is_byte_identical_across_processes():
 def test_a_grouped_aggregate_over_the_whole_book_stays_under_a_second(
         books, domain_id):
     runtime = books[domain_id]
-    relation, dimension = (("corp_facility_month", "sector")
+    relation, dimension = (("corp_facility_quarter", "sector")
                            if domain_id == dom.CORPORATE
                            else ("retail_account_month", "product"))
     started = time.monotonic()
@@ -292,12 +292,12 @@ def test_a_join_across_the_whole_corporate_window_stays_under_two_seconds(
         corporate):
     started = time.monotonic()
     result = rows(corporate, """
-        SELECT b.sector, b.sub_sector, f.facility_type,
+        SELECT b.sector, b.sub_sector, f.product_type,
                SUM(f.ead_sar_mn) AS ead
-        FROM corp_facility_month f
-        JOIN corp_borrower_month b
+        FROM corp_facility_quarter f
+        JOIN corp_borrower_quarter b
           ON b.borrower_id = f.borrower_id
-         AND b.reporting_month = f.reporting_month
+         AND b.reporting_quarter = f.reporting_quarter
         GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT 50""")
     elapsed = time.monotonic() - started
     assert len(result) == 50

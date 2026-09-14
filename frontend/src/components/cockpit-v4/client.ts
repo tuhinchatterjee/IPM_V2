@@ -656,10 +656,18 @@ export type AttentionItem = {
   metric: string;
   metric_label: string;
   family: string;
-  reporting_quarter: string;
-  /** The period under the name this book uses. Both are served. */
+  /** The period this card reports, whatever kind of period this book keeps.
+   *  Read THIS. The `reporting_quarter` / `reporting_month` pair below is
+   *  served for older readers and only ONE of them is ever filled -- the one
+   *  belonging to this book's calendar -- so indexing the wrong one silently
+   *  yields an empty string rather than a wrong date. */
+  reporting_period: string;
+  comparison_period: string;
+  /** "quarter" for the Corporate book, "month" for Retail. */
+  period_noun: string;
+  reporting_quarter?: string;
   reporting_month?: string;
-  comparison_quarter: string;
+  comparison_quarter?: string;
   comparison_month?: string;
   comparison_basis: string;
   movement: string;
@@ -682,9 +690,15 @@ export type AttentionFeed = {
   highlights_label: string;
   release_id: string;
   release_fingerprint: string;
-  reporting_quarter: string;
-  prior_quarter: string;
-  prior_year_quarter: string;
+  /** The feed's own period, in this book's calendar. */
+  reporting_period: string;
+  comparison_period: string;
+  period_noun: string;
+  reporting_quarter?: string;
+  reporting_month?: string;
+  comparison_quarter?: string;
+  comparison_month?: string;
+  comparison_basis?: string;
   reporting_currency: string;
   generated_at: string;
   computed_ms?: number;
@@ -702,8 +716,11 @@ export type InvestigationSeed = {
   release_id: string;
   headline: string;
   segment: string;
-  reporting_quarter: string;
-  comparison_quarter: string;
+  reporting_period: string;
+  comparison_period: string;
+  period_noun?: string;
+  reporting_quarter?: string;
+  comparison_quarter?: string;
   metric_label: string;
   drilldown?: AttentionDrilldown;
 };
@@ -887,8 +904,11 @@ export type EclProfile = {
   domain_label: string;
   release_id: string;
   release_fingerprint: string;
-  reporting_month: string;
-  comparison_month: string;
+  reporting_period: string;
+  comparison_period: string;
+  period_noun: string;
+  reporting_month?: string;
+  comparison_month?: string;
   money_unit: string;
   exposure_grain: string;
   relation: string;
@@ -913,8 +933,11 @@ export type EclComponent = {
 export type EclDecomposition = {
   domain_id: DomainId;
   domain_label: string;
-  reporting_month: string;
-  comparison_month: string;
+  reporting_period: string;
+  comparison_period: string;
+  period_noun: string;
+  reporting_month?: string;
+  comparison_month?: string;
   display_opening: string;
   display_closing: string;
   display_movement: string;

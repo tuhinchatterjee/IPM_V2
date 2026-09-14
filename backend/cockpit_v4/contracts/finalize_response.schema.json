@@ -1,9 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "intent": {
-      "$ref": "#/$defs/Intent"
-    },
     "disposition": {
       "type": "string",
       "enum": [
@@ -125,23 +122,72 @@
         "string",
         "null"
       ]
+    },
+    "understood_request": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "What you took the question to mean, in one sentence."
+    },
+    "response_language": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "The language you answered in, as a BCP-47 tag."
+    },
+    "blocking_ambiguities": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Terms with two defensible readings that would give materially different numbers. THE ONLY THING THAT STOPS AN ANALYSIS. A period you resolved yourself is NOT one of these -- it is a resolved assumption."
+    },
+    "resolved_assumptions": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Choices you made and are declaring, not questions. A period you picked because none was given belongs here, written as this book writes it: \"{{PERIOD_EXAMPLE}}\"."
+    },
+    "canonical_mappings": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Terms this book already defines, and what they map to. For example \"{{MAPPED_TERM_EXAMPLE}}\"."
+    },
+    "excluded_parts": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "Parts of the question this answer does not cover."
+    },
+    "public_rationale": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Why you answered it this way, for the reader."
     }
   },
   "required": [
-    "intent",
     "disposition",
-    "narrative",
-    "coverage",
-    "numeric_claims",
-    "evidence_refs",
-    "tables",
-    "charts",
-    "limitations",
-    "suggested_questions",
-    "clarification_question",
-    "clarification_options",
-    "referral_owner",
-    "referral_reason"
+    "narrative"
   ],
   "additionalProperties": false
 }

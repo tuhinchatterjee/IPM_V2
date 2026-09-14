@@ -282,23 +282,44 @@ _INTENT_HELP = (
       "calls in this run inherit it and may omit it.")
 
 
+#: The intent fields an ANSWER may restate, flat, at the top level of
+#: `finalize_response`. Nowhere else, and never nested.
+FLAT_INTENT_FIELDS = (
+    "understood_request", "response_language", "blocking_ambiguities",
+    "resolved_assumptions", "canonical_mappings", "excluded_parts",
+    "public_rationale")
+
+
 def parse_intent(payload: Any, *, path: str = "intent",
                  carried: "Intent | None" = None) -> Intent:
-    """The run's intent, authored once and carried thereafter.
+    """The run's intent, authored ONCE by the server and refined by the
+    answer.
 
-    `intent` used to be required on all five tools, so a nine-field object
-    was retyped on every catalogue read, every artifact read, every execution
-    and the answer. It does not change between them, and a field restated for
-    no reason is a field that will eventually come back wrong -- which is how
-    `intent must be an object` reached a user's screen.
+    The defect this exists for
+    --------------------------
+    `intent` was a required NESTED OBJECT on all five tools, so a nine-field
+    structure was retyped on every catalogue read, every artifact read, every
+    execution and the answer. It does not change between them. A field
+    restated for no reason is a field that will eventually come back wrong,
+    and this one came back as a STRING on a live Mac run: `intent must be an
+    object` reached a reader's screen twice in two rounds, and each round
+    made the parser more forgiving instead of removing the restatement.
 
-    So: absent or empty means "as already declared", and the server supplies
-    what it is already holding. A restatement is still honoured, because the
-    analyst may legitimately refine its reading of the question mid-run.
+    So the nested object is gone from every tool schema. It cannot arrive
+    malformed because it cannot arrive at all.
 
-    A JSON string of the object is read rather than refused. That is a real
-    provider behaviour and undoing it is mechanical; being strict about it
-    buys nothing and costs a round trip.
+    What is left
+    ------------
+    The run owns an IntentEnvelope from its first second: the server already
+    knows the domain, the release, the mode (`envelope.classify`) and the
+    values the question named (`values.phrases`). `finalize_response` may
+    restate the READER-FACING half of it -- what it understood, what it
+    assumed, what it mapped, what it excluded -- as FLAT optional fields,
+    because that half is answer content and belongs with the answer.
+
+    This function is the merge. `payload` may be a flat dict of those fields
+    (the new shape), a nested object (an older caller, still honoured), or
+    nothing at all.
     """
     if isinstance(payload, str):
         text = payload.strip()
@@ -306,7 +327,14 @@ def parse_intent(payload: Any, *, path: str = "intent",
             try:
                 payload = json.loads(text)
             except ValueError:
-                pass
+                payload = None
+        else:
+            # A model that sends a sentence where an object was once
+            # required is describing its intent, not corrupting one. The
+            # field no longer exists in any schema, so this can only be an
+            # older caller; take the sentence as the understood request
+            # rather than refusing a run over it.
+            payload = {"understood_request": text} if text else None
     if payload is None or payload == {} or payload == "":
         if carried is not None:
             return carried
@@ -314,38 +342,73 @@ def parse_intent(payload: Any, *, path: str = "intent",
                         f"This run has no {path} yet. " + _INTENT_HELP,
                         field_path=path)
     if not isinstance(payload, dict):
+        if carried is not None:
+            return carried
         raise Rejection(
             "INVALID_MODEL_OUTPUT",
             f"{path} must be an object, not a {type(payload).__name__}. "
             + _INTENT_HELP,
             field_path=path)
-    mode = _require_text(payload, "query_mode", path)
-    if mode not in QUERY_MODES:
-        raise Rejection(
-            "INVALID_MODEL_OUTPUT",
-            f"{path}.query_mode must be one of {', '.join(QUERY_MODES)}.",
-            field_path=f"{path}.query_mode")
-    owner = _require_text(payload, "owner", path)
-    if owner not in OWNERS:
-        raise Rejection(
-            "INVALID_MODEL_OUTPUT",
-            f"{path}.owner must be one of {', '.join(OWNERS)}.",
-            field_path=f"{path}.owner")
+
+    base = carried
+    mode = str(payload.get("query_mode") or "").strip()
+    owner = str(payload.get("owner") or "").strip()
+    if base is None:
+        if mode not in QUERY_MODES:
+            raise Rejection(
+                "INVALID_MODEL_OUTPUT",
+                f"{path}.query_mode must be one of {', '.join(QUERY_MODES)}.",
+                field_path=f"{path}.query_mode")
+        if owner not in OWNERS:
+            raise Rejection(
+                "INVALID_MODEL_OUTPUT",
+                f"{path}.owner must be one of {', '.join(OWNERS)}.",
+                field_path=f"{path}.owner")
+        base = Intent(
+            query_mode=mode, owner=owner, understood_request="",
+            response_language="en", blocking_ambiguities=(),
+            resolved_assumptions=(), canonical_mappings=(),
+            excluded_parts=(), public_rationale="")
+
+    def text_or(key: str, fallback: str) -> str:
+        value = payload.get(key)
+        return str(value).strip() if isinstance(value, str) and value.strip() \
+            else fallback
+
+    def list_or(key: str, fallback: tuple[str, ...]) -> tuple[str, ...]:
+        if key not in payload or payload.get(key) is None:
+            return fallback
+        return _optional_str_list(payload, key, path)
+
     return Intent(
-        query_mode=mode, owner=owner,
-        understood_request=_require_text(payload, "understood_request", path),
-        response_language=_require_text(payload, "response_language", path),
-        # Absent and empty mean the same thing here: nothing blocking,
-        # nothing assumed, nothing excluded. The schema says so, and so does
-        # this.
-        blocking_ambiguities=_optional_str_list(
-            payload, "blocking_ambiguities", path),
-        resolved_assumptions=_optional_str_list(
-            payload, "resolved_assumptions", path),
-        canonical_mappings=_optional_str_list(
-            payload, "canonical_mappings", path),
-        excluded_parts=_optional_str_list(payload, "excluded_parts", path),
-        public_rationale=_require_text(payload, "public_rationale", path))
+        # The MODE and the OWNER are the run's, not the answer's. A model
+        # cannot talk a Retail run into being a Corporate one, or a data
+        # analysis into being product help, by restating a field.
+        query_mode=(mode if mode in QUERY_MODES and carried is None
+                    else base.query_mode),
+        owner=(owner if owner in OWNERS and carried is None
+               else base.owner),
+        understood_request=text_or("understood_request",
+                                   base.understood_request),
+        response_language=text_or("response_language", base.response_language),
+        blocking_ambiguities=list_or("blocking_ambiguities",
+                                     base.blocking_ambiguities),
+        resolved_assumptions=list_or("resolved_assumptions",
+                                     base.resolved_assumptions),
+        canonical_mappings=list_or("canonical_mappings",
+                                   base.canonical_mappings),
+        excluded_parts=list_or("excluded_parts", base.excluded_parts),
+        public_rationale=text_or("public_rationale", base.public_rationale))
+
+
+def flat_intent(payload: Any) -> dict[str, Any]:
+    """The intent fields a tool payload carries at its TOP level.
+
+    `finalize_response` states them flat. Nothing else states them at all.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    return {k: payload[k] for k in FLAT_INTENT_FIELDS if k in payload}
 
 
 # ---- execute_analysis --------------------------------------------------
@@ -488,7 +551,7 @@ def parse_steps(payload: Any, *, max_steps: int) -> tuple[Step, ...]:
     return tuple(steps)
 
 
-def _parse_units(value: Any) -> dict[str, str]:
+def _parse_units(value: Any, *, required: bool = True) -> dict[str, str]:
     """The declared units of the result.
 
     The published schema is `{"column": "unit"}`, because a result carrying an
@@ -501,6 +564,12 @@ def _parse_units(value: Any) -> dict[str, str]:
     unit"; that is representation, not meaning.
     """
     if value is None:
+        if not required:
+            # The display policy resolves a column's unit from the CATALOGUE
+            # when the submission does not declare one. A declaration is a
+            # useful cross-check, not a thing worth refusing an otherwise
+            # valid query over.
+            return {}
         raise Rejection(
             "INVALID_MODEL_OUTPUT",
             "expected_units is required: declare the unit of each output "
@@ -519,6 +588,8 @@ def _parse_units(value: Any) -> dict[str, str]:
             f"or a single string; got {type(value).__name__}.",
             field_path="expected_units")
     if not value:
+        if not required:
+            return {}
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "expected_units must name at least one unit.",
                         field_path="expected_units")
@@ -548,21 +619,29 @@ def parse_execution(payload: Any, *, max_steps: int,
     if not isinstance(payload, dict):
         raise Rejection("INVALID_MODEL_OUTPUT",
                         "execute_analysis arguments must be an object.")
+    # §26: `execute_analysis` is `{objective, steps}` and a few optional
+    # descriptors. It was a ten-field object of which nine were required, so
+    # a run that had already said what it was doing said it again on every
+    # submission -- and a submission refused for a missing descriptor costs a
+    # generation and a submission slot for saying nothing about the SQL.
     intent = parse_intent(payload.get("intent"), carried=carried)
     scope = _optional_object(payload, "scope", "execute_analysis")
+    objective = _require_text(payload, "objective", "execute_analysis")
+    subquestions = _optional_str_list(payload, "subquestions",
+                                      "execute_analysis") or (objective,)
     return ExecutionSubmission(
         intent=intent,
-        objective=_require_text(payload, "objective", "execute_analysis"),
-        subquestions=_require_str_list(payload, "subquestions",
-                                       "execute_analysis"),
+        objective=objective,
+        subquestions=subquestions,
         scope=scope,
         metadata_receipt_ids=_optional_str_list(
             payload, "metadata_receipt_ids", "execute_analysis"),
         fields_required=_optional_str_list(payload, "fields_required",
                                            "execute_analysis"),
-        expected_output_grain=_require_text(
-            payload, "expected_output_grain", "execute_analysis"),
-        expected_units=_parse_units(payload.get("expected_units")),
+        expected_output_grain=_optional_text(
+            payload, "expected_output_grain", "execute_analysis") or "row",
+        expected_units=_parse_units(payload.get("expected_units"),
+                                    required=False),
         steps=parse_steps(payload.get("steps"), max_steps=max_steps),
         repair_of_submission_id=_optional_text(
             payload, "repair_of_submission_id", "execute_analysis"))
@@ -919,7 +998,12 @@ def parse_final(payload: Any, *,
     if not isinstance(payload, dict):
         raise Rejection("ANSWER_VALIDATION",
                         "finalize_response arguments must be an object.")
-    intent = parse_intent(payload.get("intent"), carried=carried)
+    # §25: the ANSWER is where a reader-facing reading of the question
+    # belongs, and it states those fields FLAT. A nested `intent` object is
+    # still read when an older caller sends one, but no schema offers it.
+    stated = flat_intent(payload)
+    nested = payload.get("intent")
+    intent = parse_intent(stated or nested, carried=carried)
     disposition = _require_text(payload, "disposition", "finalize_response")
     if disposition not in DISPOSITIONS:
         raise Rejection(
@@ -1100,15 +1184,30 @@ def _inline(node: Any, defs: dict[str, Any]) -> Any:
     return node
 
 
-def _intent_optional(schema: dict[str, Any]) -> dict[str, Any]:
-    """`intent` is authored once per run, not retyped on every call.
+def _no_nested_intent(schema: dict[str, Any]) -> dict[str, Any]:
+    """`intent` is not a field of any tool. It cannot be, and that is the
+    point.
 
-    It stays in `properties`, because the analyst declares it and may refine
-    it. It leaves `required`, because a nine-field object restated four times
-    a run is four chances to restate it wrong -- which is exactly how
-    `intent must be an object` reached a user's screen.
+    Making it optional was the previous attempt, and it was not enough: an
+    optional field is still a field a model can fill in wrongly, and a live
+    Mac run filled it in with a STRING twice, in two separate rounds. Each
+    round made the parser more forgiving instead of removing the
+    restatement.
+
+    The run owns its intent from its first second -- the domain, the release
+    and the mode are server decisions, and `envelope.classify` makes them
+    before any provider call. What the ANSWER adds is reader-facing: what it
+    understood, what it assumed, what it mapped. Those are flat optional
+    fields of `finalize_response` and appear nowhere else.
+
+    This is a belt: the schema files no longer define `intent` at all, and
+    this strips it from anything that still does, so no future edit can put
+    a nested object back on a tool by accident.
     """
     out = dict(schema)
+    properties = dict(out.get("properties") or {})
+    properties.pop("intent", None)
+    out["properties"] = properties
     out["required"] = [name for name in out.get("required", [])
                        if name != "intent"]
     return out
@@ -1178,7 +1277,7 @@ def provider_tools(*, withhold: tuple[str, ...] = (),
     for name in TOOL_NAMES:
         if name in blocked:
             continue
-        schema = _intent_optional(_inline(_load(files[name]), defs))
+        schema = _no_nested_intent(_inline(_load(files[name]), defs))
         tools.append({"name": name,
                       "description": _speak(_DESCRIPTIONS[name], catalog),
                       "input_schema": _speak(schema, catalog)})

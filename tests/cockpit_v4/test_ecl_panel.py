@@ -22,7 +22,7 @@ from backend.cockpit_v4 import lake
 
 TOLERANCE = 1e-6
 
-EXPOSURE = {dom.CORPORATE: ("corp_facility_month", "facility_id"),
+EXPOSURE = {dom.CORPORATE: ("corp_facility_quarter", "facility_id"),
             dom.RETAIL: ("retail_account_month", "account_id")}
 
 

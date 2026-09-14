@@ -17,6 +17,7 @@
 import * as React from "react";
 
 import { investigate, type AttentionItem } from "./client";
+import { comparisonPeriod, periodLabel, reportingPeriod } from "./period";
 
 export function AttentionDrawer({
   item,
@@ -88,8 +89,11 @@ export function AttentionDrawer({
             {item.headline}
           </h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            {item.segment_label || item.segment} · {item.reporting_quarter}
-            {item.comparison_quarter ? ` vs ${item.comparison_quarter}` : ""}
+            {item.segment_label || item.segment} ·{" "}
+            {periodLabel(reportingPeriod(item))}
+            {comparisonPeriod(item)
+              ? ` vs ${periodLabel(comparisonPeriod(item))}`
+              : ""}
           </p>
         </div>
         <button
@@ -175,7 +179,7 @@ export function AttentionDrawer({
             >
               {drill.note}
               {drill.entity_count
-                ? ` This segment holds ${drill.entity_count} ${drill.entity_label} in ${item.reporting_month ?? item.reporting_quarter}.`
+                ? ` This segment holds ${drill.entity_count} ${drill.entity_label} in ${periodLabel(reportingPeriod(item))}.`
                 : ""}
             </p>
           ) : null}

@@ -11,19 +11,19 @@
       "tools": [
         {
           "name": "inspect_catalog",
-          "schema_bytes": 4012
+          "schema_bytes": 1834
         },
         {
           "name": "execute_analysis",
-          "schema_bytes": 4722
+          "schema_bytes": 2409
         },
         {
           "name": "read_artifact",
-          "schema_bytes": 3078
+          "schema_bytes": 846
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10495
+          "schema_bytes": 9463
         }
       ],
       "unsupported_schema_keywords": []
@@ -38,23 +38,23 @@
       "tools": [
         {
           "name": "inspect_catalog",
-          "schema_bytes": 4012
+          "schema_bytes": 1834
         },
         {
           "name": "inspect_product_knowledge",
-          "schema_bytes": 3039
+          "schema_bytes": 845
         },
         {
           "name": "execute_analysis",
-          "schema_bytes": 4722
+          "schema_bytes": 2409
         },
         {
           "name": "read_artifact",
-          "schema_bytes": 3078
+          "schema_bytes": 846
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10495
+          "schema_bytes": 9463
         }
       ],
       "unsupported_schema_keywords": []
@@ -69,19 +69,19 @@
       "tools": [
         {
           "name": "inspect_catalog",
-          "schema_bytes": 4012
+          "schema_bytes": 1834
         },
         {
           "name": "execute_analysis",
-          "schema_bytes": 4722
+          "schema_bytes": 2409
         },
         {
           "name": "read_artifact",
-          "schema_bytes": 3078
+          "schema_bytes": 846
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 10495
+          "schema_bytes": 9463
         }
       ],
       "unsupported_schema_keywords": []

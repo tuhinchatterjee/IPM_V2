@@ -118,9 +118,36 @@ class DomainScope:
         return self.periods[-2] if len(self.periods) > 1 else ""
 
     @property
+    def period_noun(self) -> str:
+        """What one period IS here: a quarter, or a month."""
+        return "quarter" if self.reporting_frequency == "quarterly" else "month"
+
+    @property
+    def period_column(self) -> str:
+        """The column this book records its reporting period in."""
+        return f"reporting_{self.period_noun}"
+
+    @property
+    def periods_per_year(self) -> int:
+        """How many reporting periods a year holds IN THIS BOOK."""
+        return 4 if self.reporting_frequency == "quarterly" else 12
+
+    @property
     def year_ago_period(self) -> str:
-        """The same month twelve months back, when the book goes that far."""
-        return self.periods[-13] if len(self.periods) > 12 else ""
+        """The same period one year back, when the book goes that far.
+
+        Four slots in a quarterly book and twelve in a monthly one. It was
+        thirteen slots in both, which in the Corporate book is three years
+        and a quarter -- and a year-on-year comparison drawn against the
+        wrong year is worse than none.
+        """
+        step = self.periods_per_year
+        return (self.periods[-(step + 1)]
+                if len(self.periods) > step else "")
+
+    def last_periods(self, count: int) -> tuple[str, ...]:
+        """The last `count` periods, oldest first."""
+        return tuple(self.periods[-count:]) if count > 0 else ()
 
     @property
     def money_unit(self) -> str:
@@ -147,6 +174,8 @@ class DomainScope:
             "reporting_currency": self.currency,
             "amount_scale": self.amount_scale,
             "reporting_frequency": self.reporting_frequency,
+            "period_noun": self.period_noun,
+            "period_column": self.period_column,
             "periods": list(self.periods),
             "latest_period": self.latest_period,
             "previous_period": self.previous_period,

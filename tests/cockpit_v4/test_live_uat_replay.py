@@ -90,28 +90,53 @@ def payload_of(store_db, runtime, record) -> Recorder:
 # The reader opened a new Corporate conversation and asked for the latest
 # month. Opus replied: "This book is recorded quarterly, not monthly",
 # offered 2026Q2, and answered from the legacy twenty-quarter release.
+#
+# Two separate defects sat inside that one reply, and only one of them was
+# about quarters. The Corporate book now DOES report quarters, so the part
+# that still has to hold is the part that always was the real failure: the
+# paid call must carry THIS book's release and THIS book's calendar, and
+# never the pre-domain twenty-quarter release the process happened to be
+# configured for. A book that answers from a release nobody asked for is
+# wrong whether or not its calendar happens to agree.
 
-def test_failure_1_a_new_corporate_thread_is_never_told_the_book_is_quarterly(
-        client, store_db, runtime):
+@pytest.mark.parametrize("domain_id", list(dom.DOMAIN_IDS))
+def test_failure_1_a_new_thread_is_never_told_another_books_calendar(
+        client, store_db, runtime, domain_id):
+    from backend.cockpit_v4 import domain_resolver as resolver
+
+    scope = resolver.scope_for(domain_id)
+    noun = scope.period_noun
+    other = "month" if noun == "quarter" else "quarter"
+
+    # Asked in the OTHER book's vocabulary on purpose. A reader saying
+    # "month" to a quarterly book is not an error to be lectured about; the
+    # run resolves to this book's own latest period and says so.
     response = client.post(f"{P}/runs", json={
-        "question": "What is total ECL by sector for the latest month?",
-        "mode": "standard", "domain": dom.CORPORATE})
+        "question": f"What is total ECL by segment for the latest {other}?",
+        "mode": "standard", "domain": domain_id})
     assert response.status_code == 202, response.text
     record = store_db.get_run(response.json()["run_id"])
 
     # The run was ACCEPTED against the book, not against whatever release the
     # process was configured for.
-    assert record.release_id == dom.DEFAULT_RELEASES[dom.CORPORATE]
-    assert record.domain_id == dom.CORPORATE
+    assert record.release_id == dom.DEFAULT_RELEASES[domain_id]
+    assert record.domain_id == domain_id
     assert record.release_id != LEGACY
 
     blob = payload_of(store_db, runtime, record).blob()
-    for forbidden in (LEGACY, r"2026Q[1-4]", r"\bquarterly\b",
-                      r"latest populated quarter", r"reporting_quarters?\b",
-                      r"twenty-quarter", r"cockpit_facility_quarter"):
-        assert not re.search(forbidden, blob), (
-            f"the paid call would have carried {forbidden!r}")
-    assert "2026-08" in blob and "monthly" in blob
+    forbidden = [LEGACY, r"twenty-quarter", r"cockpit_facility_quarter",
+                 rf"latest populated {other}", rf"reporting_{other}s?\b"]
+    if noun == "quarter":
+        forbidden += [r"\bmonthly\b", r"\b20\d\d-(0[1-9]|1[0-2])(?![-\d])"]
+    else:
+        forbidden += [r"\bquarterly\b", r"20\d\dQ[1-4]"]
+    for pattern in forbidden:
+        hit = re.search(pattern, blob)
+        assert not hit, (
+            f"the paid {domain_id} call would have carried {pattern!r} "
+            f"({hit.group(0)!r})")
+    assert scope.latest_period in blob
+    assert scope.reporting_frequency in blob
 
 
 def test_failure_1_a_request_naming_another_release_is_refused_not_obeyed(
@@ -198,8 +223,8 @@ def test_failure_2_the_seeded_thread_reads_retail_relations_and_no_others(
 
     blob = payload_of(store_db, runtime, record).blob()
     assert "retail_account_month" in blob
-    for corporate_only in ("corp_facility_month", "corp_borrower_month",
-                           "corp_covenant_month"):
+    for corporate_only in ("corp_facility_quarter", "corp_borrower_quarter",
+                           "corp_covenant_quarter"):
         assert corporate_only not in blob, corporate_only
 
 
@@ -274,7 +299,7 @@ def test_failure_3_a_data_analysis_turn_does_not_open_with_product_help(
 #
 # The reader typed "and within prject finance?" as a follow-up. The run spent
 # generation after generation asking the catalogue for `product_name`,
-# `product_category`, `facility_type`, `product`, `product_code`.
+# `product_category`, `product_type`, `product`, `product_code`.
 
 THE_TYPO = "and within prject finance?"
 
@@ -303,8 +328,8 @@ def test_failure_4_the_typo_is_resolved_before_the_first_generation(
 
     recognised = merged["value_resolution"]["recognised"]
     assert [r["value"] for r in recognised] == ["project_finance"]
-    assert recognised[0]["field"] == "facility_type"
-    assert recognised[0]["relation"] == "corp_facility_month"
+    assert recognised[0]["field"] == "product_type"
+    assert recognised[0]["relation"] == "corp_facility_quarter"
     assert recognised[0]["record_as"] == "resolved_assumption"
 
     # And the field names the live run invented are not in the book, so the

@@ -1,9 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "intent": {
-      "$ref": "#/$defs/Intent"
-    },
     "query": {
       "type": [
         "string",
@@ -56,10 +53,7 @@
     }
   },
   "required": [
-    "intent",
-    "query",
-    "topics",
-    "detail"
+    "topics"
   ],
   "additionalProperties": false
 }

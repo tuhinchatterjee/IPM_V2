@@ -46,7 +46,7 @@ def _published():
 
 SECTOR_SQL = (
     "SELECT sector, SUM(ead_sar_mn) AS ead_sar_mn "
-    "FROM corp_facility_month WHERE reporting_month = '{month}' "
+    "FROM corp_facility_quarter WHERE reporting_quarter = '{month}' "
     "GROUP BY sector ORDER BY ead_sar_mn DESC")
 
 
@@ -99,8 +99,8 @@ def finished(store_db, runtime):
             SECTOR_SQL.format(month=month), purpose="EAD by sector",
             grain="sector", units="SAR million",
             subquestions=["EAD by sector"],
-            fields=["corp_facility_month.ead_sar_mn",
-                    "corp_facility_month.sector"], month=month)]),
+            fields=["corp_facility_quarter.ead_sar_mn",
+                    "corp_facility_quarter.sector"], month=month)]),
         lambda m: _charted_answer(m, month=month)])
     outcome = Worker(store=store_db, runtime=runtime).execute(record)
     assert outcome.state == st.COMPLETED, outcome.message

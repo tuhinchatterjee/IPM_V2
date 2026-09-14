@@ -18,6 +18,7 @@ import * as React from "react";
 
 import { readEcl } from "./client";
 import type { DomainId, EclPanel as EclPanelBody } from "./client";
+import { comparisonPeriod, periodLabel, reportingPeriod } from "./period";
 
 export function EclPanel({ domain }: { domain: DomainId }) {
   const [body, setBody] = React.useState<EclPanelBody | null>(null);
@@ -81,7 +82,8 @@ export function EclPanel({ domain }: { domain: DomainId }) {
           {profile.domain_label}: expected credit loss
         </h2>
         <p className="text-xs text-slate-500">
-          {profile.reporting_month} against {profile.comparison_month} · per{" "}
+          {periodLabel(reportingPeriod(profile))} against{" "}
+          {periodLabel(comparisonPeriod(profile))} · per{" "}
           {profile.exposure_grain}
         </p>
       </div>

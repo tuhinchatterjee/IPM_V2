@@ -5,8 +5,8 @@
     "and within prject finance?"
 
 The run answered it by asking the catalogue for `product_name`, then
-`product_category`, then `facility_type`, then `product`, then
-`product_code`. It had `facility_type` in the first call. What it did not
+`product_category`, then `product_type`, then `product`, then
+`product_code`. It had `product_type` in the first call. What it did not
 have was any way to decide that the string the reader typed was the string
 the book spells `Project Finance`, so it kept looking for a field that would
 obviously contain it -- and invented field names when none did.
@@ -22,6 +22,9 @@ import pytest
 
 from backend.cockpit_v4 import analytical_runtime as arun
 from backend.cockpit_v4 import domains as dom
+from backend.cockpit_v4 import schema as schema_mod
+
+from . import domain_oracles as oracle
 from backend.cockpit_v4 import lake
 from backend.cockpit_v4 import values as val
 
@@ -73,7 +76,7 @@ def test_every_spelling_of_project_finance_is_the_same_category(
     reader's typing, not a different question."""
     resolved = one(corporate, phrase)
     assert resolved.value == "project_finance"
-    assert resolved.field_name == "facility_type"
+    assert resolved.field_name == "product_type"
     assert resolved.exact is True, (
         f"{phrase!r} is a spelling variant, not a typo: it must resolve "
         f"exactly, with no fuzzy matching involved")
@@ -266,7 +269,7 @@ def test_an_exact_resolution_is_recorded_as_a_canonical_mapping(corporate):
     resolved = one(corporate, "project finance")
     mapping = resolved.as_mapping()
     assert mapping == {"term": "project finance",
-                       "field": "corp_facility_month.facility_type",
+                       "field": "corp_facility_quarter.product_type",
                        "value": "project_finance"}
     assert "project finance" in resolved.as_assumption()
     assert "project_finance" in resolved.as_assumption()
@@ -292,20 +295,36 @@ def test_only_low_cardinality_dimensions_are_enumerated(books):
 
 def test_identifiers_periods_and_free_text_are_not_dimensions(books):
     banned = ("borrower_id", "facility_id", "customer_id", "account_id",
-              "reporting_month", "tenant_id", "dataset_release_id",
+              "tenant_id", "dataset_release_id",
               "borrower_name", "rating_previous", "score_band_previous")
     for domain_id, index in books.items():
         for name in banned:
             assert name not in index, f"{domain_id} indexed {name}"
 
+    # A CALENDAR is never a dimension, in either book and under either
+    # noun. Naming only `reporting_month` here was what let the Corporate
+    # book's `reporting_quarter`, `origination_quarter` and `waiver_quarter`
+    # into the bounded enumeration the moment it started reporting quarters:
+    # sixty dates offered to a reader as categories to pick from.
+    for domain_id, index in books.items():
+        for name in index:
+            assert not any(name.endswith(f"_{noun}")
+                           for noun in schema_mod.PERIOD_NOUNS.values()), (
+                f"{domain_id} indexed the calendar column {name}")
+
 
 def test_the_book_the_reader_is_in_is_the_book_that_is_indexed(books):
-    assert "facility_type" in books[dom.CORPORATE]
+    assert "product_type" in books[dom.CORPORATE]
     assert "covenant_type" in books[dom.CORPORATE]
-    assert "facility_type" not in books[dom.RETAIL]
+    assert "sector" in books[dom.CORPORATE]
+    assert "product_type" not in books[dom.RETAIL]
+    assert "covenant_type" not in books[dom.RETAIL]
+    assert "sector" not in books[dom.RETAIL]
     assert "product" in books[dom.RETAIL]
     assert "delinquency_bucket" in books[dom.RETAIL]
+    assert "score_band" in books[dom.RETAIL]
     assert "product" not in books[dom.CORPORATE]
+    assert "score_band" not in books[dom.CORPORATE]
 
 
 def test_the_packet_block_enumerates_what_it_says_it_enumerates(books):
@@ -363,15 +382,15 @@ def test_a_canonical_value_is_shown_in_the_readers_form(raw, expected):
     assert val.pretty(raw) == expected
 
 
-def test_title_case_facility_types_would_resolve_the_same_way():
+def test_title_case_product_types_would_resolve_the_same_way():
     """The Corporate release spells its facility types in snake_case. A book
     that spelled them for people would resolve the reader's words exactly the
     same way: the resolver reads the value, not its typography."""
     values = ("Project Finance", "Term Loan", "Working Capital",
               "Revolving Credit", "Trade Finance", "Overdraft",
               "Guarantee", "Asset Finance")
-    index = {"facility_type": val.Dimension(
-        relation="corp_facility_month", field_name="facility_type",
+    index = {"product_type": val.Dimension(
+        relation="corp_facility_quarter", field_name="product_type",
         values=values, lookup=val._lookup(values), own=val._own(values))}
     for phrase in ("project finance", "Project Finance", "project_finance",
                    "Project-Finance", "PROJECT FINANCE"):
@@ -453,8 +472,8 @@ def test_the_real_payload_carries_the_resolution_of_the_live_follow_up(
     recognised = body["value_resolution"]["recognised"]
     assert [r["value"] for r in recognised] == ["project_finance"]
     entry = recognised[0]
-    assert entry["field"] == "facility_type"
-    assert entry["relation"] == "corp_facility_month"
+    assert entry["field"] == "product_type"
+    assert entry["relation"] == "corp_facility_quarter"
     assert entry["exact"] is False
     assert entry["record_as"] == "resolved_assumption"
     assert body["value_resolution"]["needs_a_question"] == []
@@ -465,12 +484,20 @@ def test_the_real_payload_enumerates_this_books_governed_values(
     body = _payload(store_db, runtime, dom.CORPORATE,
                     "What is EAD by sector for the latest month?")
     fields = {d["field"]: d for d in body["governed_values"]["dimensions"]}
-    assert "facility_type" in fields
-    assert "project_finance" in fields["facility_type"]["values"]
-    # Every governed value of this field, spelled the book's one way.
-    assert set(fields["facility_type"]["values"]) == {
-        "term_loan", "revolving_credit", "working_capital", "trade_finance",
-        "project_finance", "overdraft", "guarantee", "asset_finance"}
+    assert "product_type" in fields
+    assert "project_finance" in fields["product_type"]["values"]
+    # Every governed value of this field, spelled the book's one way, and
+    # checked against the PARQUET rather than a list written down beside it:
+    # the enumeration's whole job is to be the release's own vocabulary, so
+    # a second hand-maintained copy of it here would only ever be able to go
+    # stale in the same direction.
+    published = set(oracle.frame(
+        dom.CORPORATE, "corp_facility_quarter")["product_type"].unique())
+    assert set(fields["product_type"]["values"]) == published
+    assert len(published) == 7, (
+        "§8 asks for seven facility types with real populations")
+    assert all(v == v.lower() and " " not in v for v in published), (
+        "a governed value is the identifier SQL filters on, not a label")
     assert "Information Technology" in fields["sector"]["values"]
     # The enumeration is the answer to "which field holds this word", so the
     # analyst has no reason to go looking for `product_name`.
@@ -483,7 +510,7 @@ def test_the_retail_payload_enumerates_retails_values_and_not_corporates(
                     "What is EAD by product for the latest month?")
     fields = {d["field"]: d for d in body["governed_values"]["dimensions"]}
     assert "Credit Card" in fields["product"]["values"]
-    assert "facility_type" not in fields
+    assert "product_type" not in fields
     blob = str(body["governed_values"])
     for corporate_only in ("project_finance", "trade_finance",
                            "working_capital", "DSCR"):
@@ -528,10 +555,10 @@ def test_the_resolution_is_merged_into_the_declared_intent():
     orchestrator = object.__new__(Orchestrator)
     object.__setattr__(orchestrator, "value_resolution", {
         "recognised": [
-            {"term": "prject finance", "field": "facility_type",
+            {"term": "prject finance", "field": "product_type",
              "value": "project_finance", "exact": False,
              "say": "Interpreted 'prject finance' as Project Finance "
-                    "(facility_type = 'project_finance')."},
+                    "(product_type = 'project_finance')."},
             {"term": "construction", "field": "sector",
              "value": "Construction", "exact": True,
              "say": "Read 'construction' as sector = 'Construction'."},

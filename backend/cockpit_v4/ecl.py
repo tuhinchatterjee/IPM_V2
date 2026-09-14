@@ -53,6 +53,7 @@ from decimal import Decimal
 
 from backend.cockpit_v4 import display as disp
 from backend.cockpit_v4 import domains as dom
+from backend.cockpit_v4 import schema as schema_mod
 
 
 def _money(value: float, unit: str) -> str:
@@ -142,10 +143,8 @@ class Decomposition:
             "domain_label": dom.LABELS[self.domain_id],
             "release_id": self.release_id,
             "release_fingerprint": self.release_fingerprint,
-            "reporting_period": self.reporting_month,
-            "comparison_period": self.comparison_month,
-            "reporting_month": self.reporting_month,
-            "comparison_month": self.comparison_month,
+            **schema_mod.period_keys(self.domain_id, self.reporting_month,
+                                     self.comparison_month),
             "money_unit": self.money_unit,
             "opening": self.opening,
             "closing": self.closing,
@@ -244,11 +243,7 @@ def stage_profile(*, session: Any, scope: Any, month: str = "",
         "domain_label": dom.LABELS[scope.domain_id],
         "release_id": scope.release_id,
         "release_fingerprint": scope.release_fingerprint,
-        "reporting_period": month,
-        "comparison_period": comparison,
-        "period_noun": grain["period_noun"],
-        "reporting_month": month,
-        "comparison_month": comparison,
+        **schema_mod.period_keys(scope.domain_id, month, comparison),
         "money_unit": unit,
         "exposure_grain": grain["noun"],
         "relation": grain["relation"],

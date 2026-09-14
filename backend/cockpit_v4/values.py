@@ -52,6 +52,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
+from backend.cockpit_v4 import schema as schema_mod
+
 #: A field with more distinct values than this is not a dimension a reader
 #: names by hand, and "did you mean" across it is noise. Borrower names,
 #: account ids and months are all above it on purpose.
@@ -241,10 +243,21 @@ def clear_cache() -> None:
 #: `_previous` is excluded on purpose: `rating_previous` holds exactly the
 #: values `rating_current` holds, so indexing it would make every rating an
 #: ambiguity with itself while adding no value the reader could name.
+#:
+#: The period suffixes come from the CALENDARS rather than a literal list.
+#: They were written out as `_month` when there was one calendar, and the
+#: moment the Corporate book started reporting quarters its
+#: `reporting_quarter`, `origination_quarter` and `waiver_quarter` columns
+#: all became "governed dimensions" a reader could supposedly name -- so
+#: `2021Q3` was offered as a category and the bounded enumeration carried
+#: sixty dates it had no business carrying. A calendar is not a dimension in
+#: any book, so the rule is derived from the set of calendars there are.
+_PERIOD_SUFFIXES = tuple(sorted(set(schema_mod.PERIOD_NOUNS.values())))
+
 _NOT_A_DIMENSION = re.compile(
-    r"(_id|_month|_date|_name|_previous)$|^(tenant_id|dataset_release_id|"
-    r"domain_id|reporting_currency|reporting_month|origination_month|"
-    r"waiver_month)$")
+    r"(_id|_date|_name|_previous|"
+    + "|".join(f"_{noun}" for noun in _PERIOD_SUFFIXES)
+    + r")$|^(tenant_id|dataset_release_id|domain_id|reporting_currency)$")
 
 
 def _is_categorical(column: Any) -> bool:

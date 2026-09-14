@@ -1,9 +1,6 @@
 {
   "type": "object",
   "properties": {
-    "intent": {
-      "$ref": "#/$defs/Intent"
-    },
     "query": {
       "type": [
         "string",
@@ -75,18 +72,12 @@
       "type": [
         "string",
         "null"
-      ]
+      ],
+      "description": "Optional. Omit it when you have nothing to say about it."
     }
   },
   "required": [
-    "intent",
-    "query",
-    "relation_ids",
-    "field_ids",
-    "detail",
-    "reporting_periods",
-    "sample_rows",
-    "cursor"
+    "relation_ids"
   ],
   "additionalProperties": false
 }

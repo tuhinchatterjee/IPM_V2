@@ -198,10 +198,10 @@ def test_c01_corporate_ead_by_sector(drive_domain, store_db):
         drive_domain, store_db, domain_id=dom.CORPORATE,
         question="What is exposure at default by sector this month?",
         sql=f"SELECT sector, SUM(ead_sar_mn) AS ead_sar_mn "
-            f"FROM corp_facility_month WHERE reporting_month = '{month}' "
+            f"FROM corp_facility_quarter WHERE reporting_quarter = '{month}' "
             f"GROUP BY sector ORDER BY ead_sar_mn DESC",
-        fields=["corp_facility_month.ead_sar_mn",
-                "corp_facility_month.sector"],
+        fields=["corp_facility_quarter.ead_sar_mn",
+                "corp_facility_quarter.sector"],
         purpose="EAD by sector", grain="sector", units="SAR million",
         month=month)
     produced = keyed(case.rows, "sector", "ead_sar_mn")
@@ -218,10 +218,10 @@ def test_c02_corporate_stage_two_share_by_sector(drive_domain, store_db):
         question="What share of exposure is in stage 2 or worse, by sector?",
         sql=f"SELECT sector, SUM(CASE WHEN stage >= 2 THEN ead_sar_mn "
             f"ELSE 0 END) / NULLIF(SUM(ead_sar_mn), 0) AS stage2_share "
-            f"FROM corp_facility_month WHERE reporting_month = '{month}' "
+            f"FROM corp_facility_quarter WHERE reporting_quarter = '{month}' "
             f"GROUP BY sector ORDER BY stage2_share DESC",
-        fields=["corp_facility_month.ead_sar_mn",
-                "corp_facility_month.stage", "corp_facility_month.sector"],
+        fields=["corp_facility_quarter.ead_sar_mn",
+                "corp_facility_quarter.stage", "corp_facility_quarter.sector"],
         purpose="Stage 2+ share of EAD by sector", grain="sector",
         units="percent", month=month)
     produced = keyed(case.rows, "sector", "stage2_share")
@@ -229,39 +229,39 @@ def test_c02_corporate_stage_two_share_by_sector(drive_domain, store_db):
         assert produced[sector] == pytest.approx(value, abs=TOLERANCE)
 
 
-def test_c03_corporate_ecl_by_facility_type(drive_domain, store_db):
+def test_c03_corporate_ecl_by_product_type(drive_domain, store_db):
     month = oracle.latest_month(dom.CORPORATE)
     case = run_case(
         drive_domain, store_db, domain_id=dom.CORPORATE,
         question="What is recognised ECL by facility type?",
-        sql=f"SELECT facility_type, SUM(ecl_sar_mn) AS ecl_sar_mn "
-            f"FROM corp_facility_month WHERE reporting_month = '{month}' "
-            f"GROUP BY facility_type ORDER BY ecl_sar_mn DESC",
-        fields=["corp_facility_month.ecl_sar_mn",
-                "corp_facility_month.facility_type"],
+        sql=f"SELECT product_type, SUM(ecl_sar_mn) AS ecl_sar_mn "
+            f"FROM corp_facility_quarter WHERE reporting_quarter = '{month}' "
+            f"GROUP BY product_type ORDER BY ecl_sar_mn DESC",
+        fields=["corp_facility_quarter.ecl_sar_mn",
+                "corp_facility_quarter.product_type"],
         purpose="ECL by facility type", grain="facility type",
         units="SAR million", month=month)
-    produced = keyed(case.rows, "facility_type",
+    produced = keyed(case.rows, "product_type",
                      "ecl_sar_mn")
-    for key, value in oracle.corp_ecl_by_facility_type(month).items():
+    for key, value in oracle.corp_ecl_by_product_type(month).items():
         assert produced[key] == pytest.approx(value, abs=TOLERANCE)
 
 
-def test_c04_corporate_month_on_month_exposure_movement(drive_domain,
-                                                        store_db):
-    latest = oracle.latest_month(dom.CORPORATE)
-    previous = oracle.previous_month(dom.CORPORATE)
+def test_c04_corporate_quarter_on_quarter_exposure_movement(drive_domain,
+                                                            store_db):
+    latest = oracle.latest_period(dom.CORPORATE)
+    previous = oracle.previous_period(dom.CORPORATE)
     case = run_case(
         drive_domain, store_db, domain_id=dom.CORPORATE,
-        question="How did total exposure move over the latest month?",
-        sql=f"SELECT SUM(CASE WHEN reporting_month = '{latest}' "
+        question="How did total exposure move over the latest quarter?",
+        sql=f"SELECT SUM(CASE WHEN reporting_quarter = '{latest}' "
             f"THEN ead_sar_mn ELSE 0 END) "
-            f"- SUM(CASE WHEN reporting_month = '{previous}' "
+            f"- SUM(CASE WHEN reporting_quarter = '{previous}' "
             f"THEN ead_sar_mn ELSE 0 END) AS ead_movement_sar_mn "
-            f"FROM corp_facility_month "
-            f"WHERE reporting_month IN ('{latest}', '{previous}')",
-        fields=["corp_facility_month.ead_sar_mn"],
-        purpose="EAD movement over the latest month", grain="portfolio",
+            f"FROM corp_facility_quarter "
+            f"WHERE reporting_quarter IN ('{latest}', '{previous}')",
+        fields=["corp_facility_quarter.ead_sar_mn"],
+        purpose="EAD movement over the latest quarter", grain="portfolio",
         units="SAR million", month=latest)
     payload = case.rows
     produced = float(payload["rows"][0]["ead_movement_sar_mn"])
@@ -278,19 +278,19 @@ def test_c05_corporate_exposure_by_borrower_does_not_multiply(drive_domain,
         question="Which borrowers hold the most exposure?",
         sql=f"WITH by_borrower AS ("
             f"  SELECT borrower_id, SUM(ead_sar_mn) AS ead_sar_mn"
-            f"  FROM corp_facility_month WHERE reporting_month = '{month}'"
+            f"  FROM corp_facility_quarter WHERE reporting_quarter = '{month}'"
             f"  GROUP BY borrower_id) "
             f"SELECT b.borrower_name, t.ead_sar_mn FROM by_borrower t "
-            f"JOIN corp_borrower_month b ON b.borrower_id = t.borrower_id "
-            f"AND b.reporting_month = '{month}' "
+            f"JOIN corp_borrower_quarter b ON b.borrower_id = t.borrower_id "
+            f"AND b.reporting_quarter = '{month}' "
             # "The MOST exposure" is a top-N question, and this book holds
             # three thousand borrowers. Asking for all of them and reading
             # the first hundred rows of the preview would compare a truncated
             # answer against a complete oracle and call the difference a
             # defect. The query says what it wants.
             f"ORDER BY t.ead_sar_mn DESC, b.borrower_name LIMIT {TOP_N}",
-        fields=["corp_facility_month.ead_sar_mn",
-                "corp_borrower_month.borrower_name"],
+        fields=["corp_facility_quarter.ead_sar_mn",
+                "corp_borrower_quarter.borrower_name"],
         purpose="EAD by borrower", grain="borrower", units="SAR million",
         month=month)
     produced = keyed(case.rows, "borrower_name",
@@ -420,7 +420,7 @@ def test_r06_retail_exposure_by_origination_vintage(drive_domain, store_db):
 
 CROSS = {
     dom.CORPORATE: ("retail_account_month", "retail"),
-    dom.RETAIL: ("corp_facility_month", "corporate"),
+    dom.RETAIL: ("corp_facility_quarter", "corporate"),
 }
 
 
@@ -438,7 +438,7 @@ def test_a_run_naming_the_other_books_relation_is_refused_by_name(
         domain_id, "What is exposure in the other book?", [
             ScriptedResult(tool_calls=[execute_call(
                 f"SELECT SUM(ead_sar_mn) AS ead_sar_mn FROM {relation} "
-                f"WHERE reporting_month = '{month}'",
+                f"WHERE {oracle.period_column(owner)} = '{month}'",
                 purpose="Exposure", grain="portfolio", units="SAR million",
                 subquestions=["Exposure"], fields=[f"{relation}.ead_sar_mn"],
                 month=month)]),
@@ -527,7 +527,7 @@ def test_no_ordering_lets_one_book_be_served_from_the_others_cache(
     for domain_id in ordering:
         month = oracle.latest_month(domain_id)
         if domain_id == dom.CORPORATE:
-            relation, dimension = "corp_facility_month", "sector"
+            relation, dimension = "corp_facility_quarter", "sector"
             expected = oracle.corp_ead_by_sector(month)
         else:
             relation, dimension = "retail_account_month", "product"
@@ -536,7 +536,8 @@ def test_no_ordering_lets_one_book_be_served_from_the_others_cache(
             drive_domain, store_db, domain_id=domain_id,
             question=f"EAD by {dimension}?",
             sql=f"SELECT {dimension}, SUM(ead_sar_mn) AS ead_sar_mn "
-                f"FROM {relation} WHERE reporting_month = '{month}' "
+                f"FROM {relation} "
+                f"WHERE {oracle.period_column(domain_id)} = '{month}' "
                 f"GROUP BY {dimension}",
             fields=[f"{relation}.ead_sar_mn", f"{relation}.{dimension}"],
             purpose=f"EAD by {dimension}", grain=dimension,
@@ -677,12 +678,12 @@ def test_c06_corporate_ecl_coverage_by_sector(drive_domain, store_db):
         drive_domain, store_db, domain_id=dom.CORPORATE,
         question="What is ECL coverage by sector?",
         sql=f"SELECT sector, SUM(ecl_sar_mn) / NULLIF(SUM(ead_sar_mn), 0) "
-            f"AS ecl_coverage FROM corp_facility_month "
-            f"WHERE reporting_month = '{month}' GROUP BY sector "
+            f"AS ecl_coverage FROM corp_facility_quarter "
+            f"WHERE reporting_quarter = '{month}' GROUP BY sector "
             f"ORDER BY ecl_coverage DESC",
-        fields=["corp_facility_month.ecl_sar_mn",
-                "corp_facility_month.ead_sar_mn",
-                "corp_facility_month.sector"],
+        fields=["corp_facility_quarter.ecl_sar_mn",
+                "corp_facility_quarter.ead_sar_mn",
+                "corp_facility_quarter.sector"],
         purpose="ECL coverage by sector", grain="sector", units="percent",
         month=month)
     produced = keyed(case.rows, "sector", "ecl_coverage")
@@ -696,12 +697,12 @@ def test_c07_corporate_downgrades_this_month(drive_domain, store_db):
         drive_domain, store_db, domain_id=dom.CORPORATE,
         question="Which borrowers were downgraded this month?",
         sql=f"SELECT borrower_name, -rating_notches_moved AS notches_down, "
-            f"rating_previous, rating_current FROM corp_borrower_month "
-            f"WHERE reporting_month = '{month}' AND rating_notches_moved < 0 "
+            f"rating_previous, rating_current FROM corp_borrower_quarter "
+            f"WHERE reporting_quarter = '{month}' AND rating_notches_moved < 0 "
             f"ORDER BY notches_down DESC, borrower_name LIMIT {TOP_N}",
-        fields=["corp_borrower_month.borrower_name",
-                "corp_borrower_month.rating_notches_moved",
-                "corp_borrower_month.rating_current"],
+        fields=["corp_borrower_quarter.borrower_name",
+                "corp_borrower_quarter.rating_notches_moved",
+                "corp_borrower_quarter.rating_current"],
         purpose="Borrowers downgraded this month", grain="borrower",
         units="notches", month=month)
     produced = {str(r["borrower_name"]): int(r["notches_down"])
@@ -723,16 +724,16 @@ def test_c08_corporate_covenant_breaches_and_the_exposure_behind_them(
         question="Which covenants are in breach, and how much exposure sits "
                  "behind them?",
         sql=f"WITH breached AS ("
-            f"  SELECT DISTINCT facility_id FROM corp_covenant_month"
-            f"  WHERE reporting_month = '{month}' AND breach_flag = 1) "
+            f"  SELECT DISTINCT facility_id FROM corp_covenant_quarter"
+            f"  WHERE reporting_quarter = '{month}' AND breach_flag = 1) "
             f"SELECT COUNT(*) AS facilities, "
             f"SUM(f.ead_sar_mn) AS ead_sar_mn "
-            f"FROM corp_facility_month f JOIN breached b "
+            f"FROM corp_facility_quarter f JOIN breached b "
             f"ON b.facility_id = f.facility_id "
-            f"WHERE f.reporting_month = '{month}'",
-        fields=["corp_covenant_month.breach_flag",
-                "corp_covenant_month.facility_id",
-                "corp_facility_month.ead_sar_mn"],
+            f"WHERE f.reporting_quarter = '{month}'",
+        fields=["corp_covenant_quarter.breach_flag",
+                "corp_covenant_quarter.facility_id",
+                "corp_facility_quarter.ead_sar_mn"],
         purpose="Exposure behind breached covenants", grain="portfolio",
         units="SAR million", month=month)
     row = case.rows["rows"][0]
@@ -755,23 +756,23 @@ def test_c09_corporate_collateral_cover_by_type(drive_domain, store_db):
         sql=f"WITH pledged AS ("
             f"  SELECT collateral_type,"
             f"         SUM(allocated_value_sar_mn) AS allocated"
-            f"  FROM corp_collateral_month"
-            f"  WHERE reporting_month = '{month}' GROUP BY collateral_type), "
+            f"  FROM corp_collateral_quarter"
+            f"  WHERE reporting_quarter = '{month}' GROUP BY collateral_type), "
             f"secured AS ("
             f"  SELECT d.collateral_type, SUM(f.ead_sar_mn) AS ead"
             f"  FROM (SELECT DISTINCT collateral_type, facility_id"
-            f"        FROM corp_collateral_month"
-            f"        WHERE reporting_month = '{month}') d"
-            f"  JOIN corp_facility_month f ON f.facility_id = d.facility_id"
-            f"  AND f.reporting_month = '{month}'"
+            f"        FROM corp_collateral_quarter"
+            f"        WHERE reporting_quarter = '{month}') d"
+            f"  JOIN corp_facility_quarter f ON f.facility_id = d.facility_id"
+            f"  AND f.reporting_quarter = '{month}'"
             f"  GROUP BY d.collateral_type) "
             f"SELECT p.collateral_type, "
             f"p.allocated / NULLIF(s.ead, 0) AS cover "
             f"FROM pledged p JOIN secured s "
             f"ON s.collateral_type = p.collateral_type ORDER BY cover",
-        fields=["corp_collateral_month.allocated_value_sar_mn",
-                "corp_collateral_month.collateral_type",
-                "corp_facility_month.ead_sar_mn"],
+        fields=["corp_collateral_quarter.allocated_value_sar_mn",
+                "corp_collateral_quarter.collateral_type",
+                "corp_facility_quarter.ead_sar_mn"],
         purpose="Collateral cover by type", grain="collateral type",
         units="percent", month=month)
     produced = keyed(case.rows, "collateral_type", "cover")
@@ -787,16 +788,16 @@ def test_c10_corporate_stage_migration_between_two_months(drive_domain,
         drive_domain, store_db, domain_id=dom.CORPORATE,
         question="How much exposure moved to a worse stage this month?",
         sql=f"WITH now AS (SELECT facility_id, stage, ead_sar_mn "
-            f"FROM corp_facility_month WHERE reporting_month = '{latest}'), "
-            f"before AS (SELECT facility_id, stage FROM corp_facility_month "
-            f"WHERE reporting_month = '{previous}') "
+            f"FROM corp_facility_quarter WHERE reporting_quarter = '{latest}'), "
+            f"before AS (SELECT facility_id, stage FROM corp_facility_quarter "
+            f"WHERE reporting_quarter = '{previous}') "
             f"SELECT SUM(CASE WHEN n.stage > b.stage THEN n.ead_sar_mn "
             f"ELSE 0 END) AS deteriorated, "
             f"SUM(CASE WHEN n.stage < b.stage THEN n.ead_sar_mn "
             f"ELSE 0 END) AS improved "
             f"FROM now n JOIN before b ON b.facility_id = n.facility_id",
-        fields=["corp_facility_month.stage",
-                "corp_facility_month.ead_sar_mn"],
+        fields=["corp_facility_quarter.stage",
+                "corp_facility_quarter.ead_sar_mn"],
         purpose="Stage migration over the latest month", grain="portfolio",
         units="SAR million", month=latest)
     row = case.rows["rows"][0]
@@ -813,14 +814,14 @@ def test_c11_corporate_group_concentration(drive_domain, store_db):
         drive_domain, store_db, domain_id=dom.CORPORATE,
         question="Which parent groups hold the most exposure?",
         sql=f"SELECT b.group_name, SUM(f.ead_sar_mn) AS ead_sar_mn "
-            f"FROM corp_facility_month f "
-            f"JOIN corp_borrower_month b ON b.borrower_id = f.borrower_id "
-            f"AND b.reporting_month = f.reporting_month "
-            f"WHERE f.reporting_month = '{month}' "
+            f"FROM corp_facility_quarter f "
+            f"JOIN corp_borrower_quarter b ON b.borrower_id = f.borrower_id "
+            f"AND b.reporting_quarter = f.reporting_quarter "
+            f"WHERE f.reporting_quarter = '{month}' "
             f"GROUP BY b.group_name "
             f"ORDER BY ead_sar_mn DESC, b.group_name LIMIT {TOP_N}",
-        fields=["corp_facility_month.ead_sar_mn",
-                "corp_borrower_month.group_name"],
+        fields=["corp_facility_quarter.ead_sar_mn",
+                "corp_borrower_quarter.group_name"],
         purpose="Group exposure concentration", grain="group",
         units="SAR million", month=month)
     produced = keyed(case.rows, "group_name", "ead_sar_mn")
@@ -830,21 +831,21 @@ def test_c11_corporate_group_concentration(drive_domain, store_db):
         assert produced[name] == pytest.approx(value, abs=1e-4)
 
 
-def test_c12_corporate_utilisation_by_facility_type(drive_domain, store_db):
+def test_c12_corporate_utilisation_by_product_type(drive_domain, store_db):
     month = oracle.latest_month(dom.CORPORATE)
     case = run_case(
         drive_domain, store_db, domain_id=dom.CORPORATE,
         question="How drawn is each facility type?",
-        sql=f"SELECT facility_type, "
+        sql=f"SELECT product_type, "
             f"SUM(drawn_sar_mn) / NULLIF(SUM(limit_sar_mn), 0) AS utilisation "
-            f"FROM corp_facility_month WHERE reporting_month = '{month}' "
-            f"GROUP BY facility_type ORDER BY utilisation DESC",
-        fields=["corp_facility_month.drawn_sar_mn",
-                "corp_facility_month.limit_sar_mn",
-                "corp_facility_month.facility_type"],
+            f"FROM corp_facility_quarter WHERE reporting_quarter = '{month}' "
+            f"GROUP BY product_type ORDER BY utilisation DESC",
+        fields=["corp_facility_quarter.drawn_sar_mn",
+                "corp_facility_quarter.limit_sar_mn",
+                "corp_facility_quarter.product_type"],
         purpose="Utilisation by facility type", grain="facility type",
         units="percent", month=month)
-    produced = keyed(case.rows, "facility_type", "utilisation")
+    produced = keyed(case.rows, "product_type", "utilisation")
     for kind, value in oracle.corp_utilisation_by_type(month).items():
         assert produced[kind] == pytest.approx(value, abs=TOLERANCE)
 
@@ -1003,15 +1004,15 @@ def test_the_grain_diagnostic_refuses_an_undeclared_repetition(drive_domain,
                 f"SELECT c.collateral_type, "
                 f"SUM(c.allocated_value_sar_mn) / "
                 f"NULLIF(SUM(f.ead_sar_mn), 0) AS cover "
-                f"FROM corp_collateral_month c "
-                f"JOIN corp_facility_month f ON f.facility_id = c.facility_id "
-                f"AND f.reporting_month = c.reporting_month "
-                f"WHERE c.reporting_month = '{month}' "
+                f"FROM corp_collateral_quarter c "
+                f"JOIN corp_facility_quarter f ON f.facility_id = c.facility_id "
+                f"AND f.reporting_quarter = c.reporting_quarter "
+                f"WHERE c.reporting_quarter = '{month}' "
                 f"GROUP BY c.collateral_type",
                 purpose="Collateral cover", grain="collateral type",
                 units="percent", subquestions=["Collateral cover"],
-                fields=["corp_collateral_month.allocated_value_sar_mn",
-                        "corp_facility_month.ead_sar_mn"],
+                fields=["corp_collateral_quarter.allocated_value_sar_mn",
+                        "corp_facility_quarter.ead_sar_mn"],
                 month=month)]),
             ScriptedResult(tool_calls=[tool_call(
                 "finalize_response",
@@ -1026,7 +1027,7 @@ def test_the_grain_diagnostic_refuses_an_undeclared_repetition(drive_domain,
     # to the provider. The refusal is a fact about this book's join, so it
     # has to name this book's relations and say why.
     told = provider.last_input_text()
-    assert "corp_collateral_month" in told and "corp_facility_month" in told
+    assert "corp_collateral_quarter" in told and "corp_facility_quarter" in told
     assert "count the same amount more than once" in told
     assert "Security is held against a facility" in told
     assert "retail_" not in told, (
