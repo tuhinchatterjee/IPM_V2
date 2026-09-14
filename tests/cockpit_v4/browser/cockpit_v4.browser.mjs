@@ -739,6 +739,26 @@ if (process.env.V4_THREAD_SHOTS) {
     }
   }
 
+  // F2. §12: the SIDEBAR route. The Mac reader opened Data Builder and
+  // found the onboarding estate with nothing about the two published
+  // books. The screenshot is of the page they actually land on.
+  {
+    const { context, page } = await openPage(browser, "/data-builder");
+    try {
+      await page.waitForSelector(
+        '[data-testid="data-builder-analytical-books"]', { timeout: 60_000 });
+      await page.waitForSelector(
+        '[data-testid="v4-book-corporate"][data-state="ready"]',
+        { timeout: 60_000 });
+      await page.waitForSelector(
+        '[data-testid="v4-book-retail"][data-state="ready"]',
+        { timeout: 60_000 });
+      await shot(page, "data_builder_sidebar");
+    } finally {
+      await context.close();
+    }
+  }
+
   // G. the export panel, on a finished analytical answer.
   {
     const { context, page } = await openCockpit(browser);

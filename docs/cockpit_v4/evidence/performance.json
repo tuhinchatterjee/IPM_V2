@@ -7,37 +7,37 @@
     "analysis_end_to_end": {
       "samples": 5,
       "min_ms": 103.8,
-      "median_ms": 109.2,
-      "p90_ms": 128.2,
-      "max_ms": 128.2
+      "median_ms": 107.8,
+      "p90_ms": 111.2,
+      "max_ms": 111.2
     },
     "attention_feed": {
       "samples": 5,
-      "min_ms": 33.0,
-      "median_ms": 34.9,
-      "p90_ms": 45.6,
-      "max_ms": 45.6
+      "min_ms": 40.2,
+      "median_ms": 44.9,
+      "p90_ms": 47.1,
+      "max_ms": 47.1
     },
     "bind_proof": {
       "samples": 20,
-      "min_ms": 5.3,
-      "median_ms": 5.6,
-      "p90_ms": 6.6,
-      "max_ms": 6.7
+      "min_ms": 5.5,
+      "median_ms": 5.8,
+      "p90_ms": 7.1,
+      "max_ms": 7.1
     },
     "heaviest_analysis_end_to_end": {
       "samples": 5,
-      "min_ms": 131.4,
-      "median_ms": 135.6,
-      "p90_ms": 148.8,
-      "max_ms": 148.8
+      "min_ms": 131.8,
+      "median_ms": 139.2,
+      "p90_ms": 145.3,
+      "max_ms": 145.3
     },
     "product_help_end_to_end": {
       "samples": 5,
-      "min_ms": 66.4,
-      "median_ms": 76.0,
-      "p90_ms": 104.2,
-      "max_ms": 104.2
+      "min_ms": 72.6,
+      "median_ms": 75.6,
+      "p90_ms": 82.0,
+      "max_ms": 82.0
     }
   }
 }
