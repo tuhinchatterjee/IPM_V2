@@ -77,6 +77,16 @@ STATUS_OK = "ok"
 STATUS_FAILED = "failed"
 STATUS_REJECTED = "rejected"
 
+#: What a STAGE INSTANCE is, as opposed to what one event says. A stage is
+#: running from the event that opened it until the event that closes it, and
+#: the server says which -- a panel that inferred "running" from the absence
+#: of a later event would show a stage running forever whenever one event
+#: was dropped.
+STAGE_RUNNING = "running"
+STAGE_DONE = "done"
+STAGE_FAILED = "failed"
+STAGE_STATES: tuple[str, ...] = (STAGE_RUNNING, STAGE_DONE, STAGE_FAILED)
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
@@ -109,6 +119,32 @@ class Event:
     trace_id: str = ""
     span_id: str = ""
     parent_span_id: str = ""
+    #: §33-§36. Which RUN of this stage the event belongs to.
+    #:
+    #: A stage is not a row on a list: a run can re-enter `preparing` after a
+    #: failed submission, and two passes through it are two things that
+    #: happened. The instance id distinguishes them, so the panel shows two
+    #: rows in the order they ran rather than one row whose state flickers.
+    stage_instance_id: str = ""
+    #: When this instance began, and what state it is in as of this event.
+    #: Both come from the server: a panel that inferred "running" from the
+    #: absence of a later event would show a stage running forever whenever
+    #: one event was dropped.
+    stage_started_ms: int = 0
+    stage_state: str = ""
+    #: The stage instances this event CLOSED, in the order they closed.
+    #:
+    #: §35: the previous foreground step must close when the next exclusive
+    #: one begins, and saying so explicitly is what stops a reconnect
+    #: leaving a stage open. Usually zero or one -- the instance this event
+    #: displaced. A terminal event closes two: whatever it displaced, and
+    #: then its own, because a run that ended left nothing running and the
+    #: last event is the only place that can say so.
+    closed_stages: list[dict[str, Any]] = field(default_factory=list)
+    #: How many events in this instance reported a failure. A stage that
+    #: succeeded on a retry is neither a clean tick nor a failure, and the
+    #: count is what lets the panel say which.
+    stage_failures: int = 0
     event_id: str = field(default_factory=lambda: f"ev-{uuid.uuid4().hex}")
     schema_version: str = EVENT_SCHEMA_VERSION
 
@@ -123,7 +159,12 @@ class Event:
             "round": self.round, "public_message": self.public_message,
             "detail_ref": self.detail_ref, "error_id": self.error_id,
             "trace_id": self.trace_id, "span_id": self.span_id,
-            "parent_span_id": self.parent_span_id}
+            "parent_span_id": self.parent_span_id,
+            "stage_instance_id": self.stage_instance_id,
+            "stage_started_ms": self.stage_started_ms,
+            "stage_state": self.stage_state,
+            "stage_failures": self.stage_failures,
+            "closed_stages": [dict(c) for c in self.closed_stages]}
 
     def to_sse(self) -> str:
         """One `text/event-stream` frame, with the id a reconnect resumes from."""
@@ -153,9 +194,22 @@ class Emitter:
         self._t0 = started_monotonic
         self.trace_id = trace_id or f"tr-{uuid.uuid4().hex}"
         self._span: str = ""
+        # The stage state machine. One foreground stage at a time, each pass
+        # through it a distinct instance. §33-§36.
+        self._stage: str = ""
+        self._instance: str = ""
+        self._instance_started_ms: int = 0
+        self._instance_state: str = ""
+        self._instance_failures: int = 0
+        self._passes: dict[str, int] = {}
 
     def span(self, span_id: str) -> None:
         self._span = span_id
+
+    @property
+    def stage_instance_id(self) -> str:
+        """The foreground stage instance, or "" before anything started."""
+        return self._instance
 
     def append(self, event_type: str, *, stage: str, operation: str,
                status: str, public_message: str, attempt: int = 0,
@@ -163,15 +217,83 @@ class Emitter:
                error_id: str = "", parent_span_id: str = "") -> Event:
         if event_type not in EVENT_TYPES:
             raise ValueError(f"unknown event type {event_type!r}")
+        elapsed = int((time.monotonic() - self._t0) * 1000)
+        closed = self._enter(stage, elapsed)
+        # The instance's state is the state of its LAST event. A success
+        # after a failure is a success -- the failure survives in the count
+        # and in the substep list, which is what an audit trace is for.
+        self._instance_state = self._state_word(status)
+        if self._instance_state == STAGE_FAILED:
+            self._instance_failures += 1
         event = Event(
             run_id=self.run_id, seq=0, event_type=event_type, stage=stage,
             operation=operation, status=status, public_message=public_message,
-            elapsed_ms=int((time.monotonic() - self._t0) * 1000),
+            elapsed_ms=elapsed,
             attempt=attempt, submission=submission, round=round,
             detail_ref=detail_ref, error_id=error_id, trace_id=self.trace_id,
             span_id=self._span or f"sp-{uuid.uuid4().hex[:16]}",
-            parent_span_id=parent_span_id)
+            parent_span_id=parent_span_id,
+            stage_instance_id=self._instance,
+            stage_started_ms=self._instance_started_ms,
+            stage_state=self._instance_state,
+            stage_failures=self._instance_failures,
+            closed_stages=closed)
+        if event_type in TERMINAL_EVENTS:
+            # A run that ended left no stage running, and the last event is
+            # the only place that can say so: a browser that reconnects
+            # after it must not be left with a stage spinning forever.
+            own = self._close(elapsed)
+            if own:
+                event.closed_stages = list(event.closed_stages) + [own]
         return self.store.append_event(event)
+
+    def _enter(self, stage: str, elapsed: int) -> list[dict[str, Any]]:
+        """Open `stage` as the foreground instance, closing any other.
+
+        Returns the closing records this event carries. An event that stays
+        in the stage already open closes nothing and returns `[]`.
+        """
+        if stage == self._stage:
+            return []
+        closed = self._close(elapsed)
+        self._stage = stage
+        self._passes[stage] = self._passes.get(stage, 0) + 1
+        self._instance = f"{stage}#{self._passes[stage]}"
+        self._instance_started_ms = elapsed
+        self._instance_state = STAGE_RUNNING
+        self._instance_failures = 0
+        return [closed] if closed else []
+
+    def _close(self, elapsed: int) -> dict[str, Any]:
+        if not self._instance:
+            return {}
+        closed = {
+            "stage": self._stage,
+            "stage_instance_id": self._instance,
+            "started_ms": self._instance_started_ms,
+            "ended_ms": elapsed,
+            "failures": self._instance_failures,
+            # A stage whose last event failed closed failed. One that failed
+            # and then succeeded closed DONE, with its failures counted.
+            "state": (STAGE_FAILED if self._instance_state == STAGE_FAILED
+                      else STAGE_DONE),
+        }
+        self._instance = ""
+        self._stage = ""
+        self._instance_state = ""
+        self._instance_failures = 0
+        return closed
+
+    @staticmethod
+    def _state_word(status: str) -> str:
+        """What this event says about its stage.
+
+        Only a FAILURE changes the state: every other status means the stage
+        is still the foreground one, and a stage is done when something else
+        starts or the run ends -- not because one of its steps reported ok.
+        """
+        return (STAGE_FAILED if status in (STATUS_FAILED, STATUS_REJECTED)
+                else STAGE_RUNNING)
 
 
 #: The business-language stage labels the process panel shows. A stage that
@@ -205,7 +327,8 @@ __all__ = ["ANALYSIS_PRESERVED", "ANSWER_READY", "ANSWER_VALIDATED",
            "MODEL_PARSED", "MODEL_REQUESTED", "MODEL_RESPONSE_RECEIVED",
            "RETRY_REQUESTED", "RUN_ACCEPTED", "RUN_CANCELLED", "RUN_EXPIRED",
            "RUN_FAILED", "RUN_INTERRUPTED", "RUN_STARTED", "STAGE_LABELS",
-           "STAGE_ORDER", "STATUS_FAILED", "STATUS_OK", "STATUS_REJECTED",
+           "STAGE_DONE", "STAGE_FAILED", "STAGE_ORDER", "STAGE_RUNNING",
+           "STAGE_STATES", "STATUS_FAILED", "STATUS_OK", "STATUS_REJECTED",
            "STATUS_STARTED", "TERMINAL_EVENTS", "TOOL_COMPLETED",
            "TOOL_FAILED", "TOOL_REQUESTED", "TOOL_STARTED", "TOOL_VALIDATED",
            "heartbeat_frame", "now_iso"]

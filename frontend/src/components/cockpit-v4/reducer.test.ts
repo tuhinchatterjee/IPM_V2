@@ -33,13 +33,31 @@ function event(over: Partial<RunEvent> = {}): RunEvent {
     trace_id: "tr-1",
     span_id: "sp-1",
     parent_span_id: "",
+    stage_instance_id: `${over.stage ?? "understanding"}#1`,
+    stage_started_ms: over.elapsed_ms ?? 100,
+    stage_state: "running",
+    stage_failures: 0,
+    closed_stages: [],
     ...over,
   };
 }
 
-test("future steps are prospective, never complete", () => {
+test("a run that has done nothing shows no steps at all", () => {
+  // §33, §34. The panel used to lay out "Request accepted" and
+  // "Understanding the request" as empty circles, so a reader watching a
+  // live run at 0s was shown two rows reading "not started" -- a guess
+  // about the future, dressed as progress, as the first thing on screen.
   const view = initial("run-a");
-  assert.ok(view.steps.every((s) => s.state === "prospective"));
+  assert.deepEqual(view.steps, []);
+});
+
+test("a step appears when it starts, and only then", () => {
+  let view = initial("run-a");
+  assert.equal(view.steps.length, 0);
+  view = reduce(view, { type: "event", event: event() });
+  assert.equal(view.steps.length, 1);
+  assert.equal(view.steps[0].stage, "understanding");
+  assert.equal(view.steps[0].state, "running");
   assert.ok(!view.steps.some((s) => s.stage === "executing"),
     "a stage that may never run is not drawn before it happens");
 });
@@ -153,4 +171,150 @@ test("V4-AT-069: substeps keep their operation and detail reference", () => {
   assert.equal(sub?.operation, "generate");
   assert.equal(sub?.detailRef, "dt-abc123");
   assert.equal(sub?.errorId, "err-abc123456789");
+});
+
+
+// ---- §33-§37: the stage state machine comes from the server -------------
+
+function closed(instance: string, over: Record<string, unknown> = {}) {
+  return {
+    stage: instance.split("#")[0],
+    stage_instance_id: instance,
+    started_ms: 0,
+    ended_ms: 100,
+    failures: 0,
+    state: "done" as const,
+    ...over,
+  };
+}
+
+test("a step closes when the server says it closed, not by array order", () => {
+  // The old rule was "any EARLIER stage still marked running has been left
+  // behind", which holds only while stages run in array order. A run that
+  // re-enters `preparing` after a failed submission breaks it in both
+  // directions: the second pass reopens the first pass's row, and a stage
+  // that ran out of order stays spinning.
+  let view = initial("run-a");
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 1, stage: "preparing",
+                   stage_instance_id: "preparing#1" }),
+  });
+  assert.equal(view.steps[0].state, "running");
+
+  view = reduce(view, {
+    type: "event",
+    event: event({
+      seq: 2, stage: "understanding", stage_instance_id: "understanding#1",
+      closed_stages: [closed("preparing#1")],
+    }),
+  });
+  const first = view.steps.find((s) => s.instanceId === "preparing#1");
+  assert.equal(first?.state, "done");
+  assert.equal(first?.elapsedMs, 100);
+});
+
+test("two passes through one stage are two rows, in the order they ran", () => {
+  let view = initial("run-a");
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 1, stage: "preparing",
+                   stage_instance_id: "preparing#1" }),
+  });
+  view = reduce(view, {
+    type: "event",
+    event: event({
+      seq: 2, stage: "preparing", stage_instance_id: "preparing#1",
+      status: "rejected", event_type: "tool.failed", stage_state: "failed",
+      stage_failures: 1,
+    }),
+  });
+  view = reduce(view, {
+    type: "event",
+    event: event({
+      seq: 3, stage: "preparing", stage_instance_id: "preparing#2",
+      closed_stages: [closed("preparing#1", { state: "failed", failures: 1 })],
+    }),
+  });
+
+  assert.deepEqual(view.steps.map((s) => s.instanceId),
+    ["preparing#1", "preparing#2"]);
+  assert.equal(view.steps[0].state, "failed");
+  assert.equal(view.steps[0].failures, 1);
+  assert.equal(view.steps[1].state, "running");
+});
+
+test("a terminal event leaves no step running", () => {
+  // The last frame is the only place that can say so, and a browser that
+  // reconnects after it must not be shown a stage spinning forever.
+  let view = initial("run-a");
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 1, stage: "accepted",
+                   stage_instance_id: "accepted#1" }),
+  });
+  view = reduce(view, {
+    type: "event",
+    event: event({
+      seq: 2, stage: "publishing", stage_instance_id: "publishing#1",
+      event_type: "answer.ready", status: "ok",
+      closed_stages: [closed("accepted#1"), closed("publishing#1")],
+    }),
+  });
+  assert.ok(view.steps.every((s) => s.state !== "running"),
+    JSON.stringify(view.steps.map((s) => [s.instanceId, s.state])));
+  assert.ok(view.terminal);
+});
+
+test("replaying the whole stream lands where the live stream did", () => {
+  const stream = [
+    event({ seq: 1, stage: "accepted", stage_instance_id: "accepted#1" }),
+    event({ seq: 2, stage: "preparing", stage_instance_id: "preparing#1",
+            closed_stages: [closed("accepted#1")] }),
+    event({ seq: 3, stage: "publishing", stage_instance_id: "publishing#1",
+            event_type: "answer.ready", status: "ok",
+            closed_stages: [closed("preparing#1"), closed("publishing#1")] }),
+  ];
+  const fold = (frames: RunEvent[]) =>
+    frames.reduce(
+      (view, frame) => reduce(view, { type: "event", event: frame }),
+      initial("run-a"),
+    );
+
+  const once = fold(stream);
+  const twice = fold([...stream, ...stream]);
+  assert.deepEqual(
+    twice.steps.map((s) => [s.instanceId, s.state, s.substeps.length]),
+    once.steps.map((s) => [s.instanceId, s.state, s.substeps.length]),
+    "a replayed frame changed the panel",
+  );
+});
+
+test("an out-of-order frame cannot reorder the trace", () => {
+  // Fencing drops the stale frame outright; the ordering rule is what keeps
+  // the rows in the order the server committed them either way.
+  let view = initial("run-a");
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 5, stage: "publishing",
+                   stage_instance_id: "publishing#1" }),
+  });
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 2, stage: "preparing",
+                   stage_instance_id: "preparing#1" }),
+  });
+  assert.deepEqual(view.steps.map((s) => s.instanceId), ["publishing#1"]);
+  assert.equal(view.lastSeq, 5);
+});
+
+test("a stage with no instance id from an older server still renders", () => {
+  let view = initial("run-a");
+  view = reduce(view, {
+    type: "event",
+    event: event({ seq: 1, stage: "understanding",
+                   stage_instance_id: undefined }),
+  });
+  assert.equal(view.steps.length, 1);
+  assert.equal(view.steps[0].stage, "understanding");
 });

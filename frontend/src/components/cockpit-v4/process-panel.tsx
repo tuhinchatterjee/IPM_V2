@@ -77,7 +77,9 @@ function Marker({ state, failures }: { state: Step["state"]; failures: number })
 }
 
 function stateWord(state: Step["state"]): string {
-  return state === "prospective" ? "not started" : state;
+  // Every step on screen has started. §33: there is no "not started" row,
+  // because a row is drawn when the server says the stage began.
+  return state;
 }
 
 export function ProcessPanel({
@@ -199,10 +201,10 @@ export function ProcessPanel({
         >
           <ol className="space-y-1" data-testid="v4-process-steps">
             {view.steps.map((step) => {
-              const isOpen = Boolean(expanded[step.stage]);
+              const isOpen = Boolean(expanded[step.instanceId]);
               const hasDetail = step.substeps.length > 0;
               return (
-                <li key={step.stage}>
+                <li key={step.instanceId}>
                   <div className="flex items-start gap-2">
                     <Marker state={step.state} failures={step.failures} />
                     <div className="min-w-0 flex-1">
@@ -212,15 +214,13 @@ export function ProcessPanel({
                         onClick={() =>
                           setExpanded((prev) => ({
                             ...prev,
-                            [step.stage]: !prev[step.stage],
+                            [step.instanceId]: !prev[step.instanceId],
                           }))
                         }
                         aria-expanded={isOpen}
-                        className={`flex w-full items-baseline justify-between gap-3 text-left ${
-                          step.state === "prospective"
-                            ? "text-slate-400"
-                            : "text-slate-800"
-                        } ${hasDetail ? "hover:underline" : "cursor-default"}`}
+                        className={`flex w-full items-baseline justify-between gap-3 text-left text-slate-800 ${
+                          hasDetail ? "hover:underline" : "cursor-default"
+                        }`}
                       >
                         <span className="truncate">
                           {step.label}
@@ -232,15 +232,12 @@ export function ProcessPanel({
                             ? "true" : "false"}
                           className="shrink-0 tabular-nums text-xs text-slate-500"
                         >
-                          {step.state === "prospective"
-                            ? "not started"
-                            : step.state === "running"
-                              ? formatElapsed(
-                                  liveStepElapsedMs(step, view, now))
-                              : formatSeconds(step.elapsedMs)}
+                          {step.state === "running"
+                            ? formatElapsed(liveStepElapsedMs(step, view, now))
+                            : formatSeconds(step.elapsedMs)}
                         </span>
                       </button>
-                      {step.detail && step.state !== "prospective" ? (
+                      {step.detail ? (
                         <p className="truncate text-xs text-slate-500">
                           {step.detail}
                         </p>

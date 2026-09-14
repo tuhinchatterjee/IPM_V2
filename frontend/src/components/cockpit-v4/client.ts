@@ -34,6 +34,33 @@ export type RunEvent = {
   trace_id: string;
   span_id: string;
   parent_span_id: string;
+  /**
+   * The stage state machine, decided by the server. §33-§36.
+   *
+   * `stage_instance_id` names WHICH RUN of the stage this event belongs to,
+   * because a run can re-enter `preparing` after a failed submission and two
+   * passes through it are two things that happened. `closed_stages` lists
+   * the instances this event ended -- usually the one it displaced, and on a
+   * terminal event its own as well, so a browser that reconnects after the
+   * last frame is never left with a stage spinning.
+   *
+   * Optional so a stream from an older server still renders.
+   */
+  stage_instance_id?: string;
+  stage_started_ms?: number;
+  stage_state?: "running" | "done" | "failed";
+  stage_failures?: number;
+  closed_stages?: ClosedStage[];
+};
+
+/** One stage instance, as it ended. */
+export type ClosedStage = {
+  stage: string;
+  stage_instance_id: string;
+  started_ms: number;
+  ended_ms: number;
+  failures?: number;
+  state: "done" | "failed";
 };
 
 export type RunStatus = {

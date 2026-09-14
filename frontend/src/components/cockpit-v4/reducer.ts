@@ -10,7 +10,16 @@
 
 import type { FinalResponse, RunEvent, RunStatus } from "./client";
 
-export type StepState = "prospective" | "running" | "done" | "failed";
+/**
+ * What a stage instance is doing.
+ *
+ * `prospective` is gone. §33-§34: a step appears when it STARTS. The panel
+ * used to lay out "Request accepted" and "Understanding the request" as
+ * empty circles before either had happened, and a reader watching a run at
+ * 0s saw two rows reading "not started" -- a guess about the future dressed
+ * as progress, and the first thing on screen.
+ */
+export type StepState = "running" | "done" | "failed";
 
 export type Substep = {
   seq: number;
@@ -26,6 +35,16 @@ export type Substep = {
 
 export type Step = {
   stage: string;
+  /**
+   * WHICH RUN of this stage. A run can re-enter `preparing` after a failed
+   * submission, and two passes through it are two things that happened; the
+   * server names each pass so the panel shows two rows in the order they ran
+   * rather than one row whose state flickers.
+   */
+  instanceId: string;
+  /** The sequence number that opened this instance. The panel orders by it,
+   *  so a replayed or out-of-order frame cannot reorder the trace. */
+  openedAtSeq: number;
   label: string;
   state: StepState;
   detail: string;
@@ -92,14 +111,17 @@ export const STAGE_LABELS: Record<string, string> = {
 };
 
 /**
- * The stages the panel LAYS OUT before anything has happened.
+ * The stages the panel lays out before anything has happened: NONE.
  *
- * Deliberately only the two that every run reaches. The actual path is
- * dynamic -- product help never reads the catalogue and never executes -- and
- * drawing an empty "Executing query" row for a question that will never run
- * one is a guess about the future dressed as progress.
+ * §33, §34. The actual path is dynamic -- product help never reads the
+ * catalogue and never executes -- and drawing an empty row for a stage that
+ * may never run is a guess about the future dressed as progress. This used
+ * to pre-render the two stages "every run reaches", which is how a reader
+ * watching a live run at 0s was shown two rows saying "not started".
+ *
+ * A step appears when the server says it started, and not before.
  */
-export const INITIAL_STAGES = ["accepted", "understanding"] as const;
+export const INITIAL_STAGES: readonly string[] = [];
 
 export type Action =
   | { type: "start"; runId: string }
@@ -130,18 +152,7 @@ export function initial(runId = ""): RunView {
     runId,
     lastSeq: 0,
     connection: "open",
-    steps: INITIAL_STAGES.map((stage) => ({
-      stage,
-      label: STAGE_LABELS[stage],
-      state: "prospective" as StepState,
-      detail: "",
-      startedAtMs: 0,
-      elapsedMs: 0,
-      errorId: "",
-      failures: 0,
-      attempts: 0,
-      substeps: [],
-    })),
+    steps: [],
     currentStage: "",
     elapsedMs: 0,
     elapsedIsAuthoritative: false,
@@ -176,15 +187,23 @@ export function reduce(view: RunView, action: Action): RunView {
       if (event.run_id !== view.runId) return view;
       if (event.seq <= view.lastSeq) return view;
 
-      const steps = view.steps.slice();
-      let index = steps.findIndex((s) => s.stage === event.stage);
+      let steps = view.steps.slice();
+
+      // The instance this event belongs to. Keyed by the server's instance
+      // id, so a second pass through a stage is a second row rather than a
+      // row whose state flickers.
+      const instanceId =
+        event.stage_instance_id || `${event.stage}#legacy`;
+      let index = steps.findIndex((s) => s.instanceId === instanceId);
       if (index < 0) {
         steps.push({
           stage: event.stage,
+          instanceId,
+          openedAtSeq: event.seq,
           label: STAGE_LABELS[event.stage] ?? event.stage,
-          state: "prospective",
+          state: "running",
           detail: "",
-          startedAtMs: event.elapsed_ms,
+          startedAtMs: event.stage_started_ms ?? event.elapsed_ms,
           elapsedMs: 0,
           errorId: "",
           failures: 0,
@@ -214,28 +233,56 @@ export function reduce(view: RunView, action: Action): RunView {
       step.elapsedMs = Math.max(0, event.elapsed_ms - step.startedAtMs);
       if (event.attempt > step.attempts) step.attempts = event.attempt;
 
+      // A step is RUNNING until something closes it. Only a failure is
+      // read off the event itself -- an "ok" substep means one operation
+      // finished, not that the stage did, and treating it as the stage's
+      // completion is how a run showed "Executing query ✓" while it was
+      // still executing.
       if (event.status === "failed" || event.status === "rejected") {
         step.state = "failed";
-        // Counted, not just displayed: a later success sets `state` back to
-        // "done", and this is what keeps the failure on screen.
-        step.failures += 1;
+        // Counted, not just displayed: a later close can set `state` back
+        // to "done", and this is what keeps the failure on screen.
+        step.failures = Math.max(step.failures + 1, event.stage_failures ?? 0);
         step.errorId = event.error_id || step.errorId;
-      } else if (event.status === "started") {
+      } else if (step.state !== "failed") {
         step.state = "running";
       } else {
-        // A success after a failure is a success. The failure survives in
+        // Recovered inside the same instance. The failure survives in
         // `failures` and in the substep list, which is what the audit trace
         // is for.
-        step.state = "done";
+        step.state = "running";
       }
       steps[index] = step;
 
-      // Any earlier stage still marked running has been left behind.
-      for (let i = 0; i < index; i += 1) {
-        if (steps[i].state === "running") {
-          steps[i] = { ...steps[i], state: "done" };
-        }
+      // §35. Close whatever this event closed, exactly as the SERVER says.
+      // The panel used to infer it -- "any earlier stage still marked
+      // running has been left behind" -- which is a guess that holds only
+      // while stages run in array order and never re-enter. Two passes
+      // through `preparing` broke it in both directions: the second pass
+      // reopened the first pass's row, and a stage that ran out of order
+      // stayed spinning.
+      //
+      // AFTER the step above, not before: a terminal event closes its own
+      // instance as well as the one it displaced, and closing first would
+      // apply that to a row that does not exist yet -- leaving the last
+      // stage of every run spinning forever.
+      for (const closed of event.closed_stages ?? []) {
+        const at = steps.findIndex(
+          (s) => s.instanceId === closed.stage_instance_id,
+        );
+        if (at < 0) continue;
+        steps[at] = {
+          ...steps[at],
+          state: closed.state === "failed" ? "failed" : "done",
+          elapsedMs: Math.max(0, closed.ended_ms - closed.started_ms),
+          failures: Math.max(steps[at].failures, closed.failures ?? 0),
+        };
       }
+
+      // The panel shows the order things HAPPENED, which is the order the
+      // server committed them in. Sorting by the opening sequence means a
+      // replayed or late frame cannot reorder the trace.
+      steps = steps.slice().sort((a, b) => a.openedAtSeq - b.openedAtSeq);
 
       return {
         ...view,
