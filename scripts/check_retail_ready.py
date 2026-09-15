@@ -28,6 +28,7 @@ if str(ROOT) not in sys.path:
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+from backend.retail.catalogue import DATASET_NAME  # noqa: E402
 from backend.retail.generate import PERIOD_FIELD  # noqa: E402
 
 DATASET = "retail_facility_month"
@@ -87,11 +88,30 @@ def main() -> int:
           bool(months) and months[-1] == manifest["demo_as_of_month"],
           f"manifest says {manifest['demo_as_of_month']}")
 
+    # EVERY dataset is a retail one, and the canonical book is among them.
+    #
+    # This asked for exactly ONE, which was true when the installation served
+    # the book alone. It has not been true since the bootstrap started
+    # registering the Early Warning Score domain beside it — and because the
+    # launcher refuses to start when this check fails, a fully bootstrapped
+    # installation could not be launched at all.
+    #
+    # A count was the wrong assertion anyway. What it was protecting is that a
+    # retail installation serves retail data and nothing corporate, and that is
+    # what it says now: the book has to be there, and nothing may be there that
+    # is not the book or one of the governed retail domains built beside it.
+    # The corporate guard itself is not weakened — the retired-vocabulary check
+    # below is what enforces it, and it is unchanged.
     datasets = catalog.get("datasets", [])
-    c.add("exactly one analytical dataset in the catalogue", len(datasets) == 1,
-          f"found {len(datasets)}: {[d.get('name') for d in datasets]}")
-    if datasets:
-        entry = datasets[0]
+    names = [d.get("name") for d in datasets]
+    c.add("the canonical retail book is in the catalogue",
+          DATASET_NAME in names, ", ".join(str(n) for n in names))
+    strangers = [n for n in names
+                 if n != DATASET_NAME and not str(n or "").startswith("retail_")]
+    c.add("the catalogue serves nothing but retail datasets",
+          not strangers, ", ".join(str(n) for n in strangers))
+    entry = next((d for d in datasets if d.get("name") == DATASET_NAME), None)
+    if entry is not None:
         c.add("the single domain is 'Cockpit Data'", entry.get("domain") == "Cockpit Data",
               str(entry.get("domain")))
         c.add("catalogue and manifest agree on the dataset version",

@@ -99,6 +99,33 @@ say "Checking the demonstration dataset..."
 port_owner() {
   lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1
 }
+
+# Whether a pid is this build's: recorded in var/anb, or descended from
+# something that is. Asked rather than guessed from a command line, because
+# the process actually holding the frontend port is three forks below the one
+# this launcher was able to record.
+own_pid() {
+  local target="$1" recorded kid
+  for pidfile in "$BACKEND_PIDFILE" "$FRONTEND_PIDFILE"; do
+    [ -f "$pidfile" ] || continue
+    while IFS= read -r recorded; do
+      case "$recorded" in ""|*[!0-9]*) continue ;; esac
+      [ "$recorded" = "$target" ] && return 0
+      for kid in $(descendants_of "$recorded"); do
+        [ "$kid" = "$target" ] && return 0
+      done
+    done < "$pidfile"
+  done
+  return 1
+}
+
+descendants_of() {
+  local pid="$1" child
+  for child in $(pgrep -P "$pid" 2>/dev/null || true); do
+    descendants_of "$child"
+    printf '%s\n' "$child"
+  done
+}
 for port in "$ANB_BACKEND_PORT" "$ANB_FRONTEND_PORT"; do
   owner="$(port_owner "$port" || true)"
   if [ -n "$owner" ]; then
@@ -107,10 +134,20 @@ for port in "$ANB_BACKEND_PORT" "$ANB_FRONTEND_PORT"; do
       *8330*|*5330*)
         say "  port $port is already served by this ANB build (pid $owner)" ;;
       *)
-        die "port $port is in use by pid $owner ($cmd), which is not the ANB
+        # It may still be ours. The frontend's port is held by next-server,
+        # three forks below the npm we recorded, and its command line carries
+        # no port at all — so the pattern above cannot recognise it and this
+        # branch used to tell the presenter their own leftover frontend was
+        # somebody else's process. The pidfiles say whose it is: if the holder
+        # is one of them, or a descendant of one, it is this build's.
+        if own_pid "$owner"; then
+          say "  port $port is already served by this ANB build (pid $owner)"
+        else
+          die "port $port is in use by pid $owner ($cmd), which is not the ANB
 build. Nothing has been stopped — in particular, if that is the frozen 5328/8328
 presentation, it is still running. Free the port yourself, or change the ANB
-port in this launcher." ;;
+port in this launcher."
+        fi ;;
     esac
   fi
 done
