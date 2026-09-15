@@ -83,3 +83,11 @@ var/retail/
 # The ANB build's environment. Its own database, lake, uploads, logs and
 # ports. Local, like every other .env here, and never committed.
 .env.anb
+# And any other local environment beside it — a throwaway database for a test
+# run, a second one to compare a branch against its base. The one time these
+# were not ignored, a test run pointed at the demonstration's own database and
+# deleted every Risk Case on it.
+.env.*
+!.env.example
+!.env.retail.example
+!.env.anb.example
