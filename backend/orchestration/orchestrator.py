@@ -1450,7 +1450,15 @@ def _from_card_investigation(original: str, question: str, reading: Any,
     read = cap.Reading(
         intent=cap.Capability.ANALYSIS,
         objective=result.title or "the card book's early-delinquency cohort",
-        conversation_action=(cv.REFINE if reading.from_thread else cv.NEW_REQUEST),
+        # CONTINUE, not NEW_REQUEST, when the thread supplied the subject. The
+        # answer is a fresh computation over governed data, so it is not any of
+        # the MODIFY_* actions and it is not one of the ones answered out of
+        # the previous result — but it IS the same investigation carrying on,
+        # and marking it NEW_REQUEST would tell the conversation state that the
+        # reader had changed the subject in the middle of the one question
+        # sequence this thread exists for.
+        conversation_action=(cv.CONTINUE if reading.from_thread
+                             else cv.NEW_REQUEST),
         operation="aggregate",
         confidence=1.0,
         reasoning=("one of the card investigation's questions, computed from "
@@ -1460,7 +1468,7 @@ def _from_card_investigation(original: str, question: str, reading: Any,
     answered = Answered(
         question=original, reading=read,
         continuation=cv.Continuation(
-            action=(cv.REFINE if reading.from_thread else cv.NEW_REQUEST),
+            action=(cv.CONTINUE if reading.from_thread else cv.NEW_REQUEST),
             because=("the question continues the card investigation"
                      if reading.from_thread else
                      "the question names the card cohort itself")),

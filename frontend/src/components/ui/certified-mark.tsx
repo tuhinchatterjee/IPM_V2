@@ -44,11 +44,14 @@ export function CertifiedMark({
 /**
  * The certification state of one answer, as a line of text.
  *
- * Four states, and they are not decorative. "Certified" means the bank has
+ * Five states, and they are not decorative. "Certified" means the bank has
  * validated the method and CreditProbe recorded the run. "Dynamic analysis"
  * was composed for one question and run through the governed runtime.
- * "Governed metadata" read the catalogue and computed nothing. "Custom" was
- * defined in the bank and not validated, and "Unvalidated" is a draft.
+ * "Governed reading" is a FIXED computation over the published book — the same
+ * question returns the same figures, and every definition behind them is
+ * written down. "Governed metadata" read the catalogue and computed nothing.
+ * "Custom" was defined in the bank and not validated, and "Unvalidated" is a
+ * draft.
  *
  * A reader must be able to tell which figure they are allowed to put in front
  * of a regulator — and, just as importantly, must not be told that a catalogue
@@ -89,6 +92,28 @@ export function CertificationBadge({
       >
         <span aria-hidden className="inline-block size-1.5 rounded-full bg-accent" />
         Dynamic analysis
+      </span>
+    );
+  }
+
+  if (certification === "analysis") {
+    // A FIXED computation over the published book: the same question returns
+    // the same figures, and the definition behind each of them is written
+    // down. Not certified — nobody has validated the method — but not a draft
+    // either, and the fall-through called it "Unvalidated" in warning amber,
+    // which tells a reader the figure is not to be relied on. That is the
+    // wrong warning: what they cannot do with it is put it in front of a
+    // regulator as a validated method, and that is what this says instead.
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 text-[11px] font-medium text-text-secondary",
+          className,
+        )}
+        title="Computed from the published book by a fixed, governed reading. The same question returns the same figures. Not a certified method, and not reviewed by anybody."
+      >
+        <span aria-hidden className="inline-block size-1.5 rounded-full bg-text-muted" />
+        Governed reading
       </span>
     );
   }

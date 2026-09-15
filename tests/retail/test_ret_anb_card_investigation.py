@@ -472,6 +472,53 @@ class TestTheThreadHoldsTogether:
         assert concentration["new_cases"] <= len(anb.cohort()), (
             "more accounts entered 20-29 DPD this month than are in it")
 
+    def test_the_orchestrator_route_actually_runs(self, book):
+        """Through `orchestrator.answer`, not through the builders directly.
+
+        THIS IS THE GATE THE OTHERS DID NOT COVER, AND IT IS WHY IT EXISTS.
+
+        Every test above calls `answers.read` and `answers.answer`, which is
+        most of the work and none of the wiring. The route that connects them
+        to the product sits in the orchestrator, and it referred to a
+        conversation-action constant that does not exist. Both functions were
+        perfectly correct; every question in the live demonstration came back
+        as "CreditProbe could not complete that request", and only running the
+        thing end to end found it.
+
+        So this asks the orchestrator, the way the API does, and checks that a
+        result came back from THIS route rather than from the planner
+        happening to answer something.
+        """
+        from backend.orchestration import orchestrator
+        from backend.orchestration import conversation as cv
+
+        for question in self.QUESTIONS:
+            state = cv.ConversationState()
+            state.thread_context = dict(self.CONTEXT)
+            answered = orchestrator.answer(question, state=state)
+            assert answered.failure in (None, "", False), (
+                f"the orchestrator failed on {question!r}: {answered.failure}")
+            assert answered.result is not None, (
+                f"the orchestrator returned no result for {question!r}")
+            assert answered.reading.source == "retail_card_investigation", (
+                f"{question!r} was answered by {answered.reading.source}, not "
+                "by the card investigation route")
+            assert answered.result.rows, f"no figures for {question!r}"
+
+    def test_the_route_stands_aside_outside_the_thread(self, book):
+        """The same call, with no thread context, must reach the planner."""
+        from backend.orchestration import orchestrator
+        from backend.orchestration import conversation as cv
+
+        for question in ("What should we do about it?",
+                         "Okay, what is causing this?"):
+            state = cv.ConversationState()
+            answered = orchestrator.answer(question, state=state)
+            source = getattr(answered.reading, "source", "")
+            assert source != "retail_card_investigation", (
+                f"{question!r} was answered from the card book with no card "
+                "investigation open around it.")
+
     def test_asking_twice_gives_the_same_answer(self, book):
         """A live demonstration is run more than once."""
         for question in self.QUESTIONS:

@@ -271,22 +271,97 @@ def from_handler(question: str, reading: cap.Reading,
     scope = Scope(focus=reading.label, output="list",
                   period_requirement="none", period_specified=False,
                   period_source="not needed for this request")
+    # WHAT THE NOTE SAYS HAS TO FOLLOW WHAT ACTUALLY HAPPENED.
+    #
+    # This note used to be the same sentence for every capability: "answered
+    # from the governed catalogue. No analytical engine ran and no figure was
+    # computed." True of a catalogue lookup, which is what every capability
+    # was when it was written — and flatly false of a capability that reads the
+    # published book and computes over it. `HandlerResult.execution` exists to
+    # say which, and its own docstring warns that a real attribution reported
+    # as metadata makes the Trace say nothing was calculated. The note was
+    # saying exactly that, under a table of figures the answer had just
+    # computed, which is the most damaging sentence this product can print: a
+    # reader who believes it discounts a real figure, and a reader who does not
+    # stops believing the Trace.
+    computed = str(getattr(result, "execution", "metadata")) != "metadata"
+    note = (
+        f"This request was answered by reading the published book. "
+        f"{result.execution_label}."
+        if computed else
+        "This request was answered from the governed catalogue. No "
+        "analytical engine ran and no figure was computed.")
     plan = AnalysisPlan(
         question=question, intent=reading.objective or question, scope=scope,
         steps=[], planner=reading.source, model_name=reading.model or None,
         follow_ups=list(result.follow_ups),
-        notes=["This request was answered from the governed catalogue. No "
-               "analytical engine ran and no figure was computed."],
+        notes=[note],
     )
+    # A CAPABILITY THAT HAS A READING HAS NOWHERE TO PUT IT, UNTIL HERE.
+    #
+    # The answer surface renders a scope line, a reading as scannable points
+    # and a contributor list, and this assembler handed it none of them: every
+    # capability answer arrived with an empty narrative, so a handler that had
+    # computed a cohort, written four observations about it and ranked the
+    # contributions behind them could show the reader one sentence and a table.
+    #
+    # The keys are read off `detail` by name rather than by a new field on
+    # `HandlerResult`, because most capabilities have no reading — a catalogue
+    # lookup is one sentence and a list — and giving all of them three empty
+    # fields to ignore is a worse shape than letting the ones that do say so.
+    detail = dict(getattr(result, "detail", None) or {})
+    points = [str(p) for p in (detail.get("observations") or []) if str(p).strip()]
+    scope_parts = [str(detail.get(key) or "").strip()
+                   for key in ("cohort", "definition")]
+    scope_line = " ".join(
+        part if part.endswith((".", "?", "!")) else f"{part}."
+        for part in scope_parts if part)
     narrative = Narrative(
         direct_answer=result.answer, summary=result.answer,
-        findings=[], interpretation="", interpretation_points=[],
+        findings=[], interpretation="", interpretation_points=points,
+        scope=scope_line,
+        drivers=[dict(d) for d in (detail.get("drivers") or [])],
         caveats=list(result.warnings),
     )
     # A composed review's first block is the SUMMARY of what was checked, and
     # calling it "Analysis" told a reader nothing — least of all that four
     # more analyses follow it, each with its own figures.
     composed_of = list(getattr(result, "analyses", None) or [])
+
+    # WHICH SHAPE TO OPEN IN, decided by the same gate every other answer uses.
+    #
+    # The answer surface reads `result.visual.chart_first`, and nothing here
+    # ever set it — so a capability that returned eight months of a trend and
+    # named the chart it wanted got a wall of numbers with the chart one click
+    # away and no reason to click. The comment on `PrimaryVisual` already
+    # describes this failure for composed analyses; it was equally true of
+    # every capability answer with rows in it.
+    #
+    # The gate rather than the capability's own preference, for the two reasons
+    # the gate exists: it refuses a chart that would misrepresent the result,
+    # and it declines to open one the question did not ask for. A capability
+    # that names a chart the shape rule cannot infer — a waterfall over steps
+    # between two totals — still has it honoured below, but the DECISION to
+    # open it is the gate's.
+    visual: dict[str, Any] = {}
+    if result.rows:
+        try:
+            from backend.orchestration import visualize
+
+            chosen = visualize.choose(list(result.columns), list(result.rows),
+                                      question=question)
+            visual = chosen.to_dict()
+            named = str((result.chart or {}).get("kind") or "")
+            if named and named != visualize.TABLE:
+                visual["chart"] = named
+                visual["chart_first"] = True
+                visual["source"] = "capability"
+                visual["reason"] = (
+                    str((result.chart or {}).get("note") or "")
+                    or "the capability that produced this result named its shape")
+        except Exception as e:  # noqa: BLE001 - a picture must not lose an answer
+            logger.warning("Could not choose a visualisation for %r: %s",
+                           result.title or question, e)
     step = ExecutedStep(
         index=0, analysis_id=f"capability_{reading.intent.lower()}",
         title=(str(getattr(result, "title", "") or "")
@@ -294,7 +369,12 @@ def from_handler(question: str, reading: cap.Reading,
                    else reading.label)),
         rationale=reading.reasoning,
         params={"intent": reading.intent}, filters={}, period="",
-        status="succeeded", certification="metadata", analysis_version="",
+        status="succeeded",
+        # The step's own certification, not a constant. It sat at "metadata"
+        # while the result dict beside it carried `result.execution`, so the
+        # same step described itself two ways and a reader comparing them had
+        # to guess which was the claim.
+        certification=result.execution, analysis_version="",
         duration_ms=duration_ms,
         result={
             "values": dict(result.values), "units": {},
@@ -303,6 +383,7 @@ def from_handler(question: str, reading: cap.Reading,
             "rows": result.rows, "columns": result.columns,
             "warnings": list(result.warnings),
             "chart": dict(result.chart),
+            "visual": visual,
             "truncated": False, "certification": result.execution,
             "certification_label": result.execution_label,
             "capability": reading.to_dict(),
@@ -352,15 +433,20 @@ def from_handler(question: str, reading: cap.Reading,
             title=str(extra.get("title") or "Detail"),
             rationale=str(extra.get("because") or ""),
             params={"intent": reading.intent}, filters={}, period="",
-            status="succeeded", certification="metadata", analysis_version="",
-            duration_ms=0,
+            status="succeeded", certification=result.execution,
+            analysis_version="", duration_ms=0,
             result={
                 "values": {}, "units": {}, "input_row_count": len(rows),
-                "meta": {"execution": "metadata", "intent": reading.intent},
+                # The same attribution as the answer carrying them. A computed
+                # answer's supporting table was being stamped "Governed
+                # metadata" beside figures that came out of the book.
+                "meta": {"execution": result.execution,
+                         "intent": reading.intent},
                 "rows": rows, "columns": list(extra.get("columns") or []),
-                "warnings": [], "chart": {}, "truncated": False,
-                "certification": "metadata",
-                "certification_label": "Governed metadata",
+                "warnings": [], "chart": dict(extra.get("chart") or {}),
+                "truncated": False,
+                "certification": result.execution,
+                "certification_label": result.execution_label,
                 "capability": reading.to_dict(),
                 "asked": str(extra.get("title") or ""),
                 "finding": str(extra.get("because") or ""),

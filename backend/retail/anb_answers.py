@@ -171,6 +171,66 @@ def _handler() -> Any:
     return HandlerResult
 
 
+def _trace(question: str, *, reading: str, period: str, baseline: str,
+           population: str, rows: int, steps: list[tuple[str, str]]) -> Any:
+    """A short, true Trace for a computed answer.
+
+    Not decoration and not a full plan graph. These answers do not compose SQL
+    — they read named columns out of the published book and do arithmetic on
+    them — so a Trace claiming a query would be a picture of something that did
+    not happen, which is worse than a short one.
+
+    What it does say is everything a reader needs to check the figure: which
+    months were read, which population was cut out of them, how many rows that
+    was, and what was computed over them. An answer with an empty Trace under a
+    product whose argument is traceability is an answer nobody has to believe.
+    """
+    from backend.trace.model import NodeType, TraceGraph, TraceNode
+
+    graph = TraceGraph()
+    graph.add_node(TraceNode(
+        id="question", type=NodeType.USER_PROMPT, label="Question asked",
+        config={"question": question}))
+
+    read = graph.add_node(TraceNode(
+        id="intent", type=NodeType.CAPABILITY, label=f"Read as: {reading}",
+        config={"computation_required": True,
+                "rule": ("This request was answered by reading the published "
+                         "card book and computing over it.")}))
+    read.mark_ok()
+    graph.connect("question", "intent")
+
+    source = graph.add_node(TraceNode(
+        id="book", type=NodeType.DATASET, label=anb.BOOK,
+        config={"periods": [p for p in (baseline, period) if p],
+                "product": anb.CARD_LABEL}))
+    source.mark_ok()
+    graph.connect("intent", "book")
+
+    cut = graph.add_node(TraceNode(
+        id="population", type=NodeType.FILTER, label=population,
+        config={"period": period, "compared_with": baseline}))
+    cut.mark_ok(rows_out=rows)
+    graph.connect("book", "population")
+
+    last = "population"
+    for index, (label, detail) in enumerate(steps):
+        node = graph.add_node(TraceNode(
+            id=f"step{index}", type=NodeType.AGGREGATION, label=label,
+            config={"definition": detail}))
+        node.mark_ok(rows_out=rows)
+        graph.connect(last, f"step{index}")
+        last = f"step{index}"
+
+    out = graph.add_node(TraceNode(
+        id="result", type=NodeType.RESULT, label="Answer",
+        config={"from": "the published card book"}))
+    out.mark_ok(rows_out=rows)
+    graph.connect(last, "result")
+    graph.compute_hashes()
+    return graph
+
+
 def _columns(rows: list[dict[str, Any]], units: dict[str, str] | None = None
              ) -> list[dict[str, Any]]:
     """Column specs in the order the first row lays them out.
@@ -287,6 +347,18 @@ def _split(at: str) -> Any:
                     "fall in it) / COUNT(open card accounts) at the month-end. "
                     "The recent baseline is the average of the months shown "
                     "before the latest one.")},
+        graph=_trace(
+            "the 1-29 DPD population, split",
+            reading="Split the early-arrears bucket",
+            period=found["period"], baseline="",
+            population=f"Open credit-card accounts, {len(found['months'])} months",
+            rows=found["accounts"],
+            steps=[("Band days past due into 1-9, 10-19 and 20-29",
+                    "COUNT(accounts in each band) / COUNT(open card accounts), "
+                    "at each month-end"),
+                   ("Compare the latest month with the months before it",
+                    "The recent baseline is the average of the months shown "
+                    "before the latest one")]),
         follow_ups=[
             "How is the behavioural score distribution for these 20-29 DPD "
             "customers? Show me how it has moved.",
@@ -356,6 +428,19 @@ def _behaviour(at: str) -> Any:
                     "shared with the application scorecard so a band means the "
                     "same thing on either. Weak is band D and very weak is "
                     "band E.")},
+        graph=_trace(
+            "behavioural scores of the 20-29 DPD cohort",
+            reading="Behavioural score distribution of a fixed cohort",
+            period=now, baseline=base,
+            population=f"Credit-card accounts at 20-29 DPD at {now}",
+            rows=found["traced"],
+            steps=[("Fix the cohort at the latest month and look it up in the "
+                    "baseline month",
+                    "The same accounts at both dates, so a change in the "
+                    "distribution is a change in behaviour rather than a "
+                    "change in who is in the group"),
+                   ("Band each account's behavioural score at both dates",
+                    "The behavioural scorecard's own cut points")]),
         follow_ups=[
             "The behavioural score may simply be worse because these customers "
             "are already 20-29 DPD. Decompose the deterioration by the "
@@ -467,12 +552,38 @@ def _decompose(at: str) -> Any:
                              "These answer whether the cohort is in trouble."),
                  "rows": metric_rows, "columns": _columns(metric_rows)}],
         detail={"observations": observations,
+                # The surface's own contributor list. These are contributions
+                # to a score change, which is what that list is for.
+                "drivers": [
+                    {"name": m["name"], "detail": m["kind"],
+                     "value": -m["points"], "unit": "points",
+                     "measure": "Behavioural score deterioration"}
+                    for m in found["variables"] if m["points"] < 0][:8],
                 "cohort": _cohort_line(found),
                 "definition": (
                     "One contribution per variable, averaged over the "
                     f"{found['traced']:,} accounts traced at both dates. "
                     f"Compared against {base}, the last month before the "
                     "deterioration began.")},
+        graph=_trace(
+            "what moved the behavioural score",
+            reading="Decomposition of a score change by model variable",
+            period=found["period"], baseline=base,
+            population=(f"Credit-card accounts at 20-29 DPD at "
+                        f"{found['period']}, scored at both dates"),
+            rows=found["traced"],
+            steps=[("Read each variable's published points contribution at "
+                    "both dates",
+                    "The behavioural score is base points plus one "
+                    "contribution per variable, every one of them on the row"),
+                   ("Average the change in each contribution over the cohort",
+                    "The contributions sum to the score change, so nothing is "
+                    "estimated or allocated"),
+                   ("Separate variables carrying arrears information from the "
+                    "rest",
+                    "Days past due, worst days past due in six months, missed "
+                    "payments, bureau arrears, broken promises and failed "
+                    "direct debits are counted as delinquency")]),
         follow_ups=[
             "What is causing this? Where is this stress concentrated?",
             "What should we do about it?",
@@ -571,12 +682,27 @@ def _concentration(at: str) -> Any:
                            f"and {found['new_cases']:,} new 20-29 DPD cases at "
                            f"{found['period']}"),
                 "definition": (
-                    f"{found['expansion_label']} accepts applicants from "
-                    f"{found['expansion_floor']:.0f}, where the established "
-                    f"card programme stops at {found['established_floor']:.0f}. "
-                    f"Both floors are demonstration policy "
-                    f"({found['policy_version']}), and the programme opened in "
+                    f"Origination score bands are fixed when the account is "
+                    f"booked and never move. The programme floors behind them "
+                    f"are demonstration policy {found['policy_version']}, and "
+                    f"{found['expansion_label']} opened in "
                     f"{found['expansion_opened']}.")},
+        graph=_trace(
+            "where the new cases came from",
+            reading="Concentration of new arrears by programme and origination band",
+            period=found["period"], baseline="",
+            population=(f"Credit-card accounts that entered 20-29 DPD at "
+                        f"{found['period']} from being current"),
+            rows=found["new_cases"],
+            steps=[("Identify the accounts that entered the bucket this month",
+                    "Days past due 20-29 now and zero at the previous "
+                    "month-end, read from the prior-month value on the row"),
+                   ("Group by card programme and by origination score band",
+                    "Both are properties of the account at origination and "
+                    "neither moves afterwards"),
+                   ("State exposure share against problem share for each",
+                    "A group holding a quarter of the book and producing a "
+                    "quarter of the cases is not a concentration")]),
         follow_ups=["What should we do about it?"],
         execution="analysis",
         execution_label="Computed from the published card book",
@@ -599,7 +725,9 @@ def _actions(at: str) -> Any:
 
     sentence = (
         f"Treat the bands, not the book. The "
-        f"{', '.join(r['band'] for r in acting)} origination bands of "
+        # Worst band first: `acting` is ordered by entry rate, so the range
+        # reads from the band under most pressure to the mildest one acted on.
+        f"{acting[0]['band']} to {acting[-1]['band']} origination bands of "
         f"{found['expansion_label']} carry the stress and should come down to "
         f"a tighter starting limit on new business — "
         f"{acting[-1]['reduction']:.0f}% to {worst['reduction']:.0f}% — with "
@@ -641,6 +769,19 @@ def _actions(at: str) -> Any:
         "business on the same floor. A treatment plan that leaves the intake "
         "unchanged treats this month's cohort and books next month's.")
 
+    # Why each row says what it says, in the reading rather than in a column
+    # the table would truncate. The surface already renders the reading as a
+    # list, so this needs no new UI — which is the condition on having it.
+    why = [
+        f"{r['band']}: entering 20-29 DPD at {r['rate']:.1f}% against "
+        f"{found['reference_rate']:.1f}% in {found['reference']} — "
+        f"{r['excess']:.1f} times — with average utilisation at "
+        f"{r['utilisation']:.0f}%. Proposed starting limit SAR "
+        f"{r['proposed_limit']:,.0f} against SAR {r['current_limit']:,.0f} "
+        f"today ({r['reduction']:.1f}%)."
+        for r in rows]
+    observations.extend(why)
+
     return _handler()(
         answer=sentence,
         rows=found["table"],
@@ -662,15 +803,22 @@ def _actions(at: str) -> Any:
                     "Proposed reduction = min(cap, damping x (this band's entry "
                     "rate / the reference band's entry rate - 1)), rounded to "
                     "the nearest SAR 500. Every input is a column in the table."),
-                "why_this_recommendation": [
-                    f"{r['band']}: entering 20-29 DPD at {r['rate']:.1f}% "
-                    f"against {found['reference_rate']:.1f}% in "
-                    f"{found['reference']} — {r['excess']:.1f} times — with "
-                    f"average utilisation at {r['utilisation']:.0f}%. "
-                    f"Proposed starting limit SAR {r['proposed_limit']:,.0f} "
-                    f"against SAR {r['current_limit']:,.0f} today "
-                    f"({r['reduction']:.1f}%)."
-                    for r in rows]},
+                },
+        graph=_trace(
+            "the treatment plan",
+            reading="Risk-based treatment by origination score band",
+            period=found["period"], baseline="",
+            population=(f"{found['expansion_label']} accounts by origination "
+                        f"score band at {found['period']}"),
+            rows=sum(r["accounts"] for r in rows),
+            steps=[("Measure each band's own entry rate into 20-29 DPD",
+                    "New cases in the band over accounts in the band"),
+                   ("Express it against the reference band",
+                    f"The {found['reference']} band, at "
+                    f"{found['reference_rate']:.1f}%"),
+                   ("Damp and cap the excess into a proposed reduction",
+                    f"min({found['cap']:.0f}%, {found['damping']:.3f} x "
+                    "(excess - 1)), rounded to the nearest SAR 500")]),
         follow_ups=[
             "Show me the 1-29 DPD trend again for the whole card book.",
             "Which origination bands are still open for new business?",
