@@ -916,6 +916,74 @@ async def keyboard_and_focus(page, workspace_id: int) -> None:
               back == "playbook-finding-answer", str(back))
 
 
+async def one_bad_tab(page, workspace_id: int) -> None:
+    """§35 — a failure in one tab is a failure in one tab.
+
+    This is the guard written after a real crash: reading a governance-only
+    field off a section history entry threw, React unmounted, and the whole
+    product became an empty page with a navigation bar. A guard that nothing
+    exercises is a guard nobody knows is broken, so this forces the failure
+    rather than trusting the component to be correct.
+
+    The history feed is served to the browser and rewritten on the way in to a
+    shape the tab cannot render. Nothing on the server is touched, so the
+    demonstration is unchanged and the intercept is removed at the end.
+    """
+    route = f"**/api/v1/playbook/workspaces/{workspace_id}/intelligence/history*"
+
+    async def broken(request):
+        await request.fulfill(
+            status=200, content_type="application/json",
+            # `events` is a string, not a list. That is the class of shape
+            # error that caused the original crash: a field that is present
+            # and the wrong type, which no optional-chaining guard catches.
+            body='{"total": 3, "shown": 3, "kinds": [], "events": "broken"}')
+
+    await page.route(route, broken)
+    try:
+        await page.goto(f"{WEB}/playbook/{workspace_id}/status",
+                        wait_until="networkidle")
+        await page.get_by_test_id("playbook-tab-history").click()
+        await page.wait_for_timeout(400)
+
+        failed = page.get_by_test_id("playbook-tab-failed")
+        check("a tab that cannot render says so", await failed.count() == 1)
+        check("and says it as an alert rather than as body text",
+              await failed.get_attribute("role") == "alert"
+              if await failed.count() else False)
+        check("and shows what to report",
+              "broken" in (await failed.inner_text()).lower()
+              or "not a function" in (await failed.inner_text()).lower()
+              if await failed.count() else False)
+
+        # The whole point: everything else is still there.
+        check("the header survives one broken tab",
+              await page.get_by_test_id("playbook-dashboard-header").count() == 1)
+        check("the status cards survive it",
+              await page.get_by_test_id("playbook-status-cards").count() == 1)
+        check("the readiness panel survives it",
+              await page.get_by_test_id("playbook-readiness-panel").count() == 1)
+
+        await page.get_by_test_id("playbook-tab-findings").click()
+        await page.wait_for_timeout(300)
+        check("another tab still opens",
+              await page.get_by_test_id("playbook-findings-tab").count() == 1)
+        check("and the failure notice went with the tab that failed",
+              await page.get_by_test_id("playbook-tab-failed").count() == 0)
+    finally:
+        await page.unroute(route, broken)
+
+    # And with the intercept gone the tab works again, which proves the run
+    # left nothing behind.
+    await page.goto(f"{WEB}/playbook/{workspace_id}/status",
+                    wait_until="networkidle")
+    await page.get_by_test_id("playbook-tab-history").click()
+    await page.wait_for_timeout(400)
+    check("the tab recovers once the data is well-formed again",
+          await page.get_by_test_id("playbook-history-tab").count() == 1
+          and await page.get_by_test_id("playbook-tab-failed").count() == 0)
+
+
 async def accessibility(page, workspace_id: int) -> None:
     """§32 — reachable, labelled, and never colour alone.
 
@@ -1185,6 +1253,8 @@ async def run_once(browser, *, shoot: bool) -> None:
     await keyboard_and_focus(page, committee)
     print("\n-- Accessibility " + "-" * 43)
     await accessibility(page, committee)
+    print("\n-- One bad tab " + "-" * 45)
+    await one_bad_tab(page, committee)
     print("\n-- An empty Playbook " + "-" * 39)
     await empty_workspace(page)
 

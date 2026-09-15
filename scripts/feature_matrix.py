@@ -267,6 +267,20 @@ _JUDGEMENTS: dict[str, Judgement] = {
         status=PARTIAL,
         limitation="New generation needs a configured provider; the history "
                    "and every generated file reopen without one."),
+    "/playbook/[id]/status": Judgement(
+        "The Document Intelligence dashboard for one document: what is "
+        "written, what is outstanding, and whether it can be approved. "
+        "Completion and readiness as two separate figures, an explainable "
+        "readiness panel, and tabs for the pack, findings, decisions and "
+        "actions, what moved since last time, sections, metric mapping, "
+        "sources and history. Every figure comes from governed rows; nothing "
+        "on this page is generated.",
+        status=PARTIAL,
+        limitation="Populated by what the document and its governance "
+                   "actually carry. A Playbook with no document explains "
+                   "itself rather than showing noughts, and a document that "
+                   "is not a committee report is not asked about meeting "
+                   "dates or committee decisions."),
     "/playbook/library": Judgement(
         "Every analysis explicitly exported to Playbook, searchable and "
         "previewable in full. Nothing appears here that was not exported."),

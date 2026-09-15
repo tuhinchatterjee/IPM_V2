@@ -12,7 +12,7 @@ any longer**: every live-provider criterion has now been exercised against
 | Standalone implementation | **complete** — chat-first workspace and the Document Intelligence dashboard, back end and front end |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
 | Live Claude workflows | **all six PASS on live `claude-opus-5` with recorded request ids** — PB-013, PB-015, PB-017, PB-029, PB-030, PB-043. No silent downgrade on any run. |
-| Browser and artifact UAT | **passed** — 105 workspace checks, 176 dashboard checks (344 over two cycles), 62 artifact checks |
+| Browser and artifact UAT | **passed** — 105 workspace checks, 185 dashboard checks (370 over two cycles), 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off. Everything it needs is verified and running; see *Running human UAT* below. |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
@@ -145,7 +145,7 @@ Screenshots: `docs/playbook/screenshots/`. Evidence:
 ### The Document Intelligence dashboard
 
 `scripts/acceptance/playbook_dashboard_acceptance.py` — real Chromium, at
-1366×768, 1440×900 and 430×900. **176 passed, 0 failed**, and **344 passed, 0
+1366×768, 1440×900 and 430×900. **185 passed, 0 failed**, and **370 passed, 0
 failed over two consecutive cycles**.
 
 The second cycle is the point. A run that answers a finding and confirms a

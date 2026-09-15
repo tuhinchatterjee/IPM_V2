@@ -658,8 +658,8 @@ than assumed:
 
 ### Verified
 
-* `scripts/acceptance/playbook_dashboard_acceptance.py` — **176 passed, 0
-  failed**, and **344 over two consecutive cycles**, which is what proves the
+* `scripts/acceptance/playbook_dashboard_acceptance.py` — **185 passed, 0
+  failed**, and **370 over two consecutive cycles**, which is what proves the
   run restores what it changes.
 * `scripts/acceptance/playbook_browser_acceptance.py` — 105 passed, 0 failed:
   the chat-first workspace is unchanged.

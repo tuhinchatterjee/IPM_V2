@@ -1,6 +1,6 @@
 # Full-system feature verification matrix
 
-Generated from the build at `2702b39` by `scripts/feature_matrix.py`.
+Generated from the build at `022c6bb` by `scripts/feature_matrix.py`.
 
 This inventory is enumerated, not remembered. Every row comes from a page that exists on disk or an endpoint in the live OpenAPI spec, so a route added and forgotten appears here anyway. Three columns cannot be generated and are curated by hand - expected behaviour, defect and remaining limitation - because each is a claim somebody is accountable for, and deriving them from the code would produce a document that agrees with the code by construction and therefore establishes nothing.
 
@@ -8,12 +8,12 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | | |
 |---|---|
-| Pages | 47 |
-| Reviewed | 47 |
+| Pages | 48 |
+| Reviewed | 48 |
 | Not yet reviewed | 0 |
 | Carrying a known defect | 2 |
-| Not fully OK | 7 |
-| API endpoints | 452 across 36 areas |
+| Not fully OK | 8 |
+| API endpoints | 486 across 36 areas |
 | Browser-crawled routes | 91 |
 
 ## Pages
@@ -112,9 +112,10 @@ This inventory is enumerated, not remembered. Every row comes from a page that e
 
 | Route | Role | Expected behaviour | API area | Test | Browser | Status | Defect | Remaining limitation |
 |---|---|---|---|---|---|---|---|---|
-| `/playbook/[id]` | any signed-in role | One workspace: its conversation, its parsed sources with what was and was not read of each, and every artifact version with its files. | `playbook` (24) | 5 file(s) | - | PARTIAL | - | New generation needs a configured provider; the history and every generated file reopen without one. |
-| `/playbook/library` | any signed-in role | Every analysis explicitly exported to Playbook, searchable and previewable in full. Nothing appears here that was not exported. | `playbook` (24) | - | - | OK | - | - |
-| `/playbook` | any signed-in role | Create and refine reports, presentations and workbooks by describing what you want, from uploaded documents and from analyses explicitly exported here. Composer, quick prompts, recent workspaces, then the exported-analysis library. | `playbook` (24) | 5 file(s) | - | PARTIAL | - | Generation needs a configured provider. Without one the seeded workspaces, their sources and their Word, PDF and PowerPoint files stay readable and the composer says so rather than offering a control that fails. |
+| `/playbook/[id]` | any signed-in role | One workspace: its conversation, its parsed sources with what was and was not read of each, and every artifact version with its files. | `playbook` (58) | 7 file(s) | - | PARTIAL | - | New generation needs a configured provider; the history and every generated file reopen without one. |
+| `/playbook/[id]/status` | any signed-in role | The Document Intelligence dashboard for one document: what is written, what is outstanding, and whether it can be approved. Completion and readiness as two separate figures, an explainable readiness panel, and tabs for the pack, findings, decisions and actions, what moved since last time, sections, metric mapping, sources and history. Every figure comes from governed rows; nothing on this page is generated. | `playbook` (58) | 7 file(s) | - | PARTIAL | - | Populated by what the document and its governance actually carry. A Playbook with no document explains itself rather than showing noughts, and a document that is not a committee report is not asked about meeting dates or committee decisions. |
+| `/playbook/library` | any signed-in role | Every analysis explicitly exported to Playbook, searchable and previewable in full. Nothing appears here that was not exported. | `playbook` (58) | - | - | OK | - | - |
+| `/playbook` | any signed-in role | Create and refine reports, presentations and workbooks by describing what you want, from uploaded documents and from analyses explicitly exported here. Composer, quick prompts, recent workspaces, then the exported-analysis library. | `playbook` (58) | 7 file(s) | - | PARTIAL | - | Generation needs a configured provider. Without one the seeded workspaces, their sources and their Word, PDF and PowerPoint files stay readable and the composer says so rather than offering a control that fails. |
 
 ### playbooks
 
@@ -213,7 +214,7 @@ Reported rather than omitted: a capability that exists only at the API is one a 
 | `learning` | 24 |
 | `lenses` | 9 |
 | `metadata` | 6 |
-| `playbook` | 24 |
+| `playbook` | 58 |
 | `playbooks` | 8 |
 | `projects` | 7 |
 | `readiness` | 1 |

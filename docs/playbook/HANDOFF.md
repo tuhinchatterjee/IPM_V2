@@ -136,27 +136,35 @@ formats, version history, download an old version, continue a thread, stream,
 stop, retry, reopen after refresh, seeded threads. Evidence:
 `docs/playbook/browser_acceptance.json`.
 
-`scripts/acceptance/playbook_dashboard_acceptance.py` — **176 passed, 0
-failed**, and **344 passed, 0 failed over two consecutive cycles**, which is
+`scripts/acceptance/playbook_dashboard_acceptance.py` — **185 passed, 0
+failed**, and **370 passed, 0 failed over two consecutive cycles**, which is
 what proves the run restores whatever it changed rather than leaving the
 demonstration a little more answered each time. It covers thread entry, draft
 survival across CHAT → STATUS → CHAT, the dashboard shell, Pack, Findings,
 answering a finding, Decisions & Actions, Since Last Time, metric mapping,
 confirming a suggestion, Sections, Sources, re-reading, History, update
-review, the context bridge, keyboard and focus, accessibility, an empty
-Playbook, a non-committee document, and all three viewports. Evidence:
-`docs/playbook/dashboard_acceptance.json`.
+review, the context bridge, keyboard and focus, accessibility, a tab forced to
+fail, an empty Playbook, a non-committee document, and all three viewports.
+Evidence: `docs/playbook/dashboard_acceptance.json`.
+
+One of those is worth naming. `TabBoundary` was written after a real crash —
+reading a governance-only field off a section history entry threw and React
+unmounted the whole application — and a guard nothing exercises is a guard
+nobody knows is broken. So the run intercepts the history response on its way
+to the browser, rewrites it to a shape the tab cannot render, and checks that
+the tab says so as an alert, that the header, status cards and readiness panel
+are all still there, that another tab still opens, that the notice leaves with
+the tab that failed, and that the tab works again once the intercept is
+removed. Nothing on the server is touched.
 
 ## 11. Backend test counts
 
 ```
-tests/playbook                                            990 passed,  8 skipped
-tests/api tests/exports tests/docs tests/demo
-  tests/services tests/llm tests/proof tests/validation  1113 passed,  8 skipped
+tests/playbook                                           1037 passed,  8 skipped
 ```
 
-The 8 skips in each are the live-provider checks, which skip without a
-credential. A skip is never counted as a pass.
+The 8 skips are the live-provider checks, which skip without a credential. A
+skip is never counted as a pass.
 
 `ruff check .` clean.
 
@@ -165,7 +173,7 @@ credential. A skip is never counted as a pass.
 ```
 npx tsc --noEmit    clean
 npm run lint        clean
-npm test            462 passed, 0 failed
+npm test            516 passed, 0 failed
 npm run build       succeeded
 ```
 
@@ -502,7 +510,7 @@ so and refuses, which is itself the correct behaviour to check.
 | No zero-state noise on an empty Playbook | ✅ explained, not counted |
 | Accessible: focus, Escape, labels, non-colour status | ✅ within the dashboard |
 | Responsive at 1366×768, 1440×900 and narrow | ✅ nothing escapes the viewport |
-| Repeated testing reveals no state drift | ✅ 891/891 soak; 344/344 over two cycles |
+| Repeated testing reveals no state drift | ✅ 891/891 soak; 370/370 over two cycles |
 | Artifacts parse back to what they claim | ✅ 14 files, 62 checks |
 | Human UAT can begin with no known critical defect | ✅ |
 
