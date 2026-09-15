@@ -314,6 +314,38 @@ def ask(payload: AskIn, principal: Principal = RequireAnalyst) -> dict:
     return body
 
 
+def _retail_story(payload: AskIn) -> dict[str, Any] | None:
+    """A recognised retail story question, answered by its own engine.
+
+    The planner reads a sentence against a vocabulary of fields, which is
+    right for "show retail exposure by product" and wrong for "what is the
+    reason of this rise?" — a sentence that carries almost none of what it
+    means. Everything that matters is in the investigation it was asked
+    inside, and planning it afresh produced a confident answer about gross
+    carrying amount across the whole portfolio over twelve months, inside an
+    investigation about the Credit Card 30+ DPD rate moving month on month.
+
+    Returns None for everything it does not recognise, which is nearly
+    everything: this declines quickly rather than taking over.
+    """
+    from backend.retail import story_router as sr
+    from backend.services import threads as th
+
+    context = (th.context_of(payload.investigation_id)
+               if payload.investigation_id else {})
+    ask = sr.read(payload.question, context)
+    if ask is None:
+        return None
+    out = sr.answer(ask)
+    if not out.get("available"):
+        # An engine that cannot run must not swallow the question: the
+        # planner's answer, whatever it is, beats a dead end here.
+        logger.info("The retail story engine declined %r: %s",
+                    payload.question, out.get("because"))
+        return None
+    return out
+
+
 def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
     try:
         period = (
@@ -352,11 +384,29 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
         )
         if payload.investigation_id and payload.persist:
             th.remember(payload.investigation_id, investigation, answered)
+        # The story engines run BESIDE the planner, not instead of it: the
+        # deterministic plan, table and Trace still exist and are still
+        # returned, so nothing that reads this response has to change.
+        try:
+            story = _retail_story(payload)
+        except Exception as e:  # noqa: BLE001 - the planner's answer stands
+            logger.warning("The retail story engine failed on %r: %s",
+                           payload.question, e)
+            story = None
     except PlanRejected as e:  # pragma: no cover - the executor returns instead
         raise HTTPException(status_code=422,
                             detail={"error": "plan_rejected", "message": str(e),
                                     "reasons": e.reasons}) from e
     body = investigation.to_dict()
+    if story is not None:
+        body["retail_story"] = story
+        # The narrative the reader sees comes from the engine that actually
+        # answered. Leaving the planner's narrative in place while attaching
+        # the real analysis underneath would put two different answers to one
+        # question on one screen.
+        body["narrative"] = _story_narrative(story)
+        body["intent"] = story.get("interpretation") or body.get("intent")
+        body["follow_ups"] = story.get("follow_ups") or body.get("follow_ups")
     # Belt and braces, and both are load-bearing. `_analyst_view` catches what
     # the analyst can throw; this catches what `_analyst_view` itself can —
     # an import failure, a missing module in a partial deployment. §9: a
@@ -369,6 +419,29 @@ def _ask(payload: AskIn, principal: Principal) -> dict[str, Any]:
         body["analyst"] = {"path": "deterministic", "analyst_available": False,
                            "why": "the governed semantic reader answered"}
     return body
+
+
+def _story_narrative(story: dict[str, Any]) -> dict[str, Any]:
+    """The engine's own findings, in the shape the Cockpit already renders."""
+    findings = story.get("findings") or []
+    lead = findings[0]["text"] if findings else ""
+    scope = story.get("scope") or {}
+    return {
+        "direct_answer": lead,
+        "summary": lead,
+        "findings": [{"label": one.get("label", ""), "text": one.get("text", "")}
+                     for one in findings],
+        "interpretation": story.get("interpretation", ""),
+        "interpretation_points": [one.get("text", "") for one in findings[1:]],
+        "scope": (f"{scope.get('label', 'Retail')} · "
+                  f"{scope.get('prior') or story.get('measured_at', {}).get('reference', '')}"
+                  f" to {scope.get('month') or story.get('measured_at', {}).get('current', '')}"
+                  f" · {scope.get('facilities', 0):,} facilities, "
+                  f"{scope.get('customers', 0):,} customers"),
+        "limitations": story.get("limitations", []),
+        "analysis_id": story.get("analysis_id", ""),
+        "analysis_version": story.get("analysis_version", ""),
+    }
 
 
 def _analyst_view(payload: AskIn, principal: Principal) -> dict[str, Any]:

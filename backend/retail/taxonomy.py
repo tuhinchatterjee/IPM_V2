@@ -49,13 +49,30 @@ SECURED_PRODUCTS: frozenset[str] = frozenset({AUTO_LOAN, HOME_LOAN})
 
 
 def resolve_product(text: str) -> str | None:
-    """Machine code for a product the user named, or None if they named none."""
+    """Machine code for a product the user named, or None if they named none.
+
+    Matched on WORD boundaries. A plain substring test read "ex-pl-ain" as the
+    "pl" synonym for Personal Finance and "score-card-" as Credit Card, so
+    "Which customers explain most of it?" arrived scoped to personal loans and
+    "Show all behavioural scorecard variables" to cards — a wrong scope that
+    looked like a right one, which is the worst kind.
+
+    Word boundaries also settle what looked like it needed a tiebreak: the
+    bare "pl" synonym does not match inside "personal finance", so the two do
+    not compete. Two DIFFERENT products in one sentence stays ambiguous.
+    """
+    import re as _re
+
     t = (text or "").strip().lower()
     if t.upper() in PRODUCT_CODES:
         return t.upper()
     if t in PRODUCT_SYNONYMS:
         return PRODUCT_SYNONYMS[t]
-    hits = {code for phrase, code in PRODUCT_SYNONYMS.items() if phrase in t}
+    hits = {code for phrase, code in PRODUCT_SYNONYMS.items()
+            if _re.search(rf"(?<!\w){_re.escape(phrase)}(?!\w)", t)}
+    # Two different products named in one sentence is genuinely ambiguous, and
+    # picking the one whose synonym happens to be longer would scope an answer
+    # to half the question. The caller asks rather than guesses.
     return hits.pop() if len(hits) == 1 else None
 
 
