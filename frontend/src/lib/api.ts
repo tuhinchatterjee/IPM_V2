@@ -2029,6 +2029,8 @@ export interface RiskCase {
   entity: string;
   entity_id: string;
   entity_kind: string;
+  /** Which rule raised this, as the rule names itself. */
+  about: string;
   period: string;
   prior_period: string;
   severity: string;

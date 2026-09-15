@@ -330,15 +330,33 @@ def _seed_for(case: Any) -> dict[str, Any]:
         "risk_case": {
             "id": case.id, "key": case.case_key, "title": case.title,
             "level": case.level, "entity": case.entity,
+            # What KIND of finding this is. A route that answers a question
+            # differently inside this investigation than outside it needs to
+            # know which investigation it is in, and the case's own `about` is
+            # the only thing that says so without guessing from the title.
+            "about": case.about or "",
             "severity": case.severity, "period": case.period,
+            "prior_period": case.prior_period,
+            "conclusion": case.conclusion,
             "signals": list(case.signals or []),
+            "metrics": list(case.metrics or []),
             "analyses": list(case.analyses or []),
+            # The same chart the drawer drew, carried into the thread so the
+            # investigation opens on the context the reader just had rather
+            # than on an empty page with a title.
+            "chart": dict((case.evidence or {}).get("chart") or {}),
         },
     }
 
 
 def _question_for(case: Any) -> str:
     """The opening question, in the product's own vocabulary."""
+    # A migration between delinquency buckets has a first question of its own,
+    # and the generic segment one — "something seems wrong with Credit Card" —
+    # throws away everything the case just established.
+    if (case.about or "") == "retail_early_delinquency":
+        return (f"Why has the {case.entity} population in 1-29 DPD risen at "
+                f"{case.period}, and where is it concentrated?")
     if case.level == cases.BORROWER:
         return (f"What is driving the deterioration at {case.entity} "
                 f"in {case.period}?")

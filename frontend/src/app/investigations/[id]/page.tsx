@@ -6,6 +6,7 @@ import { Globe, Pencil, Share2, Sparkles } from "lucide-react";
 
 import { AnswerBlock, FollowUps } from "@/components/ask/answer";
 import { ShareButton } from "@/components/collaboration/share";
+import { CaseContext } from "@/components/attention/case-context";
 import { BackLink } from "@/components/layout/back-link";
 import { ClarificationCard } from "@/components/ask/clarification";
 import {
@@ -191,6 +192,10 @@ function Thread({ threadId }: { threadId: number }) {
         picking={picking}
         onPickingChange={setPicking}
       />
+
+      {/* What the reader was looking at when they pressed Investigate. Above
+          the first turn, because the conversation is about it. */}
+      <CaseContext context={thread.context} />
 
       <div className="space-y-9">
         {thread.messages.map((message) => (

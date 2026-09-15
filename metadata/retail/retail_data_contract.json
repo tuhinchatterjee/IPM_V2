@@ -19,7 +19,7 @@
   "dpd_convention": "Integer days.",
   "tenor_convention": "Integer months.",
   "is_synthetic": true,
-  "column_count": 546,
+  "column_count": 547,
   "columns": [
     {
       "name": "snapshot_date",
@@ -236,7 +236,7 @@
     {
       "name": "product_subsegment",
       "business_name": "Product subsegment",
-      "definition": "The variant within the product \u2014 a first home against a refinance, a new car against a used one, new lending against a top-up. Products behave differently inside these splits.",
+      "definition": "The variant within the product \u2014 a first home against a refinance, a new car against a used one, new lending against a top-up. For a card it is the PROGRAMME the account was booked under: Classic, Gold, Signature, or the Alpha expansion. Products behave differently inside these splits, and a card programme is the split a card book moves in.",
       "data_type": "string",
       "unit": null,
       "grain": "FACILITY",
@@ -9793,6 +9793,36 @@
       "as_of_meaning": "The month-end named by snapshot_date.",
       "lineage": "Synthetic retail generator",
       "allowed_values": null
+    },
+    {
+      "name": "origination_score_band",
+      "business_name": "Origination score band",
+      "definition": "`application_score_at_origination` banded at the card programme floors \u2014 the established programme's 620 and the Alpha expansion's 580, with the span between them split. A property of the ACCOUNT AT ORIGINATION: it never moves after booking, so a cohort cut by it is a cut by who was taken on, not by how they have behaved since.",
+      "data_type": "string",
+      "unit": null,
+      "grain": "FACILITY",
+      "semantics": "DESCRIPTOR",
+      "aggregation": "none",
+      "products": [
+        "CREDIT_CARD",
+        "PERSONAL_LOAN",
+        "AUTO_LOAN",
+        "HOME_LOAN"
+      ],
+      "nullable": true,
+      "null_policy": "",
+      "sensitivity": "internal",
+      "valid_range": null,
+      "as_of_meaning": "The month-end named by snapshot_date.",
+      "lineage": "Synthetic retail generator",
+      "allowed_values": [
+        "<580",
+        "580-589",
+        "590-599",
+        "600-619",
+        "620-649",
+        "650+"
+      ]
     },
     {
       "name": "application_predicted_pd_12m",

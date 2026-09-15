@@ -139,6 +139,41 @@ REGION_WEIGHTS: dict[str, float] = {
 
 # ---- product-specific subsegment vocabularies -----------------------------
 
+#: The card programmes a card facility can be booked under. `product_subsegment`
+#: carries one of these for every CREDIT_CARD row.
+#:
+#: CLASSIC, GOLD and SIGNATURE are the established proposition, banded by limit.
+#: ALPHA is a later, growth-oriented proposition: a deliberate, bounded risk
+#: expansion that accepts selected salaried applicants below the established
+#: programme's origination floor. Both floors are written down in
+#: `backend.retail.policy.CARD_PROGRAMME_POLICY` so a row can always be traced
+#: to the rule that booked it.
+#:
+#: Every one of these is a SYNTHETIC demonstration product. None of them is an
+#: Arab National Bank proposition and none of the thresholds behind them is a
+#: bank policy.
+CARD_PROGRAMMES = ("CLASSIC", "GOLD", "SIGNATURE", "ALPHA")
+CARD_PROGRAMME_LABELS: dict[str, str] = {
+    "CLASSIC": "Classic Card",
+    "GOLD": "Gold Card",
+    "SIGNATURE": "Signature Card",
+    "ALPHA": "Alpha Card",
+}
+#: What a presenter or a reader may type and still be understood.
+CARD_PROGRAMME_SYNONYMS: dict[str, str] = {
+    "alpha": "ALPHA", "alpha card": "ALPHA", "alphacard": "ALPHA",
+    "classic": "CLASSIC", "classic card": "CLASSIC",
+    "gold": "GOLD", "gold card": "GOLD",
+    "signature": "SIGNATURE", "signature card": "SIGNATURE",
+}
+
+#: Origination score bands used for the card risk-concentration cut. The edges
+#: are the established programme's floor (620) and the expansion programme's
+#: floor (580), with the span between them split so the gradient inside the
+#: expansion is visible rather than averaged away.
+ORIGINATION_SCORE_BANDS = ("<580", "580-589", "590-599", "600-619", "620-649", "650+")
+ORIGINATION_SCORE_BAND_EDGES = (580.0, 590.0, 600.0, 620.0, 650.0)
+
 CARD_BEHAVIOUR_SEGMENTS = ("TRANSACTOR", "REVOLVER", "INACTIVE")
 UTILISATION_BANDS = ("0-20%", "20-40%", "40-60%", "60-80%", "80-100%", ">100%")
 UTILISATION_BAND_EDGES = (0.20, 0.40, 0.60, 0.80, 1.00)
@@ -217,6 +252,19 @@ INDEBTEDNESS_BAND_SPEC = BandSpec("indebtedness_band", INDEBTEDNESS_BANDS, INDEB
 UTILISATION_BAND_SPEC = BandSpec("utilisation_band", UTILISATION_BANDS, UTILISATION_BAND_EDGES)
 LTV_BAND_SPEC = BandSpec("ltv_band", LTV_BANDS, LTV_BAND_EDGES)
 DPD_BUCKET_SPEC = BandSpec("dpd_bucket", DPD_BUCKETS, DPD_BUCKET_EDGES)
+ORIGINATION_SCORE_BAND_SPEC = BandSpec(
+    "origination_score_band", ORIGINATION_SCORE_BANDS, ORIGINATION_SCORE_BAND_EDGES)
+
+
+def resolve_card_programme(text: str) -> str | None:
+    """The card programme a reader named, or None if they named none."""
+    t = (text or "").strip().lower()
+    if t.upper() in CARD_PROGRAMMES:
+        return t.upper()
+    if t in CARD_PROGRAMME_SYNONYMS:
+        return CARD_PROGRAMME_SYNONYMS[t]
+    hits = {code for phrase, code in CARD_PROGRAMME_SYNONYMS.items() if phrase in t}
+    return hits.pop() if len(hits) == 1 else None
 
 
 def product_applicable(field_name: str, product_code: str) -> bool:

@@ -193,6 +193,18 @@ class ConversationState:
     not wipe the population you were working on.
     """
 
+    #: The investigation's own stored context, as the thread holds it — the
+    #: scope it was opened with, and the Risk Case it was opened from.
+    #:
+    #: NOT part of the state and deliberately not serialised by `to_dict`: the
+    #: thread owns this, and a copy written back into the state column would be
+    #: a second, ageing version of something already stored beside it. It is
+    #: attached by `load` so a route can ask what conversation it is in, which
+    #: is the only way a question like "what should we do about it?" can be
+    #: told apart from the same words typed somewhere else.
+    thread_context: dict[str, Any] = field(default_factory=dict, compare=False,
+                                           repr=False)
+
     subject: str = ""
     intent: str = ""
     conversation_action: str = ""
@@ -699,8 +711,15 @@ def answers_a_clarification(reply: str) -> bool:
 
 
 def load(context: dict[str, Any] | None) -> ConversationState:
-    """The state out of an Investigation's context column."""
-    return ConversationState.from_dict((context or {}).get(STATE_KEY))
+    """The state out of an Investigation's context column.
+
+    The rest of the context travels with it, unserialised, so a route can read
+    what this investigation is about without a second lookup.
+    """
+    found = ConversationState.from_dict((context or {}).get(STATE_KEY))
+    found.thread_context = {k: v for k, v in (context or {}).items()
+                            if k != STATE_KEY}
+    return found
 
 
 def save(context: dict[str, Any] | None,

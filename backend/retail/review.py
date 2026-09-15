@@ -18,7 +18,7 @@ So there is a retail review, and it reads the retail book.
 
 What it raises
 --------------
-Two classes, because those are the two things that bring a Head of Retail Risk
+Three classes, because those are the things that bring a Head of Retail Risk
 into the room:
 
 * **Deterioration** — a product whose arrears or default entry has been rising
@@ -26,6 +26,12 @@ into the room:
   month is noise, three in a row is a trend.
 * **Impairment** — a product whose ECL has risen materially this month, with
   the size of the move and what it did to coverage.
+* **Early-delinquency migration** — a product whose population has moved out of
+  current status into the first arrears bucket without the later buckets moving
+  with it. Not a deterioration in the sense above and not an impairment: no
+  money has been lost yet. It is raised because it is the earliest point at
+  which anything can still be done, and because by the time it reaches the
+  later buckets the decision that mattered has already been taken.
 
 Every case names its product, its figures, both periods and the rule that
 raised it. Nothing is scored by judgement: the severity comes from the size of
@@ -58,6 +64,20 @@ DETERIORATION_MONTHS = 3
 LOOKBACK = 6
 
 BOOK = "retail_facility_month"
+CARD_LABEL = "Credit Card"
+
+#: Synthetic demonstration thresholds for the early-delinquency migration.
+#: Bank-configurable; none of them is a policy.
+#: How far above its recent baseline the 1-29 population has to be.
+EARLY_MULTIPLE = 1.6
+#: And how many percentage points above the prior month, so a small book
+#: doubling from a fraction of a percent does not raise a case.
+EARLY_RISE_PP = 2.5
+#: How much of that rise the fall in 0 DPD has to account for, before it reads
+#: as a migration rather than as a book that grew.
+MIGRATION_MATCH = 0.7
+#: How far a later bucket may move and still leave this an EARLY finding.
+EARLY_LATER_TOLERANCE_PP = 1.5
 
 
 @dataclass
@@ -317,7 +337,185 @@ def _impairment(series: Series) -> rc.Draft | None:
     )
 
 
+def _early_delinquency(period: str) -> rc.Draft | None:
+    """The card book's population moving out of current into early arrears.
+
+    NOT a rule about the default rate, and the case says so in its first
+    sentence. What it watches is the 1-29 DPD POPULATION: how many card
+    accounts are one cycle behind, against how many were one cycle behind in
+    the months before. A book whose later buckets are unchanged and whose early
+    bucket has doubled has not lost more money this month — it has lost
+    something more useful, which is the assumption that the customers in it
+    were going to pay.
+
+    Raised on three conditions together, so that none of them can carry the
+    case alone:
+
+      * the 1-29 population is materially above the recent baseline, both as a
+        multiple and in percentage points;
+      * the current population fell by a comparable amount, which is what makes
+        it a MIGRATION rather than a book that grew;
+      * the later buckets did not move with it, which is what makes it early
+        rather than an arrears problem already in train.
+
+    The severity is the published arithmetic of `backend.agentic.severity`, and
+    every component carries the figure it was computed from.
+    """
+    from backend.retail import anb_demo as anb
+
+    found = anb.early_delinquency(period)
+    if not found.get("available"):
+        return None
+
+    early, current = found["early"], found["current"]
+    baseline, multiple = found["baseline"], found["baseline_multiple"]
+    if (multiple < EARLY_MULTIPLE or early.change < EARLY_RISE_PP
+            or current.change > -EARLY_RISE_PP * MIGRATION_MATCH):
+        return None
+    if found["later_worst"] > EARLY_LATER_TOLERANCE_PP:
+        return None
+
+    at, prior = found["period"], found["previous_period"]
+    accounts = found["accounts"]
+    moved = early.now_count - early.before_count
+    later = ", ".join(f"{m.label} {m.now:.2f}%" for m in found["later"])
+
+    return rc.Draft(
+        level=rc.SEGMENT,
+        title="Credit cards: rising population in 1-29 DPD",
+        period=at,
+        prior_period=prior,
+        entity=CARD_LABEL,
+        entity_id=CARD_LABEL,
+        entity_kind="product",
+        about="retail_early_delinquency",
+        conclusion=(
+            f"{early.now:.1f}% of credit-card accounts are 1-29 days past due "
+            f"at {at}, against {early.before:.1f}% at {prior} and a "
+            f"{baseline:.1f}% average over the {len(found['baseline_months'])} "
+            f"months before it — {early.change:+.1f} percentage points and "
+            f"{multiple:.1f} times the recent baseline, or {moved:+,} accounts. "
+            f"The current population fell by {abs(current.change):.1f} points "
+            f"over the same month, so these are accounts that have moved out of "
+            f"0 DPD rather than accounts the book has added. Later delinquency "
+            f"has not moved with them ({later}), so nothing has been lost yet — "
+            f"what has changed is how many customers are one cycle behind."),
+        why=(
+            "Raised because three things hold together at this month-end, and "
+            "no one of them would have raised it alone: the 1-29 population is "
+            f"at least {EARLY_MULTIPLE:.1f} times its recent baseline and at "
+            f"least {EARLY_RISE_PP:.0f} percentage points above last month; the "
+            "0 DPD population fell by a comparable amount, which is what makes "
+            "this a migration between buckets rather than a larger book; and no "
+            f"later bucket moved by more than {EARLY_LATER_TOLERANCE_PP:.1f} "
+            "points, which is what makes it early. Population shares are "
+            "COUNT(accounts in the bucket) / COUNT(open card accounts) at each "
+            "month-end, recomputed each month rather than carried forward, so a "
+            "month in which the book grew cannot read as a month in which "
+            "arrears fell. Thresholds are synthetic demonstration settings and "
+            "bank-configurable; none of them is a policy."),
+        exposure=found["exposure_sar_mn"],
+        exposure_unit="SAR mn",
+        metrics=[
+            {"label": "1-29 DPD population", "value": early.now, "unit": "%",
+             "period": at},
+            {"label": "1-29 DPD population, prior month", "value": early.before,
+             "unit": "%", "period": prior},
+            {"label": "Change", "value": early.change, "unit": "pp"},
+            {"label": "Recent baseline", "value": baseline, "unit": "%"},
+            {"label": "Against the recent baseline", "value": multiple,
+             "unit": "x"},
+            {"label": "0 DPD population", "value": current.now, "unit": "%",
+             "period": at},
+            {"label": "Accounts now 1-29 DPD", "value": early.now_count,
+             "unit": "count", "period": at},
+            {"label": "Card accounts", "value": accounts, "unit": "count",
+             "period": at},
+            {"label": "Balance carried by accounts 1-29 DPD",
+             "value": found["exposure_sar_mn"], "unit": "SAR mn",
+             "period": at},
+        ],
+        signals=[
+            f"1-29 DPD at {multiple:.1f} times its {len(found['baseline_months'])}"
+            f"-month baseline",
+            f"0 DPD down {abs(current.change):.1f} points in the same month",
+            f"no later bucket moved by more than "
+            f"{found['later_worst']:+.2f} points",
+            f"{found['focus_now']:.1f}% of card accounts are 20-29 days past "
+            f"due, {found['focus_share_of_early']:.0f}% of the 1-29 population",
+        ],
+        evidence={
+            "dataset": anb.BOOK,
+            "product": CARD_LABEL,
+            "months": list(found["trend"]["months"]),
+            "rule": "retail.early_delinquency.bucket_migration",
+            "threshold_source": (
+                "Synthetic demo thresholds, bank-configurable: at least "
+                f"{EARLY_MULTIPLE:.1f}x the recent baseline, at least "
+                f"{EARLY_RISE_PP:.0f}pp above the prior month, a matching fall "
+                "in 0 DPD, and no later bucket moving more than "
+                f"{EARLY_LATER_TOLERANCE_PP:.1f}pp."),
+            # What the drawer draws. Carried on the case rather than recomputed
+            # by the screen, so the chart and the sentence above it cannot come
+            # from two different readings of the book.
+            "chart": {
+                "title": "Credit-card accounts by delinquency bucket",
+                "unit": "% of open card accounts",
+                "series": list(found["trend"]["series"]),
+                "focus": [label for label in found["trend"]["series"]
+                          if label != "0 DPD"],
+                "rows": list(found["trend"]["rows"]),
+                "note": ("0 DPD is shown as a figure rather than a line: on one "
+                         "axis with the others it flattens every bucket the "
+                         "question is about."),
+            },
+            "narrative": (
+                "The increase is driven by accounts migrating out of current "
+                "status into early delinquency. Later-stage delinquency has "
+                "not risen with it."),
+        },
+        score=_early_score(found),
+    )
+
+
+def _early_score(found: dict[str, Any]) -> sv.Score:
+    """Severity for the migration, from the size of it and what it touches."""
+    early = found["early"]
+    accounts = max(found["accounts"], 1)
+    magnitude = min(abs(early.change) / 10.0, 1.0)
+    concentration = min(found["focus_share_of_early"] / 100.0, 1.0)
+    materiality = min(early.now_count / (accounts * 0.15), 1.0)
+    signals = min(found["baseline_multiple"] / 3.0, 1.0)
+    components = [
+        sv.Component(key=sv.MAGNITUDE, value=magnitude, weight=0.34,
+                     detail=(f"a {early.change:+.2f} point move in the 1-29 "
+                             "population, capped at 10 points"),
+                     observed=round(early.change, 4)),
+        sv.Component(key=sv.MATERIALITY, value=materiality, weight=0.26,
+                     detail=(f"{early.now_count:,} of {accounts:,} card "
+                             "accounts, against a 15% cap"),
+                     observed=early.now_count),
+        sv.Component(key=sv.SIGNALS, value=signals, weight=0.22,
+                     detail=(f"{found['baseline_multiple']:.2f} times the "
+                             "recent baseline, capped at 3"),
+                     observed=round(found["baseline_multiple"], 4)),
+        sv.Component(key=sv.CONCENTRATION, value=concentration, weight=0.18,
+                     detail=(f"{found['focus_share_of_early']:.0f}% of the "
+                             "1-29 population is 20-29 days past due"),
+                     observed=round(found["focus_share_of_early"], 4)),
+    ]
+    total = sum(c.value * c.weight for c in components)
+    band = next(name for floor, name in sv.BANDS if total >= floor)
+    return sv.Score(score=round(total, 4), band=band, components=components)
+
+
 RULES = (_deterioration, _impairment)
+
+#: Rules that read the BOOK at a period rather than one product's series. The
+#: migration rule is one: it is about how a single product's population is
+#: distributed across the delinquency ladder, which is not a number a
+#: per-product time series carries.
+BOOK_RULES = (_early_delinquency,)
 
 
 # --------------------------------------------------------------------- run
@@ -359,6 +557,21 @@ def run(session: Any, *, period: str = "", actor: str = REVIEWER,
             period=out.period, prior_period=out.previous_period,
             service_identity=actor)
         session.flush()
+
+    for rule in BOOK_RULES:
+        draft = rule(out.period)
+        name = rule.__name__.strip("_")
+        out.rules[name] = out.rules.get(name, 0) + (1 if draft else 0)
+        if draft is not None:
+            out.qualified += 1
+            existing = _existing(session, draft)
+            case = rc.upsert(session, draft, actor_agent=actor)
+            out.case_ids.append(int(case.id))
+            out.bands[case.severity] = out.bands.get(case.severity, 0) + 1
+            if existing:
+                out.refreshed += 1
+            else:
+                out.opened += 1
 
     for series in history:
         for rule in RULES:

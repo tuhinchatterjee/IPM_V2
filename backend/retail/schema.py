@@ -219,6 +219,13 @@ _c("current_default_flag", data_type="boolean", semantics=DESCRIPTOR,
    definition="In default at this month-end under the versioned default definition: 90+ DPD, or "
               "recorded unlikeliness to pay. A cured facility is False here and keeps its "
               "`first_default_date`.")
+_c("origination_score_band", data_type="string", semantics=DESCRIPTOR,
+   allowed_values=tax.ORIGINATION_SCORE_BANDS,
+   definition="`application_score_at_origination` banded at the card programme floors — the "
+              "established programme's 620 and the Alpha expansion's 580, with the span between "
+              "them split. A property of the ACCOUNT AT ORIGINATION: it never moves after booking, "
+              "so a cohort cut by it is a cut by who was taken on, not by how they have behaved "
+              "since.")
 _c("utilisation_ratio", data_type="number", unit="ratio", semantics=RATIO, products=(tax.CREDIT_CARD,),
    valid_range=(0.0, 3.0), null_policy="Null for every non-revolving product, with product applicability "
                                        "as the reason. Never zero.",

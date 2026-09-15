@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 
+import { TrendChart } from "@/components/analytics/charts";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type RiskCase } from "@/lib/api";
@@ -203,6 +204,8 @@ export function CaseDrawer({
                 </p>
                 <Severity found={found} />
               </Section>
+
+              <BucketTrend found={found} />
 
               {found.signals.length > 0 && (
                 <Section title="Signals">
@@ -502,6 +505,122 @@ function Actions({
         </Button>
       )}
     </div>
+  );
+}
+
+/**
+ * The month-on-month trend a case brought with it.
+ *
+ * Drawn from `evidence.chart`, which the rule that raised the case computed
+ * and wrote there. Nothing here recomputes anything: a drawer that fetched the
+ * book and worked out its own percentages would be a second reading of the
+ * same months, and the first time the two disagreed the reader would have no
+ * way to tell which one the case was actually raised on.
+ *
+ * WHY THE LARGEST SERIES IS NOT A LINE
+ *
+ * On a card book roughly eighty-five per cent of accounts are at 0 DPD. Put
+ * that on the same axis as a bucket that moved from five per cent to eleven
+ * and the axis runs to a hundred, the line that doubled becomes a slight bend
+ * near the floor, and the reader sees a flat chart under a headline saying
+ * something doubled. So the dominant series is shown as its two figures — the
+ * prior month and this one, with the movement between them — and the axis is
+ * left to the buckets the case is about.
+ *
+ * Nothing is hidden by that: every series and every month is in the values
+ * below, in full, and the note on the chart says what was done and why.
+ */
+function BucketTrend({ found }: { found: RiskCase }) {
+  const chart = (found.evidence?.chart ?? null) as
+    | {
+        title?: string;
+        unit?: string;
+        note?: string;
+        series?: string[];
+        focus?: string[];
+        rows?: Record<string, number | string>[];
+      }
+    | null;
+
+  const rows = chart?.rows ?? [];
+  const all = chart?.series ?? [];
+  const focus = chart?.focus?.length ? chart.focus : all;
+  const [showAll, setShowAll] = React.useState(false);
+
+  if (!rows.length || !all.length) return null;
+
+  const drawn = showAll ? all : focus;
+  const held = all.filter((name) => !focus.includes(name));
+  const first = rows[0] as Record<string, number | string>;
+  const last = rows[rows.length - 1] as Record<string, number | string>;
+  const previous = (rows[rows.length - 2] ?? last) as Record<string, number | string>;
+
+  const series = drawn.map((name, index) => ({
+    key: name,
+    label: name,
+    slot: index,
+  }));
+  const units = Object.fromEntries(all.map((name) => [name, chart?.unit ?? "%"]));
+
+  return (
+    <Section title={chart?.title || "Trend"}>
+      {/* The dominant series, as figures rather than a line it would flatten. */}
+      {!showAll && held.length > 0 && (
+        <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+          {held.map((name) => {
+            const now = Number(last[name] ?? 0);
+            const before = Number(previous[name] ?? 0);
+            const moved = now - before;
+            return (
+              <div key={name} className="min-w-0">
+                <dt className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
+                  {name}
+                </dt>
+                <dd className="text-text-secondary">
+                  <span className="mono tabular">{now.toFixed(1)}%</span>
+                  <span
+                    className={cn(
+                      "ml-1.5 text-[11px]",
+                      moved < 0 ? "text-negative" : "text-text-muted",
+                    )}
+                  >
+                    {moved >= 0 ? "+" : ""}
+                    {moved.toFixed(1)} pp
+                  </span>
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+
+      <TrendChart
+        data={rows}
+        xKey="Month"
+        series={series}
+        units={units}
+        height={200}
+      />
+
+      <p className="mt-1 text-[11px] text-text-muted">
+        {String(first.Month)} to {String(last.Month)}
+        {chart?.unit ? `, ${chart.unit}` : ""}.
+        {chart?.note && !showAll ? ` ${chart.note}` : ""}
+      </p>
+
+      {held.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll((now) => !now)}
+          aria-pressed={showAll}
+          className="mt-1 text-[11px] text-accent hover:underline"
+        >
+          {showAll
+            ? "Show the early buckets on their own scale"
+            : `Draw every bucket on one axis, ${held.join(" and ")} included`}
+        </button>
+      )}
+    </Section>
   );
 }
 

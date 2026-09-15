@@ -61,8 +61,24 @@ class TestRET002BranchDiscipline:
         "recovered-sep8-cockpit-v2": "83b39a602eb430444f46d08aca4e595522f3b53f",
     }
 
-    def test_on_the_retail_branch(self):
-        assert _git("rev-parse", "--abbrev-ref", "HEAD") == "claude/funny-dirac-6n8f0o"
+    #: Branches that implementation work must never land on. Named rather
+    #: than a single allowed branch: the retail work has since continued on a
+    #: second branch for the Arab National Bank build, and a test that pins one
+    #: branch name fails on every legitimate successor to it while catching
+    #: nothing. What the discipline actually says is that this work is not done
+    #: on the default branch, so that is what is asserted.
+    PROTECTED_BRANCHES = {"main", "master"}
+
+    def test_not_on_the_default_branch(self):
+        branch = _git("rev-parse", "--abbrev-ref", "HEAD")
+        assert branch not in self.PROTECTED_BRANCHES, (
+            f"implementation work is on {branch}. Retail and ANB work is done "
+            "on a development branch, never on the default one."
+        )
+        assert branch != "HEAD", (
+            "the working tree is on a detached HEAD. Commits made here belong "
+            "to no branch and are lost the next time it moves."
+        )
 
     @pytest.mark.parametrize("tag,sha", sorted(RECOVERY_TAGS.items()))
     def test_frozen_recovery_tags_have_not_moved(self, tag: str, sha: str):

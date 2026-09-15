@@ -102,6 +102,10 @@ class RetailDemoConfig:
     portfolio_country: str
     scenarios: ScenarioSet
     ecl: dict[str, Any]
+    #: The card programme mix and the demonstration stress episode. Optional:
+    #: a configuration without it generates the book exactly as it did before,
+    #: which is what keeps this an addition rather than a fork.
+    card_programmes: dict[str, Any] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
 
     # ---------------------------------------------------------------- chronology
@@ -134,6 +138,17 @@ class RetailDemoConfig:
     @property
     def last_snapshot(self) -> date:
         return self.snapshot_dates[-1]
+
+    def month_index(self, month: str) -> int:
+        """Where a "YYYY-MM" falls in the simulated chronology, warm-up included.
+
+        Negative for a month before the simulation starts, `len(all_dates)` or
+        more for one after it. Callers compare against the range they care
+        about rather than getting a silently clamped answer.
+        """
+        year, mon = (int(part) for part in str(month).split("-"))
+        first = self.all_dates[0]
+        return (year * 12 + (mon - 1)) - (first.year * 12 + (first.month - 1))
 
     def validate(self) -> None:
         if self.months != 25:
@@ -198,6 +213,7 @@ def load_config(path: Path | None = None) -> RetailDemoConfig:
             },
         ),
         ecl=raw["ecl"],
+        card_programmes=dict(raw.get("card_programmes") or {}),
         raw=raw,
     )
     cfg.validate()

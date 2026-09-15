@@ -358,6 +358,31 @@ def answer(question: str, *, context: Any = None,
         return _from_product(original, question, product_intent, fixed,
                              started)
 
+    # The card book's early-delinquency investigation. Five questions with five
+    # known shapes over one dataset, asked in the thread a Risk Case opened:
+    # split the arrears bucket, look at the cohort's behavioural scores,
+    # decompose the score move by model variable, find the concentration, and
+    # say what to do about it.
+    #
+    # Routed here, before the planner, because they are computations rather
+    # than searches. The Risk Case, its drawer and these five answers read the
+    # SAME functions, so the figure on the card and the figure in the third
+    # answer are one computation read twice rather than two that happen to
+    # agree — which is the property a live investigation is worth nothing
+    # without.
+    #
+    # It is narrow on purpose and it declines when it is unsure. A sentence
+    # that names neither the product nor the cohort is answered here only when
+    # the conversation it was asked in already established both; outside that
+    # thread "what should we do about it?" falls through to the planner,
+    # because nobody has said what "it" is.
+    card_reading = _reads_card_investigation(original, state=state, memory=memory)
+    if card_reading is not None:
+        found = _from_card_investigation(original, question, card_reading,
+                                         fixed, started, period=period)
+        if found is not None:
+            return found
+
     # A HYPOTHETICAL is not a question about the book as it is, and the
     # analytical planner has no way to express one: "what happens if every BBB
     # borrower is downgraded two notches" has no rows to select, because the
@@ -1378,6 +1403,71 @@ def _from_catalogue(original: str, question: str, request: Any,
         chart={},
         execution=payload["execution"],
         execution_label=payload["execution_label"])
+    answered.duration_ms = int((time.perf_counter() - started) * 1000)
+    return answered
+
+
+def _reads_card_investigation(question: str, *, state: Any = None,
+                              memory: Any = None) -> Any:
+    """Whether this is one of the card investigation's five questions.
+
+    Never raises and never guesses. A retail module missing from a partial
+    deployment, an unreadable book, an ambiguous sentence: all of them mean the
+    ordinary planner answers, which is what happened before this route existed.
+    """
+    try:
+        from backend.retail import anb_answers
+        from backend.retail.profile import is_retail
+
+        if not is_retail():
+            return None
+        context = getattr(state, "thread_context", None) or {}
+        return anb_answers.read(question, context=context,
+                                state=state, memory=memory)
+    except Exception as e:  # noqa: BLE001 - the planner answers instead
+        logger.debug("the card investigation route could not read %r: %s",
+                     question, e)
+        return None
+
+
+def _from_card_investigation(original: str, question: str, reading: Any,
+                             fixed: Any, started: float,
+                             period: tuple[str, str] | None = None) -> Answered | None:
+    """One of the five, computed from the published card book.
+
+    Returns None rather than an empty answer where the figures are not there —
+    an unpublished book, a month with no card rows, a cohort of nobody. A
+    deterministic route that returns a confident empty table is worse than one
+    that steps aside.
+    """
+    from backend.retail import anb_answers
+
+    at = period[1] if period else ""
+    result = anb_answers.answer(reading, period=at)
+    if result is None:
+        return None
+
+    read = cap.Reading(
+        intent=cap.Capability.ANALYSIS,
+        objective=result.title or "the card book's early-delinquency cohort",
+        conversation_action=(cv.REFINE if reading.from_thread else cv.NEW_REQUEST),
+        operation="aggregate",
+        confidence=1.0,
+        reasoning=("one of the card investigation's questions, computed from "
+                   "the published card book"),
+        source="retail_card_investigation",
+    )
+    answered = Answered(
+        question=original, reading=read,
+        continuation=cv.Continuation(
+            action=(cv.REFINE if reading.from_thread else cv.NEW_REQUEST),
+            because=("the question continues the card investigation"
+                     if reading.from_thread else
+                     "the question names the card cohort itself")),
+        decision=rt.decide(question, deterministic=True),
+        read_as=fixed.text if fixed.changes else "",
+        corrections=list(fixed.changes))
+    answered.result = result
     answered.duration_ms = int((time.perf_counter() - started) * 1000)
     return answered
 

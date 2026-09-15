@@ -210,6 +210,7 @@ def upsert(session: Any, draft: Draft, *, actor_agent: str = "") -> RiskCase:
     if existing is not None:
         moved = abs(existing.severity_score - score.score) > 0.0001
         existing.title = draft.title or existing.title
+        existing.about = draft.about or existing.about
         existing.conclusion = draft.conclusion or existing.conclusion
         existing.why = draft.why or existing.why
         existing.exposure = draft.exposure
@@ -244,6 +245,7 @@ def upsert(session: Any, draft: Draft, *, actor_agent: str = "") -> RiskCase:
         entity=draft.entity,
         entity_id=draft.entity_id or draft.entity,
         entity_kind=draft.entity_kind,
+        about=draft.about,
         period=draft.period,
         prior_period=draft.prior_period,
         severity=score.band,
@@ -532,6 +534,7 @@ def view(case: RiskCase, *, events: list[RiskCaseEvent] | None = None,
         "entity": case.entity,
         "entity_id": case.entity_id,
         "entity_kind": case.entity_kind,
+        "about": case.about or "",
         "period": case.period,
         "prior_period": case.prior_period,
         "severity": case.severity,

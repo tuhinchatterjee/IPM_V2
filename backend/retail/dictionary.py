@@ -205,8 +205,14 @@ ENTRIES: dict[str, tuple[str, str | None, str, str]] = {
         "about this book is grouped by."),
     "product_subsegment": ("string", None, DESCRIPTOR,
         "The variant within the product — a first home against a refinance, a "
-        "new car against a used one, new lending against a top-up. Products "
-        "behave differently inside these splits."),
+        "new car against a used one, new lending against a top-up. For a card "
+        "it is the PROGRAMME the account was booked under: Classic, Gold, "
+        "Signature, or the Alpha expansion. Products behave differently inside "
+        "these splits, and a card programme is the split a card book moves in."),
+    "origination_score_band": ("string", None, DESCRIPTOR,
+        "The application score at origination, banded at the card programme "
+        "floors. Fixed when the account was booked, so a cut by it is a cut by "
+        "who was taken on rather than by how they have behaved since."),
     "facility_status": ("string", None, DESCRIPTOR,
         "Whether the facility is OPEN or CLOSED at this month-end. A closed "
         "facility keeps its row so the history can be read; it carries no "

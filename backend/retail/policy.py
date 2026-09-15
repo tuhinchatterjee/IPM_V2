@@ -171,6 +171,63 @@ class ScoreCutoffPolicy:
 
 
 @dataclass(frozen=True)
+class CardProgrammePolicy:
+    """Which card programme books an application, and on what origination floor.
+
+    The established card proposition has one origination floor. The expansion
+    proposition — Alpha Card — has a lower one, and exists so the bank can take
+    a bounded, named amount of additional risk in a population it can see
+    rather than an unbounded amount it cannot.
+
+    Written as a versioned policy object for the same reason `StagingPolicy` is:
+    a row that says it was booked under an expansion programme has to be able to
+    name the floor that let it in, and a monitoring answer that reports a
+    concentration by origination band has to read the same edges the booking
+    decision used.
+
+    Every threshold here is a SYNTHETIC demonstration policy. It is not an Arab
+    National Bank origination rule, and Alpha Card is not an Arab National Bank
+    product.
+    """
+
+    version: str = "retail-card-programme-1.0.0"
+    source_label: str = SOURCE_LABEL
+
+    #: The established programme's origination floor. An applicant below this
+    #: is outside the standard card proposition.
+    established_floor: float = 620.0
+    #: The expansion programme's floor. Between this and `established_floor` is
+    #: the band the expansion deliberately opened.
+    expansion_floor: float = 580.0
+    expansion_programme: str = "ALPHA"
+    expansion_label: str = "Alpha Card"
+    #: The month the expansion opened, "YYYY-MM". Applications before it were
+    #: never eligible for it.
+    expansion_opened: str = "2025-01"
+
+    #: How the expansion is described on screen. One sentence, because a
+    #: product's own policy context is part of the diagnosis and reconstructing
+    #: it from three columns is how a demo starts improvising.
+    expansion_context: str = (
+        "Alpha Card is the newer, growth-oriented card proposition in this "
+        "demonstration book: a deliberate and bounded risk expansion that "
+        "accepts selected salaried applicants down to an origination score of "
+        "580, where the established card programme stops at 620. It is a "
+        "synthetic demonstration product, not an Arab National Bank "
+        "proposition, and the two floors are demonstration policy rather than "
+        "any bank's origination rule."
+    )
+
+    def programme_floor(self, programme: str) -> float:
+        return (self.expansion_floor if programme == self.expansion_programme
+                else self.established_floor)
+
+    def is_expansion_band(self, score: float) -> bool:
+        """Whether a score sits in the band the expansion opened."""
+        return self.expansion_floor <= score < self.established_floor
+
+
+@dataclass(frozen=True)
 class RecoveryPolicy:
     """LGD and recovery assumptions by product. Synthetic demo parameters."""
 
@@ -201,6 +258,7 @@ class RecoveryPolicy:
 STAGING_POLICY = StagingPolicy()
 AFFORDABILITY_POLICY = AffordabilityPolicy()
 CUTOFF_POLICY = ScoreCutoffPolicy()
+CARD_PROGRAMME_POLICY = CardProgrammePolicy()
 RECOVERY_POLICY = RecoveryPolicy()
 
 
@@ -228,6 +286,16 @@ def policy_manifest() -> dict[str, object]:
             "version": CUTOFF_POLICY.version,
             "source_label": CUTOFF_POLICY.source_label,
             "cutoff": dict(CUTOFF_POLICY.cutoff),
+        },
+        "card_programme": {
+            "version": CARD_PROGRAMME_POLICY.version,
+            "source_label": CARD_PROGRAMME_POLICY.source_label,
+            "established_floor": CARD_PROGRAMME_POLICY.established_floor,
+            "expansion_programme": CARD_PROGRAMME_POLICY.expansion_programme,
+            "expansion_label": CARD_PROGRAMME_POLICY.expansion_label,
+            "expansion_floor": CARD_PROGRAMME_POLICY.expansion_floor,
+            "expansion_opened": CARD_PROGRAMME_POLICY.expansion_opened,
+            "context": CARD_PROGRAMME_POLICY.expansion_context,
         },
         "recovery": {
             "version": RECOVERY_POLICY.version,

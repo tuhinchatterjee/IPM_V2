@@ -2328,6 +2328,11 @@ class RiskCase(Base):
     entity_id: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     #: sector | region | product | rating_band | portfolio_segment | business_unit
     entity_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    #: WHICH RULE raised this, as the rule names itself. Part of the dedupe key,
+    #: which is hashed, so it is kept here too: a case that cannot say what kind
+    #: of finding it is can only be identified by its title, and a route that
+    #: matches on a title breaks the next time somebody improves one.
+    about: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     period: Mapped[str] = mapped_column(String(32), nullable=False)
     prior_period: Mapped[str] = mapped_column(String(32), nullable=False, default="")
 

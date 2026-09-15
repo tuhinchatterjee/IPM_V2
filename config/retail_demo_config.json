@@ -60,5 +60,37 @@
     "Every number produced from this configuration is synthetic.",
     "Scenario weights, hazard multipliers and policy thresholds are demo assumptions, not SAMA rules or ANB policy.",
     "demo_as_of_month is the LAST published month-end; months counts backwards inclusive from it."
-  ]
+  ],
+  "card_programmes": {
+    "comment": [
+      "The card programme mix and the ANB demonstration stress episode.",
+      "Every value here is a SYNTHETIC demonstration calibration. None of it",
+      "describes Arab National Bank's products, its origination policy or its",
+      "observed performance. Alpha Card is a demonstration product."
+    ],
+    "expansion_take_up_below_established_floor": 1.0,
+    "expansion_take_up_above_established_floor": 0.95,
+    "established_limit_band_sar": {
+      "GOLD": 30000.0,
+      "SIGNATURE": 70000.0
+    },
+    "expansion_cycle_day_min": 20,
+    "expansion_cycle_day_max": 29,
+    "expansion_miss_logit_add": 0.18,
+    "expansion_utilisation_add": 0.05,
+    "stress_months": 1,
+    "stress_miss_logit_add": 4.35,
+    "stress_utilisation_add": 0.78,
+    "stress_minimum_payment_logit_add": 4.2,
+    "stress_band_gradient": {
+      "580-589": 1.0,
+      "590-599": 0.55,
+      "600-619": 0.46,
+      "620-649": 0.11,
+      "650+": 0.03
+    },
+    "behaviour_months": 3,
+    "stress_payment_to_due_scale": 0.05,
+    "stress_cash_advance_share_add": 0.26
+  }
 }

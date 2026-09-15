@@ -875,6 +875,11 @@ class RetailSimulation:
             & (rng.random(n) < 0.11)
         )
 
+        # The card programme each card facility was booked under, and the
+        # demonstration stress episode that runs over the expansion programme
+        # in the latest published month.
+        self._prepare_card_programmes()
+
         # Event matrices for outcome labelling. Small, and the only way to
         # build a forward-looking label without letting the generator write
         # future knowledge into an operational row.
@@ -883,6 +888,247 @@ class RetailSimulation:
         self.ev_dpd60 = np.zeros((n, self.n_all), dtype=bool)
         self.ev_active = np.zeros((n, self.n_all), dtype=bool)
         self.ev_in_default = np.zeros((n, self.n_all), dtype=bool)
+
+    # -- card programmes and the demonstration episode ---------------------
+
+    def _prepare_card_programmes(self) -> None:
+        """Which programme booked each card, and what the episode does to it.
+
+        THE PROGRAMMES
+
+        The established card proposition — Classic, Gold and Signature, banded
+        by limit — stops at an origination score of 620. Alpha Card is the
+        later, growth-oriented proposition: a bounded risk expansion that
+        accepts selected salaried applicants down to 580. Both floors are
+        `CARD_PROGRAMME_POLICY`, so a row can name the rule that booked it.
+
+        The expansion is applied to applications that were ALREADY BOOKED. It
+        decides which programme each card sits in; it does not change who is on
+        the book, what the book is worth, or how large it is. That is
+        deliberate: a change to the origination cutoff would move every card
+        vintage's exposure, its ECL and its staging, and the question this
+        demonstration is about is a delinquency migration, not a book that
+        silently became a different book.
+
+        THE EPISODE
+
+        Two things happen to the expansion programme, and they are separate.
+
+        The first runs throughout: an expansion book takes more risk than the
+        established one, so it misses slightly more often and runs at slightly
+        higher utilisation. That is what the expansion IS, and it is why the
+        card book's recent baseline sits where it does rather than where the
+        established programme alone would put it.
+
+        The second is the episode itself, in the latest published month: a
+        sharp deterioration concentrated in the expansion's lower origination
+        bands, in which utilisation rises, repayment behaviour weakens, and a
+        materially larger share of the cohort misses the cycle. It is graded by
+        origination band, so the strongest band barely moves. Nothing about it
+        is applied to the established programme, to another product, or to any
+        earlier month.
+
+        THE STATEMENT CYCLE
+
+        Alpha Card was issued as a campaign book on a common early-month
+        statement cycle. An account that misses that cycle is therefore 20-29
+        days past due at month-end, not somewhere uniform in 1-29. This is the
+        mechanism behind the sub-bucket split the investigation reads, and it
+        is a property of how the book was issued rather than a number chosen to
+        make a chart look a particular way.
+
+        Every parameter is a SYNTHETIC demonstration calibration. None of it
+        describes Arab National Bank's products, policy or performance.
+        """
+        from backend.retail.policy import CARD_PROGRAMME_POLICY as cpp
+
+        cfg, rng, fac = self.cfg, self.rng, self.fac
+        n = fac.n
+        is_card = fac.product_code == tax.CREDIT_CARD
+
+        self.card_policy = cpp
+        self.origination_score = pd.to_numeric(
+            self.app["app_score_value"]).to_numpy(dtype="float64")
+        self.origination_band = np.array(
+            [tax.ORIGINATION_SCORE_BAND_SPEC.band_of(v) for v in self.origination_score],
+            dtype=object)
+
+        opts = dict(cfg.card_programmes or {})
+        # No configuration is not a half-configuration. Without it every card
+        # keeps the single subsegment the book published before, and none of
+        # the episode below exists.
+        self.anb_enabled = bool(opts)
+        limits = dict(opts.get("established_limit_band_sar") or {})
+        gold_at = float(limits.get("GOLD", 30_000.0))
+        signature_at = float(limits.get("SIGNATURE", 70_000.0))
+
+        programme = np.where(
+            is_card,
+            np.where(fac.original_limit >= signature_at, "SIGNATURE",
+                     np.where(fac.original_limit >= gold_at, "GOLD", "CLASSIC")),
+            None).astype(object)
+
+        if not self.anb_enabled:
+            self.card_programme = np.where(is_card, "CARD", programme).astype(object)
+            self.is_expansion = np.zeros(n, dtype=bool)
+            self.anb_stress_start = len(self.dates)
+            self.anb_band_gradient = np.zeros(n)
+            return
+
+        opened_at = cfg.month_index(cpp.expansion_opened)
+        eligible = is_card & (fac.origination_month_index >= opened_at)
+
+        below = eligible & (self.origination_score >= cpp.expansion_floor) & (
+            self.origination_score < cpp.established_floor)
+        above = eligible & (self.origination_score >= cpp.established_floor)
+
+        take_below = float(opts.get("expansion_take_up_below_established_floor", 0.93))
+        take_above = float(opts.get("expansion_take_up_above_established_floor", 0.20))
+        draw = rng.random(n)
+        expansion = (below & (draw < take_below)) | (above & (draw < take_above))
+
+        self.card_programme = np.where(
+            expansion, cpp.expansion_programme, programme).astype(object)
+        self.is_expansion = expansion
+
+        # The campaign's statement cycle, which is what puts a missed cycle in
+        # 20-29 rather than anywhere in 1-29.
+        lo = int(opts.get("expansion_cycle_day_min", 20))
+        hi = int(opts.get("expansion_cycle_day_max", 29))
+        cycle = rng.integers(lo, hi + 1, size=n).astype("int64")
+        self.state.day_offset = np.where(expansion, cycle, self.state.day_offset)
+
+        self.anb_expansion_miss_logit = float(opts.get("expansion_miss_logit_add", 0.18))
+        self.anb_expansion_util_add = float(opts.get("expansion_utilisation_add", 0.05))
+        self.anb_stress_miss_logit = float(opts.get("stress_miss_logit_add", 4.20))
+        self.anb_stress_util_add = float(opts.get("stress_utilisation_add", 0.34))
+        self.anb_stress_min_pay_logit = float(
+            opts.get("stress_minimum_payment_logit_add", 2.10))
+        self.anb_stress_pay_ratio_scale = float(
+            opts.get("stress_payment_to_due_scale", 0.34))
+        self.anb_stress_cash_advance_add = float(
+            opts.get("stress_cash_advance_share_add", 0.22))
+
+        # TWO WINDOWS, AND THEY ARE NOT THE SAME WINDOW.
+        #
+        # The behavioural window is the longer one: over it, the cohort draws
+        # more of its limits and repays a smaller share of what it owes. The
+        # arrears window is the last month of it, and only there does a
+        # materially larger share of the cohort miss the cycle.
+        #
+        # That ordering is the whole substance of the third investigation
+        # question. If both windows were the same month, the behavioural
+        # deterioration and the delinquency would be simultaneous, and the
+        # honest reading of simultaneous movements is that the score reacted to
+        # the arrears. Here the drawing and the under-repayment run AHEAD of
+        # the missed cycle, which is what makes them causes to look at rather
+        # than consequences to discount — and it is true of the book because it
+        # is how the book was generated, not because a sentence says so.
+        stress_months = max(int(opts.get("stress_months", 1)), 0)
+        behaviour_months = max(int(opts.get("behaviour_months", 3)), stress_months)
+        last = len(self.dates)
+        self.anb_stress_start = last - stress_months if stress_months else last
+        self.anb_behaviour_start = last - behaviour_months if stress_months else last
+        self.anb_behaviour_months = behaviour_months
+
+        gradient = dict(opts.get("stress_band_gradient") or {})
+        self.anb_band_gradient = np.array(
+            [float(gradient.get(b, 0.0)) if b is not None else 0.0
+             for b in self.origination_band])
+
+    def _anb_behaviour_weight(self, t: int) -> float:
+        """How far into the behavioural deterioration this month is, 0 to 1.
+
+        A ramp rather than a step. Stress that appears at full strength in one
+        month is an event; stress that builds over a quarter is a cohort
+        running out of room, and the second is the thing this demonstration is
+        about. The ramp is also why the three-month utilisation change carries
+        a signal at all — a step would move the level and leave the change
+        flat everywhere except one month.
+        """
+        if not self.anb_enabled or t < self.anb_behaviour_start:
+            return 0.0
+        months = max(self.anb_behaviour_months, 1)
+        elapsed = t - self.anb_behaviour_start + 1
+        # Concave rather than linear: a cohort reaching for its remaining limit
+        # does most of that in the first month or two and then has little left
+        # to reach for. It also puts the bulk of the behavioural deterioration
+        # BEFORE the arrears window rather than alongside it, which is the
+        # difference between a cause and a coincidence.
+        return float(min(elapsed / months, 1.0) ** 0.5)
+
+    def _anb_in_arrears_window(self, t: int) -> bool:
+        return bool(self.anb_enabled and t >= self.anb_stress_start)
+
+    def _anb_miss_logit(self, t: int) -> np.ndarray:
+        """What the expansion adds to the chance of missing a cycle.
+
+        The standing part is the expansion premium: a book written below the
+        established floor misses more often than one written above it, in every
+        month, which is what taking more risk means. The episode's part exists
+        only in the arrears window.
+        """
+        if not self.anb_enabled:
+            return 0.0
+        add = np.where(self.is_expansion, self.anb_expansion_miss_logit, 0.0)
+        if self._anb_in_arrears_window(t):
+            add = add + np.where(
+                self.is_expansion,
+                self.anb_stress_miss_logit * self.anb_band_gradient, 0.0)
+        return add
+
+    def _anb_target_util_add(self, t: int) -> np.ndarray:
+        """The expansion's standing utilisation premium, on the long-run target."""
+        if not self.anb_enabled:
+            return 0.0
+        return np.where(self.is_expansion, self.anb_expansion_util_add, 0.0)
+
+    def _anb_drawdown(self, t: int) -> np.ndarray:
+        """The episode's drawing, applied to the balance actually carried.
+
+        Added AFTER the mean reversion rather than to the target, because it is
+        a drawdown and not a change of habit: a cohort reaching for its
+        remaining limit this month has drawn it this month. Added to the
+        target, seventy-two percent of it would be smoothed away and the
+        utilisation line would move by a third of what the cohort actually did.
+        """
+        weight = self._anb_behaviour_weight(t)
+        if weight <= 0.0:
+            return 0.0
+        return np.where(self.is_expansion,
+                        self.anb_stress_util_add * self.anb_band_gradient * weight, 0.0)
+
+    def _anb_min_pay_logit(self, t: int) -> np.ndarray:
+        """What the episode adds to the chance of paying only the minimum."""
+        weight = self._anb_behaviour_weight(t)
+        if weight <= 0.0:
+            return 0.0
+        return np.where(self.is_expansion,
+                        self.anb_stress_min_pay_logit * self.anb_band_gradient * weight, 0.0)
+
+    def _anb_cash_advance_add(self, t: int) -> np.ndarray:
+        """What the episode adds to the cash-advance share of card spend."""
+        weight = self._anb_behaviour_weight(t)
+        if weight <= 0.0:
+            return 0.0
+        return np.where(self.is_expansion,
+                        self.anb_stress_cash_advance_add
+                        * self.anb_band_gradient * weight, 0.0)
+
+    def _anb_pay_ratio_scale(self, t: int) -> np.ndarray:
+        """How much of its usual repayment the cohort still makes, 0 to 1.
+
+        The accounts that have not dropped to the minimum are not paying what
+        they used to either. Without this the repayment signal is binary —
+        minimum or full — and a cohort that has quietly halved what it settles
+        each month looks unchanged.
+        """
+        weight = self._anb_behaviour_weight(t)
+        if weight <= 0.0:
+            return 1.0
+        shortfall = (1.0 - self.anb_stress_pay_ratio_scale) * weight
+        return np.where(self.is_expansion,
+                        1.0 - shortfall * self.anb_band_gradient, 1.0)
 
     # -- one month ---------------------------------------------------------
 
@@ -996,12 +1242,14 @@ class RetailSimulation:
         # --- card utilisation: mean-reverting, pushed up by stress ---------
         target_util = np.clip(
             0.34 + 0.11 * stress + np.where(self.story_revolver, 0.22, 0.0)
+            + self._anb_target_util_add(t)
             + rng.normal(0.0, 0.07, size=n),
             0.0, 1.18,
         )
         new_util = np.where(np.isnan(st.utilisation), target_util,
                             0.72 * st.utilisation + 0.28 * target_util)
-        new_util = np.clip(new_util + rng.normal(0.0, 0.035, size=n), 0.0, 1.22)
+        new_util = np.clip(new_util + rng.normal(0.0, 0.035, size=n)
+                           + self._anb_drawdown(t), 0.0, 1.22)
         card_balance = np.round(new_util * st.limit, 2)
 
         # --- what is due this month ---------------------------------------
@@ -1040,6 +1288,7 @@ class RetailSimulation:
             + MISS_SALARY_BETA * salary_missed_now.astype("float64")
             + 0.75 * np.where(is_card, np.clip(new_util - 0.55, 0, None) * 2.0, 0.0)
             + balloon_pressure
+            + self._anb_miss_logit(t)
         )
         p_catch_up = _sigmoid(
             CATCH_UP_INTERCEPT - CATCH_UP_STRESS_BETA * stress - 0.55 * balloon_pressure)
@@ -1063,13 +1312,23 @@ class RetailSimulation:
         dpd = np.where(active, dpd, 0)
 
         # --- payment received ------------------------------------------------
-        min_only = is_card & ~missed & (rng.random(n) < _sigmoid(-0.35 + 0.75 * stress
-                                                                + np.where(self.story_revolver, 1.5, 0.0)))
+        min_only = is_card & ~missed & (
+            rng.random(n) < _sigmoid(-0.35 + 0.75 * stress
+                                     + np.where(self.story_revolver, 1.5, 0.0)
+                                     + self._anb_min_pay_logit(t)))
         paid = np.where(
             missed, 0.0,
             np.where(
                 is_card,
-                np.where(min_only, due, np.minimum(card_balance, due * rng.uniform(1.5, 9.0, size=n))),
+                # Floored at the minimum, because an account that paid less
+                # than its minimum did not pay: it missed, and it is handled
+                # as a miss above. Under stress this cohort converges ON the
+                # minimum rather than through it.
+                np.where(min_only, due,
+                         np.minimum(card_balance,
+                                    np.maximum(due,
+                                               due * rng.uniform(1.5, 9.0, size=n)
+                                               * self._anb_pay_ratio_scale(t)))),
                 due,
             ),
         )
@@ -1222,7 +1481,13 @@ class RetailSimulation:
             np.round(30.0 * np.clip((self.state.utilisation - 1.0) * 5.0, 0.0, 1.0)), 0.0)
         cash_adv = np.where(
             is_card,
-            np.round(np.maximum(rng.normal(0.04 + 0.05 * np.clip(stress, 0, None), 0.05, size=n), 0.0), 4),
+            np.round(np.maximum(
+                rng.normal(0.04 + 0.05 * np.clip(stress, 0, None), 0.05, size=n)
+                # A card cohort that has run out of limit starts taking cash on
+                # it. Independent of arrears and of the score, and one of the
+                # oldest signs on a card book that the household has run out of
+                # other options.
+                + self._anb_cash_advance_add(t), 0.0), 4),
             np.nan)
         enquiries = np.where(rng.random(n) < _sigmoid(-2.2 + 0.45 * stress),
                              rng.integers(1, 4, size=n).astype("float64"), 0.0)
@@ -1723,9 +1988,14 @@ class RetailSimulation:
             "application_id": fac.application_id,
             "product_code": fac.product_code,
             "product_label": np.array([tax.PRODUCT_LABELS[p] for p in fac.product_code], dtype=object),
+            # For a card this is the PROGRAMME it was booked under — Classic,
+            # Gold, Signature or the Alpha expansion — because "which card is
+            # this" is the sub-product question a card book is actually cut by.
+            # Every other product keeps the subsegment it always carried.
             "product_subsegment": np.where(
-                is_card, "CARD", np.where(fac.purpose != None, fac.purpose,  # noqa: E711
-                                          np.where(is_auto, fac.vehicle_new_used, "STANDARD"))),
+                is_card, self.card_programme,
+                np.where(fac.purpose != None, fac.purpose,  # noqa: E711
+                         np.where(is_auto, fac.vehicle_new_used, "STANDARD"))),
             "portfolio_country": cfg.portfolio_country,
             "currency": cfg.currency,
             "customer_relationship_start_date": np.array([
@@ -1955,6 +2225,11 @@ class RetailSimulation:
             "application_score_model_id": self.app.get("app_model_id"),
             "application_score_model_version": self.app.get("app_model_version"),
             "application_score_band": self.app.get("app_score_band_value"),
+            # The application score banded at the card programme floors, so a
+            # concentration answer and an origination decision read the same
+            # edges. A band, not a second score: `application_score_at_origination`
+            # is still the figure, and this is how the book is cut by it.
+            "origination_score_band": self.origination_band,
             "application_predicted_pd_12m": pd.to_numeric(
                 self.app["app_predicted_pd_12m"], errors="coerce").to_numpy(),
             "application_transform_version": self.app.get("app_transform_version"),
