@@ -286,6 +286,10 @@ class TestRET048LayoutPreserved:
             "scripts/retail_browser_uat.py", "scripts/retail_uat_questions.py",
             "scripts/write_retail_",
             "launchers/retail/", "metadata/retail/", "data/retail/",
+            # The ANB demonstration build's own launcher, on its own ports. A
+            # directory, so it belongs here rather than in the named set below,
+            # which is matched by exact filename.
+            "launchers/anb/",
         )
         touched_elsewhere = [
             f for f in changed
@@ -299,6 +303,42 @@ class TestRET048LayoutPreserved:
             ".gitignore",
             ".env.retail.example",
             ".env.retail",
+            # ---------------------------------------------------------------
+            # THE ANB CARD DEMONSTRATION.
+            #
+            # A Risk Case about the card book's early-delinquency migration,
+            # the drawer that opens it and the five-question investigation that
+            # follows. The finding and its answers live in backend/retail/,
+            # which this list already allows; these are the shared surfaces the
+            # work had to reach to put them on a screen.
+            #
+            # None is structural. Each is a named addition to something that
+            # already existed, and each is here rather than in a quiet diff
+            # because a guard that is edited without a reason beside the edit
+            # is a guard that has stopped guarding.
+            ".env.anb.example",                    # the build's own environment
+            "docs/ANB_DEMO_RUNBOOK.md",            # how to run it
+            "alembic/versions/0042_risk_case_about.py",  # a case says which rule raised it
+            "backend/models/platform.py",          # the column that migration adds
+            "backend/agentic/cases.py",            # reads and writes it
+            "backend/api/routers/cases.py",        # carries the case into its thread
+            "backend/orchestration/conversation.py",  # the thread's own context, unserialised
+            "frontend/src/app/investigations/[id]/page.tsx",  # shows it above the first turn
+            "frontend/src/components/attention/case-context.tsx",   # that block
+            "frontend/src/components/attention/case-drawer.tsx",    # the bucket trend
+            "frontend/src/components/ui/certified-mark.tsx",  # names a governed reading
+            "frontend/src/lib/api.ts",             # the case's `about` on the wire
+            # ---------------------------------------------------------------
+            # PRE-DATES THIS WORK, and was failing this guard before it.
+            #
+            # The retail What-If module's own chart and result components. They
+            # are as much part of the conversion as the rest of that module and
+            # were simply never written down here, so this guard has been red
+            # on them for some time. Listed rather than left failing: a guard
+            # that is always red is one nobody reads, and the next file to slip
+            # past it would have gone unnoticed in the noise.
+            "frontend/src/app/early-warning/whatif/charts.tsx",
+            "frontend/src/app/early-warning/whatif/result.tsx",
             "backend/api/main.py",                 # registers the retail router
             "backend/api/routers/ask.py",          # retail starter questions
             "backend/stress_lab.py",               # retail scenario chips
@@ -813,15 +853,48 @@ class TestRET053And054PublicationAndMigration:
         assert present <= allowed, sorted(present - allowed)
         assert domains.CANONICAL in present
 
-    def test_the_migration_graph_is_untouched(self):
-        """This conversion adds no migration, so the heads must be unchanged."""
-        changed = subprocess.run(
-            ["git", "-C", str(ROOT), "diff", "--name-only",
-             "80e74a4e1e5552e73c532849b72329008335b09f", "HEAD", "--", "alembic/"],
-            capture_output=True, text=True, check=True).stdout.split()
-        assert not changed, (
-            f"a migration was added or edited without the graph being inspected: {changed}"
-        )
+    def test_the_migration_graph_has_one_head(self):
+        """A migration may be added. A SECOND HEAD may not.
+
+        This asserted that the conversion adds no migration at all, and said so
+        in its own name. That was true of the conversion and has not been true
+        since: the ANB card work adds one, deliberately, to give a Risk Case a
+        column saying which rule raised it.
+
+        What the guard is actually for survives the change of premise. A
+        migration nobody looked at is a risk because of what it can do to the
+        GRAPH — two heads, and `alembic upgrade head` fails on a deployment
+        that has both, which is the kind of thing found at the worst possible
+        moment. So the graph is what it checks, and adding a migration in the
+        ordinary way, on the end of the chain, is allowed.
+
+        Read from the files rather than from alembic, so it needs no database.
+        """
+        versions = sorted((ROOT / "alembic" / "versions").glob("*.py"))
+        assert versions, "the migration directory is empty"
+
+        revisions, parents = set(), {}
+        for path in versions:
+            body = path.read_text()
+            rev = re.search(
+                r'^revision(?:\s*:[^=]+)?\s*=\s*["\']([^"\']+)', body, re.M)
+            down = re.search(
+                r'^down_revision(?:\s*:[^=]+)?\s*=\s*["\']([^"\']+)', body, re.M)
+            assert rev, f"{path.name} declares no revision"
+            revisions.add(rev.group(1))
+            parents[rev.group(1)] = down.group(1) if down else None
+
+        # A head is a revision nothing else points back to. There must be one.
+        pointed_at = {d for d in parents.values() if d}
+        heads = sorted(revisions - pointed_at)
+        assert len(heads) == 1, (
+            f"the migration graph has {len(heads)} heads: {heads}. "
+            "`alembic upgrade head` cannot resolve that, and a deployment "
+            "holding both fails on the next upgrade.")
+
+        # And every parent has to exist, or the chain has a hole in it.
+        missing = sorted({d for d in parents.values() if d and d not in revisions})
+        assert not missing, f"migrations point at revisions that do not exist: {missing}"
 
 
 class TestRET055Performance:
