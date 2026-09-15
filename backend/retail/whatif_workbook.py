@@ -152,11 +152,54 @@ def build(result: dict[str, Any], *, selection: dict[str, Any] | None = None,
 
 # ============================================================= Contents
 
+def _method_of(result: dict[str, Any]) -> dict[str, Any]:
+    """The method that produced this result, whichever shape it arrived in.
+
+    The cohort engine returns a record — key, name, what, authority. The
+    cut-off replay returns the bare string "cutoff_replay". Both are
+    legitimate results of the same button, and the workbook read
+    `(result.get("methodology") or {}).get("name")`, which crashes on the
+    second: a non-empty string is truthy, so `or {}` never fires and `.get`
+    is called on a str. The download answered 500 and the screen said the
+    workbook could not be built.
+
+    Normalised here rather than at each of the three call sites, so a fourth
+    one cannot reintroduce it.
+    """
+    got = result.get("methodology")
+    if isinstance(got, dict):
+        return got
+    if isinstance(got, str) and got:
+        known = _NAMED_METHODS.get(got)
+        if known:
+            return dict(known)
+        # An unrecognised key is shown as itself rather than as a dash. A
+        # workbook that cannot name its method should say which one it could
+        # not name.
+        return {"key": got, "name": got.replace("_", " ").title()}
+    return {}
+
+
+#: Methods that arrive as a bare key rather than as a record.
+_NAMED_METHODS: dict[str, dict[str, str]] = {
+    "cutoff_replay": {
+        "key": "cutoff_replay",
+        "name": "Cut-off replay",
+        "what": ("Booked originations re-decided at a different cut-off. No "
+                 "parameter is shocked; the question is which accounts the "
+                 "policy would have declined."),
+        "authority": ("Booked accounts only. It says nothing about "
+                      "applications that were declined under the cut-off in "
+                      "force, because those customers were never observed."),
+    },
+}
+
+
 def _contents(sheet: Sheet, result: dict[str, Any],
               selection: dict[str, Any],
               built: list[tuple[str, str, int]]) -> None:
     """§12.1's Read Me: scope, period, method, versions and internal links."""
-    method = result.get("methodology") or {}
+    method = _method_of(result)
     cohort = _cohort_level(result)
     delta = cohort.get("delta") or {}
     sheet.pairs([
@@ -232,7 +275,7 @@ def _summary(book: Any, styles: dict[str, Any], result: dict[str, Any],
         ("Facilities actually stressed", result.get("stressed_facilities")),
         ("Narrowing applied", (result.get("narrowing") or {}).get("said")
                               or "No narrowing was applied"),
-        ("Method", (result.get("methodology") or {}).get("name") or "—"),
+        ("Method", _method_of(result).get("name") or "—"),
     ])
 
     sheet.section("Baseline against scenario")
@@ -1086,7 +1129,7 @@ def _assumptions(book: Any, styles: dict[str, Any],
                  result: dict[str, Any]) -> int:
     sheet = Sheet(book, styles, "Assumptions",
                   "Method, policy, weights and what this cannot tell you")
-    method = result.get("methodology") or {}
+    method = _method_of(result)
     scenario = result.get("scenario") or {}
     sheet.pairs([
         ("Method", method.get("name") or "—"),

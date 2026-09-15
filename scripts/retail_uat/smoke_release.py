@@ -173,26 +173,35 @@ def main() -> int:  # noqa: C901 - a checklist is a checklist
         # 09 — the validation Word report, opened rather than counted.
         report_ok, report_note = False, ""
         try:
-            # Matched on a substring without parentheses: "(Word)" inside
-            # :has-text() is read as selector syntax, so the locator never
-            # resolves and the failure looks like a missing control.
-            page.goto(FRONTEND + "/scorecard-validation",
-                      wait_until="commit")
+            page.goto(FRONTEND + "/scorecard-validation", wait_until="commit")
             _present(page, "button:has-text('Data & Representativeness')",
                      120)
+            # Matched on a substring without parentheses: "(Word)" inside
+            # :has-text() is read as selector syntax, so the locator never
+            # resolves and a present control looks missing.
             _present(page, 'a:has-text("Draft report")', 120)
-            with page.expect_download(timeout=300_000) as caught:
-                page.click('a:has-text("Draft report")')
-            saved = caught.value.path()
-            blob = open(saved, "rb").read()
+            link = page.locator('a:has-text("Draft report")').first
+            href = link.get_attribute("href") or ""
+            # Fetched through the BROWSER CONTEXT, with the session's cookies,
+            # rather than by clicking. The defect this check exists for is
+            # that the control is an anchor and the route was POST-only, so
+            # what has to be proved is that the URL the anchor points at
+            # answers a GET from a signed-in browser with a real document —
+            # which is exactly this request. Clicking additionally depends on
+            # the anchor being unobstructed at whatever scroll position the
+            # previous check left, which is a fact about the viewport.
+            answer = context.request.get(href, timeout=300_000)
+            blob = answer.body()
             zipped = zipfile.ZipFile(io.BytesIO(blob))
             xml = zipped.read("word/document.xml").decode("utf-8")
             images = [n for n in zipped.namelist()
                       if n.startswith("word/media/")]
-            report_ok = (len(blob) > 50_000
+            report_ok = (answer.status == 200
+                         and len(blob) > 50_000
                          and "Remediation actions" in xml
                          and "Trace appendix" in xml)
-            report_note = f"{len(blob):,} bytes, {len(images)} charts"
+            report_note = (f"{answer.status}, {len(blob):,} bytes, "
+                           f"{len(images)} charts")
         except Exception as problem:  # noqa: BLE001
             report_note = str(problem)[:90]
         check("09", "validation Word report downloads and opens", report_ok,
