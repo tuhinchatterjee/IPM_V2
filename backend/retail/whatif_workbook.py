@@ -152,6 +152,26 @@ def build(result: dict[str, Any], *, selection: dict[str, Any] | None = None,
 
 # ============================================================= Contents
 
+def _narrowing_said(result: dict[str, Any]) -> str:
+    """What the narrowing did, as a sentence.
+
+    `whatif_cohort.narrow` returns `tuple[list[str], str]` — the facilities
+    and a SENTENCE — and the engine stores that sentence under "narrowing".
+    The workbook read `(result.get("narrowing") or {}).get("said")`, which
+    only survives while the sentence is empty: an empty string is falsy, so
+    `or {}` fires and `.get` lands on a dict. The moment a reader narrowed a
+    cohort — "stress only the forward-risk customers in this selection", the
+    move the guided journeys are built on — the sentence was truthy, `.get`
+    was called on a str, and the download answered 500.
+    """
+    got = result.get("narrowing")
+    if isinstance(got, str):
+        return got or "No narrowing was applied"
+    if isinstance(got, dict):
+        return str(got.get("said") or "") or "No narrowing was applied"
+    return "No narrowing was applied"
+
+
 def _method_of(result: dict[str, Any]) -> dict[str, Any]:
     """The method that produced this result, whichever shape it arrived in.
 
@@ -273,8 +293,7 @@ def _summary(book: Any, styles: dict[str, Any], result: dict[str, Any],
         ("Scenario", result.get("shocks_described") or "—"),
         ("Cohort", selection.get("source_label") or "—"),
         ("Facilities actually stressed", result.get("stressed_facilities")),
-        ("Narrowing applied", (result.get("narrowing") or {}).get("said")
-                              or "No narrowing was applied"),
+        ("Narrowing applied", _narrowing_said(result)),
         ("Method", _method_of(result).get("name") or "—"),
     ])
 
@@ -1260,8 +1279,7 @@ def _trace(book: Any, styles: dict[str, Any], result: dict[str, Any],
         ("Selected facilities", selection.get("selected_account_count")),
         ("Selected customers", selection.get("selected_customer_count")),
         ("Facilities actually stressed", result.get("stressed_facilities")),
-        ("Narrowing", (result.get("narrowing") or {}).get("said")
-                      or "No narrowing was applied"),
+        ("Narrowing", _narrowing_said(result)),
     ])
 
     sheet.section("Checks")
