@@ -785,47 +785,88 @@ def _weights(said: str) -> dict[str, float] | None:
     return found
 
 
-def _shocks(said: str, ask: Ask) -> None:
-    """Every shock the sentence names, or the question its units leave open."""
-    # --- PD, the one that carries the ambiguity ------------------------
-    for match in re.finditer(
-            rf"\b(?:pd|probability of default)\b[^.;]{{0,40}}?"
-            rf"\b(?:by|of|to)?\s*(?:up\s+)?{_NUMBER}\s*"
-            rf"({_POINTS}|{_PERCENT})?", said):
+def _rate_shock(said: str, ask: Ask, subject: str, label: str,
+                relative_key: str, absolute_key: str,
+                example_pct: float) -> bool:
+    """A shock on a per-facility RATE, where the unit changes the scenario.
+
+    "+20%" multiplies and "+20 percentage points" adds, and on a rate that
+    differs by facility those are two different scenarios — not two ways of
+    saying one. Both are implementable and both are implemented; what is not
+    allowed is guessing which was meant.
+
+    This was PD-only. LGD went through `_simple`, which understands percent
+    and nothing else, so "Increase LGD by 5 percentage points" — a chip the
+    product offered on three screens — was refused. The capability was
+    missing; the chip was right.
+
+    Returns True when it consumed the sentence with a clarification.
+    """
+    # Two word orders, because people use both and §23 forbids refusing one
+    # for being phrased the other way. Subject first — "increase LGD by 5
+    # percentage points" — and amount first — "add 5 percentage points to
+    # LGD". The second was unreadable, so "Add 2 percentage points to PD",
+    # which the product offers as a chip, could not be typed.
+    patterns = (
+        rf"{subject}[^.;]{{0,40}}?\b(?:by|of|to)?\s*(?:up\s+)?{_NUMBER}\s*"
+        rf"({_POINTS}|{_PERCENT})?",
+        rf"{_NUMBER}\s*({_POINTS}|{_PERCENT})\s*(?:on|to|of|onto|for)\s+"
+        rf"(?:the\s+)?{subject}",
+    )
+    # A match WITH a unit beats one without, whichever pattern produced it.
+    # Taking the first pattern's first match read "add 5 percentage points to
+    # LGD for Stage 2 Home Finance" as an unspecified move of 2 — the "2" in
+    # "Stage 2" — and asked the reader which unit they meant, about a sentence
+    # that had said so twice.
+    candidates = [one for pattern in patterns
+                  for one in re.finditer(pattern, said)]
+    found = next((one for one in candidates if one.group(2)),
+                 candidates[0] if candidates else None)
+    for match in ([found] if found is not None else []):
         amount, unit = float(match.group(1)), (match.group(2) or "")
-        direction = -1.0 if re.search(r"\b(?:reduc\w+|decreas\w+|lower|cut|down|fall\w*)\b",
-                                      said[:match.start()][-60:]) else 1.0
+        direction = -1.0 if re.search(
+            r"\b(?:reduc\w+|decreas\w+|lower|cut|down|fall\w*)\b",
+            said[:match.start()][-60:]) else 1.0
+        sign = "+" if direction > 0 else "−"
         if re.search(_POINTS, unit):
-            ask.shocks["pd_absolute_pp"] = direction * amount
-            ask.read_as.append(f"PD {'+' if direction > 0 else '−'}{amount:g} "
-                               "percentage points")
+            ask.shocks[absolute_key] = direction * amount
+            ask.read_as.append(
+                f"{label} {sign}{amount:g} percentage points")
         elif re.search(_PERCENT, unit):
-            ask.shocks["pd_relative"] = direction * amount / 100.0
-            ask.read_as.append(f"PD {'+' if direction > 0 else '−'}{amount:g}% relative")
+            ask.shocks[relative_key] = direction * amount / 100.0
+            ask.read_as.append(f"{label} {sign}{amount:g}% relative")
         else:
-            # No unit. Two different scenarios, so ask — with both readings
-            # offered as the scenarios they are, not as words.
+            moved = example_pct * (1 + amount / 100)
             ask.question = (
-                f"Do you mean {amount:g} percent of the current PD, or "
-                f"{amount:g} percentage points added to it? On a PD of 2% the "
-                f"first gives {2 * (1 + amount / 100):.4g}% and the second "
-                f"{2 + amount:g}% — they are different scenarios, so "
-                "CreditProbe will not guess.")
+                f"Do you mean {amount:g} percent of the current {label}, or "
+                f"{amount:g} percentage points added to it? On a {label} of "
+                f"{example_pct:g}% the first gives {moved:.4g}% and the "
+                f"second {example_pct + amount:g}% — they are different "
+                f"scenarios, so CreditProbe will not guess.")
             ask.options = [
                 {"id": "relative",
-                 "label": f"{amount:g}% relative (multiply the PD by "
+                 "label": f"{amount:g}% relative (multiply the {label} by "
                           f"{1 + amount / 100:.4g})",
-                 "shocks": {"pd_relative": direction * amount / 100.0}},
+                 "shocks": {relative_key: direction * amount / 100.0}},
                 {"id": "absolute",
                  "label": f"{amount:g} percentage points (add {amount:g}pp to "
-                          "the PD)",
-                 "shocks": {"pd_absolute_pp": direction * amount}},
+                          f"the {label})",
+                 "shocks": {absolute_key: direction * amount}},
             ]
-            return
-        break
+            return True
+        return False
+    return False
 
-    _simple(said, ask, r"\b(?:lgd|loss given default)\b", "lgd_relative",
-            percent_scale=0.01, label="LGD")
+
+def _shocks(said: str, ask: Ask) -> None:
+    """Every shock the sentence names, or the question its units leave open."""
+    # --- PD and LGD: the two whose unit decides which scenario was asked for
+    if _rate_shock(said, ask, r"\b(?:pd|probability of default)\b", "PD",
+                   "pd_relative", "pd_absolute_pp", example_pct=2.0):
+        return
+    if _rate_shock(said, ask, r"\b(?:lgd|loss given default)\b", "LGD",
+                   "lgd_relative", "lgd_absolute_pp", example_pct=35.0):
+        return
     _simple(said, ask, r"\bcollateral\b", "collateral_value_pct",
             percent_scale=0.01, label="collateral values")
     # A HAIRCUT is a collateral reduction, and it is the word a credit officer
@@ -872,12 +913,33 @@ def _shocks(said: str, ask: Ask) -> None:
         ask.shocks["recovery_delay_months"] = float(match.group(1))
         ask.read_as.append(f"recovery delayed {match.group(1)} months")
 
-    match = re.search(rf"\bccf\b[^.;]{{0,20}}?{_NUMBER}\s*(?:{_PERCENT})?", said)
+    match = re.search(
+        rf"\b(?:ccf|credit conversion factor)\b[^.;]{{0,24}}?{_NUMBER}\s*"
+        rf"({_POINTS}|{_PERCENT})?", said) or re.search(
+        rf"{_NUMBER}\s*({_POINTS}|{_PERCENT})\s*(?:on|to|of|onto|for)\s+"
+        rf"(?:the\s+)?\b(?:ccf|credit conversion factor)\b", said)
     if match:
         value = float(match.group(1))
-        ask.shocks["ccf_absolute"] = value / 100.0 if value > 1 else value
-        ask.read_as.append(f"credit conversion factor set to "
-                           f"{ask.shocks['ccf_absolute']:.2f}")
+        unit = match.group(2) or ""
+        window = said[:match.start()][-40:] + said[match.end():match.end() + 20]
+        # "Increase CCF by 10 percentage points" is an ADDITION to the
+        # published 0.45. Read as a set — which is what `ccf_absolute` does —
+        # it moved the factor to 0.10, a reduction, while reporting the
+        # increase the reader asked for.
+        adds = bool(re.search(_POINTS, unit)) or bool(re.search(
+            r"\b(?:increase|raise|add|lift|reduce|lower|cut|decrease)\b", window))
+        direction = -1.0 if re.search(
+            r"\b(?:reduc\w+|decreas\w+|lower|cut)\b", window) else 1.0
+        if adds:
+            points = value if value > 1 else value * 100.0
+            ask.shocks["ccf_absolute_pp"] = direction * points
+            ask.read_as.append(
+                f"credit conversion factor {'+' if direction > 0 else '−'}"
+                f"{points:g} percentage points")
+        else:
+            ask.shocks["ccf_absolute"] = value / 100.0 if value > 1 else value
+            ask.read_as.append(f"credit conversion factor set to "
+                               f"{ask.shocks['ccf_absolute']:.2f}")
 
     match = re.search(rf"\bbehavioural\s+score\b[^.;]{{0,30}}?{_NUMBER}", said)
     if match:

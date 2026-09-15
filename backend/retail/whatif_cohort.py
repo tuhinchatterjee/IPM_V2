@@ -346,27 +346,59 @@ def _interpretation(selection: sel.Selection, levels: list[dict[str, Any]],
     return " ".join(one for one in said if one)
 
 
+#: How each shock reads in a sentence. A shock with no entry here falls
+#: through to its identifier, which is how "lgd_absolute_pp = 5.0" reached a
+#: reader — the identifier IS the fallback, so every supported shock needs a
+#: line and a test checks that they all have one.
+_SAYS: dict[str, Any] = {
+    "pd_relative": lambda v: f"a {float(v):+.0%} relative move in PD",
+    "pd_absolute_pp": lambda v: f"{float(v):+g} percentage points on PD",
+    "lgd_relative": lambda v: f"a {float(v):+.0%} relative move in LGD",
+    "lgd_absolute_pp": lambda v: (
+        f"{float(v):+g} percentage points on loss given default"),
+    "collateral_value_pct": lambda v: (
+        f"a {float(v):+.0%} move in collateral value"),
+    "recovery_delay_months": lambda v: (
+        f"{float(v):+g} months of recovery delay"),
+    "utilisation_pp": lambda v: (
+        f"{float(v):+g} percentage points of card utilisation"),
+    "ccf_absolute": lambda v: f"a credit conversion factor set to {float(v):g}",
+    "ccf_absolute_pp": lambda v: (
+        f"{float(v):+g} percentage points on the credit conversion factor"),
+    "income_pct": lambda v: f"a {float(v):+.0%} move in verified income",
+    "expense_pct": lambda v: f"a {float(v):+.0%} move in household expenses",
+    "behavioural_score_points": lambda v: (
+        f"{float(v):+g} behavioural score points"),
+    "scenario_weights": lambda v: "reweighted macroeconomic scenarios",
+    "staging_mode": lambda v: (
+        "stages re-evaluated by the policy" if "reeval" in str(v)
+        else "stages held as published"),
+    "cutoff_replay": lambda v: f"the application cutoff replayed at {v}",
+    "dpd_migration": lambda v: _migration_says(v, "delinquency bucket"),
+    "score_band_migration": lambda v: _migration_says(v, "score band"),
+    "stage_migration": lambda v: _migration_says(v, "IFRS 9 stage"),
+}
+
+
+def _migration_says(value: Any, what: str) -> str:
+    """A migration, in the reader's words rather than as a dictionary."""
+    if not isinstance(value, dict):
+        return f"a {what} migration"
+    share = value.get("share")
+    basis = value.get("basis") or "exposure"
+    source, target = value.get("from"), value.get("to")
+    part = (f"{float(share) * 100:g}% of {basis}" if share is not None
+            else "part")
+    if source and target:
+        return f"{part} moved from {what} {source} to {target}"
+    return f"{part} moved between {what}s"
+
+
 def _describe(shocks: dict[str, Any]) -> str:
     said = []
     for name, value in (shocks or {}).items():
-        if name == "pd_relative":
-            said.append(f"a {float(value):+.0%} relative move in PD")
-        elif name == "pd_absolute_pp":
-            said.append(f"{float(value):+g} percentage points on PD")
-        elif name == "lgd_relative":
-            said.append(f"a {float(value):+.0%} move in LGD")
-        elif name == "collateral_value_pct":
-            said.append(f"a {float(value):+.0%} move in collateral value")
-        elif name == "utilisation_pp":
-            said.append(f"{float(value):+g} percentage points of utilisation")
-        elif name == "ccf_absolute":
-            said.append(f"a credit conversion factor of {float(value):g}")
-        elif name == "income_pct":
-            said.append(f"a {float(value):+.0%} move in income")
-        elif name == "behavioural_score_points":
-            said.append(f"{float(value):+g} behavioural score points")
-        else:
-            said.append(f"{name} = {value}")
+        says = _SAYS.get(name)
+        said.append(says(value) if says else f"{name} = {value}")
     return " and ".join(said) if said else "the scenario"
 
 
@@ -378,11 +410,7 @@ def follow_ups(selection: sel.Selection, levels: list[dict[str, Any]]
         out.append("Stress only the forward-risk customers in this selection.")
     if selection.current_bad:
         out.append("Stress only the customers who are already bad.")
-    # Phrased so the parser reads it. "Add a 10% increase in loss given
-    # default" puts the number before the subject, which the reader's
-    # subject-then-number rule does not match — a follow-up the thread offered
-    # and then refused.
-    out.append("Increase LGD by 10%.")
+    out.append("Add 10 percentage points to LGD.")
     out.append("Combine the DPD migration with a 10% collateral haircut.")
     if not selection.source_classification:
         out.append("Compare Salaried against Non-Salaried.")

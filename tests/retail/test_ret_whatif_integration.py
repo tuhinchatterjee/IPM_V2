@@ -455,7 +455,7 @@ def test_thr_03_the_thread_reads_every_chip_it_offers(selection) -> None:
     """Every chip the composer shows has to run, or it is a broken promise."""
     chips = [
         "Increase PIT 12-month PD by 20%",
-        "Increase LGD by 5%",
+        "Increase LGD by 5 percentage points",
         "Reduce verified income by 10%",
         "Increase household expense burden by 10%",
         "Move 20% of 30-59 DPD exposure to 90+",

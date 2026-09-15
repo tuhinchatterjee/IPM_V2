@@ -49,10 +49,22 @@ SUPPORTED_METHODOLOGIES: dict[str, str] = {
     "pd_relative": "Multiply the point-in-time PD anchor by (1 + shock). +20% on 0.02 gives 0.024.",
     "pd_absolute_pp": "Add a number of percentage points to the PD anchor. +2pp on 0.02 gives 0.04.",
     "lgd_relative": "Multiply loss given default by (1 + shock), inside its declared bounds.",
+    "lgd_absolute_pp": (
+        "Add a number of percentage points to each eligible facility's loss "
+        "given default. +5pp on an LGD of 0.32 gives 0.37, and on 0.51 gives "
+        "0.56 — the same addition on every facility, not the same "
+        "multiplication. Clipped to the recovery policy's declared floor and "
+        "cap, and the number of facilities that hit a bound is reported "
+        "rather than absorbed."),
     "collateral_value_pct": "Move current collateral values, which flows through LGD for secured products.",
     "recovery_delay_months": "Add months to the expected recovery delay, discounting recoveries further.",
     "utilisation_pp": "Move card utilisation by percentage points, changing drawn balance and undrawn commitment.",
     "ccf_absolute": "Set the credit conversion factor applied to undrawn card commitments.",
+    "ccf_absolute_pp": (
+        "Add percentage points to the credit conversion factor. +10pp on the "
+        "published 0.45 gives 0.55. Distinct from ccf_absolute, which SETS "
+        "the factor: read as a set, 'increase CCF by 10 percentage points' "
+        "would have moved it to 0.10 — a reduction."),
     "scenario_weights": "Reweight the three macroeconomic scenarios and recompute the weighted identity.",
     "income_pct": "Move verified current income, which flows through affordability and the behavioural score.",
     "behavioural_score_points": "Shift the behavioural score, which reaches PD through the versioned score-to-PD mapping.",
@@ -94,9 +106,10 @@ WATERFALL_ORDER: tuple[str, ...] = (
     "score_band_migration", "behavioural_score_points",
     "dpd_migration",
     "staging_mode", "stage_migration",
-    "utilisation_pp", "ccf_absolute",
+    "utilisation_pp", "ccf_absolute", "ccf_absolute_pp",
     "pd_relative", "pd_absolute_pp",
-    "lgd_relative", "collateral_value_pct", "recovery_delay_months",
+    "lgd_relative", "lgd_absolute_pp", "collateral_value_pct",
+    "recovery_delay_months",
     "scenario_weights", "cutoff_replay",
 )
 
@@ -111,9 +124,11 @@ WATERFALL_LABELS: dict[str, str] = {
     "stage_migration": "Stages migrated",
     "utilisation_pp": "Card utilisation moved",
     "ccf_absolute": "Credit conversion factor set",
+    "ccf_absolute_pp": "Credit conversion factor shifted in points",
     "pd_relative": "PD scaled",
     "pd_absolute_pp": "PD shifted in points",
     "lgd_relative": "Loss given default scaled",
+    "lgd_absolute_pp": "Loss given default shifted in points",
     "collateral_value_pct": "Collateral revalued",
     "recovery_delay_months": "Recovery delayed",
     "scenario_weights": "Scenario weights changed",
@@ -458,6 +473,11 @@ def _recompute(
     behavioural = (num("behavioural_score")
                    if "behavioural_score" in frame.columns else np.full(n, np.nan))
     moved: dict[str, np.ndarray] = {}
+    #: Facilities a shock pushed past a declared bound. An absolute move can
+    #: ask for an LGD above the recovery policy's cap, and a scenario that
+    #: silently clipped forty thousand facilities while reporting the shock it
+    #: was asked for would be describing something it did not do.
+    bounded: dict[str, int] = {}
 
     # --- Delinquency migration: the position first, then what it implies ----
     if "dpd_migration" in shocks:
@@ -564,6 +584,11 @@ def _recompute(
         drawn = new_drawn
         gca = np.where(is_card, new_drawn, gca)
     ccf = float(shocks.get("ccf_absolute", 0.45))
+    if "ccf_absolute_pp" in shocks:
+        wanted_ccf = ccf + float(shocks["ccf_absolute_pp"]) / 100.0
+        ccf = float(min(max(wanted_ccf, 0.0), 1.0))
+        if wanted_ccf != ccf:
+            bounded["ccf_absolute_pp"] = len(frame)
 
     # --- LGD and recovery ---------------------------------------------------
     if "collateral_value_pct" in shocks:
@@ -582,6 +607,21 @@ def _recompute(
     if "lgd_relative" in shocks:
         base_lgd = np.clip(base_lgd * (1.0 + float(shocks["lgd_relative"])),
                            RECOVERY_POLICY.lgd_floor, RECOVERY_POLICY.lgd_cap)
+    if "lgd_absolute_pp" in shocks:
+        # A percentage-POINT move is the same addition on every facility,
+        # which is a different scenario from the same multiplication: +5pp
+        # takes 0.32 to 0.37 and 0.51 to 0.56, where +5% takes them to 0.336
+        # and 0.536. Both are answerable and they are not each other, so the
+        # engine implements both rather than asking the reader to restate one
+        # as the other.
+        # In POINTS, and divided here — the same convention as
+        # `pd_absolute_pp` above, so a caller never has to remember which of
+        # the two absolute shocks wants 5 and which wants 0.05.
+        wanted = base_lgd + float(shocks["lgd_absolute_pp"]) / 100.0
+        clipped = np.clip(wanted, RECOVERY_POLICY.lgd_floor,
+                          RECOVERY_POLICY.lgd_cap)
+        bounded["lgd_absolute_pp"] = int(np.sum(wanted != clipped))
+        base_lgd = clipped
 
     n_months = max(int(remaining_life.max()) if n else 12, 12)
     k = np.arange(1, n_months + 1)[None, :].astype("float64")
@@ -674,6 +714,7 @@ def _recompute(
         "ecl_downturn": scenario_ecl["downturn"],
         "ecl_weighted": weighted,
         "ecl_final": ecl_mod.final_ecl(weighted, overlay),
+        "bounded": bounded,
         # What each migration actually moved, as a mask per facility. A
         # scenario that says it moved twenty per cent of a bucket has to be
         # able to name which facilities, or the share is a claim rather than
@@ -765,6 +806,18 @@ def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig,
     contributions = contributions.sort_values("delta_sar", ascending=False)
 
     limitations = _limitations(population, scenario)
+    # A bound that was hit is part of the answer. An absolute LGD move can ask
+    # for a rate above the recovery policy's cap, and reporting "+5pp applied"
+    # while thousands of facilities were quietly clipped would describe a
+    # scenario that was not run.
+    for key, count in (result.get("bounded") or {}).items():
+        if count:
+            limitations.append(
+                f"{count:,} facilit{'y' if count == 1 else 'ies'} reached the "
+                f"recovery policy's LGD floor or cap under {key}, so the move "
+                f"applied to them is smaller than the one requested. The "
+                f"policy bounds are "
+                f"{RECOVERY_POLICY.lgd_floor:.2f}–{RECOVERY_POLICY.lgd_cap:.2f}.")
     neutral = not scenario.shocks and scenario.scenario_weights is None
 
     steps: dict[str, Any] | None = None
@@ -784,6 +837,7 @@ def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig,
 
     return {
         "waterfall": steps,
+        "bounded": {k: v for k, v in (result.get("bounded") or {}).items() if v},
         "scenario": scenario.to_dict(),
         "parity": _parity(population, result) if neutral else None,
         "population_empty": False,

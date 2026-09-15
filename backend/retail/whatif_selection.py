@@ -40,6 +40,19 @@ from backend.retail import scorecards, taxonomy as tax
 
 SOURCE_MODULE = "early_warning_score"
 
+#: Where else a selection can come from. A cohort chosen on the standalone
+#: What-If page, or by a guided card, is the same KIND of object as one
+#: exported from Early Warning — an immutable set of facility-month keys with
+#: the filters that produced it — and it goes through the same engine, the
+#: same result shape and the same workbook. Only the provenance differs.
+#:
+#: Before this the standalone page ran a second implementation over a filter
+#: dictionary, with no membership record, no materiality against its parents
+#: and no workbook. Two implementations of one idea is how they drift.
+SOURCE_STANDALONE = "what_if_standalone"
+SOURCE_GUIDED = "what_if_guided_card"
+SOURCE_MODULES = (SOURCE_MODULE, SOURCE_STANDALONE, SOURCE_GUIDED)
+
 #: Where selections live. A directory of JSON documents rather than a table:
 #: durable, inspectable, and it adds no migration to a schema this work has no
 #: other reason to touch.
@@ -125,7 +138,8 @@ def build_rows(month: str, *, product: str = "", classification: str = "",
                cohort: str = "", severity: str = "", reason: str = "",
                layer: str = "", score_min: float | None = None,
                score_max: float | None = None,
-               dpd_bucket: str = "", stage: str = "") -> Any:
+               dpd_bucket: str = "", stage: str = "",
+               behavioural_band: str = "") -> Any:
     """The exact rows a card or a filtered list was showing.
 
     The same filters the customer list applies, applied the same way, so the
@@ -176,6 +190,16 @@ def build_rows(month: str, *, product: str = "", classification: str = "",
     if stage not in ("", None):
         frame = frame[pd.to_numeric(frame["ifrs9_stage"], errors="coerce")
                       == float(stage)]
+    if behavioural_band:
+        # The Behavioural Score Movement card selects by BAND, which the panel
+        # carries as a letter. Without this the card could describe a cohort
+        # it could not then select.
+        wanted = [one.strip().upper()
+                  for one in str(behavioural_band).split(",") if one.strip()]
+        for column in ("behavioural_score_band", "beh_score_band_value"):
+            if column in frame.columns:
+                frame = frame[frame[column].astype(str).str.upper().isin(wanted)]
+                break
     return frame
 
 
@@ -185,14 +209,16 @@ def create(*, month: str = "", level: str = "product", product: str = "",
            reason: str = "", layer: str = "", score_min: float | None = None,
            score_max: float | None = None, dpd_bucket: str = "",
            stage: str = "", route: str = "", created_by: str = "",
-           label: str = "", thread_id: str = "") -> Selection:
+           label: str = "", thread_id: str = "",
+           source_module: str = "", behavioural_band: str = "") -> Selection:
     """Write the selection set for what a reader has on screen."""
     at = month or (S.panel_months() or [""])[-1]
     rows = build_rows(
         at, product=product, classification=classification,
         sub_product=sub_product, customer_id=customer_id, cohort=cohort,
         severity=severity, reason=reason, layer=layer, score_min=score_min,
-        score_max=score_max, dpd_bucket=dpd_bucket, stage=stage)
+        score_max=score_max, dpd_bucket=dpd_bucket, stage=stage,
+        behavioural_band=behavioural_band)
     if not len(rows):
         raise ValueError(
             "That selection matches no facility at this month, so there is "
@@ -205,11 +231,12 @@ def create(*, month: str = "", level: str = "product", product: str = "",
         "cohort": cohort, "severity": severity, "reason": reason,
         "layer": layer, "score_min": score_min, "score_max": score_max,
         "dpd_bucket": dpd_bucket, "stage": stage,
+        "behavioural_band": behavioural_band,
     }.items() if v not in ("", None)}
 
     selection = Selection(
         selection_id=_new_id(),
-        source_module=SOURCE_MODULE,
+        source_module=source_module or SOURCE_MODULE,
         source_route=route or "/early-warning",
         source_month=at,
         source_model_version=M.EWS_MODEL_VERSION,
@@ -470,7 +497,7 @@ def prompts(selection: Selection) -> list[str]:
     """Scenarios worth running on THIS cohort, §13."""
     out = [
         "Increase PIT 12-month PD by 20%.",
-        "Increase LGD by 5%.",
+        "Increase LGD by 5 percentage points.",
         "Move 15% of Stage 1 exposure to Stage 2.",
     ]
     if selection.source_product == "CREDIT_CARD":

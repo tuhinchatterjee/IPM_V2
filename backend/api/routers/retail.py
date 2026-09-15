@@ -1934,3 +1934,266 @@ def whatif_compare(left: int = Query(...), right: int = Query(...),
                  "scenario effect."),
         "disclosure": SYNTHETIC_DISCLOSURE,
     })
+
+
+# ==================== one What-If thread, however it was opened =============
+#
+# §8 of the demo completion contract. The standalone page and an Early Warning
+# export were two implementations over two API families: one had a method
+# choice and a waterfall and a workbook, the other ran a scenario inline under
+# the guided cards and exposed `pd_relative` to the reader. Different entry
+# context is legitimate; reduced functionality is not.
+#
+# So both entries now open a THREAD over a SELECTION, and everything after
+# that is the same code. The cohort a guided card describes is selected the
+# same way an exported one is, carries the same membership record, and reaches
+# the same engine, result and workbook.
+
+
+class ThreadOpenIn(BaseModel):
+    """Open a thread. Either on an existing selection, or on a new cohort."""
+
+    selection_id: str = ""
+    title: str = ""
+    opened_from: str = "standalone"
+    month: str = ""
+    # The cohort, when there is no selection yet. These are the seven guided
+    # cards' filters and the standalone page's scope chips.
+    product: str = ""
+    classification: str = ""
+    sub_product: str = ""
+    customer_id: str = ""
+    cohort: str = ""
+    dpd_bucket: str = ""
+    stage: str = ""
+    behavioural_band: str = ""
+    severity: str = ""
+    method: str = ""
+    staging_mode: str = ""
+
+
+class ThreadAskIn(BaseModel):
+    said: str = ""
+    shocks: dict[str, Any] = Field(default_factory=dict)
+    method: str = ""
+    staging_mode: str = ""
+    within: dict[str, Any] = Field(default_factory=dict)
+    scenario_weights: dict[str, float] | None = None
+    name: str = ""
+
+
+def _thread_view(thread: Any) -> dict:
+    from backend.retail import whatif_selection as selection_store
+
+    body = thread.to_dict()
+    found = selection_store.get(thread.selection_id)
+    if found is not None:
+        body["selection"] = {
+            k: v for k, v in found.to_dict().items()
+            if k not in ("selected_customer_ids", "selected_facility_ids")}
+        body["baseline"] = selection_store.baseline(found)
+        body["prompts"] = selection_store.prompts(found)
+    return body
+
+
+@router.post("/whatif/threads", summary="Open a What-If thread")
+def whatif_thread_open(payload: ThreadOpenIn,
+                       principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_selection as selection_store
+    from backend.retail import whatif_thread as threads
+
+    selection_id = payload.selection_id
+    if not selection_id:
+        source = (selection_store.SOURCE_GUIDED
+                  if payload.opened_from == threads.FROM_GUIDED
+                  else selection_store.SOURCE_STANDALONE)
+        try:
+            made = selection_store.create(
+                month=payload.month, level="cohort", route="/what-if",
+                product=payload.product, classification=payload.classification,
+                sub_product=payload.sub_product,
+                customer_id=payload.customer_id, cohort=payload.cohort,
+                dpd_bucket=payload.dpd_bucket, stage=payload.stage,
+                behavioural_band=payload.behavioural_band,
+                severity=payload.severity, source_module=source,
+                label=payload.title, created_by=str(principal.user_id or ""))
+        except ValueError as problem:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                                str(problem)) from problem
+        selection_id = made.selection_id
+
+    found = selection_store.get(selection_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{selection_id} is not a known selection.")
+    try:
+        thread = threads.create(
+            title=payload.title or found.source_label or "What-If",
+            selection_id=selection_id, month=found.source_month,
+            opened_from=payload.opened_from, method=payload.method,
+            staging_mode=payload.staging_mode, owner=principal.user_id)
+    except Exception as problem:  # noqa: BLE001 - said, never faked
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE,
+                            f"The thread could not be saved: {problem}"
+                            ) from problem
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      **_thread_view(thread)})
+
+
+@router.get("/whatif/threads", summary="Recent What-If threads")
+def whatif_thread_list(limit: int = 25,
+                       principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_thread as threads
+
+    try:
+        rows = threads.listing(owner=principal.user_id, limit=limit)
+    except Exception:  # noqa: BLE001 - an empty list, never a 500
+        rows = []
+    return json_safe({"threads": [one.to_dict() for one in rows]})
+
+
+@router.get("/whatif/threads/{thread_id}", summary="Reopen a What-If thread")
+def whatif_thread_get(thread_id: str,
+                      principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_thread as threads
+
+    thread = threads.get(thread_id, owner=principal.user_id)
+    if thread is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{thread_id} is not a thread you can open.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      **_thread_view(thread)})
+
+
+@router.post("/whatif/threads/{thread_id}/method",
+             summary="Choose Delta, XGBoost or both")
+def whatif_thread_method(thread_id: str, payload: ThreadAskIn,
+                         principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_thread as threads
+
+    thread = threads.set_method(thread_id, method=payload.method,
+                                staging_mode=payload.staging_mode,
+                                owner=principal.user_id)
+    if thread is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{thread_id} is not a thread you can open.")
+    return json_safe(thread.to_dict())
+
+
+@router.post("/whatif/threads/{thread_id}/undo",
+             summary="Remove the last exchange")
+def whatif_thread_undo(thread_id: str,
+                       principal: Principal = RequireAnalyst) -> dict:
+    from backend.retail import whatif_thread as threads
+
+    thread = threads.remove_last_result(thread_id, owner=principal.user_id)
+    if thread is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{thread_id} is not a thread you can open.")
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      **_thread_view(thread)})
+
+
+@router.post("/whatif/threads/{thread_id}/ask",
+             summary="Ask this thread for a scenario")
+def whatif_thread_ask(thread_id: str, payload: ThreadAskIn,
+                      principal: Principal = RequireAnalyst) -> dict:
+    """One turn: read it, require a method, run it, and persist all of it.
+
+    The method is REQUIRED before the first run. Defaulting to Delta while
+    presenting it as the reader's choice is the specific dishonesty §8.3
+    names, so an unchosen method returns the cards rather than a result.
+    """
+    from backend.retail import whatif_cohort as cohort
+    from backend.retail import whatif_selection as selection_store
+    from backend.retail import whatif_thread as threads
+
+    thread = threads.get(thread_id, owner=principal.user_id)
+    if thread is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{thread_id} is not a thread you can open.")
+    found = selection_store.get(thread.selection_id)
+    if found is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{thread.selection_id} is no longer available.")
+
+    shocks = dict(payload.shocks)
+    within = dict(payload.within)
+    staging = payload.staging_mode or thread.staging_mode or wif.FROZEN_STAGE
+    weights = payload.scenario_weights
+    reading: dict[str, Any] = {}
+
+    # Answering the method prompt is not asking again. Without this the
+    # transcript showed the same question twice — once for the turn that was
+    # told to choose a method, once for the turn that supplied it — which
+    # reads as a duplicate rather than as a choice.
+    answering = bool(
+        payload.method and thread.turns
+        and thread.turns[-1].get("kind") == threads.INTERPRETED
+        and thread.turns[-1].get("needs_method")
+        and any(one.get("kind") == threads.SAID
+                and one.get("text") == payload.said
+                for one in thread.turns[-3:]))
+    if payload.said and not answering:
+        threads.append(thread_id, {"kind": threads.SAID, "text": payload.said},
+                       owner=principal.user_id)
+    if payload.said and not shocks:
+        reading = cohort.read(payload.said, found)
+        if not reading.get("understood"):
+            threads.append(thread_id,
+                           {"kind": threads.CLARIFICATION, **reading},
+                           owner=principal.user_id)
+            return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                              "available": False, "needs_clarification": True,
+                              "thread_id": thread_id, **reading})
+        shocks = reading["shocks"]
+        within = {**reading.get("within", {}), **within}
+        staging = reading.get("staging_mode") or staging
+        weights = reading.get("scenario_weights") or weights
+
+    method = payload.method or thread.method
+    if not method:
+        # The interpreted scope and shock FIRST, then the cards — so the
+        # reader is choosing a method for a scenario they can already see.
+        asked = {"kind": threads.INTERPRETED, "shocks": shocks,
+                 "reading": reading or None,
+                 "needs_method": True}
+        threads.append(thread_id, asked, owner=principal.user_id)
+        return json_safe({
+            "disclosure": SYNTHETIC_DISCLOSURE, "available": False,
+            "needs_method": True, "thread_id": thread_id,
+            "shocks": shocks, "reading": reading or None,
+            "described": cohort._describe(shocks) if shocks else "",
+            "methods": [
+                {**one, "key": key} for key, one in cohort.METHODS.items()],
+            "because": ("Choose Delta, XGBoost or both. CreditProbe will not "
+                        "run one and present it as your choice."),
+        })
+
+    try:
+        out = cohort.run(thread.selection_id, shocks=shocks,
+                         name=payload.name or payload.said,
+                         method=method, staging_mode=staging,
+                         within=within, scenario_weights=weights)
+    except wif.UnsupportedShock as problem:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(problem)) from problem
+    except ValueError as problem:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(problem)) from problem
+    if not out.get("available"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            out.get("because") or "Nothing to run.")
+
+    threads.set_method(thread_id, method=method, staging_mode=staging,
+                       owner=principal.user_id)
+    # The RESULT is stored with the turn, not a pointer to a recomputation:
+    # reopening has to show the figures that were on screen, not what the
+    # engine would say today about a book that has moved since.
+    threads.append(thread_id, {
+        "kind": threads.RESULT, "method": method, "shocks": shocks,
+        "staging_mode": staging, "within": within,
+        "said": payload.said, "reading": reading or None,
+        "result": json_safe(out),
+    }, owner=principal.user_id)
+    return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
+                      "thread_id": thread_id,
+                      "reading": reading or None, **out})
