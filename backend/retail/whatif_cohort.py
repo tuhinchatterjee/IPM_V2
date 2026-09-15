@@ -625,6 +625,12 @@ def run(selection_id: str, *, shocks: dict[str, Any],
         # reopened from a saved thread, has to be able to say what it ran on.
         "baseline": sel.baseline(selection),
         "waterfall": (cohort.get("engine") or {}).get("waterfall"),
+        # The propagation, carried up from the engine so the result, the
+        # screen and the workbook all read one record of it.
+        "mechanism": (cohort.get("engine") or {}).get("mechanism"),
+        "score_migration": (cohort.get("engine") or {}).get("score_migration"),
+        "stage_movement": (cohort.get("engine") or {}).get("stage_movement"),
+        "bounded": (cohort.get("engine") or {}).get("bounded"),
         "scenario": (cohort.get("engine") or {}).get("scenario"),
         "limitations": (cohort.get("engine") or {}).get("limitations") or [],
         "assumptions": (cohort.get("engine") or {}).get("assumptions") or [],

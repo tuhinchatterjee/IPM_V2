@@ -472,12 +472,38 @@ def _recompute(
     dpd_now = num("dpd")
     behavioural = (num("behavioural_score")
                    if "behavioural_score" in frame.columns else np.full(n, np.nan))
+    #: Kept so a band migration can be reported against where the scores
+    #: STARTED. Read after the shocks have run, `behavioural` is the closing
+    #: value and the opening one is gone.
+    behavioural_opening = behavioural.copy()
     moved: dict[str, np.ndarray] = {}
     #: Facilities a shock pushed past a declared bound. An absolute move can
     #: ask for an LGD above the recovery policy's cap, and a scenario that
     #: silently clipped forty thousand facilities while reporting the shock it
     #: was asked for would be describing something it did not do.
     bounded: dict[str, int] = {}
+    #: The propagation, recorded as it happens.
+    #:
+    #: §11 asks for a mechanism table running from the raw driver through the
+    #: transformed input, the score points, the band, PD, stage, LGD/EAD and
+    #: ECL. That cannot be reconstructed after the fact from totals — by then
+    #: the intermediate values are gone — so each channel writes its own
+    #: before and after here as it is computed, and a channel the scenario
+    #: does not touch is absent rather than invented.
+    chain: dict[str, dict[str, Any]] = {}
+
+    def record(channel: str, label: str, before: Any, after: Any,
+               unit: str = "") -> None:
+        one = np.asarray(before, dtype="float64")
+        two = np.asarray(after, dtype="float64")
+        moved = ~np.isclose(np.nan_to_num(one), np.nan_to_num(two))
+        chain[channel] = {
+            "channel": channel, "label": label, "unit": unit,
+            "mean_before": float(np.nanmean(one)) if one.size else None,
+            "mean_after": float(np.nanmean(two)) if two.size else None,
+            "facilities_moved": int(moved.sum()),
+            "facilities": int(one.size),
+        }
 
     # --- Delinquency migration: the position first, then what it implies ----
     if "dpd_migration" in shocks:
@@ -570,8 +596,15 @@ def _recompute(
         # debt burden lowers the behavioural score's affordability evidence and
         # therefore raises PD. Nothing here touches origination inputs.
         income_effect = np.nan_to_num(new_dbr - old_dbr, nan=0.0)
+        record("income", "Verified monthly income",
+               num("verified_total_monthly_income_sar"), income, "SAR")
+        record("dbr", "Debt burden ratio", old_dbr, new_dbr, "ratio")
         logit = np.log(np.clip(pd_anchor, 1e-9, 1 - 1e-9) / (1 - np.clip(pd_anchor, 1e-9, 1 - 1e-9)))
+        before_pd = pd_anchor.copy()
         pd_anchor = 1.0 / (1.0 + np.exp(-(logit + 1.15 * income_effect)))
+        record("pd_from_affordability",
+               "PIT 12-month PD, moved by affordability",
+               before_pd, pd_anchor, "rate")
 
     pd_anchor = np.clip(pd_anchor, 0.0, 1.0)
 
@@ -723,8 +756,138 @@ def _recompute(
         "pd_anchor": pd_anchor,
         "lgd": base_lgd,
         "behavioural_score": behavioural,
+        "behavioural_score_before": behavioural_opening,
         "moved": moved,
+        "chain": chain,
     }
+
+
+def _mechanism(population: pd.DataFrame, result: dict[str, Any],
+               scenario: Scenario) -> dict[str, Any]:
+    """The propagation, channel by channel, with the untouched ones named.
+
+    §11 is explicit that a channel this scenario does not reach must say
+    "unchanged" rather than be given a movement. An invented LGD change on a
+    scenario that moved income is a fabrication, and a reader cannot tell one
+    from a real one once it is in a table.
+    """
+    chain = result.get("chain") or {}
+    touched = list(chain.values())
+    channels = [
+        ("income", "Verified monthly income"),
+        ("dbr", "Debt burden ratio"),
+        ("behavioural_score", "Behavioural score"),
+        ("pd_from_affordability", "PIT 12-month PD"),
+        ("lgd", "Loss given default"),
+        ("collateral", "Collateral and recovery"),
+        ("ead", "Exposure at default"),
+        ("stage", "IFRS 9 stage"),
+    ]
+    rows = []
+    for key, label in channels:
+        held = chain.get(key)
+        if held:
+            rows.append({**held, "status": "Moved by this scenario"})
+            continue
+        rows.append({
+            "channel": key, "label": label, "unit": "",
+            "mean_before": None, "mean_after": None,
+            "facilities_moved": 0, "facilities": int(len(population)),
+            "status": "Not reached by this scenario",
+        })
+    return {"channels": rows,
+            "touched": [one["channel"] for one in touched],
+            "note": ("A channel marked as not reached was not calculated "
+                     "differently — the scenario does not connect to it. "
+                     "Its before and after are the same number.")}
+
+
+def _band_migration(population: pd.DataFrame,
+                    result: dict[str, Any]) -> dict[str, Any]:
+    """Behavioural band movement, computed from the scores themselves."""
+    from backend.retail.scorecards import SCORE_BAND_LABELS, score_band_array
+
+    opening = result.get("behavioural_score_before")
+    closing = result.get("behavioural_score")
+    if opening is None or closing is None:
+        return {"available": False,
+                "because": "this book carries no behavioural score"}
+    opening = np.asarray(opening, dtype="float64")
+    closing = np.asarray(closing, dtype="float64")
+    known = ~(np.isnan(opening) | np.isnan(closing))
+    if not known.any():
+        return {"available": False,
+                "because": "no facility in this cohort carries a score"}
+    before = score_band_array(opening[known])
+    after = score_band_array(closing[known])
+    gca = pd.to_numeric(population["gross_carrying_amount_sar"],
+                        errors="coerce").fillna(0.0).to_numpy()[known]
+    order = list(SCORE_BAND_LABELS)
+    rank = {name: n for n, name in enumerate(order)}
+    cells = []
+    for source in order:
+        row = before == source
+        n_row = int(row.sum())
+        gca_row = float(gca[row].sum())
+        for target in order:
+            cell = row & (after == target)
+            if not cell.any() and not n_row:
+                continue
+            cells.append({
+                "from": source, "to": target,
+                "facilities": int(cell.sum()),
+                "customers": 0,
+                "exposure_sar": round(float(gca[cell].sum()), 2),
+                "count_share_pct": (round(int(cell.sum()) / n_row * 100, 4)
+                                    if n_row else None),
+                "exposure_share_pct": (round(float(gca[cell].sum())
+                                             / gca_row * 100, 4)
+                                       if gca_row else None),
+                "direction": ("worse" if rank[target] < rank[source]
+                              else "better" if rank[target] > rank[source]
+                              else "unchanged"),
+            })
+    # An off-diagonal cell holding ZERO facilities is not a migration. Testing
+    # only the direction counted the empty cells the matrix carries so a
+    # reader can see they are empty, and reported a band migration on a
+    # scenario that never touched a score.
+    moved = [one for one in cells
+             if one["direction"] != "unchanged" and one["facilities"]]
+    if not moved:
+        return {"available": False,
+                "because": "no facility changed behavioural score band"}
+    return {"available": True, "bands": order, "matrix": cells,
+            "scored_facilities": int(known.sum())}
+
+
+def _stage_movement(population: pd.DataFrame,
+                    result: dict[str, Any]) -> dict[str, Any]:
+    """Stage transitions, where the scenario was allowed to re-stage."""
+    opening = pd.to_numeric(population["ifrs9_stage"],
+                            errors="coerce").fillna(0).astype(int).to_numpy()
+    closing = np.asarray(result.get("stage"), dtype="int64")
+    if closing.size != opening.size:
+        return {"available": False, "because": "stages could not be compared"}
+    gca = pd.to_numeric(population["gross_carrying_amount_sar"],
+                        errors="coerce").fillna(0.0).to_numpy()
+    cells = []
+    for source in (1, 2, 3):
+        row = opening == source
+        for target in (1, 2, 3):
+            cell = row & (closing == target)
+            if not cell.any():
+                continue
+            cells.append({
+                "from": source, "to": target,
+                "facilities": int(cell.sum()),
+                "exposure_sar": round(float(gca[cell].sum()), 2),
+                "direction": ("worse" if target > source
+                              else "better" if target < source else "held"),
+            })
+    if not any(one["direction"] != "held" for one in cells):
+        return {"available": False,
+                "because": "no facility changed IFRS 9 stage"}
+    return {"available": True, "matrix": cells}
 
 
 def _pct_change(new: float, old: float) -> float | None:
@@ -838,6 +1001,12 @@ def run(frame: pd.DataFrame, scenario: Scenario, cfg: RetailDemoConfig,
     return {
         "waterfall": steps,
         "bounded": {k: v for k, v in (result.get("bounded") or {}).items() if v},
+        # §11's mechanism: raw driver -> transformed input -> score -> band ->
+        # PD -> stage -> LGD/EAD -> ECL. Recorded as the engine computes it,
+        # because the intermediate values do not survive to the end.
+        "mechanism": _mechanism(population, result, scenario),
+        "score_migration": _band_migration(population, result),
+        "stage_movement": _stage_movement(population, result),
         "scenario": scenario.to_dict(),
         "parity": _parity(population, result) if neutral else None,
         "population_empty": False,

@@ -1184,20 +1184,12 @@ def ews_cohort_workbook(payload: CohortWorkbookIn,
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             out.get("because") or "Nothing to run.")
 
-    # `build_rows` takes the MONTH and the filters, not the selection. Passing
-    # the selection put a whole object where a month string belonged.
-    rows = selection_store.build_rows(
-        found.source_month,
-        product=found.source_product,
-        classification=found.source_classification,
-        sub_product=found.source_sub_product,
-        customer_id=found.source_customer_id,
-        **{k: v for k, v in (found.source_filters or {}).items()
-           if k in ("cohort", "severity", "reason", "layer", "dpd_bucket",
-                    "stage")})
-    customers = (rows.to_dict("records")[:5000]
-                 if rows is not None and len(rows) else [])
     facilities = _cohort_facility_detail(found, shocks, staging, weights)
+    # The customer sheet used to be raw book rows — all 498 columns of them.
+    # It is a CURATED summary rolled up from the same facility recomputation
+    # the totals came from, so the sheet's rows and the workbook's totals are
+    # the same arithmetic rather than two reads of the book.
+    customers = _cohort_customer_detail(found, facilities)
     payload_bytes, filename = book.build(
         out, selection=found.to_dict(), customers=customers,
         facilities=facilities)
@@ -1206,6 +1198,108 @@ def ews_cohort_workbook(payload: CohortWorkbookIn,
         media_type=("application/vnd.openxmlformats-officedocument"
                     ".spreadsheetml.sheet"),
         headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def _cohort_customer_detail(selection: Any,
+                            facilities: list[dict]) -> list[dict]:
+    """One row per customer, rolled up from the facility recomputation.
+
+    A customer with three cards is ONE customer. Summing income or counting
+    them three times is the multiplication §4.1 forbids, so only the
+    additive quantities — exposure, ECL — are summed, and the rest are taken
+    from the customer's worst facility.
+    """
+    import pandas as pd
+
+    from backend.retail import ews_score as scored
+
+    if not facilities:
+        return []
+    try:
+        frame = pd.DataFrame(facilities)
+        book = scored.read(selection.source_month)
+        keep = [c for c in ("facility_id", "customer_id", "customer_name",
+                            "sub_product_code", "classification",
+                            "dpd_bucket", "behavioural_score",
+                            "behavioural_score_band")
+                if c in book.columns]
+        context = book[keep].copy()
+        context["facility_id"] = context["facility_id"].astype(str)
+        frame["facility_id"] = frame["facility_id"].astype(str)
+        joined = frame.merge(context.drop(columns=["customer_id"],
+                                          errors="ignore"),
+                             on="facility_id", how="left")
+        rolled = []
+        for customer, part in joined.groupby(joined["customer_id"].astype(str)):
+            worst = part.sort_values("ecl_change_sar", ascending=False).iloc[0]
+            change = float(part["ecl_change_sar"].sum())
+            rolled.append({
+                "customer_id": customer,
+                "customer_name": _maybe_text(worst.get("customer_name"))
+                                 or scored.display_name(customer),
+                "product_code": _maybe_text(worst.get("product_code")),
+                "sub_product_code": _maybe_text(worst.get("sub_product_code")),
+                "classification": _maybe_text(worst.get("classification")),
+                "facilities": int(len(part)),
+                "exposure_sar": round(float(part["exposure_sar"].sum()), 2),
+                "dpd": _maybe_int(worst.get("dpd_after")),
+                "dpd_bucket": _maybe_text(worst.get("dpd_bucket")),
+                "ifrs9_stage": _maybe_int(worst.get("stage_after")),
+                "behavioural_score": _maybe_float(
+                    worst.get("behavioural_score")),
+                "behavioural_score_band": _maybe_text(
+                    worst.get("behavioural_score_band")),
+                "pd_pit_12m_before": _maybe_float(worst.get("pd_pit_12m_before")),
+                "pd_pit_12m_after": _maybe_float(worst.get("pd_pit_12m_after")),
+                "lgd_before": _maybe_float(worst.get("lgd_before")),
+                "lgd_after": _maybe_float(worst.get("lgd_after")),
+                "ecl_before_sar": round(
+                    float(part["ecl_weighted_sar_before"].sum()), 2),
+                "ecl_after_sar": round(
+                    float(part["ecl_weighted_sar_after"].sum()), 2),
+                "ecl_change_sar": round(change, 2),
+                "changed": "Yes" if abs(change) >= 0.005 else "No",
+                "reason": _maybe_text(selection.source_label),
+            })
+        rolled.sort(key=lambda one: -abs(one["ecl_change_sar"]))
+        return rolled[:5000]
+    except Exception:  # noqa: BLE001 - the workbook still ships without it
+        return []
+
+
+def _maybe_text(value: Any) -> str:
+    """A string, or empty — never the WORD "nan".
+
+    `str(value or "")` looks safe and is not: a float nan is truthy, so `or`
+    never fires and `str` turns it into the three characters n, a, n. The
+    score-band column carried them into a downloaded workbook.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, float) and value != value:
+        return ""
+    text = str(value).strip()
+    return "" if text.lower() in ("nan", "none", "nat", "<na>") else text
+
+
+def _maybe_int(value: Any) -> int | None:
+    try:
+        import math
+
+        got = float(value)
+        return None if math.isnan(got) else int(got)
+    except (TypeError, ValueError):
+        return None
+
+
+def _maybe_float(value: Any) -> float | None:
+    try:
+        import math
+
+        got = float(value)
+        return None if math.isnan(got) else got
+    except (TypeError, ValueError):
+        return None
 
 
 def _cohort_facility_detail(selection: Any, shocks: dict[str, Any],
