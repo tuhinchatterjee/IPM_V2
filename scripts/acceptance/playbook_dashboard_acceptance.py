@@ -889,6 +889,179 @@ async def keyboard_and_focus(page, workspace_id: int) -> None:
               back == "playbook-finding-answer", str(back))
 
 
+async def accessibility(page, workspace_id: int) -> None:
+    """§32 — reachable, labelled, and never colour alone.
+
+    The list is the specification's, checked against the real page rather
+    than asserted. What it is really testing is whether somebody who cannot
+    use a mouse, or cannot distinguish red from green, can still find out
+    whether this document can be approved.
+    """
+    await page.goto(f"{WEB}/playbook/{workspace_id}/status",
+                    wait_until="networkidle")
+
+    # --- every status carries a word, not just a colour --------------------
+    # Scoped to the dashboard's own region. The application shell draws a
+    # 4px grey dot beside every nav item that is not live, labelled only by
+    # the link's `title` — a hover-only label. That is pre-existing chrome on
+    # every route in the product, recorded as a shell limitation rather than
+    # smuggled into this suite's result (the same treatment as the narrow
+    # viewport overflow, which `/playbooks` shows too).
+    #
+    # The rule: a round marker either says something itself, or sits beside a
+    # word within a couple of levels. That is what lets `ScoreBar` be
+    # aria-hidden — the percentage it measures is right next to it — while a
+    # bare coloured dot alone in a cell still fails.
+    coloured = await page.evaluate(
+        """() => {
+            const root = document.querySelector(
+                '[data-testid=playbook-status-page]');
+            if (!root) return ['the dashboard region was not found'];
+            const out = [];
+            for (const el of root.querySelectorAll('*')) {
+                const cls = (el.className || '').toString();
+                if (!cls.includes('rounded-full')) continue;
+                if ((el.textContent || '').trim()) continue;
+                let near = false;
+                let up = el.parentElement;
+                for (let i = 0; i < 3 && up && up !== root; i++) {
+                    if ((up.textContent || '').trim()) { near = true; break; }
+                    up = up.parentElement;
+                }
+                if (!near) out.push(cls.slice(0, 60));
+            }
+            return out;
+        }""")
+    check("no status is shown as colour alone",
+          not coloured, "; ".join(coloured[:2]))
+
+    # --- everything interactive is reachable -------------------------------
+    unreachable = await page.evaluate(
+        """() => {
+            const out = [];
+            for (const el of document.querySelectorAll(
+                    'button, a[href], select, input, [role=tab]')) {
+                if (el.disabled) continue;
+                const r = el.getBoundingClientRect();
+                if (r.width === 0 && r.height === 0) continue;
+                if (el.tabIndex < 0) {
+                    out.push((el.tagName + ' ' +
+                        (el.textContent || '').trim()).slice(0, 40));
+                }
+            }
+            return out;
+        }""")
+    check("every visible control can be reached by keyboard",
+          not unreachable, "; ".join(unreachable[:3]))
+
+    # --- everything interactive says what it is ----------------------------
+    unlabelled = await page.evaluate(
+        """() => {
+            const out = [];
+            for (const el of document.querySelectorAll(
+                    'button, select, input[type=checkbox]')) {
+                const r = el.getBoundingClientRect();
+                if (r.width === 0 && r.height === 0) continue;
+                const named = (el.textContent || '').trim()
+                    || el.getAttribute('aria-label')
+                    || el.getAttribute('title')
+                    || (el.labels && el.labels.length);
+                if (!named) out.push((el.tagName + '.' +
+                    (el.className || '').toString().split(' ')[0]).slice(0, 40));
+            }
+            return out;
+        }""")
+    check("every control says what it is",
+          not unlabelled, "; ".join(unlabelled[:3]))
+
+    # --- the tabs are tabs --------------------------------------------------
+    roles = await page.evaluate(
+        """() => {
+            const list = document.querySelector('[role=tablist]');
+            const tabs = [...document.querySelectorAll('[role=tab]')];
+            return {
+                hasList: Boolean(list),
+                selected: tabs.filter(
+                    (t) => t.getAttribute('aria-selected') === 'true').length,
+                total: tabs.length,
+            };
+        }""")
+    check("the tabs are marked up as tabs", roles["hasList"])
+    check("exactly one tab is selected at a time",
+          roles["selected"] == 1, str(roles))
+
+    # --- the readiness components announce whether they are open -----------
+    expanded = await page.evaluate(
+        """() => [...document.querySelectorAll(
+             '[data-testid=playbook-readiness-component]')]
+             .every((el) => el.hasAttribute('aria-expanded'))""")
+    check("an expandable readiness component says whether it is open",
+          bool(expanded))
+
+    # --- tab order reaches the dashboard, not just the shell ---------------
+    await page.keyboard.press("Tab")
+    reached = 0
+    for _ in range(60):
+        where = await page.evaluate(
+            """() => {
+                const el = document.activeElement;
+                if (!el) return "";
+                return el.closest('[data-testid=playbook-status-page]')
+                    ? "dashboard" : "shell";
+            }""")
+        if where == "dashboard":
+            reached += 1
+            if reached >= 5:
+                break
+        await page.keyboard.press("Tab")
+    check("tabbing reaches the dashboard's own controls",
+          reached >= 5, f"{reached} reached")
+
+    # --- a dialog behaves like one ------------------------------------------
+    await page.get_by_test_id("playbook-tab-findings").click()
+    await page.wait_for_timeout(300)
+    if await page.get_by_test_id("playbook-finding-assign").count():
+        await page.get_by_test_id("playbook-finding-assign").first.click()
+        await page.wait_for_timeout(300)
+        shape = await page.evaluate(
+            """() => {
+                const d = document.querySelector('[role=dialog]');
+                if (!d) return null;
+                return {
+                    modal: d.getAttribute('aria-modal') === 'true',
+                    labelled: Boolean(d.getAttribute('aria-labelledby')
+                        || d.getAttribute('aria-label')),
+                };
+            }""")
+        check("a governance form is a labelled modal dialog",
+              bool(shape and shape["modal"] and shape["labelled"]),
+              str(shape))
+
+        # Tab must not escape the dialog while it is open.
+        for _ in range(25):
+            await page.keyboard.press("Tab")
+        inside = await page.evaluate(
+            "() => Boolean(document.activeElement?.closest('[role=dialog]'))")
+        check("the keyboard stays inside the dialog", bool(inside))
+        await page.keyboard.press("Escape")
+        await page.wait_for_timeout(200)
+
+    # --- nothing critical is hover-only -------------------------------------
+    hover_only = await page.evaluate(
+        """() => {
+            const out = [];
+            for (const el of document.querySelectorAll('[data-testid]')) {
+                const s = getComputedStyle(el);
+                if (s.visibility === 'hidden' && s.display !== 'none') {
+                    out.push(el.getAttribute('data-testid'));
+                }
+            }
+            return out;
+        }""")
+    check("no control is hidden until hovered",
+          not hover_only, "; ".join(hover_only[:3]))
+
+
 async def responsive(page, workspace_id: int, width: int, name: str) -> None:
     """§31 — nothing disappears and nothing overlaps at a narrow width."""
     await page.goto(f"{WEB}/playbook/{workspace_id}/status",
@@ -915,12 +1088,20 @@ async def responsive(page, workspace_id: int, width: int, name: str) -> None:
     escaped = await page.evaluate(OVERFLOWING)
     check(f"[{name}] a wide table scrolls inside its own box",
           not escaped, "; ".join(escaped[:2]))
-    scrolls = await page.evaluate(
-        """() => [...document.querySelectorAll('.overflow-x-auto')]
-             .some((el) => el.scrollWidth > el.clientWidth)""")
-    check(f"[{name}] and the table really is scrollable",
-          bool(scrolls) or width > 900,
-          "no horizontally scrollable table found")
+    # The check above only proves nothing escaped, which a `display: none`
+    # would also satisfy. This proves the table is present and genuinely
+    # scrollable — but only where the width makes that meaningful. At 1366 and
+    # 1440 the Since-Last-Time table fits, so there is nothing to assert; this
+    # emits no check there rather than a pass for a thing it did not test.
+    if width <= 900:
+        scrolls = await page.evaluate(
+            """() => [...document.querySelectorAll('.overflow-x-auto')]
+                 .filter((el) => el.scrollWidth > el.clientWidth)
+                 .map((el) => `${el.scrollWidth}>${el.clientWidth}`)""")
+        check(f"[{name}] and the table really is scrollable",
+              bool(scrolls),
+              "; ".join(scrolls[:2]) if scrolls
+              else "no horizontally scrollable table found")
 
 
 # ==========================================================================
@@ -975,6 +1156,8 @@ async def run_once(browser, *, shoot: bool) -> None:
     await context_bridge(page, committee, shoot=shoot)
     print("\n-- Keyboard and focus " + "-" * 38)
     await keyboard_and_focus(page, committee)
+    print("\n-- Accessibility " + "-" * 43)
+    await accessibility(page, committee)
     print("\n-- An empty Playbook " + "-" * 39)
     await empty_workspace(page)
 

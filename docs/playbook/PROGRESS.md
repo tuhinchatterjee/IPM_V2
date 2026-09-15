@@ -59,6 +59,19 @@ These are pre-existing facts about the base commit, not defects introduced here.
 4. **`GET /api/v1/playbooks` and `GET /api/v1/playbooks/{id}` resolve no
    `Principal`**, so `REQUIRE_LOGIN` is not enforced on those two reads. Reported,
    not silently altered — it belongs to the pre-existing monitoring feature.
+5. **The application shell marks a non-live navigation item with colour alone.**
+   `frontend/src/components/layout/sidebar.tsx:94` draws a 4px `bg-border-strong`
+   dot beside every nav item whose status is not `live`, and the only word for it
+   is the link's `title` — a hover tooltip, which §32 counts as hover-only. It is
+   `aria-hidden`, so a screen reader is unaffected; a sighted user who cannot see
+   the dot has no other signal. This is on every route in the product, `/playbooks`
+   included, and is not Playbook's to change. The §32 sweep in
+   `playbook_dashboard_acceptance.py` is therefore scoped to the dashboard's own
+   region, and the finding is recorded here rather than absorbed into that run's
+   result.
+6. **The narrow viewport (430px) overflows in the shell, not in Playbook.** The
+   untouched `/playbooks` page shows the same escape. The dashboard's own content
+   is clean at all three of §31's widths.
 
 ## Milestones
 
