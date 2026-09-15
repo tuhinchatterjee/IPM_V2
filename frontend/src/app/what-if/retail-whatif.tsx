@@ -23,6 +23,7 @@
  * on the snapshot it read, never a recomputation against a newer month.
  */
 
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import { PageHeader } from "@/components/layout/page-header";
@@ -59,6 +60,26 @@ function sar(value: number | null | undefined): string {
 
 export function RetailWhatIf() {
   const landing = useAsync(() => api.retailWhatIfLanding(), []);
+  // Opening a guided card creates a SELECTION and a THREAD and navigates to
+  // it. The cohort a card describes becomes the same immutable membership
+  // record an Early Warning export writes, so the thread that opens is the
+  // same thread with the same engine, results and workbook behind it.
+  const [opening, setOpening] = React.useState("");
+  const router = useRouter();
+  const openThread = React.useCallback(async (key: string) => {
+    const card = JOURNEYS.find((one) => one.key === key);
+    if (!card || opening) return;
+    setOpening(key);
+    try {
+      const thread = await api.whatifThreadOpen({
+        title: card.title, opened_from: "guided_card", ...card.cohort });
+      router.push(`/what-if/threads/${thread.thread_id}`);
+    } catch (failed) {
+      setError(String(failed));
+      setOpening("");
+    }
+  }, [opening, router]);
+
   const [month, setMonth] = React.useState("");
   const [text, setText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -242,9 +263,19 @@ export function RetailWhatIf() {
  */
 const JOURNEYS: {
   key: string; title: string; blurb: string; prompts: string[];
+  /**
+   * The cohort this card opens a thread over.
+   *
+   * §8.2: clicking a card must create a thread and show its baseline, not
+   * swap the prompt chips on the home page. So a card names the SELECTION it
+   * is about — the same kind of immutable membership record an Early Warning
+   * export writes — and the thread that opens is the same thread.
+   */
+  cohort: Record<string, string>;
 }[] = [
   {
     key: "dpd",
+    cohort: { dpd_bucket: "1-29" },
     title: "DPD Bucket Movement",
     blurb: "Move exposure or accounts between delinquency buckets. The "
          + "facilities that move are the worst in the bucket they leave, and "
@@ -258,6 +289,7 @@ const JOURNEYS: {
   },
   {
     key: "behavioural",
+    cohort: { behavioural_band: "B" },
     title: "Behavioural Score Movement",
     blurb: "Worsen or improve score bands. A band change reaches PD through "
          + "the versioned score-to-PD mapping, the way any score change does.",
@@ -270,6 +302,7 @@ const JOURNEYS: {
   },
   {
     key: "stage",
+    cohort: { stage: "1" },
     title: "Stage Migration",
     blurb: "Move a share of one IFRS 9 stage into another. Stage decides "
          + "twelve months against lifetime, and nothing else is inferred.",
@@ -282,6 +315,7 @@ const JOURNEYS: {
   },
   {
     key: "parameters",
+    cohort: {},
     title: "Risk Parameter Adjustment",
     blurb: "PD, LGD, CCF, collateral and recovery in one place — the "
          + "parameters of the IFRS 9 identity, moved directly.",
@@ -296,6 +330,7 @@ const JOURNEYS: {
   },
   {
     key: "product",
+    cohort: { product: "CREDIT_CARD" },
     title: "Product & Sub-product Stress",
     blurb: "The same products and sub-products the Early Warning Score uses, "
          + "so a cohort you were just reading about is a cohort you can "
@@ -310,6 +345,7 @@ const JOURNEYS: {
   },
   {
     key: "macro",
+    cohort: {},
     title: "Macroeconomic Stress",
     blurb: "The scenario weights, and the borrower-level proxies a retail "
          + "book carries for a downturn.",
@@ -322,6 +358,7 @@ const JOURNEYS: {
   },
   {
     key: "borrower",
+    cohort: { cohort: "forward_risk" },
     title: "Borrower Stress",
     blurb: "One customer, or a cohort exported from Early Warning Score. "
          + "Open the cohort from its card and the thread arrives with the "
@@ -335,7 +372,11 @@ const JOURNEYS: {
   },
 ];
 
-function Journeys({ onChoose }: { onChoose: (said: string) => void }) {
+function Journeys({ onChoose, onOpen, opening }: {
+  onChoose: (said: string) => void;
+  onOpen: (key: string) => void;
+  opening: string;
+}) {
   const [open, setOpen] = React.useState<string>("");
   return (
     <Card data-testid="retail-whatif-journeys">
@@ -370,10 +411,27 @@ function Journeys({ onChoose }: { onChoose: (said: string) => void }) {
         {open ? (
           <div className="mt-3 rounded-lg border border-border p-3"
                data-testid={`retail-whatif-prompts-${open}`}>
-            <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
-              {JOURNEYS.find((one) => one.key === open)?.title} — press one, or
-              type your own
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[10px] uppercase tracking-[0.08em] text-text-muted">
+                {JOURNEYS.find((one) => one.key === open)?.title} — press one,
+                or type your own
+              </p>
+              {/*
+                * §8.2: the card OPENS a thread. Pressing a prompt below runs
+                * it in the thread this creates, over the cohort the card is
+                * about, with its baseline profile already drawn — rather than
+                * executing a scenario inline under the cards, which is what
+                * the standalone page used to do.
+                */}
+              <Button
+                size="sm"
+                disabled={Boolean(opening)}
+                onClick={() => onOpen(open)}
+                data-testid={`retail-whatif-open-${open}`}
+              >
+                {opening === open ? "Opening…" : "Open this as a thread"}
+              </Button>
+            </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {(JOURNEYS.find((one) => one.key === open)?.prompts ?? []).map(
                 (prompt) => (
@@ -449,7 +507,11 @@ function Journeys({ onChoose }: { onChoose: (said: string) => void }) {
             </CardContent>
           </Card>
 
-          <Journeys onChoose={(said) => void send(said)} />
+          <Journeys
+            onChoose={(said) => void send(said)}
+            onOpen={(key) => void openThread(key)}
+            opening={opening}
+          />
 
           {error ? (
             <Card className="border-negative/40 p-4 text-sm text-negative"
@@ -619,25 +681,34 @@ function Journeys({ onChoose }: { onChoose: (said: string) => void }) {
             </CardContent>
           </Card>
 
+          {/*
+            * The parameter catalogue used to be here, listing `pd_relative`,
+            * `lgd_relative`, `ccf_absolute`, `income_pct`, `dpd_migration`
+            * and `score_band_migration` to whoever opened the page. §2.1
+            * names it as a defect: those are implementation identifiers, and
+            * the reader's journey is not where they belong. The technical
+            * dictionary lives on the model pages, which is where somebody
+            * looking for it will look.
+            */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-[14px]">
-                What this engine implements
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid gap-2 text-[12px] sm:grid-cols-2">
-                {Object.entries(data.supported).map(([name, description]) => (
-                  <div key={name}>
-                    <dt className="font-medium text-text-primary">{name}</dt>
-                    <dd className="text-text-secondary">{description}</dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="mt-3 text-[11px] text-text-muted">
-                Methodology {data.methodology_version}. Staging modes:{" "}
-                {data.staging_modes.join(", ")}.
-              </p>
+            <CardContent className="flex flex-wrap items-center gap-3 pt-4
+                                    text-[12px] text-text-secondary">
+              <span>
+                Methodology {data.methodology_version} · staging modes{" "}
+                {data.staging_modes.join(", ")}
+              </span>
+              <Button variant="outline" size="sm" asChild>
+                <a href="/what-if/models/delta"
+                   data-testid="retail-whatif-open-delta">
+                  Delta method
+                </a>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <a href="/what-if/models/ml"
+                   data-testid="retail-whatif-open-xgboost">
+                  ML model — XGBoost
+                </a>
+              </Button>
             </CardContent>
           </Card>
         </>

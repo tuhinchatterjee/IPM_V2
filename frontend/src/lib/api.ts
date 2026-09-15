@@ -6400,6 +6400,25 @@ export interface EwsCohortResult {
   assumptions: string[];
 }
 
+/** One persisted What-If conversation, with its cohort and its turns. */
+export type WhatIfThreadView = {
+  thread_id: string;
+  title: string;
+  selection_id: string;
+  month: string;
+  opened_from: string;
+  method: string;
+  staging_mode: string;
+  turns: Record<string, unknown>[];
+  turn_count: number;
+  created_at: string;
+  updated_at: string;
+  selection?: Record<string, unknown>;
+  baseline?: Record<string, unknown>;
+  prompts?: string[];
+  disclosure?: string;
+};
+
 export const api = {
   // ---- authentication ----
   /**
@@ -7521,6 +7540,71 @@ export const api = {
     return { blob: await response.blob(),
              filename: named?.[1] ?? "retail-whatif.xlsx" };
   },
+  // ---------------------------------------------------------- What-If threads
+  //
+  // §8: the standalone page, a guided card and an Early Warning export all
+  // open the SAME thread over the SAME kind of selection. Different entry
+  // context is legitimate; a reduced feature set is not.
+
+  whatifThreadOpen: (body: { selection_id?: string; title?: string;
+                             opened_from?: string; month?: string;
+                             product?: string; classification?: string;
+                             sub_product?: string; customer_id?: string;
+                             cohort?: string; dpd_bucket?: string;
+                             stage?: string; behavioural_band?: string;
+                             severity?: string; method?: string;
+                             staging_mode?: string }) =>
+    request<WhatIfThreadView>(
+      "/retail/whatif/threads",
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: LAKE_TIMEOUT_MS }),
+
+  whatifThread: (threadId: string) =>
+    request<WhatIfThreadView>(
+      `/retail/whatif/threads/${encodeURIComponent(threadId)}`,
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+
+  whatifThreads: (limit = 25) =>
+    request<{ threads: WhatIfThreadView[] }>(
+      "/retail/whatif/threads" + qs({ limit: String(limit) }),
+      { timeoutMs: LAKE_TIMEOUT_MS }),
+
+  /**
+   * One turn. Returns a RESULT, a clarification, or the method cards.
+   *
+   * `needs_method` is not an error: before the first run the thread shows the
+   * interpreted scope and shock and asks which model to run it through, so
+   * the reader is choosing a method for a scenario they can already see.
+   */
+  whatifThreadAsk: (threadId: string,
+                    body: { said?: string; method?: string;
+                            shocks?: Record<string, unknown>;
+                            within?: Record<string, unknown>;
+                            staging_mode?: string; name?: string }) =>
+    request<EwsCohortResult & { needs_clarification?: boolean;
+                                needs_method?: boolean;
+                                question?: string; read_as?: string[];
+                                described?: string;
+                                methods?: { key: string; name: string;
+                                            what: string }[];
+                                because?: string;
+                                available?: boolean }>(
+      `/retail/whatif/threads/${encodeURIComponent(threadId)}/ask`,
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: LAKE_TIMEOUT_MS }),
+
+  whatifThreadMethod: (threadId: string,
+                       body: { method?: string; staging_mode?: string }) =>
+    request<WhatIfThreadView>(
+      `/retail/whatif/threads/${encodeURIComponent(threadId)}/method`,
+      { method: "POST", body: JSON.stringify(body),
+        timeoutMs: LAKE_TIMEOUT_MS }),
+
+  whatifThreadUndo: (threadId: string) =>
+    request<WhatIfThreadView>(
+      `/retail/whatif/threads/${encodeURIComponent(threadId)}/undo`,
+      { method: "POST", body: "{}", timeoutMs: LAKE_TIMEOUT_MS }),
+
   ewsScorePrompts: (level = "portfolio") =>
     request<{ level: string; prompts: string[]; scope: string[];
               scope_note: string }>(
