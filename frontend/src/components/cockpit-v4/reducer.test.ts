@@ -351,3 +351,41 @@ test("a stated stage is not closed by one of its own operations", () => {
   });
   assert.equal(view.steps[0].state, "running");
 });
+
+test("a run that computed rows carries them into the view, narrative or not", () => {
+  // Fault 4. The answer turn truncated twice and the run stopped as
+  // ANSWER_FORMAT_EXHAUSTED -- but four steps had been validated and three
+  // had stored their results. The panel branched on `!view.response` alone,
+  // so the reader got a red box and none of the rows they had paid for.
+  //
+  // The server now publishes the stored result on its own channel. The
+  // reducer's job is to carry it: a settled status with a final_response
+  // must produce a view with that response, whatever the error code says.
+  let view = initial("run-a");
+  view = reduce(view, {
+    type: "settled",
+    status: {
+      run_id: "run-a",
+      state: "PARTIAL",
+      error_code: "ANSWER_FORMAT_EXHAUSTED",
+      error_id: "",
+      final_response: {
+        disposition: "partial_answer",
+        narrative: "The analysis ran and its result is below.",
+        numeric_claims: [],
+        tables: [{ artifact_id: "art-1", title: "ECL by sector", rows: [] }],
+        executed: true,
+        result_only: true,
+        result_only_reason: "The written answer was cut off.",
+      },
+    } as unknown as RunStatus,
+  });
+  assert.equal(view.terminal, true);
+  assert.notEqual(view.response, null);
+  assert.equal(view.response?.result_only, true);
+  assert.equal(view.response?.executed, true);
+  // No number reaches the reader that the model supplied.
+  assert.deepEqual(view.response?.numeric_claims, []);
+  // And the run is summarised as what it was, not as a bare stop.
+  assert.match(collapsedSummary(view), /Partly answered/);
+});

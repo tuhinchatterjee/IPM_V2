@@ -95,6 +95,33 @@ _PURPOSE_MESSAGE: dict[str, str] = {
 }
 
 
+#: WHY the written answer never arrived, in one sentence a reader can act
+#: on. The rows are published either way; this says what is missing from
+#: them and, where the reader can do something about it, what.
+_RESULT_ONLY_REASON: dict[str, str] = {
+    st.ANSWER_FORMAT_EXHAUSTED: (
+        "Every attempt at the written answer was cut off before it was "
+        "complete, so none of them was published. A narrower question "
+        "usually produces one."),
+    st.ACTION_FORMAT_EXHAUSTED: (
+        "The analysis could not be carried further after this result."),
+    st.OUTPUT_LIMIT: (
+        "The written answer was longer than this run could publish."),
+    st.DEADLINE_EXPIRED: (
+        "The run reached its time allowance before the answer was written."),
+    st.COST_LIMIT: (
+        "The run reached its cost ceiling before the answer was written."),
+    st.CALL_LIMIT: (
+        "The run used its model-call allowance before the answer was "
+        "written."),
+    st.EXECUTION_LIMIT: (
+        "The run used its execution allowance before the answer was "
+        "written."),
+    st.ROUND_LIMIT: (
+        "The run used its analysis rounds before the answer was written."),
+}
+
+
 #: Which disposition settles into which terminal state.
 _DISPOSITION_STATE = {
     "answer": st.COMPLETED, "partial_answer": st.PARTIAL,
@@ -138,6 +165,13 @@ class Orchestrator:
     #: Set once the catalogue has answered, so NEEDS_METADATA is a state a
     #: run passes THROUGH rather than one it can sit in.
     catalog_answered: bool = False
+    #: True once a validated answer has actually been published. Guards the
+    #: result-only channel: a terminal stop AFTER a successful publication
+    #: must not overwrite the answer with a bare table.
+    answer_published: bool = False
+    #: step_id -> the purpose the analyst gave it. Titles for a result
+    #: published without a written answer. See `_result_only_response`.
+    step_purposes: dict[str, str] = field(default_factory=dict)
     #: True once an ACTION turn has been cut off at its allowance. The
     #: re-ask then gets the larger one: a truncation is direct evidence
     #: that the allowance was the binding constraint on that turn, and it
@@ -399,9 +433,24 @@ class Orchestrator:
             message = (f"{message} The first analytical failure in this run "
                        f"was: {self.first_failure['summary']}")
         state = st.EXPIRED if code == st.DEADLINE_EXPIRED else st.FAILED
-        if self.executed and code in (st.DEADLINE_EXPIRED, st.COST_LIMIT,
-                                      st.CALL_LIMIT, st.EXECUTION_LIMIT,
-                                      st.ROUND_LIMIT):
+        # THE RESULT, PUBLISHED WITHOUT ITS WRITE-UP.
+        #
+        # A run that executed its query and then could not write the answer
+        # about it has a result and no way to show it: the only channel a
+        # result reaches a reader through is the written answer object, and
+        # failing to produce that object is exactly what happened. So the
+        # object is built here from the stored artifacts instead, with a
+        # server-written caveat and no numeric claims.
+        #
+        # `_RESULT_ONLY_REASON` is the list of codes this applies to, and
+        # it is also the promotion list below -- ONE set, so a run can never
+        # settle as FAILED while carrying a published result, or settle as
+        # PARTIAL with nothing to show for it. It now includes the two
+        # format exhaustions and the output limit: the codes that mean "the
+        # analysis worked and the writing did not", which is the case where
+        # a reader most needs the rows and used to get a red box.
+        response = self._result_only_response(code)
+        if self.executed and code in _RESULT_ONLY_REASON:
             # Verified partial evidence exists; it is preserved and labelled.
             state = st.PARTIAL
         error_id = ""
@@ -418,7 +467,47 @@ class Orchestrator:
                                       self.first_failure})
                         if self.first_failure else ""))
         return Outcome(state, error_code=code, error_id=error_id,
-                       message=message, terminal_event_emitted=True)
+                       message=message, response=response,
+                       terminal_event_emitted=True)
+
+    def _result_only_response(self, code: str) -> dict[str, Any] | None:
+        """The stored result, shaped as a response, or nothing.
+
+        Nothing is the right answer for a run that executed nothing, and
+        for one that already published an answer -- a terminal stop after a
+        successful publication is not this case and must not overwrite it.
+        """
+        if self.answer_published or not self.executed:
+            return None
+        if not self.finalizer.run_artifacts:
+            return None
+        reason = _RESULT_ONLY_REASON.get(code, "")
+        if not reason:
+            # Only the codes that mean "the analysis worked and the writing
+            # did not". A REJECTED answer is a different case -- the analyst
+            # did write one and it failed its checks -- and what that run
+            # settles into is not this channel's business.
+            return None
+        try:
+            body = self.finalizer.result_only_response(
+                reason=reason, purposes=self.step_purposes,
+                catalog=self.catalog, intent=self.intent)
+        except Exception:                                     # noqa: BLE001
+            # A result that cannot be rendered must not turn a stop into a
+            # crash. The run still fails; it fails the way it did before.
+            return None
+        if not body:
+            return None
+        count = len(body.get("tables") or [])
+        self.emitter.append(
+            ev.ANSWER_VALIDATED, stage="publishing",
+            operation="publish_result_only", status=ev.STATUS_OK,
+            public_message=(
+                f"The written answer could not be completed, so the result "
+                f"of the analysis is published on its own: "
+                f"{count} {'table' if count == 1 else 'tables'} from the "
+                f"query this run executed."))
+        return body
 
     def _loop(self) -> Outcome:
         self.emitter.append(
@@ -1198,6 +1287,10 @@ class Orchestrator:
             if result.artifact_id:
                 self.finalizer.run_artifacts.add(result.artifact_id)
                 self.executed = True
+                # What this result WAS, kept so a table published without a
+                # written answer still has a name a reader recognises.
+                if result.purpose:
+                    self.step_purposes[result.step_id] = result.purpose
 
         if batch.status == "ok":
             # A completed batch closes the round; the NEXT batch opens a new
@@ -1308,6 +1401,9 @@ class Orchestrator:
         published["validation"] = report.to_dict()
         published["evidence_bound"] = bool(final.numeric_claims)
         published["executed"] = self.executed
+        # From here a real answer exists. A later terminal stop must not
+        # replace it with the bare-result channel.
+        self.answer_published = True
         # What these numbers mean, travelling with them. A saved analysis, a
         # shared link or a reopened thread carries the release, the bytes,
         # the country, the currency and the scale, so a reader months later

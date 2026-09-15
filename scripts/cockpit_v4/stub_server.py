@@ -393,6 +393,21 @@ This environment uses synthetic demonstration data rather than a real bank portf
                 book = book_of(system)
                 return (analysis_call(book) if turn == 0
                         else analysis_finish(messages, book))
+            if "no write-up" in question:
+                # Fault 4, for the browser: the analysis RUNS and stores its
+                # rows, and then every attempt to WRITE the answer about them
+                # reaches its output allowance. The run stops as
+                # ANSWER_FORMAT_EXHAUSTED with a real result behind it.
+                #
+                # The thread must show that result, under a caveat saying the
+                # explanation is what failed -- never the empty red stop box
+                # the Mac showed over rows that had already been computed.
+                if turn == 0:
+                    return analysis_call(book_of(system))
+                from backend.cockpit_v4.provider import OutputTruncated
+
+                raise OutputTruncated(
+                    "the response reached its output allowance", limit=4096)
             if "fail" in question:
                 raise KeyError("a scripted application defect")
             if "slow" in question:

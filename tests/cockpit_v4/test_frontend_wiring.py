@@ -481,3 +481,42 @@ def test_the_v4_api_does_not_serve_the_legacy_endpoints(shell_client):
         assert response.status_code in (404, 405), (
             f"/api/v1{endpoint} must not be implemented by V4; a shim here "
             f"would hide the frontend still using the legacy flow")
+
+
+RESPONSE_PANEL_TSX = (ROOT / "frontend" / "src" / "components" / "cockpit-v4"
+                      / "response-panel.tsx")
+
+
+def test_the_empty_stop_box_is_reachable_only_when_nothing_was_produced():
+    """Fault 4, pinned at the branch that caused it.
+
+    The Mac showed "This request stopped / Reason: ANSWER_FORMAT_EXHAUSTED"
+    over rows that had already been computed and stored. The panel's only
+    condition for that box was `!response` -- which was correct, and the
+    server was sending no response on a stop. Both halves are fixed; this
+    pins the frontend half, because widening the box's condition to the run
+    state or the error code would bring the defect straight back.
+    """
+    code = RESPONSE_PANEL_TSX.read_text(encoding="utf-8")
+    gate = code.index("if (!response) {")
+    box = code.index('data-testid="v4-terminal-failure"')
+    end = code.index('data-testid="v4-response"')
+    assert gate < box < end, (
+        "the stop box must sit inside the `!response` branch and nowhere "
+        "else; a run that produced a result must reach the result")
+    for forbidden in ('errorCode ?', 'state === "FAILED"'):
+        assert forbidden not in code[gate:end], (
+            f"{forbidden} must not decide whether a result is rendered")
+
+
+def test_a_result_published_without_its_write_up_is_labelled_as_such():
+    """The caveat is not optional decoration: without it the reader is
+    shown a table and told nothing about why there is no answer beside it."""
+    code = RESPONSE_PANEL_TSX.read_text(encoding="utf-8")
+    assert "response.result_only ?" in code, (
+        "the caveat must be gated on the server's own flag, not guessed "
+        "from the disposition or the error code")
+    banner = code.index('data-testid="v4-result-only-caveat"')
+    narrative = code.index("<Markdown source={response.narrative} />")
+    assert banner < narrative, (
+        "a caveat below the result is a caveat the reader meets too late")

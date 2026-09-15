@@ -432,6 +432,106 @@ class Finalizer:
                         break
         return out
 
+    #: What a reader is told when the numbers arrive without their write-up.
+    #:
+    #: Written HERE, by the server, and never by the model -- the model is
+    #: precisely the thing that failed. It says what happened in the order a
+    #: reader needs it: the analysis ran, the rows are real, the explanation
+    #: is what is missing.
+    RESULT_ONLY_NARRATIVE = (
+        "**The analysis ran and its result is below.** CreditProbe could "
+        "not write the accompanying explanation, so what follows is the "
+        "query's own output with no commentary on it.\n\n"
+        "Every figure here was computed and stored by CreditProbe and is "
+        "shown exactly as it was recorded. Nothing in this response was "
+        "written by the analyst.")
+
+    def result_only_response(self, *, reason: str, purposes: Any = None,
+                             catalog: Any = None,
+                             intent: Any = None) -> dict[str, Any]:
+        """The computed result, published without a written answer.
+
+        The defect this exists for
+        --------------------------
+        A live run executed its query, stored three result artifacts, and
+        then could not write the answer about them. The reader was shown
+        "This request stopped. Reason: ANSWER_FORMAT_EXHAUSTED" and nothing
+        else -- no rows, no export, and on a refresh no record that the
+        exchange had happened at all.
+
+        The rows were never lost. They were in the artifact store the whole
+        time, individually serveable, with their ids known to the
+        orchestrator. What they did not have was an ADDRESS: the only
+        channel a result can reach a reader through is the written answer
+        object, and failing to produce that object is exactly what had
+        happened.
+
+        So this builds the object from the stored artifacts instead, with a
+        server-written caveat in place of the narrative and NO numeric
+        claims -- a claim is a thing the analyst asserted and had checked,
+        and there is no analyst here to assert one. Every number comes from
+        `render_tables`, which reads the artifact and formats it under the
+        one display policy, so nothing published this way has passed
+        through a model.
+
+        Returns `{}` when there is nothing to publish, which is the correct
+        answer for a run that never executed anything.
+        """
+        artifacts = sorted(self.run_artifacts)
+        if not artifacts:
+            return {}
+        titles = dict(purposes or {})
+
+        tables: list[dict[str, Any]] = []
+        for artifact_id in artifacts:
+            record = self.store.get_artifact(artifact_id,
+                                             tenant_id=self.tenant_id)
+            if record is None or not record.get("columns"):
+                continue
+            step_id = str((record.get("scope") or {}).get("step_id") or "")
+            tables.append({
+                "artifact_id": artifact_id,
+                "title": (titles.get(step_id) or titles.get(artifact_id)
+                          or "Result"),
+                "columns": list(record["columns"])})
+        if not tables:
+            return {}
+
+        # Rendered by the SAME code path a published answer uses, so a
+        # reader sees one table format whatever produced it.
+        shell = FinalResponse(
+            intent=intent, disposition="partial_answer",
+            narrative=self.RESULT_ONLY_NARRATIVE, coverage=(),
+            numeric_claims=(), evidence_refs=(), tables=tuple(tables),
+            charts=(), limitations=(), suggested_questions=(),
+            clarification_question="", clarification_options=(),
+            referral_owner="", referral_reason="")
+        rendered = self.render_tables(shell, catalog)
+
+        body: dict[str, Any] = {
+            "intent": intent.to_dict() if intent is not None else {},
+            "disposition": "partial_answer",
+            "narrative": self.RESULT_ONLY_NARRATIVE,
+            "coverage": [], "numeric_claims": [], "evidence_refs": [],
+            "tables": rendered, "charts": [],
+            "limitations": [
+                "The written answer could not be produced, so these rows "
+                "are published without an explanation of them.",
+                reason],
+            "suggested_questions": [],
+            "clarification_question": "", "clarification_options": [],
+            "referral_owner": "", "referral_reason": "",
+            "evidence_bound": False,
+            "executed": True,
+            # The flag the reader's caveat banner hangs on, and the one
+            # thing that distinguishes this from an answer somebody wrote.
+            "result_only": True,
+            "result_only_reason": reason,
+        }
+        if self.header is not None:
+            body["release"] = self.header.to_dict()
+        return body
+
     def render_tables(self, final: FinalResponse,
                       catalog: Any = None) -> list[dict[str, Any]]:
         """The rows a reader sees, built here from the stored artifact.

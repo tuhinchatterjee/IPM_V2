@@ -189,6 +189,22 @@ export function ResponsePanel({
         {DISPOSITION_LABEL[response.disposition] ?? response.disposition}
       </h3>
 
+      {response.result_only ? (
+        <div
+          data-testid="v4-result-only-caveat"
+          className="mt-2 rounded border border-amber-300 bg-amber-50 p-2"
+        >
+          <p className="text-sm font-medium text-amber-900">
+            The analysis ran. The written explanation did not.
+          </p>
+          <p className="mt-1 text-sm text-amber-800">
+            {response.result_only_reason
+              ? `${response.result_only_reason} The result below is the query's own output, computed and stored by CreditProbe, with no commentary on it.`
+              : "The result below is the query's own output, computed and stored by CreditProbe, with no commentary on it."}
+          </p>
+        </div>
+      ) : null}
+
       <div className="mt-2">
         <Markdown source={response.narrative} />
       </div>

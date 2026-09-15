@@ -126,6 +126,15 @@ export type FinalResponse = {
   referral_owner: string;
   referral_reason: string;
   executed: boolean;
+  /**
+   * True when CreditProbe published the stored result on its own because the
+   * written answer could not be produced. The narrative, the tables and the
+   * limitations on such a response are server-written or server-rendered;
+   * no model text and no model-supplied number reaches the reader.
+   */
+  result_only?: boolean;
+  /** Why the written answer could not be produced, in a reader's words. */
+  result_only_reason?: string;
   validation?: { warnings: string[] };
 };
 

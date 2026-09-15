@@ -677,6 +677,75 @@ await test("a cut-off action shows the retry and then the real stages",
   },
 );
 
+/**
+ * FAULT 4. A RESULT THAT WAS COMPUTED IS SHOWN, NARRATIVE OR NOT.
+ *
+ * Thread th-48fdeffe125f489592f627e307852e31 on the Mac: the analysis ran,
+ * its rows were stored, the answer turn was cut off at its output allowance
+ * twice, and the reader was shown
+ *
+ *     This request stopped
+ *     Reason: ANSWER_FORMAT_EXHAUSTED
+ *
+ * over rows they had already paid for. The panel branched on `!response`
+ * alone, and the server sent no response at all on a stop.
+ *
+ * This path had never been exercised end to end, which is how it shipped.
+ */
+await test("a result survives an answer that could not be written",
+  async () => {
+    const { context, page, requests, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "EAD by sector with no write-up");
+      await expect(page, '[data-testid="v4-response"]', 120_000, problems);
+
+      // THE defect: the empty stop box must not be what a reader gets when
+      // there are rows behind it.
+      assert.equal(await page.$('[data-testid="v4-terminal-failure"]'), null,
+        "the run computed rows; an empty stop box throws them away");
+
+      // The rows are on screen, and they are rows, not a placeholder.
+      await expect(page, '[data-testid="v4-result-table"]', 20_000, problems);
+      const rows = await page.$$('[data-testid="v4-table-row"]');
+      assert.ok(rows.length >= 2,
+        `the table published ${rows.length} rows`);
+
+      // And the caveat says WHICH layer failed. "The analysis failed" over
+      // correct numbers is the same defect with the opposite sign.
+      const caveat = await expect(
+        page, '[data-testid="v4-result-only-caveat"]', 10_000, problems);
+      const said = ((await caveat.textContent()) ?? "").toLowerCase();
+      assert.ok(said.includes("the analysis ran"),
+        `the caveat does not say the analysis ran: ${said.slice(0, 300)}`);
+      assert.ok(said.includes("explanation"),
+        `the caveat does not name the explanation: ${said.slice(0, 300)}`);
+
+      // The run is labelled for what it was, not as a bare stop.
+      const disposition = await page.getAttribute(
+        '[data-testid="v4-response"]', "data-disposition");
+      assert.equal(disposition, "partial_answer");
+
+      // And it is still there after a refresh: the exchange is a turn in
+      // the transcript, not something that lived only in this tab.
+      const threadId = threadIdFrom(page);
+      const before = asks(requests).length;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(page, '[data-testid="cockpit-v4-thread"]', 30_000, problems);
+      await waitForAnswer(page, 30_000);
+      await expect(page, '[data-testid="v4-result-table"]', 20_000, problems);
+      assert.equal(threadIdFrom(page), threadId);
+      assert.equal(asks(requests).length, before,
+        "a reload must not re-ask a run that already produced its rows");
+      assert.equal(await page.$('[data-testid="v4-terminal-failure"]'), null,
+        "the preserved result must survive the reload it is stored for");
+
+      assertNoLegacyCalls(requests, "result without a write-up");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
 await test("a failed attempt stays visible after a later attempt succeeds",
   async () => {
     const { context, page, problems } = await openCockpit(browser);
