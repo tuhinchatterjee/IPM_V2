@@ -175,7 +175,7 @@ What it proved, rather than what it looked at:
 * At all three widths nothing escapes the viewport; wide tables scroll inside
   their own boxes, measured rather than assumed.
 
-Evidence: `docs/playbook/dashboard_acceptance.json`, and the twenty-two
+Evidence: `docs/playbook/dashboard_acceptance.json`, and the twenty-one
 screenshots in `docs/playbook/screenshots/`, each captured in the state the
 check beside it had just asserted.
 ## Artifact verification

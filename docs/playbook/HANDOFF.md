@@ -18,7 +18,8 @@ this work started (`git rev-list --left-right --count main...HEAD` was `0 0`).
 
 ## 3. Final commit
 
-`ccacd18b84757503966205c3144d56967016131b`. 39 commits, 167 files changed.
+`9b697f35a1d9ef239a8301c4f90fecc018c1be41`. 48 commits from the base, 208
+files changed. Pushed to the feature branch and nowhere else.
 
 ## 4. Migrations
 
@@ -64,6 +65,15 @@ comparison, findings, decisions, actions, readiness, and the chat bridge.
 Nothing in that package calls a provider; a test asserts it by making
 `provider.author` raise.
 
+**A dashboard whose judgement is testable.** `frontend/src/lib/intelligence.ts`
+holds every decision the dashboard makes — which tabs a document gets, what
+counts as green, whether two readings may be compared, how a readiness
+component is explained — and is tested with `node --test`. The React in
+`components/playbook/status/` renders that and decides nothing. A decision
+buried in JSX is a decision nobody can test, and this one had to be enforced
+rather than assumed: a function moved into a component during development and
+took a crash with it.
+
 ## 6. Data model
 
 `DOCUMENT_INTELLIGENCE_DELTA.md` carries the delta table. In short: 12 tables
@@ -75,7 +85,7 @@ is versioned separately.
 
 ## 7. Screenshots
 
-Twenty-two, in `docs/playbook/screenshots/`, every one captured by the
+Twenty-one, in `docs/playbook/screenshots/`, every one captured by the
 acceptance run that asserted the state it shows — so an image is evidence of
 a checked condition rather than a separate exercise.
 
