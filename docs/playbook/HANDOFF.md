@@ -161,10 +161,17 @@ removed. Nothing on the server is touched.
 
 ```
 tests/playbook                                           1037 passed,  8 skipped
+tests/api tests/demo tests/exports tests/docs
+  tests/services tests/llm tests/proof tests/validation  1113 passed,  8 skipped
 ```
 
-The 8 skips are the live-provider checks, which skip without a credential. A
-skip is never counted as a pass.
+Both exit 0. The 8 skips in each are the live-provider checks, which skip
+without a credential. A skip is never counted as a pass.
+
+`ruff check .` clean repository-wide, and `scripts/feature_matrix.py --check`
+reports that every page on disk carries a curated expected behaviour — which is
+the check that caught this work adding a route and not saying what it should
+do.
 
 `ruff check .` clean.
 

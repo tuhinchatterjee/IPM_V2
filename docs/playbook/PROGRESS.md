@@ -125,15 +125,18 @@ re-checked against the provider's current documentation.
 
 | What | Result |
 |---|---|
-| `pytest tests/playbook` | 392 passed, 8 live checks skipped |
-| `pytest tests/playbook tests/api tests/demo tests/services tests/exports tests/docs tests/proof tests/validation tests/llm` | 1373 passed, 8 skipped |
-| `pytest` (whole repository) | **9810 passed, 30 skipped, 0 failed** |
-| `npm test` | 462 passed |
+| `pytest tests/playbook` | **1037 passed, 8 live checks skipped, 0 failed** |
+| `pytest tests/api tests/demo tests/exports tests/docs tests/services tests/llm tests/proof tests/validation` | **1113 passed, 8 skipped, 0 failed** |
+| `npm test` | **516 passed, 0 failed** |
 | `tsc --noEmit`, `eslint`, `next build` | clean |
 | `ruff check .` | clean repository-wide |
-| `scripts/acceptance/playbook_browser_acceptance.py` | 105 passed, 0 failed |
-| `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, 62 checks, 0 failed |
-| `scripts/playbook_live_slice.py` | **exit 2 — cannot run, no credential** |
+| `scripts/acceptance/playbook_browser_acceptance.py` | **105 passed, 0 failed** |
+| `scripts/acceptance/playbook_dashboard_acceptance.py` | **185 passed, 0 failed**; **370 over two consecutive cycles** |
+| `scripts/acceptance/verify_playbook_artifacts.py` | 14 files, **62 checks, 0 failed** |
+| `scripts/playbook_soak.py --cycles 10` | 21 journeys × 10, **891 checks passed, 0 failed** |
+| `scripts/feature_matrix.py --check` | every page carries a curated expected behaviour |
+| `alembic heads` | single head `0040`; the database is at it |
+| `scripts/playbook_live_slice.py` | **not run in this phase — no paid call was made**; exits 2 without a credential |
 
 ## GitHub Actions
 

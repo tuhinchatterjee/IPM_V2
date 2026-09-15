@@ -78,13 +78,12 @@ and driven through a real browser, and the live path that applies it is PB-015.
 
 | Suite | Command | Result |
 |---|---|---|
-| Playbook backend | `pytest tests/playbook` | **392 passed, 8 live checks skipped** |
-| Affected backend | `pytest tests/playbook tests/demo tests/api tests/services` | **830 passed** |
-| Full backend | `pytest -q` | **9810 passed, 30 skipped, 0 failed** |
-| Frontend units | `npm test` | **462 passed, 0 failed** |
+| Playbook backend | `pytest tests/playbook` | **1037 passed, 8 live checks skipped, 0 failed** |
+| Affected backend | `pytest tests/api tests/demo tests/exports tests/docs tests/services tests/llm tests/proof tests/validation` | **1113 passed, 8 skipped, 0 failed** |
+| Frontend units | `npm test` | **516 passed, 0 failed** |
 | Frontend types | `tsc --noEmit` | clean |
 | Frontend lint | `eslint` | clean |
-| Frontend build | `next build` | succeeds; `/playbook`, `/playbook/[id]`, `/playbook/library` emitted |
+| Frontend build | `next build` | succeeds; `/playbook`, `/playbook/[id]`, `/playbook/[id]/status` and `/playbook/library` emitted |
 | Python lint | `ruff check .` | clean repository-wide |
 
 ## Browser acceptance
