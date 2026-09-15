@@ -9,10 +9,10 @@ any longer**: every live-provider criterion has now been exercised against
 
 | Dimension | State |
 |---|---|
-| Standalone implementation | **complete** for the scope that does not need a provider |
+| Standalone implementation | **complete** — chat-first workspace and the Document Intelligence dashboard, back end and front end |
 | Deterministic demo and downloads | **passed** — 3 workspaces, 30 exports, 14 real files |
 | Live Claude workflows | **all six PASS on live `claude-opus-5` with recorded request ids** — PB-013, PB-015, PB-017, PB-029, PB-030, PB-043. No silent downgrade on any run. |
-| Browser and artifact UAT | **passed** — 105 browser checks, 62 artifact checks |
+| Browser and artifact UAT | **passed** — 105 workspace checks, 176 dashboard checks (344 over two cycles), 62 artifact checks |
 | Cross-module integration | Cockpit, Early Warning, Scorecard Validation, Lenses **verified**; What If **DEFERRED-INTEGRATION** |
 | Human UAT | **pending** — the developer cannot award the user's sign-off. Everything it needs is verified and running; see *Running human UAT* below. |
 | Git handoff | committed and pushed to the feature branch; **not merged** |
@@ -141,6 +141,44 @@ What it proved, rather than what it looked at:
 Screenshots: `docs/playbook/screenshots/`. Evidence:
 `docs/playbook/browser_acceptance.json`.
 
+
+### The Document Intelligence dashboard
+
+`scripts/acceptance/playbook_dashboard_acceptance.py` — real Chromium, at
+1366×768, 1440×900 and 430×900. **176 passed, 0 failed**, and **344 passed, 0
+failed over two consecutive cycles**.
+
+The second cycle is the point. A run that answers a finding and confirms a
+metric suggestion and then stops has changed the demonstration; the harness
+restores what it touches, and running it twice is how that claim is tested
+rather than asserted. The two cycles produce identical counts.
+
+What it proved, rather than what it looked at:
+
+* Opening a Playbook still shows the conversation first, with the compact
+  status panel beside it and a KNOW THE STATUS action stating how ready the
+  document is.
+* A half-typed sentence, its attachments, the selected analyses and the scroll
+  position all survive CHAT → STATUS → CHAT.
+* Completion and readiness are shown as two numbers and never combined.
+  Readiness is explainable: each component opens to say what it is made of.
+* A committee document is asked about meeting dates and committee decisions; a
+  non-committee document is not, and no meeting date is invented for it.
+* Since Last Time refuses to subtract two readings whose population differs,
+  shows both readings, empties the change column, and names the dimension.
+* A metric the catalogue suggested stays a suggestion and is counted outside
+  coverage until a person confirms it.
+* A governance form is a labelled modal dialog, focus moves into it, Escape
+  closes it, and focus returns to the control that opened it.
+* Re-reading a source writes a new parse revision, supersedes the old one, and
+  writes no document version.
+* An empty Playbook explains itself instead of showing noughts.
+* At all three widths nothing escapes the viewport; wide tables scroll inside
+  their own boxes, measured rather than assumed.
+
+Evidence: `docs/playbook/dashboard_acceptance.json`, and the twenty-two
+screenshots in `docs/playbook/screenshots/`, each captured in the state the
+check beside it had just asserted.
 ## Artifact verification
 
 `scripts/acceptance/verify_playbook_artifacts.py` — **14 files, 62 checks, 0
@@ -165,6 +203,29 @@ fonts. Rendered pages: `docs/playbook/artifact-pages/`.
 
 The IFRS 9 thread carries a five-item change proposal with **four applied and
 one held back**, and version 2 does not contain the held change.
+
+Every workspace opens onto a populated dashboard. The IFRS 9 one is the
+committee example:
+
+| | |
+|---|---|
+| Governed metrics | 4 confirmed, 1 left suggested so the review path is visible |
+| Since Last Time | 4 rows — 3 compared, 1 refused on a population that moved |
+| Findings | 4, across four origins, 1 blocking |
+| Decisions | 2 — one recorded, one outstanding |
+| Actions | 2 — one in progress, one overdue |
+| Sections | reviewed and approved states on the sections a reviewer looked at |
+| History | 42 events across all eight kinds |
+| Readiness | *blocked*, strictly between 0 and 100, with three named blockers |
+| Statistics | page count measured from the rendered file, not declared |
+
+Two properties are held by tests rather than left to chance. It never opens at
+100% — a demonstration that opens complete demonstrates nothing. And it shows
+a refusal to compare: Stage 2 exposure carries the same label in both packs and
+moved from SAR 72.00m to SAR 113.00m, which by label is a 57% jump onto a
+committee agenda and is in fact a change of population from the corporate book
+to corporate and SME. A demonstration in which every pair happens to be
+comparable teaches the reader the opposite of the rule.
 
 ## Journeys
 
@@ -265,6 +326,20 @@ asserting "coverage is 41.5 per cent" makes that figure quotable, and a report
 citing it is behaving correctly even if the source is wrong. What grounding
 removes is the figure that came from nowhere. This is asserted by a test rather
 than left implicit.
+
+**The dashboard reports state; it does not judge it.** Readiness is arithmetic
+over governed rows — what is outstanding, what is unreviewed, what is
+unconfirmed, how much is written. It is not an opinion about whether the paper
+is any good, and a document can reach 100% readiness while saying something a
+committee should reject. The panel says what is outstanding, never whether the
+conclusion is sound.
+
+**Two accessibility findings belong to the application shell, not to Playbook.**
+The sidebar marks a non-live navigation item with a coloured dot whose only
+word is a hover tooltip, and the shell overflows at 430px — both on every route
+in the product, `/playbooks` included. The dashboard's own region is clean on
+both counts, and the §32 sweep is scoped to it so that a shell limitation is
+neither hidden nor counted as this work's pass.
 
 
 ## Running human UAT
