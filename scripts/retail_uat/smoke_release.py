@@ -295,9 +295,15 @@ def main() -> int:  # noqa: C901 - a checklist is a checklist
             saved = caught.value.path()
             import openpyxl
 
-            book = openpyxl.load_workbook(saved)
-            excel_ok = len(book.sheetnames) >= 15
-            excel_note = f"{len(book.sheetnames)} sheets"
+            # Opened from BYTES. Playwright saves a download to a temporary
+            # path with no extension, and openpyxl infers the format from
+            # the suffix — so a perfectly good workbook reads as "openpyxl
+            # does not support  file format", with the empty extension
+            # visible in the message.
+            blob = open(saved, "rb").read()
+            book = openpyxl.load_workbook(io.BytesIO(blob))
+            excel_ok = len(book.sheetnames) >= 15 and len(blob) > 20_000
+            excel_note = f"{len(book.sheetnames)} sheets, {len(blob):,} bytes"
         except Exception as problem:  # noqa: BLE001
             excel_note = str(problem)[:90]
         check("15", "detailed Excel downloads and opens", excel_ok, excel_note)
