@@ -186,24 +186,60 @@ def trend_months(month: str = "", count: int = TREND_MONTHS) -> list[str]:
     return list(found[max(end - count, 0):end])
 
 
-@lru_cache(maxsize=64)
+#: A read wider than this is one of the expensive ones.
+#:
+#: The two kinds of read this module does are not the same size and must not
+#: share a cache. A trend reads two columns over sixty thousand rows — about a
+#: megabyte — and needs eight of them at once, one per month on the chart. The
+#: behavioural decomposition reads a hundred and fifteen columns over the same
+#: rows, some fifty megabytes, and needs two.
+#:
+#: One cache sized for either is wrong for the other. Sized for the trend it
+#: holds dozens of the wide ones, which is gigabytes in a process that needs
+#: two of them — enough to put a test run or a long-running server in front of
+#: the out-of-memory killer, which is how this was found. Sized for the wide
+#: ones it evicts the trend on every question and re-reads eight months of
+#: parquet to redraw a chart that has not changed.
+#:
+#: So: two caches, split on width, each sized for its own work. Bounded at
+#: roughly a hundred and thirty megabytes of narrow frames and two hundred of
+#: wide ones, against several gigabytes before.
+WIDE_READ_COLUMNS = 16
+NARROW_READ_CACHE = 32
+WIDE_READ_CACHE = 4
+
+
 def _read(month: str, columns: tuple[str, ...]) -> Any:
     """One month of the card book, only the columns asked for.
 
     Cached because the Cockpit, the drawer and five investigation answers read
-    overlapping slices of the same few months, and re-reading a 546-column
+    overlapping slices of the same few months, and re-reading a 547-column
     parquet for each of them is the difference between a demonstration that
     answers and one the presenter apologises for.
     """
+    want = tuple(dict.fromkeys(columns))
+    reader = _read_wide if len(want) > WIDE_READ_COLUMNS else _read_narrow
+    return reader(month, want)
+
+
+@lru_cache(maxsize=NARROW_READ_CACHE)
+def _read_narrow(month: str, columns: tuple[str, ...]) -> Any:
+    return _load(month, columns)
+
+
+@lru_cache(maxsize=WIDE_READ_CACHE)
+def _read_wide(month: str, columns: tuple[str, ...]) -> Any:
+    return _load(month, columns)
+
+
+def _load(month: str, columns: tuple[str, ...]) -> Any:
     import pandas as pd
 
     paths = sorted(glob.glob(
         f"{_analytics_dir()}/{BOOK}/reporting_month={month}/*.parquet"))
     if not paths:
         return pd.DataFrame(columns=list(columns))
-    want = list(dict.fromkeys(columns))
-    frame = pd.read_parquet(paths[0], columns=want)
-    return frame
+    return pd.read_parquet(paths[0], columns=list(columns))
 
 
 def cards(month: str, columns: Sequence[str]) -> Any:
@@ -223,7 +259,8 @@ def available() -> bool:
 def reset_cache() -> None:
     """Forget what was read. For a rebuild, and for the tests."""
     months.cache_clear()
-    _read.cache_clear()
+    _read_narrow.cache_clear()
+    _read_wide.cache_clear()
 
 
 # ---------------------------------------------------------------- helpers
