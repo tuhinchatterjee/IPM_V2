@@ -591,10 +591,18 @@ def report(model_id: str,
     return {**made.to_dict(), "cost": FULL_RUN_IS_SLOW}
 
 
-@router.post("/models/{model_id}/report.docx")
+@router.api_route("/models/{model_id}/report.docx",
+                  methods=["GET", "POST"])
 def report_docx(model_id: str,
                 principal: Principal = RequireScorecardAnalyse) -> Response:
     """The same report, as a Word document.
+
+    GET as well as POST, because the control that reaches it is a LINK.
+    "Draft report (Word)" on the validation page is an anchor — a browser
+    issues a GET for one, and a POST-only route answered 405 to every reader
+    who clicked it. The route computes and records nothing, so a GET is
+    honest here; what is restricted is the analyse permission, which both
+    methods carry.
 
     Built from the same `Report` object the review route returns, through
     the writer the retail scorecard report already uses. One content model,
