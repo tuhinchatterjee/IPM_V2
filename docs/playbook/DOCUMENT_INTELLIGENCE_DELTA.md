@@ -43,11 +43,13 @@ stays.
 
 **No prior committee-pack dashboard code exists in this repository or its
 history.** `git log --all --diff-filter=D` finds nothing matching committee,
-readiness, findings or pack. The screenshots referenced in the brief were not
-attached to the message that requested this work, so the information
-architecture below is built from the brief's written description (§6, §22),
-not from the images. If the screenshots are supplied, the layout should be
-re-checked against them before human UAT.
+readiness, findings or pack. The information architecture is built from the
+written specification, which is the authority for it: the header, the status
+cards, the readiness panel on the right, and the tabs for the pack, findings,
+decisions and actions, what moved since last time, sections, metric mapping,
+sources and history. No reference images exist, so the specification's prose
+is what the implementation is checked against, and the acceptance run asserts
+each named element rather than a resemblance.
 
 ## Delta table
 
