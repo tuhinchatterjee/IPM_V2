@@ -226,12 +226,12 @@ def _book() -> tuple[str, tuple[tuple[str, str], ...]]:
     Read from the governed catalogue rather than from a list in this file, so
     a field a steward publishes tomorrow is one this refusal stops making.
     """
-    from backend.data_access.catalog import Catalog
+    from backend.data_access.catalog import Catalog, get_catalog
     from backend.orchestration import multi
 
     name = multi.default_base()
     try:
-        dataset = Catalog.load().dataset(name)
+        dataset = get_catalog().dataset(name)
     except Exception:
         # No lake, no claim. A refusal that depends on knowing what is carried
         # must not be issued when that is exactly what cannot be read.

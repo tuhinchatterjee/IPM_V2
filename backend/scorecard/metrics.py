@@ -599,19 +599,33 @@ SHIFT_FLOOR = 1e-6
 
 def _shift(reference: pd.Series, current: pd.Series, *, kind: str,
            variable: str) -> PopulationShift:
-    levels = sorted(set(reference.dropna().astype(str))
-                    | set(current.dropna().astype(str)))
-    reference_total = max(len(reference.dropna()), 1)
-    current_total = max(len(current.dropna()), 1)
+    # Counted once per side rather than once per LEVEL.
+    #
+    # This used to evaluate `reference.astype(str) == level` inside the loop,
+    # so a six-bin characteristic made twelve full string conversions of an
+    # 80,695-row column — and the CSI test does that for twenty
+    # characteristics across twenty-five periods. Five hundred calls at 84 ms
+    # was 42 of the 46 seconds the Stability category took, all of it spent
+    # re-deriving the same two distributions.
+    #
+    # `value_counts` gives exactly the same counts in one pass. The shares,
+    # the floor and the index below are unchanged.
+    reference_clean = reference.dropna().astype(str)
+    current_clean = current.dropna().astype(str)
+    reference_counts = reference_clean.value_counts()
+    current_counts = current_clean.value_counts()
+    levels = sorted(set(reference_counts.index) | set(current_counts.index))
+    reference_total = max(len(reference_clean), 1)
+    current_total = max(len(current_clean), 1)
 
     bins: list[dict[str, Any]] = []
     total = 0.0
     for level in levels:
         reference_share = max(
-            float((reference.astype(str) == level).sum()) / reference_total,
+            float(reference_counts.get(level, 0)) / reference_total,
             SHIFT_FLOOR)
         current_share = max(
-            float((current.astype(str) == level).sum()) / current_total,
+            float(current_counts.get(level, 0)) / current_total,
             SHIFT_FLOOR)
         contribution = (current_share - reference_share) * math.log(
             current_share / reference_share)

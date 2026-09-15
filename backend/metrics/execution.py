@@ -554,9 +554,9 @@ def _dataset_has(formula: Formula, column: str) -> bool:
     if not datasets:
         return False
     try:
-        from backend.data_access.catalog import Catalog
+        from backend.data_access.catalog import Catalog, get_catalog
 
-        return column in (Catalog.load().dataset(datasets[0]).fields or {})
+        return column in (get_catalog().dataset(datasets[0]).fields or {})
     except Exception:  # noqa: BLE001 - an unreadable catalogue is not a crash
         return False
 

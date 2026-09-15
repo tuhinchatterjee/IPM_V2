@@ -172,6 +172,21 @@ def _missing(test: test_registry.Test, model: model_registry.Model,
 
     rows: list[dict[str, Any]] = []
     heat: list[dict[str, Any]] = []
+    # Every period, sliced ONCE.
+    #
+    # The heat map is per characteristic and per period, and the loop used to
+    # be written that way — variable outside, period inside — which asked for
+    # the same period's rows again for every one of twenty characteristics.
+    # One Data & Representativeness run made 550 slices where 25 would do,
+    # and re-materialising an Arrow-backed frame 550 times was 30 of the 41
+    # seconds the category took. The arithmetic below is unchanged; it reads
+    # each period out of a dictionary instead of off the disk.
+    sliced: dict[str, Any] = {}
+    for period in _series_periods(model, pool, every=True):
+        part = _period_slice(model, pool, period)
+        if part is not None:
+            sliced[period] = part
+
     for name in columns:
         # Where the characteristic's raw value lives, and how the book says
         # it is absent. Two engines write this two ways: a bare column with
@@ -197,10 +212,7 @@ def _missing(test: test_registry.Test, model: model_registry.Model,
                 pool.frame[bin_column].isin(binning.SPECIAL_BINS).mean())
         rows.append({"variable": name, "missing_rate": round(overall, 6),
                      "special_bin_rate": round(special, 6)})
-        for period in _series_periods(model, pool, every=True):
-            part = _period_slice(model, pool, period)
-            if part is None:
-                continue
+        for period, part in sliced.items():
             if flag not in part.columns and raw not in part.columns:
                 continue
             heat.append({"variable": name, "period": period,

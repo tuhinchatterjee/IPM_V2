@@ -541,29 +541,49 @@ def _calibration(test: test_registry.Test, model: model_registry.Model,
                  "pd_column": model.pd_column}, **kw)
 
 
+def period_frames(model: model_registry.Model) -> dict[str, pd.DataFrame]:
+    """Every period of this model's dataset, loaded once.
+
+    `_stability_series` used to load them itself, and `_variable_csi` calls
+    it once per characteristic — twenty characteristics against twenty-five
+    periods is five hundred loads of the same twenty-five frames, and the
+    Stability category took 83 seconds of which 70 was that. The caller loads
+    once and hands the frames down.
+    """
+    out: dict[str, pd.DataFrame] = {}
+    for period in available_periods(model):
+        try:
+            pool = population(model, periods=(period,), matured_only=False)
+        except PopulationError:
+            continue
+        if pool.rows:
+            out[period] = pool.frame
+    return out
+
+
 def _stability_series(model: model_registry.Model, reference: pd.DataFrame,
-                      index_of: Any) -> list[dict[str, Any]]:
+                      index_of: Any,
+                      frames: dict[str, pd.DataFrame] | None = None
+                      ) -> list[dict[str, Any]]:
     """One stability index per period, oldest first.
 
     Each period is compared against the same development reference, so the
     series answers "is it still moving?" rather than "did it move at some
     point in the last three years?" — the second question has the same answer
     for a book that settled two years ago and one that is drifting now.
+
+    `frames` lets a caller that needs the series many times load the periods
+    once. Without it the behaviour is exactly as before.
     """
+    held = period_frames(model) if frames is None else frames
     series: list[dict[str, Any]] = []
-    for period in available_periods(model):
+    for period, frame in held.items():
         try:
-            pool = population(model, periods=(period,), matured_only=False)
-        except PopulationError:
-            continue
-        if pool.rows == 0:
-            continue
-        try:
-            value = float(index_of(pool.frame))
+            value = float(index_of(frame))
         except kernels.MetricError:
             continue
         series.append({"period": period, "index": round(value, 6),
-                       "observations": pool.rows})
+                       "observations": len(frame)})
     return series
 
 
@@ -625,6 +645,9 @@ def _variable_csi(test: test_registry.Test, model: model_registry.Model,
     current = population(model, periods=(pool.periods[-1],),
                          matured_only=False)
     rows: list[dict[str, Any]] = []
+    # Loaded once for every characteristic, rather than once per
+    # characteristic per period.
+    held = period_frames(model)
     for name in model.binned_variables:
         try:
             made = kernels.csi(reference.frame, current.frame, variable=name)
@@ -633,7 +656,8 @@ def _variable_csi(test: test_registry.Test, model: model_registry.Model,
         series = _stability_series(
             model, reference.frame,
             lambda frame, _n=name: kernels.csi(
-                reference.frame, frame, variable=_n).index)
+                reference.frame, frame, variable=_n).index,
+            frames=held)
         rows.append({"variable": name, "csi": round(made.index, 6),
                      "bins": made.bins, "series": series})
     if not rows:

@@ -327,11 +327,24 @@ class Model:
         return tuple(dict.fromkeys(wanted))
 
     def _held_columns(self) -> frozenset[str]:
-        """Every column the governed catalogue says this dataset carries."""
-        try:
-            from backend.data_access.catalog import Catalog
+        """Every column the governed catalogue says this dataset carries.
 
-            return frozenset(Catalog.load().dataset(self.dataset).fields)
+        Through `get_catalog`, which is memoised on the catalogue file's
+        stamp and dropped by `reload_catalog` when a steward publishes.
+        `Catalog.load()` is the UNCACHED reader: it re-reads the file and
+        then walks every published dataset out of PostgreSQL, one lazy load
+        at a time.
+
+        This is called once per `population()` call, and one Data &
+        Representativeness run calls `population()` 558 times. That was 2,790
+        lazy-load queries and 8.3 million SQLAlchemy attribute reads — 52 of
+        the 93 seconds the category took, spent re-reading a published
+        catalogue that cannot change while the request is in flight.
+        """
+        try:
+            from backend.data_access.catalog import get_catalog
+
+            return frozenset(get_catalog().dataset(self.dataset).fields)
         except Exception:  # noqa: BLE001 - no catalogue, no projection
             return frozenset()
 
