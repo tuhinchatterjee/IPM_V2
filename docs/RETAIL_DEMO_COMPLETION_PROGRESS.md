@@ -76,7 +76,24 @@ the Delta page's worked example.
 
 ## Phase 5 — Results and professional exports
 
-Status: not started.
+Status: **done** at `032ad88` (workbook) and this commit (reports).
+
+§12: `workbook_style.py`, `workbook_sheet.py`, `whatif_workbook.py` rewritten.
+22 sheets, gridlines off on every one, 0 numeric cells left as General,
+0.034823 renders as 3.48%, 3 charts, 21 internal links. 19/19 tests.
+
+§11: the engine records the propagation as it computes it — `mechanism`,
+`score_migration`, `stage_movement` — and a channel the scenario does not
+reach is named as untouched rather than given a movement.
+
+§13: `report_service.py` — one document builder, two families so far
+(investigation, trait attribution) with cover, document control, TOC, page
+number fields, repeating table headers, captions and a single disclosure.
+`POST /retail/reports/{family}.docx` returns the right content type and
+filename, and refuses as a status code rather than as a file. 23/23 tests.
+
+Still open in this phase: the validation report family (§15) belongs to
+Phase 6; charts inside the Word reports are not yet drawn.
 
 ## Phase 6 — Scorecard Validation
 

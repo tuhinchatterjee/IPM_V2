@@ -2291,3 +2291,72 @@ def whatif_thread_ask(thread_id: str, payload: ThreadAskIn,
     return json_safe({"disclosure": SYNTHETIC_DISCLOSURE,
                       "thread_id": thread_id,
                       "reading": reading or None, **out})
+
+
+# ================================ §13: the shared report service ===========
+
+
+class ReportIn(BaseModel):
+    """Ask for one of the report families the service writes."""
+
+    family: str = "investigation"
+    product: str = ""
+    classification: str = ""
+    sub_product: str = ""
+    month: str = ""
+    prior: str = ""
+    question: str = ""
+    mode: str = "quarter"
+    comments: list[dict[str, Any]] = Field(default_factory=list)
+    actions: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/reports/{family}.docx", summary="A Word report from an analysis")
+def retail_report(family: str, payload: ReportIn,
+                  principal: Principal = RequireAnalyst) -> Response:
+    """Build one report, or fail as an error rather than as a file.
+
+    §13 opens by naming the failure to avoid: "Never download an HTML
+    error/login page with a .docx extension." A caller that cannot build a
+    report gets a status code and a JSON body; it never gets a document whose
+    contents are an apology, because that file opens and the reader believes
+    they have the report.
+    """
+    from backend.retail import report_service as reports
+
+    if family not in (reports.INVESTIGATION, reports.TRAITS):
+        raise HTTPException(status.HTTP_404_NOT_FOUND,
+                            f"{family!r} is not a report this service writes.")
+    try:
+        if family == reports.INVESTIGATION:
+            from backend.retail import analysis_delinquency as analysis
+
+            out = analysis.run(month=payload.month, prior=payload.prior,
+                               product=payload.product,
+                               classification=payload.classification,
+                               sub_product=payload.sub_product,
+                               question=payload.question)
+            bundle = reports.investigation_bundle(
+                out, prepared_by=str(principal.user_id or ""),
+                comments=payload.comments, actions=payload.actions)
+        else:
+            from backend.retail import analysis_traits as analysis
+
+            out = analysis.run(month=payload.month, product=payload.product,
+                               classification=payload.classification,
+                               sub_product=payload.sub_product,
+                               question=payload.question, mode=payload.mode)
+            bundle = reports.traits_bundle(
+                out, prepared_by=str(principal.user_id or ""),
+                comments=payload.comments, actions=payload.actions)
+        content, filename = reports.render(family, bundle)
+    except reports.ReportUnavailable as problem:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(problem)) from problem
+    except ValueError as problem:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            str(problem)) from problem
+    return Response(
+        content=content,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".wordprocessingml.document"),
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'})
