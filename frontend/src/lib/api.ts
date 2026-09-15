@@ -3955,6 +3955,456 @@ export interface PbCapabilities {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Document Intelligence — "Know the Status"
+// ---------------------------------------------------------------------------
+//
+// Every field here is computed by the backend from governed rows. Nothing in
+// this section is ever derived in the browser from an LLM's opinion, and the
+// component that renders a status must not invent one when a field is absent:
+// an absent page count means the page count is not known, not zero.
+
+export interface PbReadinessComponent {
+  name: string;
+  /** null where the component does not apply to this document. */
+  score: number | null;
+  status: string;
+  explanation: string;
+  blocking: string;
+  applicable: boolean;
+  link: string;
+}
+
+export interface PbReadiness {
+  computed: boolean;
+  completion_pct: number;
+  readiness_pct: number;
+  approval_status: string;
+  components: PbReadinessComponent[];
+  completion_components: PbReadinessComponent[];
+  blockers: { reason: string; link: string }[];
+  missing: string[];
+  statistics: PbDocStatistics;
+  computed_at: string;
+}
+
+export interface PbDocStatistics {
+  sections: number;
+  words: number;
+  tables: number;
+  /** null when no rendered artifact has been parsed back, never guessed. */
+  pages: number | null;
+  page_count_source: string;
+  formats: string[];
+  sections_with_sources: number;
+  substantive_sections: number;
+}
+
+export interface PbSectionRow {
+  section_key: string;
+  heading: string;
+  ordinal: number;
+  status: string;
+  word_count: number;
+  page_from: number | null;
+  page_to: number | null;
+  reviewer: string;
+  reviewed: boolean;
+  stale_reason: string;
+  last_changed_version: number;
+}
+
+export interface PbMetric {
+  id: number;
+  metric_id: string;
+  label: string;
+  document_label: string;
+  value_in_document: string;
+  display_value: string;
+  raw_value: string;
+  unit: string;
+  reporting_period: string;
+  population: string;
+  segment: string;
+  source_locator: string;
+  source_module: string;
+  section_key: string;
+  method: string;
+  method_label: string;
+  confidence: string;
+  confirmed: boolean;
+  confirmed_by: string;
+  /** The single predicate everything downstream asks. */
+  governed: boolean;
+  freshness: string;
+}
+
+export interface PbMetrics {
+  detected: number;
+  confirmed: number;
+  suggested: number;
+  unlinked: number;
+  coverage_pct: number;
+  review_prompt: string;
+  inventory: PbMetric[];
+  suggested_review: PbMetric[];
+}
+
+/**
+ * One entry in a row's append-only trail.
+ *
+ * Two shapes share this type and they are not identical: a governed object
+ * (finding, decision, action) records `act` and `field`; a section records
+ * only the move — `from`, `to`, who and why. Both are declared optional here
+ * because assuming the governance shape and reading `act.replace(...)` off a
+ * section entry is exactly how the section pane once took the whole page
+ * down.
+ */
+export interface PbHistoryEntry {
+  at: string;
+  act?: string;
+  field?: string;
+  from?: string;
+  to?: string;
+  actor?: string;
+  reason?: string;
+}
+
+export interface PbFinding {
+  id: number;
+  reference: string;
+  title: string;
+  severity: string;
+  status: string;
+  rationale: string;
+  metric_id: string;
+  threshold: string;
+  previous_value: string;
+  current_value: string;
+  owner: string;
+  answer: string;
+  answered_by: string;
+  answered_at: string;
+  resolution: string;
+  resolved_by: string;
+  resolved_at: string;
+  origin: string;
+  origin_label: string;
+  delta: string;
+  blocking: boolean;
+  unresolved: boolean;
+  history: PbHistoryEntry[];
+  section_key: string;
+}
+
+export interface PbFindings {
+  total: number;
+  open: number;
+  blocking: number;
+  by_severity: Record<string, number>;
+  items: PbFinding[];
+}
+
+export interface PbGovernedDecision {
+  id: number;
+  reference: string;
+  question: string;
+  recommendation: string;
+  options: string[];
+  current_position: string;
+  proposed_position: string;
+  effective_date: string;
+  status: string;
+  outcome: string;
+  decided_by: string;
+  decided_at: string;
+  meeting: string;
+  reporting_period: string;
+  rationale: string;
+  related_finding_ids: number[];
+  history: PbHistoryEntry[];
+}
+
+export interface PbDecisions {
+  total: number;
+  outstanding: number;
+  decided: number;
+  items: PbGovernedDecision[];
+}
+
+export interface PbAction {
+  id: number;
+  reference: string;
+  title: string;
+  owner: string;
+  due_date: string;
+  status: string;
+  last_update: string;
+  decision_id: number | null;
+  finding_id: number | null;
+  description: string;
+  completed_by: string;
+  completed_at: string;
+  notes: { at: string; actor: string; note: string }[];
+  history: PbHistoryEntry[];
+  external_system: string;
+  external_ref: string;
+  external_status: string;
+}
+
+export interface PbActions {
+  total: number;
+  open: number;
+  completed: number;
+  overdue: number;
+  items: PbAction[];
+}
+
+export interface PbComparisonSide {
+  value: string;
+  display: string;
+  period: string;
+  locator: string;
+  version?: number;
+}
+
+export interface PbComparison {
+  metric_id: string;
+  label: string;
+  then: PbComparisonSide;
+  now: PbComparisonSide;
+  unit: string;
+  currency: string;
+  population: string;
+  segment: string;
+  scenario: string;
+  change: string;
+  change_unit: string;
+  direction: string;
+  /** False with a named `reason` rather than a misleading delta. */
+  comparable: boolean;
+  reason: string;
+  section_key: string;
+  lineage: {
+    then: Record<string, unknown>;
+    now: Record<string, unknown>;
+  };
+}
+
+export interface PbSinceLastTime {
+  available: boolean;
+  reason?: string;
+  rows: PbComparison[];
+  compared: number;
+  not_comparable: number;
+  worse: number;
+  improved: number;
+}
+
+export interface PbSourceReading {
+  source_id: number;
+  filename: string;
+  format: string;
+  revision: number;
+  parser_version: string;
+  schema_version: string;
+  current_parser_version: string;
+  status: string;
+  chunk_count: number;
+  stale: boolean;
+  reason: string;
+  reason_label: string;
+  improvements: string[];
+  parsed_at: string;
+}
+
+export interface PbSourceReadings {
+  sources: number;
+  current: number;
+  needs_reread: number;
+  message: string;
+  items: PbSourceReading[];
+}
+
+export interface PbReviews {
+  total: number;
+  complete: number;
+  outstanding: number;
+  items: {
+    id: number;
+    section_key: string;
+    reviewer: string;
+    role: string;
+    status: string;
+    comment: string;
+  }[];
+}
+
+export interface PbDashboard {
+  workspace_id: number;
+  artifact_id: number | null;
+  title: string;
+  document_type: string;
+  document_type_label: string;
+  report_family: string;
+  committee_report: boolean;
+  committee_name: string;
+  reporting_period: string;
+  meeting_date: string;
+  owner: string;
+  status: string;
+  classified_by: string;
+  classification_confidence: string;
+  should_ask_type: boolean;
+  version: number;
+  versions: number;
+  statistics: PbDocStatistics;
+  metrics: PbMetrics;
+  sections: PbSectionRow[];
+  findings: PbFindings;
+  decisions: PbDecisions;
+  actions: PbActions;
+  reviews: PbReviews;
+  readiness: PbReadiness;
+  since_last_time: PbSinceLastTime;
+  sources: PbSourceReadings;
+  /** False on a workspace with nothing to say about itself yet. */
+  available: boolean;
+}
+
+export interface PbSectionDetail {
+  section_key: string;
+  heading: string;
+  ordinal: number;
+  status: string;
+  status_label?: string;
+  word_count: number;
+  page_from: number | null;
+  page_to: number | null;
+  reviewer: string;
+  reviewed_at?: string;
+  stale_reason: string;
+  first_seen_version: number;
+  last_changed_version: number;
+  metrics: PbMetric[];
+  findings: PbFinding[];
+  sources: { id: number; filename: string; locator?: string }[];
+  reviews: PbReviews["items"];
+  history: PbHistoryEntry[];
+  allowed: string[];
+  text?: string;
+}
+
+export interface PbContextReference {
+  kind: string;
+  id: string;
+  label: string;
+  value: string;
+  locator: string;
+  governed: boolean;
+  detail: Record<string, unknown>;
+}
+
+export interface PbChatContext {
+  action: string;
+  label: string;
+  prompt: string;
+  task: string;
+  scope: string;
+  references: PbContextReference[];
+  evidence: { text: string; locator: string }[];
+  caveats: string[];
+}
+
+export interface PbContextActions {
+  offered: { kind: string; needs_target: boolean; action?: string;
+    label?: string }[];
+  withheld: { kind: string; reason: string }[];
+}
+
+export interface PbHistoryEvent {
+  at: string;
+  kind: string;
+  kind_label: string;
+  title: string;
+  detail: string;
+  actor: string;
+  link: string;
+  ids: Record<string, unknown>;
+}
+
+export interface PbHistoryFeed {
+  total: number;
+  shown: number;
+  kinds: { kind: string; label: string; count: number }[];
+  events: PbHistoryEvent[];
+}
+
+export interface PbUpdateProposal {
+  anything: boolean;
+  summary: string[];
+  message: string;
+  metrics: {
+    binding_id: number;
+    metric_id: string;
+    label: string;
+    value: string;
+    freshness: string;
+    section_key: string;
+    source_locator: string;
+    reason: string;
+    then?: string;
+    now?: string;
+    change?: string;
+    change_unit?: string;
+    direction?: string;
+  }[];
+  sections: { section_key: string; heading: string; status: string;
+    metrics: string[] }[];
+  findings: { finding_id: number; reference: string; title: string;
+    severity: string; status: string; metric_id: string;
+    recorded_value: string; reason: string }[];
+  decisions: { decision_id: number; reference: string; question: string;
+    status: string; reason: string }[];
+  sources: PbSourceReading[];
+  suggestions: { binding_id: number; label: string; metric_id: string;
+    value: string; confidence: string; source_locator: string }[];
+}
+
+export interface PbUploadedMetricUpdates {
+  source_id: number;
+  filename: string;
+  detected: number;
+  message: string;
+  rows: {
+    metric_id: string;
+    document_metric: string;
+    current_document_value: string;
+    uploaded_label: string;
+    uploaded_value: string;
+    uploaded_raw_value: string;
+    source: string;
+    source_locator: string;
+    confidence: string;
+    match_status: string;
+    binding_id: number;
+    changes_value: boolean;
+  }[];
+}
+
+export interface PbActionExport {
+  source: string;
+  workspace_id: number;
+  action_reference: string;
+  title: string;
+  description: string;
+  owner: string;
+  due_date: string;
+  status: string;
+  from_decision: number | null;
+  from_finding: number | null;
+}
+
 export interface PbSendResult {
   job_id: number;
   state: string;
@@ -4579,6 +5029,263 @@ export const api = {
       `/playbook/workspaces/${workspaceId}/jobs/by-key/` +
         encodeURIComponent(key),
     ),
+
+  // --- Document Intelligence ---------------------------------------------
+  playbookDashboard: (workspaceId: number) =>
+    request<PbDashboard>(`/playbook/workspaces/${workspaceId}/intelligence`),
+  playbookClassify: (
+    workspaceId: number,
+    body: {
+      document_type: string;
+      committee_report?: boolean | null;
+      committee_name?: string;
+      reporting_period?: string;
+      owner?: string;
+    },
+  ) =>
+    request<PbDashboard>(
+      `/playbook/workspaces/${workspaceId}/intelligence/profile`,
+      { method: "PUT", body: JSON.stringify(body) },
+    ),
+  playbookMetrics: (workspaceId: number) =>
+    request<PbMetrics>(
+      `/playbook/workspaces/${workspaceId}/intelligence/metrics`,
+    ),
+  playbookDecideMetric: (
+    workspaceId: number,
+    bindingId: number,
+    body: { action: string; metric_id?: string },
+  ) =>
+    request<PbMetrics>(
+      `/playbook/workspaces/${workspaceId}/intelligence/metrics/${bindingId}`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookConfirmMetrics: (
+    workspaceId: number,
+    body: { binding_ids?: number[]; confidence?: string },
+  ) =>
+    request<PbMetrics>(
+      `/playbook/workspaces/${workspaceId}/intelligence/metrics`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookRecomputeReadiness: (workspaceId: number) =>
+    request<PbReadiness>(
+      `/playbook/workspaces/${workspaceId}/intelligence/readiness`,
+      { method: "POST" },
+    ),
+  playbookSection: (workspaceId: number, key: string) =>
+    request<PbSectionDetail>(
+      `/playbook/workspaces/${workspaceId}/intelligence/sections/` +
+        encodeURIComponent(key),
+    ),
+  playbookSetSectionStatus: (
+    workspaceId: number,
+    key: string,
+    body: { status: string; reason?: string },
+  ) =>
+    request<PbSectionDetail>(
+      `/playbook/workspaces/${workspaceId}/intelligence/sections/` +
+        `${encodeURIComponent(key)}/status`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookAssignSectionReviewer: (
+    workspaceId: number,
+    key: string,
+    body: { reviewer: string },
+  ) =>
+    request<PbSectionDetail>(
+      `/playbook/workspaces/${workspaceId}/intelligence/sections/` +
+        `${encodeURIComponent(key)}/reviewer`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookSinceLastTime: (workspaceId: number, version?: number) =>
+    request<PbSinceLastTime>(
+      `/playbook/workspaces/${workspaceId}/intelligence/since-last-time` +
+        (version ? `?version=${version}` : ""),
+    ),
+  playbookRaiseFinding: (
+    workspaceId: number,
+    body: {
+      title: string;
+      severity?: string;
+      rationale?: string;
+      section_key?: string;
+      metric_id?: string;
+      blocking?: boolean;
+    },
+  ) =>
+    request<PbFindings>(
+      `/playbook/workspaces/${workspaceId}/intelligence/findings`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookMoveFinding: (
+    workspaceId: number,
+    findingId: number,
+    body: { status: string; reason?: string; answer?: string;
+      resolution?: string },
+  ) =>
+    request<PbFindings>(
+      `/playbook/workspaces/${workspaceId}/intelligence/findings/` +
+        `${findingId}/status`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookAssignFinding: (
+    workspaceId: number,
+    findingId: number,
+    body: { owner: string },
+  ) =>
+    request<PbFindings>(
+      `/playbook/workspaces/${workspaceId}/intelligence/findings/` +
+        `${findingId}/owner`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookSetFindingBlocking: (
+    workspaceId: number,
+    findingId: number,
+    body: { blocking: boolean; reason?: string },
+  ) =>
+    request<PbFindings>(
+      `/playbook/workspaces/${workspaceId}/intelligence/findings/` +
+        `${findingId}/blocking`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookAttachFindingEvidence: (
+    workspaceId: number,
+    findingId: number,
+    body: {
+      locator?: string;
+      metric_id?: string;
+      previous_value?: string;
+      current_value?: string;
+      delta?: string;
+      note?: string;
+    },
+  ) =>
+    request<PbFindings>(
+      `/playbook/workspaces/${workspaceId}/intelligence/findings/` +
+        `${findingId}/evidence`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookProposeDecision: (
+    workspaceId: number,
+    body: {
+      question: string;
+      recommendation?: string;
+      options?: string[];
+      current_position?: string;
+      proposed_position?: string;
+      reporting_period?: string;
+      related_finding_ids?: number[];
+    },
+  ) =>
+    request<PbDecisions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/decisions`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookMoveDecision: (
+    workspaceId: number,
+    decisionId: number,
+    body: { status: string; reason?: string },
+  ) =>
+    request<PbDecisions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/decisions/` +
+        `${decisionId}/status`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookRecordDecision: (
+    workspaceId: number,
+    decisionId: number,
+    body: { outcome: string; rationale?: string; meeting?: string },
+  ) =>
+    request<PbDecisions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/decisions/` +
+        `${decisionId}/record`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookCreateDecisionActions: (
+    workspaceId: number,
+    decisionId: number,
+    body: {
+      actions: { title: string; description?: string; owner?: string;
+        due_date?: string | null }[];
+    },
+  ) =>
+    request<PbActions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/decisions/` +
+        `${decisionId}/actions`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookCreateAction: (
+    workspaceId: number,
+    body: { title: string; description?: string; owner?: string;
+      due_date?: string | null },
+  ) =>
+    request<PbActions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/actions`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookMoveAction: (
+    workspaceId: number,
+    actionId: number,
+    body: { status: string; reason?: string },
+  ) =>
+    request<PbActions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/actions/` +
+        `${actionId}/status`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookUpdateAction: (
+    workspaceId: number,
+    actionId: number,
+    body: { note: string },
+  ) =>
+    request<PbActions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/actions/` +
+        `${actionId}/update`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  playbookActionExport: (workspaceId: number, actionId: number) =>
+    request<PbActionExport>(
+      `/playbook/workspaces/${workspaceId}/intelligence/actions/` +
+        `${actionId}/export`,
+    ),
+  playbookChatContext: (workspaceId: number, kind: string, target = "") =>
+    request<PbChatContext>(
+      `/playbook/workspaces/${workspaceId}/intelligence/context` +
+        `?kind=${encodeURIComponent(kind)}` +
+        (target ? `&target=${encodeURIComponent(target)}` : ""),
+    ),
+  playbookContextActions: (workspaceId: number) =>
+    request<PbContextActions>(
+      `/playbook/workspaces/${workspaceId}/intelligence/context-actions`,
+    ),
+  playbookHistory: (workspaceId: number, kind = "") =>
+    request<PbHistoryFeed>(
+      `/playbook/workspaces/${workspaceId}/intelligence/history` +
+        (kind ? `?kind=${encodeURIComponent(kind)}` : ""),
+    ),
+  playbookCheckForUpdates: (workspaceId: number) =>
+    request<PbUpdateProposal>(
+      `/playbook/workspaces/${workspaceId}/intelligence/updates`,
+    ),
+  playbookSourceReadings: (workspaceId: number) =>
+    request<PbSourceReadings>(
+      `/playbook/workspaces/${workspaceId}/sources/parses`,
+    ),
+  playbookRereadSource: (sourceId: number) =>
+    request<PbSourceReading>(`/playbook/sources/${sourceId}/reread`, {
+      method: "POST",
+    }),
+  playbookRereadStaleSources: (workspaceId: number) =>
+    request<PbSourceReadings & { reread: PbSourceReading[];
+      failed: { source_id: number; filename: string; reason: string }[] }>(
+      `/playbook/workspaces/${workspaceId}/sources/reread`,
+      { method: "POST" },
+    ),
+  playbookUploadedMetricUpdates: (workspaceId: number, sourceId: number) =>
+    request<PbUploadedMetricUpdates>(
+      `/playbook/workspaces/${workspaceId}/sources/${sourceId}/metric-updates`,
+    ),
   cancelPlaybookJob: (jobId: number) =>
     request<PbJob & { message: string }>(
       `/playbook/jobs/${jobId}/cancel`,
@@ -4664,6 +5371,14 @@ export const api = {
       task?: string;
       /** For `edit`: the part of the document that may change. */
       scope?: string;
+      /**
+       * Which dashboard object this turn is about — a metric, a finding, a
+       * section, a decision. The governed facts behind it become evidence and
+       * the references are recorded on the message, so the thread still says
+       * what "this" meant a month later.
+       */
+      context_kind?: string;
+      context_target?: string;
       /**
        * Run in a worker and answer immediately with the job to watch, rather
        * than holding the request open. The browser always sets this: it is

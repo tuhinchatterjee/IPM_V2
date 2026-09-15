@@ -448,10 +448,11 @@ def _actions_payload(session, workspace_id: int) -> dict:
 def _reviews_payload(session, workspace_id: int) -> dict:
     rows = (session.query(PlaybookReview)
             .filter(PlaybookReview.workspace_id == workspace_id).all())
-    complete = [r for r in rows if r.status == "complete"]
+    complete = [r for r in rows if r.status == sect.COMPLETE]
     return {
         "total": len(rows),
         "complete": len(complete),
+        "outstanding": len(rows) - len(complete),
         "pct": round(100 * len(complete) / len(rows)) if rows else 0,
         "items": [{
             "id": r.id, "reviewer": r.reviewer, "role": r.role,

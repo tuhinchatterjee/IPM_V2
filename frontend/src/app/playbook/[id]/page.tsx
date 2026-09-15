@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { use } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Download,
   Eye,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { AnalysisPicker } from "@/components/playbook/analysis-picker";
+import { DocumentStatusPanel } from "@/components/playbook/status/status-panel";
 import { ChangeSetPanel } from "@/components/playbook/change-set-panel";
 import { SourceCard } from "@/components/playbook/source-card";
 import { useGeneration } from "@/components/playbook/use-generation";
@@ -26,6 +28,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   api,
   type PbAnalysisCard,
+  type PbChatContext,
+  type PbDashboard,
   type PbArtifact,
   type PbCapabilities,
   type PbChangeSet,
@@ -33,6 +37,7 @@ import {
 } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { stateLabel } from "@/lib/stream";
+import { readDraft, saveDraft } from "@/lib/playbook-draft";
 import {
   composerState,
   currentVersion,
@@ -62,6 +67,8 @@ export default function PlaybookThreadPage({
 }) {
   const { id } = use(params);
   const workspaceId = Number(id);
+  const router = useRouter();
+  const search = useSearchParams();
   const [refresh, setRefresh] = React.useState(0);
   const workspace = useAsync<PbWorkspace>(
     () => api.playbookWorkspace(workspaceId),
@@ -73,14 +80,26 @@ export default function PlaybookThreadPage({
     [workspaceId, refresh],
   );
 
-  const [prompt, setPrompt] = React.useState("");
+  // The status panel's own data. Its own request rather than part of the
+  // workspace payload, because a dashboard that has to be computed must never
+  // hold up the conversation loading.
+  const dashboard = useAsync<PbDashboard>(
+    () => api.playbookDashboard(workspaceId),
+    [workspaceId, refresh],
+  );
+
+  const [prompt, setPrompt] = React.useState(() =>
+    typeof window === "undefined" ? "" : readDraft(workspaceId).prompt,
+  );
   // Which task framing the composer's current text came from, if any. Cleared
   // as soon as the user types something else, because a framing that outlives
   // the sentence it belongs to is worse than none.
-  const [task, setTask] = React.useState<{ kind: string; scope: string }>({
-    kind: "",
-    scope: "",
-  });
+  const [task, setTask] = React.useState<{ kind: string; scope: string }>(
+    () =>
+      typeof window === "undefined"
+        ? { kind: "", scope: "" }
+        : readDraft(workspaceId).task,
+  );
   const [attachments, setAttachments] = React.useState<Attachment[]>([]);
   const [chosen, setChosen] = React.useState<PbAnalysisCard[]>([]);
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
@@ -92,6 +111,60 @@ export default function PlaybookThreadPage({
   const generation = useGeneration(workspaceId, () =>
     setRefresh((n) => n + 1),
   );
+
+  // What the dashboard handed over, if anything. §22.
+  //
+  // The URL carries the OBJECT — `?context=finding:786` — and the context
+  // itself is fetched from the server, which is what decides whether a
+  // reading is governed or merely suggested. That judgement is not something
+  // to make once and then carry around in the browser.
+  //
+  // A link rather than session storage: it survives a reload, it can be sent
+  // to somebody, and it does not depend on two pages agreeing about when a
+  // piece of state is consumed.
+  const reference = search.get("context") ?? "";
+  const [kind, target] = reference.includes(":")
+    ? [reference.slice(0, reference.indexOf(":")),
+       reference.slice(reference.indexOf(":") + 1)]
+    : [reference, ""];
+  const handoff = useAsync<PbChatContext | null>(
+    () =>
+      kind
+        ? api.playbookChatContext(workspaceId, kind, target)
+        : Promise.resolve(null),
+    [workspaceId, kind, target],
+  );
+  // The composer follows the context that was handed over, until the user
+  // starts editing — after which it is theirs.
+  const [edited, setEdited] = React.useState(false);
+  const handed = handoff.data ?? null;
+  const shownPrompt = !edited && handed ? handed.prompt : prompt;
+  const shownTask = !edited && handed
+    ? { kind: handed.task, scope: handed.scope }
+    : task;
+
+  const dropContext = React.useCallback(() => {
+    setEdited(true);
+    router.replace(`/playbook/${workspaceId}`);
+  }, [router, workspaceId]);
+
+  // Where the conversation was when the user left for the dashboard.
+  React.useEffect(() => {
+    const { scrollY } = readDraft(workspaceId);
+    if (scrollY) {
+      window.requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
+    }
+  }, [workspaceId]);
+
+  /** Save what the composer is holding before leaving for the dashboard. */
+  const rememberDraft = React.useCallback(() => {
+    saveDraft(workspaceId, {
+      prompt,
+      task,
+      analyses: chosen.map((c) => c.revision_id),
+      scrollY: typeof window === "undefined" ? 0 : window.scrollY,
+    });
+  }, [workspaceId, prompt, task, chosen]);
 
   // A refresh mid-generation lands here. The workspace says what is running,
   // so the page attaches to it and the answer continues arriving — rather than
@@ -143,18 +216,25 @@ export default function PlaybookThreadPage({
       }
       const report = data.artifacts.find((a) => a.kind === "report");
       const started = await api.sendPlaybookMessage(data.id, {
-        text: prompt.trim(),
+        text: shownPrompt.trim(),
         source_ids: sourceIds,
         export_revision_ids: chosen.map((c) => c.revision_id),
-        task: task.kind,
-        scope: task.scope,
+        task: shownTask.kind,
+        scope: shownTask.scope,
         artifact_id: report?.id ?? null,
         base_version_id: report?.current_version_id ?? null,
         idempotency_key: key,
+        context_kind: kind,
+        context_target: target,
         stream: true,
       });
       setPrompt("");
       setTask({ kind: "", scope: "" });
+      setEdited(false);
+      if (reference) router.replace(`/playbook/${workspaceId}`);
+      // The question is on the server; the draft has served its purpose.
+      saveDraft(workspaceId, { prompt: "", task: { kind: "", scope: "" },
+        analyses: [] });
       setAttachments([]);
       setChosen([]);
       setPendingFiles([]);
@@ -303,6 +383,38 @@ export default function PlaybookThreadPage({
             />
           )}
 
+          {/* What the dashboard handed over. Shown rather than silently
+              pre-filling the box, so the user can see what "this" refers to
+              and what it does not do before they send it. */}
+          {handed && !edited && (
+            <div
+              className="rounded-lg border border-accent/40 bg-accent-muted p-3"
+              data-testid="playbook-handoff"
+            >
+              <p className="text-xs font-semibold text-accent">
+                {handed.label}
+              </p>
+              {handed.references.length > 0 && (
+                <p className="mt-1 text-[11px] text-text-secondary">
+                  About: {handed.references.map((r) => r.label).join(", ")}
+                </p>
+              )}
+              {handed.caveats.map((caveat, i) => (
+                <p key={i} className="mt-1 text-[11px] text-text-muted">
+                  {caveat}
+                </p>
+              ))}
+              <button
+                type="button"
+                onClick={dropContext}
+                data-testid="playbook-drop-context"
+                className="mt-1.5 text-[11px] text-text-muted underline hover:text-text-secondary"
+              >
+                Drop this context
+              </button>
+            </div>
+          )}
+
           {steps.length > 0 && (
             <ul className="flex flex-wrap gap-2 pt-2">
               {steps
@@ -340,8 +452,12 @@ export default function PlaybookThreadPage({
 
           <div className="sticky bottom-0 bg-canvas pb-4 pt-2">
             <Composer
-              value={prompt}
+              value={shownPrompt}
               onChange={(next) => {
+                // The moment the user types, the composer is theirs: the
+                // handed-over wording stops following and the framing that
+                // came with it is dropped.
+                setEdited(true);
                 setPrompt(next);
                 setTask({ kind: "", scope: "" });
               }}
@@ -419,6 +535,15 @@ export default function PlaybookThreadPage({
         </div>
 
         <aside className="space-y-5">
+          {/* §5: enough to orient somebody without leaving the chat, and one
+              button to the whole thing. Absent entirely on a workspace with
+              nothing to say about itself. */}
+          <DocumentStatusPanel
+            workspaceId={workspaceId}
+            dashboard={dashboard.data ?? null}
+            onOpen={rememberDraft}
+          />
+
           <section className="space-y-2">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
               Sources

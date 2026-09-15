@@ -441,7 +441,7 @@ def readiness(facts: Facts) -> tuple[int, list[Component], list[dict]]:
             explanation="no actions raised", link="actions"))
 
     # --- Review complete ---------------------------------------------------
-    complete = [r for r in facts.reviews if r.status == "complete"]
+    complete = [r for r in facts.reviews if r.status == sect.COMPLETE]
     if facts.reviews:
         score = round(100 * len(complete) / len(facts.reviews))
         incomplete = len(facts.reviews) - len(complete)

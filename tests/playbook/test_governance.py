@@ -660,3 +660,59 @@ class TestTheDashboardCarriesTheGovernanceState:
         gov.move_finding(db, finding, to=gov.CLOSED, actor=ACTOR,
                          reason="done")
         intelligence.dashboard(db, workspace.id)
+
+
+@pytest.mark.usefixtures("db")
+class TestEveryGovernedObjectHasAHumanReference:
+    """"F-03 is still open" is how these are spoken about in a meeting, so the
+    reference has to exist and has to be stable."""
+
+    def test_findings_are_numbered_from_one(self, db, workspace):
+        first = gov.raise_finding(db, workspace.id, origin=gov.FROM_RULE,
+                                  title="A")
+        second = gov.raise_finding(db, workspace.id, origin=gov.FROM_RULE,
+                                   title="B")
+        assert (first.reference, second.reference) == ("F-01", "F-02")
+
+    def test_decisions_and_actions_have_their_own_series(self, db, workspace):
+        decision = gov.propose_decision(db, workspace.id, question="Hold?")
+        gov.move_decision(db, decision, to=gov.READY_FOR_DECISION,
+                          actor=ACTOR)
+        gov.record(db, decision, outcome=gov.APPROVE, actor=ACTOR)
+        [action] = gov.actions_from_decision(
+            db, decision, actor=ACTOR, actions=[{"title": "Do the thing"}])
+        assert decision.reference == "D-01"
+        assert action.reference == "A-01"
+
+    def test_a_reference_is_never_reused_after_a_deletion(self, db,
+                                                          workspace):
+        """Derived from what is numbered, not from a count — otherwise a
+        reference in last quarter's minutes finds the wrong row."""
+        from backend.models.playbook import PlaybookFinding
+
+        first = gov.raise_finding(db, workspace.id, origin=gov.FROM_RULE,
+                                  title="A")
+        gov.raise_finding(db, workspace.id, origin=gov.FROM_RULE, title="B")
+        db.delete(db.get(PlaybookFinding, first.id))
+        db.flush()
+
+        third = gov.raise_finding(db, workspace.id, origin=gov.FROM_RULE,
+                                  title="C")
+        assert third.reference == "F-03"
+
+    def test_references_do_not_collide_across_documents(self, db, scope,
+                                                        workspace):
+        from backend.playbook import repository as repo
+
+        other = repo.create_workspace(db, scope, title="Another")
+        db.flush()
+        mine = gov.raise_finding(db, workspace.id, origin=gov.FROM_RULE,
+                                 title="A")
+        theirs = gov.raise_finding(db, other.id, origin=gov.FROM_RULE,
+                                   title="A")
+        assert mine.reference == theirs.reference == "F-01"
+
+    def test_a_caller_may_still_supply_its_own(self, db, workspace):
+        row = gov.raise_finding(db, workspace.id, origin=gov.FROM_IMPORT,
+                                title="A", reference="EW-2026-14")
+        assert row.reference == "EW-2026-14"

@@ -257,6 +257,56 @@ ALLOWED: dict[str, frozenset[str]] = {
 HUMAN_ONLY = frozenset({READY_FOR_REVIEW, NEEDS_REVIEW, APPROVED})
 
 
+#: The review table's own vocabulary, named rather than typed as literals in
+#: three files that then have to agree.
+REQUESTED, COMPLETE = "requested", "complete"
+
+
+def _review_row(session, row):
+    """Keep the review table in step with who is reviewing this section.
+
+    The section carries `reviewer` for the pane that shows it; the review
+    table is what the readiness score and the Review card count. Writing only
+    one of them is how a dashboard ends up saying "0 / 0 reviews" beside a
+    section that plainly names its reviewer.
+    """
+    from datetime import UTC, datetime
+
+    from backend.models.playbook import PlaybookReview
+
+    existing = (session.query(PlaybookReview)
+                .filter(PlaybookReview.artifact_id == row.artifact_id,
+                        PlaybookReview.section_key == row.section_key)
+                .one_or_none())
+    if not row.reviewer:
+        if existing is not None:
+            session.delete(existing)
+        return None
+    if existing is None:
+        existing = PlaybookReview(
+            workspace_id=_workspace_of(session, row),
+            artifact_id=row.artifact_id, section_key=row.section_key,
+            reviewer=row.reviewer, status=REQUESTED)
+        session.add(existing)
+    existing.reviewer = row.reviewer
+    if row.status == APPROVED:
+        existing.status = COMPLETE
+        existing.completed_at = row.reviewed_at or datetime.now(UTC)
+    elif existing.status == COMPLETE and row.status != APPROVED:
+        # The text moved after sign-off, so the sign-off no longer stands.
+        existing.status = REQUESTED
+        existing.completed_at = None
+    session.flush()
+    return existing
+
+
+def _workspace_of(session, row) -> int:
+    from backend.models.playbook import PlaybookArtifact
+
+    artifact = session.get(PlaybookArtifact, row.artifact_id)
+    return artifact.workspace_id if artifact else 0
+
+
 def transition(session, row, *, to: str, actor: str = "", reason: str = "",
                by_system: bool = False):
     """Move one section's status, and write down that it happened.
@@ -303,6 +353,10 @@ def transition(session, row, *, to: str, actor: str = "", reason: str = "",
         row.reviewed_at = datetime.now(UTC)
     elif to in (NEEDS_REVIEW, STALE):
         row.reviewed_at = None
+    # The review table follows the section. Approving completes the review;
+    # reopening a section un-completes it, because a sign-off on text that has
+    # since moved is not a sign-off.
+    _review_row(session, row)
     session.flush()
     return row
 
@@ -321,12 +375,35 @@ def assign_reviewer(session, row, *, reviewer: str, actor: str):
         raise TransitionRefused(
             "A section is reviewed by a named person. Nothing changed.")
     row.reviewer = reviewer.strip()[:160]
+    _review_row(session, row)
     if row.status in ALLOWED and READY_FOR_REVIEW in ALLOWED[row.status]:
         transition(session, row, to=READY_FOR_REVIEW, actor=actor,
                    reason=f"assigned to {row.reviewer}")
     else:
         session.flush()
     return row
+
+
+def _text_of(session, artifact_id: int, row) -> str:
+    """The section's own text, from the current stored version.
+
+    Read from the canonical document rather than from anything re-rendered:
+    the canonical form is what the merge, the grounding check and the version
+    hash all work from, so a pane showing anything else would be showing a
+    reader something the system does not consider to be the document.
+    """
+    from backend.playbook import repository as repo
+
+    versions = repo.versions(session, artifact_id)
+    if not versions:
+        return ""
+    doc = D.Document.from_dict(versions[-1].content or {})
+    for ordinal, section in enumerate(doc.sections, start=1):
+        if key_for(section.heading, ordinal) == row.section_key \
+                or section.heading == row.heading:
+            return "\n\n".join(
+                block.text for block in section.blocks if block.text)
+    return ""
 
 
 def detail(session, artifact_id: int, section_key: str,
@@ -382,6 +459,13 @@ def detail(session, artifact_id: int, section_key: str,
         "first_seen_version": row.first_seen_version,
         "last_changed_version": row.last_changed_version,
         "history": list(row.history or []),
+        # The moves the service would actually allow from here, and the
+        # section's own text. Both exist so a pane can show what a person can
+        # do and what they are deciding about, without a second round trip and
+        # without offering a transition the service would refuse.
+        "allowed": sorted(ALLOWED.get(row.status or DRAFT, frozenset())),
+        "human_only": sorted(HUMAN_ONLY),
+        "text": _text_of(session, artifact_id, row),
         "metrics": [{
             "id": b.id, "metric_id": b.metric_id,
             "label": b.label or b.metric_id,

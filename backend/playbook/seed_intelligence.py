@@ -33,6 +33,7 @@ model attribution for fixture text.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
@@ -154,10 +155,8 @@ def _ifrs9() -> IntelligenceSpec:
         reporting_period=ecl.CURRENT_PERIOD,
         owner="Head of Credit Risk",
         meeting_in_days=11,
-        approved_sections=[("2. Scenario design and weighting",
-                            "demo:modelling-lead")],
-        reviewing_sections=[("3. Staging and significant increase in credit "
-                             "risk", "demo:validation-lead")],
+        approved_sections=[("Scenario results", "demo:modelling-lead")],
+        reviewing_sections=[("Staging", "demo:validation-lead")],
         metrics=[
             MetricSpec(
                 metric_id="ifrs9.ecl.weighted", label="Probability-weighted ECL",
@@ -199,7 +198,7 @@ def _ifrs9() -> IntelligenceSpec:
                 metric_id="", label="30+ DPD exposure rate",
                 then_value="", then_display="",
                 now_value="0.0314", now_display="3.14%",
-                unit="percent", section="4. Book performance",
+                unit="percent", section="Drivers",
                 locator="xlsx://Staging!F2", suggested=True),
         ],
         findings=[
@@ -283,39 +282,39 @@ def _application() -> IntelligenceSpec:
         document_type=prof.MODEL_DEVELOPMENT,
         reporting_period="Q2 2026",
         owner="Modelling Lead",
-        approved_sections=[("2. Data and sampling", "demo:modelling-lead")],
+        approved_sections=[("Development sample", "demo:modelling-lead")],
         metrics=[
             MetricSpec(metric_id="scorecard.gini", label="Gini coefficient",
                        then_value="0.4152", then_display="0.415",
                        now_value="0.4770", now_display="0.477",
-                       unit="statistic", section="5. Model performance",
+                       unit="statistic", section="Discrimination",
                        locator="xlsx://Performance!B2",
                        fresh=bind.NEW_AVAILABLE),
             MetricSpec(metric_id="scorecard.ks", label="KS statistic",
                        then_value="0.4880", then_display="0.488",
                        now_value="0.5061", now_display="0.506",
-                       unit="statistic", section="5. Model performance",
+                       unit="statistic", section="Discrimination",
                        locator="xlsx://Performance!B3",
                        fresh=bind.NEW_AVAILABLE),
             MetricSpec(metric_id="",
                        label="Application cohort bad rate",
                        then_value="", then_display="",
                        now_value="0.0647", now_display="6.47%",
-                       unit="percent", section="3. Population and outcome",
+                       unit="percent", section="Development sample",
                        locator="xlsx://Performance!B4", suggested=True),
         ],
         findings=[
             FindingSpec(
                 title="Reject inference method is not stated",
                 origin=gov.FROM_VALIDATION, severity=gov.HIGH, blocking=True,
-                section="3. Population and outcome",
+                section="Development sample",
                 owner="Modelling Lead",
                 rationale=("The report describes the through-the-door "
                            "population but not how rejects were inferred.")),
             FindingSpec(
                 title="Gini improved 6.2 points against the previous build",
                 origin=gov.FROM_CHANGE, severity=gov.INFORMATION,
-                section="5. Model performance",
+                section="Discrimination",
                 metric_id="scorecard.gini",
                 previous_value="0.415", current_value="0.477",
                 delta="+0.062", locator="xlsx://Performance!B2"),
@@ -338,7 +337,7 @@ def _behavioural() -> IntelligenceSpec:
         document_type=prof.MODEL_VALIDATION,
         reporting_period="Q2 2026",
         owner="Validation Lead",
-        reviewing_sections=[("4. Discrimination", "demo:validation-lead")],
+        reviewing_sections=[("Discrimination", "demo:validation-lead")],
         metrics=[
             MetricSpec(metric_id="behavioural.auc", label="AUC",
                        then_value="0.5593", then_display="0.559",
@@ -385,6 +384,42 @@ def spec_for(document_family: str) -> IntelligenceSpec | None:
 # --------------------------------------------------------------------------
 
 
+def _section_keys(doc) -> dict[str, str]:
+    """A lookup from words in a heading to that section's real key.
+
+    The specs above name sections the way a person would — "Executive
+    summary", "Post-model adjustments" — and the document's actual headings
+    are numbered and sometimes worded differently. Constructing a key from the
+    spec's wording produced keys that matched nothing, which showed up as a
+    Pack tab with no metrics in it.
+
+    So the key comes from the document. Matching is on normalised words, exact
+    first and containment second; a spec section that matches nothing yields
+    no key at all rather than a plausible wrong one.
+    """
+    keys: dict[str, str] = {}
+    for ordinal, section in enumerate(doc.sections, start=1):
+        keys[_words(section.heading)] = sect.key_for(section.heading, ordinal)
+    return keys
+
+
+def _words(heading: str) -> str:
+    text = re.sub(r"^\s*\d+(\.\d+)*[.)]?\s*", "", (heading or "").strip())
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def _key_for(name: str, keys: dict[str, str]) -> str:
+    if not name:
+        return ""
+    wanted = _words(name)
+    if wanted in keys:
+        return keys[wanted]
+    for heading, key in keys.items():
+        if wanted in heading or heading in wanted:
+            return key
+    return ""
+
+
 def seed(session, workspace_id: int, artifact_id: int, *,
          document_family: str, versions: list, documents: list) -> dict:
     """Populate the dashboard for one seeded workspace.
@@ -398,7 +433,10 @@ def seed(session, workspace_id: int, artifact_id: int, *,
         return {"seeded": False, "reason": "no intelligence spec"}
 
     _profile(session, workspace_id, spec)
-    bindings = _metrics(session, workspace_id, spec)
+    # Resolved from the document that was actually written, so a metric lands
+    # in a section that exists.
+    keys = _section_keys(documents[-1]) if documents else {}
+    bindings = _metrics(session, workspace_id, spec, keys)
 
     # Adopt each version in turn: sections are written, and the governed
     # readings are frozen at what the pack of the day relied on.
@@ -411,8 +449,8 @@ def seed(session, workspace_id: int, artifact_id: int, *,
     # what the workbook says today — which is what makes Since Last Time show
     # something on first open rather than an empty table.
     _advance(session, bindings, spec)
-    _sections(session, artifact_id, spec)
-    findings = _findings(session, workspace_id, spec)
+    _sections(session, artifact_id, spec, keys)
+    findings = _findings(session, workspace_id, spec, keys)
     decisions, actions = _decisions(session, workspace_id, spec)
     result = score.compute(session, workspace_id)
 
@@ -446,8 +484,8 @@ def _profile(session, workspace_id: int, spec: IntelligenceSpec) -> None:
     session.flush()
 
 
-def _metrics(session, workspace_id: int,
-             spec: IntelligenceSpec) -> list:
+def _metrics(session, workspace_id: int, spec: IntelligenceSpec,
+             keys: dict[str, str]) -> list:
     """Bindings at the PREVIOUS pack's readings, so a snapshot has a THEN.
 
     Pre-confirmed, per the standing rule for seeded Playbooks — except the one
@@ -461,8 +499,7 @@ def _metrics(session, workspace_id: int,
                         unit=m.unit, currency=m.currency)
         for m in governed]))
     for row, metric in zip(rows, governed, strict=True):
-        row.section_key = sect.key_for(metric.section, 0) if metric.section \
-            else ""
+        row.section_key = _key_for(metric.section, keys)
         row.source_locator = metric.locator
         row.confirmed_by_user = True
         row.confirmed_by = CHAIR
@@ -476,8 +513,7 @@ def _metrics(session, workspace_id: int,
         # our intended id over it would turn a suggestion into an assertion,
         # which is the whole thing rule 3 forbids.
         row.currency = metric.currency
-        row.section_key = (sect.key_for(metric.section, 0)
-                           if metric.section else "")
+        row.section_key = _key_for(metric.section, keys)
         rows.append(row)
     session.flush()
     return rows
@@ -497,29 +533,39 @@ def _advance(session, rows: list, spec: IntelligenceSpec) -> None:
     session.flush()
 
 
-def _sections(session, artifact_id: int, spec: IntelligenceSpec) -> None:
-    """Put real review state on the sections a reviewer actually looked at."""
-    rows = {r.heading: r for r in sect.rows_for(session, artifact_id)}
+def _sections(session, artifact_id: int, spec: IntelligenceSpec,
+              keys: dict[str, str]) -> None:
+    """Put real review state on the sections a reviewer actually looked at.
+
+    A spec that names a section this document does not have is a mistake in
+    the spec, and it FAILS rather than being skipped. Skipping is what let the
+    demonstration ship with reviewers who reviewed nothing and a Review card
+    reading 0 / 0 beside sections that plainly named a reviewer.
+    """
+    rows = {r.section_key: r for r in sect.rows_for(session, artifact_id)}
+
+    def resolve(heading: str):
+        key = _key_for(heading, keys)
+        row = rows.get(key)
+        if row is None:
+            raise RuntimeError(
+                f"the demonstration assigns a reviewer to {heading!r}, which "
+                f"is not a section of this document: {sorted(rows)}")
+        return row
+
     for heading, reviewer in spec.reviewing_sections:
-        row = rows.get(heading)
-        if row is None:
-            continue
+        row = resolve(heading)
         sect.assign_reviewer(session, row, reviewer=reviewer, actor=CHAIR)
-        sect.transition(session, row, to=sect.READY_FOR_REVIEW, actor=CHAIR,
-                        reason="sent for review")
     for heading, reviewer in spec.approved_sections:
-        row = rows.get(heading)
-        if row is None:
-            continue
+        row = resolve(heading)
         sect.assign_reviewer(session, row, reviewer=reviewer, actor=CHAIR)
-        sect.transition(session, row, to=sect.READY_FOR_REVIEW,
-                        actor=reviewer, reason="sent for review")
         sect.transition(session, row, to=sect.APPROVED, actor=reviewer,
                         reason="reviewed and agreed")
     session.flush()
 
 
-def _findings(session, workspace_id: int, spec: IntelligenceSpec) -> list:
+def _findings(session, workspace_id: int, spec: IntelligenceSpec,
+              keys: dict[str, str]) -> list:
     rows = []
     for item in spec.findings:
         row = gov.raise_finding(
@@ -530,7 +576,7 @@ def _findings(session, workspace_id: int, spec: IntelligenceSpec) -> list:
             threshold=item.threshold, previous_value=item.previous_value,
             current_value=item.current_value, delta=item.delta,
             source_locator=item.locator,
-            section_key=sect.key_for(item.section, 0) if item.section else "")
+            section_key=_key_for(item.section, keys))
         if item.owner:
             gov.assign_finding(session, row, owner=item.owner, actor=CHAIR)
         if item.answer and item.accepted_by:

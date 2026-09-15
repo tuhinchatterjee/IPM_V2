@@ -12,8 +12,10 @@ from backend.playbook.intelligence import (
     compare,
     context,
     governance,
+    history,
     profile,
     readiness,
+    refresh,
     sections,
     service,
 )
@@ -29,7 +31,7 @@ from backend.playbook.intelligence.service import (
 
 __all__ = ["Dashboard", "NotPermitted", "adopt", "binding", "classify",
            "compare", "context",
-           "dashboard", "governance",
-           "ensure_profile", "get_profile", "profile", "readiness", "sections",
+           "dashboard", "governance", "history",
+           "ensure_profile", "get_profile", "profile", "readiness", "refresh", "sections",
            "service",
            "UnknownDocumentType"]

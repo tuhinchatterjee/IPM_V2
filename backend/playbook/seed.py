@@ -98,6 +98,7 @@ def _render_and_store(session, scope: repo.Scope, ws, artifact, version,
     broken file behind a download button.
     """
     written: list[str] = []
+    checked: dict[str, object] = {}
     for fmt in formats:
         cap = capabilities.require(fmt)
         content = render.render(doc, fmt)
@@ -106,6 +107,7 @@ def _render_and_store(session, scope: repo.Scope, ws, artifact, version,
             raise RuntimeError(
                 f"seeded {fmt} for {artifact.title} failed validation: "
                 + "; ".join(result.issues))
+        checked[fmt] = result
         filename = f"{slug}-v{version.version}.{fmt}"
         stored = store.put_artifact(ws.id, artifact.id, version.version,
                                     filename, content)
@@ -114,6 +116,16 @@ def _render_and_store(session, scope: repo.Scope, ws, artifact, version,
                       size_bytes=stored.size_bytes, sha256=stored.sha256,
                       renderer=capabilities.LOCAL, validated=True)
         written.append(fmt)
+
+    # Keep what validation measured. The live path stores this on the version
+    # and the dashboard reads the page count back out of it; a seeded document
+    # that discarded it would report "no rendered file has been read back"
+    # while sitting next to a download button for the file that was read.
+    version.validation = {
+        **(version.validation or {}),
+        **{fmt: result.as_dict() for fmt, result in checked.items()},
+    }
+    session.flush()
     return written
 
 

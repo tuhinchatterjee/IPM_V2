@@ -79,6 +79,28 @@ def _audit(row, *, field: str, before: str, after: str, actor: str,
     }]
 
 
+def _reference(session, model, workspace_id: int, prefix: str) -> str:
+    """The next `F-01` / `D-01` / `A-01` for this document.
+
+    A human reference, because that is how these objects are spoken about in a
+    meeting: "F-03 is still open", "the actions from D-01". Per workspace and
+    never reused, so a reference in a set of minutes still finds the right row
+    a year later.
+
+    Derived from what is already numbered rather than from a count, so deleting
+    a finding does not make the next one collide with an existing reference.
+    """
+    highest = 0
+    for (value,) in session.query(model.reference).filter(
+            model.workspace_id == workspace_id).all():
+        if value and value.startswith(f"{prefix}-"):
+            try:
+                highest = max(highest, int(value.split("-", 1)[1]))
+            except ValueError:
+                continue
+    return f"{prefix}-{highest + 1:02d}"
+
+
 # --------------------------------------------------------------------------
 # Findings
 # --------------------------------------------------------------------------
@@ -163,6 +185,8 @@ def raise_finding(session, workspace_id: int, *, title: str, origin: str,
                       "may not set that on its own; a person must make it "
                       "blocking")
 
+    fields.setdefault("reference",
+                      _reference(session, PlaybookFinding, workspace_id, "F"))
     row = PlaybookFinding(
         workspace_id=workspace_id, title=title[:400], severity=severity,
         status=OPEN, raised_by=origin, blocking=blocking,
@@ -355,6 +379,8 @@ def propose_decision(session, workspace_id: int, *, question: str,
     It produces a PROPOSED decision, which is a request for a person's
     attention and is not a decision.
     """
+    fields.setdefault("reference",
+                      _reference(session, PlaybookDecision, workspace_id, "D"))
     row = PlaybookDecision(
         workspace_id=workspace_id, question=question,
         recommendation=recommendation, options=list(options or OUTCOMES),
@@ -468,6 +494,8 @@ def create_action(session, workspace_id: int, *, title: str, actor: str = "",
                   finding: PlaybookFinding | None = None,
                   **fields) -> PlaybookAction:
     """Raise an action, usually from a decision that has been taken."""
+    fields.setdefault("reference",
+                      _reference(session, PlaybookAction, workspace_id, "A"))
     row = PlaybookAction(
         workspace_id=workspace_id, title=title[:400], status=ACTION_OPEN,
         decision_id=decision.id if decision else None,

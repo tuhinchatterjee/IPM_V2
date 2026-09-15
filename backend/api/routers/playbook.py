@@ -1954,3 +1954,78 @@ def reread_stale_sources(workspace_id: int,
         raise _not_found(exc) from exc
     except RuntimeError as exc:
         raise _unavailable(exc) from exc
+
+
+# ==========================================================================
+# History, and checking for updates. §20, §23, §24
+# ==========================================================================
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/history")
+def document_history(workspace_id: int, kind: str = Query(default=""),
+                     limit: int = Query(default=200, ge=1, le=1000),
+                     principal: Principal = RequireAnalyst) -> dict:
+    """Everything that happened to this document, newest first.
+
+    Assembled from the trails the rows already keep rather than from a second
+    event log beside them. A separate log could disagree with the rows it
+    describes, and the one that disagrees is always the one somebody reads.
+    """
+    from backend.playbook.intelligence import history
+
+    scope = _scope(principal)
+    kinds = [k.strip() for k in kind.split(",") if k.strip()]
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return history.feed(session, workspace_id, kinds=kinds or None,
+                                limit=limit)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/intelligence/updates")
+def check_for_updates(workspace_id: int,
+                      principal: Principal = RequireAnalyst) -> dict:
+    """What has moved since this document was written, as a proposal.
+
+    A read. Nothing is applied, nothing is rewritten, and the document is
+    exactly as it was when this returns — §16 is explicit that new data is a
+    reason to tell somebody, not a licence to edit a governed pack.
+    """
+    from backend.playbook.intelligence import refresh
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return refresh.check(session, workspace_id).as_dict()
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
+
+
+@router.get("/workspaces/{workspace_id}/sources/{source_id}/metric-updates")
+def uploaded_metric_updates(workspace_id: int, source_id: int,
+                            principal: Principal = RequireAnalyst) -> dict:
+    """Which tracked metrics a newly uploaded file appears to update. §24.
+
+    Appears to. Every row is a suggestion and says so: a column header
+    resembling a metric this document tracks is not evidence that it is that
+    metric. Confirming is a person's act, through the metrics routes.
+    """
+    from backend.playbook.intelligence import refresh
+
+    scope = _scope(principal)
+    try:
+        with _session() as session:
+            repo.get_workspace(session, scope, workspace_id)
+            return refresh.proposals_from_source(session, workspace_id,
+                                                 source_id)
+    except repo.NotFound as exc:
+        raise _not_found(exc) from exc
+    except RuntimeError as exc:
+        raise _unavailable(exc) from exc
