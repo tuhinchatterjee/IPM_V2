@@ -203,7 +203,10 @@ class AnthropicProvider:
                  max_tokens: int = 4096, model: str = "",
                  purpose: str = "conversation", role: str = "",
                  effort: str = "", timeout: float = 0.0,
-                 allow_retry: bool = True) -> ConverseResult:
+                 allow_retry: bool = True,
+                 tool_choice: dict[str, Any] | None = None,
+                 output_config: dict[str, Any] | None = None
+                 ) -> ConverseResult:
         """One turn of a multi-turn conversation, blocks preserved.
 
         `structured` returns the tool input and discards everything else. That
@@ -217,6 +220,20 @@ class AnthropicProvider:
         budget for once. Section 9.3 forbids invisible SDK retries; a transient
         retry here is at most one, is recorded in `attempts`, and the caller
         accounts for it.
+
+        `tool_choice` and `output_config` are passed through UNTOUCHED when
+        given and omitted entirely when not, so a caller that does not set
+        them sends exactly the request it sent before they existed.
+
+        `tool_choice={"type": "any"}` requires the turn to be a tool call.
+        That is the difference between a turn that MAY answer in prose and one
+        that must choose an action, and a caller whose turn has no legal prose
+        outcome should say so here rather than ask for it in words.
+
+        `output_config` carries `effort`. Both are model-gated: a model that
+        does not accept them answers 400 rather than ignoring them, so the
+        caller decides whether to send them and what to do when they are
+        refused.
         """
         if not self.configured:
             raise LLMError("No Anthropic API key is configured.")
@@ -237,6 +254,10 @@ class AnthropicProvider:
                 }
                 if tools:
                     request["tools"] = tools
+                if tool_choice:
+                    request["tool_choice"] = dict(tool_choice)
+                if output_config:
+                    request["output_config"] = dict(output_config)
                 if timeout > 0:
                     message = client.messages.with_options(
                         timeout=timeout).create(**request) if hasattr(

@@ -104,7 +104,33 @@ class Limits:
     spend_ceiling_usd: float
     charts: int
     soft_input_tokens: int
+    #: What the FINAL ANSWER may be. Narrative, claims, a presentation plan
+    #: and follow-ups: the turn that writes for a reader.
     reserved_output_tokens: int
+    #: What an ACTION may be. An action is a decision -- which tool, with
+    #: which arguments -- and the analysis itself happens in DuckDB
+    #: afterwards, so it does not need an answer's allowance.
+    #:
+    #: It is not small, and deliberately: on a model that thinks before it
+    #: answers, the thinking is spent from this same allowance, and an
+    #: allowance too tight to finish thinking in is an allowance that buys a
+    #: truncation every time. It is smaller than the answer's, bounded, and
+    #: measured -- which is the part that was missing when one number served
+    #: both and an action turn was free to write four thousand tokens of
+    #: analysis nobody had asked for.
+    action_output_tokens: int
+    #: The longest ONE action generation may block.
+    #:
+    #: Derived, not guessed: the run must be able to afford a second action
+    #: attempt and still write the answer. At Standard that is
+    #: 2 x 40s + 20s reserve inside 120s. Before this, a single action call
+    #: was handed the whole remaining deadline, so the first one could spend
+    #: eighty seconds and leave the run with nothing to recover with.
+    action_call_seconds: float
+    #: How hard the model works before it answers, per phase. Empty means
+    #: "do not send it": see `Capability.supports_effort_control`.
+    action_effort: str
+    answer_effort: str
     #: Time held back so a finished analysis can still be written up. An
     #: action call is refused once the run is inside this window; the ANSWER
     #: call may spend it, because it is what the window was held for.
@@ -122,7 +148,8 @@ STANDARD_LIMITS = Limits(
     preview_columns=32, format_regenerations=1,
     answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=1.0, charts=2, soft_input_tokens=6_000,
-    reserved_output_tokens=4_096,
+    reserved_output_tokens=4_096, action_output_tokens=3_072,
+    action_call_seconds=40.0, action_effort="low", answer_effort="medium",
     finalization_reserve_seconds=20.0, min_call_seconds=5.0)
 
 DEEP_LIMITS = Limits(
@@ -134,7 +161,8 @@ DEEP_LIMITS = Limits(
     preview_columns=32, format_regenerations=1,
     answer_format_regenerations=1, answer_corrections=1,
     spend_ceiling_usd=2.0, charts=3, soft_input_tokens=10_000,
-    reserved_output_tokens=6_144,
+    reserved_output_tokens=6_144, action_output_tokens=4_096,
+    action_call_seconds=60.0, action_effort="medium", answer_effort="high",
     finalization_reserve_seconds=25.0, min_call_seconds=5.0)
 
 

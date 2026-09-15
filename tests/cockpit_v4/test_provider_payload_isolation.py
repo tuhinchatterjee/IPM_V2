@@ -224,8 +224,18 @@ def test_the_instruction_and_the_registry_name_this_book(payloads,
 
     facts = json.dumps(call["system"][1], ensure_ascii=False)
     assert "twenty-quarter" not in facts
-    assert dom.LABELS[domain_id] in facts, (
-        "the product facts must say which book this run reads")
+    # The BOOK, named in the payload the analyst actually receives.
+    #
+    # It used to be asserted against the product registry in block 1, which
+    # an analytical turn no longer carries -- the pack describes what
+    # CreditProbe is, and this turn was asked what a book did. The claim
+    # that matters is unchanged and is checked where it now lives: the
+    # instruction and the pinned scope both name this book, on every turn.
+    whole = json.dumps(call["system"], ensure_ascii=False)
+    assert dom.LABELS[domain_id] in whole, (
+        "the payload must say which book this run reads")
+    assert dom.LABELS[domain_id] in json.dumps(call["system"][-1],
+                                               ensure_ascii=False)
 
 
 def test_the_two_books_get_two_different_payloads(payloads):

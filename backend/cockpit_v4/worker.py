@@ -218,7 +218,10 @@ class Worker:
             summary=self.store.get_summary(record.thread_id),
             capability=self.runtime.capability,
             investigation=(seeded or {}).get("body") if seeded else None,
-            session=session)
+            session=session,
+            # An analytical turn does not carry the product pack. See
+            # `context.build`.
+            analytical=bool(verdict is not None and verdict.analytical))
 
         # One-generation broad Product Help. When the question names no
         # product detail beyond the synopsis the packet already carries,
@@ -239,9 +242,10 @@ class Worker:
         # answer is the one worth taking off. It comes back for the second
         # action like any withheld tool, so nothing is lost if the reader
         # really did want to know how ECL is defined.
+        analytical = bool(verdict is not None and verdict.analytical)
         withhold = ((TOOL_PRODUCT,)
                     if (coverage["level"] == pk.COVERAGE_SYNOPSIS
-                        or (verdict is not None and verdict.analytical))
+                        or analytical)
                     else ())
         # The tool contract speaks THIS book's period language. Handing a
         # monthly run a schema whose worked example is "the latest populated
@@ -249,12 +253,22 @@ class Worker:
         # back saying the book was quarterly: the analyst believed the
         # contract over the catalogue, because the contract is the thing it
         # has to fill in.
+        # TWO tool sets, for two different jobs.
+        #
+        # `full_tools` is what a turn that WRITES THE ANSWER needs: the whole
+        # finalize contract, narrative and claims and presentation included.
+        # An ACTION turn gets the stop-early subset of it instead -- about
+        # seven kilobytes less on every analytical action, and, more to the
+        # point, no longer a detailed description of an answer handed to a
+        # turn whose only job is to choose what to run.
         full_tools = provider_tools(catalog=book.catalog)
         analyst = Analyst(
             provider=self.runtime.provider,
             capability=self.runtime.capability, ledger=ledger,
             system=packet.system_blocks,
-            tools=provider_tools(withhold=withhold, catalog=book.catalog))
+            tools=provider_tools(
+                withhold=withhold, catalog=book.catalog,
+                stage="analytical_action" if analytical else ""))
         analyst.user(packet.first_user_message)
 
         from backend.cockpit_v4 import intent_envelope as intent_env
@@ -289,7 +303,14 @@ class Worker:
             emitter=emitter, catalog=book.catalog,
             cancel_check=lambda: bool(
                 (self.store.get_run(record.run_id) or record).cancel_requested),
-            deferred_tools=full_tools if withhold else None,
+            deferred_tools=(
+                provider_tools(
+                    catalog=book.catalog,
+                    stage="analytical_action" if analytical else "")
+                if withhold else None),
+            # The full contract, restored for the turn that writes the
+            # answer. See `Orchestrator._finalization_tools`.
+            answer_tools=full_tools,
             investigation=(seeded or {}).get("body") if seeded else None,
             value_resolution=packet.payload.get("value_resolution") or {},
             # §24-§27. The run's intent is SETTLED before the first provider

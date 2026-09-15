@@ -1250,8 +1250,63 @@ _DESCRIPTIONS = {
 }
 
 
+#: The fields an action turn's `finalize_response` may carry.
+#:
+#: An ACTION turn on an analytical run has one job: choose and author the
+#: next action. It cannot answer, because it has executed nothing and every
+#: number in a V4 answer is bound to a result that ran -- so the answer half
+#: of this contract (narrative claims, evidence refs, tables, charts,
+#: follow-ups) is not something it could legally fill in.
+#:
+#: Publishing it anyway cost about nine kilobytes on every action turn AND
+#: described, in detail, an answer-shaped response to a model whose turn was
+#: supposed to be a decision. The live failure was exactly that shape: an
+#: essay, the output allowance reached, nothing run.
+#:
+#: What remains is every terminal an action turn CAN legitimately take --
+#: it needs something the book does not hold, the request belongs to another
+#: owner, it cannot be supported, it failed safely -- and the fields those
+#: need. Same tool name, same parser, a strict subset of the same schema:
+#: nothing here accepts a shape the full contract would reject.
+_ACTION_FINALIZE_FIELDS = (
+    "disposition", "narrative", "understood_request", "response_language",
+    "clarification_question", "clarification_options", "referral_owner",
+    "referral_reason", "blocking_ambiguities", "resolved_assumptions",
+    "canonical_mappings", "excluded_parts", "public_rationale",
+    "limitations",
+)
+
+#: The terminals an action turn may reach with nothing executed.
+_ACTION_DISPOSITIONS = ("clarification", "referral", "unsupported",
+                        "safe_failure")
+
+_ACTION_FINALIZE_NOTE = (
+    " On this turn nothing has been executed yet, so this tool can only "
+    "STOP the run: ask the user a question, refer it, or say it cannot be "
+    "supported. To answer with numbers, run the analysis first -- the full "
+    "answer contract is offered on the turn after a result exists.")
+
+
+def _action_finalize(schema: dict[str, Any]) -> dict[str, Any]:
+    """The stop-early subset of the finalize contract. Never a superset."""
+    properties = {name: body
+                  for name, body in (schema.get("properties") or {}).items()
+                  if name in _ACTION_FINALIZE_FIELDS}
+    disposition = dict(properties.get("disposition") or {})
+    if "enum" in disposition:
+        kept = [d for d in disposition["enum"] if d in _ACTION_DISPOSITIONS]
+        # Narrowing only. If the full contract ever stops offering one of
+        # these, this stops offering it too rather than inventing it.
+        disposition["enum"] = kept or list(disposition["enum"])
+    properties["disposition"] = disposition
+    return {**{k: v for k, v in schema.items() if k != "properties"},
+            "properties": properties,
+            "required": [r for r in (schema.get("required") or [])
+                         if r in properties]}
+
+
 def provider_tools(*, withhold: tuple[str, ...] = (),
-                   catalog: Any = None) -> list[dict[str, Any]]:
+                   catalog: Any = None, stage: str = "") -> list[dict[str, Any]]:
     """The tool definitions, in the provider's wire shape.
 
     `catalog` supplies the PERIOD VOCABULARY. Every schema description that
@@ -1274,6 +1329,11 @@ def provider_tools(*, withhold: tuple[str, ...] = (),
 
     `finalize_response` can never be withheld: withholding it would leave a
     run with no way to terminate.
+
+    `stage="analytical_action"` publishes the STOP-EARLY subset of that
+    contract instead of the full one -- see `_ACTION_FINALIZE_FIELDS`. It is
+    a narrowing, never a widening, and the full contract comes back for the
+    turn that writes the answer.
     """
     blocked = {name for name in withhold if name != TOOL_FINALIZE}
     if blocked - set(TOOL_NAMES):
@@ -1290,8 +1350,12 @@ def provider_tools(*, withhold: tuple[str, ...] = (),
         if name in blocked:
             continue
         schema = _no_nested_intent(_inline(_load(files[name]), defs))
+        description = _DESCRIPTIONS[name]
+        if name == TOOL_FINALIZE and stage == "analytical_action":
+            schema = _action_finalize(schema)
+            description += _ACTION_FINALIZE_NOTE
         tools.append({"name": name,
-                      "description": _speak(_DESCRIPTIONS[name], catalog),
+                      "description": _speak(description, catalog),
                       "input_schema": _speak(schema, catalog)})
     return tools
 

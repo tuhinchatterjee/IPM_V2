@@ -74,8 +74,17 @@ def test_the_system_context_is_present_and_ordered(key, payload):
     assert isinstance(blocks, list) and len(blocks) >= 3
     # Stable prefix first so a cache write is reusable; volatile budget last.
     assert "CreditProbe Cockpit's analyst" in blocks[0]["text"]
-    assert "creditprobe" in blocks[1]["text"]
+    assert "cockpit_semantics" in blocks[1]["text"]
     assert "pinned_scope" in blocks[-1]["text"]
+    # The product pack rides on a PRODUCT question and not on an analytical
+    # one: about five kilobytes describing what CreditProbe is, handed to a
+    # turn that was asked what a book did. `inspect_product_knowledge` is
+    # already withheld from that turn for the same reason, and both come
+    # back on the second action.
+    if key == "ead_by_sector":
+        assert "creditprobe" not in blocks[1]["text"]
+    else:
+        assert "creditprobe" in blocks[1]["text"]
 
 
 @pytest.mark.parametrize("key", sorted(QUESTIONS))

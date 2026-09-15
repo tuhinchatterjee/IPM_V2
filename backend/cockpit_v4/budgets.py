@@ -145,15 +145,31 @@ class Ledger:
     #: though every individual bound was respected.
     SETTLEMENT_MARGIN_SECONDS = 2.0
 
-    def call_timeout_seconds(self) -> float:
+    def call_timeout_seconds(self, *, phase: str = "action") -> float:
         """How long a provider call may block, bounded by the run's clock.
 
         Never longer than the time the run has left, less a settlement
         margin. A socket that outlives the run's own watchdog is how a
         120-second run reaches 143 seconds.
+
+        And, for an ACTION, never longer than one action is allowed to take.
+        This used to hand the whole remainder to every call, so the first
+        action of a 120-second run could block for 118 seconds: by the time
+        it came back malformed there was no time to ask again, and the run
+        reported a call limit for what was really one call that was allowed
+        to eat the budget. An action that cannot be authored in its own
+        window is cancelled while there is still a window left to try again
+        in -- which is the whole point of holding one.
+
+        The answer turn keeps the full remainder. It is the last call the
+        run makes, and cutting it short would throw away work that has
+        already been done and paid for.
         """
         usable = self.remaining_seconds - self.SETTLEMENT_MARGIN_SECONDS
-        return max(1.0, min(usable, self.limits.deadline_seconds))
+        bound = min(usable, self.limits.deadline_seconds)
+        if phase != "answer":
+            bound = min(bound, self.limits.action_call_seconds)
+        return max(1.0, bound)
 
     def check_call_window(self, *, phase: str = "action") -> None:
         """Refuse a call there is no longer time to use.

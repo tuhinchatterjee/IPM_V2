@@ -623,6 +623,60 @@ await test("suggested-question chips stay interactive UI, not Markdown",
   },
 );
 
+/**
+ * §18. A CUT-OFF ACTION IS NOT A CALL LIMIT, and the panel says so.
+ *
+ * The Mac screen read: "Understanding the request", then a cut-off notice,
+ * then CALL_LIMIT, with no query ever run. The panel was telling the truth
+ * about a run that had stopped for the wrong reason. Now the same first
+ * turn is cut off and the run carries on -- so the panel has to show the
+ * attempt failing AND the stages that follow it.
+ */
+await test("a cut-off action shows the retry and then the real stages",
+  async () => {
+    const { context, page, requests, problems } = await openCockpit(browser);
+    try {
+      await ask(page, "EAD by sector, cut off the first action");
+      await expect(page, '[data-testid="v4-response"]', 120_000, problems);
+
+      // The stage that failed says so, without anything being expanded.
+      const note = await expect(
+        page, '[data-testid^="v4-step-failures-"]', 20_000, problems);
+      assert.match((await note.textContent()) ?? "",
+        /\d+ attempts? failed here/);
+
+      // And the attempt itself, in the substeps, says what happened to it.
+      for (const button of await page.$$(
+        '[data-testid="v4-process-steps"] li button')) {
+        if (await button.isDisabled()) continue;
+        if ((await button.getAttribute("aria-expanded")) !== "true") {
+          await button.click();
+        }
+      }
+      const panel = await page.textContent('[data-testid="v4-process-panel"]');
+      const text = (panel ?? "").toLowerCase();
+      assert.ok(/cut off|asking again/.test(text),
+        `the panel never says the attempt was cut off: ${text.slice(0, 600)}`);
+      assert.ok(!text.includes("call_limit") && !text.includes("call limit"),
+        "a single cut-off action is not a call limit");
+
+      // And the run went on through the stages that actually happened.
+      const stages = await page.$$eval(
+        '[data-testid="v4-process-steps"] li',
+        (rows) => rows.map((row) => (row.textContent ?? "").toLowerCase()),
+      );
+      const joined = stages.join(" | ");
+      for (const stage of ["preparing", "executing", "publishing"]) {
+        assert.ok(joined.includes(stage),
+          `the panel never showed ${stage}: ${joined.slice(0, 400)}`);
+      }
+      assertNoLegacyCalls(requests, "cut-off action");
+    } finally {
+      await context.close();
+    }
+  },
+);
+
 await test("a failed attempt stays visible after a later attempt succeeds",
   async () => {
     const { context, page, problems } = await openCockpit(browser);

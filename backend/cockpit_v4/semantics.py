@@ -935,6 +935,152 @@ def ambiguous_terms_in(question: str,
     return out
 
 
+#: Terms every governed analytical question in either book leans on, over
+#: and above the measures the catalogue maps. Matched as words, so "stage"
+#: does not match "backstage".
+_STRUCTURAL_TERMS: dict[str, tuple[str, ...]] = {
+    "stage": ("stage", "stage 1", "stage 2", "stage 3", "staging"),
+    "sector": ("sector", "industry"),
+    "borrower": ("borrower", "obligor", "counterparty", "name"),
+    "product": ("product",),
+    "period": ("quarter", "month", "period", "latest", "this", "current"),
+}
+
+
+#: Spelling pairs the catalogue uses one side of and a reader uses either.
+#: Not a stemmer and not a synonym list: two spellings of one word.
+_SPELLINGS = (("behaviour", "behavior"), ("utilisation", "utilization"),
+              ("recognised", "recognized"), ("analyse", "analyze"))
+
+
+def _variants(phrase: str) -> list[str]:
+    out = {phrase}
+    for british, american in _SPELLINGS:
+        for form in list(out):
+            if british in form:
+                out.add(form.replace(british, american))
+            if american in form:
+                out.add(form.replace(american, british))
+    # "covenants" is the term "covenant"; "score bands" is "score band".
+    # An optional plural, matched on the last word only, is the whole of the
+    # morphology here -- a reader writes "which borrowers", the catalogue
+    # says "borrower", and a check that called those different terms would
+    # send a governed question round the catalogue for a word it already
+    # holds.
+    return sorted(out)
+
+
+def _mentions(text: str, phrase: str) -> bool:
+    for variant in _variants(phrase):
+        pattern = (rf"(?<![a-z0-9]){re.escape(variant)}(?:e?s)?"
+                   rf"(?![a-z0-9])")
+        if re.search(pattern, text):
+            return True
+    return False
+
+
+def readiness(catalog: Any, question: str, *,
+              seed_packet: dict[str, Any] | None = None,
+              value_resolution: dict[str, Any] | None = None
+              ) -> dict[str, Any]:
+    """Whether the governed metadata already in this packet is enough.
+
+    §7, §8. A DETERMINISTIC check, computed by the server before any model
+    call, that says one thing: the facts needed to author a query for this
+    question are already in front of you, or they are not.
+
+    It does not choose the analysis. It names no aggregation, no filter, no
+    comparison and no method -- which measure to report and how to compute
+    it stay entirely the analyst's. What it removes is the reason a run had
+    to go and look: a seeded Construction thread read the catalogue twice
+    and died with CALL_LIMIT having been handed, in its own opening packet,
+    the relation, the column, the segment value and both periods.
+
+    `sufficient` is true when every governed term this question names is
+    already resolved here. It is a statement about METADATA COVERAGE and
+    nothing else, and `inspect_catalog` remains available either way.
+    """
+    text = " ".join(str(question or "").lower().split())
+    measures_here = field_packet(catalog)
+    matched: list[dict[str, str]] = []
+    for entry in measures_here:
+        names = [str(entry.get("term") or "")]
+        names += [str(a) for a in (entry.get("also_known_as") or [])]
+        hit = next((n for n in names if n and _mentions(text, n)), "")
+        if hit:
+            matched.append({"term": str(entry.get("term") or ""),
+                            "matched_on": hit,
+                            "field_id": str(entry.get("field_id") or ""),
+                            "relation": str(entry.get("relation") or "")})
+    structural = sorted({name for name, phrases in _STRUCTURAL_TERMS.items()
+                         if any(_mentions(text, w) for w in phrases)})
+
+    unmapped = sorted(ambiguous_terms_in(question, catalog))
+    # `context._value_resolution` names these `recognised` and
+    # `needs_a_question`; the shorter names are accepted too so this can be
+    # called with either. A key that matches neither reads as "no values",
+    # which is the safe reading: it can only make the check stricter.
+    values = value_resolution or {}
+    resolved_values = list(values.get("recognised")
+                           or values.get("resolved") or [])
+    open_values = list(values.get("needs_a_question")
+                       or values.get("ambiguous") or [])
+
+    seeded = bool(seed_packet)
+    # A seeded thread is sufficient when the packet carries the four things
+    # a query needs and could not otherwise know: which relation, which
+    # period column, which period, and which value to filter on.
+    seed_has = [key for key in ("relation", "period_column",
+                                "reporting_period", "subject")
+                if (seed_packet or {}).get(key)]
+    seed_complete = seeded and len(seed_has) == 4
+
+    # A governed VALUE is metadata too. "Why is risk building in Real
+    # Estate?" names no measure at all -- it names a value of `sector`,
+    # already resolved against the ones this release holds, which tells the
+    # run the column and the filter. Requiring a measure as well would send
+    # that question to the catalogue for something it was handed.
+    sufficient = bool((seed_complete or matched or resolved_values)
+                      and not unmapped and not open_values)
+    body: dict[str, Any] = {
+        "checked_by": "server, deterministically, before any model call",
+        "sufficient": sufficient,
+        "governed_measures_already_resolved": matched[:12],
+        "structural_terms_recognised": structural,
+        "periods_resolved": {
+            "reporting": (seed_packet or {}).get("reporting_period", "")
+            or (populated_periods(catalog) or [""])[-1],
+            "comparison": (seed_packet or {}).get("comparison_period", ""),
+            "period_column": _period_column(catalog),
+        },
+        "values_resolved": resolved_values,
+    }
+    if seeded:
+        body["seed"] = {"packet_present": True,
+                        "carries": seed_has,
+                        "missing": [k for k in ("relation", "period_column",
+                                                "reporting_period", "subject")
+                                    if k not in seed_has]}
+    if unmapped:
+        body["terms_still_needing_a_decision"] = unmapped
+    if open_values:
+        body["values_still_ambiguous"] = open_values
+    body["normal_first_action"] = ("execute_analysis" if sufficient
+                                   else "inspect_catalog")
+    body["note"] = (
+        "Every field fact needed to author this query is already in this "
+        "packet, so the normal first action is execute_analysis. This says "
+        "nothing about WHICH analysis: the measure, the aggregation, the "
+        "comparison and the method are yours. inspect_catalog remains "
+        "available if the question turns on a column that is genuinely not "
+        "here -- name the field ids when you call it."
+        if sufficient else
+        "Something this question names is not resolved here, so a metadata "
+        "lookup is reasonable before authoring the query. Ask for exactly "
+        "the field ids you are missing.")
+    return body
+
+
 def block(catalog: Any) -> dict[str, Any]:
     """The semantics block carried in the starting context."""
     return {
@@ -962,7 +1108,7 @@ def block(catalog: Any) -> dict[str, Any]:
 
 __all__ = ["AMBIGUOUS_TERMS", "MAX_SEED_FIELDS", "SEED_FIELDS",
            "SEED_FIELDS_BY_DOMAIN", "ambiguous_terms", "ambiguous_terms_in",
-           "block", "domain_of", "field_packet", "frequency", "measure_table",
+           "block", "domain_of", "readiness", "field_packet", "frequency", "measure_table",
            "measures", "period_noun", "period_phrases", "periods",
            "NEUTRAL_VOCABULARY", "VOCABULARY_TOKENS", "populated_periods",
            "populated_quarters", "seed_field_packet", "substitute",

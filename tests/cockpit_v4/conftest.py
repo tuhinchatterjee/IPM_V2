@@ -78,13 +78,20 @@ class ScriptedProvider:
 
     def converse(self, *, system, messages, tools=None, max_tokens=4096,
                  model="", purpose="", role="", timeout=0.0,
-                 allow_retry=True, effort="") -> Any:
+                 allow_retry=True, effort="", tool_choice=None,
+                 output_config=None) -> Any:
         assert allow_retry is False, (
             "the SDK must not retry behind the ledger's back")
+        # `tool_choice` and `output_config` are recorded, not ignored: the
+        # snapshot tests assert what an ACTION turn was actually allowed to
+        # be, and a double that dropped them would let the run go back to
+        # sending unconstrained turns without a single test noticing.
         self.sent.append({"system": system, "messages": [dict(m) for m in
                                                          messages],
                           "tools": tools, "max_tokens": max_tokens,
-                          "model": model, "purpose": purpose})
+                          "model": model, "purpose": purpose,
+                          "timeout": timeout, "tool_choice": tool_choice,
+                          "output_config": output_config})
         if not self.script:
             raise AssertionError("the scripted provider ran out of turns")
         nxt = self.script.pop(0)

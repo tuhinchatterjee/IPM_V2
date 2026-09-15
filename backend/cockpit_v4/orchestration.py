@@ -123,6 +123,10 @@ class Orchestrator:
     #: already covers the question; restored before the second action so a
     #: misjudged question is never left without the tool it needs.
     deferred_tools: list[dict[str, Any]] | None = None
+    #: The FULL tool contract, for the turn that writes the answer. Action
+    #: turns run on the stop-early subset of `finalize_response`; this is
+    #: what comes back once a result exists and there is an answer to write.
+    answer_tools: list[dict[str, Any]] | None = None
     #: The attention item this conversation was opened from, if any.
     investigation: dict[str, Any] | None = None
     #: What the QUESTION'S OWN WORDS were resolved to against the values this
@@ -519,11 +523,30 @@ class Orchestrator:
             return None
         keep = {TOOL_EXECUTE, TOOL_INSPECT, TOOL_PRODUCT}
         current = list(self.analyst.tools or [])
-        trimmed = [t for t in current if t.get("name") not in keep]
-        return trimmed if trimmed and len(trimmed) < len(current) else None
+        # The FULL contract, not the action turn's stop-early subset. An
+        # answer turn that was offered the subset could not author narrative
+        # claims, tables or charts at all -- it would be holding a schema
+        # with no place to put the answer it just paid to compute.
+        source = list(self.answer_tools or current)
+        trimmed = [t for t in source if t.get("name") not in keep]
+        if not trimmed:
+            return None
+        return trimmed if (len(trimmed) < len(current)
+                           or trimmed != current) else None
 
     def _generate(self):
-        reserved = self.ledger.limits.reserved_output_tokens
+        # WHICH KIND OF TURN THIS IS, and what it may cost.
+        #
+        # An action is a decision: which tool, with which arguments. An
+        # answer is a document: narrative, claims, a presentation plan. They
+        # were given the same allowance, so an action turn could spend an
+        # answer's worth of tokens -- and on an open analytical question it
+        # did, reached the cap, and delivered nothing that ran.
+        answering = bool(self.executed or self.answer_only)
+        limits = self.ledger.limits
+        reserved = (limits.reserved_output_tokens if answering
+                    else limits.action_output_tokens)
+        effort = (limits.answer_effort if answering else limits.action_effort)
         if (self.deferred_tools is not None
                 and self.ledger.counters.generation_attempts >= 1):
             # Second action onwards: the full tool set, whatever the first
@@ -559,7 +582,11 @@ class Orchestrator:
             status=ev.STATUS_STARTED,
             attempt=self.ledger.counters.generation_attempts + 1,
             detail_ref=self._detail({"purpose": self.purpose,
+                                     "phase": "answer" if answering
+                                     else "action",
                                      "tools_offered": len(self.analyst.tools),
+                                     "max_output_tokens": reserved,
+                                     "effort": effort,
                                      "context_bytes":
                                          self.analyst.payload_bytes()}),
             public_message=_PURPOSE_MESSAGE.get(
@@ -571,8 +598,8 @@ class Orchestrator:
             try:
                 turn = self.analyst.ask(
                     purpose=self.purpose, max_output_tokens=reserved,
-                    phase="answer" if (self.executed or self.answer_only)
-                    else "action")
+                    phase="answer" if answering else "action",
+                    effort=effort)
             finally:
                 # Narrowing is per CALL. The full set comes back immediately
                 # so a run that genuinely needs another analytical round --
@@ -606,20 +633,35 @@ class Orchestrator:
                     if phase == "answer" else
                     "The response was cut off before it was complete; "
                     "asking again once."))
-            self.analyst.user(
-                f"Your previous response was cut off at its "
-                f"{exc.limit:,}-token output allowance and nothing from it "
-                f"ran. Send one complete tool call. Keep it compact; do not "
-                f"shorten the analysis itself.")
+            self.analyst.user(self._action_recovery_prompt(exc)
+                              if phase != "answer" else
+                              f"Your previous response was cut off at its "
+                              f"{exc.limit:,}-token output allowance and "
+                              f"nothing from it ran. Send one complete tool "
+                              f"call. Keep it compact; do not shorten the "
+                              f"analysis itself.")
             return None
         except ProviderFailure as exc:
             if exc.retry_class == "transport":
                 self.ledger.spend_transport_retry()
+                stalled = bool((exc.detail or {}).get("timed_out"))
                 self.emitter.append(
-                    ev.RETRY_REQUESTED, stage="understanding",
-                    operation="transport", status=ev.STATUS_REJECTED,
-                    public_message="The request did not complete; retrying "
-                                   "once.")
+                    ev.RETRY_REQUESTED,
+                    stage="publishing" if self.executed else "understanding",
+                    operation="timeout" if stalled else "transport",
+                    status=ev.STATUS_REJECTED,
+                    detail_ref=self._detail({"code": exc.code,
+                                             "retry_class": exc.retry_class,
+                                             "timed_out": stalled}),
+                    public_message=(
+                        # §18. What the reader is told is what happened: a
+                        # turn that ran past the time one action is allowed
+                        # is not the same event as a network fault, and
+                        # neither of them is a call limit.
+                        "That attempt ran past the time one action is "
+                        "allowed; asking again once."
+                        if stalled else
+                        "The request did not complete; retrying once."))
                 return None
             raise
 
@@ -647,6 +689,38 @@ class Orchestrator:
         self.purpose = "ANALYSIS_ACTION"
         self.store.save_messages(self.run.run_id, self.analyst.messages)
         return turn
+
+    def _action_recovery_prompt(self, exc) -> str:
+        """What to send after an ACTION turn failed to produce one.
+
+        Four things, and deliberately nothing else: what the parser or the
+        allowance actually objected to, the question in the user's own
+        words, where the authoritative context already is, and what a valid
+        response looks like. The malformed output itself is NOT resent --
+        the run already paid for those tokens once, and sending them back
+        buys another chance to continue them.
+        """
+        question = ""
+        first = self.analyst.messages[0] if self.analyst.messages else None
+        if first and isinstance(first.get("content"), str):
+            question = str(first["content"]).split("\n\n")[0]
+        lines = [
+            f"Your previous response was cut off at its {exc.limit:,}-token "
+            f"output allowance before a tool call was complete, so nothing "
+            f"from it ran.",
+            "",
+            f"The request, unchanged: {question}" if question else "",
+            "",
+            "Everything you need to author the next action is already in "
+            "the system context: the book, the release, the calendar, the "
+            "governed measures and the values this question named. Do not "
+            "restate any of it.",
+            "",
+            "Reply with ONE tool call and nothing else. No explanation, no "
+            "plan, no summary -- those belong in the final answer, after a "
+            "result exists.",
+        ]
+        return "\n".join(line for line in lines if line != "" or True).strip()
 
     # -- action handling -------------------------------------------------
 

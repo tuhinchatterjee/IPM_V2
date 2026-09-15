@@ -76,6 +76,25 @@ class Capability:
     #: True only when a live provider call confirmed the id serves. A card
     #: read from disk is a DECLARATION; it becomes verified when checked.
     live_verified: bool = False
+    #: Whether this model accepts `tool_choice: {"type": "any"}`.
+    #:
+    #: An ACTION turn has no legal prose outcome: it exists to choose the
+    #: next action. Asking for that in words and hoping is what produced an
+    #: 80-second analytical essay, a parser that refused it, and a run that
+    #: spent its one action recovery discovering the same thing again.
+    #:
+    #: Declared on the card because it is a PROVIDER fact, not a preference,
+    #: and models differ: most accept forced tool use, and a few answer 400.
+    #: Defaults to True and degrades on the first 400 that names it, so a
+    #: card written before this field neither loses the guarantee nor fails
+    #: a run over it.
+    supports_forced_tool_use: bool = True
+    #: Whether this model accepts `output_config.effort`.
+    #:
+    #: Off unless the card says otherwise: a model that does not know the
+    #: parameter REJECTS the request rather than ignoring it, and a run that
+    #: fails closed over a latency optimisation is worse than a slow one.
+    supports_effort_control: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {"provider": self.provider, "model_id": self.model_id,
@@ -84,6 +103,8 @@ class Capability:
                 "max_output_tokens": self.max_output_tokens,
                 "supports_tools": self.supports_tools,
                 "supports_token_counting": self.supports_token_counting,
+                "supports_forced_tool_use": self.supports_forced_tool_use,
+                "supports_effort_control": self.supports_effort_control,
                 "price": self.price.to_dict(), "source": self.source,
                 "verified_at": self.verified_at,
                 "live_verified": self.live_verified}
@@ -148,6 +169,10 @@ def load_price_card(path: str | Path, *, model_id: str,
         context_tokens=int(entry["context_tokens"]),
         max_output_tokens=int(entry["max_output_tokens"]),
         supports_tools=bool(entry.get("supports_tools", True)),
+        supports_forced_tool_use=bool(
+            entry.get("supports_forced_tool_use", True)),
+        supports_effort_control=bool(
+            entry.get("supports_effort_control", False)),
         supports_token_counting=bool(entry.get("supports_token_counting",
                                                True)),
         price=price,

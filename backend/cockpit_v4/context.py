@@ -140,7 +140,7 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
           summary: dict[str, Any] | None = None,
           location: str = "", capability: Any = None,
           investigation: dict[str, Any] | None = None,
-          session: Any = None) -> Packet:
+          session: Any = None, analytical: bool = False) -> Packet:
     """Assemble the packet. Never trims the instruction to hit a target."""
     from backend.cockpit_v4 import semantics as sem
     from backend.cockpit_v4 import values as val
@@ -235,28 +235,56 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
     # `inspect_product_knowledge` is offered on the first action.
     product_coverage = pk.coverage(question)
 
+    # WHAT THIS QUESTION IS ABOUT, decided before the packet is built.
+    #
+    # An analytical turn does not carry the product pack. It is about five
+    # kilobytes describing what CreditProbe IS, on a request that asks what
+    # a book DID -- and `inspect_product_knowledge` is already off the tool
+    # list for exactly the same reason. Every byte on an action turn is
+    # something the model reads before it can decide anything, and the
+    # measured action payload for the two questions that failed on the Mac
+    # was sixty kilobytes.
+    #
+    # It is not a capability the run loses: the tool comes back on the
+    # second action like any withheld one, and this is the only turn the
+    # pack is missing from.
+    product_pack: dict[str, Any] = {} if analytical else {
+        # ~900 tokens of product facts. Enough to answer "Who are you?" or
+        # "What is CreditProbe?" well in ONE generation; everything deeper
+        # is a tool call away. Attaching the whole pack would be the V3
+        # mistake in a new costume.
+        "creditprobe": pk.synopsis(),
+        "product_knowledge_coverage": {
+            **product_coverage,
+            "note": (
+                "SYNOPSIS means the product facts above already cover "
+                "this question: answer from them in this action rather "
+                "than retrieving. RETRIEVAL means the question names "
+                "detail the synopsis does not carry — read exactly those "
+                "topics. Either way, if your first action does not "
+                "finish the run, inspect_product_knowledge is available "
+                "on every action after it."),
+        },
+        "product_functionalities": _registry_compact(catalog),
+    }
+
+    # The seeded packet first, because readiness depends on it: a thread
+    # opened from a card already holds the relation, the segment value and
+    # both periods, and a run that does not know that goes looking for them.
+    seed_packet: dict[str, Any] = {}
+    if investigation:
+        seed_packet = inv_mod.analysis_packet(
+            catalog=catalog, session=session, seed=investigation)
+    _readiness = sem.readiness(
+        catalog, question, seed_packet=seed_packet,
+        value_resolution=_value_resolution(resolved, asked))
+
     system_blocks: list[dict[str, Any]] = [
         # Stable prefix first, so a cache write is reusable and a changing
         # budget cannot invalidate it.
         {"type": "text", "text": analyst_instruction(catalog)},
         {"type": "text", "text": json.dumps({
-            # ~900 tokens of product facts, always present. Enough to answer
-            # "Who are you?" or "What is CreditProbe?" well in ONE
-            # generation; everything deeper is a tool call away. Attaching
-            # the whole pack would be the V3 mistake in a new costume.
-            "creditprobe": pk.synopsis(),
-            "product_knowledge_coverage": {
-                **product_coverage,
-                "note": (
-                    "SYNOPSIS means the product facts above already cover "
-                    "this question: answer from them in this action rather "
-                    "than retrieving. RETRIEVAL means the question names "
-                    "detail the synopsis does not carry — read exactly those "
-                    "topics. Either way, if your first action does not "
-                    "finish the run, inspect_product_knowledge is available "
-                    "on every action after it."),
-            },
-            "product_functionalities": _registry_compact(catalog),
+            **product_pack,
             "catalog_index": _catalog_index(catalog, scope),
             # What terms mean when they have one meaning, and how a period
             # phrase resolves against THIS release's calendar. Computed from
@@ -272,11 +300,17 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
         {"type": "text", "text": json.dumps({
             "pinned_scope": pinned, "budgets": budget,
             "value_resolution": _value_resolution(resolved, asked),
+            # §7, §8. Whether the metadata for THIS question is already
+            # here, decided by the server before any model call. It names
+            # no method: see `semantics.readiness`.
+            "analysis_readiness": _readiness,
         }, ensure_ascii=False)},
     ]
 
     parts = [f"USER REQUEST (original wording, unmodified):\n{question}"]
     analysis: dict[str, Any] = {}
+    if investigation:
+        analysis = seed_packet
     if investigation:
         # Seeded by Investigate Further, from a dashboard item the user
         # clicked. These are recorded facts already computed and shown to
@@ -303,8 +337,6 @@ def build(*, question: str, principal: dict[str, Any], scope: Any,
         # catalogue, read it again, read product knowledge, and died with
         # CALL_LIMIT without answering anything. Not one of those calls could
         # have returned something it had not been given.
-        analysis = inv_mod.analysis_packet(
-            catalog=catalog, session=session, seed=investigation)
         if analysis:
             parts.append(
                 "ANALYSIS PACKET FOR THIS INVESTIGATION (everything behind "

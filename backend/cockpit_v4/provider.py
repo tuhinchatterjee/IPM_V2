@@ -139,6 +139,13 @@ class Analyst:
     turns: list[dict[str, Any]] = field(default_factory=list)
     #: What the last generation asked for and what the budget granted.
     response_allowance: dict[str, Any] = field(default_factory=dict)
+    #: Whether an ACTION turn may be required to be a tool call, and whether
+    #: effort may be set. Both start from the capability and are turned OFF
+    #: for the rest of the run the first time the provider rejects a request
+    #: naming one -- so a model that does not accept them costs this run one
+    #: repeated attempt, not the run.
+    forced_tool_use: bool = True
+    effort_control: bool = True
 
     # -- history ---------------------------------------------------------
 
@@ -199,6 +206,14 @@ class Analyst:
 
     # -- counting --------------------------------------------------------
 
+    #: How long the last `count_input` took, and how long serializing the
+    #: request for measurement took. Separate numbers because they are
+    #: separate defects: "the action turn took 80 seconds" is not a finding,
+    #: and neither counting nor serialization was ever visible enough to be
+    #: ruled out.
+    _last_count_ms: int = 0
+    _last_serialize_ms: int = 0
+
     def count_input(self) -> tuple[int, str]:
         """Count the WHOLE assembled request against the serving model.
 
@@ -207,6 +222,7 @@ class Analyst:
         character estimate is labelled an estimate; it is never presented as
         a calibrated truth.
         """
+        started = time.monotonic()
         counter = getattr(self.provider, "count_tokens", None)
         if callable(counter) and self.capability.supports_token_counting:
             try:
@@ -214,12 +230,17 @@ class Analyst:
                 value = counter(system=self.system, messages=self.messages,
                                 tools=self.tools,
                                 model=self.capability.model_id)
+                self._last_count_ms = int((time.monotonic() - started) * 1000)
                 return int(value), "provider_count_tokens"
             except Exception:  # noqa: BLE001 - fall back, but say so
                 pass
+        serialize_started = time.monotonic()
         payload = json.dumps(
             {"system": self.system, "messages": self.messages,
              "tools": self.tools}, ensure_ascii=False, default=str)
+        self._last_serialize_ms = int(
+            (time.monotonic() - serialize_started) * 1000)
+        self._last_count_ms = int((time.monotonic() - started) * 1000)
         # Deliberately conservative: over-estimating stops a run early, and
         # under-estimating sends a request the model cannot hold.
         return int(len(payload) / 2.2) + 1, "local_conservative_estimate"
@@ -284,14 +305,91 @@ class Analyst:
 
     # -- the call --------------------------------------------------------
 
+    #: A 400 that names one of the two request parameters this module added.
+    #: Matched on the provider's own words, and never on anything else: a
+    #: rejection about a TOOL SCHEMA is a different fault with a different
+    #: fix, and retrying it without `tool_choice` would hide it.
+    _PARAM_REFUSED = re.compile(
+        r"tool_choice|output_config|\beffort\b", re.I)
+
+    def _converse(self, *, choice: dict[str, Any] | None,
+                  config: dict[str, Any] | None, entry: dict[str, Any],
+                  max_tokens: int, purpose: str, timeout: float) -> Any:
+        """Send the turn; drop a refused request parameter exactly once.
+
+        The parameters are model-gated: a model that does not know
+        `tool_choice: {"type": "any"}` answers 400 rather than ignoring it.
+        Reaching that 400 should cost this run one immediate re-send without
+        the parameter, and every later turn in the run goes without it --
+        recorded on the call report, because a run that quietly stopped
+        requiring tool calls is a run whose action turns can go back to
+        writing essays and nobody would know.
+        """
+        def send(with_choice, with_config):
+            self.ledger.spend_provider_attempt()
+            kwargs: dict[str, Any] = {}
+            if with_choice:
+                kwargs["tool_choice"] = with_choice
+            if with_config:
+                kwargs["output_config"] = with_config
+            return self.provider.converse(
+                system=self.system, messages=self.messages, tools=self.tools,
+                max_tokens=max_tokens, model=self.capability.model_id,
+                purpose=purpose, role="cockpit_v4_analyst", timeout=timeout,
+                # Every HTTP attempt must pass through the ledger, so the
+                # SDK is not allowed to retry behind our back.
+                allow_retry=False, **kwargs)
+
+        try:
+            return send(choice, config)
+        except Exception as exc:  # noqa: BLE001 - re-raised unless it is ours
+            if not (choice or config):
+                raise
+            text = str(exc)
+            failure = _classify(exc)
+            rejected = (failure.code in (PROVIDER_REQUEST_INVALID,
+                                         TOOL_SCHEMA_INVALID)
+                        or "400" in text)
+            if not (rejected and self._PARAM_REFUSED.search(text)):
+                raise
+            if choice:
+                self.forced_tool_use = False
+            if config:
+                self.effort_control = False
+            entry["request_parameters_refused"] = _sanitize(text)[:200]
+            entry["tool_choice"] = "auto"
+            entry["effort"] = ""
+            return send(None, None)
+
     def ask(self, *, purpose: str, max_output_tokens: int,
-            tool_choice: str = "any", phase: str = "action") -> Turn:
-        """One generation attempt. Bounded, reserved, counted and settled."""
+            tool_choice: str = "any", phase: str = "action",
+            effort: str = "") -> Turn:
+        """One generation attempt. Bounded, reserved, counted and settled.
+
+        `tool_choice` is now SENT. It was a parameter this method accepted
+        and dropped on the floor: every turn went out unconstrained, so an
+        ACTION turn -- whose only legal outcome is choosing the next action
+        -- was free to answer in prose, and on an open analytical question
+        it did. The turn then took as long as an essay takes, ended at the
+        output allowance, and nothing from it ran.
+
+        `effort` bounds how hard the model works before it answers. An
+        action turn is a decision, not an analysis: the analysis happens in
+        DuckDB afterwards.
+
+        Both are model-gated. If the provider rejects the request naming one
+        of them, it is dropped for the rest of the run and the attempt is
+        made again once -- recorded, not silent. Failing a run closed over a
+        latency optimisation would be worse than the latency.
+        """
+        serialize_started = time.monotonic()
         sizes = self.payload_bytes()
+        serialize_ms = int((time.monotonic() - serialize_started) * 1000)
         entry = self._record(
             purpose=purpose, phase=phase, attempt=0,
             tools_offered=[str(t.get("name") or "") for t in self.tools],
-            context_bytes=sizes, outcome="refused_before_send")
+            context_bytes=sizes, serialize_ms=serialize_ms,
+            outcome="refused_before_send")
         try:
             self.ledger.check_deadline()
             # And refused outright if there is no longer time to use the
@@ -307,7 +405,8 @@ class Analyst:
         reserved_output = min(max_output_tokens,
                               self.capability.max_output_tokens)
         ok, counted, method = self.fits(reserved_output=reserved_output)
-        entry.update(counted_input_tokens=counted, count_method=method)
+        entry.update(counted_input_tokens=counted, count_method=method,
+                     count_ms=self._last_count_ms)
         if not ok:
             entry["refusal"] = INPUT_CONTEXT_LIMIT
             raise InputTooLarge(
@@ -349,20 +448,28 @@ class Analyst:
         # The deadline the CLIENT gets is bounded by the time the RUN has
         # left, less a settlement margin, so a stalled socket cannot outlive
         # the run's own watchdog.
-        timeout = self.ledger.call_timeout_seconds()
+        timeout = self.ledger.call_timeout_seconds(phase=phase)
+        # WHAT THIS TURN IS ALLOWED TO BE.
+        #
+        # An action turn may only be a tool call. An answer turn may be
+        # prose, because writing prose is what it is for.
+        forced = (phase != "answer" and self.forced_tool_use
+                  and self.capability.supports_forced_tool_use)
+        choice = {"type": "any"} if forced else None
+        config = ({"effort": effort}
+                  if effort and self.effort_control
+                  and self.capability.supports_effort_control else None)
         entry.update(output_allowance=dict(self.response_allowance),
                      call_timeout_seconds=round(timeout, 3),
+                     tool_choice=(dict(choice) if choice else "auto"),
+                     effort=(config or {}).get("effort", ""),
                      outcome="sent")
         started = time.monotonic()
         try:
             self.ledger.spend_provider_attempt()
-            result = self.provider.converse(
-                system=self.system, messages=self.messages, tools=self.tools,
-                max_tokens=reserved_output, model=self.capability.model_id,
-                purpose=purpose, role="cockpit_v4_analyst", timeout=timeout,
-                # Every HTTP attempt must pass through the ledger, so the
-                # SDK is not allowed to retry behind our back.
-                allow_retry=False)
+            result = self._converse(
+                choice=choice, config=config, entry=entry,
+                max_tokens=reserved_output, purpose=purpose, timeout=timeout)
         except BudgetExceeded:
             # OUR accounting refused the attempt, so nothing was sent and
             # nothing can have been billed. Settled at zero, and the budget
@@ -557,12 +664,22 @@ def _classify(exc: Exception) -> ProviderFailure:
             retry_class="transport",
             detail={"status_code": 429,
                     "rejected_before_inference": True})
-    if ("timeout" in lowered or "timed out" in name or "connection" in lowered
-            or "503" in text or "502" in text or "overloaded" in lowered):
+    # A call that ran out of time is a TRANSPORT failure, and the run may
+    # try once more. It was matching "timed out" against the exception's
+    # CLASS NAME -- where the phrase has no space, so `TimeoutError` never
+    # matched -- and the words in the message were never checked at all. A
+    # stalled action therefore failed the whole run instead of being asked
+    # again, which is exactly the outcome the per-action window exists to
+    # prevent.
+    timed_out = ("timeout" in lowered or "timed out" in lowered
+                 or "timeout" in name or "deadline" in lowered)
+    if (timed_out or "connection" in lowered or "503" in text
+            or "502" in text or "overloaded" in lowered):
         return ProviderFailure(
             PROVIDER_UNAVAILABLE,
             f"the provider request did not complete: {text[:200]}",
-            retry_class="transport")
+            retry_class="transport",
+            detail={"timed_out": timed_out})
     return ProviderFailure(
         PROVIDER_UNAVAILABLE,
         f"the provider request failed: {_sanitize(text)[:200]}",

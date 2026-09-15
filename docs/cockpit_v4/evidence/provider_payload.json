@@ -4,9 +4,9 @@
     "ead_by_sector": {
       "question": "What is total exposure at default by sector in the latest quarter?",
       "model": "mock-analyst",
-      "max_tokens": 4096,
+      "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 33389,
+      "system_bytes": 28783,
       "message_bytes": 221,
       "tools": [
         {
@@ -23,7 +23,7 @@
         },
         {
           "name": "finalize_response",
-          "schema_bytes": 9463
+          "schema_bytes": 2245
         }
       ],
       "unsupported_schema_keywords": []
@@ -31,9 +31,9 @@
     "explain_tac": {
       "question": "Explain TAC.",
       "model": "mock-analyst",
-      "max_tokens": 4096,
+      "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 33384,
+      "system_bytes": 33947,
       "message_bytes": 167,
       "tools": [
         {
@@ -62,9 +62,9 @@
     "who_are_you": {
       "question": "Who are you?",
       "model": "mock-analyst",
-      "max_tokens": 4096,
+      "max_tokens": 3072,
       "system_blocks": 3,
-      "system_bytes": 33388,
+      "system_bytes": 33951,
       "message_bytes": 167,
       "tools": [
         {

@@ -328,7 +328,8 @@ This environment uses synthetic demonstration data rather than a real bank portf
 
         def converse(self, *, system, messages, tools=None, max_tokens=4096,
                      model="", purpose="", role="", timeout=0.0,
-                     allow_retry=True, effort=""):
+                     allow_retry=True, effort="", tool_choice=None,
+                     output_config=None):
             assert allow_retry is False
             question = self._question(messages)
             # Which turn of THIS conversation this is, counted from the
@@ -373,6 +374,25 @@ This environment uses synthetic demonstration data rather than a real bank portf
                             "referral_reason": None},
                         "tu-bad")])
                 return help_answer()
+            if "cut off" in question:
+                # The MAC failure shape, for the browser: the first ACTION
+                # turn reaches its output allowance with nothing complete in
+                # it. The panel must say the attempt was cut off and then go
+                # on through the real stages -- not report a call limit for
+                # what was one bad call.
+                # Counted in USER turns, not assistant ones: a truncated
+                # response never enters history, so an assistant counter
+                # sees the same turn twice and truncates for ever.
+                asks = sum(1 for m in messages if m.get("role") == "user")
+                if turn == 0 and asks == 1:
+                    from backend.cockpit_v4.provider import OutputTruncated
+
+                    raise OutputTruncated(
+                        "the response reached its output allowance",
+                        limit=3072)
+                book = book_of(system)
+                return (analysis_call(book) if turn == 0
+                        else analysis_finish(messages, book))
             if "fail" in question:
                 raise KeyError("a scripted application defect")
             if "slow" in question:
